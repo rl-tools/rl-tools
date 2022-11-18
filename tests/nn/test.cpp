@@ -533,7 +533,7 @@ TEST_F(NeuralNetworkTestTrainModel, TrainModel) {
 }
 #endif
 
-#ifdef SKIP_TESTS
+#ifndef SKIP_TESTS
 TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;

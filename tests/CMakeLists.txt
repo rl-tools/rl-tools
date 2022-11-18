@@ -9,6 +9,7 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
+# Neural Network Test
 add_executable(
         neural_network_test
         nn/test.cpp
@@ -23,8 +24,24 @@ target_link_libraries(
         HDF5::HDF5
 )
 
+# RL Environment Pendulum test
+add_executable(
+        rl_environments_pendulum_test
+        rl/environments/pendulum.cpp
+)
+target_include_directories(rl_environments_pendulum_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${PROJECT_SOURCE_DIR}/include
+        )
+target_link_libraries(
+        rl_environments_pendulum_test
+        GTest::gtest_main
+        HDF5::HDF5
+)
+
 include(GoogleTest)
 gtest_discover_tests(neural_network_test)
+gtest_discover_tests(rl_environments_pendulum_test)
 
 
 
