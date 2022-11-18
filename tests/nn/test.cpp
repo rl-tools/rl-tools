@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <vector>
-#include "../neural_network_models.h"
+#include "../include/nn/models/three_layer_fc.h"
 #include "utils.h"
 #include <highfive/H5File.hpp>
 #include <sstream>
@@ -18,23 +18,27 @@ public:
 
 };
 
+using namespace layer_in_c;
+
 #define INPUT_DIM 17
 #define LAYER_1_DIM 50
-#define LAYER_1_FN RELU
+#define LAYER_1_FN nn::RELU
 #define LAYER_2_DIM 50
-#define LAYER_2_FN RELU
+#define LAYER_2_FN nn::RELU
 #define OUTPUT_DIM 13
-#define OUTPUT_FN LINEAR
+#define OUTPUT_FN nn::LINEAR
 #define SKIP_TESTS
 #define SKIP_BACKPROP_TESTS
 #define SKIP_ADAM_TESTS
 #define SKIP_OVERFITTING_TESTS
 //#define SKIP_TRAINING_TESTS
 
+const std::string DATA_FILE_PATH = "../model_learning/data.hdf5";
+
 constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
 
-typedef ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_1;
+typedef nn::models::ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_1;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -52,7 +56,7 @@ class NeuralNetworkTest : public ::testing::Test {
 protected:
     std::string model_name = "model_1";
     void SetUp() override {
-        auto data_file = HighFive::File("data.hdf5", HighFive::File::ReadOnly);
+        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet("data/X_train").read(X_train);
         data_file.getDataSet("data/Y_train").read(Y_train);
         data_file.getDataSet("data/X_val").read(X_val);
@@ -104,7 +108,7 @@ public:
 protected:
     void SetUp() override {
         NeuralNetworkTest::SetUp();
-        auto data_file = HighFive::File("data.hdf5", HighFive::File::ReadOnly);
+        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet("model_1/gradients/0/layer_1/weight").read(batch_0_layer_1_weights_grad);
         data_file.getDataSet("model_1/gradients/0/layer_1/bias").read(batch_0_layer_1_biases_grad);
         data_file.getDataSet("model_1/gradients/0/layer_2/weight").read(batch_0_layer_2_weights_grad);
@@ -219,7 +223,7 @@ typedef NeuralNetworkTest<NetworkType_1> NeuralNetworkTestAdamUpdate;
 TEST_F(NeuralNetworkTestAdamUpdate, AdamUpdate) {
     this->reset();
 
-    auto data_file = HighFive::File("data.hdf5", HighFive::File::ReadOnly);
+    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     std::vector<std::vector<DTYPE>> batch_0_layer_1_weights;
     std::vector<DTYPE> batch_0_layer_1_biases;
     std::vector<std::vector<DTYPE>> batch_0_layer_2_weights;
@@ -305,7 +309,7 @@ protected:
 TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatch) {
     this->reset();
 
-    auto data_file = HighFive::File("data.hdf5", HighFive::File::ReadOnly);
+    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     HighFive::Group g = data_file.getGroup("model_2/overfit_small_batch");
 
     constexpr int n_iter = 1000;
@@ -437,7 +441,7 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatches) {
 #endif
 #endif
 
-typedef ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, GELU_SQUARE, LAYER_2_DIM, GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_3;
+typedef models::ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, GELU_SQUARE, LAYER_2_DIM, GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_3;
 class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
 public:
     NeuralNetworkTestTrainModel() : NeuralNetworkTest<NetworkType_3>(){
