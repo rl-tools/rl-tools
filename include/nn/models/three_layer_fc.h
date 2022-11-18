@@ -1,7 +1,7 @@
 #ifndef NEURAL_NETWORK_MODELS_H
 #define NEURAL_NETWORK_MODELS_H
-#include "../neural_network.h"
-namespace layer_in_c::models {
+#include "../layers.h"
+namespace layer_in_c::nn::models {
     template<typename T, int INPUT_DIM, int LAYER_1_DIM, int LAYER_2_DIM, int OUTPUT_DIM>
     struct ThreeLayerNeuralNetworkInference{
         Layer<T, INPUT_DIM, LAYER_1_DIM, ActivationFunction::RELU> layer_0;

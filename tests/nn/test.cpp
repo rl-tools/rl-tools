@@ -2,12 +2,14 @@
 
 #include <iostream>
 #include <vector>
-#include "../include/nn/models/three_layer_fc.h"
-#include "utils.h"
+#include "../../include/nn/models/three_layer_fc.h"
+#include "../../include/nn/nn.h"
+#include "../utils/utils.h"
 #include <highfive/H5File.hpp>
 #include <sstream>
 #define DTYPE float
 
+using namespace layer_in_c;
 template<typename T>
 class AdamParameters{
 public:
@@ -17,8 +19,6 @@ public:
     static constexpr T EPSILON = 1e-7;
 
 };
-
-using namespace layer_in_c;
 
 #define INPUT_DIM 17
 #define LAYER_1_DIM 50
@@ -122,7 +122,7 @@ protected:
         standardise<DTYPE, OUTPUT_DIM>(Y_train[0].data(), Y_mean.data(), Y_std.data(), output);
         forward(network, input);
         DTYPE d_loss_d_output[OUTPUT_DIM];
-        d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
+        nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
         DTYPE d_input[INPUT_DIM];
         zero_gradient(network);
         backward(network, input, d_loss_d_output, d_input);
@@ -441,7 +441,7 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatches) {
 #endif
 #endif
 
-typedef models::ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, GELU_SQUARE, LAYER_2_DIM, GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_3;
+typedef nn::models::ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, nn::GELU_SQUARE, LAYER_2_DIM, nn::GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_3;
 class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
 public:
     NeuralNetworkTestTrainModel() : NeuralNetworkTest<NetworkType_3>(){
@@ -558,8 +558,8 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
                 standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 forward(network, input);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
-                d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
-                loss += mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
+                nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
+                loss += nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
 
                 DTYPE d_input[INPUT_DIM];
                 backward(network, input, d_loss_d_output, d_input);
@@ -582,7 +582,7 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
             standardise<DTYPE,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
             standardise<DTYPE, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
             forward(network, input);
-            val_loss += mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
+            val_loss += nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);

@@ -1,6 +1,7 @@
-#ifndef NEURAL_NETWORK_H
-#define NEURAL_NETWORK_H
+#ifndef LAYER_IN_C_NN_LAYERS
+#define LAYER_IN_C_NN_LAYERS
 #include <random>
+#include "activation_functions.h"
 #include "../utils/polyak.h"
 
 #ifndef FUNCTION_PLACEMENT
@@ -8,24 +9,7 @@
 #endif
 
 namespace layer_in_c::nn {
-    template<typename T, int DIM>
-    T mse(const T a[DIM], const T b[DIM]) {
-        T acc = 0;
-        for(int i = 0; i < DIM; i++) {
-            T diff = a[i] - b[i];
-            acc += diff * diff;
-        }
-        return acc / DIM;
-    }
-
-    template<typename T, int DIM>
-    void d_mse_d_x(const T a[DIM], const T b[DIM], T d_a[DIM]) {
-        for(int i = 0; i < DIM; i++) {
-            T diff = a[i] - b[i];
-            d_a[i] = 2*diff/DIM;
-        }
-    }
-
+    using namespace layer_in_c::nn::activation_functions;
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction>
     struct Layer{
         T weights[OUTPUT_DIM][INPUT_DIM];

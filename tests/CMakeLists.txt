@@ -11,7 +11,7 @@ enable_testing()
 
 add_executable(
         neural_network_test
-        neural_network_test.cpp
+        nn/test.cpp
 )
 target_include_directories(neural_network_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 target_link_libraries(

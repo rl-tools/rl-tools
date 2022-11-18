@@ -1,3 +1,6 @@
+#ifndef LAYER_IN_C_NN_UTILS_POLYAK
+#define LAYER_IN_C_NN_UTILS_POLYAK
+
 namespace layer_in_c::utils {
     template<typename T, int N_ROWS, int N_COLS>
     void polyak_update_matrix(T target[N_ROWS][N_COLS], const T source[N_ROWS][N_COLS], const T polyak) {
@@ -30,3 +33,5 @@ namespace layer_in_c::utils {
     }
 }
 
+
+#endif
