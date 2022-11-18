@@ -12,17 +12,18 @@ struct TestStruct{
     T final_state[2];
     T reward;
 };
+typedef Pendulum<DTYPE, DefaultPendulumParams<DTYPE>> ENVIRONMENT;
 template <typename T>
 T run(TestStruct<T>& test_struct){
-    Pendulum<T> pendulum;
-    T state[2];
+    T state[ENVIRONMENT::STATE_DIM];
 //    std::mt19937 rng;
 //    sample_initial_state(pendulum, state, rng);
-    state[0] = test_struct.initial_state[0];
-    state[1] = test_struct.initial_state[1];
+    memcpy(state, test_struct.initial_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
+    T next_state[ENVIRONMENT::STATE_DIM];
     T r = 0;
     for(int i = 0; i < test_struct.steps; i++){
-        r += step(pendulum, state, test_struct.action, state);
+        r += ENVIRONMENT::step(state, test_struct.action, next_state);
+        memcpy(state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
     }
     EXPECT_NEAR(test_struct.final_state[0], state[0], STATE_TOLERANCE);
     EXPECT_NEAR(test_struct.final_state[1], state[1], STATE_TOLERANCE);

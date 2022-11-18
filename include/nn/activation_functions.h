@@ -6,6 +6,7 @@ namespace layer_in_c::nn::activation_functions {
         RELU,
         GELU,
         GELU_SQUARE,
+        TANH,
         LINEAR,
     };
 
@@ -21,6 +22,9 @@ namespace layer_in_c::nn::activation_functions {
         else if (F == GELU_SQUARE){
             constexpr T a = M_2_SQRTPI * M_SQRT1_2 * (T)0.5;
             return (T)0.5 * (x + x * std::tanh(a * ((T)0.044715f * x * x + x)));
+        }
+        else if (F == TANH){
+            return std::tanh(x);
         }
         else if (F == LINEAR){
             return x;
@@ -46,6 +50,10 @@ namespace layer_in_c::nn::activation_functions {
             constexpr T b = 0.044715f;
             T tanh_term = std::tanh(a * (b * x * x * x + x));
             return (T)0.5*(1 + tanh_term) + (T)0.5 * x * (1 - tanh_term * tanh_term) * a * (3 * b * x * x + 1);
+        }
+        else if (F == TANH){
+            T a = std::tanh(x);
+            return 1 - a * a;
         }
         else if (F == LINEAR){
             return 1;

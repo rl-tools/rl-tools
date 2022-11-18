@@ -89,7 +89,7 @@ namespace layer_in_c::nn::layers {
         }
     }
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction FN, typename PARAMETERS>
-    FUNCTION_PLACEMENT void gradient_descent(LayerBackwardAdam<T, INPUT_DIM, OUTPUT_DIM, FN, PARAMETERS>& layer, T first_order_moment_bias_correction, T second_order_moment_bias_correction, const uint32_t batch_size){
+    FUNCTION_PLACEMENT void gradient_descent(LayerBackwardAdam<T, INPUT_DIM, OUTPUT_DIM, FN, PARAMETERS>& layer, T first_order_moment_bias_correction, T second_order_moment_bias_correction){
         for(int i = 0; i < OUTPUT_DIM; i++) {
             T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_biases_first_order_moment[i] / (std::sqrt(layer.d_biases_second_order_moment[i] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
             layer.biases[i] -= bias_update;
@@ -101,14 +101,14 @@ namespace layer_in_c::nn::layers {
     }
 
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction FN, typename PARAMETERS>
-    FUNCTION_PLACEMENT void update_layer(LayerBackwardAdam<T, INPUT_DIM, OUTPUT_DIM, FN, PARAMETERS>& layer, T first_order_moment_bias_correction, T second_order_moment_bias_correction, const uint32_t batch_size) {
+    FUNCTION_PLACEMENT void update_layer(LayerBackwardAdam<T, INPUT_DIM, OUTPUT_DIM, FN, PARAMETERS>& layer, T first_order_moment_bias_correction, T second_order_moment_bias_correction) {
         utils::polyak_update_matrix<T, OUTPUT_DIM, INPUT_DIM>(layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
         utils::polyak_update       <T, OUTPUT_DIM>           (layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
 
         utils::polyak_update_squared_matrix<T, OUTPUT_DIM, INPUT_DIM>(layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
         utils::polyak_update_squared       <T, OUTPUT_DIM>           (layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
 
-        gradient_descent(layer, first_order_moment_bias_correction, second_order_moment_bias_correction, batch_size);
+        gradient_descent(layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
 
     }
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction FN, typename PARAMETERS, typename RNG>
