@@ -1,0 +1,17 @@
+/*
+ *  Copyright (c), 2020
+ *
+ *  Distributed under the Boost Software License, Version 1.0.
+ *    (See accompanying file LICENSE_1_0.txt or copy at
+ *          http://www.boost.org/LICENSE_1_0.txt)
+ *
+ */
+#ifndef H5VERSION_HPP
+#define H5VERSION_HPP
+
+#define HIGHFIVE_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define HIGHFIVE_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define HIGHFIVE_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define HIGHFIVE_VERSION @PROJECT_VERSION@
+
+#endif // H5VERSION_HPP
