@@ -1,18 +1,20 @@
 #ifndef NEURAL_NETWORK_MODELS_H
 #define NEURAL_NETWORK_MODELS_H
-#include "../layers.h"
-namespace layer_in_c::nn::models {
+#include <nn/nn.h>
+namespace layer_in_c::nn_models {
+    using namespace nn;
+    using namespace nn::activation_functions;
     template<typename T, int INPUT_DIM, int LAYER_1_DIM, int LAYER_2_DIM, int OUTPUT_DIM>
     struct ThreeLayerNeuralNetworkInference{
-        Layer<T, INPUT_DIM, LAYER_1_DIM, ActivationFunction::RELU> layer_0;
-        Layer<T, LAYER_1_DIM, LAYER_2_DIM, ActivationFunction::RELU> layer_1;
-        Layer<T, LAYER_2_DIM, OUTPUT_DIM, ActivationFunction::LINEAR> layer_2;
+        layers::Layer<T, INPUT_DIM, LAYER_1_DIM, RELU> layer_0;
+        layers::Layer<T, LAYER_1_DIM, LAYER_2_DIM, RELU> layer_1;
+        layers::Layer<T, LAYER_2_DIM, OUTPUT_DIM, LINEAR> layer_2;
     };
     template<typename T, int INPUT_DIM, int LAYER_1_DIM, ActivationFunction LAYER_1_FN, int LAYER_2_DIM, ActivationFunction LAYER_2_FN, int OUTPUT_DIM, ActivationFunction OUTPUT_LAYER_FN, typename PARAMETERS>
     struct ThreeLayerNeuralNetworkTraining{
-        LayerBackwardAdam<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN, PARAMETERS> layer_1;
-        LayerBackwardAdam<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_1_FN, PARAMETERS> layer_2;
-        LayerBackwardAdam<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN, PARAMETERS> output_layer;
+        layers::LayerBackwardAdam<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN, PARAMETERS> layer_1;
+        layers::LayerBackwardAdam<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_1_FN, PARAMETERS> layer_2;
+        layers::LayerBackwardAdam<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN, PARAMETERS> output_layer;
     };
 
     template<typename T, int INPUT_DIM, int LAYER_1_DIM, int LAYER_2_DIM, int OUTPUT_DIM>

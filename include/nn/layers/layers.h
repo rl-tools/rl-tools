@@ -1,14 +1,14 @@
 #ifndef LAYER_IN_C_NN_LAYERS
 #define LAYER_IN_C_NN_LAYERS
 #include <random>
-#include "activation_functions.h"
-#include "../utils/polyak.h"
+#include "../activation_functions.h"
+#include "../../utils/polyak.h"
 
 #ifndef FUNCTION_PLACEMENT
 #define FUNCTION_PLACEMENT
 #endif
 
-namespace layer_in_c::nn {
+namespace layer_in_c::nn::layers {
     using namespace layer_in_c::nn::activation_functions;
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction>
     struct Layer{

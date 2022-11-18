@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <vector>
-#include "../../include/nn/models/three_layer_fc.h"
+#include "../../include/nn_models/three_layer_fc.h"
 #include "../../include/nn/nn.h"
 #include "../utils/utils.h"
 #include <highfive/H5File.hpp>
@@ -22,11 +22,11 @@ public:
 
 #define INPUT_DIM 17
 #define LAYER_1_DIM 50
-#define LAYER_1_FN nn::RELU
+#define LAYER_1_FN nn::activation_functions::RELU
 #define LAYER_2_DIM 50
-#define LAYER_2_FN nn::RELU
+#define LAYER_2_FN nn::activation_functions::RELU
 #define OUTPUT_DIM 13
-#define OUTPUT_FN nn::LINEAR
+#define OUTPUT_FN nn::activation_functions::LINEAR
 #define SKIP_TESTS
 #define SKIP_BACKPROP_TESTS
 #define SKIP_ADAM_TESTS
@@ -38,7 +38,7 @@ const std::string DATA_FILE_PATH = "../model_learning/data.hdf5";
 constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
 
-typedef nn::models::ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_1;
+typedef nn_models::ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_1;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -441,7 +441,7 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatches) {
 #endif
 #endif
 
-typedef nn::models::ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, nn::GELU_SQUARE, LAYER_2_DIM, nn::GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_3;
+typedef nn_models::ThreeLayerNeuralNetworkTraining<DTYPE, INPUT_DIM, LAYER_1_DIM, nn::activation_functions::GELU_SQUARE, LAYER_2_DIM, nn::activation_functions::GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_3;
 class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
 public:
     NeuralNetworkTestTrainModel() : NeuralNetworkTest<NetworkType_3>(){

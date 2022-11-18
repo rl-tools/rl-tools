@@ -13,7 +13,10 @@ add_executable(
         neural_network_test
         nn/test.cpp
 )
-target_include_directories(neural_network_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+target_include_directories(neural_network_test PRIVATE
+${CMAKE_CURRENT_SOURCE_DIR}/lib
+${PROJECT_SOURCE_DIR}/include
+)
 target_link_libraries(
         neural_network_test
         GTest::gtest_main
