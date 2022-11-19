@@ -18,11 +18,14 @@ namespace layer_in_c::nn::layers {
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction ACTIVATION_FUNCTION>
     struct LayerBackward: public Layer<T, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>{
         T output   [OUTPUT_DIM];
+    };
+    template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction ACTIVATION_FUNCTION>
+    struct LayerBackwardGradient: public LayerBackward<T, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>{
         T d_weights[OUTPUT_DIM][INPUT_DIM];
         T d_biases [OUTPUT_DIM];
     };
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction ACTIVATION_FUNCTION, typename PARAMETERS>
-    struct LayerBackwardAdam: public LayerBackward<T, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>{
+    struct LayerBackwardAdam: public LayerBackwardGradient<T, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>{
         T d_weights_first_order_moment [OUTPUT_DIM][INPUT_DIM];
         T d_weights_second_order_moment[OUTPUT_DIM][INPUT_DIM];
         T d_biases_first_order_moment  [OUTPUT_DIM];
@@ -57,6 +60,20 @@ namespace layer_in_c::nn::layers {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         for(int i = 0; i < OUTPUT_DIM; i++) {
             T d_pre_activation = d_activation_d_x<T, FN>(layer.output[i]) * d_output[i];
+            for(int j = 0; j < INPUT_DIM; j++) {
+                if(i == 0){
+                    d_input[j] = 0;
+                }
+                d_input[j] += layer.weights[i][j] * d_pre_activation;
+            }
+        }
+    }
+
+    template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction FN>
+    FUNCTION_PLACEMENT void backward(LayerBackwardGradient<T, INPUT_DIM, OUTPUT_DIM, FN>& layer, const T input[INPUT_DIM], const T d_output[OUTPUT_DIM], T d_input[INPUT_DIM]) {
+        // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
+        for(int i = 0; i < OUTPUT_DIM; i++) {
+            T d_pre_activation = d_activation_d_x<T, FN>(layer.output[i]) * d_output[i];
             layer.d_biases[i] += d_pre_activation;
             for(int j = 0; j < INPUT_DIM; j++) {
                 if(i == 0){
@@ -68,7 +85,7 @@ namespace layer_in_c::nn::layers {
         }
     }
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction FN>
-    FUNCTION_PLACEMENT void zero_gradient(LayerBackward<T, INPUT_DIM, OUTPUT_DIM, FN>& layer) {
+    FUNCTION_PLACEMENT void zero_gradient(LayerBackwardGradient<T, INPUT_DIM, OUTPUT_DIM, FN>& layer) {
         for(int i = 0; i < OUTPUT_DIM; i++) {
             layer.d_biases[i] = 0;
             for(int j = 0; j < INPUT_DIM; j++) {
@@ -111,8 +128,8 @@ namespace layer_in_c::nn::layers {
         gradient_descent(layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
 
     }
-    template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction FN, typename PARAMETERS, typename RNG>
-    FUNCTION_PLACEMENT void init_layer_kaiming(LayerBackwardAdam<T, INPUT_DIM, OUTPUT_DIM, FN, PARAMETERS>& layer, RNG& rng) {
+    template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction FN, typename RNG>
+    FUNCTION_PLACEMENT void init_layer_kaiming(Layer<T, INPUT_DIM, OUTPUT_DIM, FN>& layer, RNG& rng) {
         T negative_slope = std::sqrt(5);
         T gain = std::sqrt(2.0 / (1 + negative_slope * negative_slope));
         T fan = INPUT_DIM;

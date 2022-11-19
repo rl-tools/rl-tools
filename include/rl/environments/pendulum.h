@@ -35,7 +35,7 @@ struct Pendulum {
     constexpr static uint32_t OBSERVATION_DIM = 3;
     constexpr static uint32_t ACTION_DIM = 1;
     template<typename RNG>
-    static T sample_initial_state(T state[2], RNG& rng){
+    static void sample_initial_state(T state[2], RNG& rng){
         state[0] = std::uniform_real_distribution<T>(PARAMS::initial_state_min_angle, PARAMS::initial_state_max_angle)(rng);
         state[1] = std::uniform_real_distribution<T>(PARAMS::initial_state_min_speed, PARAMS::initial_state_max_speed)(rng);
     }

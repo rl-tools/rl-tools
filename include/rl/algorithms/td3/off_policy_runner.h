@@ -5,6 +5,7 @@ struct OffPolicyRunner {
     ReplayBuffer<T, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, CAPACITY> replay_buffer;
     T state[ENVIRONMENT::STATE_DIM];
     uint32_t episode_step = 0;
+    T episode_return = 0;
 };
 
 
@@ -14,6 +15,7 @@ void step(OffPolicyRunner<T, ENVIRONMENT, POLICY, CAPACITY, STEP_LIMIT>& runner,
         // first step
         ENVIRONMENT::sample_initial_state(runner.state, rng);
         runner.episode_step = 0;
+        runner.episode_return = 0;
     }
     T observation[ENVIRONMENT::OBSERVATION_DIM];
     ENVIRONMENT::observe(runner.state, observation);
@@ -26,6 +28,10 @@ void step(OffPolicyRunner<T, ENVIRONMENT, POLICY, CAPACITY, STEP_LIMIT>& runner,
     ENVIRONMENT::observe(next_state, next_observation);
     bool terminated = false;
     runner.episode_step += 1;
+    runner.episode_return += reward;
     bool truncated = runner.episode_step == STEP_LIMIT;
+    if(truncated || terminated){
+        std::cout << "Episode return: " << runner.episode_return << std::endl;
+    }
     add(runner.replay_buffer, observation, action, reward, next_observation, terminated, truncated);
 }
