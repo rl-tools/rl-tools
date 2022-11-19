@@ -47,10 +47,6 @@ class NeuralNetworkTest : public ::testing::Test {
 protected:
     std::string model_name = "model_1";
     void SetUp() override {
-        this->reset();
-    }
-
-    void reset(){
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet("data/X_train").read(X_train);
         data_file.getDataSet("data/Y_train").read(Y_train);
@@ -60,6 +56,11 @@ protected:
         data_file.getDataSet("data/X_std").read(X_std);
         data_file.getDataSet("data/Y_mean").read(Y_mean);
         data_file.getDataSet("data/Y_std").read(Y_std);
+        this->reset();
+    }
+
+    void reset(){
+        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet(model_name + "/init/layer_1/weight").read(layer_1_weights);
         data_file.getDataSet(model_name + "/init/layer_1/bias").read(layer_1_biases);
         data_file.getDataSet(model_name + "/init/layer_2/weight").read(layer_2_weights);
@@ -341,7 +342,7 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatch) {
         DTYPE diff = abs_diff_network<DTYPE>(network, data_file.getGroup(ss.str()));
         std::cout << "batch_i: " << batch_i << " diff: " << diff << std::endl;
         if(batch_i == 10){
-            ASSERT_LT(diff, 2.5e-7 * N_WEIGHTS);
+            ASSERT_LT(diff, 2.5e-7 * 3 * N_WEIGHTS);
         } else {
             if(batch_i == 100){
                 ASSERT_LT(diff, 1.0e-4 * N_WEIGHTS);
