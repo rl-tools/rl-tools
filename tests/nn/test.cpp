@@ -10,15 +10,6 @@
 #define DTYPE float
 
 using namespace layer_in_c;
-template<typename T>
-class AdamParameters{
-public:
-    static constexpr T ALPHA   = 0.001;
-    static constexpr T BETA_1  = 0.9;
-    static constexpr T BETA_2  = 0.999;
-    static constexpr T EPSILON = 1e-7;
-
-};
 
 #define INPUT_DIM 17
 #define LAYER_1_DIM 50
@@ -38,7 +29,7 @@ const std::string DATA_FILE_PATH = "../model_learning/data.hdf5";
 constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
 
-typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_1;
+typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, DefaultAdamParameters<DTYPE>> NetworkType_1;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -441,7 +432,7 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatches) {
 #endif
 #endif
 
-typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, nn::activation_functions::GELU_SQUARE, LAYER_2_DIM, nn::activation_functions::GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, AdamParameters<DTYPE>> NetworkType_3;
+typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, nn::activation_functions::GELU_SQUARE, LAYER_2_DIM, nn::activation_functions::GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, DefaultAdamParameters<DTYPE>> NetworkType_3;
 class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
 public:
     NeuralNetworkTestTrainModel() : NeuralNetworkTest<NetworkType_3>(){

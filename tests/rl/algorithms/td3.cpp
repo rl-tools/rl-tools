@@ -21,9 +21,9 @@ typedef Pendulum<DTYPE, DefaultPendulumParams<DTYPE>> ENVIRONMENT;
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     layer_in_c::nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, ENVIRONMENT::STATE_DIM,
-        50, layer_in_c::nn::activation_functions::RELU,
-        50, layer_in_c::nn::activation_functions::RELU,
-        ENVIRONMENT::ACTION_DIM, layer_in_c::nn::activation_functions::TANH, AdamParameters<DTYPE>> policy;
+            50, layer_in_c::nn::activation_functions::RELU,
+            50, layer_in_c::nn::activation_functions::RELU,
+            ENVIRONMENT::ACTION_DIM, layer_in_c::nn::activation_functions::TANH, AdamParameters<DTYPE>> policy;
     std::mt19937 rng(0);
     layer_in_c::nn_models::init_weights(policy, rng);
     OffPolicyRunner<DTYPE, ENVIRONMENT, typeof(policy), 1000, 100> off_policy_runner;

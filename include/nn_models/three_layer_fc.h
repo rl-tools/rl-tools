@@ -1,6 +1,15 @@
 #ifndef NEURAL_NETWORK_MODELS_H
 #define NEURAL_NETWORK_MODELS_H
 #include <nn/nn.h>
+template<typename T>
+struct DefaultAdamParameters{
+public:
+    static constexpr T ALPHA   = 0.001;
+    static constexpr T BETA_1  = 0.9;
+    static constexpr T BETA_2  = 0.999;
+    static constexpr T EPSILON = 1e-7;
+
+};
 namespace layer_in_c::nn_models {
     using namespace nn;
     using namespace nn::activation_functions;
@@ -38,6 +47,14 @@ namespace layer_in_c::nn_models {
         T d_layer_1_output[LAYER_1_DIM];
         backward(network.layer_2     , network.layer_1.output, d_layer_2_output, d_layer_1_output);
         backward(network.layer_1     , input                 , d_layer_1_output, d_input);
+    }
+    template<typename T, int INPUT_DIM, int LAYER_1_DIM, ActivationFunction LAYER_1_FN, int LAYER_2_DIM, ActivationFunction LAYER_2_FN, int OUTPUT_DIM, ActivationFunction OUTPUT_LAYER_FN, typename PARAMETERS>
+    FUNCTION_PLACEMENT void forward_backward_mse(ThreeLayerNeuralNetworkTrainingAdam<T, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_LAYER_FN, PARAMETERS>& network, const T input[INPUT_DIM], T target[OUTPUT_DIM]) {
+        T d_input[INPUT_DIM];
+        forward(network, input);
+        T d_loss_d_output[OUTPUT_DIM];
+        nn::loss_functions::d_mse_d_x<T, OUTPUT_DIM>(network.output_layer.output, target, d_loss_d_output);
+        backward(network, input, d_loss_d_output, d_input);
     }
 
     template<typename T, int INPUT_DIM, int LAYER_1_DIM, ActivationFunction LAYER_1_FN, int LAYER_2_DIM, ActivationFunction LAYER_2_FN, int OUTPUT_DIM, ActivationFunction OUTPUT_LAYER_FN, typename PARAMETERS>
