@@ -1,4 +1,5 @@
-
+#ifndef LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER
+#define LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER
 template <typename T, int OBSERVATION_DIM, int ACTION_DIM, int CAPACITY>
 struct ReplayBuffer {
     T observations[CAPACITY][OBSERVATION_DIM];
@@ -29,3 +30,4 @@ void add(ReplayBuffer<T, OBSERVATION_DIM, ACTION_DIM, CAPACITY>& buffer, const T
         buffer.full = true;
     }
 }
+#endif

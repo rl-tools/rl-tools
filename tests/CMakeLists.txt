@@ -54,10 +54,26 @@ target_link_libraries(
         HDF5::HDF5
 )
 
+# RL Algorithm td3 test
+add_executable(
+        rl_algorithms_td3_test
+        rl/algorithms/td3.cpp
+)
+target_include_directories(rl_algorithms_td3_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${PROJECT_SOURCE_DIR}/include
+        )
+target_link_libraries(
+        rl_algorithms_td3_test
+        GTest::gtest_main
+        HDF5::HDF5
+)
+
 include(GoogleTest)
 gtest_discover_tests(neural_network_test)
 gtest_discover_tests(rl_environments_pendulum_test)
 gtest_discover_tests(rl_algorithms_off_policy_runner_test)
+gtest_discover_tests(rl_algorithms_td3_test)
 
 
 

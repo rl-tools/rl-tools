@@ -1,18 +1,19 @@
 #ifndef NEURAL_NETWORK_MODELS_H
 #define NEURAL_NETWORK_MODELS_H
 #include <nn/nn.h>
-template<typename T>
-struct DefaultAdamParameters{
-public:
-    static constexpr T ALPHA   = 0.001;
-    static constexpr T BETA_1  = 0.9;
-    static constexpr T BETA_2  = 0.999;
-    static constexpr T EPSILON = 1e-7;
-
-};
 namespace layer_in_c::nn_models {
     using namespace nn;
     using namespace nn::activation_functions;
+
+    template<typename T>
+    struct DefaultAdamParameters{
+    public:
+        static constexpr T ALPHA   = 0.001;
+        static constexpr T BETA_1  = 0.9;
+        static constexpr T BETA_2  = 0.999;
+        static constexpr T EPSILON = 1e-7;
+
+    };
     template<typename T, int INPUT_DIM, int LAYER_1_DIM, ActivationFunction LAYER_1_FN, int LAYER_2_DIM, ActivationFunction LAYER_2_FN, int OUTPUT_DIM, ActivationFunction OUTPUT_LAYER_FN, typename PARAMETERS>
     struct ThreeLayerNeuralNetworkTrainingAdam{
         layers::LayerBackwardAdam<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN, PARAMETERS> layer_1;
@@ -33,6 +34,12 @@ namespace layer_in_c::nn_models {
         for(int i = 0; i < OUTPUT_DIM; i++) {
             output[i] = network.output_layer.output[i];
         }
+    }
+    template<typename T, int INPUT_DIM, int LAYER_1_DIM, ActivationFunction LAYER_1_FN, int LAYER_2_DIM, ActivationFunction LAYER_2_FN, int OUTPUT_DIM, ActivationFunction OUTPUT_LAYER_FN, typename PARAMETERS>
+    FUNCTION_PLACEMENT T evaluate(ThreeLayerNeuralNetworkTrainingAdam<T, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_LAYER_FN, PARAMETERS>& network, const T input[INPUT_DIM]) {
+        static_assert(OUTPUT_DIM == 1, "OUTPUT_DIM has to be 1 for return based evaluation");
+        forward(network, input);
+        return network.output_layer.output[0];
     }
     template<typename T, int INPUT_DIM, int LAYER_1_DIM, ActivationFunction LAYER_1_FN, int LAYER_2_DIM, ActivationFunction LAYER_2_FN, int OUTPUT_DIM, ActivationFunction OUTPUT_LAYER_FN, typename PARAMETERS>
     FUNCTION_PLACEMENT void zero_gradient(ThreeLayerNeuralNetworkTrainingAdam<T, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_LAYER_FN, PARAMETERS>& network) {
