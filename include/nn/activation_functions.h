@@ -1,6 +1,7 @@
 #ifndef LAYER_IN_C_NN_ACTIVATION_FUNCTIONS
 #define LAYER_IN_C_NN_ACTIVATION_FUNCTIONS
 #include "math.h"
+#include <cmath>
 namespace layer_in_c::nn::activation_functions {
     enum ActivationFunction{
         RELU,

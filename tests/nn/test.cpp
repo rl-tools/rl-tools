@@ -24,12 +24,12 @@ using namespace layer_in_c;
 //#define SKIP_OVERFITTING_TESTS
 //#define SKIP_TRAINING_TESTS
 
-const std::string DATA_FILE_PATH = "../model_learning/data.hdf5";
+const std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
 
 constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
 
-typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, DefaultAdamParameters<DTYPE>> NetworkType_1;
+typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, nn_models::DefaultAdamParameters<DTYPE>> NetworkType_1;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -47,6 +47,10 @@ class NeuralNetworkTest : public ::testing::Test {
 protected:
     std::string model_name = "model_1";
     void SetUp() override {
+        this->reset();
+    }
+
+    void reset(){
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet("data/X_train").read(X_train);
         data_file.getDataSet("data/Y_train").read(Y_train);
@@ -62,10 +66,6 @@ protected:
         data_file.getDataSet(model_name + "/init/layer_2/bias").read(layer_2_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        this->reset();
-    }
-
-    void reset(){
         assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.layer_1.weights     , layer_1_weights);
         memcpy(network.layer_1.biases, layer_1_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
         assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.layer_2.weights     , layer_2_weights);
@@ -432,7 +432,7 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatches) {
 #endif
 #endif
 
-typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, nn::activation_functions::GELU_SQUARE, LAYER_2_DIM, nn::activation_functions::GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, DefaultAdamParameters<DTYPE>> NetworkType_3;
+typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, nn::activation_functions::GELU_SQUARE, LAYER_2_DIM, nn::activation_functions::GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, nn_models::DefaultAdamParameters<DTYPE>> NetworkType_3;
 class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
 public:
     NeuralNetworkTestTrainModel() : NeuralNetworkTest<NetworkType_3>(){
@@ -445,6 +445,7 @@ protected:
         this->reset();
     }
 };
+#ifndef SKIP_TRAINING_TESTS
 #ifndef SKIP_TESTS
 TEST_F(NeuralNetworkTestTrainModel, TrainModel) {
     std::vector<DTYPE> losses;
@@ -604,4 +605,5 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
 
 // GELU PyTorch [0.00456139 0.00306715 0.00215886]
 }
+#endif
 #endif
