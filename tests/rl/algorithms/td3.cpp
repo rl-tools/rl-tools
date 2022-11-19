@@ -13,7 +13,10 @@ typedef Pendulum<DTYPE, DefaultPendulumParams<DTYPE>> ENVIRONMENT;
 template <typename T>
 struct TD3Params{
     static constexpr T GAMMA = 0.99;
+    static constexpr uint32_t ACTOR_BATCH_SIZE = 32;
     static constexpr uint32_t CRITIC_BATCH_SIZE = 32;
+    static constexpr T ACTOR_POLYAK = 0.005;
+    static constexpr T CRITIC_POLYAK = 0.005;
 };
 
 using namespace layer_in_c;
@@ -33,7 +36,14 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_0) {
     std::cout << "hello" << std::endl;
     ActorCritic<DTYPE, ENVIRONMENT, DefaultActorNetworkDefinition<DTYPE>, DefaultCriticNetworkDefinition<DTYPE>, TD3Params<DTYPE>> actor_critic;
     init(actor_critic, rng);
-    train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
-    train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+    for(int step_i = 0; step_i < 10000000; step_i++){
+        step(off_policy_runner, policy, rng);
+        train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
+        train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+        if(step_i % 2 == 0){
+            train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
+            update_targets(actor_critic);
+        }
+    }
 }
 
