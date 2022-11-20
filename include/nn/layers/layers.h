@@ -29,11 +29,11 @@ namespace layer_in_c::nn::layers {
     template <typename T>
     struct DefaultSGDParameters{
     public:
-        static constexpr T ALPHA   = 0.001;
+        static constexpr T ALPHA = 0.001;
 
     };
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction ACTIVATION_FUNCTION, typename PARAMETERS>
-    struct LayerBackwardSGD: public LayerBackward<T, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>{};
+    struct LayerBackwardSGD: public LayerBackwardGradient<T, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>{};
 
     template <typename T>
     struct DefaultAdamParameters{
@@ -114,7 +114,7 @@ namespace layer_in_c::nn::layers {
         }
     }
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction FN, typename PARAMETERS>
-    FUNCTION_PLACEMENT void gradient_descent(LayerBackwardSGD<T, INPUT_DIM, OUTPUT_DIM, FN, PARAMETERS>& layer){
+    FUNCTION_PLACEMENT void update_layer(LayerBackwardSGD<T, INPUT_DIM, OUTPUT_DIM, FN, PARAMETERS>& layer){
         for(int i = 0; i < OUTPUT_DIM; i++) {
             layer.biases[i] -= PARAMETERS::ALPHA * layer.d_biases[i];
             for(int j = 0; j < INPUT_DIM; j++) {
