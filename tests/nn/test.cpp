@@ -18,7 +18,7 @@ using namespace layer_in_c;
 #define LAYER_2_FN nn::activation_functions::RELU
 #define OUTPUT_DIM 13
 #define OUTPUT_FN nn::activation_functions::LINEAR
-#define SKIP_TESTS
+//#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS
 //#define SKIP_OVERFITTING_TESTS
