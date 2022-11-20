@@ -7,6 +7,7 @@
 #include <utils/polyak.h>
 using namespace layer_in_c;
 using namespace layer_in_c::nn::layers;
+using namespace layer_in_c::nn_models;
 
 template <typename T>
 struct DefaultTD3Parameters{
@@ -45,35 +46,41 @@ template <
     typename PARAMETERS
 >
 struct ActorCritic{
-    typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkTrainingAdam<T, ENVIRONMENT::OBSERVATION_DIM,
-            ACTOR_NETWORK_DEFINITION::LAYER_1_DIM, ACTOR_NETWORK_DEFINITION::LAYER_1_FN,
-            ACTOR_NETWORK_DEFINITION::LAYER_2_DIM, ACTOR_NETWORK_DEFINITION::LAYER_2_FN,
-            ENVIRONMENT::ACTION_DIM, layer_in_c::nn::activation_functions::TANH, typename ACTOR_NETWORK_DEFINITION::ADAM_PARAMETERS> ACTOR_NETWORK_TYPE;
-    typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkInference<T, ENVIRONMENT::OBSERVATION_DIM,
-            ACTOR_NETWORK_DEFINITION::LAYER_1_DIM, ACTOR_NETWORK_DEFINITION::LAYER_1_FN,
-            ACTOR_NETWORK_DEFINITION::LAYER_2_DIM, ACTOR_NETWORK_DEFINITION::LAYER_2_FN,
-            ENVIRONMENT::ACTION_DIM, layer_in_c::nn::activation_functions::TANH, typename ACTOR_NETWORK_DEFINITION::ADAM_PARAMETERS> ACTOR_TARGET_NETWORK_TYPE;
+    typedef nn_models::three_layer_fc::AdamSpecification<T, ENVIRONMENT::OBSERVATION_DIM,
+    ACTOR_NETWORK_DEFINITION::LAYER_1_DIM, ACTOR_NETWORK_DEFINITION::LAYER_1_FN,
+    ACTOR_NETWORK_DEFINITION::LAYER_2_DIM, ACTOR_NETWORK_DEFINITION::LAYER_2_FN,
+    ENVIRONMENT::ACTION_DIM, layer_in_c::nn::activation_functions::TANH, typename ACTOR_NETWORK_DEFINITION::ADAM_PARAMETERS> ACTOR_NETWORK_SPEC;
+
+    typedef nn_models::three_layer_fc::InferenceSpecification<T, ENVIRONMENT::OBSERVATION_DIM,
+    ACTOR_NETWORK_DEFINITION::LAYER_1_DIM, ACTOR_NETWORK_DEFINITION::LAYER_1_FN,
+    ACTOR_NETWORK_DEFINITION::LAYER_2_DIM, ACTOR_NETWORK_DEFINITION::LAYER_2_FN,
+    ENVIRONMENT::ACTION_DIM, layer_in_c::nn::activation_functions::TANH> ACTOR_TARGET_NETWORK_SPEC;
+    typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkAdam<ACTOR_NETWORK_SPEC> ACTOR_NETWORK_TYPE;
+    typedef layer_in_c::nn_models::three_layer_fc::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC> ACTOR_TARGET_NETWORK_TYPE;
 
     static constexpr int CRITIC_INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
-    typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkTrainingAdam<T, CRITIC_INPUT_DIM,
+    typedef layer_in_c::nn_models::three_layer_fc::AdamSpecification<T, CRITIC_INPUT_DIM,
             CRITIC_NETWORK_DEFINITION::LAYER_1_DIM, CRITIC_NETWORK_DEFINITION::LAYER_1_FN,
             CRITIC_NETWORK_DEFINITION::LAYER_2_DIM, CRITIC_NETWORK_DEFINITION::LAYER_2_FN,
-            1, layer_in_c::nn::activation_functions::LINEAR, typename CRITIC_NETWORK_DEFINITION::ADAM_PARAMETERS> CRITIC_NETWORK_TYPE;
-    typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkInferenceBackward<T, CRITIC_INPUT_DIM,
+            1, layer_in_c::nn::activation_functions::LINEAR, typename CRITIC_NETWORK_DEFINITION::ADAM_PARAMETERS> CRITIC_NETWORK_SPEC;
+    typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkAdam<CRITIC_NETWORK_SPEC> CRITIC_NETWORK_TYPE;
+    typedef layer_in_c::nn_models::three_layer_fc::InferenceBackwardSpecification<T, CRITIC_INPUT_DIM,
             CRITIC_NETWORK_DEFINITION::LAYER_1_DIM, CRITIC_NETWORK_DEFINITION::LAYER_1_FN,
             CRITIC_NETWORK_DEFINITION::LAYER_2_DIM, CRITIC_NETWORK_DEFINITION::LAYER_2_FN,
-            1, layer_in_c::nn::activation_functions::LINEAR, typename CRITIC_NETWORK_DEFINITION::ADAM_PARAMETERS> CRITIC_TARGET_1_NETWORK_TYPE;
-    typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkInference<T, CRITIC_INPUT_DIM,
+            1, layer_in_c::nn::activation_functions::LINEAR> CRITIC_TARGET_INFERENCE_BACKWARD_NETWORK_SPEC;
+    typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkBackward<CRITIC_TARGET_INFERENCE_BACKWARD_NETWORK_SPEC> CRITIC_TARGET_INFERENCE_BACKWARD_NETWORK_TYPE;
+    typedef layer_in_c::nn_models::three_layer_fc::InferenceSpecification<T, CRITIC_INPUT_DIM,
             CRITIC_NETWORK_DEFINITION::LAYER_1_DIM, CRITIC_NETWORK_DEFINITION::LAYER_1_FN,
             CRITIC_NETWORK_DEFINITION::LAYER_2_DIM, CRITIC_NETWORK_DEFINITION::LAYER_2_FN,
-            1, layer_in_c::nn::activation_functions::LINEAR, typename CRITIC_NETWORK_DEFINITION::ADAM_PARAMETERS> CRITIC_TARGET_2_NETWORK_TYPE;
+            1, layer_in_c::nn::activation_functions::LINEAR> CRITIC_TARGET_INFERENCE_NETWORK_SPEC;
+    typedef layer_in_c::nn_models::three_layer_fc::NeuralNetwork<CRITIC_TARGET_INFERENCE_NETWORK_SPEC> CRITIC_TARGET_INFERENCE_NETWORK_TYPE;
     ACTOR_NETWORK_TYPE actor;
     ACTOR_TARGET_NETWORK_TYPE actor_target;
 
     CRITIC_NETWORK_TYPE critic_1;
     CRITIC_NETWORK_TYPE critic_2;
-    CRITIC_TARGET_1_NETWORK_TYPE critic_target_1;
-    CRITIC_TARGET_2_NETWORK_TYPE critic_target_2;
+    CRITIC_TARGET_INFERENCE_BACKWARD_NETWORK_TYPE critic_target_1;
+    CRITIC_TARGET_INFERENCE_NETWORK_TYPE critic_target_2;
 };
 
 template<typename T, int INPUT_DIM, int OUTPUT_DIM, nn::activation_functions::ActivationFunction FN>
@@ -138,7 +145,7 @@ T train_critic(ActorCritic<T, ENVIRONMENT, ACTOR_NETWORK_DEFINITION, CRITIC_NETW
         }
 
         T min_next_state_action_value = std::min(
-            evaluate(actor_critic.critic_target_1, next_state_action_value_input),
+            forward_univariate(actor_critic.critic_target_1, next_state_action_value_input),
             evaluate(actor_critic.critic_target_2, next_state_action_value_input)
         );
         T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];

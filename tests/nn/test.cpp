@@ -10,6 +10,7 @@
 #define DTYPE float
 
 using namespace layer_in_c;
+using namespace layer_in_c::nn_models;
 
 #define INPUT_DIM 17
 #define LAYER_1_DIM 50
@@ -29,8 +30,8 @@ const std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
 constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
 
-typedef nn_models::three_layer_fc::AdamSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultAdamParameters<DTYPE>> NETWORK_SPEC;
-typedef nn_models::three_layer_fc::NeuralNetworkAdam<NETWORK_SPEC> NetworkType_1;
+typedef three_layer_fc::AdamSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultAdamParameters<DTYPE>> NETWORK_SPEC;
+typedef three_layer_fc::NeuralNetworkAdam<NETWORK_SPEC> NetworkType_1;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -486,7 +487,7 @@ TEST_F(NeuralNetworkTestTrainModel, TrainModel) {
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            nn_models::three_layer_fc::update(network);
+            update(network);
             std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
         }
         epoch_loss /= n_iter;

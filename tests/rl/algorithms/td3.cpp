@@ -15,6 +15,8 @@ typedef Pendulum<DTYPE, DefaultPendulumParams<DTYPE>> ENVIRONMENT;
 
 
 using namespace layer_in_c;
+using namespace layer_in_c::nn_models;
+//using namespace layer_in_c::nn::layers;
 #define N_WARMUP_STEPS 100
 #define SKIP_FULL_TRAINING
 
@@ -86,12 +88,12 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
     g.getDataSet("0/weight").read(weights);
-    acc += abs_diff_matrix<T, NT::LAYER_1_TYPE::OUTPUT_DIM, NT::LAYER_1_TYPE::INPUT_DIM>(network.layer_1.weights, weights);
+    acc += abs_diff_matrix<T, NT::NETWORK_SPEC::LAYER_1::OUTPUT_DIM, NT::NETWORK_SPEC::LAYER_1::INPUT_DIM>(network.layer_1.weights, weights);
     return acc;
 }
 template <typename T, typename NT>
 T abs_diff_network(const NT n1, const NT n2){
-    constexpr int S = NT::LAYER_1_TYPE::OUTPUT_DIM * NT::LAYER_1_TYPE::INPUT_DIM;
+    constexpr int S = NT::NETWORK_SPEC::LAYER_1::OUTPUT_DIM * NT::NETWORK_SPEC::LAYER_1::INPUT_DIM;
     return abs_diff<T, S>((T*)n1.layer_1.weights, (T*)n2.layer_1.weights);
 }
 
