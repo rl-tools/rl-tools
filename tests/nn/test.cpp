@@ -433,7 +433,8 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatches) {
 #endif
 #endif
 
-typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, nn::activation_functions::GELU_SQUARE, LAYER_2_DIM, nn::activation_functions::GELU_SQUARE, OUTPUT_DIM, OUTPUT_FN, nn_models::DefaultAdamParameters<DTYPE>> NetworkType_3;
+constexpr auto MODEL_TRAINING_ACTIVATION_FN = nn::activation_functions::GELU_SQUARE;
+typedef nn_models::ThreeLayerNeuralNetworkTrainingAdam<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn_models::DefaultAdamParameters<DTYPE>> NetworkType_3;
 class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
 public:
     NeuralNetworkTestTrainModel() : NeuralNetworkTest<NetworkType_3>(){

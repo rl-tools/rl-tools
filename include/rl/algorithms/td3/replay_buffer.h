@@ -9,12 +9,13 @@ struct ReplayBuffer {
     bool terminated[CAPACITY];
     bool truncated[CAPACITY];
     uint32_t position = 0;
-    bool full;
+    bool full = false;
 };
 
 
 template <typename T, int OBSERVATION_DIM, int ACTION_DIM, int CAPACITY>
 void add(ReplayBuffer<T, OBSERVATION_DIM, ACTION_DIM, CAPACITY>& buffer, const T observation[OBSERVATION_DIM], const T action[ACTION_DIM], const T reward, const T next_observation[OBSERVATION_DIM], const bool terminated, const bool truncated) {
+    // todo: change to memcpy?
     for(int i = 0; i < OBSERVATION_DIM; i++) {
         buffer.observations[buffer.position][i] = observation[i];
         buffer.next_observations[buffer.position][i] = next_observation[i];

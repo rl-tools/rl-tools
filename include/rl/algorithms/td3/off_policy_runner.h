@@ -2,6 +2,7 @@
 
 template <typename T, typename ENVIRONMENT, typename POLICY, int CAPACITY, int STEP_LIMIT>
 struct OffPolicyRunner {
+    static_assert(STEP_LIMIT > 0, "STEP_LIMIT must be greater than 0");
     ReplayBuffer<T, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, CAPACITY> replay_buffer;
     T state[ENVIRONMENT::STATE_DIM];
     uint32_t episode_step = 0;
@@ -11,12 +12,14 @@ struct OffPolicyRunner {
 
 template <typename T, typename ENVIRONMENT, typename POLICY, int CAPACITY, int STEP_LIMIT, typename RNG>
 void step(OffPolicyRunner<T, ENVIRONMENT, POLICY, CAPACITY, STEP_LIMIT>& runner, POLICY& policy, RNG& rng){
+    // if the episode is done or if the step is the first step for this runner, reset the environment
     if(runner.episode_step == STEP_LIMIT || (runner.replay_buffer.position == 0 && !runner.replay_buffer.full)){
         // first step
         ENVIRONMENT::sample_initial_state(runner.state, rng);
         runner.episode_step = 0;
         runner.episode_return = 0;
     }
+    // todo: increase efficiency by removing the double observation of each state
     T observation[ENVIRONMENT::OBSERVATION_DIM];
     ENVIRONMENT::observe(runner.state, observation);
     T next_state[ENVIRONMENT::STATE_DIM];
@@ -33,5 +36,6 @@ void step(OffPolicyRunner<T, ENVIRONMENT, POLICY, CAPACITY, STEP_LIMIT>& runner,
     if(truncated || terminated){
         std::cout << "Episode return: " << runner.episode_return << std::endl;
     }
+    // todo: add truncation / termination handling (stemming from the environment)
     add(runner.replay_buffer, observation, action, reward, next_observation, terminated, truncated);
 }
