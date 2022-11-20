@@ -10,8 +10,10 @@
 
 namespace layer_in_c::nn::layers {
     using namespace layer_in_c::nn::activation_functions;
-    template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction>
+    template<typename T, int T_INPUT_DIM, int T_OUTPUT_DIM, ActivationFunction>
     struct Layer{
+        static constexpr int INPUT_DIM = T_INPUT_DIM;
+        static constexpr int OUTPUT_DIM = T_OUTPUT_DIM;
         T weights[OUTPUT_DIM][INPUT_DIM];
         T biases [OUTPUT_DIM];
     };
@@ -23,6 +25,24 @@ namespace layer_in_c::nn::layers {
     struct LayerBackwardGradient: public LayerBackward<T, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>{
         T d_weights[OUTPUT_DIM][INPUT_DIM];
         T d_biases [OUTPUT_DIM];
+    };
+    template <typename T>
+    struct DefaultSGDParameters{
+    public:
+        static constexpr T ALPHA   = 0.001;
+
+    };
+    template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction ACTIVATION_FUNCTION, typename PARAMETERS>
+    struct LayerBackwardSGD: public LayerBackward<T, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>{};
+
+    template <typename T>
+    struct DefaultAdamParameters{
+    public:
+        static constexpr T ALPHA   = 0.001;
+        static constexpr T BETA_1  = 0.9;
+        static constexpr T BETA_2  = 0.999;
+        static constexpr T EPSILON = 1e-7;
+
     };
     template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction ACTIVATION_FUNCTION, typename PARAMETERS>
     struct LayerBackwardAdam: public LayerBackwardGradient<T, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>{
@@ -90,6 +110,15 @@ namespace layer_in_c::nn::layers {
             layer.d_biases[i] = 0;
             for(int j = 0; j < INPUT_DIM; j++) {
                 layer.d_weights[i][j] = 0;
+            }
+        }
+    }
+    template<typename T, int INPUT_DIM, int OUTPUT_DIM, ActivationFunction FN, typename PARAMETERS>
+    FUNCTION_PLACEMENT void gradient_descent(LayerBackwardSGD<T, INPUT_DIM, OUTPUT_DIM, FN, PARAMETERS>& layer){
+        for(int i = 0; i < OUTPUT_DIM; i++) {
+            layer.biases[i] -= PARAMETERS::ALPHA * layer.d_biases[i];
+            for(int j = 0; j < INPUT_DIM; j++) {
+                layer.weights[i][j] -= PARAMETERS::ALPHA * layer.d_weights[i][j];
             }
         }
     }

@@ -8,23 +8,33 @@
 using namespace layer_in_c;
 using namespace layer_in_c::nn::layers;
 
+template <typename T>
+struct DefaultTD3Parameters{
+    static constexpr T GAMMA = 0.99;
+    static constexpr uint32_t ACTOR_BATCH_SIZE = 32;
+    static constexpr uint32_t CRITIC_BATCH_SIZE = 32;
+    static constexpr T ACTOR_POLYAK = 0.005;
+    static constexpr T CRITIC_POLYAK = 0.005;
+    static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
+    static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
+};
 
 template <typename T>
 struct DefaultActorNetworkDefinition{
-    static constexpr int LAYER_1_DIM = 50;
-    static constexpr int LAYER_2_DIM = 50;
-    static constexpr ActivationFunction LAYER_1_FN = ActivationFunction::RELU;
-    static constexpr ActivationFunction LAYER_2_FN = ActivationFunction::RELU;
-    typedef nn_models::DefaultAdamParameters<T> ADAM_PARAMETERS;
+    static constexpr int LAYER_1_DIM = 64;
+    static constexpr int LAYER_2_DIM = 64;
+    static constexpr ActivationFunction LAYER_1_FN = ActivationFunction::TANH;
+    static constexpr ActivationFunction LAYER_2_FN = ActivationFunction::TANH;
+    typedef nn::layers::DefaultAdamParameters<T> ADAM_PARAMETERS;
 };
 
 template <typename T>
 struct DefaultCriticNetworkDefinition{
-    static constexpr int LAYER_1_DIM = 50;
-    static constexpr int LAYER_2_DIM = 50;
-    static constexpr ActivationFunction LAYER_1_FN = ActivationFunction::RELU;
-    static constexpr ActivationFunction LAYER_2_FN = ActivationFunction::RELU;
-    typedef nn_models::DefaultAdamParameters<T> ADAM_PARAMETERS;
+    static constexpr int LAYER_1_DIM = 64;
+    static constexpr int LAYER_2_DIM = 64;
+    static constexpr ActivationFunction LAYER_1_FN = ActivationFunction::TANH;
+    static constexpr ActivationFunction LAYER_2_FN = ActivationFunction::TANH;
+    typedef nn::layers::DefaultAdamParameters<T> ADAM_PARAMETERS;
 };
 
 template <
@@ -35,16 +45,16 @@ template <
     typename PARAMETERS
 >
 struct ActorCritic{
-    typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkTrainingAdam<T, ENVIRONMENT::STATE_DIM,
+    typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkTrainingAdam<T, ENVIRONMENT::OBSERVATION_DIM,
             ACTOR_NETWORK_DEFINITION::LAYER_1_DIM, ACTOR_NETWORK_DEFINITION::LAYER_1_FN,
             ACTOR_NETWORK_DEFINITION::LAYER_2_DIM, ACTOR_NETWORK_DEFINITION::LAYER_2_FN,
             ENVIRONMENT::ACTION_DIM, layer_in_c::nn::activation_functions::TANH, typename ACTOR_NETWORK_DEFINITION::ADAM_PARAMETERS> ACTOR_NETWORK_TYPE;
-    typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkInference<T, ENVIRONMENT::STATE_DIM,
+    typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkInference<T, ENVIRONMENT::OBSERVATION_DIM,
             ACTOR_NETWORK_DEFINITION::LAYER_1_DIM, ACTOR_NETWORK_DEFINITION::LAYER_1_FN,
             ACTOR_NETWORK_DEFINITION::LAYER_2_DIM, ACTOR_NETWORK_DEFINITION::LAYER_2_FN,
             ENVIRONMENT::ACTION_DIM, layer_in_c::nn::activation_functions::TANH, typename ACTOR_NETWORK_DEFINITION::ADAM_PARAMETERS> ACTOR_TARGET_NETWORK_TYPE;
 
-    static constexpr int CRITIC_INPUT_DIM = ENVIRONMENT::STATE_DIM + ENVIRONMENT::ACTION_DIM;
+    static constexpr int CRITIC_INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
     typedef layer_in_c::nn_models::ThreeLayerNeuralNetworkTrainingAdam<T, CRITIC_INPUT_DIM,
             CRITIC_NETWORK_DEFINITION::LAYER_1_DIM, CRITIC_NETWORK_DEFINITION::LAYER_1_FN,
             CRITIC_NETWORK_DEFINITION::LAYER_2_DIM, CRITIC_NETWORK_DEFINITION::LAYER_2_FN,
@@ -92,6 +102,9 @@ void init(ActorCritic<T, ENVIRONMENT, ACTOR_NETWORK_DEFINITION, CRITIC_NETWORK_D
     layer_in_c::nn_models::init_weights(actor_critic.actor, rng);
     layer_in_c::nn_models::init_weights(actor_critic.critic_1, rng);
     layer_in_c::nn_models::init_weights(actor_critic.critic_2, rng);
+    layer_in_c::nn_models::reset_optimizer_state(actor_critic.actor);
+    layer_in_c::nn_models::reset_optimizer_state(actor_critic.critic_1);
+    layer_in_c::nn_models::reset_optimizer_state(actor_critic.critic_2);
     // Target networks still need to be initialised because they could be none which could destroy the use of the polyak update for assignment
     layer_in_c::nn_models::init_weights(actor_critic.actor_target, rng);
     layer_in_c::nn_models::init_weights(actor_critic.critic_target_1, rng);
@@ -103,7 +116,8 @@ void init(ActorCritic<T, ENVIRONMENT, ACTOR_NETWORK_DEFINITION, CRITIC_NETWORK_D
 
 
 template <typename T, typename ENVIRONMENT, typename ACTOR_NETWORK_DEFINITION, typename CRITIC_NETWORK_DEFINITION, typename PARAMETERS, typename CRITIC_TYPE, int CAPACITY, typename RNG>
-void train_critic(ActorCritic<T, ENVIRONMENT, ACTOR_NETWORK_DEFINITION, CRITIC_NETWORK_DEFINITION, PARAMETERS>& actor_critic, CRITIC_TYPE& critic, ReplayBuffer<T, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
+T train_critic(ActorCritic<T, ENVIRONMENT, ACTOR_NETWORK_DEFINITION, CRITIC_NETWORK_DEFINITION, PARAMETERS>& actor_critic, CRITIC_TYPE& critic, ReplayBuffer<T, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
+    assert(replay_buffer.full || replay_buffer.position >= PARAMETERS::CRITIC_BATCH_SIZE);
     T loss = 0;
     zero_gradient(critic);
     std::uniform_int_distribution<uint32_t> sample_distribution(0, (replay_buffer.full ? CAPACITY : replay_buffer.position) - 1);
@@ -112,6 +126,17 @@ void train_critic(ActorCritic<T, ENVIRONMENT, ACTOR_NETWORK_DEFINITION, CRITIC_N
         T next_state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
         memcpy(next_state_action_value_input, replay_buffer.next_observations[sample_index], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
         evaluate(actor_critic.actor_target, next_state_action_value_input, &next_state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
+        std::normal_distribution<T> target_next_action_noise_distribution(0, PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
+        for(int action_i=0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
+            T noisy_next_action = next_state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + action_i] + std::clamp(
+                    target_next_action_noise_distribution(rng),
+                    -PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
+                    PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
+            );
+            noisy_next_action = std::clamp<T>(noisy_next_action, -1, 1);
+            next_state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + action_i] = noisy_next_action;
+        }
+
         T min_next_state_action_value = std::min(
             evaluate(actor_critic.critic_target_1, next_state_action_value_input),
             evaluate(actor_critic.critic_target_2, next_state_action_value_input)
@@ -121,37 +146,38 @@ void train_critic(ActorCritic<T, ENVIRONMENT, ACTOR_NETWORK_DEFINITION, CRITIC_N
         memcpy(&state_action_value_input[ENVIRONMENT::OBSERVATION_DIM], replay_buffer.actions[sample_index], sizeof(T) * ENVIRONMENT::ACTION_DIM); // setting the first part with the current action
 //        standardise<T,  OBSERVATION_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
 //        standardise<T, ACTION_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
-        T target_action_value[1] = {replay_buffer.rewards[sample_index] + PARAMETERS::GAMMA * min_next_state_action_value * (1 - replay_buffer.terminated[sample_index])};
+        T target_action_value[1] = {replay_buffer.rewards[sample_index] + PARAMETERS::GAMMA * min_next_state_action_value * (!replay_buffer.terminated[sample_index])};
 
         forward_backward_mse(critic, state_action_value_input, target_action_value);
         loss += nn::loss_functions::mse<T, 1>(critic.output_layer.output, target_action_value);
     }
     loss /= PARAMETERS::CRITIC_BATCH_SIZE;
-    std::cout << "Critic loss: " << loss << std::endl;
     update(critic);
+    return loss;
 }
 
 template <typename T, typename ENVIRONMENT, typename ACTOR_NETWORK_DEFINITION, typename CRITIC_NETWORK_DEFINITION, typename PARAMETERS, int CAPACITY, typename RNG>
-void train_actor(ActorCritic<T, ENVIRONMENT, ACTOR_NETWORK_DEFINITION, CRITIC_NETWORK_DEFINITION, PARAMETERS>& actor_critic, ReplayBuffer<T, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
-    T loss = 0;
+T train_actor(ActorCritic<T, ENVIRONMENT, ACTOR_NETWORK_DEFINITION, CRITIC_NETWORK_DEFINITION, PARAMETERS>& actor_critic, ReplayBuffer<T, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
+    T actor_value = 0;
     zero_gradient(actor_critic.actor);
     std::uniform_int_distribution<uint32_t> sample_distribution(0, (replay_buffer.full ? CAPACITY : replay_buffer.position) - 1);
     for (int sample_i=0; sample_i < PARAMETERS::ACTOR_BATCH_SIZE; sample_i++){
         uint32_t sample_index = sample_distribution(rng);
         T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
         memcpy(state_action_value_input, replay_buffer.observations[sample_index], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
-
         evaluate(actor_critic.actor_target, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
+
         forward(actor_critic.critic_target_1, state_action_value_input);
-        T d_output[1] = {-1};
+        actor_value += actor_critic.critic_target_1.output_layer.output[0];
+        T d_output[1] = {-1}; // we want to maximise the critic output using gradient descent
         T d_critic_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
         backward(actor_critic.critic_target_1, state_action_value_input, d_output, d_critic_input);
         T d_actor_input[ENVIRONMENT::OBSERVATION_DIM];
         backward(actor_critic.actor, state_action_value_input, &d_critic_input[ENVIRONMENT::OBSERVATION_DIM], d_actor_input);
     }
-    loss /= PARAMETERS::ACTOR_BATCH_SIZE;
-    std::cout << "Critic loss: " << loss << std::endl;
+    actor_value /= PARAMETERS::ACTOR_BATCH_SIZE;
     update(actor_critic.actor);
+    return actor_value;
 }
 
 
