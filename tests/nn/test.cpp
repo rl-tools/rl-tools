@@ -18,7 +18,7 @@ using namespace layer_in_c;
 #define LAYER_2_FN nn::activation_functions::RELU
 #define OUTPUT_DIM 13
 #define OUTPUT_FN nn::activation_functions::LINEAR
-//#define SKIP_TESTS
+#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS
 //#define SKIP_OVERFITTING_TESTS
@@ -436,10 +436,10 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatches) {
 
 constexpr auto MODEL_TRAINING_ACTIVATION_FN = nn::activation_functions::GELU_SQUARE;
 
-//typedef nn_models::three_layer_fc::AdamSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultAdamParameters<DTYPE>> NETWORK_SPEC_3;
-//typedef nn_models::three_layer_fc::NeuralNetworkAdam<NETWORK_SPEC_3> NetworkType_3;
-typedef nn_models::three_layer_fc::SGDSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultSGDParameters<DTYPE>> NETWORK_SPEC_3;
-typedef nn_models::three_layer_fc::NeuralNetworkSGD<NETWORK_SPEC_3> NetworkType_3;
+typedef nn_models::three_layer_fc::AdamSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultAdamParameters<DTYPE>> NETWORK_SPEC_3;
+typedef nn_models::three_layer_fc::NeuralNetworkAdam<NETWORK_SPEC_3> NetworkType_3;
+//typedef nn_models::three_layer_fc::SGDSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultSGDParameters<DTYPE>> NETWORK_SPEC_3;
+//typedef nn_models::three_layer_fc::NeuralNetworkSGD<NETWORK_SPEC_3> NetworkType_3;
 class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
 public:
     NeuralNetworkTestTrainModel() : NeuralNetworkTest<NetworkType_3>(){
@@ -539,7 +539,7 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
     constexpr int n_epochs = 3;
 //    this->reset();
     reset_optimizer_state(network);
-    std::mt19937 rng(0);
+    std::mt19937 rng(2);
     init_weights(network, rng);
 
     constexpr int batch_size = 32;
