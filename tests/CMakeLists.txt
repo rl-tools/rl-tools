@@ -14,6 +14,7 @@ add_executable(
         neural_network_test
         nn/test.cpp
 )
+message(${PROJECT_SOURCE_DIR}/include)
 target_include_directories(neural_network_test PRIVATE
 ${CMAKE_CURRENT_SOURCE_DIR}/lib
 ${PROJECT_SOURCE_DIR}/include

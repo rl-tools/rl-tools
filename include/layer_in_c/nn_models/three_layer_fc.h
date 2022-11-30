@@ -1,6 +1,6 @@
 #ifndef NEURAL_NETWORK_MODELS_H
 #define NEURAL_NETWORK_MODELS_H
-#include <nn/nn.h>
+#include <layer_in_c/nn/nn.h>
 namespace layer_in_c::nn_models {
     using namespace nn;
     using namespace nn::activation_functions;
