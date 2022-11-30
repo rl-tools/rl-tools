@@ -1,6 +1,5 @@
 #ifndef LAYER_IN_C_NN_LAYERS
 #define LAYER_IN_C_NN_LAYERS
-#include <random>
 #include "../activation_functions.h"
 #include "../../utils/polyak.h"
 
