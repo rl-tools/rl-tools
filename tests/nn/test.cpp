@@ -1,13 +1,13 @@
-#include <gtest/gtest.h>
-
 #include <iostream>
 #include <vector>
-#include "layer_in_c/nn_models/models.h"
-#include "layer_in_c/nn_models/operations_generic.h"
+#include <gtest/gtest.h>
+#include <highfive/H5File.hpp>
+
+#include <layer_in_c/nn_models/models.h>
+#include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/nn/nn.h>
 #include <layer_in_c/utils/rng_std.h>
 #include "../utils/utils.h"
-#include <highfive/H5File.hpp>
 #include <sstream>
 #define DTYPE float
 
