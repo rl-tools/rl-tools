@@ -1,6 +1,6 @@
 #ifndef LAYER_IN_C_NN_MODELS_THREE_LAYER_FC_PERSIST
 #define LAYER_IN_C_NN_MODELS_THREE_LAYER_FC_PERSIST
-#include <highfive/H5File.hpp>
+#include <highfive/H5Group.hpp>
 #include "network.h"
 #include <layer_in_c/nn/persist.h>
 namespace layer_in_c{
@@ -11,9 +11,11 @@ namespace layer_in_c{
         save(network.output_layer, group.createGroup("output_layer"));
     }
     template<typename DEVICE, typename SPEC>
-    void save(nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& network, std::string file_path) {
-        auto file = HighFive::File(file_path, HighFive::File::Overwrite);
-        save(network, file.createGroup("three_layer_fc"));
+    void save(nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, SPEC>& network, HighFive::Group group) {
+        save(static_cast<nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>&>(network), group);
+        std::vector<typeof(network.age)> age;
+        age.push_back(network.age);
+        group.createDataSet("age", age);
     }
     template<typename DEVICE, typename SPEC>
     void load(nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& network, HighFive::Group group){
