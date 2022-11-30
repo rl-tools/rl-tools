@@ -9,36 +9,7 @@
 
 #include "../utils/utils.h"
 
-namespace lic = layer_in_c;
-
-#define DTYPE float
-constexpr size_t INPUT_DIM = 17;
-constexpr size_t LAYER_1_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN =  lic::nn::activation_functions::RELU;
-constexpr size_t LAYER_2_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = lic::nn::activation_functions::RELU;
-constexpr size_t OUTPUT_DIM = 13;
-constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_FN = lic::nn::activation_functions::LINEAR;
-
-typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
-typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParameters<DTYPE>> NETWORK_SPEC;
-typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType;
-
-template <typename T, typename DEVICE, typename SPEC>
-T abs_diff(lic::nn::layers::dense::Layer<DEVICE, SPEC> l1, lic::nn::layers::dense::Layer<DEVICE, SPEC> l2) {
-    T acc = 0;
-    acc += abs_diff_matrix<DTYPE, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.weights, l2.weights);
-    acc += abs_diff_vector<DTYPE, SPEC::OUTPUT_DIM>(l1.biases, l2.biases);
-    return acc;
-}
-template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff(lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n1, lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n2) {
-    typename SPEC::T acc = 0;
-    acc += abs_diff<DTYPE, DEVICE, typename SPEC::LAYER_1::SPEC>(n1.layer_1, n2.layer_1);
-    acc += abs_diff<DTYPE, DEVICE, typename SPEC::LAYER_2::SPEC>(n1.layer_2, n2.layer_2);
-    acc += abs_diff<DTYPE, DEVICE, typename SPEC::OUTPUT_LAYER::SPEC>(n1.output_layer, n2.output_layer);
-    return acc;
-}
+#include "default_network.h"
 
 #include <layer_in_c/utils/persist.h>
 TEST(NeuralNetworkPersist, Saving) {
@@ -63,3 +34,4 @@ TEST(NeuralNetworkPersist, Saving) {
     ASSERT_EQ(diff_post_load, 0);
     std::cout << "diff_post_load: " << diff_post_load << std::endl;
 }
+

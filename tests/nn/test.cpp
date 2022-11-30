@@ -9,24 +9,13 @@
 #include <layer_in_c/utils/rng_std.h>
 #include "../utils/utils.h"
 #include <sstream>
-#define DTYPE float
-
-namespace lic = layer_in_c;
-
-#define INPUT_DIM 17
-#define LAYER_1_DIM 50
-#define LAYER_1_FN lic::nn::activation_functions::RELU
-#define LAYER_2_DIM 50
-#define LAYER_2_FN lic::nn::activation_functions::RELU
-#define OUTPUT_DIM 13
-#define OUTPUT_FN lic::nn::activation_functions::LINEAR
+#include "default_network.h"
 //#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS
 //#define SKIP_OVERFITTING_TESTS
 //#define SKIP_TRAINING_TESTS
 
-const std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
 
 constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
@@ -44,61 +33,10 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     return acc;
 }
 
-
-
-template <typename NETWORK_TYPE>
-class NeuralNetworkTest : public ::testing::Test {
-protected:
-    std::string model_name = "model_1";
-    void SetUp() override {
-        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet("data/X_train").read(X_train);
-        data_file.getDataSet("data/Y_train").read(Y_train);
-        data_file.getDataSet("data/X_val").read(X_val);
-        data_file.getDataSet("data/Y_val").read(Y_val);
-        data_file.getDataSet("data/X_mean").read(X_mean);
-        data_file.getDataSet("data/X_std").read(X_std);
-        data_file.getDataSet("data/Y_mean").read(Y_mean);
-        data_file.getDataSet("data/Y_std").read(Y_std);
-        this->reset();
-    }
-
-    void reset(){
-        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet(model_name + "/init/layer_1/weight").read(layer_1_weights);
-        data_file.getDataSet(model_name + "/init/layer_1/bias").read(layer_1_biases);
-        data_file.getDataSet(model_name + "/init/layer_2/weight").read(layer_2_weights);
-        data_file.getDataSet(model_name + "/init/layer_2/bias").read(layer_2_biases);
-        data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
-        data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.layer_1.weights     , layer_1_weights);
-        memcpy(network.layer_1.biases, layer_1_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.layer_2.weights     , layer_2_weights);
-        memcpy(network.layer_2.biases, layer_2_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
-        assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights, output_layer_weights);
-        memcpy(network.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
-    }
-
-    NETWORK_TYPE network;
-    std::vector<std::vector<DTYPE>> X_train;
-    std::vector<std::vector<DTYPE>> Y_train;
-    std::vector<std::vector<DTYPE>> X_val;
-    std::vector<std::vector<DTYPE>> Y_val;
-    std::vector<DTYPE> X_mean;
-    std::vector<DTYPE> X_std;
-    std::vector<DTYPE> Y_mean;
-    std::vector<DTYPE> Y_std;
-    std::vector<std::vector<DTYPE>> layer_1_weights;
-    std::vector<DTYPE> layer_1_biases;
-    std::vector<std::vector<DTYPE>> layer_2_weights;
-    std::vector<DTYPE> layer_2_biases;
-    std::vector<std::vector<DTYPE>> output_layer_weights;
-    std::vector<DTYPE> output_layer_biases;
-};
-
-class NeuralNetworkTestBackwardPass : public NeuralNetworkTest<NetworkType_1> {
+template <typename NetworkType>
+class NeuralNetworkTestLoadWeights : public NeuralNetworkTest {
 public:
-    NeuralNetworkTestBackwardPass() : NeuralNetworkTest(){
+    NeuralNetworkTestLoadWeights() : NeuralNetworkTest(){
         model_name = "model_1";
     }
 protected:
@@ -123,6 +61,29 @@ protected:
         lic::zero_gradient(network);
         lic::backward(network, input, d_loss_d_output, d_input);
     }
+    void reset(){
+        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+        data_file.getDataSet(model_name + "/init/layer_1/weight").read(layer_1_weights);
+        data_file.getDataSet(model_name + "/init/layer_1/bias").read(layer_1_biases);
+        data_file.getDataSet(model_name + "/init/layer_2/weight").read(layer_2_weights);
+        data_file.getDataSet(model_name + "/init/layer_2/bias").read(layer_2_biases);
+        data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
+        data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
+        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.layer_1.weights     , layer_1_weights);
+        memcpy(network.layer_1.biases, layer_1_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
+        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.layer_2.weights     , layer_2_weights);
+        memcpy(network.layer_2.biases, layer_2_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
+        assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights, output_layer_weights);
+        memcpy(network.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
+    }
+
+    NetworkType network;
+    std::vector<std::vector<DTYPE>> layer_1_weights;
+    std::vector<DTYPE> layer_1_biases;
+    std::vector<std::vector<DTYPE>> layer_2_weights;
+    std::vector<DTYPE> layer_2_biases;
+    std::vector<std::vector<DTYPE>> output_layer_weights;
+    std::vector<DTYPE> output_layer_biases;
     std::vector<std::vector<DTYPE>> batch_0_layer_1_weights_grad;
     std::vector<DTYPE> batch_0_layer_1_biases_grad;
     std::vector<std::vector<DTYPE>> batch_0_layer_2_weights_grad;
@@ -134,6 +95,7 @@ protected:
 constexpr DTYPE BACKWARD_PASS_GRADIENT_TOLERANCE (1e-8);
 #ifndef SKIP_BACKPROP_TESTS
 #ifndef SKIP_TESTS
+typedef NeuralNetworkTestLoadWeights<NetworkType_1> NeuralNetworkTestBackwardPass;
 TEST_F(NeuralNetworkTestBackwardPass, layer_1_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_1_DIM, INPUT_DIM
@@ -214,7 +176,7 @@ TEST_F(NeuralNetworkTestBackwardPass, output_layer_biases) {
 
 
 #ifndef SKIP_ADAM_TESTS
-typedef NeuralNetworkTest<NetworkType_1> NeuralNetworkTestAdamUpdate;
+typedef NeuralNetworkTestBackwardPass NeuralNetworkTestAdamUpdate;
 #ifndef SKIP_TESTS
 TEST_F(NeuralNetworkTestAdamUpdate, AdamUpdate) {
     this->reset();
@@ -289,9 +251,9 @@ TEST_F(NeuralNetworkTestAdamUpdate, AdamUpdate) {
 //#endif
 
 #ifndef SKIP_OVERFITTING_TESTS
-class NeuralNetworkTestOverfitBatch : public NeuralNetworkTest<NetworkType_1> {
+class NeuralNetworkTestOverfitBatch : public NeuralNetworkTestBackwardPass {
 public:
-    NeuralNetworkTestOverfitBatch() : NeuralNetworkTest(){
+    NeuralNetworkTestOverfitBatch() : NeuralNetworkTestBackwardPass(){
         model_name = "model_2";
     }
 protected:
@@ -444,10 +406,10 @@ typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic,
 typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC_3> NetworkType_3;
 //typedef nn_models::three_layer_fc::SGDSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultSGDParameters<DTYPE>> NETWORK_SPEC_3;
 //typedef nn_models::three_layer_fc::NeuralNetworkSGD<NETWORK_SPEC_3> NetworkType_3;
-class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
+class NeuralNetworkTestTrainModel : public NeuralNetworkTestLoadWeights<NetworkType_3> {
 public:
     typedef NetworkType_3 NETWORK_TYPE;
-    NeuralNetworkTestTrainModel() : NeuralNetworkTest<NetworkType_3>(){
+    NeuralNetworkTestTrainModel() : NeuralNetworkTestLoadWeights<NetworkType_3>(){
         model_name = "model_3";
     }
 protected:
