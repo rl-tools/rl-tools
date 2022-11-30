@@ -533,6 +533,12 @@ TEST_F(NeuralNetworkTestTrainModel, TrainModel) {
 }
 #endif
 
+template <typename T, typename RNG>
+T random_uniform(T min, T max, RNG& rng){
+    std::uniform_real_distribution<T> dist(min, max);
+    return dist(rng);
+}
+
 #ifndef SKIP_TESTS
 TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
     std::vector<DTYPE> losses;
@@ -541,7 +547,7 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
 //    this->reset();
     reset_optimizer_state(network);
     std::mt19937 rng(2);
-    init_weights(network, rng);
+    init_weights<NETWORK_SPEC_3, random_uniform<DTYPE, std::mt19937>, std::mt19937>(network, rng);
 
     constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;

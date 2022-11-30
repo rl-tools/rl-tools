@@ -9,35 +9,35 @@ namespace layer_in_c::nn_models {
         template<typename T_T, int INPUT_DIM, int LAYER_1_DIM, nn::layers::ActivationFunction LAYER_1_FN, int LAYER_2_DIM, nn::layers::ActivationFunction LAYER_2_FN, int OUTPUT_DIM, nn::layers::ActivationFunction OUTPUT_LAYER_FN>
         struct InferenceSpecification{
             typedef T_T T;
-            typedef layers::Layer<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN> LAYER_1;
-            typedef layers::Layer<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN> LAYER_2;
-            typedef layers::Layer<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN> OUTPUT_LAYER;
+            typedef layers::Layer<layers::LayerSpec<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN>> LAYER_1;
+            typedef layers::Layer<layers::LayerSpec<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN>> LAYER_2;
+            typedef layers::Layer<layers::LayerSpec<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN>> OUTPUT_LAYER;
         };
 
         template<typename T_T, int INPUT_DIM, int LAYER_1_DIM, nn::layers::ActivationFunction LAYER_1_FN, int LAYER_2_DIM, nn::layers::ActivationFunction LAYER_2_FN, int OUTPUT_DIM, nn::layers::ActivationFunction OUTPUT_LAYER_FN>
         struct InferenceBackwardSpecification{
             typedef T_T T;
-            typedef layers::LayerBackward<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN> LAYER_1;
-            typedef layers::LayerBackward<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN> LAYER_2;
-            typedef layers::LayerBackward<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN> OUTPUT_LAYER;
+            typedef layers::LayerBackward<layers::LayerSpec<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN>> LAYER_1;
+            typedef layers::LayerBackward<layers::LayerSpec<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN>> LAYER_2;
+            typedef layers::LayerBackward<layers::LayerSpec<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN>> OUTPUT_LAYER;
         };
 
         template<typename T_T, int INPUT_DIM, int LAYER_1_DIM, nn::layers::ActivationFunction LAYER_1_FN, int LAYER_2_DIM, nn::layers::ActivationFunction LAYER_2_FN, int OUTPUT_DIM, nn::layers::ActivationFunction OUTPUT_LAYER_FN, typename T_SGD_PARAMETERS>
         struct SGDSpecification{
             typedef T_T T;
             typedef T_SGD_PARAMETERS SGD_PARAMETERS;
-            typedef layers::LayerBackwardSGD<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN, SGD_PARAMETERS> LAYER_1;
-            typedef layers::LayerBackwardSGD<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN, SGD_PARAMETERS> LAYER_2;
-            typedef layers::LayerBackwardSGD<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN, SGD_PARAMETERS> OUTPUT_LAYER;
+            typedef layers::LayerBackwardSGD<layers::LayerSpec<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN>, SGD_PARAMETERS> LAYER_1;
+            typedef layers::LayerBackwardSGD<layers::LayerSpec<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN>, SGD_PARAMETERS> LAYER_2;
+            typedef layers::LayerBackwardSGD<layers::LayerSpec<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN>, SGD_PARAMETERS> OUTPUT_LAYER;
         };
 
         template<typename T_T, int INPUT_DIM, int LAYER_1_DIM, nn::layers::ActivationFunction LAYER_1_FN, int LAYER_2_DIM, nn::layers::ActivationFunction LAYER_2_FN, int OUTPUT_DIM, nn::layers::ActivationFunction OUTPUT_LAYER_FN, typename T_ADAM_PARAMETERS>
         struct AdamSpecification{
             typedef T_T T;
             typedef T_ADAM_PARAMETERS ADAM_PARAMETERS;
-            typedef layers::LayerBackwardAdam<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN, ADAM_PARAMETERS> LAYER_1;
-            typedef layers::LayerBackwardAdam<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN, ADAM_PARAMETERS> LAYER_2;
-            typedef layers::LayerBackwardAdam<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN, ADAM_PARAMETERS> OUTPUT_LAYER;
+            typedef layers::LayerBackwardAdam<layers::LayerSpec<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN>, ADAM_PARAMETERS> LAYER_1;
+            typedef layers::LayerBackwardAdam<layers::LayerSpec<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN>, ADAM_PARAMETERS> LAYER_2;
+            typedef layers::LayerBackwardAdam<layers::LayerSpec<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN>, ADAM_PARAMETERS> OUTPUT_LAYER;
         };
 
         template<typename T_NETWORK_SPEC>
@@ -111,9 +111,9 @@ namespace layer_in_c::nn_models {
     }
     template<typename NETWORK_SPEC>
     FUNCTION_PLACEMENT void backward(three_layer_fc::NeuralNetwork<NETWORK_SPEC>& network, const typename NETWORK_SPEC::T input[NETWORK_SPEC::LAYER_1::INPUT_DIM], const typename NETWORK_SPEC::T d_output[NETWORK_SPEC::OUTPUT_LAYER::OUTPUT_DIM], typename NETWORK_SPEC::T d_input[NETWORK_SPEC::LAYER_1::INPUT_DIM]) {
-        typename NETWORK_SPEC::T d_layer_2_output[NETWORK_SPEC::LAYER_2::OUTPUT_DIM];
+        typename NETWORK_SPEC::T d_layer_2_output[NETWORK_SPEC::LAYER_2::LAYER_SPEC::OUTPUT_DIM];
         backward(network.output_layer, network.layer_2.output, d_output, d_layer_2_output);
-        typename NETWORK_SPEC::T d_layer_1_output[NETWORK_SPEC::LAYER_1::OUTPUT_DIM];
+        typename NETWORK_SPEC::T d_layer_1_output[NETWORK_SPEC::LAYER_1::LAYER_SPEC::OUTPUT_DIM];
         backward(network.layer_2     , network.layer_1.output, d_layer_2_output, d_layer_1_output);
         backward(network.layer_1     , input                 , d_layer_1_output, d_input);
     }
@@ -157,11 +157,11 @@ namespace layer_in_c::nn_models {
     }
 
 
-    template<typename NETWORK_SPEC, typename RNG>
+    template<typename NETWORK_SPEC, auto RANDOM_UNIFORM, typename RNG>
     FUNCTION_PLACEMENT void init_weights(three_layer_fc::NeuralNetwork<NETWORK_SPEC>& network, RNG& rng) {
-        init_layer_kaiming(network.layer_1, rng);
-        init_layer_kaiming(network.layer_2, rng);
-        init_layer_kaiming(network.output_layer, rng);
+        layers::init_layer_kaiming<typename NETWORK_SPEC::LAYER_1::LAYER_SPEC, RANDOM_UNIFORM, RNG>(network.layer_1, rng);
+        layers::init_layer_kaiming<typename NETWORK_SPEC::LAYER_2::LAYER_SPEC, RANDOM_UNIFORM, RNG>(network.layer_2, rng);
+        layers::init_layer_kaiming<typename NETWORK_SPEC::OUTPUT_LAYER::LAYER_SPEC, RANDOM_UNIFORM, RNG>(network.output_layer, rng);
     }
 }
 
