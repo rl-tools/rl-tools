@@ -18,20 +18,20 @@ namespace layer_in_c::nn::layers {
         static constexpr int OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
     };
-    template<typename T_LAYER_SPEC>
+    template<typename T_SPEC>
     struct Layer{
-        typedef T_LAYER_SPEC LAYER_SPEC;
-        typename LAYER_SPEC::T weights[LAYER_SPEC::OUTPUT_DIM][LAYER_SPEC::INPUT_DIM];
-        typename LAYER_SPEC::T biases [LAYER_SPEC::OUTPUT_DIM];
+        typedef T_SPEC SPEC;
+        typename SPEC::T weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
+        typename SPEC::T biases [SPEC::OUTPUT_DIM];
     };
-    template<typename LAYER_SPEC>
-    struct LayerBackward: public Layer<LAYER_SPEC>{
-        typename LAYER_SPEC::T output   [LAYER_SPEC::OUTPUT_DIM];
+    template<typename SPEC>
+    struct LayerBackward: public Layer<SPEC>{
+        typename SPEC::T output   [SPEC::OUTPUT_DIM];
     };
-    template<typename LAYER_SPEC>
-    struct LayerBackwardGradient: public LayerBackward<LAYER_SPEC>{
-        typename LAYER_SPEC::T d_weights[LAYER_SPEC::OUTPUT_DIM][LAYER_SPEC::INPUT_DIM];
-        typename LAYER_SPEC::T d_biases [LAYER_SPEC::OUTPUT_DIM];
+    template<typename SPEC>
+    struct LayerBackwardGradient: public LayerBackward<SPEC>{
+        typename SPEC::T d_weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
+        typename SPEC::T d_biases [SPEC::OUTPUT_DIM];
     };
     template <typename T>
     struct DefaultSGDParameters{
@@ -39,8 +39,8 @@ namespace layer_in_c::nn::layers {
         static constexpr T ALPHA = 0.001;
 
     };
-    template<typename LAYER_SPEC, typename PARAMETERS>
-    struct LayerBackwardSGD: public LayerBackwardGradient<LAYER_SPEC>{};
+    template<typename SPEC, typename PARAMETERS>
+    struct LayerBackwardSGD: public LayerBackwardGradient<SPEC>{};
 
     template <typename T>
     struct DefaultAdamParameters{
@@ -51,43 +51,43 @@ namespace layer_in_c::nn::layers {
         static constexpr T EPSILON = 1e-7;
 
     };
-    template<typename LAYER_SPEC, typename PARAMETERS>
-    struct LayerBackwardAdam: public LayerBackwardGradient<LAYER_SPEC>{
-        typename LAYER_SPEC::T d_weights_first_order_moment [LAYER_SPEC::OUTPUT_DIM][LAYER_SPEC::INPUT_DIM];
-        typename LAYER_SPEC::T d_weights_second_order_moment[LAYER_SPEC::OUTPUT_DIM][LAYER_SPEC::INPUT_DIM];
-        typename LAYER_SPEC::T d_biases_first_order_moment  [LAYER_SPEC::OUTPUT_DIM];
-        typename LAYER_SPEC::T d_biases_second_order_moment [LAYER_SPEC::OUTPUT_DIM];
+    template<typename SPEC, typename PARAMETERS>
+    struct LayerBackwardAdam: public LayerBackwardGradient<SPEC>{
+        typename SPEC::T d_weights_first_order_moment [SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
+        typename SPEC::T d_weights_second_order_moment[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
+        typename SPEC::T d_biases_first_order_moment  [SPEC::OUTPUT_DIM];
+        typename SPEC::T d_biases_second_order_moment [SPEC::OUTPUT_DIM];
     };
 
 
-    template<typename T, typename LAYER_SPEC>
-    FUNCTION_PLACEMENT void evaluate(const Layer<LAYER_SPEC>& layer, const T input[LAYER_SPEC::INPUT_DIM], T output[LAYER_SPEC::OUTPUT_DIM]) {
-        for(int i = 0; i < LAYER_SPEC::OUTPUT_DIM; i++) {
+    template<typename T, typename SPEC>
+    FUNCTION_PLACEMENT void evaluate(const Layer<SPEC>& layer, const T input[SPEC::INPUT_DIM], T output[SPEC::OUTPUT_DIM]) {
+        for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
             output[i] = layer.biases[i];
-            for(int j = 0; j < LAYER_SPEC::INPUT_DIM; j++) {
+            for(int j = 0; j < SPEC::INPUT_DIM; j++) {
                 output[i] += layer.weights[i][j] * input[j];
             }
-            output[i] = activation<T, LAYER_SPEC::ACTIVATION_FUNCTION>(output[i]);
+            output[i] = activation<T, SPEC::ACTIVATION_FUNCTION>(output[i]);
         }
     }
 
-    template<typename T, typename LAYER_SPEC>
-    FUNCTION_PLACEMENT void evaluate(LayerBackward<LAYER_SPEC>& layer, const T input[LAYER_SPEC::INPUT_DIM]) {
-        for(int i = 0; i < LAYER_SPEC::OUTPUT_DIM; i++) {
+    template<typename T, typename SPEC>
+    FUNCTION_PLACEMENT void evaluate(LayerBackward<SPEC>& layer, const T input[SPEC::INPUT_DIM]) {
+        for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
             layer.output[i] = layer.biases[i];
-            for(int j = 0; j < LAYER_SPEC::INPUT_DIM; j++) {
+            for(int j = 0; j < SPEC::INPUT_DIM; j++) {
                 layer.output[i] += layer.weights[i][j] * input[j];
             }
-            layer.output[i] = activation<T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.output[i]);
+            layer.output[i] = activation<T, SPEC::ACTIVATION_FUNCTION>(layer.output[i]);
         }
     }
 
-    template<typename LAYER_SPEC>
-    FUNCTION_PLACEMENT void backward(LayerBackward<LAYER_SPEC>& layer, const typename LAYER_SPEC::T input[LAYER_SPEC::INPUT_DIM], const typename LAYER_SPEC::T d_output[LAYER_SPEC::OUTPUT_DIM], typename LAYER_SPEC::T d_input[LAYER_SPEC::INPUT_DIM]) {
+    template<typename SPEC>
+    FUNCTION_PLACEMENT void backward(LayerBackward<SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
-        for(int i = 0; i < LAYER_SPEC::OUTPUT_DIM; i++) {
-            typename LAYER_SPEC::T d_pre_activation = d_activation_d_x<typename LAYER_SPEC::T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.output[i]) * d_output[i];
-            for(int j = 0; j < LAYER_SPEC::INPUT_DIM; j++) {
+        for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
+            typename SPEC::T d_pre_activation = d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.output[i]) * d_output[i];
+            for(int j = 0; j < SPEC::INPUT_DIM; j++) {
                 if(i == 0){
                     d_input[j] = 0;
                 }

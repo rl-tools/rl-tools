@@ -444,6 +444,7 @@ typedef nn_models::three_layer_fc::NeuralNetworkAdam<NETWORK_SPEC_3> NetworkType
 //typedef nn_models::three_layer_fc::NeuralNetworkSGD<NETWORK_SPEC_3> NetworkType_3;
 class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
 public:
+    typedef NetworkType_3 NETWORK_TYPE;
     NeuralNetworkTestTrainModel() : NeuralNetworkTest<NetworkType_3>(){
         model_name = "model_3";
     }
@@ -536,6 +537,7 @@ TEST_F(NeuralNetworkTestTrainModel, TrainModel) {
 
 #ifndef SKIP_TESTS
 TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
+    assert((std::is_same_v<typeof(network), NETWORK_TYPE>));
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
