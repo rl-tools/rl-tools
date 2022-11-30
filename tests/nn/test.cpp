@@ -2,7 +2,8 @@
 
 #include <iostream>
 #include <vector>
-#include <layer_in_c/nn_models/three_layer_fc.h>
+#include <layer_in_c/nn_models/three_layer_fc/three_layer_fc.h>
+#include <layer_in_c/nn_models/three_layer_fc/persist.h>
 #include <layer_in_c/nn/nn.h>
 #include <layer_in_c/utils/rng_std.h>
 #include "../utils/utils.h"
