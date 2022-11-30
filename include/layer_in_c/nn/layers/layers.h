@@ -20,6 +20,8 @@ namespace layer_in_c::nn::layers {
     template<typename T_SPEC>
     struct Layer{
         typedef T_SPEC SPEC;
+        static constexpr int INPUT_DIM  = SPEC::INPUT_DIM;
+        static constexpr int OUTPUT_DIM = SPEC::OUTPUT_DIM;
         typename SPEC::T weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T biases [SPEC::OUTPUT_DIM];
     };
@@ -154,11 +156,11 @@ namespace layer_in_c::nn::layers {
 
     template<typename LS, typename PARAMETERS>
     FUNCTION_PLACEMENT void update_layer(LayerBackwardAdam<LS, PARAMETERS>& layer, typename LS::T first_order_moment_bias_correction, typename LS::T second_order_moment_bias_correction) {
-        utils::polyak_update_matrix<typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
-        utils::polyak_update       <typename LS::T, LS::OUTPUT_DIM>               (layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
+        utils::polyak::update_matrix<typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
+        utils::polyak::update       <typename LS::T, LS::OUTPUT_DIM>               (layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
 
-        utils::polyak_update_squared_matrix<typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
-        utils::polyak_update_squared       <typename LS::T, LS::OUTPUT_DIM>               (layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
+        utils::polyak::update_squared_matrix<typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
+        utils::polyak::update_squared       <typename LS::T, LS::OUTPUT_DIM>               (layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
 
         gradient_descent(layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
 

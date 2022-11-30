@@ -544,7 +544,7 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
 //    this->reset();
     reset_optimizer_state(network);
     std::mt19937 rng(2);
-    init_weights<NETWORK_SPEC_3, random_uniform_std<DTYPE, std::mt19937>, std::mt19937>(network, rng);
+    init_weights<NETWORK_SPEC_3, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(network, rng);
 
     constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;

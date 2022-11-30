@@ -1,11 +1,12 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-#include <nn_models/models.h>
+#include <layer_in_c/nn_models/models.h>
 
-#include <rl/environments/pendulum.h>
-#include <rl/algorithms/td3/off_policy_runner.h>
-#include <rl/algorithms/td3/td3.h>
+#include <layer_in_c/rl/environments/pendulum.h>
+#include <layer_in_c/rl/algorithms/td3/off_policy_runner.h>
+#include <layer_in_c/rl/algorithms/td3/td3.h>
+#include <layer_in_c/utils/rng_std.h>
 #include "../../utils/utils.h"
 #define DATA_FILE_PATH "../multirotor-torch/model.hdf5"
 #define DTYPE float
@@ -45,14 +46,14 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
 }
 #endif
 
-template <typename T, int INPUT_DIM, int OUTPUT_DIM, nn::activation_functions::ActivationFunction FN>
-T assign(Layer<T, INPUT_DIM, OUTPUT_DIM, FN>& layer, const HighFive::Group g){
-    std::vector<std::vector<T>> weights;
-    std::vector<T> biases;
+template <typename SPEC>
+typename SPEC::T assign(Layer<SPEC>& layer, const HighFive::Group g){
+    std::vector<std::vector<typename SPEC::T>> weights;
+    std::vector<typename SPEC::T> biases;
     g.getDataSet("weight").read(weights);
     g.getDataSet("bias").read(biases);
-    for(int i = 0; i < OUTPUT_DIM; i++){
-        for(int j = 0; j < INPUT_DIM; j++){
+    for(int i = 0; i < SPEC::OUTPUT_DIM; i++){
+        for(int j = 0; j < SPEC::INPUT_DIM; j++){
             layer.weights[i][j] = weights[i][j];
         }
         layer.biases[i] = biases[i];
@@ -70,37 +71,30 @@ struct TD3Parameters: public DefaultTD3Parameters<T>{
     constexpr static int CRITIC_BATCH_SIZE = 1;
 };
 template <typename T>
-struct TestActorNetworkDefinition: public DefaultActorNetworkDefinition<T>{
-    static constexpr ActivationFunction LAYER_1_FN = ActivationFunction::RELU;
-    static constexpr ActivationFunction LAYER_2_FN = ActivationFunction::RELU;
-    typedef nn::layers::DefaultAdamParameters<T> ADAM_PARAMETERS;
-};
+using TestActorNetworkDefinition = ActorNetworkSpecification<T, 64, 64, ActivationFunction::RELU>;
 
 template <typename T>
-struct TestCriticNetworkDefinition: public DefaultCriticNetworkDefinition<T>{
-    static constexpr ActivationFunction LAYER_1_FN = ActivationFunction::RELU;
-    static constexpr ActivationFunction LAYER_2_FN = ActivationFunction::RELU;
-    typedef nn::layers::DefaultAdamParameters<T> ADAM_PARAMETERS;
-};
+using TestCriticNetworkDefinition = CriticNetworkSpecification<T, 64, 64, ActivationFunction::RELU>;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
     g.getDataSet("0/weight").read(weights);
-    acc += abs_diff_matrix<T, NT::NETWORK_SPEC::LAYER_1::OUTPUT_DIM, NT::NETWORK_SPEC::LAYER_1::INPUT_DIM>(network.layer_1.weights, weights);
+    acc += abs_diff_matrix<T, NT::SPEC::LAYER_1::OUTPUT_DIM, NT::SPEC::LAYER_1::INPUT_DIM>(network.layer_1.weights, weights);
     return acc;
 }
 template <typename T, typename NT>
 T abs_diff_network(const NT n1, const NT n2){
-    constexpr int S = NT::NETWORK_SPEC::LAYER_1::OUTPUT_DIM * NT::NETWORK_SPEC::LAYER_1::INPUT_DIM;
+    constexpr int S = NT::SPEC::LAYER_1::OUTPUT_DIM * NT::SPEC::LAYER_1::INPUT_DIM;
     return abs_diff<T, S>((T*)n1.layer_1.weights, (T*)n2.layer_1.weights);
 }
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_1) {
     std::mt19937 rng(0);
-    ActorCritic<DTYPE, ENVIRONMENT, DefaultActorNetworkDefinition<DTYPE>, DefaultCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> actor_critic;
-    init(actor_critic, rng);
+    typedef ActorCritic<ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    ActorCriticType actor_critic;
+    init<ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
 
     std::vector<std::vector<DTYPE>> layer_1_weights;
