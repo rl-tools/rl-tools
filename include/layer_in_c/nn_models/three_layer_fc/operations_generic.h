@@ -5,8 +5,8 @@
 
 namespace layer_in_c::device::generic {
     // forward modifies intermediate outputs to facilitate backward pass
-    template<typename SPEC>
-    FUNCTION_PLACEMENT void forward(nn_models::three_layer_fc::NeuralNetworkBackward<SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM]) {
+    template<typename T, typename SPEC>
+    FUNCTION_PLACEMENT void forward(nn_models::three_layer_fc::NeuralNetworkBackward<SPEC>& network, T input[SPEC::LAYER_1::INPUT_DIM]) {
         evaluate(network.layer_1     , input);
         evaluate(network.layer_2     , network.layer_1.output);
         evaluate(network.output_layer, network.layer_2.output);
