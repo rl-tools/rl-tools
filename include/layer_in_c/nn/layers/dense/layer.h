@@ -11,7 +11,7 @@ namespace layer_in_c::nn::layers::dense {
         static constexpr int OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
     };
-    template<typename T_SPEC>
+    template<typename DEVICE, typename T_SPEC>
     struct Layer {
         typedef T_SPEC SPEC;
         static constexpr int INPUT_DIM = SPEC::INPUT_DIM;
@@ -19,12 +19,12 @@ namespace layer_in_c::nn::layers::dense {
         typename SPEC::T weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T biases[SPEC::OUTPUT_DIM];
     };
-    template<typename SPEC>
-    struct LayerBackward : public Layer<SPEC> {
+    template<typename DEVICE, typename SPEC>
+    struct LayerBackward : public Layer<DEVICE, SPEC> {
         typename SPEC::T output[SPEC::OUTPUT_DIM];
     };
-    template<typename SPEC>
-    struct LayerBackwardGradient : public LayerBackward<SPEC> {
+    template<typename DEVICE, typename SPEC>
+    struct LayerBackwardGradient : public LayerBackward<DEVICE, SPEC> {
         typename SPEC::T d_weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T d_biases[SPEC::OUTPUT_DIM];
     };
@@ -34,12 +34,12 @@ namespace layer_in_c::nn::layers::dense {
         static constexpr T ALPHA = 0.001;
 
     };
-    template<typename SPEC, typename PARAMETERS>
-    struct LayerBackwardSGD : public LayerBackwardGradient<SPEC> {
+    template<typename DEVICE, typename SPEC, typename PARAMETERS>
+    struct LayerBackwardSGD : public LayerBackwardGradient<DEVICE, SPEC> {
     };
 
-    template<typename SPEC, typename PARAMETERS>
-    struct LayerBackwardAdam : public LayerBackwardGradient<SPEC> {
+    template<typename DEVICE, typename SPEC, typename PARAMETERS>
+    struct LayerBackwardAdam : public LayerBackwardGradient<DEVICE, SPEC> {
         typename SPEC::T d_weights_first_order_moment[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T d_weights_second_order_moment[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T d_biases_first_order_moment[SPEC::OUTPUT_DIM];
