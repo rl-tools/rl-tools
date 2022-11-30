@@ -1,1 +1,1 @@
-#include "three_layer_fc.h"
+#include "three_layer_fc/network.h"

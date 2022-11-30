@@ -2,8 +2,8 @@
 
 #include <iostream>
 #include <vector>
-#include <layer_in_c/nn_models/three_layer_fc/three_layer_fc.h>
-#include <layer_in_c/nn_models/three_layer_fc/persist.h>
+#include "layer_in_c/nn_models/models.h"
+#include "layer_in_c/nn_models/operations_generic.h"
 #include <layer_in_c/nn/nn.h>
 #include <layer_in_c/utils/rng_std.h>
 #include "../utils/utils.h"
@@ -11,16 +11,15 @@
 #include <sstream>
 #define DTYPE float
 
-using namespace layer_in_c;
-using namespace layer_in_c::nn_models;
+namespace lic = layer_in_c;
 
 #define INPUT_DIM 17
 #define LAYER_1_DIM 50
-#define LAYER_1_FN nn::activation_functions::RELU
+#define LAYER_1_FN lic::nn::activation_functions::RELU
 #define LAYER_2_DIM 50
-#define LAYER_2_FN nn::activation_functions::RELU
+#define LAYER_2_FN lic::nn::activation_functions::RELU
 #define OUTPUT_DIM 13
-#define OUTPUT_FN nn::activation_functions::LINEAR
+#define OUTPUT_FN lic::nn::activation_functions::LINEAR
 //#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS
@@ -32,8 +31,8 @@ const std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
 constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
 
-typedef three_layer_fc::AdamSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, nn::optimizers::adam::DefaultParameters<DTYPE>> NETWORK_SPEC;
-typedef three_layer_fc::NeuralNetworkAdam<NETWORK_SPEC> NetworkType_1;
+typedef lic::nn_models::three_layer_fc::AdamSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN, lic::nn::optimizers::adam::DefaultParameters<DTYPE>> NETWORK_SPEC;
+typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<NETWORK_SPEC> NetworkType_1;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -116,12 +115,12 @@ protected:
         DTYPE output[OUTPUT_DIM];
         standardise<DTYPE, INPUT_DIM>(X_train[0].data(), X_mean.data(), X_std.data(), input);
         standardise<DTYPE, OUTPUT_DIM>(Y_train[0].data(), Y_mean.data(), Y_std.data(), output);
-        forward(network, input);
+        lic::forward(network, input);
         DTYPE d_loss_d_output[OUTPUT_DIM];
-        nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
+        lic::nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
         DTYPE d_input[INPUT_DIM];
-        zero_gradient(network);
-        backward(network, input, d_loss_d_output, d_input);
+        lic::zero_gradient(network);
+        lic::backward(network, input, d_loss_d_output, d_input);
     }
     std::vector<std::vector<DTYPE>> batch_0_layer_1_weights_grad;
     std::vector<DTYPE> batch_0_layer_1_biases_grad;
@@ -236,14 +235,14 @@ TEST_F(NeuralNetworkTestAdamUpdate, AdamUpdate) {
     DTYPE output[OUTPUT_DIM];
     standardise<DTYPE, INPUT_DIM>(&X_train[0][0], &X_mean[0], &X_std[0], input);
     standardise<DTYPE, OUTPUT_DIM>(&Y_train[0][0], &Y_mean[0], &Y_std[0], output);
-    forward(network, input);
+    lic::forward(network, input);
     DTYPE d_loss_d_output[OUTPUT_DIM];
-    nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
+    lic::nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
     DTYPE d_input[INPUT_DIM];
-    zero_gradient(network);
-    backward(network, input, d_loss_d_output, d_input);
-    reset_optimizer_state(network);
-    update(network);
+    lic::zero_gradient(network);
+    lic::backward(network, input, d_loss_d_output, d_input);
+    lic::reset_optimizer_state(network);
+    lic::update(network);
 
     DTYPE out = abs_diff_matrix<
             DTYPE,
@@ -311,7 +310,7 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatch) {
     constexpr int n_iter = 1000;
     constexpr int batch_size = 32;
     DTYPE loss = 0;
-    reset_optimizer_state(network);
+    lic::reset_optimizer_state(network);
     {
         DTYPE diff = abs_diff_network<DTYPE>(network, data_file.getGroup(model_name+"/init"));
         std::cout << "initial diff: " << diff << std::endl;
@@ -320,25 +319,25 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatch) {
     for (int batch_i=0; batch_i < n_iter; batch_i++){
         uint32_t batch_i_real = 0;
         loss = 0;
-        zero_gradient(network);
+        lic::zero_gradient(network);
         for (int sample_i=0; sample_i < batch_size; sample_i++){
             DTYPE input[INPUT_DIM];
             DTYPE output[OUTPUT_DIM];
             standardise<DTYPE,  INPUT_DIM>(X_train[batch_i_real * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
             standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i_real * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
-            forward(network, input);
+            lic::forward(network, input);
             DTYPE d_loss_d_output[OUTPUT_DIM];
-            nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
-            loss += nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
+            lic::nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
+            loss += lic::nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
 
             DTYPE d_input[INPUT_DIM];
-            backward(network, input, d_loss_d_output, d_input);
+            lic::backward(network, input, d_loss_d_output, d_input);
         }
         loss /= batch_size;
 
         std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-        update(network);
+        lic::update(network);
 //        constexpr int comp_batch = 100;
 //        if(batch_i == comp_batch){
         std::stringstream ss;
@@ -367,28 +366,28 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatches) {
         constexpr int n_iter = 1000;
         constexpr int batch_size = 32;
         DTYPE loss = 0;
-        reset_optimizer_state(network);
+        lic::reset_optimizer_state(network);
         for (int batch_i=0; batch_i < n_iter; batch_i++){
             loss = 0;
-            zero_gradient(network);
+            lic::zero_gradient(network);
             for (int sample_i=0; sample_i < batch_size; sample_i++){
                 DTYPE input[INPUT_DIM];
                 DTYPE output[OUTPUT_DIM];
                 standardise<DTYPE,  INPUT_DIM>(X_train[batch_i_real * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
                 standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i_real * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
-                forward(network, input);
+                lic::forward(network, input);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
-                nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
-                loss += nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
+                lic::nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
+                loss += lic::nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
 
                 DTYPE d_input[INPUT_DIM];
-                backward(network, input, d_loss_d_output, d_input);
+                lic::backward(network, input, d_loss_d_output, d_input);
             }
             loss /= batch_size;
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            update(network);
+            lic::update(network);
         }
         std::cout << "batch_i_real " << batch_i_real << " loss: " << loss << std::endl;
         losses.push_back(loss);
@@ -437,10 +436,10 @@ TEST_F(NeuralNetworkTestOverfitBatch, OverfitBatches) {
 #endif
 #endif
 
-constexpr auto MODEL_TRAINING_ACTIVATION_FN = nn::activation_functions::GELU_SQUARE;
+constexpr auto MODEL_TRAINING_ACTIVATION_FN = lic::nn::activation_functions::GELU_SQUARE;
 
-typedef nn_models::three_layer_fc::AdamSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::optimizers::adam::DefaultParameters<DTYPE>> NETWORK_SPEC_3;
-typedef nn_models::three_layer_fc::NeuralNetworkAdam<NETWORK_SPEC_3> NetworkType_3;
+typedef lic::nn_models::three_layer_fc::AdamSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, lic::nn::optimizers::adam::DefaultParameters<DTYPE>> NETWORK_SPEC_3;
+typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<NETWORK_SPEC_3> NetworkType_3;
 //typedef nn_models::three_layer_fc::SGDSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultSGDParameters<DTYPE>> NETWORK_SPEC_3;
 //typedef nn_models::three_layer_fc::NeuralNetworkSGD<NETWORK_SPEC_3> NetworkType_3;
 class NeuralNetworkTestTrainModel : public NeuralNetworkTest<NetworkType_3> {
@@ -463,7 +462,7 @@ TEST_F(NeuralNetworkTestTrainModel, TrainModel) {
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
     this->reset();
-    reset_optimizer_state(network);
+    lic::reset_optimizer_state(network);
     constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;
 
@@ -471,26 +470,26 @@ TEST_F(NeuralNetworkTestTrainModel, TrainModel) {
         DTYPE epoch_loss = 0;
         for (int batch_i=0; batch_i < n_iter; batch_i++){
             DTYPE loss = 0;
-            zero_gradient(network);
+            lic::zero_gradient(network);
             for (int sample_i=0; sample_i < batch_size; sample_i++){
                 DTYPE input[INPUT_DIM];
                 DTYPE output[OUTPUT_DIM];
                 standardise<DTYPE,  INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
                 standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
-                forward(network, input);
+                lic::forward(network, input);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
-                nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
-                loss += nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
+                lic::nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
+                loss += lic::nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
 
                 DTYPE d_input[INPUT_DIM];
-                backward(network, input, d_loss_d_output, d_input);
+                lic::backward(network, input, d_loss_d_output, d_input);
             }
             loss /= batch_size;
             epoch_loss += loss;
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            update(network);
+            lic::update(network);
             std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
         }
         epoch_loss /= n_iter;
@@ -502,8 +501,8 @@ TEST_F(NeuralNetworkTestTrainModel, TrainModel) {
             DTYPE output[OUTPUT_DIM];
             standardise<DTYPE,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
             standardise<DTYPE, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
-            forward(network, input);
-            val_loss += nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
+            lic::forward(network, input);
+            val_loss += lic::nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);
@@ -543,9 +542,9 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
 //    this->reset();
-    reset_optimizer_state(network);
+    lic::reset_optimizer_state(network);
     std::mt19937 rng(2);
-    init_weights<NETWORK_SPEC_3, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(network, rng);
+    lic::init_weights<NETWORK_SPEC_3, lic::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(network, rng);
 
     constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;
@@ -554,26 +553,26 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
         DTYPE epoch_loss = 0;
         for (int batch_i=0; batch_i < n_iter; batch_i++){
             DTYPE loss = 0;
-            zero_gradient(network);
+            lic::zero_gradient(network);
             for (int sample_i=0; sample_i < batch_size; sample_i++){
                 DTYPE input[INPUT_DIM];
                 DTYPE output[OUTPUT_DIM];
                 standardise<DTYPE,  INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
                 standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
-                forward(network, input);
+                lic::forward(network, input);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
-                nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
-                loss += nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
+                lic::nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
+                loss += lic::nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
 
                 DTYPE d_input[INPUT_DIM];
-                backward(network, input, d_loss_d_output, d_input);
+                lic::backward(network, input, d_loss_d_output, d_input);
             }
             loss /= batch_size;
             epoch_loss += loss;
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            update(network);
+            lic::update(network);
             std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
         }
         epoch_loss /= n_iter;
@@ -585,8 +584,8 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
             DTYPE output[OUTPUT_DIM];
             standardise<DTYPE,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
             standardise<DTYPE, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
-            forward(network, input);
-            val_loss += nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
+            lic::forward(network, input);
+            val_loss += lic::nn::loss_functions::mse<DTYPE, OUTPUT_DIM>(network.output_layer.output, output);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);
