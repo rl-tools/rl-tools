@@ -45,10 +45,11 @@ namespace layer_in_c::nn_models::three_layer_fc {
         using OUTPUT_LAYER = nn::layers::dense::LayerBackwardAdam<DEVICE, typename STRUCTURE_SPEC::OUTPUT_LAYER, ADAM_PARAMETERS>;
     };
 
-    template<typename DEVICE, typename T_SPEC>
+    template<typename T_DEVICE, typename T_SPEC>
     struct NeuralNetwork{
-        static_assert(std::is_same_v<DEVICE, typename T_SPEC::DEVICE>);
+        typedef T_DEVICE DEVICE;
         typedef T_SPEC SPEC;
+        static_assert(std::is_same_v<DEVICE, typename T_SPEC::DEVICE>);
         static constexpr int  INPUT_DIM = SPEC::LAYER_1     ::SPEC::INPUT_DIM;
         static constexpr int OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
         typename SPEC::LAYER_1 layer_1;
