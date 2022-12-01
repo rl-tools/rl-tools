@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.19)
-project(bare_metal)
+project(layer_in_c)
 
 set(CMAKE_C_FLAGS "-O3")
 
