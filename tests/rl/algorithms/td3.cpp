@@ -15,7 +15,9 @@
 namespace lic = layer_in_c;
 #define DATA_FILE_PATH "../multirotor-torch/model.hdf5"
 #define DTYPE float
-typedef Pendulum<DTYPE, DefaultPendulumParams<DTYPE>> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+ENVIRONMENT env;
 
 #define SKIP_FULL_TRAINING
 
@@ -251,7 +253,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
             }
             DTYPE critic_1_loss = train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
             train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
-//        std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
+//            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
                 train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
                 update_targets(actor_critic);

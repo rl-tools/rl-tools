@@ -1,45 +1,56 @@
 #ifndef LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM
 #define LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM
-
-#include <stdbool.h>
-#include "math.h"
 #include <random>
-template <typename T>
-struct DefaultPendulumParams {
-    constexpr static T g = 10;
-    constexpr static T max_speed = 8;
-    constexpr static T max_torque = 2;
-    constexpr static T dt = 0.05;
-    constexpr static T m = 1;
-    constexpr static T l = 1;
-    constexpr static T initial_state_min_angle = -M_PI;
-    constexpr static T initial_state_max_angle = M_PI;
-    constexpr static T initial_state_min_speed = -1;
-    constexpr static T initial_state_max_speed = 1;
-};
-
-template <typename T>
-inline T clip(T x, T min, T max){
-    x = x < min ? min : (x > max ? max : x);
-    return x;
-}
-
-template <typename T>
-inline T angle_normalize(T x){
-    return std::fmod((x + M_PI), (2 * M_PI)) - M_PI;
-}
-
-template <typename T, typename PARAMS>
-struct Pendulum {
-    constexpr static uint32_t STATE_DIM = 2;
-    constexpr static uint32_t OBSERVATION_DIM = 3;
-    constexpr static uint32_t ACTION_DIM = 1;
-    template<typename RNG>
-    static void sample_initial_state(T state[2], RNG& rng){
-        state[0] = std::uniform_real_distribution<T>(PARAMS::initial_state_min_angle, PARAMS::initial_state_max_angle)(rng);
-        state[1] = std::uniform_real_distribution<T>(PARAMS::initial_state_min_speed, PARAMS::initial_state_max_speed)(rng);
+#include <layer_in_c/devices.h>
+namespace layer_in_c::rl::environments::pendulum {
+    template <typename T>
+    inline T clip(T x, T min, T max){
+        x = x < min ? min : (x > max ? max : x);
+        return x;
     }
-    static T step(const T state[2], const T action[1], T next_state[2]) {
+    template <typename T>
+    inline T angle_normalize(T x){
+        return std::fmod((x + M_PI), (2 * M_PI)) - M_PI;
+    }
+    template <typename T>
+    struct DefaultParameters {
+        constexpr static T g = 10;
+        constexpr static T max_speed = 8;
+        constexpr static T max_torque = 2;
+        constexpr static T dt = 0.05;
+        constexpr static T m = 1;
+        constexpr static T l = 1;
+        constexpr static T initial_state_min_angle = -M_PI;
+        constexpr static T initial_state_max_angle = M_PI;
+        constexpr static T initial_state_min_speed = -1;
+        constexpr static T initial_state_max_speed = 1;
+    };
+    template <typename T_T, typename T_PARAMETERS>
+    struct Spec{
+        typedef T_T T;
+        typedef T_PARAMETERS PARAMETERS;
+    };
+
+    template <typename DEVICE, typename SPEC>
+    struct Pendulum {
+        typedef typename SPEC::PARAMETERS PARAMETERS;
+        constexpr static uint32_t STATE_DIM = 2;
+        constexpr static uint32_t OBSERVATION_DIM = 3;
+        constexpr static uint32_t ACTION_DIM = 1;
+    };
+
+}
+namespace layer_in_c{
+    template<typename SPEC, typename RNG>
+    static void sample_initial_state(rl::environments::pendulum::Pendulum<devices::Generic, SPEC> env, typename SPEC::T state[2], RNG& rng){
+        state[0] = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle)(rng);
+        state[1] = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed)(rng);
+    }
+    template<typename SPEC>
+    static typename SPEC::T step(rl::environments::pendulum::Pendulum<devices::Generic, SPEC> env, const typename SPEC::T state[2], const typename SPEC::T action[1], typename SPEC::T next_state[2]) {
+        using namespace rl::environments::pendulum;
+        typedef typename SPEC::T T;
+        typedef typename SPEC::PARAMETERS PARAMS;
         T th = state[0];
         T thdot = state[1];
         T u_normalised = action[0];
@@ -62,14 +73,17 @@ struct Pendulum {
         next_state[1] = newthdot;
         return -costs;
     }
-    static void observe(T state[2], T observation[3]){
+    template<typename SPEC>
+    static void observe(rl::environments::pendulum::Pendulum<devices::Generic, SPEC> env, typename SPEC::T state[2], typename SPEC::T observation[3]){
+        typedef typename SPEC::T T;
         T th = state[0];
         T thdot = state[1];
         observation[0] = std::cos(th);
         observation[1] = std::cos(th);
         observation[2] = thdot;
     }
-};
+}
+
 
 
 

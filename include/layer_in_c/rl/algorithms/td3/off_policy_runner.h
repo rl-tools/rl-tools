@@ -27,13 +27,13 @@ namespace layer_in_c::rl::algorithms::td3 {
         if ((PARAMETERS::STEP_LIMIT > 0 && runner.episode_step == PARAMETERS::STEP_LIMIT) ||
             (runner.replay_buffer.position == 0 && !runner.replay_buffer.full)) {
             // first step
-            ENVIRONMENT::sample_initial_state(runner.state, rng);
+            lic::sample_initial_state(ENVIRONMENT(), runner.state, rng);
             runner.episode_step = 0;
             runner.episode_return = 0;
         }
         // todo: increase efficiency by removing the double observation of each state
         T observation[ENVIRONMENT::OBSERVATION_DIM];
-        ENVIRONMENT::observe(runner.state, observation);
+        observe(ENVIRONMENT(), runner.state, observation);
         T next_state[ENVIRONMENT::STATE_DIM];
         T action[ENVIRONMENT::ACTION_DIM];
         lic::evaluate(policy, observation, action);
@@ -42,10 +42,10 @@ namespace layer_in_c::rl::algorithms::td3 {
             action[i] += exploration_noise_distribution(rng);
             action[i] = std::clamp<T>(action[i], -1, 1);
         }
-        T reward = ENVIRONMENT::step(runner.state, action, next_state);
+        T reward = lic::step(ENVIRONMENT(), runner.state, action, next_state);
         memcpy(runner.state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
         T next_observation[ENVIRONMENT::OBSERVATION_DIM];
-        ENVIRONMENT::observe(next_state, next_observation);
+        lic::observe(ENVIRONMENT(), next_state, next_observation);
         bool terminated = false;
         runner.episode_step += 1;
         runner.episode_return += reward;

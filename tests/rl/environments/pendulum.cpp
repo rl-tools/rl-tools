@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <layer_in_c/rl/environments/pendulum.h>
+namespace lic = layer_in_c;
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
 
@@ -12,7 +13,9 @@ struct TestStruct{
     T final_state[2];
     T reward;
 };
-typedef Pendulum<DTYPE, DefaultPendulumParams<DTYPE>> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+ENVIRONMENT env;
 template <typename T>
 T run(TestStruct<T>& test_struct){
     T state[ENVIRONMENT::STATE_DIM];
@@ -22,7 +25,7 @@ T run(TestStruct<T>& test_struct){
     T next_state[ENVIRONMENT::STATE_DIM];
     T r = 0;
     for(int i = 0; i < test_struct.steps; i++){
-        r += ENVIRONMENT::step(state, test_struct.action, next_state);
+        r += lic::step(env, state, test_struct.action, next_state);
         memcpy(state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
     }
     EXPECT_NEAR(test_struct.final_state[0], state[0], STATE_TOLERANCE);

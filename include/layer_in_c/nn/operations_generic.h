@@ -7,11 +7,7 @@
 /*
  * Generic operations can run on the CPU or GPU depending on the setting of the FUNCTION_PLACEMENT macro.
  */
-namespace layer_in_c {
-    namespace devices {
-        struct Generic{};
-    }
-}
+#include <layer_in_c/devices.h>
 #include "layers/operations_generic.h"
 
 
