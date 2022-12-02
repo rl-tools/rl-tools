@@ -123,6 +123,22 @@ T abs_diff_network(const NT n1, const NT n2){
 //
 //}
 
+template <typename T>
+struct Dataset{
+        Dataset(HighFive::Group g){
+            g.getDataSet("states").read(states);
+            g.getDataSet("actions").read(actions);
+            g.getDataSet("next_states").read(next_states);
+            g.getDataSet("rewards").read(rewards);
+            g.getDataSet("terminated").read(terminated);
+        };
+    std::vector<std::vector<DTYPE>> states;
+    std::vector<std::vector<DTYPE>> actions;
+    std::vector<std::vector<DTYPE>> next_states;
+    std::vector<std::vector<DTYPE>> rewards;
+    std::vector<std::vector<DTYPE>> terminated;
+};
+
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_2) {
     std::mt19937 rng(0);
     typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
@@ -130,26 +146,19 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_2) {
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
-    std::vector<std::vector<DTYPE>> batch_states;
-    std::vector<std::vector<DTYPE>> batch_actions;
-    std::vector<std::vector<DTYPE>> batch_next_states;
-    std::vector<std::vector<DTYPE>> batch_rewards;
-    std::vector<std::vector<DTYPE>> batch_terminated;
 
-    data_file.getDataSet("batch/states").read(batch_states);
-    data_file.getDataSet("batch/actions").read(batch_actions);
-    data_file.getDataSet("batch/next_states").read(batch_next_states);
-    data_file.getDataSet("batch/rewards").read(batch_rewards);
-    data_file.getDataSet("batch/terminated").read(batch_terminated);
+    Dataset<DTYPE> batch(data_file.getGroup("batch"));
+
 
     DTYPE input[ActorCriticType::CRITIC_INPUT_DIM];
-    for(int i = 0; i < batch_states[0].size(); i++){
-        input[i] = batch_states[0][i];
+    for(int i = 0; i < batch.states[0].size(); i++){
+        input[i] = batch.states[0][i];
     }
-    for(int i = 0; i < batch_actions[0].size(); i++){
-        input[batch_states[0].size() + i] = batch_actions[0][i];
+    for(int i = 0; i < batch.actions[0].size(); i++){
+        input[batch.states[0].size() + i] = batch.actions[0][i];
     }
     DTYPE output[1];
     lic::evaluate(actor_critic.critic_1, input, output);
     std::cout << "output: " << output[0] << std::endl;
+    ASSERT_LT(abs(output[0] - -0.00560237), 1e-7);
 }
