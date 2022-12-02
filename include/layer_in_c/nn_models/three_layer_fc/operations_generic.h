@@ -7,22 +7,22 @@ namespace layer_in_c {
     // forward modifies intermediate outputs to facilitate backward pass
     template<typename T, typename SPEC>
     FUNCTION_PLACEMENT void forward(nn_models::three_layer_fc::NeuralNetworkBackward<devices::Generic, SPEC>& network, T input[SPEC::LAYER_1::INPUT_DIM]) {
-        evaluate(network.layer_1     , input);
-        evaluate(network.layer_2     , network.layer_1.output);
-        evaluate(network.output_layer, network.layer_2.output);
+        forward(network.layer_1     , input);
+        forward(network.layer_2     , network.layer_1.output);
+        forward(network.output_layer, network.layer_2.output);
     }
     template<typename SPEC>
     FUNCTION_PLACEMENT void forward(nn_models::three_layer_fc::NeuralNetworkBackward<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM], typename SPEC::T output[SPEC::OUTPUT_LAYER::OUTPUT_DIM]) {
-        evaluate(network.layer_1     , input);
-        evaluate(network.layer_2     , network.layer_1.output);
-        evaluate(network.output_layer, network.layer_2.output, output);
+        forward(network.layer_1     , input);
+        forward(network.layer_2     , network.layer_1.output);
+        forward(network.output_layer, network.layer_2.output, output);
     }
     template<typename SPEC>
     FUNCTION_PLACEMENT typename SPEC::T forward_univariate(nn_models::three_layer_fc::NeuralNetworkBackward<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM]) {
         static_assert(SPEC::OUTPUT_LAYER::OUTPUT_DIM == 1, "OUTPUT_DIM has to be 1 for return based evaluation");
-        evaluate(network.layer_1     , input);
-        evaluate(network.layer_2     , network.layer_1.output);
-        evaluate(network.output_layer, network.layer_2.output);
+        forward(network.layer_1     , input);
+        forward(network.layer_2     , network.layer_1.output);
+        forward(network.output_layer, network.layer_2.output);
         return network.output_layer.output[0];
     }
 

@@ -16,7 +16,7 @@ namespace layer_in_c{
     }
 
     template<typename T, typename SPEC>
-    FUNCTION_PLACEMENT void evaluate(nn::layers::dense::LayerBackward<devices::Generic, SPEC>& layer, const T input[SPEC::INPUT_DIM]) {
+    FUNCTION_PLACEMENT void forward(nn::layers::dense::LayerBackward<devices::Generic, SPEC>& layer, const T input[SPEC::INPUT_DIM]) {
         for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
             layer.output[i] = layer.biases[i];
             for(int j = 0; j < SPEC::INPUT_DIM; j++) {
