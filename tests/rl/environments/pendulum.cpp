@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <rl/environments/pendulum.h>
+#include <layer_in_c/rl/environments/pendulum.h>
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
 
