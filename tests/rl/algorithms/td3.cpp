@@ -2,6 +2,7 @@
 #include <highfive/H5File.hpp>
 
 #include <layer_in_c/nn_models/models.h>
+#include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/nn_models/persist.h>
 
 #include <layer_in_c/rl/environments/pendulum.h>
@@ -14,13 +15,8 @@
 namespace lic = layer_in_c;
 #define DATA_FILE_PATH "../multirotor-torch/model.hdf5"
 #define DTYPE float
-
-const DTYPE STATE_TOLERANCE = 0.00001;
-
 typedef Pendulum<DTYPE, DefaultPendulumParams<DTYPE>> ENVIRONMENT;
 
-
-#define N_WARMUP_STEPS 100
 #define SKIP_FULL_TRAINING
 
 template <typename T>
@@ -59,30 +55,6 @@ void load_dataset(HighFive::Group g, RB& rb){
 }
 
 
-OffPolicyRunner<DTYPE, ENVIRONMENT, DefaultOffPolicyRunnerParameters<DTYPE>> off_policy_runner;
-
-#ifndef SKIP_FULL_TRAINING
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
-    std::mt19937 rng(0);
-    ActorCritic<DTYPE, ENVIRONMENT, DefaultActorNetworkDefinition<DTYPE>, DefaultCriticNetworkDefinition<DTYPE>, DefaultTD3Parameters<DTYPE>> actor_critic;
-    init(actor_critic, rng);
-    for(int step_i = 0; step_i < 10000000; step_i++){
-        step(off_policy_runner, actor_critic.actor, rng);
-        if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
-            if(step_i % 1000 == 0){
-                std::cout << "step_i: " << step_i << std::endl;
-            }
-            DTYPE critic_1_loss = train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
-            train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
-//        std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
-            if(step_i % 2 == 0){
-                train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
-                update_targets(actor_critic);
-            }
-        }
-    }
-}
-#endif
 
 template <typename DEVICE, typename SPEC>
 typename SPEC::T assign(lic::nn::layers::dense::Layer<DEVICE, SPEC>& layer, const HighFive::Group g){
@@ -105,15 +77,15 @@ void assign_network(NT& network, const HighFive::Group g){
 }
 
 template <typename T>
-struct TD3Parameters: public DefaultTD3Parameters<T>{
+struct TD3Parameters: public lic::rl::algorithms::td3::DefaultTD3Parameters<T>{
     constexpr static int CRITIC_BATCH_SIZE = 1;
     constexpr static int ACTOR_BATCH_SIZE = 1;
 };
 template <typename T>
-using TestActorNetworkDefinition = ActorNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU>;
+using TestActorNetworkDefinition = lic::rl::algorithms::td3::ActorNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU>;
 
 template <typename T>
-using TestCriticNetworkDefinition = CriticNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU>;
+using TestCriticNetworkDefinition = lic::rl::algorithms::td3::CriticNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU>;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -124,7 +96,7 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     return acc;
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_FORWARD) {
-    typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
@@ -155,7 +127,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_FORWARD) {
     ASSERT_LT(abs(output[0] - -0.00560237), 1e-7);
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_BACKWARD) {
-    typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
@@ -194,7 +166,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_BACKWARD) {
     std::cout << "diff_grad_per_weight: " << diff_grad_per_weight << std::endl;
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
-    typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
@@ -210,7 +182,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
     lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
     lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
-    ReplayBuffer<DTYPE, 3, 1, 100> replay_buffer;
+    lic::rl::algorithms::td3::ReplayBuffer<DTYPE, 3, 1, 100> replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     replay_buffer.position = 1;
 
@@ -230,7 +202,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
 }
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
-    typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
@@ -244,7 +216,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
     lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
     lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
-    ReplayBuffer<DTYPE, 3, 1, 100> replay_buffer;
+    lic::rl::algorithms::td3::ReplayBuffer<DTYPE, 3, 1, 100> replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     replay_buffer.position = 1;
 
@@ -262,3 +234,29 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
 
     ASSERT_LT(diff_target_per_weight, 1e-6);
 }
+
+const DTYPE STATE_TOLERANCE = 0.00001;
+#define N_WARMUP_STEPS 100
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, lic::rl::algorithms::td3::DefaultTD3Parameters<DTYPE>>> ActorCriticType;
+    lic::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, lic::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, 50000, 100>> off_policy_runner;
+    ActorCriticType actor_critic;
+    std::mt19937 rng(0);
+    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    for(int step_i = 0; step_i < 10000000; step_i++){
+        step(off_policy_runner, actor_critic.actor, rng);
+        if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
+            if(step_i % 1000 == 0){
+                std::cout << "step_i: " << step_i << std::endl;
+            }
+            DTYPE critic_1_loss = train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
+            train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+//        std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
+            if(step_i % 2 == 0){
+                train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
+                update_targets(actor_critic);
+            }
+        }
+    }
+}
+
