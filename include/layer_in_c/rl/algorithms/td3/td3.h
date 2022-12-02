@@ -185,24 +185,25 @@ typename SPEC::T train_actor(ActorCritic<DEVICE, SPEC>& actor_critic, ReplayBuff
     typedef typename SPEC::PARAMETERS PARAMETERS;
     typedef typename SPEC::ENVIRONMENT ENVIRONMENT;
     T actor_value = 0;
-    zero_gradient(actor_critic.actor);
+    lic::zero_gradient(actor_critic.actor);
     std::uniform_int_distribution<uint32_t> sample_distribution(0, (replay_buffer.full ? CAPACITY : replay_buffer.position) - 1);
     for (int sample_i=0; sample_i < PARAMETERS::ACTOR_BATCH_SIZE; sample_i++){
         uint32_t sample_index = sample_distribution(rng);
         T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
         memcpy(state_action_value_input, replay_buffer.observations[sample_index], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
-        evaluate(actor_critic.actor_target, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
+        lic::evaluate(actor_critic.actor_target, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
 
-        forward(actor_critic.critic_target_1, state_action_value_input);
-        actor_value += actor_critic.critic_target_1.output_layer.output[0];
+        lic::forward(actor_critic.critic_1, state_action_value_input);
+        actor_value += actor_critic.critic_1.output_layer.output[0];
         T d_output[1] = {-1}; // we want to maximise the critic output using gradient descent
         T d_critic_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
-        backward(actor_critic.critic_target_1, state_action_value_input, d_output, d_critic_input);
+        lic::backward(actor_critic.critic_1, state_action_value_input, d_output, d_critic_input);
         T d_actor_input[ENVIRONMENT::OBSERVATION_DIM];
-        backward(actor_critic.actor, state_action_value_input, &d_critic_input[ENVIRONMENT::OBSERVATION_DIM], d_actor_input);
+        lic::forward(actor_critic.actor, state_action_value_input);
+        lic::backward(actor_critic.actor, state_action_value_input, &d_critic_input[ENVIRONMENT::OBSERVATION_DIM], d_actor_input);
     }
     actor_value /= PARAMETERS::ACTOR_BATCH_SIZE;
-    update(actor_critic.actor);
+    lic::update(actor_critic.actor);
     return actor_value;
 }
 
