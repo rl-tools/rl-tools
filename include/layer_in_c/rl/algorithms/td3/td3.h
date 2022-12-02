@@ -135,7 +135,7 @@ void init(ActorCritic<DEVICE, SPEC>& actor_critic, RNG& rng){
 
 
 template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, int CAPACITY, typename RNG>
-typename SPEC::T train_critic(ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TYPE& critic, ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
+typename SPEC::T train_critic(ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TYPE& critic, ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng, bool deterministic = false) {
     typedef typename SPEC::T T;
     assert(replay_buffer.full || replay_buffer.position >= SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
     T loss = 0;
@@ -148,18 +148,21 @@ typename SPEC::T train_critic(ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TY
         lic::evaluate(actor_critic.actor_target, next_state_action_value_input, &next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
         std::normal_distribution<T> target_next_action_noise_distribution(0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
         for(int action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-            T noisy_next_action = next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] + std::clamp(
+            T action_noise = deterministic ? 0 : std::clamp(
                     target_next_action_noise_distribution(rng),
                     -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
-                     SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
+                    SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
             );
+            T noisy_next_action = next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] + action_noise;
             noisy_next_action = std::clamp<T>(noisy_next_action, -1, 1);
             next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] = noisy_next_action;
         }
+        T next_state_action_value_critic_1 = lic::evaluate(actor_critic.critic_target_1, next_state_action_value_input);
+        T next_state_action_value_critic_2 = lic::evaluate(actor_critic.critic_target_2, next_state_action_value_input);
 
         T min_next_state_action_value = std::min(
-            lic::evaluate(actor_critic.critic_target_1, next_state_action_value_input),
-            lic::evaluate(actor_critic.critic_target_2, next_state_action_value_input)
+            next_state_action_value_critic_1,
+            next_state_action_value_critic_2
         );
         T state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];
         memcpy(state_action_value_input, replay_buffer.observations[sample_index], sizeof(T) * SPEC::ENVIRONMENT::OBSERVATION_DIM); // setting the first part with the current observation
