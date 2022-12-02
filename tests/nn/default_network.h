@@ -14,22 +14,6 @@ typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM,
 typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParameters<DTYPE>> NETWORK_SPEC;
 typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType;
 
-template <typename T, typename DEVICE, typename SPEC>
-T abs_diff(lic::nn::layers::dense::Layer<DEVICE, SPEC> l1, lic::nn::layers::dense::Layer<DEVICE, SPEC> l2) {
-    T acc = 0;
-    acc += abs_diff_matrix<DTYPE, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.weights, l2.weights);
-    acc += abs_diff_vector<DTYPE, SPEC::OUTPUT_DIM>(l1.biases, l2.biases);
-    return acc;
-}
-template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff(lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n1, lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n2) {
-    typename SPEC::T acc = 0;
-    acc += abs_diff<DTYPE, DEVICE, typename SPEC::LAYER_1::SPEC>(n1.layer_1, n2.layer_1);
-    acc += abs_diff<DTYPE, DEVICE, typename SPEC::LAYER_2::SPEC>(n1.layer_2, n2.layer_2);
-    acc += abs_diff<DTYPE, DEVICE, typename SPEC::OUTPUT_LAYER::SPEC>(n1.output_layer, n2.output_layer);
-    return acc;
-}
-
 class NeuralNetworkTest : public ::testing::Test {
 protected:
     const std::string DATA_FILE_PATH = "../model-learning/data.hdf5";

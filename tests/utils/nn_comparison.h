@@ -1,0 +1,39 @@
+#ifndef LAYER_IN_C_TESTS_UTILS_NN_COMPARISON_H
+#define LAYER_IN_C_TESTS_UTILS_NN_COMPARISON_H
+template <typename DEVICE, typename SPEC>
+typename SPEC::T abs_diff(lic::nn::layers::dense::Layer<DEVICE, SPEC> l1, lic::nn::layers::dense::Layer<DEVICE, SPEC> l2) {
+    typedef typename SPEC::T T;
+    T acc = 0;
+    acc += abs_diff_matrix<T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.weights, l2.weights);
+    acc += abs_diff_vector<T, SPEC::OUTPUT_DIM>(l1.biases, l2.biases);
+    return acc;
+}
+template <typename DEVICE, typename SPEC>
+typename SPEC::T abs_diff_grad(lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC> l1, lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC> l2) {
+    typedef typename SPEC::T T;
+    T acc = 0;
+    acc += abs_diff_matrix<T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.d_weights, l2.d_weights);
+    acc += abs_diff_vector<T, SPEC::OUTPUT_DIM>(l1.d_biases, l2.d_biases);
+    return acc;
+}
+template <typename DEVICE, typename SPEC>
+typename SPEC::T abs_diff(lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n1, lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n2) {
+    typedef typename SPEC::T T;
+    T acc = 0;
+    acc += abs_diff(n1.layer_1, n2.layer_1);
+    acc += abs_diff(n1.layer_2, n2.layer_2);
+    acc += abs_diff(n1.output_layer, n2.output_layer);
+    return acc;
+}
+template <typename DEVICE, typename SPEC>
+typename SPEC::T abs_diff_grad(lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n1, lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n2) {
+    typedef typename SPEC::T T;
+    T acc = 0;
+    acc += abs_diff_grad(n1.layer_1, n2.layer_1);
+    acc += abs_diff_grad(n1.layer_2, n2.layer_2);
+    acc += abs_diff_grad(n1.output_layer, n2.output_layer);
+    return acc;
+}
+
+
+#endif

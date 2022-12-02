@@ -1,7 +1,8 @@
 #ifndef LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER
 #define LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER
-template <typename T, int OBSERVATION_DIM, int ACTION_DIM, int CAPACITY>
+template <typename T_T, int OBSERVATION_DIM, int ACTION_DIM, int CAPACITY>
 struct ReplayBuffer {
+    using T = T_T;
     T observations[CAPACITY][OBSERVATION_DIM];
     T actions[CAPACITY][ACTION_DIM];
     T rewards[CAPACITY];

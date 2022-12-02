@@ -9,6 +9,7 @@
 #include <layer_in_c/rl/algorithms/td3/td3.h>
 #include <layer_in_c/utils/rng_std.h>
 #include "../../utils/utils.h"
+#include "../../utils/nn_comparison.h"
 
 namespace lic = layer_in_c;
 #define DATA_FILE_PATH "../multirotor-torch/model.hdf5"
@@ -21,6 +22,42 @@ typedef Pendulum<DTYPE, DefaultPendulumParams<DTYPE>> ENVIRONMENT;
 
 #define N_WARMUP_STEPS 100
 #define SKIP_FULL_TRAINING
+
+template <typename T>
+struct Dataset{
+    Dataset(HighFive::Group g){
+        g.getDataSet("states").read(states);
+        g.getDataSet("actions").read(actions);
+        g.getDataSet("next_states").read(next_states);
+        g.getDataSet("rewards").read(rewards);
+        g.getDataSet("terminated").read(terminated);
+    };
+    std::vector<std::vector<DTYPE>> states;
+    std::vector<std::vector<DTYPE>> actions;
+    std::vector<std::vector<DTYPE>> next_states;
+    std::vector<std::vector<DTYPE>> rewards;
+    std::vector<std::vector<DTYPE>> terminated;
+};
+
+template <typename RB>
+void load_dataset(HighFive::Group g, RB& rb){
+    g.getDataSet("states").read(rb.observations);
+    g.getDataSet("actions").read(rb.actions);
+    g.getDataSet("next_states").read(rb.next_observations);
+    g.getDataSet("rewards").read(rb.rewards);
+    std::vector<typename RB::T> terminated;
+    g.getDataSet("terminated").read(terminated);
+    for(int i = 0; i < terminated.size(); i++){
+        rb.terminated[i] = terminated[i] == 1;
+    }
+    std::vector<typename RB::T> truncated;
+    g.getDataSet("truncated").read(truncated);
+    for(int i = 0; i < truncated.size(); i++){
+        rb.truncated[i] = truncated[i] == 1;
+    }
+    rb.position = terminated.size();
+}
+
 
 OffPolicyRunner<DTYPE, ENVIRONMENT, DefaultOffPolicyRunnerParameters<DTYPE>> off_policy_runner;
 
@@ -85,80 +122,106 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     acc += abs_diff_matrix<T, NT::SPEC::LAYER_1::OUTPUT_DIM, NT::SPEC::LAYER_1::INPUT_DIM>(network.layer_1.weights, weights);
     return acc;
 }
-template <typename T, typename NT>
-T abs_diff_network(const NT n1, const NT n2){
-    constexpr int S = NT::SPEC::LAYER_1::OUTPUT_DIM * NT::SPEC::LAYER_1::INPUT_DIM;
-    return abs_diff<T, S>((T*)n1.layer_1.weights, (T*)n2.layer_1.weights);
-}
-
-//TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_1) {
-//    std::mt19937 rng(0);
-//    typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
-//    ActorCriticType actor_critic;
-//    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
-//    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-//
-//    std::vector<std::vector<DTYPE>> layer_1_weights;
-//    assign_network(actor_critic.   actor, data_file.getGroup("actor"));
-//    assign_network(actor_critic.critic_1, data_file.getGroup("critic_1"));
-//    assign_network(actor_critic.critic_2, data_file.getGroup("critic_2"));
-//    assign_network(actor_critic.   actor_target, data_file.getGroup("actor_target"));
-//    assign_network(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
-//    assign_network(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
-//
-//    ReplayBuffer<DTYPE, 3, 1, 100> replay_buffer;
-//    data_file.getDataSet("batch/states"     ).read(replay_buffer.observations);
-//    data_file.getDataSet("batch/actions"    ).read(replay_buffer.actions);
-//    data_file.getDataSet("batch/next_states").read(replay_buffer.next_observations);
-//    data_file.getDataSet("batch/rewards"    ).read(replay_buffer.rewards);
-//    replay_buffer.position = 1;
-//
-//    DTYPE init_diff = abs_diff_network<DTYPE>(actor_critic.critic_1, data_file.getGroup("critic_1"));
-//    DTYPE pre_diff = abs_diff_network<DTYPE>(actor_critic.critic_1, data_file.getGroup("critic_training/0"));
-//    auto pre_critic = actor_critic.critic_1;
-//    DTYPE critic_1_loss = train_critic(actor_critic, actor_critic.critic_1, replay_buffer, rng);
-//    DTYPE post_diff = abs_diff_network<DTYPE>(actor_critic.critic_1, data_file.getGroup("critic_training/0"));
-//    DTYPE post_diff_update = abs_diff_network<DTYPE>(actor_critic.critic_1, pre_critic);
-////    data_file.getDataSet("batch/terminated" ).read(replay_buffer.terminated);
-//
-//}
-
-template <typename T>
-struct Dataset{
-        Dataset(HighFive::Group g){
-            g.getDataSet("states").read(states);
-            g.getDataSet("actions").read(actions);
-            g.getDataSet("next_states").read(next_states);
-            g.getDataSet("rewards").read(rewards);
-            g.getDataSet("terminated").read(terminated);
-        };
-    std::vector<std::vector<DTYPE>> states;
-    std::vector<std::vector<DTYPE>> actions;
-    std::vector<std::vector<DTYPE>> next_states;
-    std::vector<std::vector<DTYPE>> rewards;
-    std::vector<std::vector<DTYPE>> terminated;
-};
-
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_2) {
-    std::mt19937 rng(0);
+/*
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_FORWARD) {
     typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
 
+    std::mt19937 rng(0);
+    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(
+            actor_critic, rng);
+
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
+    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
 
     Dataset<DTYPE> batch(data_file.getGroup("batch"));
 
-
     DTYPE input[ActorCriticType::CRITIC_INPUT_DIM];
-    for(int i = 0; i < batch.states[0].size(); i++){
+    for (int i = 0; i < batch.states[0].size(); i++) {
         input[i] = batch.states[0][i];
     }
-    for(int i = 0; i < batch.actions[0].size(); i++){
+    for (int i = 0; i < batch.actions[0].size(); i++) {
         input[batch.states[0].size() + i] = batch.actions[0][i];
     }
+
     DTYPE output[1];
     lic::evaluate(actor_critic.critic_1, input, output);
     std::cout << "output: " << output[0] << std::endl;
     ASSERT_LT(abs(output[0] - -0.00560237), 1e-7);
+
+    lic::evaluate(actor_critic.critic_target_1, input, output);
+    std::cout << "output: " << output[0] << std::endl;
+    ASSERT_LT(abs(output[0] - -0.00560237), 1e-7);
 }
+ */
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_) {
+    typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    ActorCriticType actor_critic;
+
+    std::mt19937 rng(0);
+    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(
+            actor_critic, rng);
+
+    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
+    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
+
+    Dataset<DTYPE> batch(data_file.getGroup("batch"));
+
+    DTYPE input[ActorCriticType::CRITIC_INPUT_DIM];
+    for (int i = 0; i < batch.states[0].size(); i++) {
+        input[i] = batch.states[0][i];
+    }
+    for (int i = 0; i < batch.actions[0].size(); i++) {
+        input[batch.states[0].size() + i] = batch.actions[0][i];
+    }
+    DTYPE target[1] = {1};
+    DTYPE output[1];
+    lic::evaluate(actor_critic.critic_1, input, output);
+    DTYPE loss = lic::nn::loss_functions::mse<DTYPE, 1>(output, target);
+    ASSERT_LT(std::abs(loss - 1.0112361), 1e-7);
+
+    lic::zero_gradient(actor_critic.critic_1);
+    lic::forward_backward_mse(actor_critic.critic_1, input, target);
+    std::cout << "output: " << actor_critic.critic_1.output_layer.output[0] << std::endl;
+    ASSERT_LT(std::abs(actor_critic.critic_1.output_layer.output[0] - -0.00560237), 1e-7);
+
+    auto critic_1_after_backward = actor_critic.critic_1;
+    lic::load(critic_1_after_backward, data_file.getGroup("critic_1_backward"));
+    DTYPE diff_grad_per_weight = abs_diff_grad(actor_critic.critic_1, critic_1_after_backward)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+    ASSERT_LT(diff_grad_per_weight, 1e-8);
+
+    std::cout << "diff_grad_per_weight: " << diff_grad_per_weight << std::endl;
+}
+/*
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_2) {
+    typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    ActorCriticType actor_critic;
+
+    std::mt19937 rng(0);
+    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+
+    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
+    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
+    lic::load(actor_critic.critic_1, data_file.getGroup("critic_2"));
+    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_2"));
+
+    ReplayBuffer<DTYPE, 3, 1, 100> replay_buffer;
+    load_dataset(data_file.getGroup("batch"), replay_buffer);
+    replay_buffer.position = 1;
+
+    auto pre_critic = actor_critic.critic_1;
+    auto post_critic = actor_critic.critic_1;
+    lic::load(post_critic, data_file.getGroup("critic_training/0"));
+
+    DTYPE critic_1_loss = train_critic(actor_critic, actor_critic.critic_1, replay_buffer, rng);
+
+    DTYPE pre_post_diff = abs_diff(pre_critic, post_critic);
+    DTYPE diff_target = abs_diff(post_critic, actor_critic.critic_1);
+
+
+}
+
+ */

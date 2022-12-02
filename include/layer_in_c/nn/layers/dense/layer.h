@@ -10,6 +10,8 @@ namespace layer_in_c::nn::layers::dense {
         static constexpr int INPUT_DIM = T_INPUT_DIM;
         static constexpr int OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
+        // Summary
+        static constexpr int NUM_WEIGHTS = INPUT_DIM * OUTPUT_DIM + OUTPUT_DIM;
     };
     template<typename DEVICE, typename T_SPEC>
     struct Layer {

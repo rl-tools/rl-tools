@@ -8,6 +8,8 @@ namespace layer_in_c::nn_models::three_layer_fc {
         typedef nn::layers::dense::LayerSpec<T,   INPUT_DIM, LAYER_1_DIM,      LAYER_1_FN> LAYER_1;
         typedef nn::layers::dense::LayerSpec<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN> LAYER_2;
         typedef nn::layers::dense::LayerSpec<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN> OUTPUT_LAYER;
+        // Summary
+        static constexpr int NUM_WEIGHTS = LAYER_1::NUM_WEIGHTS + LAYER_2::NUM_WEIGHTS + OUTPUT_LAYER::NUM_WEIGHTS;
     };
     template <typename T_DEVICE, typename STRUCTURE_SPEC>
     struct InferenceSpecification{

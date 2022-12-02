@@ -158,7 +158,7 @@ typename SPEC::T train_critic(ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TY
         }
 
         T min_next_state_action_value = std::min(
-            lic::forward_univariate(actor_critic.critic_target_1, next_state_action_value_input),
+            lic::evaluate(actor_critic.critic_target_1, next_state_action_value_input),
             lic::evaluate(actor_critic.critic_target_2, next_state_action_value_input)
         );
         T state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];

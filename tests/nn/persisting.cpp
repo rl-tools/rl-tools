@@ -10,6 +10,7 @@
 #include "../utils/utils.h"
 
 #include "default_network.h"
+#include "../utils/nn_comparison.h"
 
 #include <layer_in_c/utils/persist.h>
 TEST(NeuralNetworkPersist, Saving) {
