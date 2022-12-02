@@ -8,16 +8,16 @@
 #include <layer_in_c/rl/algorithms/td3/td3.h>
 #include <layer_in_c/utils/rng_std.h>
 #include "../../utils/utils.h"
+
+namespace lic = layer_in_c;
 #define DATA_FILE_PATH "../multirotor-torch/model.hdf5"
 #define DTYPE float
+
 const DTYPE STATE_TOLERANCE = 0.00001;
 
 typedef Pendulum<DTYPE, DefaultPendulumParams<DTYPE>> ENVIRONMENT;
 
 
-using namespace layer_in_c;
-using namespace layer_in_c::nn_models;
-//using namespace layer_in_c::nn::layers;
 #define N_WARMUP_STEPS 100
 #define SKIP_FULL_TRAINING
 
@@ -46,8 +46,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
 }
 #endif
 
-template <typename SPEC>
-typename SPEC::T assign(Layer<SPEC>& layer, const HighFive::Group g){
+template <typename DEVICE, typename SPEC>
+typename SPEC::T assign(lic::nn::layers::dense::Layer<DEVICE, SPEC>& layer, const HighFive::Group g){
     std::vector<std::vector<typename SPEC::T>> weights;
     std::vector<typename SPEC::T> biases;
     g.getDataSet("weight").read(weights);
@@ -71,10 +71,10 @@ struct TD3Parameters: public DefaultTD3Parameters<T>{
     constexpr static int CRITIC_BATCH_SIZE = 1;
 };
 template <typename T>
-using TestActorNetworkDefinition = ActorNetworkSpecification<T, 64, 64, ActivationFunction::RELU>;
+using TestActorNetworkDefinition = ActorNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU>;
 
 template <typename T>
-using TestCriticNetworkDefinition = CriticNetworkSpecification<T, 64, 64, ActivationFunction::RELU>;
+using TestCriticNetworkDefinition = CriticNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU>;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -92,9 +92,9 @@ T abs_diff_network(const NT n1, const NT n2){
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_1) {
     std::mt19937 rng(0);
-    typedef ActorCritic<ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    typedef ActorCritic<lic::devices::Generic, ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
-    init<ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
 
     std::vector<std::vector<DTYPE>> layer_1_weights;

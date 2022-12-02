@@ -9,26 +9,29 @@ namespace layer_in_c::nn_models::three_layer_fc {
         typedef nn::layers::dense::LayerSpec<T, LAYER_1_DIM, LAYER_2_DIM,      LAYER_2_FN> LAYER_2;
         typedef nn::layers::dense::LayerSpec<T, LAYER_2_DIM,  OUTPUT_DIM, OUTPUT_LAYER_FN> OUTPUT_LAYER;
     };
-    template <typename DEVICE, typename STRUCTURE_SPEC>
+    template <typename T_DEVICE, typename STRUCTURE_SPEC>
     struct InferenceSpecification{
         typedef typename STRUCTURE_SPEC::T T;
+        using DEVICE = T_DEVICE;
 
         using LAYER_1 = nn::layers::dense::Layer<DEVICE, typename STRUCTURE_SPEC::LAYER_1>;
         using LAYER_2 = nn::layers::dense::Layer<DEVICE, typename STRUCTURE_SPEC::LAYER_2>;
         using OUTPUT_LAYER = nn::layers::dense::Layer<DEVICE, typename STRUCTURE_SPEC::OUTPUT_LAYER>;
     };
 
-    template <typename DEVICE,typename STRUCTURE_SPEC>
+    template <typename T_DEVICE,typename STRUCTURE_SPEC>
     struct InferenceBackwardSpecification{
         typedef typename STRUCTURE_SPEC::T T;
+        using DEVICE = T_DEVICE;
         using LAYER_1 = nn::layers::dense::LayerBackward<DEVICE, typename STRUCTURE_SPEC::LAYER_1>;
         using LAYER_2 = nn::layers::dense::LayerBackward<DEVICE, typename STRUCTURE_SPEC::LAYER_2>;
         using OUTPUT_LAYER = nn::layers::dense::LayerBackward<DEVICE, typename STRUCTURE_SPEC::OUTPUT_LAYER>;
     };
 
-    template<typename DEVICE, typename STRUCTURE_SPEC, typename T_SGD_PARAMETERS>
+    template<typename T_DEVICE, typename STRUCTURE_SPEC, typename T_SGD_PARAMETERS>
     struct SGDSpecification{
         typedef typename STRUCTURE_SPEC::T T;
+        using DEVICE = T_DEVICE;
         typedef T_SGD_PARAMETERS SGD_PARAMETERS;
         using LAYER_1 = nn::layers::dense::LayerBackwardSGD<DEVICE, typename STRUCTURE_SPEC::LAYER_1, SGD_PARAMETERS>;
         using LAYER_2 = nn::layers::dense::LayerBackwardSGD<DEVICE, typename STRUCTURE_SPEC::LAYER_2, SGD_PARAMETERS>;
