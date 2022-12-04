@@ -81,19 +81,16 @@ namespace layer_in_c::rl::algorithms::td3{
         typedef lic::nn_models::three_layer_fc::AdamSpecification<DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC, typename SPEC::CRITIC_SPEC::ADAM_PARAMETERS> CRITIC_NETWORK_SPEC;
         typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, CRITIC_NETWORK_SPEC> CRITIC_NETWORK_TYPE;
 
-        typedef layer_in_c::nn_models::three_layer_fc::InferenceBackwardSpecification<DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC> CRITIC_TARGET_INFERENCE_BACKWARD_NETWORK_SPEC;
-        typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkBackward<DEVICE, CRITIC_TARGET_INFERENCE_BACKWARD_NETWORK_SPEC> CRITIC_TARGET_INFERENCE_BACKWARD_NETWORK_TYPE;
-
-        typedef layer_in_c::nn_models::three_layer_fc::InferenceSpecification<DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC> CRITIC_TARGET_INFERENCE_NETWORK_SPEC;
-        typedef layer_in_c::nn_models::three_layer_fc::NeuralNetwork<DEVICE, CRITIC_TARGET_INFERENCE_NETWORK_SPEC> CRITIC_TARGET_INFERENCE_NETWORK_TYPE;
+        typedef layer_in_c::nn_models::three_layer_fc::InferenceSpecification<DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC> CRITIC_TARGET_NETWORK_SPEC;
+        typedef layer_in_c::nn_models::three_layer_fc::NeuralNetwork<DEVICE, CRITIC_TARGET_NETWORK_SPEC> CRITIC_TARGET_NETWORK_TYPE;
 
         ACTOR_NETWORK_TYPE actor;
         ACTOR_TARGET_NETWORK_TYPE actor_target;
 
         CRITIC_NETWORK_TYPE critic_1;
         CRITIC_NETWORK_TYPE critic_2;
-        CRITIC_TARGET_INFERENCE_BACKWARD_NETWORK_TYPE critic_target_1;
-        CRITIC_TARGET_INFERENCE_NETWORK_TYPE critic_target_2;
+        CRITIC_TARGET_NETWORK_TYPE critic_target_1;
+        CRITIC_TARGET_NETWORK_TYPE critic_target_2;
     };
 
     template<typename SPEC>
@@ -125,13 +122,10 @@ namespace layer_in_c::rl::algorithms::td3{
         layer_in_c::reset_optimizer_state(actor_critic.actor);
         layer_in_c::reset_optimizer_state(actor_critic.critic_1);
         layer_in_c::reset_optimizer_state(actor_critic.critic_2);
-        // Target networks still need to be initialised because they could be none which could destroy the use of the polyak update for assignment
-        layer_in_c::init_weights<typename ActorCritic<DEVICE, SPEC>::ACTOR_TARGET_NETWORK_SPEC                    , RANDOM_UNIFORM, RNG>(actor_critic.actor_target, rng);
-        layer_in_c::init_weights<typename ActorCritic<DEVICE, SPEC>::CRITIC_TARGET_INFERENCE_BACKWARD_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.critic_target_1, rng);
-        layer_in_c::init_weights<typename ActorCritic<DEVICE, SPEC>::CRITIC_TARGET_INFERENCE_NETWORK_SPEC         , RANDOM_UNIFORM, RNG>(actor_critic.critic_target_2, rng);
-        update_target_network(actor_critic.actor_target, actor_critic.actor, (typename SPEC::T)0);
-        update_target_network(actor_critic.critic_target_1, actor_critic.critic_1, (typename SPEC::T)0);
-        update_target_network(actor_critic.critic_target_2, actor_critic.critic_2, (typename SPEC::T)0);
+
+        actor_critic.actor_target = actor_critic.actor;
+        actor_critic.critic_target_1 = actor_critic.critic_1;
+        actor_critic.critic_target_2 = actor_critic.critic_2;
     }
 
 

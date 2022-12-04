@@ -42,12 +42,12 @@ namespace layer_in_c::rl::environments::pendulum {
 }
 namespace layer_in_c{
     template<typename SPEC, typename RNG>
-    static void sample_initial_state(rl::environments::pendulum::Pendulum<devices::Generic, SPEC> env, typename SPEC::T state[2], RNG& rng){
+    static void sample_initial_state(const rl::environments::pendulum::Pendulum<devices::Generic, SPEC>& env, typename SPEC::T state[2], RNG& rng){
         state[0] = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle)(rng);
         state[1] = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed)(rng);
     }
     template<typename SPEC>
-    static typename SPEC::T step(rl::environments::pendulum::Pendulum<devices::Generic, SPEC> env, const typename SPEC::T state[2], const typename SPEC::T action[1], typename SPEC::T next_state[2]) {
+    static typename SPEC::T step(const rl::environments::pendulum::Pendulum<devices::Generic, SPEC>& env, const typename SPEC::T state[2], const typename SPEC::T action[1], typename SPEC::T next_state[2]) {
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         typedef typename SPEC::PARAMETERS PARAMS;
@@ -74,12 +74,12 @@ namespace layer_in_c{
         return -costs;
     }
     template<typename SPEC>
-    static void observe(rl::environments::pendulum::Pendulum<devices::Generic, SPEC> env, typename SPEC::T state[2], typename SPEC::T observation[3]){
+    static void observe(const rl::environments::pendulum::Pendulum<devices::Generic, SPEC>& env, const typename SPEC::T state[2], typename SPEC::T observation[3]){
         typedef typename SPEC::T T;
         T th = state[0];
         T thdot = state[1];
         observation[0] = std::cos(th);
-        observation[1] = std::cos(th);
+        observation[1] = std::sin(th);
         observation[2] = thdot;
     }
 }

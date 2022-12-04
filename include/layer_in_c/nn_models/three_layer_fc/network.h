@@ -60,6 +60,13 @@ namespace layer_in_c::nn_models::three_layer_fc {
         typename SPEC::LAYER_1 layer_1;
         typename SPEC::LAYER_2 layer_2;
         typename SPEC::OUTPUT_LAYER output_layer;
+        template<typename NN>
+        NeuralNetwork& operator= (const NN& other) {
+            layer_1 = other.layer_1;
+            layer_2 = other.layer_2;
+            output_layer = other.output_layer;
+            return *this;
+        }
     };
 
     template<typename DEVICE, typename SPEC>

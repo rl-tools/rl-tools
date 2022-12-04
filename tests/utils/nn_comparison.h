@@ -1,7 +1,7 @@
 #ifndef LAYER_IN_C_TESTS_UTILS_NN_COMPARISON_H
 #define LAYER_IN_C_TESTS_UTILS_NN_COMPARISON_H
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff(lic::nn::layers::dense::Layer<DEVICE, SPEC> l1, lic::nn::layers::dense::Layer<DEVICE, SPEC> l2) {
+typename SPEC::T abs_diff(const lic::nn::layers::dense::Layer<DEVICE, SPEC>& l1, const lic::nn::layers::dense::Layer<DEVICE, SPEC>& l2) {
     typedef typename SPEC::T T;
     T acc = 0;
     acc += abs_diff_matrix<T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.weights, l2.weights);
@@ -9,7 +9,7 @@ typename SPEC::T abs_diff(lic::nn::layers::dense::Layer<DEVICE, SPEC> l1, lic::n
     return acc;
 }
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_grad(lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC> l1, lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC> l2) {
+typename SPEC::T abs_diff_grad(const lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& l1, const lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& l2) {
     typedef typename SPEC::T T;
     T acc = 0;
     acc += abs_diff_matrix<T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.d_weights, l2.d_weights);
@@ -17,7 +17,7 @@ typename SPEC::T abs_diff_grad(lic::nn::layers::dense::LayerBackwardGradient<DEV
     return acc;
 }
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff(lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n1, lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n2) {
+typename SPEC::T abs_diff(const lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& n1, const lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& n2) {
     typedef typename SPEC::T T;
     T acc = 0;
     acc += abs_diff(n1.layer_1, n2.layer_1);
@@ -26,7 +26,7 @@ typename SPEC::T abs_diff(lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, 
     return acc;
 }
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_grad(lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n1, lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> n2) {
+typename SPEC::T abs_diff_grad(const lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& n1, const lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& n2) {
     typedef typename SPEC::T T;
     T acc = 0;
     acc += abs_diff_grad(n1.layer_1, n2.layer_1);

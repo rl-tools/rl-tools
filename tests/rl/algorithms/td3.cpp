@@ -102,7 +102,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_FORWARD) {
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(
+    lic::rl::algorithms::td3::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(
             actor_critic, rng);
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
@@ -133,8 +133,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_BACKWARD) {
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(
-            actor_critic, rng);
+    lic::rl::algorithms::td3::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
@@ -172,7 +171,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::rl::algorithms::td3::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
 
 
@@ -208,7 +207,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::rl::algorithms::td3::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
@@ -241,10 +240,22 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 #define N_WARMUP_STEPS 100
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, lic::rl::algorithms::td3::DefaultTD3Parameters<DTYPE>>> ActorCriticType;
-    lic::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, lic::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, 50000, 100>> off_policy_runner;
+    lic::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, lic::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, 50000, 200>> off_policy_runner;
     ActorCriticType actor_critic;
     std::mt19937 rng(0);
-    init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::rl::algorithms::td3::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+
+    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    lic::load(actor_critic.actor, data_file.getGroup("actor"));
+    lic::load(actor_critic.actor_target, data_file.getGroup("actor_target"));
+    lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
+    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
+    lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
+    lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
+    lic::reset_optimizer_state(actor_critic.actor);
+    lic::reset_optimizer_state(actor_critic.critic_1);
+    lic::reset_optimizer_state(actor_critic.critic_2);
+
     for(int step_i = 0; step_i < 10000000; step_i++){
         step(off_policy_runner, actor_critic.actor, rng);
         if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
