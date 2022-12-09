@@ -8,9 +8,9 @@
 #include <layer_in_c/utils/polyak.h>
 namespace lic = layer_in_c;
 
-namespace layer_in_c::rl::algorithms::td3{
-    template <typename T>
-    struct DefaultTD3Parameters{
+namespace layer_in_c::rl::algorithms::td3 {
+    template<typename T>
+    struct DefaultTD3Parameters {
         static constexpr T GAMMA = 0.99;
         static constexpr uint32_t ACTOR_BATCH_SIZE = 32;
         static constexpr uint32_t CRITIC_BATCH_SIZE = 32;
@@ -20,8 +20,8 @@ namespace layer_in_c::rl::algorithms::td3{
         static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
     };
 
-    template <typename T, int T_LAYER_1_DIM, int T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN>
-    struct ActorNetworkSpecification{
+    template<typename T, int T_LAYER_1_DIM, int T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN>
+    struct ActorNetworkSpecification {
         static constexpr int LAYER_1_DIM = T_LAYER_1_DIM;
         static constexpr int LAYER_2_DIM = T_LAYER_2_DIM;
         static constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN = FN;
@@ -29,8 +29,8 @@ namespace layer_in_c::rl::algorithms::td3{
         typedef lic::nn::optimizers::adam::DefaultParameters<T> ADAM_PARAMETERS;
     };
 
-    template <typename T, int T_LAYER_1_DIM, int T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN>
-    struct CriticNetworkSpecification{
+    template<typename T, int T_LAYER_1_DIM, int T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN>
+    struct CriticNetworkSpecification {
         static constexpr int LAYER_1_DIM = T_LAYER_1_DIM;
         static constexpr int LAYER_2_DIM = T_LAYER_2_DIM;
         static constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN = FN;
@@ -39,14 +39,14 @@ namespace layer_in_c::rl::algorithms::td3{
     };
 
 
-    template <
+    template<
             typename T_T,
             typename T_ENVIRONMENT,
             typename T_ACTOR_SPEC,
             typename T_CRITIC_SPEC,
             typename T_PARAMETERS
     >
-    struct ActorCriticSpecification{
+    struct ActorCriticSpecification {
         typedef T_T T;
         typedef T_ENVIRONMENT ENVIRONMENT;
         typedef T_ACTOR_SPEC ACTOR_SPEC;
@@ -54,8 +54,8 @@ namespace layer_in_c::rl::algorithms::td3{
         typedef T_PARAMETERS PARAMETERS;
     };
 
-    template <typename DEVICE, typename T_SPEC>
-    struct ActorCritic{
+    template<typename DEVICE, typename T_SPEC>
+    struct ActorCritic {
         typedef T_SPEC SPEC;
         typedef typename SPEC::T T;
 
@@ -92,7 +92,8 @@ namespace layer_in_c::rl::algorithms::td3{
         CRITIC_TARGET_NETWORK_TYPE critic_target_1;
         CRITIC_TARGET_NETWORK_TYPE critic_target_2;
     };
-
+}
+namespace layer_in_c{
     template<typename SPEC>
     void update_target_layer(lic::nn::layers::dense::Layer<lic::devices::Generic, SPEC>& target, const lic::nn::layers::dense::Layer<lic::devices::Generic, SPEC>& source, typename SPEC::T polyak) {
         lic::utils::polyak::update_matrix<typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(target.weights, source.weights, polyak);
@@ -106,7 +107,7 @@ namespace layer_in_c::rl::algorithms::td3{
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_targets(ActorCritic<DEVICE, SPEC>& actor_critic) {
+    void update_targets(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic) {
         update_target_network(actor_critic.actor_target   , actor_critic.   actor, SPEC::PARAMETERS::ACTOR_POLYAK);
         update_target_network(actor_critic.critic_target_1, actor_critic.critic_1, SPEC::PARAMETERS::CRITIC_POLYAK);
         update_target_network(actor_critic.critic_target_2, actor_critic.critic_2, SPEC::PARAMETERS::CRITIC_POLYAK);
@@ -115,10 +116,10 @@ namespace layer_in_c::rl::algorithms::td3{
 
 
     template <typename DEVICE, typename SPEC, auto RANDOM_UNIFORM, typename RNG>
-    void init(ActorCritic<DEVICE, SPEC>& actor_critic, RNG& rng){
-        layer_in_c::init_weights<typename ActorCritic<DEVICE, SPEC>:: ACTOR_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.actor, rng);
-        layer_in_c::init_weights<typename ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.critic_1, rng);
-        layer_in_c::init_weights<typename ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.critic_2, rng);
+    void init(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, RNG& rng){
+        layer_in_c::init_weights<typename lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>:: ACTOR_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.actor, rng);
+        layer_in_c::init_weights<typename lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.critic_1, rng);
+        layer_in_c::init_weights<typename lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.critic_2, rng);
         layer_in_c::reset_optimizer_state(actor_critic.actor);
         layer_in_c::reset_optimizer_state(actor_critic.critic_1);
         layer_in_c::reset_optimizer_state(actor_critic.critic_2);
@@ -128,22 +129,21 @@ namespace layer_in_c::rl::algorithms::td3{
         actor_critic.critic_target_2 = actor_critic.critic_2;
     }
 
-
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, int CAPACITY, typename RNG>
-    typename SPEC::T train_critic(ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TYPE& critic, ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng, bool deterministic = false) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, int CAPACITY, typename RNG, bool DETERMINISTIC = false>
+    typename SPEC::T train_critic(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TYPE& critic, lic::rl::algorithms::td3::ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
         typedef typename SPEC::T T;
         assert(replay_buffer.full || replay_buffer.position >= SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         T loss = 0;
         lic::zero_gradient(critic);
         std::uniform_int_distribution<uint32_t> sample_distribution(0, (replay_buffer.full ? CAPACITY : replay_buffer.position) - 1);
         for (int sample_i=0; sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; sample_i++){
-            uint32_t sample_index = sample_distribution(rng);
+            uint32_t sample_index = DETERMINISTIC ? sample_i : sample_distribution(rng);
             T next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];
             memcpy(next_state_action_value_input, replay_buffer.next_observations[sample_index], sizeof(T) * SPEC::ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             lic::evaluate(actor_critic.actor_target, next_state_action_value_input, &next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
             std::normal_distribution<T> target_next_action_noise_distribution(0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
             for(int action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                T action_noise = deterministic ? 0 : std::clamp(
+                T action_noise = DETERMINISTIC ? 0 : std::clamp(
                         target_next_action_noise_distribution(rng),
                         -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
                         SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
@@ -166,16 +166,16 @@ namespace layer_in_c::rl::algorithms::td3{
 //        standardise<T, ACTION_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
             T target_action_value[1] = {replay_buffer.rewards[sample_index] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!replay_buffer.terminated[sample_index])};
 
-            lic::forward_backward_mse(critic, state_action_value_input, target_action_value);
-            loss += lic::nn::loss_functions::mse<T, 1>(critic.output_layer.output, target_action_value);
+            lic::forward_backward_mse<typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic, state_action_value_input, target_action_value);
+            loss += lic::nn::loss_functions::mse<T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.output, target_action_value);
         }
         loss /= SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
         lic::update(critic);
         return loss;
     }
 
-    template <typename DEVICE, typename SPEC, int CAPACITY, typename RNG>
-    typename SPEC::T train_actor(ActorCritic<DEVICE, SPEC>& actor_critic, ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
+    template <typename DEVICE, typename SPEC, int CAPACITY, typename RNG, bool DETERMINISTIC = false>
+    typename SPEC::T train_actor(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, lic::rl::algorithms::td3::ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
         typedef typename SPEC::T T;
         typedef typename SPEC::PARAMETERS PARAMETERS;
         typedef typename SPEC::ENVIRONMENT ENVIRONMENT;
@@ -183,21 +183,20 @@ namespace layer_in_c::rl::algorithms::td3{
         lic::zero_gradient(actor_critic.actor);
         std::uniform_int_distribution<uint32_t> sample_distribution(0, (replay_buffer.full ? CAPACITY : replay_buffer.position) - 1);
         for (int sample_i=0; sample_i < PARAMETERS::ACTOR_BATCH_SIZE; sample_i++){
-            uint32_t sample_index = sample_distribution(rng);
+            uint32_t sample_index = DETERMINISTIC ? sample_i : sample_distribution(rng);
             T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
             memcpy(state_action_value_input, replay_buffer.observations[sample_index], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
-            lic::evaluate(actor_critic.actor_target, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
+            lic::forward(actor_critic.actor, state_action_value_input);
+            memcpy(&state_action_value_input[ENVIRONMENT::OBSERVATION_DIM], actor_critic.actor.output_layer.output, sizeof(T) * ENVIRONMENT::ACTION_DIM); // setting the second part with next actions
 
             lic::forward(actor_critic.critic_1, state_action_value_input);
-            actor_value += actor_critic.critic_1.output_layer.output[0];
-            T d_output[1] = {-1}; // we want to maximise the critic output using gradient descent
+            actor_value += actor_critic.critic_1.output_layer.output[0]/SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
+            T d_output[1] = {-(T)1/SPEC::PARAMETERS::ACTOR_BATCH_SIZE}; // we want to maximise the critic output using gradient descent
             T d_critic_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
             lic::backward(actor_critic.critic_1, state_action_value_input, d_output, d_critic_input);
             T d_actor_input[ENVIRONMENT::OBSERVATION_DIM];
-            lic::forward(actor_critic.actor, state_action_value_input);
             lic::backward(actor_critic.actor, state_action_value_input, &d_critic_input[ENVIRONMENT::OBSERVATION_DIM], d_actor_input);
         }
-        actor_value /= PARAMETERS::ACTOR_BATCH_SIZE;
         lic::update(actor_critic.actor);
         return actor_value;
     }

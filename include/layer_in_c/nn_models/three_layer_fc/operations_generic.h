@@ -57,12 +57,12 @@ namespace layer_in_c {
         backward(network.layer_2     , network.layer_1.output, d_layer_2_output, d_layer_1_output);
         backward(network.layer_1     , input                 , d_layer_1_output, d_input);
     }
-    template<typename SPEC>
+    template<typename SPEC, int BATCH_SIZE>
     FUNCTION_PLACEMENT void forward_backward_mse(nn_models::three_layer_fc::NeuralNetworkBackward<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM], typename SPEC::T target[SPEC::OUTPUT_LAYER::OUTPUT_DIM]) {
         typename SPEC::T d_input[SPEC::LAYER_1::INPUT_DIM];
         forward(network, input);
         typename SPEC::T d_loss_d_output[SPEC::OUTPUT_LAYER::OUTPUT_DIM];
-        nn::loss_functions::d_mse_d_x<typename SPEC::T, SPEC::OUTPUT_LAYER::OUTPUT_DIM>(network.output_layer.output, target, d_loss_d_output);
+        nn::loss_functions::d_mse_d_x<typename SPEC::T, SPEC::OUTPUT_LAYER::OUTPUT_DIM, BATCH_SIZE>(network.output_layer.output, target, d_loss_d_output);
         backward(network, input, d_loss_d_output, d_input);
     }
 

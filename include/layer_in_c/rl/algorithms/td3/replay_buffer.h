@@ -1,8 +1,11 @@
 #ifndef LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER
 #define LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER
 namespace layer_in_c::rl::algorithms::td3 {
-    template <typename T_T, int OBSERVATION_DIM, int ACTION_DIM, int CAPACITY>
+    template <typename T_T, int T_OBSERVATION_DIM, int T_ACTION_DIM, int T_CAPACITY>
     struct ReplayBuffer {
+        static constexpr int OBSERVATION_DIM = T_OBSERVATION_DIM;
+        static constexpr int ACTION_DIM = T_ACTION_DIM;
+        static constexpr int CAPACITY = T_CAPACITY;
         using T = T_T;
         T observations[CAPACITY][OBSERVATION_DIM];
         T actions[CAPACITY][ACTION_DIM];
