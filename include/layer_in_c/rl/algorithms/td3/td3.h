@@ -20,22 +20,22 @@ namespace layer_in_c::rl::algorithms::td3 {
         static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
     };
 
-    template<typename T, int T_LAYER_1_DIM, int T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN>
+    template<typename T, int T_LAYER_1_DIM, int T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN, typename T_OPTIMIZER_PARAMETERS>
     struct ActorNetworkSpecification {
         static constexpr int LAYER_1_DIM = T_LAYER_1_DIM;
         static constexpr int LAYER_2_DIM = T_LAYER_2_DIM;
         static constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN = FN;
         static constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = FN;
-        typedef lic::nn::optimizers::adam::DefaultParameters<T> ADAM_PARAMETERS;
+        typedef T_OPTIMIZER_PARAMETERS OPTIMIZER_PARAMETERS;
     };
 
-    template<typename T, int T_LAYER_1_DIM, int T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN>
+    template<typename T, int T_LAYER_1_DIM, int T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN, typename T_OPTIMIZER_PARAMETERS>
     struct CriticNetworkSpecification {
         static constexpr int LAYER_1_DIM = T_LAYER_1_DIM;
         static constexpr int LAYER_2_DIM = T_LAYER_2_DIM;
         static constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN = FN;
         static constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = FN;
-        typedef lic::nn::optimizers::adam::DefaultParameters<T> ADAM_PARAMETERS;
+        typedef T_OPTIMIZER_PARAMETERS OPTIMIZER_PARAMETERS;
     };
 
 
@@ -64,9 +64,9 @@ namespace layer_in_c::rl::algorithms::td3 {
                 SPEC::ENVIRONMENT::OBSERVATION_DIM,
                 SPEC::ACTOR_SPEC::LAYER_1_DIM, SPEC::ACTOR_SPEC::LAYER_1_FN,
                 SPEC::ACTOR_SPEC::LAYER_2_DIM, SPEC::ACTOR_SPEC::LAYER_2_FN,
-                SPEC::ENVIRONMENT::ACTION_DIM, lic::nn::activation_functions::TANH> ACTOR_NETWORK_STRUCTURE_SPEC;
+                SPEC::ENVIRONMENT::ACTION_DIM, lic::nn::activation_functions::LINEAR> ACTOR_NETWORK_STRUCTURE_SPEC;
 
-        typedef lic::nn_models::three_layer_fc::AdamSpecification<DEVICE, ACTOR_NETWORK_STRUCTURE_SPEC, typename SPEC::ACTOR_SPEC::ADAM_PARAMETERS> ACTOR_NETWORK_SPEC;
+        typedef lic::nn_models::three_layer_fc::AdamSpecification<DEVICE, ACTOR_NETWORK_STRUCTURE_SPEC, typename SPEC::ACTOR_SPEC::OPTIMIZER_PARAMETERS> ACTOR_NETWORK_SPEC;
         typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, ACTOR_NETWORK_SPEC> ACTOR_NETWORK_TYPE;
 
         typedef lic::nn_models::three_layer_fc::InferenceSpecification<DEVICE, ACTOR_NETWORK_STRUCTURE_SPEC> ACTOR_TARGET_NETWORK_SPEC;
@@ -78,7 +78,7 @@ namespace layer_in_c::rl::algorithms::td3 {
                 SPEC::CRITIC_SPEC::LAYER_2_DIM, SPEC::CRITIC_SPEC::LAYER_2_FN,
                 1, layer_in_c::nn::activation_functions::LINEAR> CRITIC_NETWORK_STRUCTURE_SPEC;
 
-        typedef lic::nn_models::three_layer_fc::AdamSpecification<DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC, typename SPEC::CRITIC_SPEC::ADAM_PARAMETERS> CRITIC_NETWORK_SPEC;
+        typedef lic::nn_models::three_layer_fc::AdamSpecification<DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC, typename SPEC::CRITIC_SPEC::OPTIMIZER_PARAMETERS> CRITIC_NETWORK_SPEC;
         typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, CRITIC_NETWORK_SPEC> CRITIC_NETWORK_TYPE;
 
         typedef layer_in_c::nn_models::three_layer_fc::InferenceSpecification<DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC> CRITIC_TARGET_NETWORK_SPEC;

@@ -84,10 +84,10 @@ struct TD3Parameters: public lic::rl::algorithms::td3::DefaultTD3Parameters<T>{
     constexpr static int ACTOR_BATCH_SIZE = 32;
 };
 template <typename T>
-using TestActorNetworkDefinition = lic::rl::algorithms::td3::ActorNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU>;
+using TestActorNetworkDefinition = lic::rl::algorithms::td3::ActorNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 
 template <typename T>
-using TestCriticNetworkDefinition = lic::rl::algorithms::td3::CriticNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU>;
+using TestCriticNetworkDefinition = lic::rl::algorithms::td3::CriticNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -220,16 +220,18 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
     }
     mean_ratio /= num_updates;
     std::cout << "mean_ratio: " << mean_ratio << std::endl;
-    ASSERT_GT(mean_ratio, 500);
+    ASSERT_GT(mean_ratio, 1e6);
 }
 
-/*
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
-    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
     lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+
+
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
@@ -246,20 +248,36 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
     replay_buffer.position = TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE;
 
     auto pre_actor = actor_critic.actor;
-    auto post_actor = actor_critic.actor;
-    lic::load(post_actor, data_file.getGroup("actor_training/0"));
-
     lic::reset_optimizer_state(actor_critic.actor);
-    DTYPE actor_value = lic::train_actor<lic::devices::Generic, ActorCriticType::SPEC, ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+    DTYPE mean_ratio = 0;
+    int num_updates = data_file.getGroup("actor_training").getNumberObjects();
+    for(int training_step_i = 0; training_step_i < num_updates; training_step_i++){
+        auto post_actor = actor_critic.actor;
+        std::stringstream ss;
+        ss << "actor_training/" << training_step_i;
+        lic::load(post_actor, data_file.getGroup(ss.str()));
 
-    DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
-    DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+        DTYPE actor_1_loss = lic::train_actor<lic::devices::Generic, ActorCriticSpec,  ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
 
-    std::cout << "pre_post_diff_per_weight: " << pre_post_diff_per_weight << std::endl;
-    std::cout << "diff_target_per_weight: " << diff_target_per_weight << std::endl;
+        DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+        DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+        DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-    ASSERT_LT(diff_target_per_weight, 1e-6);
+        std::cout << "pre_post_diff_per_weight: " << pre_post_diff_per_weight << std::endl;
+        std::cout << "diff_target_per_weight: " << diff_target_per_weight << std::endl;
+        std::cout << "pre_post to diff_target: " << diff_ratio << std::endl;
+
+        mean_ratio += diff_ratio;
+
+//        ASSERT_LT(diff_target_per_weight, 1e-7);
+//        actor_critic.critic_1 = post_critic;
+
+    }
+    mean_ratio /= num_updates;
+    std::cout << "mean_ratio: " << mean_ratio << std::endl;
+    ASSERT_GT(mean_ratio, 1e6);
 }
+/*
 
 const DTYPE STATE_TOLERANCE = 0.00001;
 #define N_WARMUP_STEPS 100
