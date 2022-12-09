@@ -168,6 +168,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_BACKWARD) {
     std::cout << "diff_grad_per_weight: " << diff_grad_per_weight << std::endl;
 }
 */
+/*
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -222,7 +223,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
     std::cout << "mean_ratio: " << mean_ratio << std::endl;
     ASSERT_GT(mean_ratio, 1e6);
 }
-
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -275,9 +275,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
     }
     mean_ratio /= num_updates;
     std::cout << "mean_ratio: " << mean_ratio << std::endl;
-    ASSERT_GT(mean_ratio, 1e6);
+    ASSERT_GT(mean_ratio, 100000);
 }
-/*
+*/
 
 const DTYPE STATE_TOLERANCE = 0.00001;
 #define N_WARMUP_STEPS 100
@@ -315,4 +315,3 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
         }
     }
 }
- */
