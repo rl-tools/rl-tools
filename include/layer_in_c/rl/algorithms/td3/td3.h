@@ -64,7 +64,7 @@ namespace layer_in_c::rl::algorithms::td3 {
                 SPEC::ENVIRONMENT::OBSERVATION_DIM,
                 SPEC::ACTOR_SPEC::LAYER_1_DIM, SPEC::ACTOR_SPEC::LAYER_1_FN,
                 SPEC::ACTOR_SPEC::LAYER_2_DIM, SPEC::ACTOR_SPEC::LAYER_2_FN,
-                SPEC::ENVIRONMENT::ACTION_DIM, lic::nn::activation_functions::LINEAR> ACTOR_NETWORK_STRUCTURE_SPEC;
+                SPEC::ENVIRONMENT::ACTION_DIM, lic::nn::activation_functions::TANH> ACTOR_NETWORK_STRUCTURE_SPEC;
 
         typedef lic::nn_models::three_layer_fc::AdamSpecification<DEVICE, ACTOR_NETWORK_STRUCTURE_SPEC, typename SPEC::ACTOR_SPEC::OPTIMIZER_PARAMETERS> ACTOR_NETWORK_SPEC;
         typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, ACTOR_NETWORK_SPEC> ACTOR_NETWORK_TYPE;
