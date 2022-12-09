@@ -56,5 +56,26 @@ namespace layer_in_c::rl::algorithms::td3 {
         // todo: add truncation / termination handling (stemming from the environment)
         add(runner.replay_buffer, observation, action, reward, next_observation, terminated, truncated);
     }
+    template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT>
+    typename POLICY::T evaluate(POLICY &policy, RNG &rng) {
+        typedef typename POLICY::T T;
+        T state[ENVIRONMENT::STATE_DIM];
+        lic::sample_initial_state(ENVIRONMENT(), state, rng);
+        T episode_return = 0;
+        for (int i = 0; i < STEP_LIMIT; i++) {
+            T observation[ENVIRONMENT::OBSERVATION_DIM];
+            lic::observe(ENVIRONMENT(), state, observation);
+            T action[ENVIRONMENT::ACTION_DIM];
+            lic::evaluate(policy, observation, action);
+            T next_state[ENVIRONMENT::STATE_DIM];
+            T reward = lic::step(ENVIRONMENT(), state, action, next_state);
+            memcpy(state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
+            episode_return += reward;
+            bool terminated = lic::terminated(ENVIRONMENT(), state);
+            if (terminated) {
+                break;
+            }
+        }
+    }
 }
 #endif

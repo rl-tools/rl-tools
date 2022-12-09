@@ -82,6 +82,10 @@ namespace layer_in_c{
         observation[1] = std::sin(th);
         observation[2] = thdot;
     }
+    template<typename SPEC>
+    static bool terminated(const rl::environments::pendulum::Pendulum<devices::Generic, SPEC>& env, const typename SPEC::T state[2]){
+        return false;
+    }
 }
 
 

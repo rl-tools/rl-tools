@@ -54,6 +54,7 @@ namespace layer_in_c::nn_models::three_layer_fc {
     struct NeuralNetwork{
         typedef T_DEVICE DEVICE;
         typedef T_SPEC SPEC;
+        typedef typename SPEC::T T;
         static_assert(std::is_same_v<DEVICE, typename T_SPEC::DEVICE>);
         static constexpr int  INPUT_DIM = SPEC::LAYER_1     ::SPEC::INPUT_DIM;
         static constexpr int OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
