@@ -277,8 +277,87 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
     std::cout << "mean_ratio: " << mean_ratio << std::endl;
     ASSERT_GT(mean_ratio, 100000);
 }
-*/
+ */
 
+typedef lic::rl::algorithms::td3::ReplayBuffer<DTYPE, 3, 1, 100> ReplayBufferTypeCopyTraining;
+constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
+template <typename T, typename REPLAY_BUFFER_TYPE>
+void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
+    for(int i = 0; i < batch.size(); i++){
+        memcpy( rb.     observations[i], &batch[i][0], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM);
+        memcpy( rb.          actions[i], &batch[i][ENVIRONMENT::OBSERVATION_DIM], sizeof(T) * ENVIRONMENT::ACTION_DIM);
+        memcpy( rb.next_observations[i], &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM);
+        rb.   rewards[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM    ];
+        rb. truncated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1;
+        rb.terminated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1;
+    }
+}
+
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
+    constexpr int BATCH_SIZE = 100;
+    typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
+    ActorCriticType actor_critic;
+
+    std::mt19937 rng(0);
+    lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+
+
+
+    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    lic::load(actor_critic.actor, data_file.getGroup("actor"));
+    lic::load(actor_critic.actor_target, data_file.getGroup("actor_target"));
+    lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
+    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
+    lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
+    lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
+
+    ReplayBufferTypeCopyTraining replay_buffer;
+
+    auto pre_actor = actor_critic.actor;
+    lic::reset_optimizer_state(actor_critic.actor);
+    lic::reset_optimizer_state(actor_critic.critic_1);
+    lic::reset_optimizer_state(actor_critic.critic_2);
+    DTYPE mean_ratio = 0;
+    auto full_training_group = data_file.getGroup("full_training");
+    auto steps_group = full_training_group.getGroup("steps");
+    int num_steps = steps_group.getNumberObjects();
+    auto pre_critic_1 = actor_critic.critic_1;
+    for(int step_i = 0; step_i < num_steps; step_i++){
+        auto step_group = steps_group.getGroup(std::to_string(step_i));
+        if(step_group.exist("critics_batch")){
+            std::vector<std::vector<DTYPE>> batch;
+            step_group.getDataSet("critics_batch").read(batch);
+            assert(batch.size() == BATCH_SIZE);
+            load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
+            auto post_critic_1 = actor_critic.critic_1;
+            lic::load(post_critic_1, data_file.getGroup("critic1"));
+
+
+            DTYPE critic_1_loss = lic::train_critic<lic::devices::Generic, ActorCriticSpec,  ActorCriticType::CRITIC_NETWORK_TYPE, ReplayBufferTypeCopyTraining::CAPACITY, typeof(rng), true>(actor_critic, actor_critic.critic_1, replay_buffer, rng);
+            DTYPE actor_1_loss = lic::train_actor<lic::devices::Generic, ActorCriticSpec,  ReplayBufferTypeCopyTraining::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+
+            DTYPE pre_post_diff_per_weight = abs_diff(pre_critic_1, post_critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_target_per_weight = abs_diff(post_critic_1, actor_critic.critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
+
+            std::cout << "pre_post_diff_per_weight: " << pre_post_diff_per_weight << std::endl;
+            std::cout << "diff_target_per_weight: " << diff_target_per_weight << std::endl;
+            std::cout << "pre_post to diff_target: " << diff_ratio << std::endl;
+
+            mean_ratio += diff_ratio;
+
+//        ASSERT_LT(diff_target_per_weight, 1e-7);
+//        actor_critic.critic_1 = post_critic;
+
+        }
+    }
+    mean_ratio /= num_steps;
+    std::cout << "mean_ratio: " << mean_ratio << std::endl;
+    ASSERT_GT(mean_ratio, 100000);
+}
+
+/*
 const DTYPE STATE_TOLERANCE = 0.00001;
 #define N_WARMUP_STEPS 100
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
@@ -315,3 +394,4 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
         }
     }
 }
+ */
