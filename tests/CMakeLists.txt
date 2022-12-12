@@ -72,18 +72,32 @@ target_link_libraries(
         GTest::gtest_main
         HDF5::HDF5
 )
-
-# RL Algorithm td3 test
+# RL Algorithm td3 test first stage
 add_executable(
-        rl_algorithms_td3_test
-        rl/algorithms/td3.cpp
+        rl_algorithms_td3_test_first_stage
+        rl/algorithms/td3/first_stage.cpp
 )
-target_include_directories(rl_algorithms_td3_test PRIVATE
+target_include_directories(rl_algorithms_td3_test_first_stage PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${PROJECT_SOURCE_DIR}/include
         )
 target_link_libraries(
-        rl_algorithms_td3_test
+        rl_algorithms_td3_test_first_stage
+        GTest::gtest_main
+        HDF5::HDF5
+)
+
+# RL Algorithm td3 test second stage
+add_executable(
+        rl_algorithms_td3_test_second_stage
+        rl/algorithms/td3/second_stage.cpp
+)
+target_include_directories(rl_algorithms_td3_test_second_stage PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${PROJECT_SOURCE_DIR}/include
+        )
+target_link_libraries(
+        rl_algorithms_td3_test_second_stage
         GTest::gtest_main
         HDF5::HDF5
 )
@@ -93,7 +107,8 @@ gtest_discover_tests(neural_network_persistence_test)
 gtest_discover_tests(neural_network_test)
 gtest_discover_tests(rl_environments_pendulum_test)
 gtest_discover_tests(rl_algorithms_off_policy_runner_test)
-gtest_discover_tests(rl_algorithms_td3_test)
+gtest_discover_tests(rl_algorithms_td3_test_first_stage)
+gtest_discover_tests(rl_algorithms_td3_test_second_stage)
 
 
 
