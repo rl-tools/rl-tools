@@ -14,8 +14,8 @@ namespace layer_in_c::rl::algorithms::td3 {
         static constexpr T GAMMA = 0.99;
         static constexpr uint32_t ACTOR_BATCH_SIZE = 32;
         static constexpr uint32_t CRITIC_BATCH_SIZE = 32;
-        static constexpr T ACTOR_POLYAK = 0.005;
-        static constexpr T CRITIC_POLYAK = 0.005;
+        static constexpr T ACTOR_POLYAK = 1.0 - 0.005;
+        static constexpr T CRITIC_POLYAK = 1.0 - 0.005;
         static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
         static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
     };
@@ -129,26 +129,20 @@ namespace layer_in_c{
         actor_critic.critic_target_2 = actor_critic.critic_2;
     }
 
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, int CAPACITY, typename RNG, bool DETERMINISTIC = false>
-    typename SPEC::T train_critic(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TYPE& critic, lic::rl::algorithms::td3::ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, int CAPACITY, typename RNG, bool DETERMINISTIC=false>
+    typename SPEC::T train_critic(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TYPE& critic, lic::rl::algorithms::td3::ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, typename SPEC::T target_next_action_noise[SPEC::PARAMETERS::CRITIC_BATCH_SIZE][SPEC::ENVIRONMENT::ACTION_DIM], RNG& rng) {
         typedef typename SPEC::T T;
         assert(replay_buffer.full || replay_buffer.position >= SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         T loss = 0;
         lic::zero_gradient(critic);
         std::uniform_int_distribution<uint32_t> sample_distribution(0, (replay_buffer.full ? CAPACITY : replay_buffer.position) - 1);
-        for (int sample_i=0; sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; sample_i++){
-            uint32_t sample_index = DETERMINISTIC ? sample_i : sample_distribution(rng);
+        for (int batch_step_i=0; batch_step_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_step_i++){
+            uint32_t sample_index = DETERMINISTIC ? batch_step_i : sample_distribution(rng);
             T next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];
             memcpy(next_state_action_value_input, replay_buffer.next_observations[sample_index], sizeof(T) * SPEC::ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             lic::evaluate(actor_critic.actor_target, next_state_action_value_input, &next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
-            std::normal_distribution<T> target_next_action_noise_distribution(0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
             for(int action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                T action_noise = DETERMINISTIC ? 0 : std::clamp(
-                        target_next_action_noise_distribution(rng),
-                        -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
-                        SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
-                );
-                T noisy_next_action = next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] + action_noise;
+                T noisy_next_action = next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] + target_next_action_noise[batch_step_i][action_i];
                 noisy_next_action = std::clamp<T>(noisy_next_action, -1, 1);
                 next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] = noisy_next_action;
             }
@@ -172,6 +166,26 @@ namespace layer_in_c{
         }
         lic::update(critic);
         return loss;
+    }
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, int CAPACITY, typename RNG>
+    typename SPEC::T train_critic_deterministic(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TYPE& critic, lic::rl::algorithms::td3::ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, typename SPEC::T target_next_action_noise[SPEC::PARAMETERS::CRITIC_BATCH_SIZE][SPEC::ENVIRONMENT::ACTION_DIM], RNG& rng) {
+        return train_critic<DEVICE, SPEC, CRITIC_TYPE, CAPACITY, RNG, true>(actor_critic, critic, replay_buffer, target_next_action_noise, rng);
+    }
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, int CAPACITY, typename RNG>
+    typename SPEC::T train_critic(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, CRITIC_TYPE& critic, lic::rl::algorithms::td3::ReplayBuffer<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, CAPACITY>& replay_buffer, RNG& rng) {
+        typedef typename SPEC::T T;
+        std::normal_distribution<T> target_next_action_noise_distribution(0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
+        T action_noise[SPEC::PARAMETERS::CRITIC_BATCH_SIZE][SPEC::ENVIRONMENT::ACTION_DIM];
+        for(int batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
+            for(int action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
+                action_noise[batch_sample_i][action_i] = std::clamp(
+                        target_next_action_noise_distribution(rng),
+                        -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
+                        SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
+                );
+            }
+        }
+        return train_critic(actor_critic, critic, replay_buffer, action_noise, rng);
     }
 
     template <typename DEVICE, typename SPEC, int CAPACITY, typename RNG, bool DETERMINISTIC = false>

@@ -19,10 +19,10 @@ namespace layer_in_c::rl::algorithms::td3 {
         uint32_t episode_step = 0;
         T episode_return = 0;
     };
-
-
+}
+namespace layer_in_c{
     template<typename T, typename ENVIRONMENT, typename POLICY, typename PARAMETERS, typename RNG>
-    void step(OffPolicyRunner<T, ENVIRONMENT, PARAMETERS> &runner, POLICY &policy, RNG &rng) {
+    void step(rl::algorithms::td3::OffPolicyRunner<T, ENVIRONMENT, PARAMETERS> &runner, POLICY &policy, RNG &rng) {
         // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
         if ((PARAMETERS::STEP_LIMIT > 0 && runner.episode_step == PARAMETERS::STEP_LIMIT) ||
             (runner.replay_buffer.position == 0 && !runner.replay_buffer.full)) {
@@ -76,6 +76,28 @@ namespace layer_in_c::rl::algorithms::td3 {
                 break;
             }
         }
+        return episode_return;
+    }
+    template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT>
+    typename POLICY::T evaluate(POLICY &policy, RNG &rng, uint32_t N) {
+        typedef typename POLICY::T T;
+        T episode_returns[N];
+        for (int i = 0; i < N; i++) {
+            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, RNG, STEP_LIMIT>(policy, rng);
+        }
+        T mean = 0;
+        for (int i = 0; i < N; i++) {
+            mean += episode_returns[i];
+        }
+        mean /= N;
+        T variance = 0;
+        for (int i = 0; i < N; i++) {
+            variance += (episode_returns[i] - mean) * (episode_returns[i] - mean);
+        }
+        variance /= N;
+        T standard_deviation = std::sqrt(variance);
+        std::cout << "Mean: " << mean << ", standard deviation: " << standard_deviation << std::endl;
+        return mean;
     }
 }
 #endif

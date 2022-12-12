@@ -97,13 +97,12 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     acc += abs_diff_matrix<T, NT::SPEC::LAYER_1::OUTPUT_DIM, NT::SPEC::LAYER_1::INPUT_DIM>(network.layer_1.weights, weights);
     return acc;
 }
-/*
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_FORWARD) {
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::rl::algorithms::td3::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(
+    lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(
             actor_critic, rng);
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
@@ -112,53 +111,61 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_FORWARD) {
 
     Dataset<DTYPE> batch(data_file.getGroup("batch"));
 
-    DTYPE input[ActorCriticType::CRITIC_INPUT_DIM];
-    for (int i = 0; i < batch.states[0].size(); i++) {
-        input[i] = batch.states[0][i];
-    }
-    for (int i = 0; i < batch.actions[0].size(); i++) {
-        input[batch.states[0].size() + i] = batch.actions[0][i];
+    std::vector<std::vector<DTYPE>> outputs;
+    data_file.getDataSet("batch_output").read(outputs);
+
+    for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
+        DTYPE input[ActorCriticType::CRITIC_INPUT_DIM];
+        for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
+            input[i] = batch.states[batch_sample_i][i];
+        }
+        for (int i = 0; i < batch.actions[batch_sample_i].size(); i++) {
+            input[batch.states[batch_sample_i].size() + i] = batch.actions[batch_sample_i][i];
+        }
+
+        DTYPE output[1];
+        lic::evaluate(actor_critic.critic_1, input, output);
+        std::cout << "output: " << output[0] << std::endl;
+        ASSERT_LT(abs(output[0] - outputs[batch_sample_i][0]), 1e-7);
+
+        lic::evaluate(actor_critic.critic_target_1, input, output);
+        std::cout << "output: " << output[0] << std::endl;
+        ASSERT_LT(abs(output[0] - outputs[batch_sample_i][0]), 1e-7);
     }
 
-    DTYPE output[1];
-    lic::evaluate(actor_critic.critic_1, input, output);
-    std::cout << "output: " << output[0] << std::endl;
-    ASSERT_LT(abs(output[0] - -0.00560237), 1e-7);
-
-    lic::evaluate(actor_critic.critic_target_1, input, output);
-    std::cout << "output: " << output[0] << std::endl;
-    ASSERT_LT(abs(output[0] - -0.00560237), 1e-7);
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_BACKWARD) {
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::rl::algorithms::td3::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
     lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
 
     Dataset<DTYPE> batch(data_file.getGroup("batch"));
+    assert(batch.states.size() == 32);
 
-    DTYPE input[ActorCriticType::CRITIC_INPUT_DIM];
-    for (int i = 0; i < batch.states[0].size(); i++) {
-        input[i] = batch.states[0][i];
-    }
-    for (int i = 0; i < batch.actions[0].size(); i++) {
-        input[batch.states[0].size() + i] = batch.actions[0][i];
-    }
-    DTYPE target[1] = {1};
-    DTYPE output[1];
-    lic::evaluate(actor_critic.critic_1, input, output);
-    DTYPE loss = lic::nn::loss_functions::mse<DTYPE, 1>(output, target);
-    ASSERT_LT(std::abs(loss - 1.0112361), 1e-7);
-
+    DTYPE loss = 0;
     lic::zero_gradient(actor_critic.critic_1);
-    lic::forward_backward_mse(actor_critic.critic_1, input, target);
-    std::cout << "output: " << actor_critic.critic_1.output_layer.output[0] << std::endl;
-    ASSERT_LT(std::abs(actor_critic.critic_1.output_layer.output[0] - -0.00560237), 1e-7);
+    for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
+        DTYPE input[ActorCriticType::CRITIC_INPUT_DIM];
+        for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
+            input[i] = batch.states[batch_sample_i][i];
+        }
+        for (int i = 0; i < batch.actions[batch_sample_i].size(); i++) {
+            input[batch.states[batch_sample_i].size() + i] = batch.actions[batch_sample_i][i];
+        }
+        DTYPE target[1] = {1};
+        DTYPE output[1];
+        lic::evaluate(actor_critic.critic_1, input, output);
+        loss += lic::nn::loss_functions::mse<DTYPE, 1, 1>(output, target);
+
+        lic::forward_backward_mse<ActorCriticType::CRITIC_NETWORK_TYPE::SPEC, 32>(actor_critic.critic_1, input, target);
+        std::cout << "output: " << actor_critic.critic_1.output_layer.output[0] << std::endl;
+    }
 
     auto critic_1_after_backward = actor_critic.critic_1;
     lic::load(critic_1_after_backward, data_file.getGroup("critic_1_backward"));
@@ -167,8 +174,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_BACKWARD) {
 
     std::cout << "diff_grad_per_weight: " << diff_grad_per_weight << std::endl;
 }
-*/
-/*
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -176,8 +181,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
 
     std::mt19937 rng(0);
     lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
-
-
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
@@ -196,14 +199,26 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
     auto pre_critic = actor_critic.critic_1;
     lic::reset_optimizer_state(actor_critic.critic_1);
     DTYPE mean_ratio = 0;
-    int num_updates = data_file.getGroup("critic_training").getNumberObjects();
+    auto critic_training_group = data_file.getGroup("critic_training");
+    int num_updates = critic_training_group.getNumberObjects();
     for(int training_step_i = 0; training_step_i < num_updates; training_step_i++){
-        auto post_critic = actor_critic.critic_1;
-        std::stringstream ss;
-        ss << "critic_training/" << training_step_i;
-        lic::load(post_critic, data_file.getGroup(ss.str()));
+        auto step_group = critic_training_group.getGroup(std::to_string(training_step_i));
 
-        DTYPE critic_1_loss = lic::train_critic<lic::devices::Generic, ActorCriticSpec,  ActorCriticType::CRITIC_NETWORK_TYPE, ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, actor_critic.critic_1, replay_buffer, rng);
+        auto post_critic = actor_critic.critic_1;
+        lic::load(post_critic, step_group.getGroup("critic"));
+
+        std::vector<std::vector<DTYPE>> target_next_action_noise_vector;
+        step_group.getDataSet("target_next_action_noise").read(target_next_action_noise_vector);
+
+
+        DTYPE target_next_action_noise[ActorCriticSpec::PARAMETERS::CRITIC_BATCH_SIZE][ActorCriticSpec::ENVIRONMENT::ACTION_DIM];
+        for(int i = 0; i < ActorCriticSpec::PARAMETERS::CRITIC_BATCH_SIZE; i++){
+            for(int j = 0; j < ActorCriticSpec::ENVIRONMENT::ACTION_DIM; j++){
+                target_next_action_noise[i][j] = target_next_action_noise_vector[i][j];
+            }
+        }
+
+        DTYPE critic_1_loss = lic::train_critic_deterministic(actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
 
         DTYPE pre_post_diff_per_weight = abs_diff(pre_critic, post_critic)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
         DTYPE diff_target_per_weight = abs_diff(post_critic, actor_critic.critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
@@ -277,7 +292,29 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
     std::cout << "mean_ratio: " << mean_ratio << std::endl;
     ASSERT_GT(mean_ratio, 100000);
 }
- */
+/*
+
+template <typename T>
+struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultTD3Parameters<T>{
+    constexpr static int CRITIC_BATCH_SIZE = 100;
+    constexpr static int ACTOR_BATCH_SIZE = 100;
+};
+
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_LOADING_TRAINED_ACTOR) {
+    constexpr bool verbose = false;
+//    constexpr int BATCH_SIZE = 100;
+    typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ActorCriticSpec;
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
+    ActorCriticType actor_critic;
+
+    std::mt19937 rng(0);
+
+    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(10001));
+    lic::load(actor_critic.actor, step_group.getGroup("actor"));
+    DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200>(actor_critic.actor, rng, 100);
+    std::cout << "mean return: " << mean_return << std::endl;
+}
 
 typedef lic::rl::algorithms::td3::ReplayBuffer<DTYPE, 3, 1, 1000> ReplayBufferTypeCopyTraining;
 constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
@@ -294,11 +331,6 @@ void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
     rb.position = batch.size();
 }
 
-template <typename T>
-struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultTD3Parameters<T>{
-    constexpr static int CRITIC_BATCH_SIZE = 100;
-    constexpr static int ACTOR_BATCH_SIZE = 100;
-};
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
     constexpr bool verbose = false;
 //    constexpr int BATCH_SIZE = 100;
@@ -396,6 +428,19 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
 
             DTYPE critic_2_loss = lic::train_critic_deterministic(actor_critic, actor_critic.critic_2, replay_buffer, target_next_action_noise, rng);
             pre_critic_1 = actor_critic.critic_1;
+
+            if(true){//(step_i % 100 == 0){
+                DTYPE diff = 0;
+                for(int batch_sample_i = 0; batch_sample_i < ActorCriticSpec::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
+                    DTYPE input[ActorCriticSpec::ENVIRONMENT::OBSERVATION_DIM + ActorCriticSpec::ENVIRONMENT::ACTION_DIM];
+                    memcpy(input, replay_buffer.observations[batch_sample_i], sizeof(DTYPE) * ActorCriticSpec::ENVIRONMENT::OBSERVATION_DIM);
+                    memcpy(&input[ActorCriticSpec::ENVIRONMENT::OBSERVATION_DIM], replay_buffer.actions[batch_sample_i], sizeof(DTYPE) * ActorCriticSpec::ENVIRONMENT::ACTION_DIM);
+                    DTYPE current_value = lic::evaluate(actor_critic.critic_1, input);
+                    DTYPE desired_value = lic::evaluate(post_critic_1, input);
+                    diff += (current_value - desired_value) * (current_value - desired_value) / ActorCriticSpec::PARAMETERS::CRITIC_BATCH_SIZE;
+                }
+                std::cout << "value mse: " << diff << std::endl;
+            }
         }
 
         if(step_group.exist("actor_batch")){
@@ -407,15 +452,20 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
             ActorCriticType::ACTOR_NETWORK_TYPE post_actor;
             lic::load(post_actor, step_group.getGroup("actor"));
 
-            for(int batch_sample_i = 0; batch_sample_i < ActorCriticSpec::PARAMETERS::ACTOR_BATCH_SIZE; batch_sample_i++){
-                DTYPE current_action[ActorCriticSpec::ENVIRONMENT::ACTION_DIM];
-                lic::evaluate(actor_critic.actor, replay_buffer.observations[batch_sample_i], current_action);
-                DTYPE desired_action[ActorCriticSpec::ENVIRONMENT::ACTION_DIM];
-                
-
-            }
 
             DTYPE actor_loss = lic::train_actor<lic::devices::Generic, ActorCriticSpec, ReplayBufferTypeCopyTraining::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+
+            if(true){//(step_i % 100 == 1){
+                DTYPE diff = 0;
+                for(int batch_sample_i = 0; batch_sample_i < ActorCriticSpec::PARAMETERS::ACTOR_BATCH_SIZE; batch_sample_i++){
+                    DTYPE current_action[ActorCriticSpec::ENVIRONMENT::ACTION_DIM];
+                    lic::evaluate(actor_critic.actor, replay_buffer.observations[batch_sample_i], current_action);
+                    DTYPE desired_action[ActorCriticSpec::ENVIRONMENT::ACTION_DIM];
+                    lic::evaluate(post_actor, replay_buffer.observations[batch_sample_i], desired_action);
+                    diff += lic::nn::loss_functions::mse<DTYPE, ActorCriticSpec::ENVIRONMENT::ACTION_DIM, ActorCriticSpec::PARAMETERS::ACTOR_BATCH_SIZE>(current_action, desired_action);
+                }
+                std::cout << "action mse: " << diff << std::endl;
+            }
 
             DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
             DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
@@ -477,7 +527,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
     ASSERT_GT(mean_ratio_critic, 100000);
 }
 
-/*
 const DTYPE STATE_TOLERANCE = 0.00001;
 #define N_WARMUP_STEPS 100
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
@@ -499,7 +548,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
     lic::reset_optimizer_state(actor_critic.critic_2);
 
     for(int step_i = 0; step_i < 10000000; step_i++){
-        step(off_policy_runner, actor_critic.actor, rng);
+        lic::step(off_policy_runner, actor_critic.actor, rng);
         if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
                 std::cout << "step_i: " << step_i << std::endl;

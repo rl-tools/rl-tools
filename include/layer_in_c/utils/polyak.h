@@ -2,6 +2,7 @@
 #define LAYER_IN_C_NN_UTILS_POLYAK
 
 namespace layer_in_c::utils::polyak {
+    // todo: polyak factor as template parameter (reciprocal INT e.g.)
     template<typename T, int N_ROWS, int N_COLS>
     void update_matrix(T target[N_ROWS][N_COLS], const T source[N_ROWS][N_COLS], const T polyak) {
         for(int i = 0; i < N_ROWS; i++) {
