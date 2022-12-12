@@ -1,6 +1,7 @@
 #ifndef NEURAL_NETWORK_MODELS_H
 #define NEURAL_NETWORK_MODELS_H
 #include <layer_in_c/nn/nn.h>
+#include <stdint.h>
 namespace layer_in_c::nn_models::three_layer_fc {
     template <typename T_T, int INPUT_DIM, int LAYER_1_DIM, nn::activation_functions::ActivationFunction LAYER_1_FN, int LAYER_2_DIM, nn::activation_functions::ActivationFunction LAYER_2_FN, int OUTPUT_DIM, nn::activation_functions::ActivationFunction OUTPUT_LAYER_FN>
     struct StructureSpecification{

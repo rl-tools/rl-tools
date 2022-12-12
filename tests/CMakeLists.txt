@@ -102,6 +102,21 @@ target_link_libraries(
         HDF5::HDF5
 )
 
+# RL Algorithm td3 test full training
+add_executable(
+        rl_algorithms_td3_test_full_training
+        rl/algorithms/td3/full_training.cpp
+)
+target_include_directories(rl_algorithms_td3_test_full_training PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${PROJECT_SOURCE_DIR}/include
+        )
+target_link_libraries(
+        rl_algorithms_td3_test_full_training
+        GTest::gtest_main
+        HDF5::HDF5
+)
+
 include(GoogleTest)
 gtest_discover_tests(neural_network_persistence_test)
 gtest_discover_tests(neural_network_test)
@@ -109,6 +124,7 @@ gtest_discover_tests(rl_environments_pendulum_test)
 gtest_discover_tests(rl_algorithms_off_policy_runner_test)
 gtest_discover_tests(rl_algorithms_td3_test_first_stage)
 gtest_discover_tests(rl_algorithms_td3_test_second_stage)
+gtest_discover_tests(rl_algorithms_td3_test_full_training)
 
 
 
