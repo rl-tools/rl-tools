@@ -36,13 +36,14 @@ namespace layer_in_c{
         observe(ENVIRONMENT(), runner.state, observation);
         T next_state[ENVIRONMENT::STATE_DIM];
         T action[ENVIRONMENT::ACTION_DIM];
+        T action_clipped[ENVIRONMENT::ACTION_DIM];
         lic::evaluate(policy, observation, action);
         std::normal_distribution<T> exploration_noise_distribution(0, PARAMETERS::EXPLORATION_NOISE);
         for (int i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             action[i] += exploration_noise_distribution(rng);
-            action[i] = std::clamp<T>(action[i], -1, 1);
+            action_clipped[i] = std::clamp<T>(action[i], -1, 1);
         }
-        T reward = lic::step(ENVIRONMENT(), runner.state, action, next_state);
+        T reward = lic::step(ENVIRONMENT(), runner.state, action_clipped, next_state);
         memcpy(runner.state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
         T next_observation[ENVIRONMENT::OBSERVATION_DIM];
         lic::observe(ENVIRONMENT(), next_state, next_observation);
@@ -57,18 +58,22 @@ namespace layer_in_c{
         add(runner.replay_buffer, observation, action, reward, next_observation, terminated, truncated);
     }
     template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT>
-    typename POLICY::T evaluate(POLICY &policy, RNG &rng) {
+    typename POLICY::T evaluate(POLICY &policy, const typename POLICY::T initial_state[ENVIRONMENT::STATE_DIM], RNG &rng) {
         typedef typename POLICY::T T;
         T state[ENVIRONMENT::STATE_DIM];
-        lic::sample_initial_state(ENVIRONMENT(), state, rng);
+        memcpy(state, initial_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
         T episode_return = 0;
         for (int i = 0; i < STEP_LIMIT; i++) {
             T observation[ENVIRONMENT::OBSERVATION_DIM];
             lic::observe(ENVIRONMENT(), state, observation);
             T action[ENVIRONMENT::ACTION_DIM];
             lic::evaluate(policy, observation, action);
+            T action_clipped[ENVIRONMENT::ACTION_DIM];
+            for(int action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
+                action_clipped[action_i] = std::clamp<T>(action[action_i], -1, 1);
+            }
             T next_state[ENVIRONMENT::STATE_DIM];
-            T reward = lic::step(ENVIRONMENT(), state, action, next_state);
+            T reward = lic::step(ENVIRONMENT(), state, action_clipped, next_state);
             memcpy(state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
             episode_return += reward;
             bool terminated = lic::terminated(ENVIRONMENT(), state);
@@ -83,7 +88,9 @@ namespace layer_in_c{
         typedef typename POLICY::T T;
         T episode_returns[N];
         for (int i = 0; i < N; i++) {
-            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, RNG, STEP_LIMIT>(policy, rng);
+            T initial_state[ENVIRONMENT::STATE_DIM];
+            lic::sample_initial_state(ENVIRONMENT(), initial_state, rng);
+            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, RNG, STEP_LIMIT>(policy, initial_state, rng);
         }
         T mean = 0;
         for (int i = 0; i < N; i++) {

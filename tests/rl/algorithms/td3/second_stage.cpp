@@ -34,6 +34,7 @@ struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultTD3Par
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;
+    constexpr int step = 9999;
 //    constexpr int BATCH_SIZE = 100;
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -42,12 +43,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_LOADING_TRAINED_ACTOR) {
     std::mt19937 rng(0);
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-    auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(1001));
+    auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     lic::load(actor_critic.actor, step_group.getGroup("actor"));
     DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200>(actor_critic.actor, rng, 100);
     std::cout << "mean return: " << mean_return << std::endl;
 }
-
 
 typedef lic::rl::algorithms::td3::ReplayBuffer<DTYPE, 3, 1, 1000> ReplayBufferTypeCopyTraining;
 constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
@@ -95,9 +95,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, FP_ACC) {
 //        std::cout << e << std::endl;
     }
 }
-
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
-    constexpr bool verbose = true;
+    constexpr bool verbose = false;
 //    constexpr int BATCH_SIZE = 100;
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -186,7 +185,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
                 std::cout << "        update ratio adam: " << diff_ratio_adam << std::endl;
             }
             if(diff_ratio < 1e10){
-                std::cout << "something wrong here" << std::endl;
+//                std::cout << "something wrong here" << std::endl;
             }
 
             switch(step_i){
@@ -370,8 +369,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
     ASSERT_GT(mean_ratio_actor_adam, 1e12);
     ASSERT_GT(mean_ratio_critic_target, 1e11);
 }
-/*
 
+/*
 const DTYPE STATE_TOLERANCE = 0.00001;
 #define N_WARMUP_STEPS 100
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
@@ -408,4 +407,4 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
         }
     }
 }
- */
+*/

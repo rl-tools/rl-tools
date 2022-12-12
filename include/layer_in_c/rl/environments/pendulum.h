@@ -9,8 +9,10 @@ namespace layer_in_c::rl::environments::pendulum {
         return x;
     }
     template <typename T>
-    inline T angle_normalize(T x){
-        return std::fmod((x + M_PI), (2 * M_PI)) - M_PI;
+    T angle_normalize(T x){
+        T temp = std::fmod(std::abs(x) + M_PI, 2*M_PI) - M_PI;
+        temp = x > 0 ? temp : -temp;
+        return temp;
     }
     template <typename T>
     struct DefaultParameters {

@@ -13,11 +13,11 @@ struct TestStruct{
     T final_state[2];
     T reward;
 };
-typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
-ENVIRONMENT env;
 template <typename T>
 T run(TestStruct<T>& test_struct){
+    typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+    typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+    ENVIRONMENT env;
     T state[ENVIRONMENT::STATE_DIM];
 //    std::mt19937 rng;
 //    sample_initial_state(pendulum, state, rng);
@@ -49,5 +49,25 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, TEST_2) {
 }
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, TEST_3) {
     run(test_struct_3);
+}
+
+TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, TEST_4) {
+    typedef double T;
+    typedef lic::rl::environments::pendulum::Spec<T, lic::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
+    typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+    ENVIRONMENT env;
+    T state[ENVIRONMENT::STATE_DIM];
+//    std::mt19937 rng;
+//    sample_initial_state(pendulum, state, rng);
+    T initial_state[ENVIRONMENT::STATE_DIM] = {0.58335993034834344, 0.68853148851319657};
+    memcpy(state, initial_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
+    T next_state[ENVIRONMENT::STATE_DIM];
+    T r = 0;
+    for(int i = 0; i < 5; i++){
+        T action[ENVIRONMENT::ACTION_DIM] = {-1};
+        r += lic::step(env, state, action, next_state);
+        memcpy(state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
+        std::cout << "state: " << state[0] << ", " << state[1] << std::endl;
+    }
 }
 
