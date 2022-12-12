@@ -15,7 +15,10 @@ namespace layer_in_c {
     FUNCTION_PLACEMENT void forward(nn_models::three_layer_fc::NeuralNetworkBackward<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM], typename SPEC::T output[SPEC::OUTPUT_LAYER::OUTPUT_DIM]) {
         forward(network.layer_1     , input);
         forward(network.layer_2     , network.layer_1.output);
-        forward(network.output_layer, network.layer_2.output, output);
+        forward(network.output_layer, network.layer_2.output);
+        for(int i=0; i < SPEC::OUTPUT_LAYER::OUTPUT_DIM; i++){
+            output[i] = network.output_layer.output[i];
+        }
     }
     template<typename SPEC>
     FUNCTION_PLACEMENT typename SPEC::T forward_univariate(nn_models::three_layer_fc::NeuralNetworkBackward<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM]) {
