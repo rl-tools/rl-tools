@@ -167,9 +167,9 @@ namespace layer_in_c{
             T target_action_value[1] = {replay_buffer.rewards[sample_index] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!replay_buffer.terminated[sample_index])};
 
             lic::forward_backward_mse<typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic, state_action_value_input, target_action_value);
-            loss += lic::nn::loss_functions::mse<T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.output, target_action_value);
+            T loss_sample = lic::nn::loss_functions::mse<T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.output, target_action_value);
+            loss += loss_sample;
         }
-        loss /= SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
         lic::update(critic);
         return loss;
     }

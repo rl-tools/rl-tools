@@ -279,7 +279,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
 }
  */
 
-typedef lic::rl::algorithms::td3::ReplayBuffer<DTYPE, 3, 1, 100> ReplayBufferTypeCopyTraining;
+typedef lic::rl::algorithms::td3::ReplayBuffer<DTYPE, 3, 1, 1000> ReplayBufferTypeCopyTraining;
 constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
 template <typename T, typename REPLAY_BUFFER_TYPE>
 void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
@@ -291,11 +291,18 @@ void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
         rb. truncated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1;
         rb.terminated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1;
     }
+    rb.position = batch.size();
 }
 
+template <typename T>
+struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultTD3Parameters<T>{
+    constexpr static int CRITIC_BATCH_SIZE = 100;
+    constexpr static int ACTOR_BATCH_SIZE = 100;
+};
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
-    constexpr int BATCH_SIZE = 100;
-    typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
+    constexpr bool verbose = false;
+//    constexpr int BATCH_SIZE = 100;
+    typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     ActorCriticType actor_critic;
 
@@ -314,47 +321,160 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
 
     ReplayBufferTypeCopyTraining replay_buffer;
 
-    auto pre_actor = actor_critic.actor;
     lic::reset_optimizer_state(actor_critic.actor);
     lic::reset_optimizer_state(actor_critic.critic_1);
     lic::reset_optimizer_state(actor_critic.critic_2);
-    DTYPE mean_ratio = 0;
+    DTYPE mean_ratio_critic = 0;
+    DTYPE mean_ratio_actor = 0;
     auto full_training_group = data_file.getGroup("full_training");
     auto steps_group = full_training_group.getGroup("steps");
     int num_steps = steps_group.getNumberObjects();
     auto pre_critic_1 = actor_critic.critic_1;
+    auto pre_actor = actor_critic.actor;
     for(int step_i = 0; step_i < num_steps; step_i++){
+        if(verbose){
+            std::cout << "step_i: " << step_i << std::endl;
+        }
         auto step_group = steps_group.getGroup(std::to_string(step_i));
         if(step_group.exist("critics_batch")){
             std::vector<std::vector<DTYPE>> batch;
             step_group.getDataSet("critics_batch").read(batch);
-            assert(batch.size() == BATCH_SIZE);
+            assert(batch.size() == ActorCriticSpec::PARAMETERS::CRITIC_BATCH_SIZE);
+
+            DTYPE target_next_action_noise[ActorCriticSpec::PARAMETERS::CRITIC_BATCH_SIZE][ActorCriticSpec::ENVIRONMENT::ACTION_DIM];
+            step_group.getDataSet("target_next_action_noise").read(target_next_action_noise);
+
             load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
-            auto post_critic_1 = actor_critic.critic_1;
-            lic::load(post_critic_1, data_file.getGroup("critic1"));
+            if (step_i == 0 && step_group.exist("pre_critic1")){
+                ActorCriticType::CRITIC_NETWORK_TYPE pre_critic_1_step;
+                lic::load(pre_critic_1_step, step_group.getGroup("pre_critic1"));
+                DTYPE pre_current_diff = abs_diff(pre_critic_1_step, actor_critic.critic_1);
+                ASSERT_EQ(pre_current_diff, 0);
+            }
 
+            ActorCriticType::CRITIC_NETWORK_TYPE post_critic_1;// = actor_critic.critic_1;
+            lic::load(post_critic_1, step_group.getGroup("critic1"));
 
-            DTYPE critic_1_loss = lic::train_critic<lic::devices::Generic, ActorCriticSpec,  ActorCriticType::CRITIC_NETWORK_TYPE, ReplayBufferTypeCopyTraining::CAPACITY, typeof(rng), true>(actor_critic, actor_critic.critic_1, replay_buffer, rng);
-            DTYPE actor_1_loss = lic::train_actor<lic::devices::Generic, ActorCriticSpec,  ReplayBufferTypeCopyTraining::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+            DTYPE critic_1_loss = lic::train_critic_deterministic(actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
+
 
             DTYPE pre_post_diff_per_weight = abs_diff(pre_critic_1, post_critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
             DTYPE diff_target_per_weight = abs_diff(post_critic_1, actor_critic.critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
             DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-            std::cout << "pre_post_diff_per_weight: " << pre_post_diff_per_weight << std::endl;
-            std::cout << "diff_target_per_weight: " << diff_target_per_weight << std::endl;
-            std::cout << "pre_post to diff_target: " << diff_ratio << std::endl;
+            DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(pre_critic_1, post_critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_target_grad_per_weight = abs_diff_grad(post_critic_1, actor_critic.critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
-            mean_ratio += diff_ratio;
+            DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(pre_critic_1, post_critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_target_adam_per_weight = abs_diff_adam(post_critic_1, actor_critic.critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
 
-//        ASSERT_LT(diff_target_per_weight, 1e-7);
-//        actor_critic.critic_1 = post_critic;
+            if(verbose){
+                std:: cout << "    critic update" << std::endl;
+//                std::cout << "pre_post_diff_per_weight: " << pre_post_diff_per_weight << std::endl;
+//                std::cout << "diff_target_per_weight: " << diff_target_per_weight << std::endl;
+                std::cout << "        update ratio     : " << diff_ratio << std::endl;
+//                std::cout << "pre_post_diff_grad_per_weight: " << pre_post_diff_grad_per_weight << std::endl;
+//                std::cout << "diff_target_grad_per_weight: " << diff_target_grad_per_weight << std::endl;
+                std::cout << "        update ratio grad: " << diff_ratio_grad << std::endl;
+//                std::cout << "pre_post_diff_adam_per_weight: " << pre_post_diff_adam_per_weight << std::endl;
+//                std::cout << "diff_target_adam_per_weight: " << diff_target_adam_per_weight << std::endl;
+                std::cout << "        update ratio adam: " << diff_ratio_adam << std::endl;
+            }
 
+            switch(step_i){
+                case 0: {
+                    ASSERT_GT(diff_ratio, 1e6);
+                    ASSERT_GT(diff_ratio_grad, 1e6);
+                    ASSERT_GT(diff_ratio_adam, 1e6);
+                }
+                    break;
+            }
+
+            mean_ratio_critic += diff_ratio;
+
+            DTYPE critic_2_loss = lic::train_critic_deterministic(actor_critic, actor_critic.critic_2, replay_buffer, target_next_action_noise, rng);
+            pre_critic_1 = actor_critic.critic_1;
+        }
+
+        if(step_group.exist("actor_batch")){
+            std::vector<std::vector<DTYPE>> batch;
+            step_group.getDataSet("actor_batch").read(batch);
+            assert(batch.size() == ActorCriticSpec::PARAMETERS::ACTOR_BATCH_SIZE);
+            load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
+
+            ActorCriticType::ACTOR_NETWORK_TYPE post_actor;
+            lic::load(post_actor, step_group.getGroup("actor"));
+
+            for(int batch_sample_i = 0; batch_sample_i < ActorCriticSpec::PARAMETERS::ACTOR_BATCH_SIZE; batch_sample_i++){
+                DTYPE current_action[ActorCriticSpec::ENVIRONMENT::ACTION_DIM];
+                lic::evaluate(actor_critic.actor, replay_buffer.observations[batch_sample_i], current_action);
+                DTYPE desired_action[ActorCriticSpec::ENVIRONMENT::ACTION_DIM];
+                
+
+            }
+
+            DTYPE actor_loss = lic::train_actor<lic::devices::Generic, ActorCriticSpec, ReplayBufferTypeCopyTraining::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+
+            DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
+
+            DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(pre_actor, post_actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_target_grad_per_weight = abs_diff_grad(post_actor, actor_critic.actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
+
+            DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(pre_actor, post_actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_target_adam_per_weight = abs_diff_adam(post_actor, actor_critic.actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
+            DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
+
+            if(verbose){
+                std:: cout << "    actor update" << std::endl;
+//                std::cout << "        pre_post_diff_per_weight: " << pre_post_diff_per_weight << std::endl;
+//                std::cout << "        diff_target_per_weight: " << diff_target_per_weight << std::endl;
+                std::cout << "        update ratio     : " << diff_ratio << std::endl;
+
+//                std::cout << "        pre_post_diff_grad_per_weight: " << pre_post_diff_grad_per_weight << std::endl;
+//                std::cout << "        diff_target_grad_per_weight: " << diff_target_grad_per_weight << std::endl;
+                std::cout << "        update ratio grad: " << diff_ratio_grad << std::endl;
+
+//                std::cout << "        pre_post_diff_adam_per_weight: " << pre_post_diff_adam_per_weight << std::endl;
+//                std::cout << "        diff_target_adam_per_weight: " << diff_target_adam_per_weight << std::endl;
+                std::cout << "        update ratio adam: " << diff_ratio_adam << std::endl;
+            }
+
+            switch(step_i){
+                case 0: {
+                    ASSERT_GT(diff_ratio, 1e6);
+                    ASSERT_GT(diff_ratio_grad, 1e6);
+                    ASSERT_GT(diff_ratio_adam, 1e6);
+                }
+                break;
+            }
+
+            mean_ratio_actor += diff_ratio;
+
+            pre_actor = actor_critic.actor;
+        }
+        if(step_group.exist("update_target_networks")){
+            if(verbose){
+                std:: cout << "    target update" << std::endl;
+            }
+            lic::update_targets(actor_critic);
+        }
+        if(step_i % 100 == 0){
+            if(!verbose){
+                std::cout << "step_i: " << step_i << std::endl;
+            }
+            lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200>(actor_critic.actor, rng, 100);
         }
     }
-    mean_ratio /= num_steps;
-    std::cout << "mean_ratio: " << mean_ratio << std::endl;
-    ASSERT_GT(mean_ratio, 100000);
+    mean_ratio_critic /= num_steps;
+    mean_ratio_actor /= num_steps;
+    std::cout << "mean_ratio_critic: " << mean_ratio_critic << std::endl;
+    std::cout << "mean_ratio_actor: " << mean_ratio_actor << std::endl;
+    ASSERT_GT(mean_ratio_critic, 100000);
 }
 
 /*

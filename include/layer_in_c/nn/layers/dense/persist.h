@@ -4,6 +4,7 @@
 #include <highfive/H5DataSpace.hpp>
 #include "layer.h"
 #include <layer_in_c/utils/persist.h>
+#include <iostream>
 namespace layer_in_c {
     template<typename DEVICE, typename SPEC>
     void save(nn::layers::dense::Layer<DEVICE, SPEC>& layer, HighFive::Group group) {
@@ -64,10 +65,23 @@ namespace layer_in_c {
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     void load(nn::layers::dense::LayerBackwardAdam<DEVICE, SPEC, PARAMETERS>& layer, HighFive::Group group) {
         load((nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)layer, group);
-        group.getDataSet("d_weights_first_order_moment"). read(layer.d_weights_first_order_moment);
-        group.getDataSet( "d_biases_first_order_moment"). read(layer.d_biases_first_order_moment);
-        group.getDataSet("d_weights_second_order_moment").read(layer.d_weights_second_order_moment);
-        group.getDataSet( "d_biases_second_order_moment").read(layer.d_biases_second_order_moment);
+        if(group.exist("d_biases_first_order_moment")) {
+            group.getDataSet("d_weights_first_order_moment"). read(layer.d_weights_first_order_moment);
+            group.getDataSet("d_biases_first_order_moment"). read(layer.d_biases_first_order_moment);
+            group.getDataSet("d_weights_second_order_moment").read(layer.d_weights_second_order_moment);
+            group.getDataSet("d_biases_second_order_moment").read(layer.d_biases_second_order_moment);
+        }
+        else{
+            std::cout << "Warning: Adam state not found. Initializing with zeros." << std::endl;
+            for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
+                for(int j = 0; j < SPEC::INPUT_DIM; j++) {
+                    layer.d_weights_first_order_moment[i][j] = 0;
+                    layer.d_weights_second_order_moment[i][j] = 0;
+                }
+                layer.d_biases_first_order_moment[i] = 0;
+                layer.d_biases_second_order_moment[i] = 0;
+            }
+        }
     }
 }
 #endif
