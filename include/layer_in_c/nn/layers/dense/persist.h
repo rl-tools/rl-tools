@@ -45,8 +45,16 @@ namespace layer_in_c {
     }
     template<typename DEVICE, typename SPEC>
     void load(nn::layers::dense::Layer<DEVICE, SPEC>& layer, HighFive::Group group) {
-        group.getDataSet("weights").read(layer.weights);
-        group.getDataSet("biases").read(layer.biases);
+        auto weights_dataset = group.getDataSet("weights");
+        auto weights_dims = weights_dataset.getDimensions();
+        assert(weights_dims[0] == SPEC::OUTPUT_DIM);
+        assert(weights_dims[1] == SPEC::INPUT_DIM);
+        weights_dataset.read(layer.weights);
+
+        auto biases_dataset = group.getDataSet("biases");
+        auto biases_dims = biases_dataset.getDimensions();
+        assert(biases_dims[0] == SPEC::OUTPUT_DIM);
+        biases_dataset.read(layer.biases);
     }
     template<typename DEVICE, typename SPEC>
     void load(nn::layers::dense::LayerBackward<DEVICE, SPEC>& layer, HighFive::Group group) {
@@ -55,8 +63,16 @@ namespace layer_in_c {
     template<typename DEVICE, typename SPEC>
     void load(nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& layer, HighFive::Group group) {
         load((nn::layers::dense::LayerBackward<DEVICE, SPEC>&)layer, group);
-        group.getDataSet("d_weights").read(layer.d_weights);
-        group.getDataSet("d_biases").read(layer.d_biases);
+        auto d_weights_dataset = group.getDataSet("d_weights");
+        auto d_weights_dims = d_weights_dataset.getDimensions();
+        assert(d_weights_dims[0] == SPEC::OUTPUT_DIM);
+        assert(d_weights_dims[1] == SPEC::INPUT_DIM);
+        d_weights_dataset.read(layer.d_weights);
+
+        auto d_biases_dataset = group.getDataSet("d_biases");
+        auto d_biases_dims = d_biases_dataset.getDimensions();
+        assert(d_biases_dims[0] == SPEC::OUTPUT_DIM);
+        d_biases_dataset.read(layer.d_biases);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     void load(nn::layers::dense::LayerBackwardSGD<DEVICE, SPEC, PARAMETERS>& layer, HighFive::Group group) {
@@ -66,10 +82,27 @@ namespace layer_in_c {
     void load(nn::layers::dense::LayerBackwardAdam<DEVICE, SPEC, PARAMETERS>& layer, HighFive::Group group) {
         load((nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)layer, group);
         if(group.exist("d_biases_first_order_moment")) {
-            group.getDataSet("d_weights_first_order_moment"). read(layer.d_weights_first_order_moment);
-            group.getDataSet("d_biases_first_order_moment"). read(layer.d_biases_first_order_moment);
-            group.getDataSet("d_weights_second_order_moment").read(layer.d_weights_second_order_moment);
-            group.getDataSet("d_biases_second_order_moment").read(layer.d_biases_second_order_moment);
+            auto d_weights_first_order_moment_dataset = group.getDataSet("d_weights_first_order_moment");
+            auto d_weights_first_order_moment_dims = d_weights_first_order_moment_dataset.getDimensions();
+            assert(d_weights_first_order_moment_dims[0] == SPEC::OUTPUT_DIM);
+            assert(d_weights_first_order_moment_dims[1] == SPEC::INPUT_DIM);
+            d_weights_first_order_moment_dataset.read(layer.d_weights_first_order_moment);
+
+            auto d_weights_second_order_moment_dataset = group.getDataSet("d_weights_second_order_moment");
+            auto d_weights_second_order_moment_dims = d_weights_second_order_moment_dataset.getDimensions();
+            assert(d_weights_second_order_moment_dims[0] == SPEC::OUTPUT_DIM);
+            assert(d_weights_second_order_moment_dims[1] == SPEC::INPUT_DIM);
+            d_weights_second_order_moment_dataset.read(layer.d_weights_second_order_moment);
+
+            auto d_biases_first_order_moment_dataset = group.getDataSet("d_biases_first_order_moment");
+            auto d_biases_first_order_moment_dims = d_biases_first_order_moment_dataset.getDimensions();
+            assert(d_biases_first_order_moment_dims[0] == SPEC::OUTPUT_DIM);
+            d_biases_first_order_moment_dataset.read(layer.d_biases_first_order_moment);
+
+            auto d_biases_second_order_moment_dataset = group.getDataSet("d_biases_second_order_moment");
+            auto d_biases_second_order_moment_dims = d_biases_second_order_moment_dataset.getDimensions();
+            assert(d_biases_second_order_moment_dims[0] == SPEC::OUTPUT_DIM);
+            d_biases_second_order_moment_dataset.read(layer.d_biases_second_order_moment);
         }
         else{
             std::cout << "Warning: Adam state not found. Initializing with zeros." << std::endl;
