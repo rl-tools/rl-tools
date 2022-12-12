@@ -58,8 +58,8 @@ void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
         memcpy( rb.          actions[i], &batch[i][ENVIRONMENT::OBSERVATION_DIM], sizeof(T) * ENVIRONMENT::ACTION_DIM);
         memcpy( rb.next_observations[i], &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM);
         rb.   rewards[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM    ];
-        rb. truncated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1;
-        rb.terminated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1;
+        rb.terminated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1;
+        rb. truncated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1;
     }
     rb.position = batch.size();
 }
@@ -362,7 +362,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
     std::cout << "mean_ratio_actor_grad: " << mean_ratio_actor_grad << std::endl;
     std::cout << "mean_ratio_actor_adam: " << mean_ratio_actor_adam << std::endl;
     std::cout << "mean_ratio_critic_target: " << mean_ratio_critic_target << std::endl;
-    ASSERT_GT(mean_ratio_critic, 100000);
+    ASSERT_GT(mean_ratio_critic, 1e12);
+    ASSERT_GT(mean_ratio_critic_grad, 1e13);
+    ASSERT_GT(mean_ratio_critic_adam, 1e12);
+    ASSERT_GT(mean_ratio_actor, 1e12);
+    ASSERT_GT(mean_ratio_actor_grad, 1e12);
+    ASSERT_GT(mean_ratio_actor_adam, 1e12);
+    ASSERT_GT(mean_ratio_critic_target, 1e11);
 }
 /*
 
