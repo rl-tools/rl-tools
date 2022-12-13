@@ -37,14 +37,13 @@ namespace layer_in_c{
         observe(ENVIRONMENT(), runner.state, observation);
         T next_state[ENVIRONMENT::STATE_DIM];
         T action[ENVIRONMENT::ACTION_DIM];
-        T action_clipped[ENVIRONMENT::ACTION_DIM];
         lic::evaluate(policy, observation, action);
         std::normal_distribution<T> exploration_noise_distribution(0, PARAMETERS::EXPLORATION_NOISE);
         for (int i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             action[i] += exploration_noise_distribution(rng);
-            action_clipped[i] = std::clamp<T>(action[i], -1, 1);
+            action[i] = std::clamp<T>(action[i], -1, 1);
         }
-        T reward = lic::step(ENVIRONMENT(), runner.state, action_clipped, next_state);
+        T reward = lic::step(ENVIRONMENT(), runner.state, action, next_state);
         memcpy(runner.state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
         T next_observation[ENVIRONMENT::OBSERVATION_DIM];
         lic::observe(ENVIRONMENT(), next_state, next_observation);
@@ -58,8 +57,8 @@ namespace layer_in_c{
         // todo: add truncation / termination handling (stemming from the environment)
         add(runner.replay_buffer, observation, action, reward, next_observation, terminated, truncated);
     }
-    template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT>
-    typename POLICY::T evaluate(POLICY &policy, const typename POLICY::T initial_state[ENVIRONMENT::STATE_DIM], RNG &rng) {
+    template<typename ENVIRONMENT, typename POLICY, int STEP_LIMIT>
+    typename POLICY::T evaluate(POLICY &policy, const typename POLICY::T initial_state[ENVIRONMENT::STATE_DIM]) {
         typedef typename POLICY::T T;
         T state[ENVIRONMENT::STATE_DIM];
         memcpy(state, initial_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
@@ -85,13 +84,13 @@ namespace layer_in_c{
         return episode_return;
     }
     template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT>
-    typename POLICY::T evaluate(POLICY &policy, RNG &rng, uint32_t N) {
+    typename POLICY::T evaluate(POLICY &policy, uint32_t N, RNG &rng) {
         typedef typename POLICY::T T;
         T episode_returns[N];
         for (int i = 0; i < N; i++) {
             T initial_state[ENVIRONMENT::STATE_DIM];
             lic::sample_initial_state(ENVIRONMENT(), initial_state, rng);
-            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, RNG, STEP_LIMIT>(policy, initial_state, rng);
+            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(policy, initial_state);
         }
         T mean = 0;
         for (int i = 0; i < N; i++) {
