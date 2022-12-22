@@ -11,12 +11,12 @@
 
 namespace lic = layer_in_c;
 
-typedef double T;
+typedef float T;
 constexpr size_t INPUT_DIM = 17;
 constexpr size_t LAYER_1_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN =  lic::nn::activation_functions::RELU;
+constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN =  lic::nn::activation_functions::TANH;
 constexpr size_t LAYER_2_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = lic::nn::activation_functions::RELU;
+constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = lic::nn::activation_functions::TANH;
 constexpr size_t OUTPUT_DIM = 13;
 constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_FN = lic::nn::activation_functions::LINEAR;
 
@@ -104,24 +104,23 @@ TEST(NEURAL_NETWORK_FULL_TRAINING, FULL_TRAINING) {
     for (int i=0; i < losses.size(); i++){
     std::cout << "epoch_i " << i << " loss: train:" << losses[i] << " val: " << val_losses[i] << std::endl;
     }
-    // loss
-    // array([0.05651794, 0.02564381, 0.02268129, 0.02161846, 0.02045725,
-    //       0.01928116, 0.01860152, 0.01789362, 0.01730141, 0.01681832],
-    //      dtype=float32)
 
-    // val_loss
-    // array([0.02865824, 0.02282167, 0.02195382, 0.02137529, 0.02023922,
-    //       0.0191351 , 0.01818279, 0.01745798, 0.01671058, 0.01628938],
-    //      dtype=float32)
-
-    ASSERT_LT(losses[0], 0.06);
-    ASSERT_LT(losses[1], 0.03);
-    ASSERT_LT(losses[2], 0.025);
-    //    ASSERT_LT(losses[9], 0.02);
-    ASSERT_LT(val_losses[0], 0.04);
-    ASSERT_LT(val_losses[1], 0.03);
-    ASSERT_LT(val_losses[2], 0.025);
-    //    ASSERT_LT(val_losses[9], 0.02);
+    ASSERT_LT(losses[0], 0.005);
+    ASSERT_LT(losses[1], 0.002);
+    ASSERT_LT(losses[2], 0.002);
+    ASSERT_LT(val_losses[0], 0.002);
+    ASSERT_LT(val_losses[1], 0.001);
+    ASSERT_LT(val_losses[2], 0.001);
 
     // GELU PyTorch [0.00456139 0.00306715 0.00215886]
+
+
+//    TANH
+//    epoch_i 0 loss: train:0.00265808 val: 0.00041066
+//    epoch_i 1 loss: train:0.000322035 val: 0.000304242
+//    epoch_i 2 loss: train:0.000230863 val: 0.000214781
+//    RELU
+//    epoch_i 0 loss: train:0.00178393 val: 0.000915656
+//    epoch_i 1 loss: train:0.000778314 val: 0.000739406
+//    epoch_i 2 loss: train:0.000696363 val: 0.000696439
 }
