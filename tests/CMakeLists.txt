@@ -27,6 +27,22 @@ target_link_libraries(
         HDF5::HDF5
 )
 
+# Neural Network Test Full Training
+add_executable(
+        test_neural_network_full_training
+        nn/full_training.cpp
+)
+message(${PROJECT_SOURCE_DIR}/include)
+target_include_directories(test_neural_network_full_training PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${PROJECT_SOURCE_DIR}/include
+        )
+target_link_libraries(
+        test_neural_network_full_training
+        GTest::gtest_main
+        HDF5::HDF5
+)
+
 # Neural Network Persistence Test
 add_executable(
         neural_network_persistence_test

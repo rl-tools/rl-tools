@@ -10,7 +10,7 @@
 #include "../utils/utils.h"
 #include <sstream>
 #include "default_network.h"
-//#define SKIP_TESTS
+#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS
 //#define SKIP_OVERFITTING_TESTS
@@ -94,8 +94,8 @@ protected:
 
 constexpr DTYPE BACKWARD_PASS_GRADIENT_TOLERANCE (1e-8);
 #ifndef SKIP_BACKPROP_TESTS
-#ifndef SKIP_TESTS
 typedef NeuralNetworkTestLoadWeights<NetworkType_1> NeuralNetworkTestBackwardPass;
+#ifndef SKIP_TESTS
 TEST_F(NeuralNetworkTestBackwardPass, layer_1_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_1_DIM, INPUT_DIM
@@ -499,16 +499,20 @@ TEST_F(NeuralNetworkTestTrainModel, TrainModel) {
 }
 #endif
 
-#ifndef SKIP_TESTS
+//#ifndef SKIP_TESTS
 TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
-    assert((std::is_same_v<typeof(network), NETWORK_TYPE>));
+//    assert((std::is_same_v<typeof(network), NETWORK_TYPE>));
+    typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
+    typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC;
+    typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType;
+    NetworkType network;
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
 //    this->reset();
     lic::reset_optimizer_state(network);
     std::mt19937 rng(2);
-    lic::init_weights<NETWORK_SPEC_3, lic::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(network, rng);
+    lic::init_weights<NETWORK_SPEC, lic::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(network, rng);
 
     constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;
@@ -580,5 +584,5 @@ TEST_F(NeuralNetworkTestTrainModel, ModelInitTrain) {
 
 // GELU PyTorch [0.00456139 0.00306715 0.00215886]
 }
-#endif
+//#endif
 #endif
