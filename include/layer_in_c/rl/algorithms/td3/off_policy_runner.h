@@ -43,70 +43,20 @@ namespace layer_in_c{
             action[i] += exploration_noise_distribution(rng);
             action[i] = std::clamp<T>(action[i], -1, 1);
         }
-        T reward = lic::step(ENVIRONMENT(), runner.state, action, next_state);
+        lic::step(ENVIRONMENT(), runner.state, action, next_state);
+        T reward = lic::reward(ENVIRONMENT(), runner.state, action, next_state);
         runner.state = next_state;
         T next_observation[ENVIRONMENT::OBSERVATION_DIM];
         lic::observe(ENVIRONMENT(), next_state, next_observation);
-        bool terminated = false;
+        bool terminated_flag = terminated(ENVIRONMENT(), next_state);
         runner.episode_step += 1;
         runner.episode_return += reward;
         bool truncated = runner.episode_step == PARAMETERS::STEP_LIMIT;
-        if (truncated || terminated) {
+        if (truncated || terminated_flag) {
             std::cout << "Episode return: " << runner.episode_return << std::endl;
         }
         // todo: add truncation / termination handling (stemming from the environment)
-        add(runner.replay_buffer, observation, action, reward, next_observation, terminated, truncated);
-    }
-    template<typename ENVIRONMENT, typename POLICY, int STEP_LIMIT>
-    typename POLICY::T evaluate(const lic::rl::environments::Environment env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
-        typedef typename POLICY::T T;
-        typename ENVIRONMENT::State state;
-        state = initial_state;
-        T episode_return = 0;
-        for (int i = 0; i < STEP_LIMIT; i++) {
-            T observation[ENVIRONMENT::OBSERVATION_DIM];
-            lic::observe(ENVIRONMENT(), state, observation);
-            T action[ENVIRONMENT::ACTION_DIM];
-            lic::evaluate(policy, observation, action);
-            T action_clipped[ENVIRONMENT::ACTION_DIM];
-            for(int action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
-                action_clipped[action_i] = std::clamp<T>(action[action_i], -1, 1);
-            }
-            typename ENVIRONMENT::State next_state;
-            T reward = lic::step(ENVIRONMENT(), state, action_clipped, next_state);
-            state = next_state;
-            episode_return += reward;
-            bool terminated = lic::terminated(ENVIRONMENT(), state);
-            if (terminated) {
-                break;
-            }
-        }
-        return episode_return;
-    }
-    template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT>
-    typename POLICY::T evaluate(const lic::rl::environments::Environment env, POLICY &policy, uint32_t N, RNG &rng) {
-        typedef typename POLICY::T T;
-        static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
-        static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM, "Action and policy output dimensions must match");
-        T episode_returns[N];
-        for (int i = 0; i < N; i++) {
-            typename ENVIRONMENT::State initial_state;
-            lic::sample_initial_state(ENVIRONMENT(), initial_state, rng);
-            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(env, policy, initial_state);
-        }
-        T mean = 0;
-        for (int i = 0; i < N; i++) {
-            mean += episode_returns[i];
-        }
-        mean /= N;
-        T variance = 0;
-        for (int i = 0; i < N; i++) {
-            variance += (episode_returns[i] - mean) * (episode_returns[i] - mean);
-        }
-        variance /= N;
-        T standard_deviation = std::sqrt(variance);
-        std::cout << "Mean: " << mean << ", standard deviation: " << standard_deviation << std::endl;
-        return mean;
+        add(runner.replay_buffer, observation, action, reward, next_observation, terminated_flag, truncated);
     }
 }
 #endif

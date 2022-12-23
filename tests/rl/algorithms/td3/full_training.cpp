@@ -3,14 +3,18 @@
 #include <layer_in_c/nn_models/models.h>
 #include <layer_in_c/rl/algorithms/td3/td3.h>
 #include <layer_in_c/rl/algorithms/td3/off_policy_runner.h>
-#include <layer_in_c/rl/environments/pendulum.h>
+#include <layer_in_c/rl/environments/environments.h>
+#include <layer_in_c/rl/environments/pendulum/ui.h>
 #include <layer_in_c/utils/rng_std.h>
+#include <layer_in_c/rl/utils/evaluation.h>
+#include <layer_in_c/rl/utils/evaluation_visual.h>
 
 namespace lic = layer_in_c;
 #define DTYPE float
 
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 ENVIRONMENT env;
 
 template <typename T>
@@ -33,6 +37,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3PendulumParameters<DTYPE>>> ActorCriticType;
     lic::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, lic::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT>> off_policy_runner;
     ActorCriticType actor_critic;
+    UI ui;
     std::mt19937 rng(0);
     lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
@@ -54,7 +59,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), ENVIRONMENT_STEP_LIMIT>(actor_critic.actor, 100, rng);
+            DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), ENVIRONMENT_STEP_LIMIT>(ENVIRONMENT(), actor_critic.actor, 100, rng);
+            ENVIRONMENT::State initial_state;
+            lic::sample_initial_state(env, initial_state, rng);
+            lic::evaluate_visual<ENVIRONMENT, UI, ActorCriticType::ACTOR_NETWORK_TYPE, ENVIRONMENT_STEP_LIMIT, 3>(ENVIRONMENT(), ui, actor_critic.actor, initial_state);
             std::cout << "Mean return: " << mean_return << std::endl;
         }
     }

@@ -74,13 +74,21 @@ namespace layer_in_c{
         newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
         T newth = state.theta + newthdot * dt;
 
-        T angle_norm = angle_normalize(state.theta);
-        T costs = angle_norm * angle_norm + 0.1 * state.theta_dot * state.theta_dot + 0.001 * (u * u);
-
         next_state.theta = newth;
         next_state.theta_dot = newthdot;
+        return SPEC::PARAMETERS::dt;
+    }
+    template<typename SPEC>
+    static typename SPEC::T reward(const rl::environments::Pendulum<devices::Generic, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::pendulum::State<typename SPEC::T>& next_state){
+        using namespace rl::environments::pendulum;
+        typedef typename SPEC::T T;
+        T angle_norm = angle_normalize(next_state.theta);
+        T u_normalised = action[0];
+        T u = SPEC::PARAMETERS::max_torque * u_normalised;
+        T costs = angle_norm * angle_norm + 0.1 * next_state.theta_dot * next_state.theta_dot + 0.001 * (u * u);
         return -costs;
     }
+
     template<typename SPEC>
     static void observe(const rl::environments::Pendulum<devices::Generic, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, typename SPEC::T observation[3]){
         typedef typename SPEC::T T;

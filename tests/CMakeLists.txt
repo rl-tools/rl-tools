@@ -7,6 +7,8 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+find_package(Qt5 COMPONENTS Widgets REQUIRED)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 enable_testing()
@@ -74,6 +76,35 @@ target_link_libraries(
         HDF5::HDF5
 )
 
+# RL Environment Pendulum Render test
+
+# QT warnings as erros
+#find_package(PkgConfig REQUIRED)
+#pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+
+set(QMAKE_CXXFLAGS+=-Werror)
+
+add_executable(
+        test_rl_environments_pendulum_render
+        rl/environments/pendulum_render.cpp
+)
+target_include_directories(test_rl_environments_pendulum_render PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${PROJECT_SOURCE_DIR}/include
+#        ${GTK3_INCLUDE_DIRS}
+)
+#target_link_directories(test_rl_environments_pendulum_render PRIVATE
+#        ${GTK3_LIBRARY_DIRS}
+#)
+
+target_link_libraries(
+        test_rl_environments_pendulum_render
+        GTest::gtest_main
+        HDF5::HDF5
+        Qt5::Widgets
+#        ${GTK3_LIBRARIES}
+)
+
 # RL Algorithm off_policy_runner test
 add_executable(
         rl_algorithms_off_policy_runner_test
@@ -131,6 +162,7 @@ target_link_libraries(
         rl_algorithms_td3_test_full_training
         GTest::gtest_main
         HDF5::HDF5
+        Qt5::Widgets
 )
 
 include(GoogleTest)
