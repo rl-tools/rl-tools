@@ -1,1 +1,1 @@
-#include "pendulum.h"
+#include "pendulum/dynamics.h"

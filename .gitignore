@@ -1,7 +1,10 @@
 /cmake-build-debug
+/cmake-build-release
+
 /.idea
 
 .vscode/settings.json
 
 /**/*.h5
 /**/*.hdf5
+
