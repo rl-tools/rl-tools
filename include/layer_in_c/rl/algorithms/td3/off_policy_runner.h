@@ -16,7 +16,7 @@ namespace layer_in_c::rl::algorithms::td3 {
     template<typename T, typename ENVIRONMENT, typename PARAMETERS>
     struct OffPolicyRunner {
         ReplayBuffer<T, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::CAPACITY> replay_buffer;
-        T state[ENVIRONMENT::STATE_DIM];
+        typename ENVIRONMENT::State state;
         uint32_t episode_step = 0;
         T episode_return = 0;
     };
@@ -35,7 +35,7 @@ namespace layer_in_c{
         // todo: increase efficiency by removing the double observation of each state
         T observation[ENVIRONMENT::OBSERVATION_DIM];
         observe(ENVIRONMENT(), runner.state, observation);
-        T next_state[ENVIRONMENT::STATE_DIM];
+        typename ENVIRONMENT::State next_state;
         T action[ENVIRONMENT::ACTION_DIM];
         lic::evaluate(policy, observation, action);
         std::normal_distribution<T> exploration_noise_distribution(0, PARAMETERS::EXPLORATION_NOISE);
@@ -44,7 +44,7 @@ namespace layer_in_c{
             action[i] = std::clamp<T>(action[i], -1, 1);
         }
         T reward = lic::step(ENVIRONMENT(), runner.state, action, next_state);
-        memcpy(runner.state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
+        runner.state = next_state;
         T next_observation[ENVIRONMENT::OBSERVATION_DIM];
         lic::observe(ENVIRONMENT(), next_state, next_observation);
         bool terminated = false;
@@ -58,10 +58,10 @@ namespace layer_in_c{
         add(runner.replay_buffer, observation, action, reward, next_observation, terminated, truncated);
     }
     template<typename ENVIRONMENT, typename POLICY, int STEP_LIMIT>
-    typename POLICY::T evaluate(POLICY &policy, const typename POLICY::T initial_state[ENVIRONMENT::STATE_DIM]) {
+    typename POLICY::T evaluate(const lic::rl::environments::Environment env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
         typedef typename POLICY::T T;
-        T state[ENVIRONMENT::STATE_DIM];
-        memcpy(state, initial_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
+        typename ENVIRONMENT::State state;
+        state = initial_state;
         T episode_return = 0;
         for (int i = 0; i < STEP_LIMIT; i++) {
             T observation[ENVIRONMENT::OBSERVATION_DIM];
@@ -72,9 +72,9 @@ namespace layer_in_c{
             for(int action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
                 action_clipped[action_i] = std::clamp<T>(action[action_i], -1, 1);
             }
-            T next_state[ENVIRONMENT::STATE_DIM];
+            typename ENVIRONMENT::State next_state;
             T reward = lic::step(ENVIRONMENT(), state, action_clipped, next_state);
-            memcpy(state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
+            state = next_state;
             episode_return += reward;
             bool terminated = lic::terminated(ENVIRONMENT(), state);
             if (terminated) {
@@ -84,13 +84,15 @@ namespace layer_in_c{
         return episode_return;
     }
     template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT>
-    typename POLICY::T evaluate(POLICY &policy, uint32_t N, RNG &rng) {
+    typename POLICY::T evaluate(const lic::rl::environments::Environment env, POLICY &policy, uint32_t N, RNG &rng) {
         typedef typename POLICY::T T;
+        static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
+        static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM, "Action and policy output dimensions must match");
         T episode_returns[N];
         for (int i = 0; i < N; i++) {
-            T initial_state[ENVIRONMENT::STATE_DIM];
+            typename ENVIRONMENT::State initial_state;
             lic::sample_initial_state(ENVIRONMENT(), initial_state, rng);
-            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(policy, initial_state);
+            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(env, policy, initial_state);
         }
         T mean = 0;
         for (int i = 0; i < N; i++) {

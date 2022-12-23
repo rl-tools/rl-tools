@@ -5,7 +5,7 @@
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/nn_models/persist.h>
 
-#include <layer_in_c/rl/environments/pendulum.h>
+#include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/algorithms/td3/off_policy_runner.h>
 #include <layer_in_c/rl/algorithms/td3/td3.h>
 #include <layer_in_c/utils/rng_std.h>
@@ -16,7 +16,7 @@ namespace lic = layer_in_c;
 #define DATA_FILE_PATH "../multirotor-torch/model_first_stage.hdf5"
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
 #define SKIP_FULL_TRAINING

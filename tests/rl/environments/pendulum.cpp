@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <layer_in_c/rl/environments/pendulum.h>
+#include <layer_in_c/rl/environments/environments.h>
 namespace lic = layer_in_c;
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
@@ -16,20 +16,21 @@ struct TestStruct{
 template <typename T>
 T run(TestStruct<T>& test_struct){
     typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-    typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+    typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
     ENVIRONMENT env;
-    T state[ENVIRONMENT::STATE_DIM];
+    ENVIRONMENT::State state;
 //    std::mt19937 rng;
 //    sample_initial_state(pendulum, state, rng);
-    memcpy(state, test_struct.initial_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
-    T next_state[ENVIRONMENT::STATE_DIM];
+    state.theta = test_struct.initial_state[0];
+    state.theta_dot = test_struct.initial_state[1];
+    ENVIRONMENT::State next_state;
     T r = 0;
     for(int i = 0; i < test_struct.steps; i++){
         r += lic::step(env, state, test_struct.action, next_state);
-        memcpy(state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
+        state = next_state;
     }
-    EXPECT_NEAR(test_struct.final_state[0], state[0], STATE_TOLERANCE);
-    EXPECT_NEAR(test_struct.final_state[1], state[1], STATE_TOLERANCE);
+    EXPECT_NEAR(test_struct.final_state[0], state.theta, STATE_TOLERANCE);
+    EXPECT_NEAR(test_struct.final_state[1], state.theta_dot, STATE_TOLERANCE);
     EXPECT_NEAR(test_struct.reward, r, STATE_TOLERANCE);
 }
 
@@ -54,20 +55,21 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, TEST_3) {
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, TEST_4) {
     typedef double T;
     typedef lic::rl::environments::pendulum::Spec<T, lic::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
-    typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+    typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
     ENVIRONMENT env;
-    T state[ENVIRONMENT::STATE_DIM];
+    ENVIRONMENT::State state;
 //    std::mt19937 rng;
 //    sample_initial_state(pendulum, state, rng);
-    T initial_state[ENVIRONMENT::STATE_DIM] = {0.58335993034834344, 0.68853148851319657};
-    memcpy(state, initial_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
-    T next_state[ENVIRONMENT::STATE_DIM];
+    T initial_state[2] = {0.58335993034834344, 0.68853148851319657};
+    state.theta = initial_state[0];
+    state.theta_dot = initial_state[1];
+    ENVIRONMENT::State next_state;
     T r = 0;
     for(int i = 0; i < 5; i++){
         T action[ENVIRONMENT::ACTION_DIM] = {-1};
         r += lic::step(env, state, action, next_state);
-        memcpy(state, next_state, sizeof(T) * ENVIRONMENT::STATE_DIM);
-        std::cout << "state: " << state[0] << ", " << state[1] << std::endl;
+        state = next_state;
+        std::cout << "state: " << state.theta << ", " << state.theta_dot << std::endl;
     }
 }
 

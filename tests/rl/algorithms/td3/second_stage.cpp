@@ -6,7 +6,7 @@
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/nn_models/persist.h>
 
-#include <layer_in_c/rl/environments/pendulum.h>
+#include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/algorithms/td3/off_policy_runner.h>
 #include <layer_in_c/rl/algorithms/td3/td3.h>
 #include <layer_in_c/utils/rng_std.h>
@@ -17,7 +17,7 @@ namespace lic = layer_in_c;
 #define DATA_FILE_PATH "../multirotor-torch/model_second_stage.hdf5"
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::pendulum::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
 template <typename T>
@@ -45,7 +45,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_LOADING_TRAINED_ACTOR) {
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     lic::load(actor_critic.actor, step_group.getGroup("actor"));
-    DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200>(actor_critic.actor, rng, 100);
+    DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200>(ENVIRONMENT(), actor_critic.actor, 100, rng);
     std::cout << "mean return: " << mean_return << std::endl;
 }
 
@@ -344,7 +344,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
             if(!verbose){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200>(actor_critic.actor, rng, 100);
+            lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200>(ENVIRONMENT(), actor_critic.actor, 100, rng);
         }
     }
     mean_ratio_critic /= num_steps;
