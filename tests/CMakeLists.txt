@@ -15,23 +15,23 @@ endif()
 
 add_subdirectory(lib/matplotlib)
 
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 #set(CMAKE_CXX_STANDARD 17)
 
 enable_testing()
 
 # Neural Network Test
 add_executable(
-        neural_network_test
+        test_neural_network
         nn/test.cpp
 )
 message(${PROJECT_SOURCE_DIR}/include)
-target_include_directories(neural_network_test PRIVATE
+target_include_directories(test_neural_network PRIVATE
 ${CMAKE_CURRENT_SOURCE_DIR}/lib
 ${PROJECT_SOURCE_DIR}/include
 )
 target_link_libraries(
-        neural_network_test
+        test_neural_network
         GTest::gtest_main
         HDF5::HDF5
 )
@@ -54,31 +54,31 @@ target_link_libraries(
 
 # Neural Network Persistence Test
 add_executable(
-        neural_network_persistence_test
+        test_neural_network_persistence
         nn/persisting.cpp
 )
 message(${PROJECT_SOURCE_DIR}/include)
-target_include_directories(neural_network_persistence_test PRIVATE
+target_include_directories(test_neural_network_persistence PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${PROJECT_SOURCE_DIR}/include
         )
 target_link_libraries(
-        neural_network_persistence_test
+        test_neural_network_persistence
         GTest::gtest_main
         HDF5::HDF5
 )
 
 # RL Environment Pendulum test
 add_executable(
-        rl_environments_pendulum_test
+        test_rl_environments_pendulum
         rl/environments/pendulum.cpp
 )
-target_include_directories(rl_environments_pendulum_test PRIVATE
+target_include_directories(test_rl_environments_pendulum PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${PROJECT_SOURCE_DIR}/include
         )
 target_link_libraries(
-        rl_environments_pendulum_test
+        test_rl_environments_pendulum
         GTest::gtest_main
         HDF5::HDF5
 )
@@ -106,88 +106,88 @@ endif()
 
 # RL Algorithm off_policy_runner test
 add_executable(
-        rl_algorithms_off_policy_runner_test
+        test_rl_algorithms_td3_off_policy_runner
         rl/algorithms/off_policy_runner.cpp
 )
-target_include_directories(rl_algorithms_off_policy_runner_test PRIVATE
+target_include_directories(test_rl_algorithms_td3_off_policy_runner PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${PROJECT_SOURCE_DIR}/include
         )
 target_link_libraries(
-        rl_algorithms_off_policy_runner_test
+        test_rl_algorithms_td3_off_policy_runner
         GTest::gtest_main
         HDF5::HDF5
 )
 # RL Algorithm td3 test first stage
 add_executable(
-        rl_algorithms_td3_test_first_stage
+        test_rl_algorithms_td3_first_stage
         rl/algorithms/td3/first_stage.cpp
 )
-target_include_directories(rl_algorithms_td3_test_first_stage PRIVATE
+target_include_directories(test_rl_algorithms_td3_first_stage PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${PROJECT_SOURCE_DIR}/include
         )
 target_link_libraries(
-        rl_algorithms_td3_test_first_stage
+        test_rl_algorithms_td3_first_stage
         GTest::gtest_main
         HDF5::HDF5
 )
 
 # RL Algorithm td3 test second stage
 add_executable(
-        rl_algorithms_td3_test_second_stage
+        test_rl_algorithms_td3_second_stage
         rl/algorithms/td3/second_stage.cpp
 )
-target_include_directories(rl_algorithms_td3_test_second_stage PRIVATE
+target_include_directories(test_rl_algorithms_td3_second_stage PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${PROJECT_SOURCE_DIR}/include
         )
 target_link_libraries(
-        rl_algorithms_td3_test_second_stage
+        test_rl_algorithms_td3_second_stage
         GTest::gtest_main
         HDF5::HDF5
         matplotlib_cpp
 )
 if(EVALUATE_VISUALLY)
     target_link_libraries(
-            rl_algorithms_td3_test_second_stage
+            test_rl_algorithms_td3_second_stage
             Qt5::Widgets
     )
-    target_compile_definitions(rl_algorithms_td3_test_second_stage PRIVATE EVALUATE_VISUALLY)
+    target_compile_definitions(test_rl_algorithms_td3_second_stage PRIVATE EVALUATE_VISUALLY)
 endif()
 
 # RL Algorithm td3 test full training
 add_executable(
-        rl_algorithms_td3_test_full_training
+        test_rl_algorithms_td3_full_training
         rl/algorithms/td3/full_training.cpp
 )
-target_include_directories(rl_algorithms_td3_test_full_training PRIVATE
+target_include_directories(test_rl_algorithms_td3_full_training PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${PROJECT_SOURCE_DIR}/include
         )
 target_link_libraries(
-        rl_algorithms_td3_test_full_training
+        test_rl_algorithms_td3_full_training
         GTest::gtest_main
         HDF5::HDF5
         matplotlib_cpp
 )
 if(EVALUATE_VISUALLY)
     target_link_libraries(
-            rl_algorithms_td3_test_full_training
+            test_rl_algorithms_td3_full_training
             Qt5::Widgets
     )
-    target_compile_definitions(rl_algorithms_td3_test_full_training PRIVATE EVALUATE_VISUALLY)
+    target_compile_definitions(test_rl_algorithms_td3_full_training PRIVATE EVALUATE_VISUALLY)
 endif()
 
 
 include(GoogleTest)
-gtest_discover_tests(neural_network_persistence_test)
-gtest_discover_tests(neural_network_test)
-gtest_discover_tests(rl_environments_pendulum_test)
-gtest_discover_tests(rl_algorithms_off_policy_runner_test)
-gtest_discover_tests(rl_algorithms_td3_test_first_stage)
-gtest_discover_tests(rl_algorithms_td3_test_second_stage)
-gtest_discover_tests(rl_algorithms_td3_test_full_training)
+gtest_discover_tests(test_neural_network_persistence)
+gtest_discover_tests(test_neural_network)
+gtest_discover_tests(test_rl_environments_pendulum)
+gtest_discover_tests(test_rl_algorithms_td3_off_policy_runner)
+gtest_discover_tests(test_rl_algorithms_td3_first_stage)
+gtest_discover_tests(test_rl_algorithms_td3_second_stage)
+gtest_discover_tests(test_rl_algorithms_td3_full_training)
 
 
 
