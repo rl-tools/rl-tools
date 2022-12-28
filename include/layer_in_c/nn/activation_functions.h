@@ -10,7 +10,7 @@ namespace layer_in_c::nn::activation_functions {
         TANH,
         SIGMOID,
         SIGMOID_STRETCHED,
-        LINEAR,
+        IDENTITY,
     };
 
     template<typename T, ActivationFunction F>
@@ -35,7 +35,7 @@ namespace layer_in_c::nn::activation_functions {
         else if (F == SIGMOID_STRETCHED){
             return activation<T, SIGMOID>(x) * (T)2 - (T)1;
         }
-        else if (F == LINEAR){
+        else if (F == IDENTITY){
             return x;
         }
         else{
@@ -70,7 +70,7 @@ namespace layer_in_c::nn::activation_functions {
         else if (F == SIGMOID_STRETCHED){
             return d_activation_d_x<T, SIGMOID>(x) * (T)2;
         }
-        else if (F == LINEAR){
+        else if (F == IDENTITY){
             return 1;
         }
         else{

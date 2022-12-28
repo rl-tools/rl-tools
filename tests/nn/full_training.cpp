@@ -18,7 +18,7 @@ constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN =  lic::n
 constexpr size_t LAYER_2_DIM = 50;
 constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = lic::nn::activation_functions::TANH;
 constexpr size_t OUTPUT_DIM = 13;
-constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_FN = lic::nn::activation_functions::LINEAR;
+constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_FN = lic::nn::activation_functions::IDENTITY;
 
 typedef lic::nn_models::three_layer_fc::StructureSpecification<T, INPUT_DIM, 50, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
 typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<T>> NETWORK_SPEC;

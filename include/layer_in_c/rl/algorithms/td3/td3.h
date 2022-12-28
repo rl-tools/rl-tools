@@ -60,7 +60,7 @@ namespace layer_in_c::rl::algorithms::td3 {
         typedef typename SPEC::T T;
         static constexpr lic::nn::activation_functions::ActivationFunction ACTOR_ACTIVATION_FUNCTION = lic::nn::activation_functions::TANH;
 //        static constexpr lic::nn::activation_functions::ActivationFunction ACTOR_ACTIVATION_FUNCTION = lic::nn::activation_functions::SIGMOID_STRETCHED;
-//        static constexpr lic::nn::activation_functions::ActivationFunction ACTOR_ACTIVATION_FUNCTION = lic::nn::activation_functions::LINEAR;
+//        static constexpr lic::nn::activation_functions::ActivationFunction ACTOR_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 
         typedef lic::nn_models::three_layer_fc::StructureSpecification<
                 typename SPEC::T,
@@ -79,7 +79,7 @@ namespace layer_in_c::rl::algorithms::td3 {
         typedef layer_in_c::nn_models::three_layer_fc::StructureSpecification<T, CRITIC_INPUT_DIM,
                 SPEC::CRITIC_SPEC::LAYER_1_DIM, SPEC::CRITIC_SPEC::LAYER_1_FN,
                 SPEC::CRITIC_SPEC::LAYER_2_DIM, SPEC::CRITIC_SPEC::LAYER_2_FN,
-                1, layer_in_c::nn::activation_functions::LINEAR> CRITIC_NETWORK_STRUCTURE_SPEC;
+                1, layer_in_c::nn::activation_functions::IDENTITY> CRITIC_NETWORK_STRUCTURE_SPEC;
 
         typedef lic::nn_models::three_layer_fc::AdamSpecification<DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC, typename SPEC::CRITIC_SPEC::OPTIMIZER_PARAMETERS> CRITIC_NETWORK_SPEC;
         typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, CRITIC_NETWORK_SPEC> CRITIC_NETWORK_TYPE;
@@ -164,7 +164,8 @@ namespace layer_in_c{
             T target_action_value[1] = {replay_buffer.rewards[sample_index] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!replay_buffer.terminated[sample_index])};
 
             lic::forward_backward_mse<typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic, state_action_value_input, target_action_value);
-            T loss_sample = lic::nn::loss_functions::mse<T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.output, target_action_value);
+            static_assert(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == lic::nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activation to get the loss value
+            T loss_sample = lic::nn::loss_functions::mse<T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.pre_activation, target_action_value);
             loss += loss_sample;
         }
         lic::update(critic);
@@ -203,13 +204,12 @@ namespace layer_in_c{
             uint32_t sample_index = DETERMINISTIC ? sample_i : sample_distribution(rng);
             T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
             memcpy(state_action_value_input, replay_buffer.observations[sample_index], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
-            lic::forward(actor_critic.actor, state_action_value_input);
-            memcpy(&state_action_value_input[ENVIRONMENT::OBSERVATION_DIM], actor_critic.actor.output_layer.output, sizeof(T) * ENVIRONMENT::ACTION_DIM); // setting the second part with next actions
+            lic::forward(actor_critic.actor, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]);
 
 //            typename lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_TARGET_NETWORK_TYPE& critic = actor_critic.critic_target_1;
             auto& critic = actor_critic.critic_1;
-            lic::forward(critic, state_action_value_input);
-            actor_value += critic.output_layer.output[0]/SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
+            T critic_output = lic::forward_univariate(critic, state_action_value_input);
+            actor_value += critic_output/SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
             T d_output[1] = {-(T)1/SPEC::PARAMETERS::ACTOR_BATCH_SIZE}; // we want to maximise the critic output using gradient descent
             T d_critic_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
             lic::backward(critic, state_action_value_input, d_output, d_critic_input);
