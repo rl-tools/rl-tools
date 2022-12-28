@@ -23,7 +23,7 @@ namespace layer_in_c::nn::layers::dense {
     };
     template<typename DEVICE, typename SPEC>
     struct LayerBackward : public Layer<DEVICE, SPEC> {
-        typename SPEC::T pre_activation[SPEC::OUTPUT_DIM];
+        typename SPEC::T pre_activations[SPEC::OUTPUT_DIM];
     };
     template<typename DEVICE, typename SPEC>
     struct LayerBackwardGradient : public LayerBackward<DEVICE, SPEC> {

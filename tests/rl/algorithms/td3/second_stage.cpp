@@ -47,7 +47,6 @@ struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultTD3Par
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;
-    constexpr int step = 9999;
 //    constexpr int BATCH_SIZE = 100;
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -56,6 +55,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_LOADING_TRAINED_ACTOR) {
     std::mt19937 rng(0);
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    int step = data_file.getGroup("full_training").getGroup("steps").getNumberObjects()-1;
+    assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     lic::load(actor_critic.actor, step_group.getGroup("actor"));
     DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200, true>(ENVIRONMENT(), actor_critic.actor, 100, rng);
@@ -112,7 +113,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
 #ifdef EVALUATE_VISUALLY
     UI ui;
 #endif
-    constexpr bool verbose = false;
+    constexpr bool verbose = true;
 //    constexpr int BATCH_SIZE = 100;
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -145,7 +146,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
     DTYPE mean_ratio_critic_target = 0;
     auto full_training_group = data_file.getGroup("full_training");
     auto steps_group = full_training_group.getGroup("steps");
-    int num_steps = steps_group.getNumberObjects();
+    int num_steps = std::min(steps_group.getNumberObjects(), (size_t)1000);
     auto pre_critic_1 = actor_critic.critic_1;
     auto pre_actor = actor_critic.actor;
     auto pre_critic_1_target = actor_critic.critic_target_1;

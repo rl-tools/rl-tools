@@ -21,11 +21,11 @@ namespace layer_in_c{
     FUNCTION_PLACEMENT void forward(nn::layers::dense::LayerBackward<devices::Generic, SPEC>& layer, const T input[SPEC::INPUT_DIM], T output[SPEC::OUTPUT_DIM]) {
         // Warning do not use the same buffer for input and output!
         for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            layer.pre_activation[i] = layer.biases[i];
+            layer.pre_activations[i] = layer.biases[i];
             for(int j = 0; j < SPEC::INPUT_DIM; j++) {
-                layer.pre_activation[i] += layer.weights[i][j] * input[j];
+                layer.pre_activations[i] += layer.weights[i][j] * input[j];
             }
-            output[i] = nn::activation_functions::activation<T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activation[i]);
+            output[i] = nn::activation_functions::activation<T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
         }
     }
 
@@ -33,11 +33,11 @@ namespace layer_in_c{
     FUNCTION_PLACEMENT void forward(nn::layers::dense::LayerBackwardGradient<devices::Generic, SPEC>& layer, const T input[SPEC::INPUT_DIM]) {
         // Warning do not use the same buffer for input and output!
         for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            layer.pre_activation[i] = layer.biases[i];
+            layer.pre_activations[i] = layer.biases[i];
             for(int j = 0; j < SPEC::INPUT_DIM; j++) {
-                layer.pre_activation[i] += layer.weights[i][j] * input[j];
+                layer.pre_activations[i] += layer.weights[i][j] * input[j];
             }
-            layer.output[i] = nn::activation_functions::activation<T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activation[i]);
+            layer.output[i] = nn::activation_functions::activation<T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
         }
     }
     template<typename T, typename SPEC>
@@ -54,7 +54,7 @@ namespace layer_in_c{
     FUNCTION_PLACEMENT void backward(nn::layers::dense::LayerBackward<devices::Generic, SPEC>& layer, const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            typename SPEC::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activation[i]) * d_output[i];
+            typename SPEC::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
             for(int j = 0; j < SPEC::INPUT_DIM; j++) {
                 if(i == 0){
                     d_input[j] = 0;
@@ -73,7 +73,7 @@ namespace layer_in_c{
     FUNCTION_PLACEMENT void backward(nn::layers::dense::LayerBackwardGradient<devices::Generic, LS>& layer, const typename LS::T input[LS::INPUT_DIM], const typename LS::T d_output[LS::OUTPUT_DIM], typename LS::T d_input[LS::INPUT_DIM]) {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         for(int i = 0; i < LS::OUTPUT_DIM; i++) {
-            typename LS::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename LS::T, LS::ACTIVATION_FUNCTION>(layer.pre_activation[i]) * d_output[i];
+            typename LS::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename LS::T, LS::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
             layer.d_biases[i] += d_pre_activation;
             for(int j = 0; j < LS::INPUT_DIM; j++) {
                 if(i == 0){

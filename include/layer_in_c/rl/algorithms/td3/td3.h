@@ -164,8 +164,8 @@ namespace layer_in_c{
             T target_action_value[1] = {replay_buffer.rewards[sample_index] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!replay_buffer.terminated[sample_index])};
 
             lic::forward_backward_mse<typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic, state_action_value_input, target_action_value);
-            static_assert(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == lic::nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activation to get the loss value
-            T loss_sample = lic::nn::loss_functions::mse<T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.pre_activation, target_action_value);
+            static_assert(lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == lic::nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
+            T loss_sample = lic::nn::loss_functions::mse<T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.pre_activations, target_action_value);
             loss += loss_sample;
         }
         lic::update(critic);

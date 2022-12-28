@@ -16,14 +16,16 @@ namespace layer_in_c {
     template<typename DEVICE, typename SPEC>
     void save(nn::layers::dense::LayerBackward<DEVICE, SPEC>& layer, HighFive::Group group) {
         save((nn::layers::dense::Layer<DEVICE, SPEC>&)layer, group);
-        auto weights = utils::persist::array_conversion::vector_to_std_vector<typename SPEC::T, SPEC::OUTPUT_DIM>(layer.output);
-        group.createDataSet("output", weights);
+        auto weights = utils::persist::array_conversion::vector_to_std_vector<typename SPEC::T, SPEC::OUTPUT_DIM>(layer.pre_activations);
+        group.createDataSet("pre_activations", weights);
     }
     template<typename DEVICE, typename SPEC>
     void save(nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& layer, HighFive::Group group) {
         save((nn::layers::dense::LayerBackward<DEVICE, SPEC>&)layer, group);
+        auto output = utils::persist::array_conversion::vector_to_std_vector<typename SPEC::T, SPEC::OUTPUT_DIM>(layer.output);
         auto d_weights = utils::persist::array_conversion::matrix_to_std_vector<typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(layer.d_weights);
         auto d_biases = utils::persist::array_conversion::vector_to_std_vector<typename SPEC::T, SPEC::OUTPUT_DIM>(layer.d_biases);
+        group.createDataSet("output", output);
         group.createDataSet("d_weights", d_weights);
         group.createDataSet("d_biases" , d_biases);
     }
