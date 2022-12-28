@@ -28,7 +28,7 @@ namespace layer_in_c {
         }
         return episode_return;
     }
-    template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT>
+    template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT, bool DETERMINISTIC>
     typename POLICY::T evaluate(const rl::environments::Environment env, POLICY &policy, uint32_t N, RNG &rng) {
         typedef typename POLICY::T T;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
@@ -36,7 +36,13 @@ namespace layer_in_c {
         T episode_returns[N];
         for (int i = 0; i < N; i++) {
             typename ENVIRONMENT::State initial_state;
-            sample_initial_state(ENVIRONMENT(), initial_state, rng);
+            if(DETERMINISTIC) {
+                initial_state.theta = -M_PI;
+                initial_state.theta_dot = 0;
+            }
+            else{
+                sample_initial_state(ENVIRONMENT(), initial_state, rng);
+            }
             episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(env, policy, initial_state);
         }
         T mean = 0;

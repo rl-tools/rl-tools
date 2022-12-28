@@ -1,4 +1,4 @@
-
+//#define OUTPUT_PLOTS
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
@@ -14,11 +14,23 @@
 #include "../../../utils/utils.h"
 #include "../../../utils/nn_comparison.h"
 
+#ifdef EVALUATE_VISUALLY
+#include <layer_in_c/rl/environments/pendulum/ui.h>
+#include <layer_in_c/rl/utils/evaluation_visual.h>
+#endif
+
+#ifdef OUTPUT_PLOTS
+#include "plot_policy_and_value_function.h"
+#endif
+
 namespace lic = layer_in_c;
 #define DATA_FILE_PATH "../multirotor-torch/model_second_stage.hdf5"
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+#ifdef EVALUATE_VISUALLY
+typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
+#endif
 ENVIRONMENT env;
 
 template <typename T>
@@ -46,7 +58,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_LOADING_TRAINED_ACTOR) {
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     lic::load(actor_critic.actor, step_group.getGroup("actor"));
-    DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200>(ENVIRONMENT(), actor_critic.actor, 100, rng);
+    DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200, true>(ENVIRONMENT(), actor_critic.actor, 100, rng);
     std::cout << "mean return: " << mean_return << std::endl;
 }
 
@@ -97,6 +109,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, FP_ACC) {
     }
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
+#ifdef EVALUATE_VISUALLY
+    UI ui;
+#endif
     constexpr bool verbose = false;
 //    constexpr int BATCH_SIZE = 100;
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ActorCriticSpec;
@@ -228,6 +243,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
             ActorCriticType::ACTOR_NETWORK_TYPE post_actor;
             lic::load(post_actor, step_group.getGroup("actor"));
 
+            ActorCriticType::ACTOR_NETWORK_TYPE pre_actor_loaded;
+            lic::load(pre_actor_loaded, step_group.getGroup("pre_actor"));
+            DTYPE pre_current_diff = abs_diff(pre_actor_loaded, actor_critic.actor);
+            if(step_i == 0){
+                ASSERT_EQ(pre_current_diff, 0);
+            }
+
 
             DTYPE actor_loss = lic::train_actor<lic::devices::Generic, ActorCriticSpec, ReplayBufferTypeCopyTraining::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
 
@@ -345,7 +367,19 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
             if(!verbose){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200>(ENVIRONMENT(), actor_critic.actor, 100, rng);
+            DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200, true>(ENVIRONMENT(), actor_critic.actor, 100, rng);
+#ifdef OUTPUT_PLOTS
+            plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("second_stage"), step_i);
+#endif
+#ifdef EVALUATE_VISUALLY
+            if(mean_return > -200){
+                while(true){
+                    ENVIRONMENT::State initial_state;
+                    lic::sample_initial_state(env, initial_state, rng);
+                    lic::evaluate_visual<ENVIRONMENT, UI, ActorCriticType::ACTOR_NETWORK_TYPE, 100, 3>(ENVIRONMENT(), ui, actor_critic.actor, initial_state);
+                }
+            }
+#endif
         }
     }
     mean_ratio_critic /= num_steps;

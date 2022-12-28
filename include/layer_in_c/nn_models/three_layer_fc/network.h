@@ -73,6 +73,11 @@ namespace layer_in_c::nn_models::three_layer_fc {
 
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkBackward: public NeuralNetwork<DEVICE, SPEC>{
+        template<typename NN>
+        NeuralNetworkBackward& operator= (const NN& other) {
+            NeuralNetwork<DEVICE, SPEC>::operator=(other);
+            return *this;
+        }
     };
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkGradient: public NeuralNetworkBackward<DEVICE, SPEC>{

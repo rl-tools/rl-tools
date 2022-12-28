@@ -8,6 +8,8 @@ namespace layer_in_c::nn::activation_functions {
         GELU,
         GELU_SQUARE,
         TANH,
+        SIGMOID,
+        SIGMOID_STRETCHED,
         LINEAR,
     };
 
@@ -26,6 +28,12 @@ namespace layer_in_c::nn::activation_functions {
         }
         else if (F == TANH){
             return std::tanh(x);
+        }
+        else if (F == SIGMOID){
+            return (T)1 / ((T)1 + std::exp(-x));
+        }
+        else if (F == SIGMOID_STRETCHED){
+            return activation<T, SIGMOID>(x) * (T)2 - (T)1;
         }
         else if (F == LINEAR){
             return x;
@@ -50,11 +58,17 @@ namespace layer_in_c::nn::activation_functions {
             constexpr T a = M_2_SQRTPI/(T)2 * M_SQRT2;
             constexpr T b = 0.044715f;
             T tanh_term = std::tanh(a * (b * x * x * x + x));
-            return (T)0.5*(1 + tanh_term) + (T)0.5 * x * (1 - tanh_term * tanh_term) * a * (3 * b * x * x + 1);
+            return (T)0.5*((T)1 + tanh_term) + (T)0.5 * x * ((T)1 - tanh_term * tanh_term) * a * ((T)3 * b * x * x + (T)1);
         }
         else if (F == TANH){
             T a = std::tanh(x);
-            return 1 - a * a;
+            return (T)1 - a * a;
+        }
+        else if (F == SIGMOID){
+            return activation<T, SIGMOID>(x) * (1 - activation<T, SIGMOID>(x));
+        }
+        else if (F == SIGMOID_STRETCHED){
+            return d_activation_d_x<T, SIGMOID>(x) * (T)2;
         }
         else if (F == LINEAR){
             return 1;

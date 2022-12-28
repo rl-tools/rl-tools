@@ -58,13 +58,16 @@ namespace layer_in_c::rl::algorithms::td3 {
     struct ActorCritic {
         typedef T_SPEC SPEC;
         typedef typename SPEC::T T;
+        static constexpr lic::nn::activation_functions::ActivationFunction ACTOR_ACTIVATION_FUNCTION = lic::nn::activation_functions::TANH;
+//        static constexpr lic::nn::activation_functions::ActivationFunction ACTOR_ACTIVATION_FUNCTION = lic::nn::activation_functions::SIGMOID_STRETCHED;
+//        static constexpr lic::nn::activation_functions::ActivationFunction ACTOR_ACTIVATION_FUNCTION = lic::nn::activation_functions::LINEAR;
 
         typedef lic::nn_models::three_layer_fc::StructureSpecification<
                 typename SPEC::T,
                 SPEC::ENVIRONMENT::OBSERVATION_DIM,
                 SPEC::ACTOR_SPEC::LAYER_1_DIM, SPEC::ACTOR_SPEC::LAYER_1_FN,
                 SPEC::ACTOR_SPEC::LAYER_2_DIM, SPEC::ACTOR_SPEC::LAYER_2_FN,
-                SPEC::ENVIRONMENT::ACTION_DIM, lic::nn::activation_functions::LINEAR> ACTOR_NETWORK_STRUCTURE_SPEC;
+                SPEC::ENVIRONMENT::ACTION_DIM, ACTOR_ACTIVATION_FUNCTION> ACTOR_NETWORK_STRUCTURE_SPEC;
 
         typedef lic::nn_models::three_layer_fc::AdamSpecification<DEVICE, ACTOR_NETWORK_STRUCTURE_SPEC, typename SPEC::ACTOR_SPEC::OPTIMIZER_PARAMETERS> ACTOR_NETWORK_SPEC;
         typedef layer_in_c::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, ACTOR_NETWORK_SPEC> ACTOR_NETWORK_TYPE;
@@ -203,11 +206,13 @@ namespace layer_in_c{
             lic::forward(actor_critic.actor, state_action_value_input);
             memcpy(&state_action_value_input[ENVIRONMENT::OBSERVATION_DIM], actor_critic.actor.output_layer.output, sizeof(T) * ENVIRONMENT::ACTION_DIM); // setting the second part with next actions
 
-            lic::forward(actor_critic.critic_1, state_action_value_input);
-            actor_value += actor_critic.critic_1.output_layer.output[0]/SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
+//            typename lic::rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_TARGET_NETWORK_TYPE& critic = actor_critic.critic_target_1;
+            auto& critic = actor_critic.critic_1;
+            lic::forward(critic, state_action_value_input);
+            actor_value += critic.output_layer.output[0]/SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
             T d_output[1] = {-(T)1/SPEC::PARAMETERS::ACTOR_BATCH_SIZE}; // we want to maximise the critic output using gradient descent
             T d_critic_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
-            lic::backward(actor_critic.critic_1, state_action_value_input, d_output, d_critic_input);
+            lic::backward(critic, state_action_value_input, d_output, d_critic_input);
             T d_actor_input[ENVIRONMENT::OBSERVATION_DIM];
             lic::backward(actor_critic.actor, state_action_value_input, &d_critic_input[ENVIRONMENT::OBSERVATION_DIM], d_actor_input);
         }

@@ -1,4 +1,5 @@
 #include "layer_in_c/rl/environments/environments.h"
+#include <thread>
 
 namespace layer_in_c{
     template<typename ENVIRONMENT, typename UI, typename POLICY, int STEP_LIMIT, int TIME_LAPSE=1>

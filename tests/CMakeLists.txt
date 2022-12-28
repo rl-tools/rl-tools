@@ -1,3 +1,5 @@
+option(EVALUATE_VISUALLY "Visual Evaluation" OFF)
+
 include(FetchContent)
 FetchContent_Declare(
         googletest
@@ -7,9 +9,14 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-find_package(Qt5 COMPONENTS Widgets REQUIRED)
+if(EVALUATE_VISUALLY)
+    find_package(Qt5 COMPONENTS Widgets REQUIRED)
+endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+add_subdirectory(lib/matplotlib)
+
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+#set(CMAKE_CXX_STANDARD 17)
 
 enable_testing()
 
@@ -76,34 +83,26 @@ target_link_libraries(
         HDF5::HDF5
 )
 
-# RL Environment Pendulum Render test
 
-# QT warnings as erros
-#find_package(PkgConfig REQUIRED)
-#pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+if(EVALUATE_VISUALLY)
+    # RL Environment Pendulum Render test
 
-set(QMAKE_CXXFLAGS+=-Werror)
+    add_executable(
+            test_rl_environments_pendulum_render
+            rl/environments/pendulum_render.cpp
+    )
+    target_include_directories(test_rl_environments_pendulum_render PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/lib
+            ${PROJECT_SOURCE_DIR}/include
+    )
 
-add_executable(
-        test_rl_environments_pendulum_render
-        rl/environments/pendulum_render.cpp
-)
-target_include_directories(test_rl_environments_pendulum_render PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib
-        ${PROJECT_SOURCE_DIR}/include
-#        ${GTK3_INCLUDE_DIRS}
-)
-#target_link_directories(test_rl_environments_pendulum_render PRIVATE
-#        ${GTK3_LIBRARY_DIRS}
-#)
-
-target_link_libraries(
-        test_rl_environments_pendulum_render
-        GTest::gtest_main
-        HDF5::HDF5
-        Qt5::Widgets
-#        ${GTK3_LIBRARIES}
-)
+    target_link_libraries(
+            test_rl_environments_pendulum_render
+            GTest::gtest_main
+            HDF5::HDF5
+            Qt5::Widgets
+    )
+endif()
 
 # RL Algorithm off_policy_runner test
 add_executable(
@@ -147,7 +146,15 @@ target_link_libraries(
         rl_algorithms_td3_test_second_stage
         GTest::gtest_main
         HDF5::HDF5
+        matplotlib_cpp
 )
+if(EVALUATE_VISUALLY)
+    target_link_libraries(
+            rl_algorithms_td3_test_second_stage
+            Qt5::Widgets
+    )
+    target_compile_definitions(rl_algorithms_td3_test_second_stage PRIVATE EVALUATE_VISUALLY)
+endif()
 
 # RL Algorithm td3 test full training
 add_executable(
@@ -162,8 +169,16 @@ target_link_libraries(
         rl_algorithms_td3_test_full_training
         GTest::gtest_main
         HDF5::HDF5
-        Qt5::Widgets
+        matplotlib_cpp
 )
+if(EVALUATE_VISUALLY)
+    target_link_libraries(
+            rl_algorithms_td3_test_full_training
+            Qt5::Widgets
+    )
+    target_compile_definitions(rl_algorithms_td3_test_full_training PRIVATE EVALUATE_VISUALLY)
+endif()
+
 
 include(GoogleTest)
 gtest_discover_tests(neural_network_persistence_test)

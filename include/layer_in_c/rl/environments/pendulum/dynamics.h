@@ -9,10 +9,16 @@ namespace layer_in_c::rl::environments::pendulum {
         return x;
     }
     template <typename T>
+    T f_mod_python(T a, T b){
+        return a - b * floor(a / b);
+    }
+
+    template <typename T>
     T angle_normalize(T x){
-        T temp = std::fmod(std::abs(x) + M_PI, 2*M_PI) - M_PI;
-        temp = x > 0 ? temp : -temp;
-        return temp;
+//        T temp = std::fmod(std::abs(x) + M_PI, 2*M_PI) - M_PI;
+//        temp = x > 0 ? temp : -temp;
+//        return temp;
+        return f_mod_python((x + M_PI), (2 * M_PI)) - M_PI;
     }
     template <typename T>
     struct DefaultParameters {
@@ -74,6 +80,13 @@ namespace layer_in_c{
         newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
         T newth = state.theta + newthdot * dt;
 
+        while (newth < -M_PI) {
+            newth += M_PI * 2;
+        }
+        while (newth >= M_PI) {
+            newth -= M_PI * 2;
+        }
+
         next_state.theta = newth;
         next_state.theta_dot = newthdot;
         return SPEC::PARAMETERS::dt;
@@ -82,7 +95,7 @@ namespace layer_in_c{
     static typename SPEC::T reward(const rl::environments::Pendulum<devices::Generic, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::pendulum::State<typename SPEC::T>& next_state){
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
-        T angle_norm = angle_normalize(next_state.theta);
+        T angle_norm = next_state.theta; //angle_normalize(next_state.theta);
         T u_normalised = action[0];
         T u = SPEC::PARAMETERS::max_torque * u_normalised;
         T costs = angle_norm * angle_norm + 0.1 * next_state.theta_dot * next_state.theta_dot + 0.001 * (u * u);
