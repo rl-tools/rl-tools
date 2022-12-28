@@ -10,7 +10,7 @@
 #include "../utils/utils.h"
 #include <sstream>
 #include "default_network.h"
-#define SKIP_TESTS
+//#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS
 //#define SKIP_OVERFITTING_TESTS

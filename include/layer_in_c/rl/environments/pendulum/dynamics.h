@@ -51,8 +51,8 @@ namespace layer_in_c::rl::environments {
     struct Pendulum: Environment{
         typedef pendulum::State<typename SPEC::T> State;
         typedef typename SPEC::PARAMETERS PARAMETERS;
-        constexpr static uint32_t OBSERVATION_DIM = 3;
-        constexpr static uint32_t ACTION_DIM = 1;
+        static constexpr uint32_t OBSERVATION_DIM = 3;
+        static constexpr uint32_t ACTION_DIM = 1;
     };
 
 }
@@ -98,7 +98,7 @@ namespace layer_in_c{
         T angle_norm = next_state.theta; //angle_normalize(next_state.theta);
         T u_normalised = action[0];
         T u = SPEC::PARAMETERS::max_torque * u_normalised;
-        T costs = angle_norm * angle_norm + 0.1 * next_state.theta_dot * next_state.theta_dot + 0.001 * (u * u);
+        T costs = angle_norm * angle_norm + 0.1 * state.theta_dot * state.theta_dot + 0.001 * (u * u);
         return -costs;
     }
 

@@ -80,15 +80,15 @@ namespace layer_in_c::nn_models::three_layer_fc {
         }
     };
     template<typename DEVICE, typename SPEC>
-    struct NeuralNetworkGradient: public NeuralNetworkBackward<DEVICE, SPEC>{
+    struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<DEVICE, SPEC>{
     };
 
     template<typename DEVICE, typename SPEC>
-    struct NeuralNetworkSGD: public NeuralNetworkGradient<DEVICE, SPEC>{
+    struct NeuralNetworkSGD: public NeuralNetworkBackwardGradient<DEVICE, SPEC>{
     };
 
     template<typename DEVICE, typename SPEC>
-    struct NeuralNetworkAdam: public NeuralNetworkGradient<DEVICE, SPEC>{
+    struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<DEVICE, SPEC>{
         uint32_t age = 1;
     };
 

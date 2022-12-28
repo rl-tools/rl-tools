@@ -4,6 +4,7 @@
 #include <layer_in_c/nn/layers/dense/layer.h>
 
 namespace layer_in_c{
+    // evaluating a layer does not change its state (like pre_activations and outputs). Before using backward, to fill the state, use the forward method instead
     template<typename T, typename SPEC>
     FUNCTION_PLACEMENT void evaluate(const nn::layers::dense::Layer<devices::Generic, SPEC>& layer, const T input[SPEC::INPUT_DIM], T output[SPEC::OUTPUT_DIM]) {
         // Warning do not use the same buffer for input and output!
@@ -40,7 +41,7 @@ namespace layer_in_c{
         }
     }
     template<typename T, typename SPEC>
-    [[deprecated("Calling forward with an output buffer on a layer requiring the gradient is deprecated. Use forward without an output buffer instead.")]]
+    [[deprecated("Calling forward with an output buffer on a layer requiring the gradient is not recommended. Consider using forward without an output buffer to avoid copies instead.")]]
     FUNCTION_PLACEMENT void forward(nn::layers::dense::LayerBackwardGradient<devices::Generic, SPEC>& layer, const T input[SPEC::INPUT_DIM], T output[SPEC::OUTPUT_DIM]) {
         // compile time warning if used
         forward(layer, input);
@@ -50,7 +51,7 @@ namespace layer_in_c{
     }
 
     template<typename SPEC>
-    FUNCTION_PLACEMENT void backward(nn::layers::dense::LayerBackward<devices::Generic, SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
+    FUNCTION_PLACEMENT void backward(nn::layers::dense::LayerBackward<devices::Generic, SPEC>& layer, const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
             typename SPEC::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activation[i]) * d_output[i];
@@ -61,6 +62,11 @@ namespace layer_in_c{
                 d_input[j] += layer.weights[i][j] * d_pre_activation;
             }
         }
+    }
+    template<typename SPEC>
+    FUNCTION_PLACEMENT void backward(nn::layers::dense::LayerBackward<devices::Generic, SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
+        backward(layer, d_output, d_input);
+
     }
 
     template<typename LS>
