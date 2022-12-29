@@ -38,13 +38,15 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultTD3Parameters<T>{
 constexpr size_t REPLAY_BUFFER_CAP = 500000;
 constexpr size_t ENVIRONMENT_STEP_LIMIT = 200;
 typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3PendulumParameters<DTYPE>>> ActorCriticType;
-lic::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, lic::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT>> off_policy_runner;
-ActorCriticType actor_critic;
+typedef lic::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, lic::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT>> OFF_POLICY_RUNNER_TYPE;
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 constexpr int N_TRAINING_RUNS = 20;
+
+OFF_POLICY_RUNNER_TYPE off_policy_runners[N_TRAINING_RUNS];
+ActorCriticType actor_critics[N_TRAINING_RUNS];
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
     std::mt19937 rng(2);
@@ -62,6 +64,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
         training_run_indices.end(),
         [&](auto training_run_i)
         {
+            auto& off_policy_runner = off_policy_runners[training_run_i];
+            auto& actor_critic = actor_critics[training_run_i];
             lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
             for(int step_i = 0; step_i < 30000; step_i++){
                 lic::step(off_policy_runner, actor_critic.actor, rng);
