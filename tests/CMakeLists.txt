@@ -27,8 +27,6 @@ add_subdirectory(lib/highfive)
 
 #set(CMAKE_CXX_STANDARD 17)
 
-enable_testing()
-
 # Neural Network Test
 add_executable(
         test_neural_network

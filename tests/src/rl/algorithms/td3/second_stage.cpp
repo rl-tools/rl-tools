@@ -23,7 +23,15 @@
 #endif
 
 namespace lic = layer_in_c;
-#define DATA_FILE_PATH "../multirotor-torch/model_second_stage.hdf5"
+std::string get_data_file_path(){
+    std::string DATA_FILE_PATH = "../multirotor-torch/model_second_stage.hdf5";
+    const char* data_file_path = std::getenv("LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_DATA_FILE");
+    if (data_file_path != NULL){
+        DATA_FILE_PATH = std::string(data_file_path);
+//            std::runtime_error("Environment variable LAYER_IN_C_TEST_DATA_DIR not set. Skipping test.");
+    }
+    return DATA_FILE_PATH;
+}
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
@@ -44,7 +52,7 @@ struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultTD3Par
     constexpr static int ACTOR_BATCH_SIZE = 100;
 };
 
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_LOADING_TRAINED_ACTOR) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;
 //    constexpr int BATCH_SIZE = 100;
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ActorCriticSpec;
@@ -53,7 +61,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_LOADING_TRAINED_ACTOR) {
 
     std::mt19937 rng(0);
 
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     int step = data_file.getGroup("full_training").getGroup("steps").getNumberObjects()-1;
     assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
@@ -76,7 +84,7 @@ void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
     }
     rb.position = batch.size();
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, FP_ACC) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, FP_ACC) {
     for(int i = 0; i < 1000; i++){
         std::normal_distribution<float> dist;
         auto rng = std::mt19937(0);
@@ -108,7 +116,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, FP_ACC) {
 //        std::cout << e << std::endl;
     }
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, TEST_COPY_TRAINING) {
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
     UI ui;
 #endif
@@ -123,7 +131,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
 
 
 
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
     lic::load(actor_critic.actor_target, data_file.getGroup("actor_target"));
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));

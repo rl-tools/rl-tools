@@ -1,0 +1,32 @@
+from ubuntu:20.04
+# base deps
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update
+RUN apt-get install -yy cmake
+RUN apt-get install -yy build-essential
+
+# test deps
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update
+RUN apt-get install -y python3 python3-pip
+RUN pip3 install torch==1.13.1
+RUN pip3 install numpy==1.24.1
+RUN pip3 install h5py==3.7.0
+# second stage
+RUN pip3 install gymnasium==0.27.0
+RUN pip3 install tqdm==4.64.1
+RUN pip3 install matplotlib==3.6.2
+
+#base stuff
+COPY layer-in-c /layer_in_c
+RUN mkdir build
+WORKDIR build
+RUN cmake /layer_in_c
+WORKDIR /
+
+# test data gen
+COPY multirotor-torch/ /multirotor-torch/
+WORKDIR multirotor-torch
+RUN python3 -m multirotor_torch.replicate_first_stage
+RUN python3 -m multirotor_torch.replicate_second_stage
+RUN python3 -m multirotor_torch.replicate_pendulum

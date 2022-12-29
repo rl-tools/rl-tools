@@ -13,7 +13,15 @@
 #include "../../../utils/nn_comparison.h"
 
 namespace lic = layer_in_c;
-#define DATA_FILE_PATH "../multirotor-torch/model_first_stage.hdf5"
+std::string get_data_file_path(){
+    std::string DATA_FILE_PATH = "../multirotor-torch/model_first_stage.hdf5";
+    const char* data_file_path = std::getenv("LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FIRST_STAGE_DATA_FILE");
+    if (data_file_path != NULL){
+        DATA_FILE_PATH = std::string(data_file_path);
+//            std::runtime_error("Environment variable LAYER_IN_C_TEST_DATA_DIR not set. Skipping test.");
+    }
+    return DATA_FILE_PATH;
+}
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
@@ -97,7 +105,7 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     acc += abs_diff_matrix<T, NT::SPEC::LAYER_1::OUTPUT_DIM, NT::SPEC::LAYER_1::INPUT_DIM>(network.layer_1.weights, weights);
     return acc;
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_FORWARD) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
 
@@ -105,7 +113,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_FORWARD) {
     lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(
             actor_critic, rng);
 
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
     lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
 
@@ -134,14 +142,14 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_FORWARD) {
     }
 
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_BACKWARD) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
     lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
     lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
 
@@ -174,7 +182,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_BACKWARD) {
 
     std::cout << "diff_grad_per_weight: " << diff_grad_per_weight << std::endl;
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     constexpr bool verbose = true;
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -183,7 +191,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
     std::mt19937 rng(0);
     lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
     lic::load(actor_critic.actor_target, data_file.getGroup("actor_target"));
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
@@ -268,7 +276,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_CRITIC_TRAINING) {
     ASSERT_GT(mean_ratio_grad, 1e14);
     ASSERT_GT(mean_ratio_adam, 1e14);
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     constexpr bool verbose = true;
     typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -277,7 +285,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_ACTOR_TRAINING) {
     std::mt19937 rng(0);
     lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
-    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
+    auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
     lic::load(actor_critic.actor_target, data_file.getGroup("actor_target"));
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));

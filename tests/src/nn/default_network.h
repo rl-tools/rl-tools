@@ -16,9 +16,15 @@ typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic,
 
 class NeuralNetworkTest : public ::testing::Test {
 protected:
-    const std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
+    std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
     std::string model_name = "model_1";
     void SetUp() override {
+        const char* data_file_path = std::getenv("LAYER_IN_C_TEST_NN_DATA_FILE");
+        if (data_file_path != NULL){
+            DATA_FILE_PATH = std::string(data_file_path);
+//            std::runtime_error("Environment variable LAYER_IN_C_TEST_DATA_DIR not set. Skipping test.");
+        }
+
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet("data/X_train").read(X_train);
         data_file.getDataSet("data/Y_train").read(Y_train);

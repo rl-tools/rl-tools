@@ -10,3 +10,7 @@
 /plots
 /build
 
+
+/**/*.swp
+/Testing
+/tests/docker/context

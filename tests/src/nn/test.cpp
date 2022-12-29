@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <filesystem>
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
@@ -62,6 +63,7 @@ protected:
         lic::backward(network, input, d_loss_d_output, d_input);
     }
     void reset(){
+
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet(model_name + "/init/layer_1/weight").read(layer_1_weights);
         data_file.getDataSet(model_name + "/init/layer_1/bias").read(layer_1_biases);
