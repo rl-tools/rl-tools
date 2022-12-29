@@ -2,7 +2,7 @@
 
 #pragma push_macro("slots")
 #undef slots
-#include "../lib/matplotlib/matplotlibcpp.h"
+#include "matplotlib/matplotlibcpp.h"
 #pragma pop_macro("slots")
 namespace plt = matplotlibcpp;
 #include <iostream>

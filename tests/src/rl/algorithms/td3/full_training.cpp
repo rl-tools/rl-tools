@@ -1,5 +1,5 @@
 //#define VERBOSE
-//#define OUTPUT_PLOTS
+//#define LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
 #include <gtest/gtest.h>
 
 #include <layer_in_c/nn_models/models.h>
@@ -10,13 +10,13 @@
 #include <layer_in_c/rl/utils/evaluation.h>
 
 
-#ifdef EVALUATE_VISUALLY
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
 #include <layer_in_c/rl/environments/pendulum/ui.h>
 #include <layer_in_c/rl/utils/evaluation_visual.h>
 #endif
 
 
-#ifdef OUTPUT_PLOTS
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
 #include "plot_policy_and_value_function.h"
 #endif
 
@@ -26,7 +26,7 @@ namespace lic = layer_in_c;
 
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
-#ifdef EVALUATE_VISUALLY
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 ENVIRONMENT env;
@@ -53,21 +53,21 @@ constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SI
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
-#ifdef EVALUATE_VISUALLY
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
     UI ui;
 #endif
     std::mt19937 rng(1);
     lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
     for(int step_i = 0; step_i < 10000000; step_i++){
-#ifdef OUTPUT_PLOTS
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
         plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
 #endif
         if(step_i > REPLAY_BUFFER_CAP){
             std::cout << "warning: replay buffer is rolling over" << std::endl;
         }
         lic::step(off_policy_runner, actor_critic.actor, rng);
-#ifdef EVALUATE_VISUALLY
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
         lic::set_state(ui, off_policy_runner.state);
 #endif
 
@@ -87,10 +87,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_FULL_TRAINING) {
             DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(ENVIRONMENT(), actor_critic.actor, 100, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
 
-//#ifdef OUTPUT_PLOTS
+//#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
 //            plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
 //#endif
-#ifdef EVALUATE_VISUALLY
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
 //            for(int evaluation_i = 0; evaluation_i < 10; evaluation_i++){
 //                ENVIRONMENT::State initial_state;
 //                lic::sample_initial_state(env, initial_state, rng);

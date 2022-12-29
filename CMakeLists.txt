@@ -1,12 +1,15 @@
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.16)
 project(layer_in_c)
 
-set(CMAKE_C_FLAGS "-O3")
-
 set(CMAKE_CXX_STANDARD 17)
-find_package(HDF5 REQUIRED COMPONENTS C HL)
 
-add_executable(bare_metal src/main.cpp)
+option(LAYER_IN_C_BUILD_TESTS "Build the unit tests when enabled." off)
 
+add_library(layer_in_c INTERFACE)
+target_include_directories(layer_in_c INTERFACE include)
 
-add_subdirectory(tests)
+if (LAYER_IN_C_BUILD_TESTS)
+    include(CTest)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

@@ -1,4 +1,3 @@
-//#define OUTPUT_PLOTS
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
@@ -14,12 +13,12 @@
 #include "../../../utils/utils.h"
 #include "../../../utils/nn_comparison.h"
 
-#ifdef EVALUATE_VISUALLY
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
 #include <layer_in_c/rl/environments/pendulum/ui.h>
 #include <layer_in_c/rl/utils/evaluation_visual.h>
 #endif
 
-#ifdef OUTPUT_PLOTS
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
 #include "plot_policy_and_value_function.h"
 #endif
 
@@ -28,7 +27,7 @@ namespace lic = layer_in_c;
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
-#ifdef EVALUATE_VISUALLY
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 ENVIRONMENT env;
@@ -110,7 +109,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, FP_ACC) {
     }
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
-#ifdef EVALUATE_VISUALLY
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
     UI ui;
 #endif
     constexpr bool verbose = true;
@@ -369,11 +368,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_TEST, TEST_COPY_TRAINING) {
                 std::cout << "step_i: " << step_i << std::endl;
             }
             DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), 200, true>(ENVIRONMENT(), actor_critic.actor, 100, rng);
-#ifdef OUTPUT_PLOTS
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("second_stage"), step_i);
 #endif
-#ifdef EVALUATE_VISUALLY
-            if(mean_return > -200){
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
+            if(mean_return > -400){
                 while(true){
                     ENVIRONMENT::State initial_state;
                     lic::sample_initial_state(env, initial_state, rng);
