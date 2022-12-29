@@ -4,3 +4,6 @@
 [submodule "lib/highfive"]
 	path = lib/highfive
 	url = https://github.com/BlueBrain/HighFive.git
+[submodule "tests/lib/highfive"]
+	path = tests/lib/highfive
+	url = https://github.com/BlueBrain/HighFive.git
