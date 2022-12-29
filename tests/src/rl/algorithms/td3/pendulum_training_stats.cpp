@@ -1,3 +1,5 @@
+#include <execution>
+
 #include <gtest/gtest.h>
 
 #include <highfive/H5File.hpp>
@@ -42,36 +44,48 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-constexpr int N_TRAINING_RUNS = 2;
+constexpr int N_TRAINING_RUNS = 20;
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
     std::mt19937 rng(2);
 
     std::vector<size_t> mean_returns_steps;
     std::vector<std::vector<DTYPE>> mean_returns(N_TRAINING_RUNS);
+
+    std::vector<size_t> training_run_indices;
     for(int training_run_i=0; training_run_i < N_TRAINING_RUNS; training_run_i++){
-        lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
-        for(int step_i = 0; step_i < 200; step_i++){
-            lic::step(off_policy_runner, actor_critic.actor, rng);
-            if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
-                DTYPE critic_1_loss = lic::train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
-                lic::train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
-                if(step_i % 2 == 0){
-                    lic::train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
-                    lic::update_targets(actor_critic);
-                }
-            }
-            if(step_i % 100 == 0){
-                std::cout << "step_i: " << step_i << std::endl;
-                DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), ENVIRONMENT_STEP_LIMIT, false>(ENVIRONMENT(), actor_critic.actor, 500, rng);
-                std::cout << "Mean return: " << mean_return << std::endl;
-                if(training_run_i == 0){
-                    mean_returns_steps.push_back(step_i);
-                }
-                mean_returns[training_run_i].push_back(mean_return);
-            }
-        }
+        training_run_indices.push_back(training_run_i);
     }
+    std::for_each(
+        std::execution::par,
+        training_run_indices.begin(),
+        training_run_indices.end(),
+        [&](auto training_run_i)
+        {
+            lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+            for(int step_i = 0; step_i < 30000; step_i++){
+                lic::step(off_policy_runner, actor_critic.actor, rng);
+                if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
+                    DTYPE critic_1_loss = lic::train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
+                    lic::train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+                    if(step_i % 2 == 0){
+                        lic::train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
+                        lic::update_targets(actor_critic);
+                    }
+                }
+                if(step_i % 1000 == 0){
+                    std::cout << "step_i: " << step_i << std::endl;
+                    DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), ENVIRONMENT_STEP_LIMIT, false>(ENVIRONMENT(), actor_critic.actor, 500, rng);
+                    std::cout << "Mean return: " << mean_return << std::endl;
+                    if(training_run_i == 0){
+                        mean_returns_steps.push_back(step_i);
+                    }
+                    mean_returns[training_run_i].push_back(mean_return);
+                }
+            }
+
+        }
+    );
     std::string results_dir = "results";
     mkdir(results_dir.c_str(), 0777);
 

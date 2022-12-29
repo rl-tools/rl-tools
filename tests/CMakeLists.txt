@@ -1,4 +1,4 @@
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 option(LAYER_IN_C_TEST_LOCAL "Local dev" OFF)
 
@@ -183,6 +183,7 @@ gtest_discover_tests(test_rl_algorithms_td3_full_training)
 
 
 # RL Algorithm td3 test full training
+find_package(TBB REQUIRED)
 add_executable(
         test_rl_algorithms_td3_pendulum_training_stats
         src/rl/algorithms/td3/pendulum_training_stats.cpp
@@ -193,6 +194,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
         matplotlib_cpp
+        TBB::tbb
 )
 target_include_directories(test_rl_algorithms_td3_pendulum_training_stats PRIVATE lib)
 gtest_discover_tests(test_rl_algorithms_td3_pendulum_training_stats)
