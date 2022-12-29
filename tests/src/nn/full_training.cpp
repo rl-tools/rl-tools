@@ -14,9 +14,9 @@ namespace lic = layer_in_c;
 typedef float T;
 constexpr size_t INPUT_DIM = 17;
 constexpr size_t LAYER_1_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN =  lic::nn::activation_functions::TANH;
+constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN =  lic::nn::activation_functions::GELU;
 constexpr size_t LAYER_2_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = lic::nn::activation_functions::TANH;
+constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = lic::nn::activation_functions::GELU;
 constexpr size_t OUTPUT_DIM = 13;
 constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_FN = lic::nn::activation_functions::IDENTITY;
 
@@ -33,7 +33,7 @@ std::vector<T> X_std;
 std::vector<T> Y_mean;
 std::vector<T> Y_std;
 
-TEST(NEURAL_NETWORK_FULL_TRAINING, FULL_TRAINING) {
+TEST(LAYER_IN_C_NN_FULL_TRAINING, FULL_TRAINING) {
     // loading data
     std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
     const char* data_file_path = std::getenv("LAYER_IN_C_TEST_NN_DATA_FILE");

@@ -13,7 +13,7 @@
 #include "../utils/nn_comparison.h"
 
 #include <layer_in_c/utils/persist.h>
-TEST(NeuralNetworkPersist, Saving) {
+TEST(LAYER_IN_C_NN_PERSIST, Saving) {
 
     NetworkType network_1, network_2;
     std::mt19937 rng(2);

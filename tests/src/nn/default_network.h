@@ -1,7 +1,7 @@
 #include <layer_in_c/nn/nn.h>
 namespace lic = layer_in_c;
 
-typedef float DTYPE;
+typedef double DTYPE;
 constexpr size_t INPUT_DIM = 17;
 constexpr size_t LAYER_1_DIM = 50;
 constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN =  lic::nn::activation_functions::RELU;

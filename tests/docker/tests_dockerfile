@@ -8,6 +8,10 @@ RUN apt-get install -yy build-essential
 # test deps
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update
+# compilation
+RUN apt-get install -y libhdf5-dev
+RUN apt-get install -y libboost-all-dev
+#data gen
 RUN apt-get install -y python3 python3-pip
 RUN pip3 install torch==1.13.1
 RUN pip3 install numpy==1.24.1
@@ -16,6 +20,10 @@ RUN pip3 install h5py==3.7.0
 RUN pip3 install gymnasium==0.27.0
 RUN pip3 install tqdm==4.64.1
 RUN pip3 install matplotlib==3.6.2
+RUN pip3 install --upgrade pip
+RUN pip3 install jax==0.4.1
+RUN pip3 install jaxlib==0.4.1
+
 
 #base stuff
 COPY layer-in-c /layer_in_c
@@ -25,22 +33,31 @@ RUN cmake /layer_in_c
 WORKDIR /
 
 # test data gen
-COPY multirotor-torch/ /multirotor-torch/
-WORKDIR multirotor-torch
-RUN python3 -m multirotor_torch.replicate_first_stage
-RUN python3 -m multirotor_torch.replicate_second_stage
-RUN python3 -m multirotor_torch.replicate_pendulum
+COPY multirotor-jax/ /multirotor-jax/
+WORKDIR multirotor-jax
+RUN python3 -m multirotor_jax.environments.multirotor.generate_data
 WORKDIR /
 
-RUN mkdir build_tests
-WORKDIR build_tests
-RUN apt-get install -y libhdf5-dev
-RUN apt-get install -y libboost-all-dev
-RUN cmake /layer_in_c -DLAYER_IN_C_BUILD_TESTS:BOOL=ON
-RUN cmake --build . -j12
-ENV LAYER_IN_C_TEST_NN_DATA_FILE=/model-learning/data.hdf5
-ENV LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FIRST_STAGE_DATA_FILE=/multirotor-torch/model_first_stage.hdf5
-ENV LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_DATA_FILE=/multirotor-torch/model_second_stage.hdf5
-ENV LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE=/multirotor-torch/pendulum.hdf5
-RUN ctest
+# COPY model-learning/ /model-learning/
+# WORKDIR model-learning
+# RUN python3 -m replicate_torch
+# WORKDIR /
+#
+#
+# COPY multirotor-torch/ /multirotor-torch/
+# WORKDIR multirotor-torch
+# RUN python3 -m multirotor_torch.replicate_first_stage
+# RUN python3 -m multirotor_torch.replicate_second_stage
+# RUN python3 -m multirotor_torch.replicate_pendulum
+# WORKDIR /
+#
+# RUN mkdir build_tests
+# WORKDIR build_tests
+# RUN cmake /layer_in_c -DLAYER_IN_C_BUILD_TESTS:BOOL=ON
+# RUN cmake --build . -j12
+# ENV LAYER_IN_C_TEST_NN_DATA_FILE=/model-learning/data.hdf5
+# ENV LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FIRST_STAGE_DATA_FILE=/multirotor-torch/model_first_stage.hdf5
+# ENV LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_DATA_FILE=/multirotor-torch/model_second_stage.hdf5
+# ENV LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE=/multirotor-torch/pendulum.hdf5
+# RUN ctest
 

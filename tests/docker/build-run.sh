@@ -7,6 +7,7 @@ if [ ! -d context ]; then
     git clone --recursive https://git.jonas.es/studium/phd/projects/rl-for-multirotor-control/layer-in-c.git
     git clone --recursive https://git.jonas.es/studium/phd/multirotor-torch.git
     git clone --recursive https://git.jonas.es/studium/phd/projects/rl-for-multirotor-control/model-learning.git
+    git clone --recursive https://git.jonas.es/hobby-learning/multirotor-jax.git
     cd ..
 fi
 SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
