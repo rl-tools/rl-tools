@@ -59,9 +59,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     std::mt19937 rng(1);
     lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
-    for(int step_i = 0; step_i < 10000000; step_i++){
+    for(int step_i = 0; step_i < 15000; step_i++){
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
-        plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
+        if(step_i % 20 == 0){
+            plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
+        }
 #endif
         if(step_i > REPLAY_BUFFER_CAP){
             std::cout << "warning: replay buffer is rolling over" << std::endl;
@@ -86,6 +88,12 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
         if(step_i % 1000 == 0){
             DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(ENVIRONMENT(), actor_critic.actor, 100, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
+            if(step_i >= 6000){
+                ASSERT_GT(mean_return, -1000);
+            }
+            if(step_i >= 11000){
+                ASSERT_GT(mean_return, -400);
+            }
 
 //#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
 //            plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
