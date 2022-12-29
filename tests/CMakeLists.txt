@@ -28,7 +28,6 @@ add_subdirectory(lib/highfive)
 #set(CMAKE_CXX_STANDARD 17)
 
 enable_testing()
-find_package(HDF5 REQUIRED) # REQUIRED COMPONENTS C HL)
 
 # Neural Network Test
 add_executable(
@@ -40,7 +39,6 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         HighFive
-        HDF5::HDF5
 )
 gtest_discover_tests(test_neural_network)
 
@@ -54,7 +52,6 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         HighFive
-        HDF5::HDF5
 )
 gtest_discover_tests(test_neural_network_full_training)
 
@@ -68,7 +65,6 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         HighFive
-        HDF5::HDF5
 )
 gtest_discover_tests(test_neural_network_persistence)
 
@@ -82,7 +78,6 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         HighFive
-        HDF5::HDF5
 )
 gtest_discover_tests(test_rl_environments_pendulum)
 
@@ -99,7 +94,6 @@ if(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
             test_rl_environments_pendulum_render
             layer_in_c
             GTest::gtest_main
-            HDF5::HDF5
             Qt5::Widgets
     )
     gtest_discover_tests(test_rl_environments_pendulum_render)
@@ -127,7 +121,6 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         HighFive
-        HDF5::HDF5
 )
 gtest_discover_tests(test_rl_algorithms_td3_first_stage)
 
@@ -141,7 +134,6 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         HighFive
-        HDF5::HDF5
 )
 if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
     target_link_libraries(
