@@ -1,3 +1,6 @@
 [submodule "tests/lib/highfive"]
 	path = tests/lib/highfive
 	url = https://github.com/BlueBrain/HighFive.git
+[submodule "tests/lib/matplotlib"]
+	path = tests/lib/matplotlib
+	url = https://github.com/lava/matplotlib-cpp.git
