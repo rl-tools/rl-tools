@@ -4,7 +4,6 @@ namespace layer_in_c::nn::activation_functions {
     enum ActivationFunction{
         RELU,
         GELU,
-        GELU_SQUARE,
         TANH,
         SIGMOID,
         SIGMOID_STRETCHED,
@@ -33,7 +32,7 @@ namespace layer_in_c::nn::activation_functions {
             return x;
         }
         else{
-            return 0;
+            return std::numeric_limits<T>::quiet_NaN();
         }
     }
 

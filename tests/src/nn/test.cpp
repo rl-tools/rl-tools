@@ -401,7 +401,7 @@ TEST_F(LAYER_IN_C_NN_OVERFIT_BATCH, OverfitBatches) {
 #endif
 #endif
 
-constexpr auto MODEL_TRAINING_ACTIVATION_FN = lic::nn::activation_functions::GELU_SQUARE;
+constexpr auto MODEL_TRAINING_ACTIVATION_FN = lic::nn::activation_functions::GELU;
 
 typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC_3;
 typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC_3, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC_3;

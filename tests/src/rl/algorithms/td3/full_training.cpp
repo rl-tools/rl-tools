@@ -26,7 +26,7 @@
 
 
 namespace lic = layer_in_c;
-#define DTYPE double
+using DTYPE = float;
 
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
