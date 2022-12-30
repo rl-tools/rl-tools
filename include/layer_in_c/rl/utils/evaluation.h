@@ -1,5 +1,12 @@
+#ifndef LAYER_IN_C_RL_UTILS_EVALUATION_H
+#define LAYER_IN_C_RL_UTILS_EVALUATION_H
+/*
+ * This file relies on the environments methods hence it should be included after the operations of the environments that it will be used with
+ */
+
 #include "layer_in_c/rl/environments/environments.h"
 #include <iostream>
+
 namespace layer_in_c {
     template<typename ENVIRONMENT, typename POLICY, int STEP_LIMIT>
     typename POLICY::T evaluate(const rl::environments::Environment env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
@@ -62,3 +69,5 @@ namespace layer_in_c {
 
 
 }
+
+#endif

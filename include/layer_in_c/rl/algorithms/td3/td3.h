@@ -49,8 +49,9 @@ namespace layer_in_c::rl::algorithms::td3 {
         typedef T_PARAMETERS PARAMETERS;
     };
 
-    template<typename DEVICE, typename T_SPEC>
+    template<typename T_DEVICE, typename T_SPEC>
     struct ActorCritic {
+        typedef T_DEVICE DEVICE;
         typedef T_SPEC SPEC;
         typedef typename SPEC::T T;
         static constexpr lic::nn::activation_functions::ActivationFunction ACTOR_ACTIVATION_FUNCTION = lic::nn::activation_functions::TANH;

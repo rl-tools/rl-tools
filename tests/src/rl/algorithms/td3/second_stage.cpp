@@ -6,6 +6,7 @@
 #include <layer_in_c/nn_models/persist.h>
 
 #include <layer_in_c/rl/environments/environments.h>
+#include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
 #include <layer_in_c/rl/utils/evaluation.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 #include <layer_in_c/rl/algorithms/td3/td3.h>
@@ -35,7 +36,7 @@ std::string get_data_file_path(){
 }
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
@@ -182,7 +183,14 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, TEST_COPY_TRAINING) {
             ActorCriticType::CRITIC_NETWORK_TYPE post_critic_1;// = actor_critic.critic_1;
             lic::load(post_critic_1, step_group.getGroup("critic1"));
 
-            DTYPE critic_1_loss = lic::train_critic_deterministic(actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
+            DTYPE critic_1_loss = lic::train_critic<
+                    decltype(actor_critic)::DEVICE,
+                    decltype(actor_critic)::SPEC,
+                    decltype(actor_critic.critic_1),
+                    decltype(replay_buffer)::CAPACITY,
+                    decltype(rng),
+                    true
+            >(actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
 
 
             DTYPE pre_post_diff_per_weight = abs_diff(pre_critic_1, post_critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
@@ -226,7 +234,14 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, TEST_COPY_TRAINING) {
             mean_ratio_critic_grad += diff_ratio_grad;
             mean_ratio_critic_adam += diff_ratio_adam;
 
-            DTYPE critic_2_loss = lic::train_critic_deterministic(actor_critic, actor_critic.critic_2, replay_buffer, target_next_action_noise, rng);
+            DTYPE critic_2_loss = lic::train_critic<
+                decltype(actor_critic)::DEVICE,
+                decltype(actor_critic)::SPEC,
+                decltype(actor_critic.critic_2),
+                decltype(replay_buffer)::CAPACITY,
+                decltype(rng),
+                true
+            >(actor_critic, actor_critic.critic_2, replay_buffer, target_next_action_noise, rng);
             pre_critic_1 = actor_critic.critic_1;
 
             if(true){//(step_i % 100 == 0){

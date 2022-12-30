@@ -25,7 +25,7 @@ std::string get_data_file_path(){
 }
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
 #define SKIP_FULL_TRAINING
@@ -230,7 +230,14 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_TRAINING) {
             }
         }
 
-        DTYPE critic_1_loss = lic::train_critic_deterministic(actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
+        DTYPE critic_1_loss = lic::train_critic<
+                decltype(actor_critic)::DEVICE,
+                decltype(actor_critic)::SPEC,
+                decltype(actor_critic.critic_1),
+                decltype(replay_buffer)::CAPACITY,
+                decltype(rng),
+                true
+        >(actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
 
         DTYPE pre_post_diff_per_weight = abs_diff(pre_critic_1, post_critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
         DTYPE diff_target_per_weight = abs_diff(post_critic_1, actor_critic.critic_1)/ActorCriticType::CRITIC_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
