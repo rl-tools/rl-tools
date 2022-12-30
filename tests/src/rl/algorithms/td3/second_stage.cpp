@@ -7,8 +7,9 @@
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/utils/evaluation.h>
-#include <layer_in_c/rl/algorithms/td3/off_policy_runner.h>
+#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 #include <layer_in_c/rl/algorithms/td3/td3.h>
+#include <layer_in_c/rl/algorithms/td3/operations_generic.h>
 #include <layer_in_c/utils/rng_std.h>
 #include "../../../utils/utils.h"
 #include "../../../utils/nn_comparison.h"

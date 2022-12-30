@@ -182,22 +182,22 @@ endif()
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
 
 
-# RL Algorithm td3 test full training
-find_package(TBB REQUIRED)
-add_executable(
-        test_rl_algorithms_td3_pendulum_training_stats
-        src/rl/algorithms/td3/pendulum_training_stats.cpp
-)
-target_link_libraries(
-        test_rl_algorithms_td3_pendulum_training_stats
-        layer_in_c
-        GTest::gtest_main
-        HighFive
-        matplotlib_cpp
-        TBB::tbb
-)
-target_include_directories(test_rl_algorithms_td3_pendulum_training_stats PRIVATE lib)
-gtest_discover_tests(test_rl_algorithms_td3_pendulum_training_stats)
+## RL Algorithm td3 test training stats
+#find_package(TBB REQUIRED)
+#add_executable(
+#        test_rl_algorithms_td3_pendulum_training_stats
+#        src/rl/algorithms/td3/pendulum_training_stats.cpp
+#)
+#target_link_libraries(
+#        test_rl_algorithms_td3_pendulum_training_stats
+#        layer_in_c
+#        GTest::gtest_main
+#        HighFive
+#        matplotlib_cpp
+#        TBB::tbb
+#)
+#target_include_directories(test_rl_algorithms_td3_pendulum_training_stats PRIVATE lib)
+#gtest_discover_tests(test_rl_algorithms_td3_pendulum_training_stats)
 
 
 

@@ -1,6 +1,7 @@
 #ifndef LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_OPERATIONS_GENERIC
 #define LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_OPERATIONS_GENERIC
 #include "pendulum.h"
+#include <random>
 namespace layer_in_c::rl::environments::pendulum {
     template <typename T>
     inline T clip(T x, T min, T max){
