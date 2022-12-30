@@ -5,7 +5,7 @@
 
 namespace layer_in_c::nn_models::mlp {
     template <typename T_T>
-    struct ExampleSpec{
+    struct ExampleStructureSpecification{
         typedef T_T T;
         static constexpr size_t INPUT_DIM = 17;
         static constexpr size_t OUTPUT_DIM = 13;
@@ -18,13 +18,36 @@ namespace layer_in_c::nn_models::mlp {
     struct InferenceSpecification{
         using DEVICE = T_DEVICE;
         using S = STRUCTURE_SPEC;
-        using T = typename S::T ;
+        using T = typename S::T;
 
         using  INPUT_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpec<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
         using HIDDEN_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
         using OUTPUT_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>>;
     };
 
+    template <typename T_DEVICE, typename STRUCTURE_SPEC>
+    struct InferenceBackwardSpecification{
+        using DEVICE = T_DEVICE;
+        using S = STRUCTURE_SPEC;
+        using T = typename S::T;
+
+        using  INPUT_LAYER = nn::layers::dense::LayerBackward<DEVICE, nn::layers::dense::LayerSpec<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackward<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackward<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>>;
+    };
+
+    template<typename T_DEVICE, typename T_STRUCTURE_SPEC, typename T_SGD_PARAMETERS>
+    struct SGDSpecification{
+        using DEVICE = T_DEVICE;
+        using STRUCTURE_SPEC = T_STRUCTURE_SPEC;
+        using S = STRUCTURE_SPEC;
+        using T = typename S::T;
+        using SGD_PARAMETERS = T_SGD_PARAMETERS;
+
+        using  INPUT_LAYER = nn::layers::dense::LayerBackwardSGD<DEVICE, nn::layers::dense::LayerSpec<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, SGD_PARAMETERS>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardSGD<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, SGD_PARAMETERS>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardSGD<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>, SGD_PARAMETERS>;
+    };
 
     template<typename T_DEVICE, typename T_STRUCTURE_SPEC, typename T_ADAM_PARAMETERS>
     struct AdamSpecification{

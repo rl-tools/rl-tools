@@ -12,16 +12,19 @@
 namespace lic = layer_in_c;
 
 typedef float T;
-constexpr size_t INPUT_DIM = 17;
-constexpr size_t LAYER_1_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN =  lic::nn::activation_functions::GELU;
-constexpr size_t LAYER_2_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = lic::nn::activation_functions::GELU;
-constexpr size_t OUTPUT_DIM = 13;
-constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_FN = lic::nn::activation_functions::IDENTITY;
 
-using NETWORK_STRUCTURE_SPEC = lic::nn_models::mlp::ExampleSpec<T>;
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
+template <typename T_T>
+struct StructureSpecification{
+    typedef T_T T;
+    static constexpr size_t INPUT_DIM = 17;
+    static constexpr size_t OUTPUT_DIM = 13;
+    static constexpr int NUM_HIDDEN_LAYERS = 2;
+    static constexpr int HIDDEN_DIM = 50;
+    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
+    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
+};
+
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<lic::devices::Generic, StructureSpecification<T>, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
@@ -32,6 +35,9 @@ std::vector<T> X_mean;
 std::vector<T> X_std;
 std::vector<T> Y_mean;
 std::vector<T> Y_std;
+
+constexpr size_t INPUT_DIM = StructureSpecification<T>::INPUT_DIM;
+constexpr size_t OUTPUT_DIM = StructureSpecification<T>::OUTPUT_DIM;
 
 TEST(LAYER_IN_C_NN_FULL_TRAINING, FULL_TRAINING) {
     // loading data
