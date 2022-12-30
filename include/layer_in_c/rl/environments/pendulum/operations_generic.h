@@ -1,7 +1,6 @@
 #ifndef LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_OPERATIONS_GENERIC
 #define LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_OPERATIONS_GENERIC
 #include "pendulum.h"
-#include <random>
 namespace layer_in_c::rl::environments::pendulum {
     template <typename T>
     inline T clip(T x, T min, T max){
@@ -22,11 +21,6 @@ namespace layer_in_c::rl::environments::pendulum {
     }
 }
 namespace layer_in_c{
-    template<typename SPEC, typename RNG>
-    static void sample_initial_state(const rl::environments::Pendulum<devices::Generic, SPEC>& env, rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
-        state.theta     = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle)(rng);
-        state.theta_dot = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed)(rng);
-    }
     template<typename SPEC>
     static typename SPEC::T step(const rl::environments::Pendulum<devices::Generic, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], rl::environments::pendulum::State<typename SPEC::T>& next_state) {
         using namespace rl::environments::pendulum;

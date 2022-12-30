@@ -4,6 +4,7 @@
 namespace layer_in_c {
     namespace devices {
         struct Generic{};
+        struct CPU{};
     }
 }
 
