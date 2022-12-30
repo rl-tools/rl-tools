@@ -20,9 +20,9 @@ constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = lic::nn
 constexpr size_t OUTPUT_DIM = 13;
 constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_FN = lic::nn::activation_functions::IDENTITY;
 
-typedef lic::nn_models::three_layer_fc::StructureSpecification<T, INPUT_DIM, 50, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
-typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<T>> NETWORK_SPEC;
-typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType;
+using NETWORK_STRUCTURE_SPEC = lic::nn_models::mlp::ExampleSpec<T>;
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
+using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
 std::vector<std::vector<T>> Y_train;

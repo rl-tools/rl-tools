@@ -587,4 +587,8 @@ TEST_F(LAYER_IN_C_NN_TRAIN_MODEL, ModelInitTrain) {
 // GELU PyTorch [0.00456139 0.00306715 0.00215886]
 }
 //#endif
+// after refactoring
+//11: epoch_i 0 loss: train:0.00180514 val: 0.000883146
+//11: epoch_i 1 loss: train:0.000798555 val: 0.000770896
+//11: epoch_i 2 loss: train:0.000730709 val: 0.000740552
 #endif

@@ -57,6 +57,19 @@ target_link_libraries(
 )
 gtest_discover_tests(test_neural_network_full_training)
 
+# Neural Network Test Full Training MLP
+add_executable(
+        test_neural_network_full_training_mlp
+        src/nn/full_training_mlp.cpp
+)
+target_link_libraries(
+        test_neural_network_full_training_mlp
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+)
+gtest_discover_tests(test_neural_network_full_training_mlp)
+
 # Neural Network Persistence Test
 add_executable(
         test_neural_network_persistence
