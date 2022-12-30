@@ -107,9 +107,9 @@ protected:
 
 constexpr DTYPE BACKWARD_PASS_GRADIENT_TOLERANCE (1e-8);
 #ifndef SKIP_BACKPROP_TESTS
-typedef NeuralNetworkTestLoadWeights<NetworkType_1> LAYER_IN_C_NN_BACKWARD_PASS;
+using LAYER_IN_C_NN_MLP_BACKWARD_PASS = NeuralNetworkTestLoadWeights<NetworkType_1>;
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_1_weights) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, layer_1_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_1_DIM, INPUT_DIM
     >(
@@ -122,7 +122,7 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_1_weights) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_1_biases) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, layer_1_biases) {
     DTYPE out = abs_diff<
             DTYPE, LAYER_1_DIM
     >(
@@ -135,7 +135,7 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_1_biases) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_2_weights) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, layer_2_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_2_DIM, LAYER_1_DIM
     >(
@@ -148,7 +148,7 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_2_weights) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_2_biases) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, layer_2_biases) {
     DTYPE out = abs_diff<
             DTYPE, LAYER_2_DIM
     >(
@@ -161,7 +161,7 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_2_biases) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, output_layer_weights) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, OUTPUT_DIM, LAYER_2_DIM
     >(
@@ -174,7 +174,7 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, output_layer_weights) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, output_layer_biases) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_biases) {
     DTYPE out = abs_diff<
             DTYPE, OUTPUT_DIM
     >(
@@ -189,9 +189,9 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, output_layer_biases) {
 
 
 #ifndef SKIP_ADAM_TESTS
-typedef LAYER_IN_C_NN_BACKWARD_PASS LAYER_IN_C_NN_ADAM_UPDATE;
+typedef LAYER_IN_C_NN_MLP_BACKWARD_PASS LAYER_IN_C_NN_MLP_ADAM_UPDATE;
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_ADAM_UPDATE, AdamUpdate) {
+TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
@@ -264,9 +264,9 @@ TEST_F(LAYER_IN_C_NN_ADAM_UPDATE, AdamUpdate) {
 //#endif
 
 #ifndef SKIP_OVERFITTING_TESTS
-class LAYER_IN_C_NN_OVERFIT_BATCH : public LAYER_IN_C_NN_BACKWARD_PASS {
+class LAYER_IN_C_NN_MLP_OVERFIT_BATCH : public LAYER_IN_C_NN_MLP_BACKWARD_PASS {
 public:
-    LAYER_IN_C_NN_OVERFIT_BATCH() : LAYER_IN_C_NN_BACKWARD_PASS(){
+    LAYER_IN_C_NN_MLP_OVERFIT_BATCH() : LAYER_IN_C_NN_MLP_BACKWARD_PASS(){
         model_name = "model_2";
     }
 protected:
@@ -277,7 +277,7 @@ protected:
     }
 };
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_OVERFIT_BATCH, OverfitBatch) {
+TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
@@ -333,7 +333,7 @@ TEST_F(LAYER_IN_C_NN_OVERFIT_BATCH, OverfitBatch) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_OVERFIT_BATCH, OverfitBatches) {
+TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     std::vector<DTYPE> losses;
     constexpr int n_batches = 10;
     for(int batch_i_real=0; batch_i_real < n_batches; batch_i_real++){
@@ -419,10 +419,10 @@ TEST_F(LAYER_IN_C_NN_OVERFIT_BATCH, OverfitBatches) {
 //typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC_3> NetworkType_3;
 //typedef nn_models::three_layer_fc::SGDSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultSGDParameters<DTYPE>> NETWORK_SPEC_3;
 //typedef nn_models::three_layer_fc::NeuralNetworkSGD<NETWORK_SPEC_3> NetworkType_3;
-class LAYER_IN_C_NN_TRAIN_MODEL : public NeuralNetworkTestLoadWeights<NetworkType_3> {
+class LAYER_IN_C_NN_MLP_TRAIN_MODEL : public NeuralNetworkTestLoadWeights<NetworkType_3> {
 public:
     typedef NetworkType_3 NETWORK_TYPE;
-    LAYER_IN_C_NN_TRAIN_MODEL() : NeuralNetworkTestLoadWeights<NetworkType_3>(){
+    LAYER_IN_C_NN_MLP_TRAIN_MODEL() : NeuralNetworkTestLoadWeights<NetworkType_3>(){
         model_name = "model_3";
     }
 protected:
@@ -434,7 +434,7 @@ protected:
 };
 #ifndef SKIP_TRAINING_TESTS
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_TRAIN_MODEL, TrainModel) {
+TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
@@ -513,7 +513,7 @@ TEST_F(LAYER_IN_C_NN_TRAIN_MODEL, TrainModel) {
 #endif
 
 //#ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_TRAIN_MODEL, ModelInitTrain) {
+TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
 //    assert((std::is_same_v<typeof(network), NETWORK_TYPE>));
 //    typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
 //    typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC;
