@@ -4,6 +4,7 @@ namespace layer_in_c::rl::environments {
     struct Environment{};
 }
 #include "pendulum/pendulum.h"
+#include "pendulum/operations_generic.h"
 
 
 #endif
