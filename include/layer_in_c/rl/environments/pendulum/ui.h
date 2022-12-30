@@ -9,7 +9,7 @@
 //#include <glib.h>
 #include <iostream>
 #include <mutex>
-#include "dynamics.h"
+#include "pendulum.h"
 
 
 namespace layer_in_c::rl::environments::pendulum {

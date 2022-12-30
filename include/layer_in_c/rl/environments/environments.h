@@ -3,7 +3,7 @@
 namespace layer_in_c::rl::environments {
     struct Environment{};
 }
-#include "pendulum/dynamics.h"
+#include "pendulum/pendulum.h"
 
 
 #endif
