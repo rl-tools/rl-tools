@@ -107,7 +107,8 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     return acc;
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_FORWARD) {
-    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    using ActorCriticSpec = lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>;
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
@@ -144,7 +145,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_FORWARD) {
 
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
-    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>> ActorCriticType;
+    using ActorCriticSpec = lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>;
+    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
@@ -185,7 +187,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     constexpr bool verbose = true;
-    typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
+    typedef lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     ActorCriticType actor_critic;
 
@@ -200,7 +202,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
     lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
-    typedef lic::rl::algorithms::td3::ReplayBuffer<DTYPE, 3, 1, 100> ReplayBufferType;
+    using ReplayBufferSpec = lic::rl::components::replay_buffer::Spec<DTYPE, 3, 1, 100>;
+    using ReplayBufferType = lic::rl::components::ReplayBuffer<lic::devices::Generic, ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     static_assert(TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE == TD3Parameters<DTYPE>::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
@@ -234,6 +237,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_TRAINING) {
                 decltype(actor_critic)::DEVICE,
                 decltype(actor_critic)::SPEC,
                 decltype(actor_critic.critic_1),
+                decltype(replay_buffer)::DEVICE,
                 decltype(replay_buffer)::CAPACITY,
                 decltype(rng),
                 true
@@ -286,7 +290,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     constexpr bool verbose = true;
-    typedef lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
+    typedef lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
     typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     ActorCriticType actor_critic;
 
@@ -301,7 +305,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
     lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
-    typedef lic::rl::algorithms::td3::ReplayBuffer<DTYPE, 3, 1, 100> ReplayBufferType;
+    using ReplayBufferSpec = lic::rl::components::replay_buffer::Spec<DTYPE, 3, 1, 100>;
+    using ReplayBufferType = lic::rl::components::ReplayBuffer<lic::devices::Generic, ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     static_assert(TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE == TD3Parameters<DTYPE>::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
@@ -319,7 +324,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_ACTOR_TRAINING) {
         ss << "actor_training/" << training_step_i;
         lic::load(post_actor, data_file.getGroup(ss.str()));
 
-        DTYPE actor_1_loss = lic::train_actor<lic::devices::Generic, ActorCriticSpec,  ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+        DTYPE actor_1_loss = lic::train_actor<lic::devices::Generic, ActorCriticSpec, ReplayBufferType::DEVICE, ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
 
         DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;
         DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::ACTOR_NETWORK_STRUCTURE_SPEC::NUM_WEIGHTS;

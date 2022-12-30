@@ -1,14 +1,19 @@
 #include <layer_in_c/utils/generic/math.h>
 #include "off_policy_runner.h"
 
+#include <layer_in_c/rl/components/replay_buffer/operations_cpu.h>
+
 #include <random>
 #include <iostream>
 
 namespace layer_in_c{
-    template<typename T, typename ENVIRONMENT, typename POLICY, typename PARAMETERS, typename RNG>
-    void step(rl::algorithms::td3::OffPolicyRunner<T, ENVIRONMENT, PARAMETERS> &runner, POLICY &policy, RNG &rng) {
+    template<typename SPEC, typename POLICY, typename RNG>
+    void step(rl::components::OffPolicyRunner<devices::CPU, SPEC> &runner, POLICY &policy, RNG &rng) {
+        using T = typename SPEC::T;
         // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
-        if ((PARAMETERS::STEP_LIMIT > 0 && runner.episode_step == PARAMETERS::STEP_LIMIT) ||
+        typedef typename SPEC::ENVIRONMENT ENVIRONMENT;
+        typedef typename SPEC::PARAMETERS PARAMETERS;
+        if ((SPEC::STEP_LIMIT > 0 && runner.episode_step == SPEC::STEP_LIMIT) ||
             (runner.replay_buffer.position == 0 && !runner.replay_buffer.full)) {
             // first step
             sample_initial_state(ENVIRONMENT(), runner.state, rng);
@@ -34,7 +39,7 @@ namespace layer_in_c{
         bool terminated_flag = terminated(ENVIRONMENT(), next_state);
         runner.episode_step += 1;
         runner.episode_return += reward_value;
-        bool truncated = runner.episode_step == PARAMETERS::STEP_LIMIT;
+        bool truncated = runner.episode_step == SPEC::STEP_LIMIT;
         if (truncated || terminated_flag) {
             std::cout << "Episode return: " << runner.episode_return << std::endl;
         }

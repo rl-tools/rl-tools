@@ -1,4 +1,5 @@
 #include <layer_in_c/nn_models/models.h>
+
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 #include <layer_in_c/rl/algorithms/td3/operations_generic.h>
@@ -42,14 +43,23 @@ using TestCriticNetworkDefinition = lic::rl::algorithms::td3::CriticNetworkSpeci
 
 template <typename T>
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultTD3Parameters<T>{
-    constexpr static uint32_t CRITIC_BATCH_SIZE = 100;
-    constexpr static uint32_t ACTOR_BATCH_SIZE = 100;
+    constexpr static size_t CRITIC_BATCH_SIZE = 100;
+    constexpr static size_t ACTOR_BATCH_SIZE = 100;
 };
 
 constexpr size_t REPLAY_BUFFER_CAP = 500000;
 constexpr size_t ENVIRONMENT_STEP_LIMIT = 200;
-typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3PendulumParameters<DTYPE>>> ActorCriticType;
-lic::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, lic::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT>> off_policy_runner;
+typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::CPU, lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3PendulumParameters<DTYPE>>> ActorCriticType;
+lic::rl::components::OffPolicyRunner<
+    lic::devices::CPU,
+    lic::rl::components::off_policy_runner::Spec<
+        DTYPE,
+        ENVIRONMENT,
+        REPLAY_BUFFER_CAP,
+        ENVIRONMENT_STEP_LIMIT,
+        lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
+    >
+> off_policy_runner;
 ActorCriticType actor_critic;
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
@@ -60,7 +70,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     UI ui;
 #endif
     std::mt19937 rng(2);
-    lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::init<decltype(actor_critic)::DEVICE, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS

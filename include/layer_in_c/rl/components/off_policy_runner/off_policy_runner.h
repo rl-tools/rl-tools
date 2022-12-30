@@ -6,20 +6,32 @@
 
 namespace lic = layer_in_c;
 
-namespace layer_in_c::rl::algorithms::td3 {
-    template<typename T, int T_CAPACITY, int T_STEP_LIMIT>
-    struct DefaultOffPolicyRunnerParameters {
-        static constexpr uint32_t CAPACITY = T_CAPACITY;
-        static constexpr uint32_t STEP_LIMIT = T_STEP_LIMIT;
+namespace layer_in_c::rl::components::off_policy_runner {
+    template<typename T>
+    struct DefaultParameters{
         static constexpr T EXPLORATION_NOISE = 0.1;
     };
+    template<typename T_T, typename T_ENVIRONMENT, size_t T_REPLAY_BUFFER_CAPACITY, size_t T_STEP_LIMIT, typename T_PARAMETERS>
+    struct Spec{
+        typedef T_T T;
+        typedef T_ENVIRONMENT ENVIRONMENT;
+        static constexpr size_t REPLAY_BUFFER_CAPACITY = T_REPLAY_BUFFER_CAPACITY;
+        static constexpr size_t STEP_LIMIT = T_STEP_LIMIT;
+        typedef T_PARAMETERS PARAMETERS;
+    };
 
-    template<typename T, typename ENVIRONMENT, typename PARAMETERS>
+}
+
+namespace layer_in_c::rl::components{
+    template<typename DEVICE, typename SPEC>
     struct OffPolicyRunner {
-        ReplayBuffer<T, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::CAPACITY> replay_buffer;
-        typename ENVIRONMENT::State state;
-        uint32_t episode_step = 0;
-        T episode_return = 0;
+        typedef replay_buffer::Spec<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY> ReplayBufferSpec;
+
+        ReplayBuffer<DEVICE, ReplayBufferSpec> replay_buffer;
+        typename SPEC::ENVIRONMENT::State state;
+        size_t episode_step = 0;
+        typename SPEC::T episode_return = 0;
     };
 }
+
 #endif

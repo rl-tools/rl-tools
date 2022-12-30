@@ -1,7 +1,6 @@
 #ifndef NEURAL_NETWORK_MODELS_H
 #define NEURAL_NETWORK_MODELS_H
 #include <layer_in_c/nn/nn.h>
-#include <cstdint>
 namespace layer_in_c::nn_models::three_layer_fc {
     template <
             typename T_T,
@@ -98,7 +97,7 @@ namespace layer_in_c::nn_models::three_layer_fc {
 
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<DEVICE, SPEC>{
-        uint32_t age = 1;
+        size_t age = 1;
     };
 
 

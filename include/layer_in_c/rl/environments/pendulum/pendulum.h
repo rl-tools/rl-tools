@@ -35,8 +35,8 @@ namespace layer_in_c::rl::environments {
     struct Pendulum: Environment{
         typedef pendulum::State<typename SPEC::T> State;
         typedef typename SPEC::PARAMETERS PARAMETERS;
-        static constexpr uint32_t OBSERVATION_DIM = 3;
-        static constexpr uint32_t ACTION_DIM = 1;
+        static constexpr size_t OBSERVATION_DIM = 3;
+        static constexpr size_t ACTION_DIM = 1;
     };
 
 }

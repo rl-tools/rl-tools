@@ -4,5 +4,3 @@
 
 #include "three_layer_fc/operations_generic.h"
 
-namespace layer_in_c {
-}
