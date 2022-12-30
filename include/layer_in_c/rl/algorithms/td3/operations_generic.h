@@ -4,13 +4,13 @@
 #include <layer_in_c/rl/components/replay_buffer/replay_buffer.h>
 #include <layer_in_c/nn/nn.h>
 #include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/utils/polyak.h>
+#include <layer_in_c/utils/generic/polyak.h>
 
 namespace layer_in_c{
     template<typename SPEC>
     void update_target_layer(lic::nn::layers::dense::Layer<lic::devices::Generic, SPEC>& target, const lic::nn::layers::dense::Layer<lic::devices::Generic, SPEC>& source, typename SPEC::T polyak) {
-        lic::utils::polyak::update_matrix<typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(target.weights, source.weights, polyak);
-        lic::utils::polyak::update       <typename SPEC::T, SPEC::OUTPUT_DIM                 >(target.biases , source.biases , polyak);
+        lic::utils::polyak::update_matrix<typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(lic::devices::Generic(), target.weights, source.weights, polyak);
+        lic::utils::polyak::update       <typename SPEC::T, SPEC::OUTPUT_DIM                 >(lic::devices::Generic(), target.biases , source.biases , polyak);
     }
     template<typename T, typename TARGET_NETWORK_TYPE, typename SOURCE_NETWORK_TYPE>
     void update_target_network(TARGET_NETWORK_TYPE& target, const SOURCE_NETWORK_TYPE& source, T polyak) {

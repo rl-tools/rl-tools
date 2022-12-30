@@ -2,6 +2,7 @@
 #define LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H
 
 #include <layer_in_c/nn/layers/dense/layer.h>
+#include <layer_in_c/utils/generic/polyak.h>
 
 namespace layer_in_c{
     // evaluating a layer does not change its state (like pre_activations and outputs). Before using backward, to fill the state, use the forward method instead
@@ -128,11 +129,12 @@ namespace layer_in_c{
 
     template<typename LS, typename PARAMETERS>
     FUNCTION_PLACEMENT void update_layer(nn::layers::dense::LayerBackwardAdam<devices::Generic, LS, PARAMETERS>& layer, typename LS::T first_order_moment_bias_correction, typename LS::T second_order_moment_bias_correction) {
-        utils::polyak::update_matrix<typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
-        utils::polyak::update       <typename LS::T, LS::OUTPUT_DIM>               (layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
+        // todo remove template params (auto inference)
+        utils::polyak::update_matrix<typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(devices::Generic(), layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
+        utils::polyak::update       <typename LS::T, LS::OUTPUT_DIM>               (devices::Generic(), layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
 
-        utils::polyak::update_squared_matrix<typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
-        utils::polyak::update_squared       <typename LS::T, LS::OUTPUT_DIM>               (layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
+        utils::polyak::update_squared_matrix<typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(devices::Generic(), layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
+        utils::polyak::update_squared       <typename LS::T, LS::OUTPUT_DIM>               (devices::Generic(), layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
 
         gradient_descent(layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
 

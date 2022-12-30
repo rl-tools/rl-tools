@@ -1,7 +1,6 @@
 #ifndef LAYER_IN_C_NN_LAYERS_DENSE_LAYER_H
 #define LAYER_IN_C_NN_LAYERS_DENSE_LAYER_H
 #include <layer_in_c/nn/activation_functions.h>
-#include <layer_in_c/utils/polyak.h>
 
 namespace layer_in_c::nn::layers::dense {
     template<typename T_T, int T_INPUT_DIM, int T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION>
