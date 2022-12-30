@@ -1,18 +1,27 @@
 #include <layer_in_c/nn/nn.h>
 namespace lic = layer_in_c;
 
-typedef double DTYPE;
-constexpr size_t INPUT_DIM = 17;
-constexpr size_t LAYER_1_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN =  lic::nn::activation_functions::RELU;
-constexpr size_t LAYER_2_DIM = 50;
-constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = lic::nn::activation_functions::RELU;
-constexpr size_t OUTPUT_DIM = 13;
-constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_FN = lic::nn::activation_functions::IDENTITY;
+using DTYPE = double;
 
-typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
-typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC;
-typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType;
+
+template <typename T_T>
+struct StructureSpecification{
+    typedef T_T T;
+    static constexpr size_t INPUT_DIM = 17;
+    static constexpr size_t OUTPUT_DIM = 13;
+    static constexpr int NUM_HIDDEN_LAYERS = 1;
+    static constexpr int HIDDEN_DIM = 50;
+    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
+    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
+};
+
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<lic::devices::Generic, StructureSpecification<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC>;
+
+constexpr size_t INPUT_DIM = StructureSpecification<DTYPE>::INPUT_DIM;
+constexpr size_t LAYER_1_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
+constexpr size_t LAYER_2_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
+constexpr size_t OUTPUT_DIM = StructureSpecification<DTYPE>::OUTPUT_DIM;
 
 class NeuralNetworkTest : public ::testing::Test {
 protected:
@@ -46,3 +55,15 @@ protected:
     std::vector<DTYPE> Y_std;
 };
 
+template <typename T_T>
+struct StructureSpecification_3{
+    typedef T_T T;
+    static constexpr size_t INPUT_DIM = 17;
+    static constexpr size_t OUTPUT_DIM = 13;
+    static constexpr int NUM_HIDDEN_LAYERS = 1;
+    static constexpr int HIDDEN_DIM = 50;
+    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
+    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
+};
+using NETWORK_SPEC_3 = lic::nn_models::mlp::AdamSpecification<lic::devices::Generic, StructureSpecification_3<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using NetworkType_3 = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC_3>;

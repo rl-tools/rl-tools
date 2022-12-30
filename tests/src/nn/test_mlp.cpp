@@ -10,7 +10,7 @@
 #include <layer_in_c/utils/rng_std.h>
 #include "../utils/utils.h"
 #include <sstream>
-#include "default_network.h"
+#include "default_network_mlp.h"
 //#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS
@@ -21,18 +21,29 @@
 constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
 
-typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
-typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC;
-typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType_1;
+//typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
+//typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC;
+//typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType_1;
+using NetworkType_1 = NetworkType;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
     g.getDataSet("layer_1/weight").read(weights);
-    acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.layer_1.weights, weights);
+    acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights, weights);
     return acc;
 }
+
+//template <typename DEVICE, typename SPEC>
+//typename SPEC::T abs_diff_network(const lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC> network, const HighFive::Group g){
+//    using T = typename SPEC::T;
+//    T acc = 0;
+//    std::vector<std::vector<T>> weights;
+//    g.getDataSet("layer_1/weight").read(weights);
+//    acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights, weights);
+//    return acc;
+//}
 
 template <typename NetworkType>
 class NeuralNetworkTestLoadWeights : public NeuralNetworkTest {
@@ -71,10 +82,10 @@ protected:
         data_file.getDataSet(model_name + "/init/layer_2/bias").read(layer_2_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.layer_1.weights     , layer_1_weights);
-        memcpy(network.layer_1.biases, layer_1_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.layer_2.weights     , layer_2_weights);
-        memcpy(network.layer_2.biases, layer_2_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
+        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights     , layer_1_weights);
+        memcpy(network.input_layer.biases, layer_1_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
+        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights     , layer_2_weights);
+        memcpy(network.hidden_layers[0].biases, layer_2_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
         assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights, output_layer_weights);
         memcpy(network.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
     }
@@ -102,7 +113,7 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_1_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_1_DIM, INPUT_DIM
     >(
-            network.layer_1.d_weights,
+            network.input_layer.d_weights,
             batch_0_layer_1_weights_grad
     );
     std::cout << "layer_1_weights diff: " << out << std::endl;
@@ -115,7 +126,7 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_1_biases) {
     DTYPE out = abs_diff<
             DTYPE, LAYER_1_DIM
     >(
-            network.layer_1.d_biases,
+            network.input_layer.d_biases,
             batch_0_layer_1_biases_grad.data()
     );
     std::cout << "layer_1_biases diff: " << out << std::endl;
@@ -128,7 +139,7 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_2_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_2_DIM, LAYER_1_DIM
     >(
-            network.layer_2.d_weights,
+            network.hidden_layers[0].d_weights,
             batch_0_layer_2_weights_grad
     );
     std::cout << "layer_2_weights diff: " << out << std::endl;
@@ -141,7 +152,7 @@ TEST_F(LAYER_IN_C_NN_BACKWARD_PASS, layer_2_biases) {
     DTYPE out = abs_diff<
             DTYPE, LAYER_2_DIM
     >(
-            network.layer_2.d_biases,
+            network.hidden_layers[0].d_biases,
             batch_0_layer_2_biases_grad.data()
     );
     std::cout << "layer_2_biases diff: " << out << std::endl;
@@ -214,7 +225,7 @@ TEST_F(LAYER_IN_C_NN_ADAM_UPDATE, AdamUpdate) {
             LAYER_1_DIM,
             INPUT_DIM
     >(
-            network.layer_1.weights,
+            network.input_layer.weights,
             batch_0_layer_1_weights
     );
     ASSERT_LT(out, 1.5e-7);
@@ -401,11 +412,11 @@ TEST_F(LAYER_IN_C_NN_OVERFIT_BATCH, OverfitBatches) {
 #endif
 #endif
 
-constexpr auto MODEL_TRAINING_ACTIVATION_FN = lic::nn::activation_functions::GELU;
-
-typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC_3;
-typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC_3, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC_3;
-typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC_3> NetworkType_3;
+//constexpr auto MODEL_TRAINING_ACTIVATION_FN = lic::nn::activation_functions::GELU;
+//
+//typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC_3;
+//typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC_3, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC_3;
+//typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC_3> NetworkType_3;
 //typedef nn_models::three_layer_fc::SGDSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultSGDParameters<DTYPE>> NETWORK_SPEC_3;
 //typedef nn_models::three_layer_fc::NeuralNetworkSGD<NETWORK_SPEC_3> NetworkType_3;
 class LAYER_IN_C_NN_TRAIN_MODEL : public NeuralNetworkTestLoadWeights<NetworkType_3> {
@@ -504,9 +515,9 @@ TEST_F(LAYER_IN_C_NN_TRAIN_MODEL, TrainModel) {
 //#ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_TRAIN_MODEL, ModelInitTrain) {
 //    assert((std::is_same_v<typeof(network), NETWORK_TYPE>));
-    typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
-    typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC;
-    typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType;
+//    typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
+//    typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC;
+//    typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType;
     NetworkType network;
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;

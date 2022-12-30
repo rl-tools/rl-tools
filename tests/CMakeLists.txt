@@ -44,6 +44,19 @@ target_link_libraries(
 )
 gtest_discover_tests(test_neural_network)
 
+# Neural Network Test MLP
+add_executable(
+        test_neural_network_mlp
+        src/nn/test_mlp.cpp
+)
+target_link_libraries(
+        test_neural_network_mlp
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+)
+gtest_discover_tests(test_neural_network_mlp)
+
 # Neural Network Test Full Training
 add_executable(
         test_neural_network_full_training

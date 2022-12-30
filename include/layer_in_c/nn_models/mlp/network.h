@@ -7,10 +7,10 @@ namespace layer_in_c::nn_models::mlp {
     template <typename T_T>
     struct ExampleStructureSpecification{
         typedef T_T T;
-        static constexpr size_t INPUT_DIM = 17;
-        static constexpr size_t OUTPUT_DIM = 13;
+        static constexpr size_t INPUT_DIM = 10;
+        static constexpr size_t OUTPUT_DIM = 5;
         static constexpr int NUM_HIDDEN_LAYERS = 2;
-        static constexpr int HIDDEN_DIM = 50;
+        static constexpr int HIDDEN_DIM = 30;
         static constexpr nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = nn::activation_functions::GELU;
         static constexpr nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = nn::activation_functions::IDENTITY;
     };
