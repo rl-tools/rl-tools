@@ -1,7 +1,7 @@
 #ifndef NEURAL_NETWORK_MODELS_H
 #define NEURAL_NETWORK_MODELS_H
 #include <layer_in_c/nn/nn.h>
-#include <stdint.h>
+#include <cstdint>
 namespace layer_in_c::nn_models::three_layer_fc {
     template <
             typename T_T,

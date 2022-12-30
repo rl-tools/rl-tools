@@ -1,3 +1,4 @@
+#include <layer_in_c/utils/generic/math.h>
 #include "off_policy_runner.h"
 
 #include <random>
@@ -23,7 +24,7 @@ namespace layer_in_c{
         std::normal_distribution<T> exploration_noise_distribution(0, PARAMETERS::EXPLORATION_NOISE);
         for (int i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             action[i] += exploration_noise_distribution(rng);
-            action[i] = std::clamp<T>(action[i], -1, 1);
+            action[i] = lic::utils::math::clamp<T>(action[i], -1, 1);
         }
         step(ENVIRONMENT(), runner.state, action, next_state);
         T reward_value = reward(ENVIRONMENT(), runner.state, action, next_state);

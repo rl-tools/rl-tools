@@ -1,16 +1,16 @@
-//#define VERBOSE
-//#define LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
-#include <gtest/gtest.h>
-
 #include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/rl/algorithms/td3/operations_generic.h>
-#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
 #include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
+#include <layer_in_c/rl/algorithms/td3/operations_generic.h>
+
+#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+#include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
 #include <layer_in_c/rl/components/off_policy_runner/operations_cpu.h>
 #include <layer_in_c/utils/rng_std.h>
+
 #include <layer_in_c/rl/utils/evaluation.h>
+
+#include <gtest/gtest.h>
 
 
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
