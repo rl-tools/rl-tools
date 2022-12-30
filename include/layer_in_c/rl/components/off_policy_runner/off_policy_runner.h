@@ -1,6 +1,6 @@
 #ifndef LAYER_IN_C_RL_ALGORITHMS_TD3_OFF_POLICY_RUNNER
 #define LAYER_IN_C_RL_ALGORITHMS_TD3_OFF_POLICY_RUNNER
-#include "replay_buffer.h"
+#include <layer_in_c/rl/components/replay_buffer/replay_buffer.h>
 #include <layer_in_c/rl/environments/environments.h>
 
 namespace lic = layer_in_c;
