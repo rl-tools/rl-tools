@@ -19,6 +19,7 @@
       <config projectName="layer_in_c" targetName="read_write_fixedlen_string_bin" />
       <config projectName="layer_in_c" targetName="contour" />
       <config projectName="layer_in_c" targetName="read_write_dataset_string_bin" />
+      <config projectName="layer_in_c" targetName="test_neural_network_mlp" />
       <config projectName="layer_in_c" targetName="colorbar" />
       <config projectName="layer_in_c" targetName="gtest" />
       <config projectName="layer_in_c" targetName="readme_snippet_bin" />
@@ -61,6 +62,7 @@
       <config projectName="layer_in_c" targetName="create_attribute_string_integer_bin" />
       <config projectName="layer_in_c" targetName="renaming_objects_bin" />
       <config projectName="layer_in_c" targetName="modern" />
+      <config projectName="layer_in_c" targetName="test_neural_network_full_training_mlp" />
     </generated>
   </component>
   <component name="CMakeSettings">
@@ -70,10 +72,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9f030793-4e72-46a6-a556-d88b60910c80" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tests/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/tests/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/src/rl/algorithms/off_policy_runner.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/src/rl/algorithms/off_policy_runner.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/src/rl/algorithms/td3/first_stage.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/src/rl/algorithms/td3/first_stage.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/src/rl/algorithms/td3/second_stage.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/src/rl/algorithms/td3/second_stage.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/src/nn/full_training_mlp.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/src/nn/full_training_mlp.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -106,10 +107,11 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
     "WebServerToolWindowFactoryState": "false",
+    "cf.advertisement.text.has.clang-format": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "ctest.advertisement.all.test.configuration.is.created": "true",
-    "last_opened_file_path": "/home/jonas/phd/projects/rl_for_control/multirotor-cuda",
+    "last_opened_file_path": "/home/jonas/phd/projects/rl_for_control/layer-in-c/tests/src/nn",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -122,7 +124,9 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/tests/src/nn" />
       <recent name="$PROJECT_DIR$/tests/src/rl/algorithms/td3" />
+      <recent name="$PROJECT_DIR$/include/layer_in_c/nn_models/mlp" />
       <recent name="$PROJECT_DIR$/tests/docker" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
@@ -132,7 +136,7 @@
       <recent name="$PROJECT_DIR$/include/layer_in_c/rl/components/off_policy_runner" />
     </key>
   </component>
-  <component name="RunManager" selected="Google Test.test_rl_algorithms_td3_full_training">
+  <component name="RunManager" selected="CTest Application.All CTest">
     <configuration name="test_neural_network" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$PROJECT_DIR$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_neural_network" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_neural_network" TEST_MODE="SUITE_TEST">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
@@ -140,6 +144,18 @@
       </method>
     </configuration>
     <configuration name="test_neural_network_full_training" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$PROJECT_DIR$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_neural_network_full_training" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_neural_network_full_training" TEST_MODE="SUITE_TEST">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+        <option name="BeforeTestRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="test_neural_network_full_training_mlp" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$PROJECT_DIR$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_neural_network_full_training_mlp" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_neural_network_full_training_mlp" TEST_MODE="SUITE_TEST">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+        <option name="BeforeTestRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="test_neural_network_mlp" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$PROJECT_DIR$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_neural_network_mlp" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_neural_network_mlp" TEST_MODE="SUITE_TEST">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
         <option name="BeforeTestRunTask" enabled="true" />
@@ -198,7 +214,7 @@
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
     </configuration>
-    <configuration name="All CTest" type="CTestRunConfiguration" factoryName="CTestRun" PROGRAM_PARAMS="--extra-verbose -j12" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$CMakeCurrentLocalGenerationDir$" PASS_PARENT_ENVS_2="true" CONFIG_NAME="Debug" RUN_PATH="$CTestCurrentExecutableName$" EXPLICIT_BUILD_TARGET_NAME="all" TEST_MODE="PATTERN">
+    <configuration name="All CTest" type="CTestRunConfiguration" factoryName="CTestRun" PROGRAM_PARAMS="--extra-verbose -j16" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$CMakeCurrentLocalGenerationDir$" PASS_PARENT_ENVS_2="true" CONFIG_NAME="Debug" RUN_PATH="$CTestCurrentExecutableName$" EXPLICIT_BUILD_TARGET_NAME="all" TEST_MODE="PATTERN">
       <envs>
         <env name="LAYER_IN_C_TEST_NN_DATA_FILE" value="$PROJECT_DIR$/../model-learning/data.hdf5" />
         <env name="LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FIRST_STAGE_DATA_FILE" value="$PROJECT_DIR$/../multirotor-torch/model_first_stage.hdf5" />
@@ -214,6 +230,8 @@
       <item itemvalue="CTest Application.All CTest" />
       <item itemvalue="Google Test.test_neural_network" />
       <item itemvalue="Google Test.test_neural_network_full_training" />
+      <item itemvalue="Google Test.test_neural_network_full_training_mlp" />
+      <item itemvalue="Google Test.test_neural_network_mlp" />
       <item itemvalue="Google Test.test_neural_network_persistence" />
       <item itemvalue="Google Test.test_rl_algorithms_td3_first_stage" />
       <item itemvalue="Google Test.test_rl_algorithms_td3_full_training" />
@@ -236,7 +254,7 @@
       <workItem from="1672312937928" duration="29258000" />
       <workItem from="1672405682889" duration="57000" />
       <workItem from="1672405752444" duration="7795000" />
-      <workItem from="1672419024280" duration="215000" />
+      <workItem from="1672419024280" duration="25859000" />
     </task>
     <servers />
   </component>
@@ -260,6 +278,31 @@
           <url>file://$PROJECT_DIR$/tests/docker/context/layer-in-c/include/layer_in_c/rl/algorithms/td3/td3.h</url>
           <line>122</line>
           <option name="timeStamp" value="7" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/include/layer_in_c/rl/environments/pendulum/operations_cpu.h</url>
+          <line>17</line>
+          <option name="timeStamp" value="8" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/include/layer_in_c/utils/generic/math.h</url>
+          <line>6</line>
+          <option name="timeStamp" value="10" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/tests/src/nn/test.cpp</url>
+          <line>101</line>
+          <option name="timeStamp" value="12" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/tests/src/nn/test_mlp.cpp</url>
+          <line>112</line>
+          <option name="timeStamp" value="13" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="com.jetbrains.cidr.execution.debugger.OCBreakpointType">
+          <url>file://$PROJECT_DIR$/tests/src/nn/test_mlp.cpp</url>
+          <line>68</line>
+          <option name="timeStamp" value="14" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

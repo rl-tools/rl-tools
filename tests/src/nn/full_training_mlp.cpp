@@ -39,7 +39,7 @@ std::vector<T> Y_std;
 constexpr size_t INPUT_DIM = StructureSpecification<T>::INPUT_DIM;
 constexpr size_t OUTPUT_DIM = StructureSpecification<T>::OUTPUT_DIM;
 
-TEST(LAYER_IN_C_NN_FULL_TRAINING, FULL_TRAINING) {
+TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
     std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
     const char* data_file_path = std::getenv("LAYER_IN_C_TEST_NN_DATA_FILE");
