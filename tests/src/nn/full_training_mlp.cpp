@@ -1,13 +1,16 @@
-#include <gtest/gtest.h>
-
-#include <random>
-#include <highfive/H5File.hpp>
-
 #include <layer_in_c/nn_models/models.h>
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/utils/rng_std.h>
 
+
+
 #include "../utils/utils.h"
+
+#include <gtest/gtest.h>
+
+#include <random>
+#include <chrono>
+#include <highfive/H5File.hpp>
 
 namespace lic = layer_in_c;
 
@@ -60,6 +63,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     NetworkType network;
     std::vector<T> losses;
     std::vector<T> val_losses;
+    std::vector<T> epoch_durations;
     constexpr int n_epochs = 3;
     //    this->reset();
     lic::reset_optimizer_state(network);
@@ -71,6 +75,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
 
     for(int epoch_i=0; epoch_i < n_epochs; epoch_i++){
         T epoch_loss = 0;
+        auto epoch_start_time = std::chrono::high_resolution_clock::now();
         for (int batch_i=0; batch_i < n_iter; batch_i++){
             T loss = 0;
             lic::zero_gradient(network);
@@ -93,10 +98,15 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
             //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
             lic::update(network);
-            if(batch_i % 100 == 0){
+            if(batch_i % 1000 == 0){
                 std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
             }
         }
+        // save epoch_duration to epoch_durations
+        auto epoch_end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<T> epoch_duration = epoch_end_time - epoch_start_time;
+        epoch_durations.push_back(epoch_duration.count());
+
         epoch_loss /= n_iter;
         losses.push_back(epoch_loss);
 
@@ -114,8 +124,9 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     }
 
 
+    // epoch duration should be around 13s (Lenovo P1, Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz) when compiled with -O3
     for (int i=0; i < losses.size(); i++){
-    std::cout << "epoch_i " << i << " loss: train:" << losses[i] << " val: " << val_losses[i] << std::endl;
+        std::cout << "epoch_i " << i << " loss: train:" << losses[i] << " val: " << val_losses[i] << " duration: " << epoch_durations[i] << std::endl;
     }
 
     ASSERT_LT(losses[0], 0.005);

@@ -18,10 +18,18 @@ namespace layer_in_c{
         utils::polyak::update_matrix<typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(devices::Generic(), target.weights, source.weights, polyak);
         utils::polyak::update       <typename SPEC::T, SPEC::OUTPUT_DIM                 >(devices::Generic(), target.biases , source.biases , polyak);
     }
-    template<typename T, typename TARGET_NETWORK_TYPE, typename SOURCE_NETWORK_TYPE>
-    void update_target_network(TARGET_NETWORK_TYPE& target, const SOURCE_NETWORK_TYPE& source, T polyak) {
+    template<typename T, typename DEVICE, typename SPEC>
+    void update_target_network(nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& target, const nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& source, T polyak) {
         update_target_layer(target.layer_1, source.layer_1, polyak);
         update_target_layer(target.layer_2, source.layer_2, polyak);
+        update_target_layer(target.output_layer, source.output_layer, polyak);
+    }
+    template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void update_target_network(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {
+        update_target_layer(target.input_layer, source.input_layer, polyak);
+        for(size_t layer_i=0; layer_i < TARGET_SPEC::STRUCTURE_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
+            update_target_layer(target.hidden_layers[layer_i], source.hidden_layers[layer_i], polyak);
+        }
         update_target_layer(target.output_layer, source.output_layer, polyak);
     }
 
@@ -36,9 +44,9 @@ namespace layer_in_c{
 
     template <typename DEVICE, typename SPEC, auto RANDOM_UNIFORM, typename RNG>
     void init(rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, RNG& rng){
-        layer_in_c::init_weights<typename rl::algorithms::td3::ActorCritic<DEVICE, SPEC>:: ACTOR_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.actor   , rng);
-        layer_in_c::init_weights<typename rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.critic_1, rng);
-        layer_in_c::init_weights<typename rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_SPEC, RANDOM_UNIFORM, RNG>(actor_critic.critic_2, rng);
+        layer_in_c::init_weights<typename decltype(actor_critic.actor   )::SPEC, RANDOM_UNIFORM, RNG>(actor_critic.actor   , rng);
+        layer_in_c::init_weights<typename decltype(actor_critic.critic_1)::SPEC, RANDOM_UNIFORM, RNG>(actor_critic.critic_1, rng);
+        layer_in_c::init_weights<typename decltype(actor_critic.critic_2)::SPEC, RANDOM_UNIFORM, RNG>(actor_critic.critic_2, rng);
         layer_in_c::reset_optimizer_state(actor_critic.actor);
         layer_in_c::reset_optimizer_state(actor_critic.critic_1);
         layer_in_c::reset_optimizer_state(actor_critic.critic_2);
@@ -92,7 +100,7 @@ namespace layer_in_c{
             T target_action_value[1] = {replay_buffer.rewards[sample_index] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!replay_buffer.terminated[sample_index])};
 
             forward_backward_mse<typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic, state_action_value_input, target_action_value);
-            static_assert(rl::algorithms::td3::ActorCritic<DEVICE, SPEC>::CRITIC_NETWORK_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
+            static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
             T loss_sample = nn::loss_functions::mse<T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.pre_activations, target_action_value);
             loss += loss_sample;
         }

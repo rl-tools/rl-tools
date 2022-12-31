@@ -67,15 +67,23 @@ namespace layer_in_c::nn_models::mlp {
     template<typename T_DEVICE, typename T_SPEC>
     struct NeuralNetwork{
         typedef T_DEVICE DEVICE;
+        static_assert(std::is_same_v<DEVICE, typename T_SPEC::DEVICE>);
         typedef T_SPEC SPEC;
         typedef typename SPEC::T T;
-        static_assert(std::is_same_v<DEVICE, typename T_SPEC::DEVICE>);
+
+        // Interface
         static constexpr size_t  INPUT_DIM = SPEC::INPUT_LAYER ::SPEC::INPUT_DIM;
         static constexpr size_t OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
+
+        // Convenience
         static constexpr size_t NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_HIDDEN_LAYERS;
+
+        // Storage
         typename SPEC:: INPUT_LAYER input_layer;
         typename SPEC::HIDDEN_LAYER hidden_layers[NUM_HIDDEN_LAYERS];
         typename SPEC::OUTPUT_LAYER output_layer;
+
+        // Conversion
         template<typename NN>
         NeuralNetwork& operator= (const NN& other) {
             static_assert(std::is_same_v<typename NeuralNetwork::SPEC::STRUCTURE_SPEC, typename NN::SPEC::STRUCTURE_SPEC>);

@@ -146,10 +146,10 @@ namespace layer_in_c {
     }
     template<typename SPEC, int BATCH_SIZE>
     FUNCTION_PLACEMENT void forward_backward_mse(nn_models::mlp::NeuralNetworkBackwardGradient<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM], typename SPEC::T target[SPEC::OUTPUT_LAYER::OUTPUT_DIM]) {
-        typename SPEC::T d_input[SPEC::LAYER_1::INPUT_DIM];
+        typename SPEC::T d_input[SPEC::STRUCTURE_SPEC::INPUT_DIM];
         forward(network, input);
-        typename SPEC::T d_loss_d_output[SPEC::OUTPUT_LAYER::OUTPUT_DIM];
-        nn::loss_functions::d_mse_d_x<typename SPEC::T, SPEC::OUTPUT_LAYER::OUTPUT_DIM, BATCH_SIZE>(network.output_layer.output, target, d_loss_d_output);
+        typename SPEC::T d_loss_d_output[SPEC::STRUCTURE_SPEC::OUTPUT_DIM];
+        nn::loss_functions::d_mse_d_x<typename SPEC::T, SPEC::STRUCTURE_SPEC::OUTPUT_DIM, BATCH_SIZE>(network.output_layer.output, target, d_loss_d_output);
         backward(network, input, d_loss_d_output, d_input);
     }
 
