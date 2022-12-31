@@ -14,9 +14,6 @@ namespace layer_in_c::rl::environments::pendulum {
 
     template <typename T>
     T angle_normalize(T x){
-//        T temp = std::fmod(std::abs(x) + M_PI, 2*M_PI) - M_PI;
-//        temp = x > 0 ? temp : -temp;
-//        return temp;
         return f_mod_python((x + M_PI), (2 * M_PI)) - M_PI;
     }
 }
@@ -39,13 +36,6 @@ namespace layer_in_c{
         newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
         T newth = state.theta + newthdot * dt;
 
-//        while (newth < -M_PI) {
-//            newth += M_PI * 2;
-//        }
-//        while (newth >= M_PI) {
-//            newth -= M_PI * 2;
-//        }
-//
         next_state.theta = newth;
         next_state.theta_dot = newthdot;
         return SPEC::PARAMETERS::dt;
