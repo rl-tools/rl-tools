@@ -35,18 +35,11 @@ typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 ENVIRONMENT env;
 
-//template <typename T>
-//using TestActorNetworkDefinition = lic::rl::algorithms::td3::ActorNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
-//
-//template <typename T>
-//using TestCriticNetworkDefinition = lic::rl::algorithms::td3::CriticNetworkSpecification<T, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
-
-
 struct ActorStructureSpec{
     using T = DTYPE;
     static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
     static constexpr size_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
-    static constexpr int NUM_HIDDEN_LAYERS = 1;
+    static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::TANH;
@@ -56,7 +49,7 @@ struct CriticStructureSpec{
     using T = DTYPE;
     static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
     static constexpr size_t OUTPUT_DIM = 1;
-    static constexpr int NUM_HIDDEN_LAYERS = 1;
+    static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;

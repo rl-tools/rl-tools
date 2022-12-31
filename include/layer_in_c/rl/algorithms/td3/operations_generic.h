@@ -26,8 +26,9 @@ namespace layer_in_c{
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void update_target_network(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {
+        using TargetNetworkType = typename std::remove_reference<decltype(target)>::type;
         update_target_layer(target.input_layer, source.input_layer, polyak);
-        for(size_t layer_i=0; layer_i < TARGET_SPEC::STRUCTURE_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
+        for(size_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             update_target_layer(target.hidden_layers[layer_i], source.hidden_layers[layer_i], polyak);
         }
         update_target_layer(target.output_layer, source.output_layer, polyak);

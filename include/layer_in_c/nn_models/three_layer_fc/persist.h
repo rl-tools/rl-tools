@@ -1,8 +1,9 @@
 #ifndef LAYER_IN_C_NN_MODELS_THREE_LAYER_FC_PERSIST
 #define LAYER_IN_C_NN_MODELS_THREE_LAYER_FC_PERSIST
-#include <highfive/H5Group.hpp>
-#include "network.h"
 #include <layer_in_c/nn/persist.h>
+#include "network.h"
+
+#include <highfive/H5Group.hpp>
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void save(nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& network, HighFive::Group group) {

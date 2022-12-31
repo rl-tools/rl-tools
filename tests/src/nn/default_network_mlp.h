@@ -9,7 +9,7 @@ struct StructureSpecification{
     typedef T_T T;
     static constexpr size_t INPUT_DIM = 17;
     static constexpr size_t OUTPUT_DIM = 13;
-    static constexpr int NUM_HIDDEN_LAYERS = 1;
+    static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 50;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
@@ -63,7 +63,7 @@ struct StructureSpecification_3{
     typedef T_T T;
     static constexpr size_t INPUT_DIM = 17;
     static constexpr size_t OUTPUT_DIM = 13;
-    static constexpr int NUM_HIDDEN_LAYERS = 1;
+    static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 50;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;

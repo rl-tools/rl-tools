@@ -9,7 +9,7 @@ namespace layer_in_c::nn_models::mlp {
         typedef T_T T;
         static constexpr size_t INPUT_DIM = 10;
         static constexpr size_t OUTPUT_DIM = 5;
-        static constexpr int NUM_HIDDEN_LAYERS = 2;
+        static constexpr int NUM_LAYERS = 3; // The input and output layers count towards the total number of layers
         static constexpr int HIDDEN_DIM = 30;
         static constexpr nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = nn::activation_functions::GELU;
         static constexpr nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = nn::activation_functions::IDENTITY;
@@ -71,12 +71,15 @@ namespace layer_in_c::nn_models::mlp {
         typedef T_SPEC SPEC;
         typedef typename SPEC::T T;
 
+        // Convenience
+        static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required
+        static constexpr size_t NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_LAYERS - 2;
+
         // Interface
         static constexpr size_t  INPUT_DIM = SPEC::INPUT_LAYER ::SPEC::INPUT_DIM;
         static constexpr size_t OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
+        static constexpr size_t NUM_WEIGHTS = SPEC::INPUT_LAYER::NUM_WEIGHTS + SPEC::HIDDEN_LAYER::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER::NUM_WEIGHTS;
 
-        // Convenience
-        static constexpr size_t NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_HIDDEN_LAYERS;
 
         // Storage
         typename SPEC:: INPUT_LAYER input_layer;
