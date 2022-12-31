@@ -30,8 +30,8 @@ template <typename DEVICE, typename SPEC>
 typename SPEC::T abs_diff(const lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& n1, const lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& n2) {
     typedef typename SPEC::T T;
     T acc = 0;
-    acc += abs_diff(n1.layer_1, n2.layer_1);
-    acc += abs_diff(n1.layer_2, n2.layer_2);
+    acc += abs_diff(n1.input_layer, n2.input_layer);
+    acc += abs_diff(n1.hidden_layer_0, n2.hidden_layer_0);
     acc += abs_diff(n1.output_layer, n2.output_layer);
     return acc;
 }
@@ -39,8 +39,8 @@ template <typename DEVICE, typename SPEC>
 typename SPEC::T abs_diff_grad(const lic::nn_models::three_layer_fc::NeuralNetworkBackwardGradient<DEVICE, SPEC>& n1, const lic::nn_models::three_layer_fc::NeuralNetworkBackwardGradient<DEVICE, SPEC>& n2) {
     typedef typename SPEC::T T;
     T acc = 0;
-    acc += abs_diff_grad(n1.layer_1, n2.layer_1);
-    acc += abs_diff_grad(n1.layer_2, n2.layer_2);
+    acc += abs_diff_grad(n1.input_layer, n2.input_layer);
+    acc += abs_diff_grad(n1.hidden_layer_0, n2.hidden_layer_0);
     acc += abs_diff_grad(n1.output_layer, n2.output_layer);
     return acc;
 }
@@ -49,8 +49,8 @@ template <typename DEVICE, typename SPEC>
 typename SPEC::T abs_diff_adam(const lic::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, SPEC>& n1, const lic::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, SPEC>& n2) {
     typedef typename SPEC::T T;
     T acc = 0;
-    acc += abs_diff_adam(n1.layer_1, n2.layer_1);
-    acc += abs_diff_adam(n1.layer_2, n2.layer_2);
+    acc += abs_diff_adam(n1.input_layer, n2.input_layer);
+    acc += abs_diff_adam(n1.hidden_layer_0, n2.hidden_layer_0);
     acc += abs_diff_adam(n1.output_layer, n2.output_layer);
     return acc;
 }

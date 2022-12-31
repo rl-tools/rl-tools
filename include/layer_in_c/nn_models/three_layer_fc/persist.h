@@ -7,8 +7,8 @@
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void save(nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& network, HighFive::Group group) {
-        save(network.layer_1, group.createGroup("layer_1"));
-        save(network.layer_2, group.createGroup("layer_2"));
+        save(network.input_layer, group.createGroup("input_layer"));
+        save(network.hidden_layer_0, group.createGroup("hidden_layer_0"));
         save(network.output_layer, group.createGroup("output_layer"));
     }
     template<typename DEVICE, typename SPEC>
@@ -20,8 +20,8 @@ namespace layer_in_c{
     }
     template<typename DEVICE, typename SPEC>
     void load(nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& network, HighFive::Group group){
-        load(network.layer_1, group.getGroup("layer_1"));
-        load(network.layer_2, group.getGroup("layer_2"));
+        load(network.input_layer, group.getGroup("input_layer"));
+        load(network.hidden_layer_0, group.getGroup("hidden_layer_0"));
         load(network.output_layer, group.getGroup("output_layer"));
     }
     template<typename DEVICE, typename SPEC>

@@ -7,11 +7,11 @@ namespace layer_in_c {
     // evaluate does not set intermediate outputs and hence can also be called from stateless layers, for register efficiency use forward when working with "Backward" compatible layers
     template<typename SPEC>
     FUNCTION_PLACEMENT void evaluate(nn_models::three_layer_fc::NeuralNetwork<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM], typename SPEC::T output[SPEC::OUTPUT_LAYER::OUTPUT_DIM]){
-        typename SPEC::T layer_1_output[SPEC::LAYER_1::OUTPUT_DIM];
-        evaluate(network.layer_1     , input, layer_1_output);
-        typename SPEC::T layer_2_output[SPEC::LAYER_2::OUTPUT_DIM];
-        evaluate(network.layer_2     , layer_1_output, layer_2_output);
-        evaluate(network.output_layer, layer_2_output, output);
+        typename SPEC::T input_layer_output[SPEC::LAYER_1::OUTPUT_DIM];
+        evaluate(network.input_layer     , input, input_layer_output);
+        typename SPEC::T hidden_layer_0_output[SPEC::LAYER_2::OUTPUT_DIM];
+        evaluate(network.hidden_layer_0     , input_layer_output, hidden_layer_0_output);
+        evaluate(network.output_layer, hidden_layer_0_output, output);
     }
 
     template<typename SPEC>
@@ -24,17 +24,17 @@ namespace layer_in_c {
     // forward modifies intermediate outputs and pre activations to facilitate backward pass
     template<typename SPEC>
     FUNCTION_PLACEMENT void forward(nn_models::three_layer_fc::NeuralNetworkBackward<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM], typename SPEC::T output[SPEC::OUTPUT_LAYER::OUTPUT_DIM]){
-        typename SPEC::T layer_1_output[SPEC::LAYER_1::OUTPUT_DIM];
-        typename SPEC::T layer_2_output[SPEC::LAYER_2::OUTPUT_DIM];
-        forward(network.layer_1     ,          input, layer_1_output);
-        forward(network.layer_2     , layer_1_output, layer_2_output);
-        forward(network.output_layer, layer_2_output,         output);
+        typename SPEC::T input_layer_output[SPEC::LAYER_1::OUTPUT_DIM];
+        typename SPEC::T hidden_layer_0_output[SPEC::LAYER_2::OUTPUT_DIM];
+        forward(network.input_layer     ,          input, input_layer_output);
+        forward(network.hidden_layer_0     , input_layer_output, hidden_layer_0_output);
+        forward(network.output_layer, hidden_layer_0_output,         output);
     }
     template<typename SPEC>
     FUNCTION_PLACEMENT void forward(nn_models::three_layer_fc::NeuralNetworkBackwardGradient<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM]) {
-        forward(network.layer_1     , input);
-        forward(network.layer_2     , network.layer_1.output);
-        forward(network.output_layer, network.layer_2.output);
+        forward(network.input_layer     , input);
+        forward(network.hidden_layer_0     , network.input_layer.output);
+        forward(network.output_layer, network.hidden_layer_0.output);
     }
     template<typename SPEC>
     [[deprecated("Calling forward with an output buffer on a layer requiring the gradient is not recommended. Consider using forward without an output buffer to avoid unecessary copies instead.")]]
@@ -60,25 +60,25 @@ namespace layer_in_c {
 
     template<typename SPEC>
     FUNCTION_PLACEMENT void zero_gradient(nn_models::three_layer_fc::NeuralNetwork<devices::Generic, SPEC>& network) {
-        zero_gradient(network.layer_1);
-        zero_gradient(network.layer_2);
+        zero_gradient(network.input_layer);
+        zero_gradient(network.hidden_layer_0);
         zero_gradient(network.output_layer);
     }
     template<typename SPEC>
     FUNCTION_PLACEMENT void backward(nn_models::three_layer_fc::NeuralNetworkBackward<devices::Generic, SPEC>& network, const typename SPEC::T d_output[SPEC::OUTPUT_LAYER::OUTPUT_DIM], typename SPEC::T d_input[SPEC::LAYER_1::INPUT_DIM]) {
-        typename SPEC::T d_layer_2_output[SPEC::LAYER_2::SPEC::OUTPUT_DIM];
-        backward(network.output_layer, d_output, d_layer_2_output);
-        typename SPEC::T d_layer_1_output[SPEC::LAYER_1::SPEC::OUTPUT_DIM];
-        backward(network.layer_2     , d_layer_2_output, d_layer_1_output);
-        backward(network.layer_1     , d_layer_1_output, d_input);
+        typename SPEC::T d_hidden_layer_0_output[SPEC::LAYER_2::SPEC::OUTPUT_DIM];
+        backward(network.output_layer, d_output, d_hidden_layer_0_output);
+        typename SPEC::T d_input_layer_output[SPEC::LAYER_1::SPEC::OUTPUT_DIM];
+        backward(network.hidden_layer_0     , d_hidden_layer_0_output, d_input_layer_output);
+        backward(network.input_layer     , d_input_layer_output, d_input);
     }
     template<typename SPEC>
     FUNCTION_PLACEMENT void backward(nn_models::three_layer_fc::NeuralNetworkBackwardGradient<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM], const typename SPEC::T d_output[SPEC::OUTPUT_LAYER::OUTPUT_DIM], typename SPEC::T d_input[SPEC::LAYER_1::INPUT_DIM]) {
-        typename SPEC::T d_layer_2_output[SPEC::LAYER_2::SPEC::OUTPUT_DIM];
-        backward(network.output_layer, network.layer_2.output, d_output, d_layer_2_output);
-        typename SPEC::T d_layer_1_output[SPEC::LAYER_1::SPEC::OUTPUT_DIM];
-        backward(network.layer_2     , network.layer_1.output, d_layer_2_output, d_layer_1_output);
-        backward(network.layer_1     , input                 , d_layer_1_output, d_input);
+        typename SPEC::T d_hidden_layer_0_output[SPEC::LAYER_2::SPEC::OUTPUT_DIM];
+        backward(network.output_layer, network.hidden_layer_0.output, d_output, d_hidden_layer_0_output);
+        typename SPEC::T d_input_layer_output[SPEC::LAYER_1::SPEC::OUTPUT_DIM];
+        backward(network.hidden_layer_0     , network.input_layer.output, d_hidden_layer_0_output, d_input_layer_output);
+        backward(network.input_layer     , input                 , d_input_layer_output, d_input);
     }
     template<typename SPEC, int BATCH_SIZE>
     FUNCTION_PLACEMENT void forward_backward_mse(nn_models::three_layer_fc::NeuralNetworkBackwardGradient<devices::Generic, SPEC>& network, const typename SPEC::T input[SPEC::LAYER_1::INPUT_DIM], typename SPEC::T target[SPEC::OUTPUT_LAYER::OUTPUT_DIM]) {
@@ -91,8 +91,8 @@ namespace layer_in_c {
 
     template<typename SPEC>
     FUNCTION_PLACEMENT void update(nn_models::three_layer_fc::NeuralNetworkSGD<devices::Generic, SPEC>& network) {
-        update_layer(network.layer_1     );
-        update_layer(network.layer_2     );
+        update_layer(network.input_layer     );
+        update_layer(network.hidden_layer_0     );
         update_layer(network.output_layer);
     }
 
@@ -101,8 +101,8 @@ namespace layer_in_c {
     FUNCTION_PLACEMENT void update(nn_models::three_layer_fc::NeuralNetworkAdam<devices::Generic, SPEC>& network) {
         typename SPEC::T  first_order_moment_bias_correction = 1/(1 - pow(SPEC::ADAM_PARAMETERS::BETA_1, network.age));
         typename SPEC::T second_order_moment_bias_correction = 1/(1 - pow(SPEC::ADAM_PARAMETERS::BETA_2, network.age));
-        update_layer(network.layer_1     , first_order_moment_bias_correction, second_order_moment_bias_correction);
-        update_layer(network.layer_2     , first_order_moment_bias_correction, second_order_moment_bias_correction);
+        update_layer(network.input_layer     , first_order_moment_bias_correction, second_order_moment_bias_correction);
+        update_layer(network.hidden_layer_0     , first_order_moment_bias_correction, second_order_moment_bias_correction);
         update_layer(network.output_layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
         network.age += 1;
     }
@@ -113,8 +113,8 @@ namespace layer_in_c {
 
     template<typename SPEC>
     FUNCTION_PLACEMENT void reset_optimizer_state(nn_models::three_layer_fc::NeuralNetworkAdam<devices::Generic, SPEC>& network) {
-        reset_optimizer_state(network.layer_1);
-        reset_optimizer_state(network.layer_2);
+        reset_optimizer_state(network.input_layer);
+        reset_optimizer_state(network.hidden_layer_0);
         reset_optimizer_state(network.output_layer);
         network.age = 1;
     }
@@ -122,8 +122,8 @@ namespace layer_in_c {
 
     template<typename SPEC, auto RANDOM_UNIFORM, typename RNG>
     FUNCTION_PLACEMENT void init_weights(nn_models::three_layer_fc::NeuralNetwork<devices::Generic, SPEC>& network, RNG& rng) {
-        init_kaiming<typename SPEC::LAYER_1::SPEC, RANDOM_UNIFORM, RNG>(network.layer_1, rng);
-        init_kaiming<typename SPEC::LAYER_2::SPEC, RANDOM_UNIFORM, RNG>(network.layer_2, rng);
+        init_kaiming<typename SPEC::LAYER_1::SPEC, RANDOM_UNIFORM, RNG>(network.input_layer, rng);
+        init_kaiming<typename SPEC::LAYER_2::SPEC, RANDOM_UNIFORM, RNG>(network.hidden_layer_0, rng);
         init_kaiming<typename SPEC::OUTPUT_LAYER::SPEC, RANDOM_UNIFORM, RNG>(network.output_layer, rng);
     }
 }
