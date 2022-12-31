@@ -18,6 +18,9 @@ struct StructureSpecification{
 using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<lic::devices::Generic, StructureSpecification<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC>;
 
+using NETWORK_SPEC_BACKWARD_ONLY = lic::nn_models::mlp::InferenceBackwardSpecification<lic::devices::Generic, StructureSpecification<DTYPE>>;
+using NetworkTypeBackwardOnly = lic::nn_models::mlp::NeuralNetworkBackward<lic::devices::Generic, NETWORK_SPEC_BACKWARD_ONLY>;
+
 constexpr size_t INPUT_DIM = StructureSpecification<DTYPE>::INPUT_DIM;
 constexpr size_t LAYER_1_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
 constexpr size_t LAYER_2_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;

@@ -14,9 +14,10 @@ namespace layer_in_c::nn_models::mlp {
         static constexpr nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = nn::activation_functions::GELU;
         static constexpr nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = nn::activation_functions::IDENTITY;
     };
-    template <typename T_DEVICE, typename STRUCTURE_SPEC>
+    template <typename T_DEVICE, typename T_STRUCTURE_SPEC>
     struct InferenceSpecification{
         using DEVICE = T_DEVICE;
+        using STRUCTURE_SPEC = T_STRUCTURE_SPEC;
         using S = STRUCTURE_SPEC;
         using T = typename S::T;
 
@@ -25,9 +26,10 @@ namespace layer_in_c::nn_models::mlp {
         using OUTPUT_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>>;
     };
 
-    template <typename T_DEVICE, typename STRUCTURE_SPEC>
+    template <typename T_DEVICE, typename T_STRUCTURE_SPEC>
     struct InferenceBackwardSpecification{
         using DEVICE = T_DEVICE;
+        using STRUCTURE_SPEC = T_STRUCTURE_SPEC;
         using S = STRUCTURE_SPEC;
         using T = typename S::T;
 
