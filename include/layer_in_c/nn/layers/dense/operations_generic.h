@@ -73,6 +73,7 @@ namespace layer_in_c{
     template<typename LS>
     FUNCTION_PLACEMENT void backward(nn::layers::dense::LayerBackwardGradient<devices::Generic, LS>& layer, const typename LS::T input[LS::INPUT_DIM], const typename LS::T d_output[LS::OUTPUT_DIM], typename LS::T d_input[LS::INPUT_DIM]) {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
+        // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
         for(int i = 0; i < LS::OUTPUT_DIM; i++) {
             typename LS::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename LS::T, LS::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
             layer.d_biases[i] += d_pre_activation;

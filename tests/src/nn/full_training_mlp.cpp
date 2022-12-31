@@ -93,7 +93,9 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
             //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
             lic::update(network);
-            std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
+            if(batch_i % 100 == 0){
+                std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
+            }
         }
         epoch_loss /= n_iter;
         losses.push_back(epoch_loss);
