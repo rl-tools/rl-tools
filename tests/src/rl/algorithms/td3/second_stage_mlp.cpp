@@ -17,7 +17,7 @@
 #include <layer_in_c/rl/utils/evaluation.h>
 #include <layer_in_c/utils/rng_std.h>
 #include "../../../utils/utils.h"
-#include "../../../utils/nn_comparison.h"
+#include "../../../utils/nn_comparison_mlp.h"
 
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
 #include <layer_in_c/rl/environments/pendulum/ui.h>
@@ -46,27 +46,30 @@ typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 ENVIRONMENT env;
 
-template<typename T, size_t T_LAYER_1_DIM, size_t T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN, typename T_OPTIMIZER_PARAMETERS>
-struct ActorNetworkSpecification {
-    static constexpr size_t LAYER_1_DIM = T_LAYER_1_DIM;
-    static constexpr size_t LAYER_2_DIM = T_LAYER_2_DIM;
-    static constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN = FN;
-    static constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = FN;
-    typedef T_OPTIMIZER_PARAMETERS OPTIMIZER_PARAMETERS;
+template <typename T>
+struct TD3Parameters: public lic::rl::algorithms::td3::DefaultParameters<T>{
+    constexpr static int CRITIC_BATCH_SIZE = 32;
+    constexpr static int ACTOR_BATCH_SIZE = 32;
+};
+struct ActorStructureSpec{
+    using T = DTYPE;
+    static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
+    static constexpr size_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
+    static constexpr int NUM_LAYERS = 3;
+    static constexpr int HIDDEN_DIM = 64;
+    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
+    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::TANH;
 };
 
-template<typename T, size_t T_LAYER_1_DIM, size_t T_LAYER_2_DIM, lic::nn::activation_functions::ActivationFunction FN, typename T_OPTIMIZER_PARAMETERS>
-struct CriticNetworkSpecification {
-    static constexpr size_t LAYER_1_DIM = T_LAYER_1_DIM;
-    static constexpr size_t LAYER_2_DIM = T_LAYER_2_DIM;
-    static constexpr lic::nn::activation_functions::ActivationFunction LAYER_1_FN = FN;
-    static constexpr lic::nn::activation_functions::ActivationFunction LAYER_2_FN = FN;
-    typedef T_OPTIMIZER_PARAMETERS OPTIMIZER_PARAMETERS;
+struct CriticStructureSpec{
+    using T = DTYPE;
+    static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
+    static constexpr size_t OUTPUT_DIM = 1;
+    static constexpr int NUM_LAYERS = 3;
+    static constexpr int HIDDEN_DIM = 64;
+    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
+    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
-
-static constexpr lic::nn::activation_functions::ActivationFunction ACTOR_ACTIVATION_FUNCTION = lic::nn::activation_functions::TANH;
-using ACTOR_SPEC = ActorNetworkSpecification<DTYPE, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
-using CRITIC_SPEC = CriticNetworkSpecification<DTYPE, 64, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 
 template <typename T>
 struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultParameters<T>{
@@ -75,34 +78,21 @@ struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultParame
 };
 
 using NN_DEVICE = lic::devices::Generic;
+using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
 
-using ACTOR_NETWORK_STRUCTURE_SPEC = lic::nn_models::three_layer_fc::StructureSpecification<
-        DTYPE,
-        ENVIRONMENT::OBSERVATION_DIM,
-        ACTOR_SPEC::LAYER_1_DIM, ACTOR_SPEC::LAYER_1_FN,
-        ACTOR_SPEC::LAYER_2_DIM, ACTOR_SPEC::LAYER_2_FN,
-        ENVIRONMENT::ACTION_DIM, ACTOR_ACTIVATION_FUNCTION>;
+using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<NN_DEVICE, ActorStructureSpec>;
+using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE , ACTOR_TARGET_NETWORK_SPEC>;
 
-using ACTOR_NETWORK_SPEC = lic::nn_models::three_layer_fc::AdamSpecification<NN_DEVICE, ACTOR_NETWORK_STRUCTURE_SPEC, typename ACTOR_SPEC::OPTIMIZER_PARAMETERS>;
-using ACTOR_NETWORK_TYPE = lic::nn_models::three_layer_fc::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
+using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, CriticStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, CRITIC_NETWORK_SPEC>;
 
-using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::three_layer_fc::InferenceSpecification<NN_DEVICE, ACTOR_NETWORK_STRUCTURE_SPEC>;
-using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::three_layer_fc::NeuralNetwork<NN_DEVICE , ACTOR_TARGET_NETWORK_SPEC>;
-
-static constexpr size_t CRITIC_INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
-using CRITIC_NETWORK_STRUCTURE_SPEC = layer_in_c::nn_models::three_layer_fc::StructureSpecification<DTYPE, CRITIC_INPUT_DIM,
-        CRITIC_SPEC::LAYER_1_DIM, CRITIC_SPEC::LAYER_1_FN,
-        CRITIC_SPEC::LAYER_2_DIM, CRITIC_SPEC::LAYER_2_FN,
-        1, layer_in_c::nn::activation_functions::IDENTITY>;
-
-using CRITIC_NETWORK_SPEC = lic::nn_models::three_layer_fc::AdamSpecification<NN_DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC, typename CRITIC_SPEC::OPTIMIZER_PARAMETERS>;
-using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::three_layer_fc::NeuralNetworkAdam<NN_DEVICE, CRITIC_NETWORK_SPEC>;
-
-using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::three_layer_fc::InferenceSpecification<NN_DEVICE, CRITIC_NETWORK_STRUCTURE_SPEC>;
-using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::three_layer_fc::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
+using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<NN_DEVICE, CriticStructureSpec>;
+using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3ParametersCopyTraining<DTYPE>>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<lic::devices::CPU, TD3_SPEC>;
+
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;

@@ -195,6 +195,34 @@ if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
 endif()
 gtest_discover_tests(test_rl_algorithms_td3_second_stage)
 
+# RL Algorithm td3 test second stage MLP
+add_executable(
+        test_rl_algorithms_td3_second_stage_mlp
+        src/rl/algorithms/td3/second_stage_mlp.cpp
+)
+target_link_libraries(
+        test_rl_algorithms_td3_second_stage_mlp
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+)
+if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
+    target_link_libraries(
+            test_rl_algorithms_td3_second_stage_mlp
+            matplotlib_cpp
+    )
+    target_include_directories(test_rl_algorithms_td3_second_stage_mlp PRIVATE lib)
+    target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
+endif()
+if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
+    target_link_libraries(
+            test_rl_algorithms_td3_second_stage_mlp
+            Qt5::Widgets
+    )
+    target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
+endif()
+gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
+
 # RL Algorithm td3 test full training
 add_executable(
         test_rl_algorithms_td3_full_training
