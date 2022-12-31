@@ -30,7 +30,7 @@ template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
-    g.getDataSet("layer_1/weight").read(weights);
+    g.getDataSet("input_layer/weight").read(weights);
     acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights, weights);
     return acc;
 }
@@ -40,7 +40,7 @@ T abs_diff_network(const NT network, const HighFive::Group g){
 //    using T = typename SPEC::T;
 //    T acc = 0;
 //    std::vector<std::vector<T>> weights;
-//    g.getDataSet("layer_1/weight").read(weights);
+//    g.getDataSet("input_layer/weight").read(weights);
 //    acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights, weights);
 //    return acc;
 //}
@@ -55,10 +55,10 @@ protected:
     void SetUp() override {
         NeuralNetworkTest::SetUp();
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet("model_1/gradients/0/layer_1/weight").read(batch_0_layer_1_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/layer_1/bias").read(batch_0_layer_1_biases_grad);
-        data_file.getDataSet("model_1/gradients/0/layer_2/weight").read(batch_0_layer_2_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/layer_2/bias").read(batch_0_layer_2_biases_grad);
+        data_file.getDataSet("model_1/gradients/0/input_layer/weight").read(batch_0_input_layer_weights_grad);
+        data_file.getDataSet("model_1/gradients/0/input_layer/bias").read(batch_0_input_layer_biases_grad);
+        data_file.getDataSet("model_1/gradients/0/hidden_layer_0/weight").read(batch_0_hidden_layer_0_weights_grad);
+        data_file.getDataSet("model_1/gradients/0/hidden_layer_0/bias").read(batch_0_hidden_layer_0_biases_grad);
         data_file.getDataSet("model_1/gradients/0/output_layer/weight").read(batch_0_output_layer_weights_grad);
         data_file.getDataSet("model_1/gradients/0/output_layer/bias").read(batch_0_output_layer_biases_grad);
         this->reset();
@@ -76,31 +76,31 @@ protected:
     void reset(){
 
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet(model_name + "/init/layer_1/weight").read(layer_1_weights);
-        data_file.getDataSet(model_name + "/init/layer_1/bias").read(layer_1_biases);
-        data_file.getDataSet(model_name + "/init/layer_2/weight").read(layer_2_weights);
-        data_file.getDataSet(model_name + "/init/layer_2/bias").read(layer_2_biases);
+        data_file.getDataSet(model_name + "/init/input_layer/weight").read(input_layer_weights);
+        data_file.getDataSet(model_name + "/init/input_layer/bias").read(input_layer_biases);
+        data_file.getDataSet(model_name + "/init/hidden_layer_0/weight").read(hidden_layer_0_weights);
+        data_file.getDataSet(model_name + "/init/hidden_layer_0/bias").read(hidden_layer_0_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights     , layer_1_weights);
-        memcpy(network.input_layer.biases, layer_1_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights     , layer_2_weights);
-        memcpy(network.hidden_layers[0].biases, layer_2_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
+        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights     , input_layer_weights);
+        memcpy(network.input_layer.biases, input_layer_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
+        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights     , hidden_layer_0_weights);
+        memcpy(network.hidden_layers[0].biases, hidden_layer_0_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
         assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights, output_layer_weights);
         memcpy(network.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
     }
 
     NetworkType network;
-    std::vector<std::vector<DTYPE>> layer_1_weights;
-    std::vector<DTYPE> layer_1_biases;
-    std::vector<std::vector<DTYPE>> layer_2_weights;
-    std::vector<DTYPE> layer_2_biases;
+    std::vector<std::vector<DTYPE>> input_layer_weights;
+    std::vector<DTYPE> input_layer_biases;
+    std::vector<std::vector<DTYPE>> hidden_layer_0_weights;
+    std::vector<DTYPE> hidden_layer_0_biases;
     std::vector<std::vector<DTYPE>> output_layer_weights;
     std::vector<DTYPE> output_layer_biases;
-    std::vector<std::vector<DTYPE>> batch_0_layer_1_weights_grad;
-    std::vector<DTYPE> batch_0_layer_1_biases_grad;
-    std::vector<std::vector<DTYPE>> batch_0_layer_2_weights_grad;
-    std::vector<DTYPE> batch_0_layer_2_biases_grad;
+    std::vector<std::vector<DTYPE>> batch_0_input_layer_weights_grad;
+    std::vector<DTYPE> batch_0_input_layer_biases_grad;
+    std::vector<std::vector<DTYPE>> batch_0_hidden_layer_0_weights_grad;
+    std::vector<DTYPE> batch_0_hidden_layer_0_biases_grad;
     std::vector<std::vector<DTYPE>> batch_0_output_layer_weights_grad;
     std::vector<DTYPE> batch_0_output_layer_biases_grad;
 };
@@ -109,53 +109,53 @@ constexpr DTYPE BACKWARD_PASS_GRADIENT_TOLERANCE (1e-8);
 #ifndef SKIP_BACKPROP_TESTS
 using LAYER_IN_C_NN_MLP_BACKWARD_PASS = NeuralNetworkTestLoadWeights<NetworkType_1>;
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, layer_1_weights) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_1_DIM, INPUT_DIM
     >(
             network.input_layer.d_weights,
-            batch_0_layer_1_weights_grad
+            batch_0_input_layer_weights_grad
     );
-    std::cout << "layer_1_weights diff: " << out << std::endl;
+    std::cout << "input_layer_weights diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * LAYER_1_DIM * INPUT_DIM);
 }
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, layer_1_biases) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_biases) {
     DTYPE out = abs_diff<
             DTYPE, LAYER_1_DIM
     >(
             network.input_layer.d_biases,
-            batch_0_layer_1_biases_grad.data()
+            batch_0_input_layer_biases_grad.data()
     );
-    std::cout << "layer_1_biases diff: " << out << std::endl;
+    std::cout << "input_layer_biases diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * LAYER_1_DIM);
 }
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, layer_2_weights) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_2_DIM, LAYER_1_DIM
     >(
             network.hidden_layers[0].d_weights,
-            batch_0_layer_2_weights_grad
+            batch_0_hidden_layer_0_weights_grad
     );
-    std::cout << "layer_2_weights diff: " << out << std::endl;
+    std::cout << "hidden_layer_0_weights diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * LAYER_2_DIM * LAYER_1_DIM);
 }
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, layer_2_biases) {
+TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
     DTYPE out = abs_diff<
             DTYPE, LAYER_2_DIM
     >(
             network.hidden_layers[0].d_biases,
-            batch_0_layer_2_biases_grad.data()
+            batch_0_hidden_layer_0_biases_grad.data()
     );
-    std::cout << "layer_2_biases diff: " << out << std::endl;
+    std::cout << "hidden_layer_0_biases diff: " << out << std::endl;
     ASSERT_LT(out, BACKWARD_PASS_GRADIENT_TOLERANCE * LAYER_2_DIM);
 }
 #endif
@@ -195,16 +195,16 @@ TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-    std::vector<std::vector<DTYPE>> batch_0_layer_1_weights;
-    std::vector<DTYPE> batch_0_layer_1_biases;
-    std::vector<std::vector<DTYPE>> batch_0_layer_2_weights;
-    std::vector<DTYPE> batch_0_layer_2_biases;
+    std::vector<std::vector<DTYPE>> batch_0_input_layer_weights;
+    std::vector<DTYPE> batch_0_input_layer_biases;
+    std::vector<std::vector<DTYPE>> batch_0_hidden_layer_0_weights;
+    std::vector<DTYPE> batch_0_hidden_layer_0_biases;
     std::vector<std::vector<DTYPE>> batch_0_output_layer_weights;
     std::vector<DTYPE> batch_0_output_layer_biases;
-    data_file.getDataSet("model_1/weights/0/layer_1/weight").read(batch_0_layer_1_weights);
-    data_file.getDataSet("model_1/weights/0/layer_1/bias").read(batch_0_layer_1_biases);
-    data_file.getDataSet("model_1/weights/0/layer_2/weight").read(batch_0_layer_2_weights);
-    data_file.getDataSet("model_1/weights/0/layer_2/bias").read(batch_0_layer_2_biases);
+    data_file.getDataSet("model_1/weights/0/input_layer/weight").read(batch_0_input_layer_weights);
+    data_file.getDataSet("model_1/weights/0/input_layer/bias").read(batch_0_input_layer_biases);
+    data_file.getDataSet("model_1/weights/0/hidden_layer_0/weight").read(batch_0_hidden_layer_0_weights);
+    data_file.getDataSet("model_1/weights/0/hidden_layer_0/bias").read(batch_0_hidden_layer_0_biases);
     data_file.getDataSet("model_1/weights/0/output_layer/weight").read(batch_0_output_layer_weights);
     data_file.getDataSet("model_1/weights/0/output_layer/bias").read(batch_0_output_layer_biases);
     DTYPE input[INPUT_DIM];
@@ -226,7 +226,7 @@ TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
             INPUT_DIM
     >(
             network.input_layer.weights,
-            batch_0_layer_1_weights
+            batch_0_input_layer_weights
     );
     ASSERT_LT(out, 1.5e-7);
 }
@@ -618,10 +618,10 @@ protected:
     void SetUp() override {
         NeuralNetworkTest::SetUp();
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet("model_1/gradients/0/layer_1/weight").read(batch_0_layer_1_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/layer_1/bias").read(batch_0_layer_1_biases_grad);
-        data_file.getDataSet("model_1/gradients/0/layer_2/weight").read(batch_0_layer_2_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/layer_2/bias").read(batch_0_layer_2_biases_grad);
+        data_file.getDataSet("model_1/gradients/0/input_layer/weight").read(batch_0_input_layer_weights_grad);
+        data_file.getDataSet("model_1/gradients/0/input_layer/bias").read(batch_0_input_layer_biases_grad);
+        data_file.getDataSet("model_1/gradients/0/hidden_layer_0/weight").read(batch_0_hidden_layer_0_weights_grad);
+        data_file.getDataSet("model_1/gradients/0/hidden_layer_0/bias").read(batch_0_hidden_layer_0_biases_grad);
         data_file.getDataSet("model_1/gradients/0/output_layer/weight").read(batch_0_output_layer_weights_grad);
         data_file.getDataSet("model_1/gradients/0/output_layer/bias").read(batch_0_output_layer_biases_grad);
         this->reset();
@@ -648,30 +648,30 @@ protected:
     void reset(){
 
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet(model_name + "/init/layer_1/weight").read(layer_1_weights);
-        data_file.getDataSet(model_name + "/init/layer_1/bias").read(layer_1_biases);
-        data_file.getDataSet(model_name + "/init/layer_2/weight").read(layer_2_weights);
-        data_file.getDataSet(model_name + "/init/layer_2/bias").read(layer_2_biases);
+        data_file.getDataSet(model_name + "/init/input_layer/weight").read(input_layer_weights);
+        data_file.getDataSet(model_name + "/init/input_layer/bias").read(input_layer_biases);
+        data_file.getDataSet(model_name + "/init/hidden_layer_0/weight").read(hidden_layer_0_weights);
+        data_file.getDataSet(model_name + "/init/hidden_layer_0/bias").read(hidden_layer_0_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights     , layer_1_weights);
-        memcpy(network.input_layer.biases, layer_1_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights     , layer_2_weights);
-        memcpy(network.hidden_layers[0].biases, layer_2_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
+        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights     , input_layer_weights);
+        memcpy(network.input_layer.biases, input_layer_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
+        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights     , hidden_layer_0_weights);
+        memcpy(network.hidden_layers[0].biases, hidden_layer_0_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
         assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights, output_layer_weights);
         memcpy(network.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
 
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network_backward.input_layer.weights     , layer_1_weights);
-        memcpy(network_backward.input_layer.biases, layer_1_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network_backward.hidden_layers[0].weights     , layer_2_weights);
-        memcpy(network_backward.hidden_layers[0].biases, layer_2_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
+        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network_backward.input_layer.weights     , input_layer_weights);
+        memcpy(network_backward.input_layer.biases, input_layer_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
+        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network_backward.hidden_layers[0].weights     , hidden_layer_0_weights);
+        memcpy(network_backward.hidden_layers[0].biases, hidden_layer_0_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
         assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network_backward.output_layer.weights, output_layer_weights);
         memcpy(network_backward.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
 
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network_old.layer_1.weights     , layer_1_weights);
-        memcpy(network_old.layer_1.biases, layer_1_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network_old.layer_2.weights     , layer_2_weights);
-        memcpy(network_old.layer_2.biases, layer_2_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
+        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network_old.input_layer.weights     , input_layer_weights);
+        memcpy(network_old.input_layer.biases, input_layer_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
+        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network_old.hidden_layer_0.weights     , hidden_layer_0_weights);
+        memcpy(network_old.hidden_layer_0.biases, hidden_layer_0_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
         assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network_old.output_layer.weights, output_layer_weights);
         memcpy(network_old.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
     }
@@ -679,16 +679,16 @@ protected:
     old_default_net::NetworkType network_old;
     NetworkType network;
     NetworkTypeBackwardOnly network_backward;
-    std::vector<std::vector<DTYPE>> layer_1_weights;
-    std::vector<DTYPE> layer_1_biases;
-    std::vector<std::vector<DTYPE>> layer_2_weights;
-    std::vector<DTYPE> layer_2_biases;
+    std::vector<std::vector<DTYPE>> input_layer_weights;
+    std::vector<DTYPE> input_layer_biases;
+    std::vector<std::vector<DTYPE>> hidden_layer_0_weights;
+    std::vector<DTYPE> hidden_layer_0_biases;
     std::vector<std::vector<DTYPE>> output_layer_weights;
     std::vector<DTYPE> output_layer_biases;
-    std::vector<std::vector<DTYPE>> batch_0_layer_1_weights_grad;
-    std::vector<DTYPE> batch_0_layer_1_biases_grad;
-    std::vector<std::vector<DTYPE>> batch_0_layer_2_weights_grad;
-    std::vector<DTYPE> batch_0_layer_2_biases_grad;
+    std::vector<std::vector<DTYPE>> batch_0_input_layer_weights_grad;
+    std::vector<DTYPE> batch_0_input_layer_biases_grad;
+    std::vector<std::vector<DTYPE>> batch_0_hidden_layer_0_weights_grad;
+    std::vector<DTYPE> batch_0_hidden_layer_0_biases_grad;
     std::vector<std::vector<DTYPE>> batch_0_output_layer_weights_grad;
     std::vector<DTYPE> batch_0_output_layer_biases_grad;
     DTYPE d_input[INPUT_DIM];
@@ -701,8 +701,8 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_ONLY, d_input) {
 //    DTYPE out = abs_diff_matrix<
 //            DTYPE, LAYER_1_DIM, INPUT_DIM
 //    >(
-//            network.layer_1.d_weights,
-//            batch_0_layer_1_weights_grad
+//            network.input_layer.d_weights,
+//            batch_0_input_layer_weights_grad
 //    );
     DTYPE acc = 0;
     for(int i = 0; i < INPUT_DIM; i++){

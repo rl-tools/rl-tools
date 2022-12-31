@@ -1,4 +1,5 @@
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 
 option(LAYER_IN_C_TEST_LOCAL "Local dev" OFF)
 
@@ -151,6 +152,20 @@ target_link_libraries(
         HighFive
 )
 gtest_discover_tests(test_rl_algorithms_td3_first_stage)
+
+# RL Algorithm td3 test first stage mlp
+add_executable(
+        test_rl_algorithms_td3_first_stage_mlp
+        src/rl/algorithms/td3/first_stage_mlp.cpp
+)
+target_link_libraries(
+        test_rl_algorithms_td3_first_stage_mlp
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+)
+gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
+
 
 # RL Algorithm td3 test second stage
 add_executable(

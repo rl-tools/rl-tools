@@ -18,11 +18,11 @@ namespace layer_in_c{
         utils::polyak::update_matrix<typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(devices::Generic(), target.weights, source.weights, polyak);
         utils::polyak::update       <typename SPEC::T, SPEC::OUTPUT_DIM                 >(devices::Generic(), target.biases , source.biases , polyak);
     }
-    template<typename T, typename DEVICE, typename SPEC>
-    void update_target_network(nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& target, const nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& source, T polyak) {
-        update_target_layer(target.layer_1, source.layer_1, polyak);
-        update_target_layer(target.layer_2, source.layer_2, polyak);
-        update_target_layer(target.output_layer, source.output_layer, polyak);
+    template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void update_target_network(nn_models::three_layer_fc::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::three_layer_fc::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {
+        update_target_layer(target.input_layer   , source.input_layer   , polyak);
+        update_target_layer(target.hidden_layer_0, source.hidden_layer_0, polyak);
+        update_target_layer(target.output_layer  , source.output_layer  , polyak);
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void update_target_network(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {
