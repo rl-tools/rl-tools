@@ -142,7 +142,7 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     acc += abs_diff_matrix<T, NT::SPEC::LAYER_1::OUTPUT_DIM, NT::SPEC::LAYER_1::INPUT_DIM>(network.layer_1.weights, weights);
     return acc;
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_FORWARD) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
@@ -178,7 +178,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     }
 
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 //    using ActorCriticSpec = lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>;
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     ActorCriticType actor_critic;
@@ -219,7 +219,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 
     std::cout << "diff_grad_per_weight: " << diff_grad_per_weight << std::endl;
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_TRAINING) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     constexpr bool verbose = true;
 //    typedef lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -322,7 +322,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     ASSERT_GT(mean_ratio_grad, 1e14);
     ASSERT_GT(mean_ratio_adam, 1e14);
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FIRST_STAGE, TEST_ACTOR_TRAINING) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     constexpr bool verbose = true;
 //    typedef lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;

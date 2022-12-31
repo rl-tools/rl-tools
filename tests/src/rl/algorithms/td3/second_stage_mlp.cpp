@@ -94,7 +94,7 @@ using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACT
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<lic::devices::CPU, TD3_SPEC>;
 
 
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;
 //    constexpr int BATCH_SIZE = 100;
 //    using ActorCriticType::SPEC = lic::rl::algorithms::td3::ActorCriticType::SPECification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ;
@@ -127,7 +127,7 @@ void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
     }
     rb.position = batch.size();
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, FP_ACC) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, FP_ACC) {
     for(int i = 0; i < 1000; i++){
         std::normal_distribution<float> dist;
         auto rng = std::mt19937(0);
@@ -159,7 +159,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, FP_ACC) {
 //        std::cout << e << std::endl;
     }
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_SECOND_STAGE, TEST_COPY_TRAINING) {
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
     UI ui;
 #endif
