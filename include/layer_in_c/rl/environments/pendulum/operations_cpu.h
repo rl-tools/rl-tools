@@ -7,12 +7,6 @@
 #include "operations_generic.h"
 
 namespace layer_in_c{
-    template<typename SPEC, typename RNG>
-    static void sample_initial_state(const rl::environments::Pendulum<devices::CPU, SPEC>& env, rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
-        state.theta     = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle)(rng);
-        state.theta_dot = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed)(rng);
-    }
-
     template<typename SPEC>
     static typename SPEC::T step(const rl::environments::Pendulum<devices::CPU, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], rl::environments::pendulum::State<typename SPEC::T>& next_state) {
         return step<SPEC>((rl::environments::Pendulum<devices::Generic, SPEC>&)env, state, action, next_state);
@@ -31,6 +25,15 @@ namespace layer_in_c{
         return terminated((rl::environments::Pendulum<devices::Generic, SPEC>&)env, state);
     }
 }
+// Specializations
+namespace layer_in_c{
+    template<typename SPEC, typename RNG>
+    static void sample_initial_state(const rl::environments::Pendulum<devices::CPU, SPEC>& env, rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
+        state.theta     = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle)(rng);
+        state.theta_dot = std::uniform_real_distribution<typename SPEC::T>(SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed)(rng);
+    }
+}
+
 
 
 #endif
