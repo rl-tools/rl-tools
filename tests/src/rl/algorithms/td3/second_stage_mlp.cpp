@@ -40,7 +40,7 @@ std::string get_data_file_path(){
 }
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum::CPU<PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
@@ -443,7 +443,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 while(true){
                     ENVIRONMENT::State initial_state;
                     lic::sample_initial_state(env, initial_state, rng);
-                    lic::evaluate_visual<ENVIRONMENT, UI, ActorCriticType::ACTOR_NETWORK_TYPE, 100, 3>(ENVIRONMENT(), ui, actor_critic.actor, initial_state);
+                    lic::evaluate_visual<ENVIRONMENT, UI, decltype(actor_critic.actor), 100, 3>(ENVIRONMENT(), ui, actor_critic.actor, initial_state);
                 }
             }
 #endif

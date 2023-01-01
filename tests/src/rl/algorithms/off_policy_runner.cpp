@@ -3,10 +3,9 @@
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 
-#include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
+#include <layer_in_c/rl/environments/operations_cpu.h>
 #include <layer_in_c/rl/components/replay_buffer/operations_cpu.h>
 #include <layer_in_c/rl/components/off_policy_runner/operations_cpu.h>
-#include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
 
 
 #include <layer_in_c/utils/rng_std.h>
@@ -19,9 +18,11 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 
 namespace lic = layer_in_c;
 
-typedef lic::rl::environments::Pendulum<lic::devices::CPU, lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>> ENVIRONMENT;
+using ENVIRONMENT_SPEC = lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>;
+using ENVIRONMENT = lic::rl::environments::Pendulum::CPU<ENVIRONMENT_SPEC>;
 typedef lic::rl::components::off_policy_runner::Spec<DTYPE, ENVIRONMENT, 5000, 100, lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
 typedef lic::rl::components::OffPolicyRunner<lic::devices::CPU, OffPolicyRunnerSpec> OffPolicyRunner;
+
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, ENVIRONMENT::OBSERVATION_DIM,

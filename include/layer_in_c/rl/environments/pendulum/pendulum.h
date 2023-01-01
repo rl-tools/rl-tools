@@ -3,6 +3,9 @@
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/devices.h>
+
+#include <layer_in_c/utils/generic/math.h>
+
 namespace layer_in_c::rl::environments::pendulum {
     template <typename T>
     struct DefaultParameters {
@@ -30,17 +33,20 @@ namespace layer_in_c::rl::environments::pendulum {
     };
 
 }
-namespace layer_in_c::rl::environments {
-    template <typename DEVICE, typename SPEC>
-    struct Pendulum: Environment{
-        typedef pendulum::State<typename SPEC::T> State;
-        typedef typename SPEC::PARAMETERS PARAMETERS;
+
+namespace layer_in_c::rl::environments::Pendulum{
+    // todo: if P0293R0 is ever accepted the template should be on the Pendulum container: Pendulum<SPEC>::CPU
+    template <typename SPEC>
+    struct Generic: devices::Generic{
+        using State = pendulum::State<typename SPEC::T>;
+        using PARAMETERS = typename SPEC::PARAMETERS;
         static constexpr size_t OBSERVATION_DIM = 3;
         static constexpr size_t ACTION_DIM = 1;
     };
+    template <typename SPEC>
+    struct CPU: Generic<SPEC>, devices::CPU{};
 
 }
-
 
 
 

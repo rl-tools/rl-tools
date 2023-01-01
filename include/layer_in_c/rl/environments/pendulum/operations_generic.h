@@ -19,7 +19,7 @@ namespace layer_in_c::rl::environments::pendulum {
 }
 namespace layer_in_c{
     template<typename SPEC>
-    static typename SPEC::T step(const rl::environments::Pendulum<devices::Generic, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], rl::environments::pendulum::State<typename SPEC::T>& next_state) {
+    static typename SPEC::T step(const rl::environments::Pendulum::Generic<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], rl::environments::pendulum::State<typename SPEC::T>& next_state) {
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         typedef typename SPEC::PARAMETERS PARAMS;
@@ -35,13 +35,13 @@ namespace layer_in_c{
         T newthdot = state.theta_dot + (3 * g / (2 * l) * std::sin(state.theta) + 3.0 / (m * l * l) * u) * dt;
         newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
         T newth = state.theta + newthdot * dt;
-
+        
         next_state.theta = newth;
         next_state.theta_dot = newthdot;
         return SPEC::PARAMETERS::dt;
     }
     template<typename SPEC>
-    static typename SPEC::T reward(const rl::environments::Pendulum<devices::Generic, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::pendulum::State<typename SPEC::T>& next_state){
+    static typename SPEC::T reward(const rl::environments::Pendulum::Generic<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::pendulum::State<typename SPEC::T>& next_state){
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         T angle_norm = angle_normalize(state.theta);
@@ -52,14 +52,14 @@ namespace layer_in_c{
     }
 
     template<typename SPEC>
-    static void observe(const rl::environments::Pendulum<devices::Generic, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, typename SPEC::T observation[3]){
+    static void observe(const rl::environments::Pendulum::Generic<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, typename SPEC::T observation[3]){
         typedef typename SPEC::T T;
         observation[0] = std::cos(state.theta);
         observation[1] = std::sin(state.theta);
         observation[2] = state.theta_dot;
     }
     template<typename SPEC>
-    static bool terminated(const rl::environments::Pendulum<devices::Generic, SPEC>& env, const typename rl::environments::pendulum::State<typename SPEC::T> state){
+    static bool terminated(const rl::environments::Pendulum::Generic<SPEC>& env, const typename rl::environments::pendulum::State<typename SPEC::T> state){
         return false;
     }
 }

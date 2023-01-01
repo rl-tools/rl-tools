@@ -12,7 +12,7 @@
 
 namespace layer_in_c {
     template<typename ENVIRONMENT, typename POLICY, int STEP_LIMIT>
-    typename POLICY::T evaluate(const rl::environments::Environment env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
+    typename POLICY::T evaluate(const ENVIRONMENT env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
         typedef typename POLICY::T T;
         typename ENVIRONMENT::State state;
         state = initial_state;
@@ -39,7 +39,7 @@ namespace layer_in_c {
         return episode_return;
     }
     template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT, bool DETERMINISTIC>
-    typename POLICY::T evaluate(const rl::environments::Environment env, POLICY &policy, uint32_t N, RNG &rng) {
+    typename POLICY::T evaluate(const ENVIRONMENT env, POLICY &policy, uint32_t N, RNG &rng) {
         typedef typename POLICY::T T;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM, "Action and policy output dimensions must match");

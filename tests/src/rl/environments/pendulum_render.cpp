@@ -9,7 +9,7 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_RENCER, RENDER) {
     typedef double T;
     typedef lic::rl::environments::pendulum::Spec<T, lic::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
-    typedef lic::rl::environments::Pendulum<lic::devices::Generic, PENDULUM_SPEC> ENVIRONMENT;
+    typedef lic::rl::environments::Pendulum::CPU<PENDULUM_SPEC> ENVIRONMENT;
     for(int j=0; j < 10; j++){
         lic::rl::environments::pendulum::UI<T> ui_state;
         for(int i = 0; i < 100; i++){

@@ -3,8 +3,16 @@
 
 namespace layer_in_c {
     namespace devices {
-        struct Generic{};
-        struct CPU{};
+        enum class Device {
+            Generic,
+            CPU
+        };
+        struct Generic{
+            static constexpr Device DEVICE = Device::Generic;
+        };
+        struct CPU{
+            static constexpr Device DEVICE = Device::CPU;
+        };
     }
 }
 

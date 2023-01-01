@@ -25,7 +25,7 @@ std::string get_data_file_path(){
 }
 #define DTYPE double
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum::CPU<PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
 #define SKIP_FULL_TRAINING
