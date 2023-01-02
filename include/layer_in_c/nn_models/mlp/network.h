@@ -21,9 +21,9 @@ namespace layer_in_c::nn_models::mlp {
         using S = STRUCTURE_SPEC;
         using T = typename S::T;
 
-        using  INPUT_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpec<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
-        using HIDDEN_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
-        using OUTPUT_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>>;
+        using  INPUT_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpecification<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
+        using HIDDEN_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpecification<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
+        using OUTPUT_LAYER = nn::layers::dense::Layer<DEVICE, nn::layers::dense::LayerSpecification<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>>;
     };
 
     template <typename T_DEVICE, typename T_STRUCTURE_SPEC>
@@ -33,9 +33,9 @@ namespace layer_in_c::nn_models::mlp {
         using S = STRUCTURE_SPEC;
         using T = typename S::T;
 
-        using  INPUT_LAYER = nn::layers::dense::LayerBackward<DEVICE, nn::layers::dense::LayerSpec<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackward<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackward<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>>;
+        using  INPUT_LAYER = nn::layers::dense::LayerBackward<DEVICE, nn::layers::dense::LayerSpecification<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackward<DEVICE, nn::layers::dense::LayerSpecification<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackward<DEVICE, nn::layers::dense::LayerSpecification<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>>;
     };
 
     template<typename T_DEVICE, typename T_STRUCTURE_SPEC, typename T_SGD_PARAMETERS>
@@ -46,9 +46,9 @@ namespace layer_in_c::nn_models::mlp {
         using T = typename S::T;
         using SGD_PARAMETERS = T_SGD_PARAMETERS;
 
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardSGD<DEVICE, nn::layers::dense::LayerSpec<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, SGD_PARAMETERS>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardSGD<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, SGD_PARAMETERS>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardSGD<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>, SGD_PARAMETERS>;
+        using  INPUT_LAYER = nn::layers::dense::LayerBackwardSGD<DEVICE, nn::layers::dense::LayerSpecification<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, SGD_PARAMETERS>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardSGD<DEVICE, nn::layers::dense::LayerSpecification<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, SGD_PARAMETERS>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardSGD<DEVICE, nn::layers::dense::LayerSpecification<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>, SGD_PARAMETERS>;
     };
 
     template<typename T_DEVICE, typename T_STRUCTURE_SPEC, typename T_ADAM_PARAMETERS>
@@ -59,9 +59,9 @@ namespace layer_in_c::nn_models::mlp {
         using T = typename S::T ;
         using ADAM_PARAMETERS = T_ADAM_PARAMETERS;
 
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardAdam<DEVICE, nn::layers::dense::LayerSpec<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, ADAM_PARAMETERS>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardAdam<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, ADAM_PARAMETERS>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardAdam<DEVICE, nn::layers::dense::LayerSpec<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>, ADAM_PARAMETERS>;
+        using  INPUT_LAYER = nn::layers::dense::LayerBackwardAdam<DEVICE, nn::layers::dense::LayerSpecification<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, ADAM_PARAMETERS>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardAdam<DEVICE, nn::layers::dense::LayerSpecification<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>, ADAM_PARAMETERS>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardAdam<DEVICE, nn::layers::dense::LayerSpecification<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>, ADAM_PARAMETERS>;
     };
 
     template<typename T_DEVICE, typename T_SPEC>

@@ -1,7 +1,8 @@
 #ifndef LAYER_IN_C_TESTS_UTILS_NN_COMPARISON_H
 #define LAYER_IN_C_TESTS_UTILS_NN_COMPARISON_H
+
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff(const lic::nn::layers::dense::Layer<DEVICE, SPEC>& l1, const lic::nn::layers::dense::Layer<DEVICE, SPEC>& l2) {
+typename SPEC::T abs_diff(const layer_in_c::nn::layers::dense::Layer<DEVICE, SPEC>& l1, const layer_in_c::nn::layers::dense::Layer<DEVICE, SPEC>& l2) {
     typedef typename SPEC::T T;
     T acc = 0;
     acc += abs_diff_matrix<T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.weights, l2.weights);
@@ -9,50 +10,21 @@ typename SPEC::T abs_diff(const lic::nn::layers::dense::Layer<DEVICE, SPEC>& l1,
     return acc;
 }
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_grad(const lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& l1, const lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& l2) {
+typename SPEC::T abs_diff_grad(const layer_in_c::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& l1, const layer_in_c::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& l2) {
     typedef typename SPEC::T T;
-    T acc = 0; //abs_diff((lic::nn::layers::dense::Layer<DEVICE, SPEC>&)l1, (lic::nn::layers::dense::Layer<DEVICE, SPEC>&)l2);
+    T acc = 0; //abs_diff((layer_in_c::nn::layers::dense::Layer<DEVICE, SPEC>&)l1, (layer_in_c::nn::layers::dense::Layer<DEVICE, SPEC>&)l2);
     acc += abs_diff_matrix<T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.d_weights, l2.d_weights);
     acc += abs_diff_vector<T, SPEC::OUTPUT_DIM>(l1.d_biases, l2.d_biases);
     return acc;
 }
 template <typename DEVICE, typename SPEC, typename PARAMETERS>
-typename SPEC::T abs_diff_adam(const lic::nn::layers::dense::LayerBackwardAdam<DEVICE, SPEC, PARAMETERS>& l1, const lic::nn::layers::dense::LayerBackwardAdam<DEVICE, SPEC, PARAMETERS>& l2) {
+typename SPEC::T abs_diff_adam(const layer_in_c::nn::layers::dense::LayerBackwardAdam<DEVICE, SPEC, PARAMETERS>& l1, const layer_in_c::nn::layers::dense::LayerBackwardAdam<DEVICE, SPEC, PARAMETERS>& l2) {
     typedef typename SPEC::T T;
-    T acc = 0; //abs_diff((lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)l1, (lic::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)l2);
+    T acc = 0; //abs_diff((layer_in_c::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)l1, (layer_in_c::nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)l2);
     acc += abs_diff_matrix<T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.d_weights_first_order_moment, l2.d_weights_first_order_moment);
     acc += abs_diff_matrix<T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(l1.d_weights_second_order_moment, l2.d_weights_second_order_moment);
     acc += abs_diff_vector<T, SPEC::OUTPUT_DIM>(l1.d_biases_first_order_moment, l2.d_biases_first_order_moment);
     acc += abs_diff_vector<T, SPEC::OUTPUT_DIM>(l1.d_biases_second_order_moment, l2.d_biases_second_order_moment);
     return acc;
 }
-template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff(const lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& n1, const lic::nn_models::three_layer_fc::NeuralNetwork<DEVICE, SPEC>& n2) {
-    typedef typename SPEC::T T;
-    T acc = 0;
-    acc += abs_diff(n1.input_layer, n2.input_layer);
-    acc += abs_diff(n1.hidden_layer_0, n2.hidden_layer_0);
-    acc += abs_diff(n1.output_layer, n2.output_layer);
-    return acc;
-}
-template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_grad(const lic::nn_models::three_layer_fc::NeuralNetworkBackwardGradient<DEVICE, SPEC>& n1, const lic::nn_models::three_layer_fc::NeuralNetworkBackwardGradient<DEVICE, SPEC>& n2) {
-    typedef typename SPEC::T T;
-    T acc = 0;
-    acc += abs_diff_grad(n1.input_layer, n2.input_layer);
-    acc += abs_diff_grad(n1.hidden_layer_0, n2.hidden_layer_0);
-    acc += abs_diff_grad(n1.output_layer, n2.output_layer);
-    return acc;
-}
-
-template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_adam(const lic::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, SPEC>& n1, const lic::nn_models::three_layer_fc::NeuralNetworkAdam<DEVICE, SPEC>& n2) {
-    typedef typename SPEC::T T;
-    T acc = 0;
-    acc += abs_diff_adam(n1.input_layer, n2.input_layer);
-    acc += abs_diff_adam(n1.hidden_layer_0, n2.hidden_layer_0);
-    acc += abs_diff_adam(n1.output_layer, n2.output_layer);
-    return acc;
-}
-
 #endif

@@ -1,15 +1,14 @@
+
+#include <layer_in_c/nn_models/operations_cpu.h>
+#include "../utils/utils.h"
+#include <sstream>
+#include <random>
 #include <iostream>
 #include <vector>
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-#include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/nn/nn.h>
-#include <layer_in_c/utils/rng_std.h>
-#include "../utils/utils.h"
-#include <sstream>
 #include "default_network_mlp.h"
 //#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
@@ -525,7 +524,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
 //    this->reset();
     lic::reset_optimizer_state(network);
     std::mt19937 rng(2);
-    lic::init_weights<NETWORK_SPEC, lic::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(network, rng);
+    lic::init_weights(network, rng);
 
     constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;
@@ -605,112 +604,3 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
 #endif
 
 
-namespace old_default_net{
-    #include "default_network.h"
-}
-
-class NeuralNetworkTestBackwardOnly : public NeuralNetworkTest {
-public:
-    NeuralNetworkTestBackwardOnly() : NeuralNetworkTest(){
-        model_name = "model_1";
-    }
-protected:
-    void SetUp() override {
-        NeuralNetworkTest::SetUp();
-        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet("model_1/gradients/0/input_layer/weight").read(batch_0_input_layer_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/input_layer/bias").read(batch_0_input_layer_biases_grad);
-        data_file.getDataSet("model_1/gradients/0/hidden_layer_0/weight").read(batch_0_hidden_layer_0_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/hidden_layer_0/bias").read(batch_0_hidden_layer_0_biases_grad);
-        data_file.getDataSet("model_1/gradients/0/output_layer/weight").read(batch_0_output_layer_weights_grad);
-        data_file.getDataSet("model_1/gradients/0/output_layer/bias").read(batch_0_output_layer_biases_grad);
-        this->reset();
-        DTYPE input[INPUT_DIM];
-        DTYPE output[OUTPUT_DIM];
-        standardise<DTYPE, INPUT_DIM>(X_train[0].data(), X_mean.data(), X_std.data(), input);
-        standardise<DTYPE, OUTPUT_DIM>(Y_train[0].data(), Y_mean.data(), Y_std.data(), output);
-        DTYPE output_backward[OUTPUT_DIM];
-        lic::forward(network_backward, input, output_backward);
-        DTYPE d_loss_d_output[OUTPUT_DIM];
-        lic::nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM, 1>(output_backward, output, d_loss_d_output);
-        lic::backward(network_backward, d_loss_d_output, d_input_backward);
-
-        lic::forward(network, input);
-        lic::nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM, 1>(network.output_layer.output, output, d_loss_d_output);
-        lic::backward(network, input, d_loss_d_output, d_input);
-
-        lic::forward(network_old, input);
-        lic::nn::loss_functions::d_mse_d_x<DTYPE, OUTPUT_DIM, 1>(network_old.output_layer.output, output, d_loss_d_output);
-        DTYPE d_input[INPUT_DIM];
-        lic::zero_gradient(network_old);
-        lic::backward(network_old, input, d_loss_d_output, d_input_old);
-    }
-    void reset(){
-
-        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
-        data_file.getDataSet(model_name + "/init/input_layer/weight").read(input_layer_weights);
-        data_file.getDataSet(model_name + "/init/input_layer/bias").read(input_layer_biases);
-        data_file.getDataSet(model_name + "/init/hidden_layer_0/weight").read(hidden_layer_0_weights);
-        data_file.getDataSet(model_name + "/init/hidden_layer_0/bias").read(hidden_layer_0_biases);
-        data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
-        data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights     , input_layer_weights);
-        memcpy(network.input_layer.biases, input_layer_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights     , hidden_layer_0_weights);
-        memcpy(network.hidden_layers[0].biases, hidden_layer_0_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
-        assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights, output_layer_weights);
-        memcpy(network.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
-
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network_backward.input_layer.weights     , input_layer_weights);
-        memcpy(network_backward.input_layer.biases, input_layer_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network_backward.hidden_layers[0].weights     , hidden_layer_0_weights);
-        memcpy(network_backward.hidden_layers[0].biases, hidden_layer_0_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
-        assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network_backward.output_layer.weights, output_layer_weights);
-        memcpy(network_backward.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
-
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network_old.input_layer.weights     , input_layer_weights);
-        memcpy(network_old.input_layer.biases, input_layer_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network_old.hidden_layer_0.weights     , hidden_layer_0_weights);
-        memcpy(network_old.hidden_layer_0.biases, hidden_layer_0_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
-        assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network_old.output_layer.weights, output_layer_weights);
-        memcpy(network_old.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
-    }
-
-    old_default_net::NetworkType network_old;
-    NetworkType network;
-    NetworkTypeBackwardOnly network_backward;
-    std::vector<std::vector<DTYPE>> input_layer_weights;
-    std::vector<DTYPE> input_layer_biases;
-    std::vector<std::vector<DTYPE>> hidden_layer_0_weights;
-    std::vector<DTYPE> hidden_layer_0_biases;
-    std::vector<std::vector<DTYPE>> output_layer_weights;
-    std::vector<DTYPE> output_layer_biases;
-    std::vector<std::vector<DTYPE>> batch_0_input_layer_weights_grad;
-    std::vector<DTYPE> batch_0_input_layer_biases_grad;
-    std::vector<std::vector<DTYPE>> batch_0_hidden_layer_0_weights_grad;
-    std::vector<DTYPE> batch_0_hidden_layer_0_biases_grad;
-    std::vector<std::vector<DTYPE>> batch_0_output_layer_weights_grad;
-    std::vector<DTYPE> batch_0_output_layer_biases_grad;
-    DTYPE d_input[INPUT_DIM];
-    DTYPE d_input_old[INPUT_DIM];
-    DTYPE d_input_backward[INPUT_DIM];
-};
-
-typedef NeuralNetworkTestBackwardOnly LAYER_IN_C_NN_MLP_BACKWARD_ONLY;
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_ONLY, d_input) {
-//    DTYPE out = abs_diff_matrix<
-//            DTYPE, LAYER_1_DIM, INPUT_DIM
-//    >(
-//            network.input_layer.d_weights,
-//            batch_0_input_layer_weights_grad
-//    );
-    DTYPE acc = 0;
-    for(int i = 0; i < INPUT_DIM; i++){
-        DTYPE diff = abs(d_input[i] - d_input_backward[i]);
-        DTYPE diff_old = abs(d_input_old[i] - d_input_backward[i]);
-        acc += diff;
-        acc += diff_old;
-        std::cout << "d_input diff " << i << ": " << diff << " diff old: " << diff_old << std::endl;
-    }
-    ASSERT_EQ(acc, 0);
-}

@@ -4,7 +4,7 @@
 
 namespace layer_in_c::nn::layers::dense {
     template<typename T_T, int T_INPUT_DIM, int T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION>
-    struct LayerSpec {
+    struct LayerSpecification {
         typedef T_T T;
         static constexpr size_t INPUT_DIM = T_INPUT_DIM;
         static constexpr size_t OUTPUT_DIM = T_OUTPUT_DIM;

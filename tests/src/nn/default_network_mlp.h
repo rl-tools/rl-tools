@@ -15,11 +15,13 @@ struct StructureSpecification{
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
 
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<lic::devices::Generic, StructureSpecification<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
-using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC>;
+using NN_DEVICE = lic::devices::CPU;
 
-using NETWORK_SPEC_BACKWARD_ONLY = lic::nn_models::mlp::InferenceBackwardSpecification<lic::devices::Generic, StructureSpecification<DTYPE>>;
-using NetworkTypeBackwardOnly = lic::nn_models::mlp::NeuralNetworkBackward<lic::devices::Generic, NETWORK_SPEC_BACKWARD_ONLY>;
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, StructureSpecification<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, NETWORK_SPEC>;
+
+using NETWORK_SPEC_BACKWARD_ONLY = lic::nn_models::mlp::InferenceBackwardSpecification<NN_DEVICE, StructureSpecification<DTYPE>>;
+using NetworkTypeBackwardOnly = lic::nn_models::mlp::NeuralNetworkBackward<NN_DEVICE, NETWORK_SPEC_BACKWARD_ONLY>;
 
 constexpr size_t INPUT_DIM = StructureSpecification<DTYPE>::INPUT_DIM;
 constexpr size_t LAYER_1_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
@@ -68,5 +70,5 @@ struct StructureSpecification_3{
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
-using NETWORK_SPEC_3 = lic::nn_models::mlp::AdamSpecification<lic::devices::Generic, StructureSpecification_3<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
-using NetworkType_3 = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC_3>;
+using NETWORK_SPEC_3 = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, StructureSpecification_3<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using NetworkType_3 = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, NETWORK_SPEC_3>;

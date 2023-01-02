@@ -1,3 +1,6 @@
+#ifndef LAYER_IN_C_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CPU_H
+#define LAYER_IN_C_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CPU_H
+
 #include <layer_in_c/utils/generic/math.h>
 #include "off_policy_runner.h"
 
@@ -9,6 +12,8 @@
 namespace layer_in_c{
     template<typename SPEC, typename POLICY, typename RNG>
     void step(rl::components::OffPolicyRunner<devices::CPU, SPEC> &runner, POLICY &policy, RNG &rng) {
+        static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
+        static_assert(POLICY::OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         using T = typename SPEC::T;
         // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
         typedef typename SPEC::ENVIRONMENT ENVIRONMENT;
@@ -47,3 +52,5 @@ namespace layer_in_c{
         add(runner.replay_buffer, observation, action, reward_value, next_observation, terminated_flag, truncated);
     }
 }
+
+#endif

@@ -1,17 +1,14 @@
-#include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
+#include <layer_in_c/rl/environments/environments.h>
+#include <layer_in_c/rl/algorithms/td3/td3.h>
 
-#include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/nn_models/operations_generic.h>
+#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
 #include <layer_in_c/nn_models/persist.h>
 
-#include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
-#include <layer_in_c/rl/algorithms/td3/td3.h>
-#include <layer_in_c/rl/algorithms/td3/operations_generic.h>
-#include <layer_in_c/utils/rng_std.h>
 #include "../../../utils/utils.h"
 #include "../../../utils/nn_comparison_mlp.h"
+
+#include <gtest/gtest.h>
+#include <highfive/H5File.hpp>
 
 namespace lic = layer_in_c;
 std::string get_data_file_path(){
@@ -24,8 +21,8 @@ std::string get_data_file_path(){
     return DATA_FILE_PATH;
 }
 #define DTYPE double
-typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum::CPU<PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
 #define SKIP_FULL_TRAINING
@@ -118,7 +115,7 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
     constexpr static size_t ACTOR_BATCH_SIZE = 32;
 };
 
-using NN_DEVICE = lic::devices::Generic;
+using NN_DEVICE = lic::devices::CPU;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
 
@@ -146,9 +143,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::init<lic::devices::CPU, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(
-            actor_critic, rng);
-
+    lic::init(actor_critic, rng);
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
     lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
@@ -184,7 +179,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::init<lic::devices::CPU, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::init(actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
@@ -208,7 +203,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         lic::evaluate(actor_critic.critic_1, input, output);
         loss += lic::nn::loss_functions::mse<DTYPE, 1, 1>(output, target);
 
-        lic::forward_backward_mse<decltype(actor_critic.critic_1)::SPEC, 32>(actor_critic.critic_1, input, target);
+        lic::forward_backward_mse<decltype(actor_critic.critic_1)::DEVICE, decltype(actor_critic.critic_1)::SPEC, 32>(actor_critic.critic_1, input, target);
         std::cout << "output: " << actor_critic.critic_1.output_layer.output[0] << std::endl;
     }
 
@@ -226,7 +221,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::init<lic::devices::CPU, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::init(actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
@@ -268,7 +263,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         }
 
         DTYPE critic_1_loss = lic::train_critic<
-                decltype(actor_critic)::DEVICE,
                 decltype(actor_critic)::SPEC,
                 decltype(actor_critic.critic_1),
                 decltype(replay_buffer)::DEVICE,
@@ -329,7 +323,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::init<lic::devices::CPU, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::init(actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
@@ -358,7 +352,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
         ss << "actor_training/" << training_step_i;
         lic::load(post_actor, data_file.getGroup(ss.str()));
 
-        DTYPE actor_1_loss = lic::train_actor<lic::devices::CPU, ActorCriticType::SPEC, ReplayBufferType::DEVICE, ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+        DTYPE actor_1_loss = lic::train_actor<ActorCriticType::SPEC, ReplayBufferType::DEVICE, ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
 
         DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;

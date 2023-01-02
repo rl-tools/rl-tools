@@ -8,8 +8,8 @@ namespace lic = layer_in_c;
 const DTYPE STATE_TOLERANCE = 0.00001;
 
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
-    typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-    typedef lic::rl::environments::Pendulum::CPU<PENDULUM_SPEC> ENVIRONMENT;
+    typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+    typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
     std::string DATA_FILE_PATH = "../multirotor-torch/pendulum.hdf5";
     const char* data_file_path = std::getenv("LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE");
     if (data_file_path != NULL){

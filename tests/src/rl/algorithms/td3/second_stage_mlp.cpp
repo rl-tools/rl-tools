@@ -1,21 +1,12 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-#include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
-#include <layer_in_c/rl/algorithms/td3/td3.h>
-
-#include <layer_in_c/rl/algorithms/td3/operations_generic.h>
-#include <layer_in_c/nn_models/operations_generic.h>
+#include <layer_in_c/rl/environments/operations_cpu.h>
+#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
 
 #include <layer_in_c/nn_models/persist.h>
-
-#include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
-//#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
-
 #include <layer_in_c/rl/utils/evaluation.h>
-#include <layer_in_c/utils/rng_std.h>
+
 #include "../../../utils/utils.h"
 #include "../../../utils/nn_comparison_mlp.h"
 
@@ -39,8 +30,8 @@ std::string get_data_file_path(){
     return DATA_FILE_PATH;
 }
 #define DTYPE double
-typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum::CPU<PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
@@ -77,7 +68,7 @@ struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultParame
     constexpr static int ACTOR_BATCH_SIZE = 100;
 };
 
-using NN_DEVICE = lic::devices::Generic;
+using NN_DEVICE = lic::devices::CPU;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
 
@@ -96,9 +87,6 @@ using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<lic::devices::CPU,
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;
-//    constexpr int BATCH_SIZE = 100;
-//    using ActorCriticType::SPEC = lic::rl::algorithms::td3::ActorCriticType::SPECification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ;
-//    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticType::SPEC> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
@@ -113,7 +101,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) 
 }
 
 using ReplayBufferSpecCopyTraining = lic::rl::components::replay_buffer::Spec<DTYPE, 3, 1, 1000>;
-typedef lic::rl::components::ReplayBuffer<lic::devices::Generic, ReplayBufferSpecCopyTraining> ReplayBufferTypeCopyTraining;
+typedef lic::rl::components::ReplayBuffer<lic::devices::CPU, ReplayBufferSpecCopyTraining> ReplayBufferTypeCopyTraining;
 constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
 template <typename T, typename REPLAY_BUFFER_TYPE>
 void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
@@ -164,13 +152,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     UI ui;
 #endif
     constexpr bool verbose = true;
-//    constexpr int BATCH_SIZE = 100;
-//    typedef lic::rl::algorithms::td3::ActorCriticType::SPECification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3ParametersCopyTraining<DTYPE>> ActorCriticType::SPEC;
-//    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticType::SPEC> ActorCriticType;
     ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::init<decltype(actor_critic)::DEVICE, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::init(actor_critic, rng);
 
 
 
@@ -225,7 +210,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             lic::load(post_critic_1, step_group.getGroup("critic1"));
 
             DTYPE critic_1_loss = lic::train_critic<
-                    decltype(actor_critic)::DEVICE,
                     decltype(actor_critic)::SPEC,
                     decltype(actor_critic.critic_1),
                     decltype(replay_buffer)::DEVICE,
@@ -277,7 +261,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             mean_ratio_critic_adam += diff_ratio_adam;
 
             DTYPE critic_2_loss = lic::train_critic<
-                decltype(actor_critic)::DEVICE,
                 decltype(actor_critic)::SPEC,
                 decltype(actor_critic.critic_2),
                 decltype(replay_buffer)::DEVICE,
@@ -318,7 +301,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             }
 
 
-            DTYPE actor_loss = lic::train_actor<decltype(actor_critic)::DEVICE, ActorCriticType::SPEC, decltype(replay_buffer)::DEVICE, decltype(replay_buffer)::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+            DTYPE actor_loss = lic::train_actor<ActorCriticType::SPEC, decltype(replay_buffer)::DEVICE, decltype(replay_buffer)::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
 
             if(true){//(step_i % 100 == 1){
                 DTYPE diff = 0;

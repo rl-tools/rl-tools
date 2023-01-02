@@ -1,8 +1,6 @@
 #include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/utils/rng_std.h>
 
-
+#include <layer_in_c/nn_models/operations_cpu.h>
 
 #include "../utils/utils.h"
 
@@ -27,8 +25,8 @@ struct StructureSpecification{
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
 
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<lic::devices::Generic, StructureSpecification<T>, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
-using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC>;
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<lic::devices::CPU, StructureSpecification<T>, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
+using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::CPU, NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
 std::vector<std::vector<T>> Y_train;
@@ -68,7 +66,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     //    this->reset();
     lic::reset_optimizer_state(network);
     std::mt19937 rng(2);
-    lic::init_weights<NETWORK_SPEC, lic::utils::random::stdlib::uniform<T, typeof(rng)>, typeof(rng)>(network, rng);
+    lic::init_weights(network, rng);
 
     constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;

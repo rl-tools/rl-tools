@@ -1,13 +1,13 @@
-#include <layer_in_c/nn_models/models.h>
 
 #include <layer_in_c/rl/environments/environments.h>
+#include <layer_in_c/nn_models/models.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
-#include <layer_in_c/rl/algorithms/td3/operations_generic.h>
 
-#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+#include <layer_in_c/nn_models/operations_cpu.h>
 #include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
 #include <layer_in_c/rl/components/off_policy_runner/operations_cpu.h>
-#include <layer_in_c/utils/rng_std.h>
+#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+
 
 #include <layer_in_c/rl/utils/evaluation.h>
 
@@ -28,8 +28,8 @@
 namespace lic = layer_in_c;
 using DTYPE = float;
 
-typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum::CPU<PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
@@ -61,7 +61,7 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
     constexpr static size_t ACTOR_BATCH_SIZE = 100;
 };
 
-using NN_DEVICE = lic::devices::Generic;
+using NN_DEVICE = lic::devices::CPU;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
 
@@ -100,7 +100,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     UI ui;
 #endif
     std::mt19937 rng(2);
-    lic::init<decltype(actor_critic)::DEVICE, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+    lic::init(actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS

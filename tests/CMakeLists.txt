@@ -32,19 +32,6 @@ add_subdirectory(lib/highfive)
 
 #set(CMAKE_CXX_STANDARD 17)
 
-# Neural Network Test
-add_executable(
-        test_neural_network
-        src/nn/test.cpp
-)
-target_link_libraries(
-        test_neural_network
-        layer_in_c
-        GTest::gtest_main
-        HighFive
-)
-gtest_discover_tests(test_neural_network)
-
 # Neural Network Test MLP
 add_executable(
         test_neural_network_mlp
@@ -57,19 +44,6 @@ target_link_libraries(
         HighFive
 )
 gtest_discover_tests(test_neural_network_mlp)
-
-# Neural Network Test Full Training
-add_executable(
-        test_neural_network_full_training
-        src/nn/full_training.cpp
-)
-target_link_libraries(
-        test_neural_network_full_training
-        layer_in_c
-        GTest::gtest_main
-        HighFive
-)
-gtest_discover_tests(test_neural_network_full_training)
 
 # Neural Network Test Full Training MLP
 add_executable(
@@ -140,19 +114,6 @@ target_link_libraries(
 )
 gtest_discover_tests(test_rl_algorithms_td3_off_policy_runner)
 
-# RL Algorithm td3 test first stage
-add_executable(
-        test_rl_algorithms_td3_first_stage
-        src/rl/algorithms/td3/first_stage.cpp
-)
-target_link_libraries(
-        test_rl_algorithms_td3_first_stage
-        layer_in_c
-        GTest::gtest_main
-        HighFive
-)
-gtest_discover_tests(test_rl_algorithms_td3_first_stage)
-
 # RL Algorithm td3 test first stage mlp
 add_executable(
         test_rl_algorithms_td3_first_stage_mlp
@@ -166,34 +127,6 @@ target_link_libraries(
 )
 gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
 
-
-# RL Algorithm td3 test second stage
-add_executable(
-        test_rl_algorithms_td3_second_stage
-        src/rl/algorithms/td3/second_stage.cpp
-)
-target_link_libraries(
-        test_rl_algorithms_td3_second_stage
-        layer_in_c
-        GTest::gtest_main
-        HighFive
-)
-if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
-    target_link_libraries(
-            test_rl_algorithms_td3_second_stage
-            matplotlib_cpp
-    )
-    target_include_directories(test_rl_algorithms_td3_second_stage PRIVATE lib)
-    target_compile_definitions(test_rl_algorithms_td3_second_stage PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
-endif()
-if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
-    target_link_libraries(
-            test_rl_algorithms_td3_second_stage
-            Qt5::Widgets
-    )
-    target_compile_definitions(test_rl_algorithms_td3_second_stage PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
-endif()
-gtest_discover_tests(test_rl_algorithms_td3_second_stage)
 
 # RL Algorithm td3 test second stage MLP
 add_executable(

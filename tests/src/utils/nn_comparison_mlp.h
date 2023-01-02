@@ -4,7 +4,7 @@
 #include "nn_comparison.h"
 
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff(const lic::nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& n1, const lic::nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& n2) {
+typename SPEC::T abs_diff(const layer_in_c::nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& n1, const layer_in_c::nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
     T acc = 0;
@@ -16,7 +16,7 @@ typename SPEC::T abs_diff(const lic::nn_models::mlp::NeuralNetwork<DEVICE, SPEC>
     return acc;
 }
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_grad(const lic::nn_models::mlp::NeuralNetworkBackwardGradient<DEVICE, SPEC>& n1, const lic::nn_models::mlp::NeuralNetworkBackwardGradient<DEVICE, SPEC>& n2) {
+typename SPEC::T abs_diff_grad(const layer_in_c::nn_models::mlp::NeuralNetworkBackwardGradient<DEVICE, SPEC>& n1, const layer_in_c::nn_models::mlp::NeuralNetworkBackwardGradient<DEVICE, SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
     T acc = 0;
@@ -29,7 +29,7 @@ typename SPEC::T abs_diff_grad(const lic::nn_models::mlp::NeuralNetworkBackwardG
 }
 
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_adam(const lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC>& n1, const lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC>& n2) {
+typename SPEC::T abs_diff_adam(const layer_in_c::nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC>& n1, const layer_in_c::nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
     T acc = 0;
