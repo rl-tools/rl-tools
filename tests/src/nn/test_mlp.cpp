@@ -20,9 +20,6 @@
 constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
 
-//typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
-//typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC;
-//typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType_1;
 using NetworkType_1 = NetworkType;
 
 template <typename T, typename NT>
@@ -411,13 +408,6 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
 #endif
 #endif
 
-//constexpr auto MODEL_TRAINING_ACTIVATION_FN = lic::nn::activation_functions::GELU;
-//
-//typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC_3;
-//typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC_3, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC_3;
-//typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC_3> NetworkType_3;
-//typedef nn_models::three_layer_fc::SGDSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, MODEL_TRAINING_ACTIVATION_FN, LAYER_2_DIM, MODEL_TRAINING_ACTIVATION_FN, OUTPUT_DIM, OUTPUT_FN, nn::layers::DefaultSGDParameters<DTYPE>> NETWORK_SPEC_3;
-//typedef nn_models::three_layer_fc::NeuralNetworkSGD<NETWORK_SPEC_3> NetworkType_3;
 class LAYER_IN_C_NN_MLP_TRAIN_MODEL : public NeuralNetworkTestLoadWeights<NetworkType_3> {
 public:
     typedef NetworkType_3 NETWORK_TYPE;
@@ -513,10 +503,6 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
 
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
-//    assert((std::is_same_v<typeof(network), NETWORK_TYPE>));
-//    typedef lic::nn_models::three_layer_fc::StructureSpecification<DTYPE, INPUT_DIM, LAYER_1_DIM, LAYER_1_FN, LAYER_2_DIM, LAYER_2_FN, OUTPUT_DIM, OUTPUT_FN> NETWORK_STRUCTURE_SPEC;
-//    typedef lic::nn_models::three_layer_fc::AdamSpecification<lic::devices::Generic, NETWORK_STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> NETWORK_SPEC;
-//    typedef lic::nn_models::three_layer_fc::NeuralNetworkAdam<lic::devices::Generic, NETWORK_SPEC> NetworkType;
     NetworkType network;
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
