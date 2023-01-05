@@ -82,7 +82,7 @@ gtest_discover_tests(test_neural_network_persistence)
 # RL Environment Pendulum test
 add_executable(
         test_rl_environments_pendulum
-        src/rl/environments/pendulum.cpp
+        src/rl/environments/pendulum/pendulum.cpp
 )
 target_link_libraries(
         test_rl_environments_pendulum
@@ -99,7 +99,7 @@ if(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
     find_package(Qt5 COMPONENTS Widgets REQUIRED)
     add_executable(
             test_rl_environments_pendulum_render
-            src/rl/environments/pendulum_render.cpp
+            src/rl/environments/pendulum/pendulum_render.cpp
     )
     target_link_libraries(
             test_rl_environments_pendulum_render
