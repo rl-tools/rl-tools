@@ -1,5 +1,6 @@
-#ifndef QUATERNION_HELPER_H
-#define QUATERNION_HELPER_H
+#ifndef LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_QUATERNION_HELPER_H
+#define LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_QUATERNION_HELPER_H
+
 #include "general_helper.h"
 
 #ifndef FUNCTION_PLACEMENT
@@ -31,6 +32,4 @@ FUNCTION_PLACEMENT void rotate_vector_by_quaternion(const T q[4], const T v[3], 
     scalar_multiply_accumulate<T, 3>(var, q[0], v_out); // 3 flops
     vector_add_accumulate<T, 3>(v, v_out); // 3 flops
 }
-
-
 #endif

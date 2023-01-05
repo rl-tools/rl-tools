@@ -4,8 +4,8 @@
 #include "general_helper.h"
 #include "quaternion_helper.h"
 
-constexpr size_t STATE_DIM = 13;
-constexpr size_t ACTION_DIM = 4;
+constexpr COUNTER_TYPE STATE_DIM = 13;
+constexpr COUNTER_TYPE ACTION_DIM = 4;
 #ifndef FUNCTION_PLACEMENT
 #define FUNCTION_PLACEMENT
 #endif

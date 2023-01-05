@@ -210,4 +210,16 @@ gtest_discover_tests(test_rl_algorithms_td3_full_training)
 #gtest_discover_tests(test_rl_algorithms_td3_pendulum_training_stats)
 
 
+# Environment Multirotor test
+add_executable(
+        test_rl_environments_multirotor_multirotor
+        src/rl/environments/multirotor/multirotor.cpp
+)
+target_link_libraries(
+        test_rl_environments_multirotor_multirotor
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+)
+gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 

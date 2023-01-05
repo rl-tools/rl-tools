@@ -1,8 +1,9 @@
-#include <gtest/gtest.h>
-#include <highfive/H5File.hpp>
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/environments/operations_cpu.h>
+
+#include <gtest/gtest.h>
+#include <highfive/H5File.hpp>
 namespace lic = layer_in_c;
 #define DTYPE double
 const DTYPE STATE_TOLERANCE = 0.00001;
