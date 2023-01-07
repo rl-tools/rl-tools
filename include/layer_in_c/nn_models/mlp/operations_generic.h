@@ -71,7 +71,7 @@ namespace layer_in_c {
     [[deprecated("Calling forward with an output buffer on a layer requiring the gradient is not recommended. Consider using forward without an output buffer to avoid unecessary copies instead.")]]
     FUNCTION_PLACEMENT void forward(nn_models::mlp::NeuralNetworkBackwardGradient<DEVICE, SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], typename SPEC::T output[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM]) {
         forward(network, input);
-        for(int i=0; i < utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM; i++){
+        for(index_t i=0; i < utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM; i++){
             output[i] = network.output_layer.output[i];
         }
     }

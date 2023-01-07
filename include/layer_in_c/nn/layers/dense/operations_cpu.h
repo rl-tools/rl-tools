@@ -22,9 +22,9 @@ namespace layer_in_c{
         T bias_bound = 1/std::sqrt((T)LS::INPUT_DIM);
         auto bias_distribution = std::uniform_real_distribution<T>(-bias_bound, bias_bound);
 
-        for(int i = 0; i < LS::OUTPUT_DIM; i++) {
+        for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
             layer.biases[i] = bias_distribution(rng);
-            for(int j = 0; j < LS::INPUT_DIM; j++) {
+            for(index_t j = 0; j < LS::INPUT_DIM; j++) {
                 layer.weights[i][j] = weight_distribution(rng);
             }
         }

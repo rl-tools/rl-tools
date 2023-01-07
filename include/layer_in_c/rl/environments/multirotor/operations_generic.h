@@ -96,7 +96,7 @@ namespace layer_in_c::rl::environments::multirotor {
 namespace layer_in_c{
     template<typename SPEC>
     static void initial_state(const rl::environments::Multirotor<devices::CPU, SPEC>& env, typename rl::environments::multirotor::State<typename SPEC::T>& state){
-        for(int i = 0; i < rl::environments::multirotor::STATE_DIM; i++){
+        for(index_t i = 0; i < rl::environments::multirotor::STATE_DIM; i++){
             state.state[i] = 0;
         }
         state.state[3] = 1;

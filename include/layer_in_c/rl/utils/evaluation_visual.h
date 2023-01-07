@@ -15,7 +15,7 @@ namespace layer_in_c{
             T action[ENVIRONMENT::ACTION_DIM];
             evaluate(policy, observation, action);
             T action_clipped[ENVIRONMENT::ACTION_DIM];
-            for(int action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
+            for(index_t action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
                 action_clipped[action_i] = std::clamp<T>(action[action_i], -1, 1);
             }
             typename ENVIRONMENT::State next_state;

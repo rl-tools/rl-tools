@@ -108,8 +108,8 @@ namespace layer_in_c {
         }
         else{
             std::cout << "Warning: Adam state not found. Initializing with zeros." << std::endl;
-            for(int i = 0; i < SPEC::OUTPUT_DIM; i++) {
-                for(int j = 0; j < SPEC::INPUT_DIM; j++) {
+            for(index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
+                for(index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                     layer.d_weights_first_order_moment[i][j] = 0;
                     layer.d_weights_second_order_moment[i][j] = 0;
                 }
