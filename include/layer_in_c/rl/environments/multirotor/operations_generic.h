@@ -15,7 +15,7 @@
 
 
 namespace layer_in_c::rl::environments::multirotor {
-    template<typename T, int N>
+    template<typename T, index_t N>
     FUNCTION_PLACEMENT void multirotor_dynamics(
             const Parameters<T, N> &params,
 
@@ -47,7 +47,7 @@ namespace layer_in_c::rl::environments::multirotor {
         torque[1] = 0;
         torque[2] = 0;
         // flops: N*23 => 4 * 23 = 92
-        for (int i_rotor = 0; i_rotor < N; i_rotor++) {
+        for(index_t i_rotor = 0; i_rotor < N; i_rotor++) {
             // flops: 3 + 1 + 3 + 3 + 3 + 4 + 6 = 23
             T rpm = rpms[i_rotor];
             T thrust_magnitude =

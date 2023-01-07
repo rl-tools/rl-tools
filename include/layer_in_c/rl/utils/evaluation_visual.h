@@ -2,13 +2,13 @@
 #include <thread>
 
 namespace layer_in_c{
-    template<typename ENVIRONMENT, typename UI, typename POLICY, int STEP_LIMIT, int TIME_LAPSE=1>
+    template<typename ENVIRONMENT, typename UI, typename POLICY, index_t STEP_LIMIT, index_t TIME_LAPSE=1>
     typename POLICY::T evaluate_visual(const ENVIRONMENT env, UI& ui, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
         typedef typename POLICY::T T;
         typename ENVIRONMENT::State state;
         state = initial_state;
         T episode_return = 0;
-        for (int i = 0; i < STEP_LIMIT; i++) {
+        for (index_t i = 0; i < STEP_LIMIT; i++) {
             set_state(ui, state);
             T observation[ENVIRONMENT::OBSERVATION_DIM];
             observe(env, state, observation);
@@ -20,7 +20,7 @@ namespace layer_in_c{
             }
             typename ENVIRONMENT::State next_state;
             T dt = step(env, state, action_clipped, next_state);
-            std::this_thread::sleep_for(std::chrono::milliseconds((int)(dt*1000/TIME_LAPSE)));
+            std::this_thread::sleep_for(std::chrono::milliseconds((index_t)(dt*1000/TIME_LAPSE)));
             T r = reward(env, state, action_clipped, next_state);
             state = next_state;
             episode_return += r;

@@ -10,8 +10,8 @@ namespace layer_in_c::nn_models::mlp {
         typedef T_T T;
         static constexpr index_t INPUT_DIM = 10;
         static constexpr index_t OUTPUT_DIM = 5;
-        static constexpr int NUM_LAYERS = 3; // The input and output layers count towards the total number of layers
-        static constexpr int HIDDEN_DIM = 30;
+        static constexpr index_t NUM_LAYERS = 3; // The input and output layers count towards the total number of layers
+        static constexpr index_t HIDDEN_DIM = 30;
         static constexpr nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = nn::activation_functions::GELU;
         static constexpr nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = nn::activation_functions::IDENTITY;
     };

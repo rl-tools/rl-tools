@@ -11,13 +11,13 @@
 //#include <iostream>
 
 namespace layer_in_c {
-    template<typename ENVIRONMENT, typename POLICY, int STEP_LIMIT>
+    template<typename ENVIRONMENT, typename POLICY, index_t STEP_LIMIT>
     typename POLICY::T evaluate(const ENVIRONMENT env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
         typedef typename POLICY::T T;
         typename ENVIRONMENT::State state;
         state = initial_state;
         T episode_return = 0;
-        for (int i = 0; i < STEP_LIMIT; i++) {
+        for (index_t i = 0; i < STEP_LIMIT; i++) {
             T observation_mem[ENVIRONMENT::OBSERVATION_DIM];
             T* observation;
             if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
@@ -46,13 +46,13 @@ namespace layer_in_c {
         }
         return episode_return;
     }
-    template<typename ENVIRONMENT, typename POLICY, typename RNG, int STEP_LIMIT, bool DETERMINISTIC>
-    typename POLICY::T evaluate(const ENVIRONMENT env, POLICY &policy, uint32_t N, RNG &rng) {
+    template<typename ENVIRONMENT, typename POLICY, typename RNG, index_t STEP_LIMIT, bool DETERMINISTIC>
+    typename POLICY::T evaluate(const ENVIRONMENT env, POLICY &policy, index_t N, RNG &rng) {
         typedef typename POLICY::T T;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM, "Action and policy output dimensions must match");
         T episode_returns[N];
-        for (int i = 0; i < N; i++) {
+        for(index_t i = 0; i < N; i++) {
             typename ENVIRONMENT::State initial_state;
             if(DETERMINISTIC) {
                 lic::initial_state(env, initial_state);
@@ -63,12 +63,12 @@ namespace layer_in_c {
             episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(env, policy, initial_state);
         }
         T mean = 0;
-        for (int i = 0; i < N; i++) {
+        for(index_t i = 0; i < N; i++) {
             mean += episode_returns[i];
         }
         mean /= N;
         T variance = 0;
-        for (int i = 0; i < N; i++) {
+        for(index_t i = 0; i < N; i++) {
             variance += (episode_returns[i] - mean) * (episode_returns[i] - mean);
         }
         variance /= N;

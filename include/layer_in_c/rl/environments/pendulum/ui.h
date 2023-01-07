@@ -33,10 +33,10 @@ namespace layer_in_c::rl::environments::pendulum {
     };
 
 
-    template<typename T, int FPS=60>
+    template<typename T, index_t FPS=60>
     struct UI {
         char* argv[1] = {"pendulum_render"};
-        int argc = 1;
+        index_t argc = 1;
         QApplication* app = nullptr;
         std::thread t;
         std::atomic<bool> running = true;

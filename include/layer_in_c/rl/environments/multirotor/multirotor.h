@@ -4,10 +4,10 @@
 #include <layer_in_c/devices.h>
 
 namespace layer_in_c::rl::environments::multirotor {
-    constexpr int STATE_DIM = 13;
-    constexpr int ACTION_DIM = 4;
+    constexpr index_t STATE_DIM = 13;
+    constexpr index_t ACTION_DIM = 4;
 
-    template <typename T, int N>
+    template <typename T, index_t N>
     class Parameters {
     public:
         struct Dynamics{

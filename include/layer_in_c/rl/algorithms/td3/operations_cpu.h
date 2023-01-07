@@ -48,7 +48,7 @@ namespace layer_in_c{
         T loss = 0;
         zero_gradient(critic);
         std::uniform_int_distribution<index_t> sample_distribution(0, (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1);
-        for (int batch_step_i=0; batch_step_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_step_i++){
+        for(index_t batch_step_i=0; batch_step_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_step_i++){
             index_t sample_index = DETERMINISTIC ? batch_step_i : sample_distribution(rng);
             T next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];
             std::memcpy(next_state_action_value_input, replay_buffer.next_observations[sample_index], sizeof(T) * SPEC::ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations

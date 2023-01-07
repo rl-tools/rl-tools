@@ -3,14 +3,14 @@
 #include <layer_in_c/nn/activation_functions.h>
 
 namespace layer_in_c::nn::layers::dense {
-    template<typename T_T, int T_INPUT_DIM, int T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION>
+    template<typename T_T, index_t T_INPUT_DIM, index_t T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION>
     struct LayerSpecification {
         typedef T_T T;
         static constexpr index_t INPUT_DIM = T_INPUT_DIM;
         static constexpr index_t OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
         // Summary
-        static constexpr int NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
+        static constexpr index_t NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
     };
     template<typename DEVICE, typename T_SPEC>
     struct Layer {

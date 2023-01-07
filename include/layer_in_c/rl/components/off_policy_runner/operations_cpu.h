@@ -42,7 +42,7 @@ namespace layer_in_c{
         T action[ENVIRONMENT::ACTION_DIM];
         evaluate(policy, observation, action);
         std::normal_distribution<T> exploration_noise_distribution(0, PARAMETERS::EXPLORATION_NOISE);
-        for (int i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
+        for(index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             action[i] += exploration_noise_distribution(rng);
             action[i] = lic::math::clamp<T>(action[i], -1, 1);
         }
