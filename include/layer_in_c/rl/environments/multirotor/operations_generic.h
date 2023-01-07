@@ -5,6 +5,7 @@
 
 #include "general_helper.h"
 #include "quaternion_helper.h"
+
 #include <layer_in_c/utils/generic/integrators.h>
 
 #ifndef FUNCTION_PLACEMENT
@@ -15,7 +16,7 @@
 namespace layer_in_c::rl::environments::multirotor {
     template<typename T, int N>
     FUNCTION_PLACEMENT void multirotor_dynamics(
-            const Parameters <T, N> &params,
+            const Parameters<T, N> &params,
 
             // state
             const T state[STATE_DIM],
@@ -48,8 +49,9 @@ namespace layer_in_c::rl::environments::multirotor {
         for (int i_rotor = 0; i_rotor < N; i_rotor++) {
             // flops: 3 + 1 + 3 + 3 + 3 + 4 + 6 = 23
             T rpm = rpms[i_rotor];
-            T thrust_magnitude = params.dynamics.thrust_constants[0] * rpm * rpm + params.dynamics.thrust_constants[1] * rpm +
-                                 params.dynamics.thrust_constants[2];
+            T thrust_magnitude =
+                    params.dynamics.thrust_constants[0] * rpm * rpm + params.dynamics.thrust_constants[1] * rpm +
+                    params.dynamics.thrust_constants[2];
             T rotor_thrust[3];
             scalar_multiply<T, 3>(params.dynamics.rotor_thrust_directions[i_rotor], thrust_magnitude, rotor_thrust);
             vector_add_accumulate<T, 3>(rotor_thrust, thrust);
@@ -88,22 +90,24 @@ namespace layer_in_c::rl::environments::multirotor {
         matrix_vector_product<T, 3, 3>(params.dynamics.J_inv, vector, angular_acceleration_local);
         // total flops: (quadrotor): 92 + 16 + 21 + 4 + 9 + 6 + 9 = 157
     }
+}
 
+namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T step(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::Parameters<typename SPEC::T, 4>& params, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[ACTION_DIM], rl::environments::multirotor::State<typename SPEC::T>& next_state) {
-        typename SPEC::T action_scaled[ACTION_DIM];
-        for(size_t action_i = 0; action_i < ACTION_DIM; action_i++){
+    static typename SPEC::T step(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::Parameters<typename SPEC::T, 4>& params, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[rl::environments::multirotor::ACTION_DIM], rl::environments::multirotor::State<typename SPEC::T>& next_state) {
+        typename SPEC::T action_scaled[rl::environments::multirotor::ACTION_DIM];
+        for(size_t action_i = 0; action_i < rl::environments::multirotor::ACTION_DIM; action_i++){
             typename SPEC::T half_range = (params.action_limit.max - params.action_limit.min) / 2;
-            action_scaled = action[action_i] * half_range + params.action_limit.min + half_range;
+            action_scaled[action_i] = action[action_i] * half_range + params.action_limit.min + half_range;
         }
-        utils::integrators::rk4<typename SPEC::T, STATE_DIM, ACTION_DIM, multirotor_dynamics<typename SPEC::T, 4>>(params, state.state, action_scaled, params.dynamics.dt, next_state.state);
+        utils::integrators::rk4<typename SPEC::T, typename std::remove_reference<decltype(params)>::type, rl::environments::multirotor::STATE_DIM, rl::environments::multirotor::ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<typename SPEC::T, 4>>(params, state.state, action_scaled, params.dt, next_state.state);
         return params.dt;
     }
     template<typename DEVICE, typename SPEC>
     static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::Parameters<typename SPEC::T, 4>& params, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::multirotor::State<typename SPEC::T>& next_state){
         using T = typename SPEC::T;
         T acc = 0;
-        for(size_t state_i = 0; state_i < STATE_DIM; state_i++){
+        for(size_t state_i = 0; state_i < rl::environments::multirotor::STATE_DIM; state_i++){
             if(state_i < 3){
                 acc += state[state_i] * state[state_i] * params.reward.position;
             }
@@ -124,12 +128,6 @@ namespace layer_in_c::rl::environments::multirotor {
         return std::exp(-acc);
     }
 
-    template<typename DEVICE, typename SPEC>
-    static void observe(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::Parameters<typename SPEC::T, 4>& params, const rl::environments::multirotor::State<typename SPEC::T>& state, typename SPEC::T observation[STATE_DIM]){
-        for(int state_i = 0; state_i < STATE_DIM; state_i++){
-            observation[state_i] = state[state_i];
-        }
-    }
     template<typename DEVICE, typename SPEC>
     static bool terminated(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::Parameters<typename SPEC::T, 4>& params, const typename rl::environments::multirotor::State<typename SPEC::T> state){
         return false;
