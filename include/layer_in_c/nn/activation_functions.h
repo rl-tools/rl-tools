@@ -2,53 +2,57 @@
 #define LAYER_IN_C_NN_ACTIVATION_FUNCTIONS
 namespace layer_in_c::nn::activation_functions {
     enum ActivationFunction{
+        IDENTITY,
         RELU,
         GELU,
         TANH,
         SIGMOID,
         SIGMOID_STRETCHED,
-        IDENTITY,
     };
+    template<enum ActivationFunction F>
+    constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == SIGMOID || F == SIGMOID_STRETCHED;
 
     template<typename T, ActivationFunction F>
     T activation(T x){
-        if (F == RELU){
+        static_assert(check_activation_function<F>, "Invalid activation function");
+        if (F == IDENTITY){
+            return x;
+        }
+        else if (F == RELU){
             return x > 0 ? x : 0;
         }
         else if (F == GELU){
-            constexpr T a = M_2_SQRTPI * M_SQRT1_2 * (T)0.5;
-            return (T)0.5 * (x + x * std::tanh(a * ((T)0.044715f * x * x * x + x)));
+            constexpr T a = math::FRAC_2_SQRTPI<T> * math::SQRT1_2<T> * (T)0.5;
+            return (T)0.5 * (x + x * math::tanh(a * ((T)0.044715f * x * x * x + x)));
         }
         else if (F == TANH){
-            return std::tanh(x);
+            return math::tanh(x);
         }
         else if (F == SIGMOID){
-            return (T)1 / ((T)1 + std::exp(-x));
+            return (T)1 / ((T)1 + math::exp(-x));
         }
         else if (F == SIGMOID_STRETCHED){
             return activation<T, SIGMOID>(x) * (T)2 - (T)1;
-        }
-        else if (F == IDENTITY){
-            return x;
-        }
-        else{
-            return std::numeric_limits<T>::quiet_NaN();
         }
     }
 
     template<typename T, ActivationFunction F>
     T d_activation_d_x(T x){
-        if (F == RELU){
+        static_assert(check_activation_function<F>, "Invalid activation function");
+        if (F == IDENTITY){
+            return 1;
+        }
+        else if (F == RELU){
             return x > 0 ? 1 : 0;
         }
         else if (F == GELU){
-            constexpr T a = M_2_SQRTPI * M_SQRT1_2 * (T)0.5;
+            constexpr T a = math::FRAC_2_SQRTPI<T> * math::SQRT1_2<T> * (T)0.5;
             constexpr T b = 0.044715f;
-            T tanh_term = std::tanh(a * (b * x * x * x + x));
+            T tanh_term = math::tanh(a * (b * x * x * x + x));
             return (T)0.5*((T)1 + tanh_term) + (T)0.5 * x * ((T)1 - tanh_term * tanh_term) * a * ((T)3 * b * x * x + (T)1);
         }
         else if (F == TANH){
-            T a = std::tanh(x);
+            T a = math::tanh(x);
             return (T)1 - a * a;
         }
         else if (F == SIGMOID){
@@ -56,12 +60,6 @@ namespace layer_in_c::nn::activation_functions {
         }
         else if (F == SIGMOID_STRETCHED){
             return d_activation_d_x<T, SIGMOID>(x) * (T)2;
-        }
-        else if (F == IDENTITY){
-            return 1;
-        }
-        else{
-            return 0;
         }
     }
 }

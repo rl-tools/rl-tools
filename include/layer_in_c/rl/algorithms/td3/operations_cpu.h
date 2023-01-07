@@ -2,7 +2,7 @@
 #define LAYER_IN_C_RL_ALGORITHMS_TD3_OPERATIONS_CPU_H
 
 #include <layer_in_c/devices.h>
-#include <layer_in_c/utils/generic/math.h>
+#include <layer_in_c/math/operations_generic.h>
 #include "td3.h"
 
 #include "operations_generic.h"
@@ -27,7 +27,7 @@ namespace layer_in_c{
         actor_critic.critic_target_1 = actor_critic.critic_1;
         actor_critic.critic_target_2 = actor_critic.critic_2;
     }
-    template <typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, size_t REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
+    template <typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, index_t REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
     typename SPEC::T train_critic(
             rl::algorithms::td3::ActorCritic<devices::CPU, SPEC>& actor_critic,
             CRITIC_TYPE& critic,
@@ -47,15 +47,15 @@ namespace layer_in_c{
         assert(replay_buffer.full || replay_buffer.position >= SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         T loss = 0;
         zero_gradient(critic);
-        std::uniform_int_distribution<size_t> sample_distribution(0, (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1);
+        std::uniform_int_distribution<index_t> sample_distribution(0, (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1);
         for (int batch_step_i=0; batch_step_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_step_i++){
-            size_t sample_index = DETERMINISTIC ? batch_step_i : sample_distribution(rng);
+            index_t sample_index = DETERMINISTIC ? batch_step_i : sample_distribution(rng);
             T next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];
             std::memcpy(next_state_action_value_input, replay_buffer.next_observations[sample_index], sizeof(T) * SPEC::ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             evaluate(actor_critic.actor_target, next_state_action_value_input, &next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
-            for(size_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
+            for(index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 T noisy_next_action = next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] + target_next_action_noise[batch_step_i][action_i];
-                noisy_next_action = utils::math::clamp<T>(noisy_next_action, -1, 1);
+                noisy_next_action = math::clamp<T>(noisy_next_action, -1, 1);
                 next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] = noisy_next_action;
             }
             T next_state_action_value_critic_1 = evaluate(actor_critic.critic_target_1, next_state_action_value_input);
@@ -79,7 +79,7 @@ namespace layer_in_c{
         return loss;
     }
 
-    template <typename SPEC, typename REPLAY_BUFFER_DEVICE, size_t REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC = false>
+    template <typename SPEC, typename REPLAY_BUFFER_DEVICE, index_t REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC = false>
     typename SPEC::T train_actor(
             rl::algorithms::td3::ActorCritic<devices::CPU, SPEC>& actor_critic,
             rl::components::ReplayBuffer<
@@ -98,9 +98,9 @@ namespace layer_in_c{
         typedef typename SPEC::ENVIRONMENT ENVIRONMENT;
         T actor_value = 0;
         zero_gradient(actor_critic.actor);
-        std::uniform_int_distribution<size_t> sample_distribution(0, (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1);
-        for (size_t sample_i=0; sample_i < PARAMETERS::ACTOR_BATCH_SIZE; sample_i++){
-            size_t sample_index = DETERMINISTIC ? sample_i : sample_distribution(rng);
+        std::uniform_int_distribution<index_t> sample_distribution(0, (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1);
+        for (index_t sample_i=0; sample_i < PARAMETERS::ACTOR_BATCH_SIZE; sample_i++){
+            index_t sample_index = DETERMINISTIC ? sample_i : sample_distribution(rng);
             T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
             memcpy(state_action_value_input, replay_buffer.observations[sample_index], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             forward(actor_critic.actor, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]);
@@ -117,7 +117,7 @@ namespace layer_in_c{
         update(actor_critic.actor);
         return actor_value;
     }
-    template <typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, size_t REPLAY_BUFFER_CAPACITY, typename RNG>
+    template <typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, index_t REPLAY_BUFFER_CAPACITY, typename RNG>
     typename SPEC::T train_critic(
         rl::algorithms::td3::ActorCritic<devices::CPU, SPEC>& actor_critic,
         CRITIC_TYPE& critic,
@@ -137,7 +137,7 @@ namespace layer_in_c{
         T action_noise[SPEC::PARAMETERS::CRITIC_BATCH_SIZE][SPEC::ENVIRONMENT::ACTION_DIM];
         for(int batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
             for(int action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                action_noise[batch_sample_i][action_i] = utils::math::clamp(
+                action_noise[batch_sample_i][action_i] = math::clamp(
                         target_next_action_noise_distribution(rng),
                         -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
                         SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP

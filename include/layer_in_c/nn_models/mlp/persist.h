@@ -8,9 +8,9 @@
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void save(nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& network, HighFive::Group group) {
-        using NetworkType = typename std::remove_reference<decltype(network)>::type;
+        using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         save(network.input_layer, group.createGroup("input_layer"));
-        for(size_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
+        for(index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
             save(network.hidden_layers[layer_i], group.createGroup("hidden_layer_" + std::to_string(layer_i)));
         }
         save(network.output_layer, group.createGroup("output_layer"));
@@ -24,9 +24,9 @@ namespace layer_in_c{
     }
     template<typename DEVICE, typename SPEC>
     void load(nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& network, HighFive::Group group){
-        using NetworkType = typename std::remove_reference<decltype(network)>::type;
+        using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         load(network.input_layer, group.getGroup("input_layer"));
-        for(size_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
+        for(index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
             load(network.hidden_layers[layer_i], group.getGroup("hidden_layer_" + std::to_string(layer_i)));
         }
         load(network.output_layer, group.getGroup("output_layer"));

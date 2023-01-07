@@ -2,13 +2,14 @@
 #define LAYER_IN_C_NN_MODELS_MLP_NETWORK_H
 
 #include <layer_in_c/nn/nn.h>
+#include <layer_in_c/utils/generic/typing.h>
 
 namespace layer_in_c::nn_models::mlp {
     template <typename T_T>
     struct ExampleStructureSpecification{
         typedef T_T T;
-        static constexpr size_t INPUT_DIM = 10;
-        static constexpr size_t OUTPUT_DIM = 5;
+        static constexpr index_t INPUT_DIM = 10;
+        static constexpr index_t OUTPUT_DIM = 5;
         static constexpr int NUM_LAYERS = 3; // The input and output layers count towards the total number of layers
         static constexpr int HIDDEN_DIM = 30;
         static constexpr nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = nn::activation_functions::GELU;
@@ -67,18 +68,18 @@ namespace layer_in_c::nn_models::mlp {
     template<typename T_DEVICE, typename T_SPEC>
     struct NeuralNetwork{
         typedef T_DEVICE DEVICE;
-        static_assert(std::is_same_v<DEVICE, typename T_SPEC::DEVICE>);
+        static_assert(utils::typing::is_same_v<DEVICE, typename T_SPEC::DEVICE>);
         typedef T_SPEC SPEC;
         typedef typename SPEC::T T;
 
         // Convenience
         static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required
-        static constexpr size_t NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_LAYERS - 2;
+        static constexpr index_t NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_LAYERS - 2;
 
         // Interface
-        static constexpr size_t  INPUT_DIM = SPEC::INPUT_LAYER ::SPEC::INPUT_DIM;
-        static constexpr size_t OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
-        static constexpr size_t NUM_WEIGHTS = SPEC::INPUT_LAYER::NUM_WEIGHTS + SPEC::HIDDEN_LAYER::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER::NUM_WEIGHTS;
+        static constexpr index_t  INPUT_DIM = SPEC::INPUT_LAYER ::SPEC::INPUT_DIM;
+        static constexpr index_t OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
+        static constexpr index_t NUM_WEIGHTS = SPEC::INPUT_LAYER::NUM_WEIGHTS + SPEC::HIDDEN_LAYER::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER::NUM_WEIGHTS;
 
 
         // Storage
@@ -89,9 +90,9 @@ namespace layer_in_c::nn_models::mlp {
         // Conversion
         template<typename NN>
         NeuralNetwork& operator= (const NN& other) {
-            static_assert(std::is_same_v<typename NeuralNetwork::SPEC::STRUCTURE_SPEC, typename NN::SPEC::STRUCTURE_SPEC>);
+            static_assert(utils::typing::is_same_v<typename NeuralNetwork::SPEC::STRUCTURE_SPEC, typename NN::SPEC::STRUCTURE_SPEC>);
             input_layer = other.input_layer;
-            for(size_t i = 0; i < NUM_HIDDEN_LAYERS; i++){
+            for(index_t i = 0; i < NUM_HIDDEN_LAYERS; i++){
                 hidden_layers[i] = other.hidden_layers[i];
             }
             output_layer = other.output_layer;
@@ -117,7 +118,7 @@ namespace layer_in_c::nn_models::mlp {
 
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<DEVICE, SPEC>{
-        size_t age = 1;
+        index_t age = 1;
     };
 
 

@@ -127,7 +127,7 @@ namespace layer_in_c::rl::environments::multirotor {
     typename Parameters<T, ACTION_DIM>::Initialization default_init_parameters = {
             2,
             1,
-            0.5 * M_PI * 2
+            0.5 * math::PI<T> * 2
     };
     template<typename T, int ACTION_DIM>
     typename Parameters<T, ACTION_DIM>::Initialization simple_init_parameters = {

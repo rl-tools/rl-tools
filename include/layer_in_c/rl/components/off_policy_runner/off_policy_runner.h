@@ -11,12 +11,12 @@ namespace layer_in_c::rl::components::off_policy_runner {
     struct DefaultParameters{
         static constexpr T EXPLORATION_NOISE = 0.1;
     };
-    template<typename T_T, typename T_ENVIRONMENT, size_t T_REPLAY_BUFFER_CAPACITY, size_t T_STEP_LIMIT, typename T_PARAMETERS>
+    template<typename T_T, typename T_ENVIRONMENT, index_t T_REPLAY_BUFFER_CAPACITY, index_t T_STEP_LIMIT, typename T_PARAMETERS>
     struct Spec{
         typedef T_T T;
         typedef T_ENVIRONMENT ENVIRONMENT;
-        static constexpr size_t REPLAY_BUFFER_CAPACITY = T_REPLAY_BUFFER_CAPACITY;
-        static constexpr size_t STEP_LIMIT = T_STEP_LIMIT;
+        static constexpr index_t REPLAY_BUFFER_CAPACITY = T_REPLAY_BUFFER_CAPACITY;
+        static constexpr index_t STEP_LIMIT = T_STEP_LIMIT;
         typedef T_PARAMETERS PARAMETERS;
     };
 
@@ -30,7 +30,7 @@ namespace layer_in_c::rl::components{
         typename SPEC::ENVIRONMENT env;
         ReplayBuffer<DEVICE, ReplayBufferSpec> replay_buffer;
         typename SPEC::ENVIRONMENT::State state;
-        size_t episode_step = 0;
+        index_t episode_step = 0;
         typename SPEC::T episode_return = 0;
     };
 }

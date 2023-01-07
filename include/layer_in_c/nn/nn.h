@@ -1,5 +1,3 @@
-#include <layer_in_c/dependencies.h>
-
 #include "activation_functions.h"
 #include "layers/layers.h"
 #include "optimizers/adam.h"

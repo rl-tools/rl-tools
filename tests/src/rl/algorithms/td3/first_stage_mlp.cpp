@@ -1,3 +1,5 @@
+#include <layer_in_c/math/operations_cpu.h>
+
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/algorithms/td3/td3.h>
 

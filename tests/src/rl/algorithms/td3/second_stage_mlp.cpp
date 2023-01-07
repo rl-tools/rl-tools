@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
+#include <layer_in_c/math/operations_cpu.h>
+
 #include <layer_in_c/rl/environments/operations_cpu.h>
 #include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
 

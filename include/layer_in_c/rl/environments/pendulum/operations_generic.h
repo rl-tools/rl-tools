@@ -37,7 +37,7 @@ namespace layer_in_c{
 
         u = clip(u, -PARAMS::max_torque, PARAMS::max_torque);
 
-        T newthdot = state.theta_dot + (3 * g / (2 * l) * std::sin(state.theta) + 3.0 / (m * l * l) * u) * dt;
+        T newthdot = state.theta_dot + (3 * g / (2 * l) * math::sin(state.theta) + 3.0 / (m * l * l) * u) * dt;
         newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
         T newth = state.theta + newthdot * dt;
         
@@ -59,8 +59,8 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     static void observe(const rl::environments::Pendulum<DEVICE, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, typename SPEC::T observation[3]){
         typedef typename SPEC::T T;
-        observation[0] = std::cos(state.theta);
-        observation[1] = std::sin(state.theta);
+        observation[0] = math::cos(state.theta);
+        observation[1] = math::sin(state.theta);
         observation[2] = state.theta_dot;
     }
     template<typename DEVICE, typename SPEC>

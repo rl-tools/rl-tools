@@ -7,12 +7,13 @@ namespace layer_in_c::utils::integrators{
     FUNCTION_PLACEMENT void euler(const PARAMETER_TYPE& params, const T state[STATE_DIM], const T action[ACTION_DIM], const T dt, T next_state[STATE_DIM]) {
         T dfdt[STATE_DIM];
         DYNAMICS(params, state, action, dfdt);
-        scalar_multiply<STATE_DIM>(dfdt, dt, next_state);
-        vector_add_accumulate<STATE_DIM>(state, next_state);
+        utils::vector_operations::scalar_multiply<STATE_DIM>(dfdt, dt, next_state);
+        utils::vector_operations::add_accumulate<STATE_DIM>(state, next_state);
     }
 
     template<typename T, typename PARAMETER_TYPE, int STATE_DIM, int ACTION_DIM, auto DYNAMICS>
     FUNCTION_PLACEMENT void rk4(const PARAMETER_TYPE& params, const T state[STATE_DIM], const T action[ACTION_DIM], const T dt, T next_state[STATE_DIM]) {
+        using namespace vector_operations;
         T *k1 = next_state; //[STATE_DIM];
 
         // flops: 157
@@ -25,7 +26,7 @@ namespace layer_in_c::utils::integrators{
 
         {
             T k2[STATE_DIM];
-            vector_add_accumulate<T, STATE_DIM>(state, var);
+            add_accumulate<T, STATE_DIM>(state, var);
             // flops: 157
             DYNAMICS(params, var, action, k2);
             // flops: 13
@@ -35,7 +36,7 @@ namespace layer_in_c::utils::integrators{
         }
         {
             T k3[STATE_DIM];
-            vector_add_accumulate<T, STATE_DIM>(state, var);
+            add_accumulate<T, STATE_DIM>(state, var);
             // flops: 157
             DYNAMICS(params, var, action, k3);
             // flops: 13
@@ -47,15 +48,15 @@ namespace layer_in_c::utils::integrators{
 
         {
             T k4[STATE_DIM];
-            vector_add_accumulate<T, STATE_DIM>(state, var);
+            add_accumulate<T, STATE_DIM>(state, var);
             // flops: 157
             DYNAMICS(params, var, action, k4);
-            vector_add_accumulate<T, STATE_DIM>(k4, k1);
+            add_accumulate<T, STATE_DIM>(k4, k1);
         }
 
         // flops: 13
         scalar_multiply<T, STATE_DIM>(k1, dt / 6.0);
-        vector_add_accumulate<T, STATE_DIM>(state, k1);
+        add_accumulate<T, STATE_DIM>(state, k1);
         // total flops: 157 + 13 + 157 + 13 + 13 + 157 + 13 + 13 + 157 + 13 = 706
     }
 }

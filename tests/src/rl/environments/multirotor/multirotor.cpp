@@ -1,6 +1,7 @@
 
 using DTYPE = double;
 using COUNTER_TYPE = int;
+#include <cmath>
 namespace dynamics_legacy{
     #include "multirotor_dynamics_generic.h"
     #include "parameters.h"
@@ -9,7 +10,7 @@ namespace dynamics_legacy{
 constexpr auto STATE_DIM = dynamics_legacy::STATE_DIM;
 constexpr auto ACTION_DIM = dynamics_legacy::ACTION_DIM;
 
-#include <layer_in_c/utils/generic/math.h>
+#include <layer_in_c/math/operations_cpu.h>
 
 #include <layer_in_c/rl/environments/multirotor/multirotor.h>
 
@@ -55,7 +56,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
             constexpr DTYPE action_min = 0;
             constexpr DTYPE action_max = 2000;
             for(COUNTER_TYPE action_i = 0; action_i < ACTION_DIM; action_i++){
-                action[action_i] = 1000 + lic::utils::math::clamp<DTYPE>(action_distribution(rng) * 500, action_min, action_max);
+                action[action_i] = 1000 + lic::math::clamp<DTYPE>(action_distribution(rng) * 500, action_min, action_max);
             }
             for(COUNTER_TYPE action_i = 0; action_i < ACTION_DIM; action_i++){
                 env_action[action_i] = (action[action_i] - action_min) / (action_max - action_min) * 2 - 1;
@@ -64,6 +65,11 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
             // Legacy
             dynamics_legacy::multirotor_dynamics(dynamics_legacy::params, state, action, dsdt);
             dynamics_legacy::next_state_rk4(dynamics_legacy::params, state, action, dynamics_legacy::params.dt, next_state);
+            DTYPE quatnorm[4];
+            dynamics_legacy::normalize<DTYPE, 4>(&next_state[3], quatnorm);
+            for(int i = 0; i < 4; i++){
+                next_state[3 + i] = quatnorm[i];
+            }
 
 
 

@@ -1,9 +1,8 @@
 #ifndef LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H
 #define LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H
 
-#include <layer_in_c/dependencies.h>
 #include <layer_in_c/devices.h>
-#include <layer_in_c/utils/generic/math.h>
+#include <layer_in_c/math/operations_generic.h>
 
 namespace layer_in_c::rl::environments::pendulum {
     template <typename T>
@@ -14,8 +13,8 @@ namespace layer_in_c::rl::environments::pendulum {
         constexpr static T dt = 0.05;
         constexpr static T m = 1;
         constexpr static T l = 1;
-        constexpr static T initial_state_min_angle = -M_PI;
-        constexpr static T initial_state_max_angle = M_PI;
+        constexpr static T initial_state_min_angle = -math::PI<T>;
+        constexpr static T initial_state_max_angle = math::PI<T>;
         constexpr static T initial_state_min_speed = -1;
         constexpr static T initial_state_max_speed = 1;
     };
@@ -36,10 +35,11 @@ namespace layer_in_c::rl::environments::pendulum {
 namespace layer_in_c::rl::environments{
     template <typename DEVICE, typename SPEC>
     struct Pendulum{
+        static constexpr bool REQUIRES_OBSERVATION = true;
         using State = pendulum::State<typename SPEC::T>;
         using PARAMETERS = typename SPEC::PARAMETERS;
-        static constexpr size_t OBSERVATION_DIM = 3;
-        static constexpr size_t ACTION_DIM = 1;
+        static constexpr index_t OBSERVATION_DIM = 3;
+        static constexpr index_t ACTION_DIM = 1;
     };
 }
 

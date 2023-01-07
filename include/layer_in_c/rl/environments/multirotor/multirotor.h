@@ -1,9 +1,7 @@
 #ifndef LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_MULTIROTOR_H
 #define LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_MULTIROTOR_H
 
-#include <layer_in_c/dependencies.h>
 #include <layer_in_c/devices.h>
-#include <layer_in_c/utils/generic/math.h>
 
 namespace layer_in_c::rl::environments::multirotor {
     constexpr int STATE_DIM = 13;
@@ -55,7 +53,7 @@ namespace layer_in_c::rl::environments::multirotor {
 
     template <typename T>
     struct State{
-        static constexpr size_t DIM = STATE_DIM;
+        static constexpr index_t DIM = STATE_DIM;
         T state[DIM];
     };
 
@@ -65,8 +63,8 @@ namespace layer_in_c::rl::environments{
     template <typename DEVICE, typename SPEC>
     struct Multirotor{
         static constexpr bool REQUIRES_OBSERVATION = false;
-        static constexpr size_t OBSERVATION_DIM = multirotor::STATE_DIM;
-        static constexpr size_t ACTION_DIM = 4;
+        static constexpr index_t OBSERVATION_DIM = multirotor::STATE_DIM;
+        static constexpr index_t ACTION_DIM = 4;
         using State = multirotor::State<typename SPEC::T>;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         multirotor::Parameters<typename SPEC::T, 4> parameters;

@@ -1,3 +1,4 @@
+#include <layer_in_c/math/operations_cpu.h>
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/nn_models/models.h>
@@ -81,7 +82,7 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
+TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     std::mt19937 rng(2);
     lic::init(actor_critic, rng);
     parameters.init = lic::rl::environments::multirotor::simple_init_parameters<DTYPE, 4>;

@@ -26,8 +26,8 @@ namespace layer_in_c::rl::environments::pendulum {
             T radius = 100;
             T start_x = radius * 1.2;
             T start_y = radius * 1.2;
-            T end_x = start_x + radius * std::sin(angle + M_PI);
-            T end_y = start_y + radius * std::cos(angle + M_PI);
+            T end_x = start_x + radius * math::sin(angle + M_PI);
+            T end_y = start_y + radius * math::cos(angle + M_PI);
             painter.drawLine(start_x, start_y, end_x, end_y);
         }
     };

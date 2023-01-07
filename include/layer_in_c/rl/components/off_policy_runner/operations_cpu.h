@@ -1,7 +1,7 @@
 #ifndef LAYER_IN_C_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CPU_H
 #define LAYER_IN_C_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CPU_H
 
-#include <layer_in_c/utils/generic/math.h>
+#include <layer_in_c/math/operations_generic.h>
 #include "off_policy_runner.h"
 
 #include <layer_in_c/rl/components/replay_buffer/operations_cpu.h>
@@ -44,7 +44,7 @@ namespace layer_in_c{
         std::normal_distribution<T> exploration_noise_distribution(0, PARAMETERS::EXPLORATION_NOISE);
         for (int i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             action[i] += exploration_noise_distribution(rng);
-            action[i] = lic::utils::math::clamp<T>(action[i], -1, 1);
+            action[i] = lic::math::clamp<T>(action[i], -1, 1);
         }
         step(runner.env, runner.state, action, next_state);
         T reward_value = reward(runner.env, runner.state, action, next_state);

@@ -9,16 +9,16 @@
 namespace layer_in_c{
     template<typename SPEC, typename RNG>
     FUNCTION_PLACEMENT void init_weights(nn_models::mlp::NeuralNetwork<devices::CPU, SPEC>& network, RNG& rng) {
-        using NetworkType = typename std::remove_reference<decltype(network)>::type;
+        using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         init_kaiming(network.input_layer, rng);
-        for (size_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for (index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             init_kaiming(network.hidden_layers[layer_i], rng);
         }
         init_kaiming(network.output_layer, rng);
     }
     template<typename TARGET_SPEC, typename SOURCE_SPEC>
     FUNCTION_PLACEMENT void copy(nn_models::mlp::NeuralNetwork<devices::CPU, TARGET_SPEC>& target, nn_models::mlp::NeuralNetwork<devices::CPU, SOURCE_SPEC>& source) {
-        static_assert(std::is_same_v<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "Cannot copy networks with different structure.");
+        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "Cannot copy networks with different structure.");
         target = source;
     }
     template<typename TARGET_SPEC, typename SOURCE_SPEC>

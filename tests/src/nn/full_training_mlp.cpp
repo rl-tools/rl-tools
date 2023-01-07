@@ -1,3 +1,5 @@
+#include <layer_in_c/math/operations_cpu.h>
+
 #include <layer_in_c/nn_models/models.h>
 
 #include <layer_in_c/nn_models/operations_cpu.h>

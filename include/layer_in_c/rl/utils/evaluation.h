@@ -5,10 +5,10 @@
  */
 
 #include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/utils/generic/math.h>
+#include <layer_in_c/math/operations_generic.h>
 
 
-#include <iostream>
+//#include <iostream>
 
 namespace layer_in_c {
     template<typename ENVIRONMENT, typename POLICY, int STEP_LIMIT>
@@ -32,7 +32,7 @@ namespace layer_in_c {
             evaluate(policy, observation, action);
             T action_clipped[ENVIRONMENT::ACTION_DIM];
             for(int action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
-                action_clipped[action_i] = utils::math::clamp<T>(action[action_i], -1, 1);
+                action_clipped[action_i] = math::clamp<T>(action[action_i], -1, 1);
             }
             typename ENVIRONMENT::State next_state;
             step(env, state, action_clipped, next_state);

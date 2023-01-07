@@ -122,10 +122,10 @@ namespace layer_in_c{
     template<typename DEVICE, typename LS, typename PARAMETERS>
     FUNCTION_PLACEMENT void gradient_descent(nn::layers::dense::LayerBackwardAdam<DEVICE, LS, PARAMETERS>& layer, typename LS::T first_order_moment_bias_correction, typename LS::T second_order_moment_bias_correction){
         for(int i = 0; i < LS::OUTPUT_DIM; i++) {
-            typename LS::T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_biases_first_order_moment[i] / (std::sqrt(layer.d_biases_second_order_moment[i] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+            typename LS::T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_biases_first_order_moment[i] / (math::sqrt(layer.d_biases_second_order_moment[i] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
             layer.biases[i] -= bias_update;
             for(int j = 0; j < LS::INPUT_DIM; j++) {
-                typename LS::T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_weights_first_order_moment[i][j] / (std::sqrt(layer.d_weights_second_order_moment[i][j] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                typename LS::T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_weights_first_order_moment[i][j] / (math::sqrt(layer.d_weights_second_order_moment[i][j] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
                 layer.weights[i][j] -= weight_update;
             }
         }

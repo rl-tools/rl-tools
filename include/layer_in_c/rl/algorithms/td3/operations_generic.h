@@ -7,12 +7,7 @@
 #include <layer_in_c/nn/nn.h>
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/utils/generic/polyak.h>
-#include <layer_in_c/utils/generic/math.h>
-
-#include <cassert>
-#include <cstring>
-
-
+#include <layer_in_c/math/operations_generic.h>
 
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
@@ -22,9 +17,9 @@ namespace layer_in_c{
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void update_target_network(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {
-        using TargetNetworkType = typename std::remove_reference<decltype(target)>::type;
+        using TargetNetworkType = typename utils::typing::remove_reference<decltype(target)>::type;
         update_target_layer(target.input_layer, source.input_layer, polyak);
-        for(size_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for(index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             update_target_layer(target.hidden_layers[layer_i], source.hidden_layers[layer_i], polyak);
         }
         update_target_layer(target.output_layer, source.output_layer, polyak);

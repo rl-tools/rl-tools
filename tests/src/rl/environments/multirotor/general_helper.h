@@ -139,8 +139,9 @@ FUNCTION_PLACEMENT void normalize(const T source[N], T target[N]) {
     for(int i = 0; i < N; i++) {
         acc += source[i]*source[i];
     }
+    acc = sqrt(acc);
     for(int i = 0; i < N; i++) {
-        target = source[i]/acc;
+        target[i] = source[i]/acc;
     }
 }
 

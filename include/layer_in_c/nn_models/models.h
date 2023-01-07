@@ -1,5 +1,3 @@
-#include <cstdint>
-
 #include "mlp/network.h"
 
 

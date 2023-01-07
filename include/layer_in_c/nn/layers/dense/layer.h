@@ -6,8 +6,8 @@ namespace layer_in_c::nn::layers::dense {
     template<typename T_T, int T_INPUT_DIM, int T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION>
     struct LayerSpecification {
         typedef T_T T;
-        static constexpr size_t INPUT_DIM = T_INPUT_DIM;
-        static constexpr size_t OUTPUT_DIM = T_OUTPUT_DIM;
+        static constexpr index_t INPUT_DIM = T_INPUT_DIM;
+        static constexpr index_t OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
         // Summary
         static constexpr int NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
@@ -15,9 +15,9 @@ namespace layer_in_c::nn::layers::dense {
     template<typename DEVICE, typename T_SPEC>
     struct Layer {
         typedef T_SPEC SPEC;
-        static constexpr size_t INPUT_DIM = SPEC::INPUT_DIM;
-        static constexpr size_t OUTPUT_DIM = SPEC::OUTPUT_DIM;
-        static constexpr size_t NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
+        static constexpr index_t INPUT_DIM = SPEC::INPUT_DIM;
+        static constexpr index_t OUTPUT_DIM = SPEC::OUTPUT_DIM;
+        static constexpr index_t NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
         typename SPEC::T weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T biases[SPEC::OUTPUT_DIM];
     };
