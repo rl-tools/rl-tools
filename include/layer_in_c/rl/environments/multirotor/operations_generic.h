@@ -93,6 +93,13 @@ namespace layer_in_c::rl::environments::multirotor {
 }
 
 namespace layer_in_c{
+    template<typename SPEC>
+    static void initial_state(const rl::environments::Multirotor<devices::CPU, SPEC>& env, typename rl::environments::multirotor::State<typename SPEC::T>& state){
+        for(int i = 0; i < rl::environments::multirotor::STATE_DIM; i++){
+            state.state[i] = 0;
+        }
+        state.state[3] = 1;
+    }
     template<typename DEVICE, typename SPEC>
     static typename SPEC::T step(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[rl::environments::multirotor::ACTION_DIM], rl::environments::multirotor::State<typename SPEC::T>& next_state) {
         typename SPEC::T action_scaled[rl::environments::multirotor::ACTION_DIM];
@@ -101,6 +108,16 @@ namespace layer_in_c{
             action_scaled[action_i] = action[action_i] * half_range + env.parameters.action_limit.min + half_range;
         }
         utils::integrators::rk4<typename SPEC::T, typename std::remove_reference<decltype(env.parameters)>::type, rl::environments::multirotor::STATE_DIM, rl::environments::multirotor::ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<typename SPEC::T, 4>>(env.parameters, state.state, action_scaled, env.parameters.dt, next_state.state);
+        typename SPEC::T quaternion_norm = 0;
+        for(size_t state_i = 3; state_i < 3+4; state_i++){
+            quaternion_norm += next_state.state[state_i] * next_state.state[state_i];
+        }
+        quaternion_norm = std::sqrt(quaternion_norm);
+        for(size_t state_i = 3; state_i < 3+4; state_i++){
+            next_state.state[state_i] /= quaternion_norm;
+        }
+
+
         return env.parameters.dt;
     }
     template<typename DEVICE, typename SPEC>
@@ -109,23 +126,35 @@ namespace layer_in_c{
         T acc = 0;
         for(size_t state_i = 0; state_i < rl::environments::multirotor::STATE_DIM; state_i++){
             if(state_i < 3){
-                acc += state[state_i] * state[state_i] * env.parameters.reward.position;
+                acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.position;
             }
             else{
                 if(state_i < 3+4){
-                    acc += state[state_i] * state[state_i] * env.parameters.reward.orientation;
+                    T v = state_i == 3 ? state.state[state_i] - 1 : state.state[state_i];
+                    acc += v * v * env.parameters.reward.orientation;
                 }
                 else{
                     if(state_i < 3+4+3){
-                        acc += state[state_i] * state[state_i] * env.parameters.reward.linear_velocity;
+                        acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.linear_velocity;
                     }
                     else{
-                        acc += state[state_i] * state[state_i] * env.parameters.reward.angular_velocity;
+                        acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.angular_velocity;
                     }
                 }
             }
         }
-        return std::exp(-acc);
+        for(size_t action_i = 0; action_i < rl::environments::multirotor::ACTION_DIM; action_i++){
+            T v = action[action_i] - env.parameters.reward.action_baseline;
+            acc += v * v * env.parameters.reward.action;
+        }
+        T variance_position = env.parameters.init.max_position * env.parameters.init.max_position/(2*2) * env.parameters.reward.position;
+        T variance_orientation = env.parameters.reward.orientation;
+        T variance_linear_velocity = env.parameters.init.max_linear_velocity * env.parameters.init.max_linear_velocity/(2*2) * env.parameters.reward.linear_velocity;
+        T variance_angular_velocity = env.parameters.init.max_angular_velocity * env.parameters.init.max_angular_velocity/(2*2) * env.parameters.reward.angular_velocity;
+        T variance_action = env.parameters.reward.action;
+        T standardization_factor = (variance_position * 3 + variance_orientation * 4 + variance_linear_velocity * 3 + variance_angular_velocity * 3 + variance_action * 4);
+        standardization_factor *= 100;
+        return std::exp(-acc/standardization_factor);
     }
 
     template<typename DEVICE, typename SPEC>

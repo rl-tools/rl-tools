@@ -94,7 +94,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
                         }
                         if(step_i % 1000 == 0){
                             std::cout << "step_i: " << step_i << std::endl;
-                            DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), ENVIRONMENT_STEP_LIMIT, false>(ENVIRONMENT(), actor_critic.actor, 500, rng);
+                            DTYPE mean_return = lic::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), ENVIRONMENT_STEP_LIMIT, false>(env, actor_critic.actor, 500, rng);
                             std::cout << "Mean return: " << mean_return << std::endl;
                             if(block_i == 0 && training_run_i == 0){
                                 mean_returns_steps.push_back(step_i);

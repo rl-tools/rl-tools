@@ -29,7 +29,7 @@ void plot_policy_and_value_function(ACTOR& a, CRITIC& c, std::string dir, int st
             xticks[theta_dot_i] = theta_dot;
             typename ENVIRONMENT::State state = {theta, theta_dot};
             T critic_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
-            lic::observe(ENVIRONMENT(), state, critic_input);
+            lic::observe(env, state, critic_input);
             T max_value = -std::numeric_limits<T>::infinity();
             T max_value_action = 0;
             for(T action=-1; action<=1; action+=0.1){

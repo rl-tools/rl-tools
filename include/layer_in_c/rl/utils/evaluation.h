@@ -18,8 +18,16 @@ namespace layer_in_c {
         state = initial_state;
         T episode_return = 0;
         for (int i = 0; i < STEP_LIMIT; i++) {
-            T observation[ENVIRONMENT::OBSERVATION_DIM];
-            observe(ENVIRONMENT(), state, observation);
+            T observation_mem[ENVIRONMENT::OBSERVATION_DIM];
+            T* observation;
+            if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
+                observation = observation_mem;
+                observe(env, state, observation);
+            }
+            else{
+                static_assert(sizeof(state.state)/sizeof(state.state[0]) == ENVIRONMENT::OBSERVATION_DIM, "The environments state dimension must match the environment's observation dimension.");
+                observation = state.state;
+            }
             T action[ENVIRONMENT::ACTION_DIM];
             evaluate(policy, observation, action);
             T action_clipped[ENVIRONMENT::ACTION_DIM];
@@ -27,11 +35,11 @@ namespace layer_in_c {
                 action_clipped[action_i] = utils::math::clamp<T>(action[action_i], -1, 1);
             }
             typename ENVIRONMENT::State next_state;
-            step(ENVIRONMENT(), state, action_clipped, next_state);
-            T r = reward(ENVIRONMENT(), state, action_clipped, next_state);
+            step(env, state, action_clipped, next_state);
+            T r = reward(env, state, action_clipped, next_state);
             state = next_state;
             episode_return += r;
-            bool terminated_flag = terminated(ENVIRONMENT(), state);
+            bool terminated_flag = terminated(env, state);
             if (terminated_flag) {
                 break;
             }
@@ -47,11 +55,10 @@ namespace layer_in_c {
         for (int i = 0; i < N; i++) {
             typename ENVIRONMENT::State initial_state;
             if(DETERMINISTIC) {
-                initial_state.theta = -M_PI;
-                initial_state.theta_dot = 0;
+                lic::initial_state(env, initial_state);
             }
             else{
-                sample_initial_state(ENVIRONMENT(), initial_state, rng);
+                sample_initial_state(env, initial_state, rng);
             }
             episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(env, policy, initial_state);
         }

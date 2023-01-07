@@ -11,7 +11,7 @@ namespace layer_in_c{
         for (int i = 0; i < STEP_LIMIT; i++) {
             set_state(ui, state);
             T observation[ENVIRONMENT::OBSERVATION_DIM];
-            observe(ENVIRONMENT(), state, observation);
+            observe(env, state, observation);
             T action[ENVIRONMENT::ACTION_DIM];
             evaluate(policy, observation, action);
             T action_clipped[ENVIRONMENT::ACTION_DIM];
@@ -19,12 +19,12 @@ namespace layer_in_c{
                 action_clipped[action_i] = std::clamp<T>(action[action_i], -1, 1);
             }
             typename ENVIRONMENT::State next_state;
-            T dt = step(ENVIRONMENT(), state, action_clipped, next_state);
+            T dt = step(env, state, action_clipped, next_state);
             std::this_thread::sleep_for(std::chrono::milliseconds((int)(dt*1000/TIME_LAPSE)));
-            T r = reward(ENVIRONMENT(), state, action_clipped, next_state);
+            T r = reward(env, state, action_clipped, next_state);
             state = next_state;
             episode_return += r;
-            bool terminated_flag = terminated(ENVIRONMENT(), state);
+            bool terminated_flag = terminated(env, state);
             if (terminated_flag) {
                 break;
             }

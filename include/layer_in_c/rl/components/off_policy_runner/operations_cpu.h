@@ -21,13 +21,23 @@ namespace layer_in_c{
         if ((SPEC::STEP_LIMIT > 0 && runner.episode_step == SPEC::STEP_LIMIT) ||
             (runner.replay_buffer.position == 0 && !runner.replay_buffer.full)) {
             // first step
-            sample_initial_state(ENVIRONMENT(), runner.state, rng);
+            sample_initial_state(runner.env, runner.state, rng);
             runner.episode_step = 0;
             runner.episode_return = 0;
         }
         // todo: increase efficiency by removing the double observation of each state
-        T observation[ENVIRONMENT::OBSERVATION_DIM];
-        observe(ENVIRONMENT(), runner.state, observation);
+
+        T observation_mem[ENVIRONMENT::OBSERVATION_DIM];
+        T* observation;
+        if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
+            observation = observation_mem;
+            observe(runner.env, runner.state, observation);
+        }
+        else{
+            static_assert(sizeof(runner.state.state)/sizeof(runner.state.state[0]) == SPEC::ENVIRONMENT::OBSERVATION_DIM, "The environments state dimension must match the environment's observation dimension.");
+            observation = runner.state.state;
+        }
+
         typename ENVIRONMENT::State next_state;
         T action[ENVIRONMENT::ACTION_DIM];
         evaluate(policy, observation, action);
@@ -36,12 +46,21 @@ namespace layer_in_c{
             action[i] += exploration_noise_distribution(rng);
             action[i] = lic::utils::math::clamp<T>(action[i], -1, 1);
         }
-        step(ENVIRONMENT(), runner.state, action, next_state);
-        T reward_value = reward(ENVIRONMENT(), runner.state, action, next_state);
+        step(runner.env, runner.state, action, next_state);
+        T reward_value = reward(runner.env, runner.state, action, next_state);
         runner.state = next_state;
-        T next_observation[ENVIRONMENT::OBSERVATION_DIM];
-        observe(ENVIRONMENT(), next_state, next_observation);
-        bool terminated_flag = terminated(ENVIRONMENT(), next_state);
+
+        T next_observation_mem[ENVIRONMENT::OBSERVATION_DIM];
+        T* next_observation;
+        if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
+            next_observation = next_observation_mem;
+            observe(runner.env, next_state, next_observation);
+        }
+        else{
+            next_observation = next_state.state;
+        }
+
+        bool terminated_flag = terminated(runner.env, next_state);
         runner.episode_step += 1;
         runner.episode_return += reward_value;
         bool truncated = runner.episode_step == SPEC::STEP_LIMIT;

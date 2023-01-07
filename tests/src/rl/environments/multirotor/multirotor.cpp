@@ -12,7 +12,6 @@ constexpr auto ACTION_DIM = dynamics_legacy::ACTION_DIM;
 #include <layer_in_c/utils/generic/math.h>
 
 #include <layer_in_c/rl/environments/multirotor/multirotor.h>
-#include <layer_in_c/rl/environments/multirotor/default_parameters.h>
 
 #include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
 
@@ -28,7 +27,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
 
     std::cout << "sizeof state: " << sizeof(lic::rl::environments::multirotor::State<DTYPE>) << std::endl;
 
-    PARAMETERS parameters = lic::rl::environments::multirotor::default_parameters<DTYPE, 4>;
+    PARAMETERS parameters = lic::rl::environments::multirotor::default_parameters<DTYPE>;
     ENVIRONMENT env({parameters});
     std::mt19937 rng(0);
 

@@ -223,3 +223,16 @@ target_link_libraries(
 )
 gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
+# Multirotor Training test
+add_executable(
+        test_rl_environments_multirotor_training_test
+        src/rl/environments/multirotor_training/multirotor_training.cpp
+)
+target_link_libraries(
+        test_rl_environments_multirotor_training_test
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+)
+gtest_discover_tests(test_rl_environments_multirotor_training_test)
+

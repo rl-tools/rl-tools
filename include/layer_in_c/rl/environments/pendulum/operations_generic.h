@@ -18,6 +18,11 @@ namespace layer_in_c::rl::environments::pendulum {
     }
 }
 namespace layer_in_c{
+    template<typename SPEC>
+    static void initial_state(const rl::environments::Pendulum<devices::CPU, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state){
+        state.theta = -M_PI;
+        state.theta_dot = 0;
+    }
     template<typename DEVICE, typename SPEC>
     static typename SPEC::T step(const rl::environments::Pendulum<DEVICE, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], rl::environments::pendulum::State<typename SPEC::T>& next_state) {
         using namespace rl::environments::pendulum;

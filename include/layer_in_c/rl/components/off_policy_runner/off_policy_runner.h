@@ -27,6 +27,7 @@ namespace layer_in_c::rl::components{
     struct OffPolicyRunner {
         typedef replay_buffer::Spec<typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY> ReplayBufferSpec;
 
+        typename SPEC::ENVIRONMENT env;
         ReplayBuffer<DEVICE, ReplayBufferSpec> replay_buffer;
         typename SPEC::ENVIRONMENT::State state;
         size_t episode_step = 0;

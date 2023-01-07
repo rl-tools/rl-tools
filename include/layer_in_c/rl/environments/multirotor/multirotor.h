@@ -32,8 +32,8 @@ namespace layer_in_c::rl::environments::multirotor {
             T orientation;
             T linear_velocity;
             T angular_velocity;
-            T actions_baseline;
-            T actions;
+            T action_baseline;
+            T action;
         };
         struct Initialization{
             T max_position;
@@ -72,5 +72,7 @@ namespace layer_in_c::rl::environments{
         multirotor::Parameters<typename SPEC::T, 4> parameters;
     };
 }
+
+#include "default_parameters.h"
 
 #endif
