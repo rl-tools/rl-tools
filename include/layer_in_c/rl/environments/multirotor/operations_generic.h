@@ -94,33 +94,33 @@ namespace layer_in_c::rl::environments::multirotor {
 
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T step(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::Parameters<typename SPEC::T, 4>& params, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[rl::environments::multirotor::ACTION_DIM], rl::environments::multirotor::State<typename SPEC::T>& next_state) {
+    static typename SPEC::T step(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[rl::environments::multirotor::ACTION_DIM], rl::environments::multirotor::State<typename SPEC::T>& next_state) {
         typename SPEC::T action_scaled[rl::environments::multirotor::ACTION_DIM];
         for(size_t action_i = 0; action_i < rl::environments::multirotor::ACTION_DIM; action_i++){
-            typename SPEC::T half_range = (params.action_limit.max - params.action_limit.min) / 2;
-            action_scaled[action_i] = action[action_i] * half_range + params.action_limit.min + half_range;
+            typename SPEC::T half_range = (env.parameters.action_limit.max - env.parameters.action_limit.min) / 2;
+            action_scaled[action_i] = action[action_i] * half_range + env.parameters.action_limit.min + half_range;
         }
-        utils::integrators::rk4<typename SPEC::T, typename std::remove_reference<decltype(params)>::type, rl::environments::multirotor::STATE_DIM, rl::environments::multirotor::ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<typename SPEC::T, 4>>(params, state.state, action_scaled, params.dt, next_state.state);
-        return params.dt;
+        utils::integrators::rk4<typename SPEC::T, typename std::remove_reference<decltype(env.parameters)>::type, rl::environments::multirotor::STATE_DIM, rl::environments::multirotor::ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<typename SPEC::T, 4>>(env.parameters, state.state, action_scaled, env.parameters.dt, next_state.state);
+        return env.parameters.dt;
     }
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::Parameters<typename SPEC::T, 4>& params, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::multirotor::State<typename SPEC::T>& next_state){
+    static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::multirotor::State<typename SPEC::T>& next_state){
         using T = typename SPEC::T;
         T acc = 0;
         for(size_t state_i = 0; state_i < rl::environments::multirotor::STATE_DIM; state_i++){
             if(state_i < 3){
-                acc += state[state_i] * state[state_i] * params.reward.position;
+                acc += state[state_i] * state[state_i] * env.parameters.reward.position;
             }
             else{
                 if(state_i < 3+4){
-                    acc += state[state_i] * state[state_i] * params.reward.orientation;
+                    acc += state[state_i] * state[state_i] * env.parameters.reward.orientation;
                 }
                 else{
                     if(state_i < 3+4+3){
-                        acc += state[state_i] * state[state_i] * params.reward.linear_velocity;
+                        acc += state[state_i] * state[state_i] * env.parameters.reward.linear_velocity;
                     }
                     else{
-                        acc += state[state_i] * state[state_i] * params.reward.angular_velocity;
+                        acc += state[state_i] * state[state_i] * env.parameters.reward.angular_velocity;
                     }
                 }
             }
@@ -129,7 +129,7 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC>
-    static bool terminated(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::Parameters<typename SPEC::T, 4>& params, const typename rl::environments::multirotor::State<typename SPEC::T> state){
+    static bool terminated(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::multirotor::State<typename SPEC::T> state){
         return false;
     }
 }

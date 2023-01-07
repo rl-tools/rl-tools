@@ -27,7 +27,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     using PARAMETERS = lic::rl::environments::multirotor::Parameters<DTYPE, 4>;
 
     PARAMETERS parameters = lic::rl::environments::multirotor::default_parameters<DTYPE, 4>;
-    ENVIRONMENT env;
+    ENVIRONMENT env({parameters});
     std::mt19937 rng(0);
 
     for(COUNTER_TYPE step_i = 0; step_i < 100; step_i++){
@@ -62,7 +62,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
 
 
             // Env based
-            lic::step(env, parameters, env_state, env_action, env_next_state);
+            lic::step(env, env_state, env_action, env_next_state);
 
             DTYPE acc = 0;
             for(COUNTER_TYPE state_i = 0; state_i < STATE_DIM; state_i++){

@@ -62,8 +62,8 @@ namespace layer_in_c::rl::environments{
         static constexpr size_t OBSERVATION_DIM = multirotor::STATE_DIM;
         static constexpr size_t ACTION_DIM = 4;
         using State = multirotor::State<typename SPEC::T>;
-        using Parameters = multirotor::Parameters<typename SPEC::T, 4>;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
+        multirotor::Parameters<typename SPEC::T, 4> parameters;
     };
 }
 
