@@ -124,9 +124,16 @@ namespace layer_in_c::rl::environments::multirotor {
     template<typename T, int ACTION_DIM>
     typename Parameters<T, ACTION_DIM>::ActionLimit default_action_limit = {0, 2000};
     template<typename T, int ACTION_DIM>
+    typename Parameters<T, ACTION_DIM>::Initialization default_init_parameters = {
+            2,
+            1,
+            0.5 * M_PI * 2
+    };
+    template<typename T, int ACTION_DIM>
     Parameters<T, ACTION_DIM> default_parameters = {
             default_dynamics_parameters<T, ACTION_DIM>,
             default_action_limit<T, ACTION_DIM>,
+            default_init_parameters<T, ACTION_DIM>,
             default_reward_parameters<T, ACTION_DIM>,
             // dt
             0.02

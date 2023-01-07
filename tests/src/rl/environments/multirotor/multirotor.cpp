@@ -26,6 +26,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     using ENVIRONMENT = lic::rl::environments::Multirotor<lic::devices::CPU, SPEC>;
     using PARAMETERS = lic::rl::environments::multirotor::Parameters<DTYPE, 4>;
 
+    std::cout << "sizeof state: " << sizeof(lic::rl::environments::multirotor::State<DTYPE>) << std::endl;
+
     PARAMETERS parameters = lic::rl::environments::multirotor::default_parameters<DTYPE, 4>;
     ENVIRONMENT env({parameters});
     std::mt19937 rng(0);
@@ -33,11 +35,16 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     for(COUNTER_TYPE step_i = 0; step_i < 100; step_i++){
         std::normal_distribution<DTYPE> action_distribution;
         DTYPE state[STATE_DIM];
-        for(int i = 0; i < STATE_DIM; i++){
-            state[i] = 0;
-        }
-        state[3] = 1;
+//        for(int i = 0; i < STATE_DIM; i++){
+//            state[i] = 0;
+//        }
+//        state[3] = 1;
         ENVIRONMENT::State env_state;
+        lic::sample_initial_state(env, env_state, rng);
+        for(int i = 0; i < STATE_DIM; i++){
+            state[i] = env_state.state[i];
+        }
+
         memcpy(env_state.state, state, sizeof(DTYPE) * STATE_DIM);
 
         for(COUNTER_TYPE substep_i = 0; substep_i < 100; substep_i++){

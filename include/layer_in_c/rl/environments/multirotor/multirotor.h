@@ -35,8 +35,14 @@ namespace layer_in_c::rl::environments::multirotor {
             T actions_baseline;
             T actions;
         };
+        struct Initialization{
+            T max_position;
+            T max_linear_velocity;
+            T max_angular_velocity;
+        };
         Dynamics dynamics;
         ActionLimit action_limit;
+        Initialization init;
         Reward reward;
         T dt;
     };
