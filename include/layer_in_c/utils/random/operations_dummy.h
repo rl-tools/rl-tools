@@ -1,13 +1,15 @@
 #ifndef LAYER_IN_C_UTILS_RANDOM_OPERATIONS_DUMMY_H
 #define LAYER_IN_C_UTILS_RANDOM_OPERATIONS_DUMMY_H
 
+#include <layer_in_c/devices.h>
 #include <layer_in_c/utils/generic/typing.h>
 
 namespace layer_in_c::utils::random{
-    using default_engine = index_t;
+    template<typename DEVICE>
+    using default_engine = utils::typing::enable_if_t<utils::typing::is_same_v<DEVICE, devices::random::Dummy>, index_t>;
 
     template<typename T, typename RNG>
-    T uniform_int_distribution(T low, T high, RNG& rng){
+    T uniform_int_distribution(const devices::random::Dummy& dev, T low, T high, RNG& rng){
 //        static_assert(utils::typing::is_same_v<T, index_t>);
 //        static_assert(utils::typing::is_same_v<RNG, index_t>);
 //        // https://en.wikipedia.org/wiki/Xorshift
@@ -18,14 +20,14 @@ namespace layer_in_c::utils::random{
         return low;
     }
     template<typename T, typename RNG>
-    T uniform_real_distribution(T low, T high, RNG& rng){
+    T uniform_real_distribution(const devices::random::Dummy& dev, T low, T high, RNG& rng){
 //        static_assert(utils::typing::is_same_v<RNG, index_t>);
 //        T r = (T)uniform_int_distribution<index_t, index_t>((index_t)0, (index_t)1<<31, rng) / (T)(1<<31) - 1;
 //        return r * (high-low) + low;
         return low;
     }
     template<typename T, typename RNG>
-    T normal_distribution(T mean, T std, RNG& rng){
+    T normal_distribution(const devices::random::Dummy& dev, T mean, T std, RNG& rng){
 //        static_assert(utils::typing::is_same_v<RNG, index_t>);
 //        //
 //        T x, y, r, res;

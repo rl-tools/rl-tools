@@ -41,12 +41,12 @@ namespace layer_in_c{
             RNG& rng
     ) {
         typedef typename SPEC::T T;
-        utils::assert_exit(replay_buffer.full || replay_buffer.position >= SPEC::PARAMETERS::CRITIC_BATCH_SIZE, "Error: replay buffer not full enough for training critic");
+        utils::assert_exit(DEVICE(), replay_buffer.full || replay_buffer.position >= SPEC::PARAMETERS::CRITIC_BATCH_SIZE, "Error: replay buffer not full enough for training critic");
         T loss = 0;
         zero_gradient(critic);
         for(index_t batch_step_i=0; batch_step_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_step_i++){
             index_t sample_index_max = (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
-            index_t sample_index = DETERMINISTIC ? batch_step_i : utils::random::uniform_int_distribution((index_t)0, sample_index_max, rng);
+            index_t sample_index = DETERMINISTIC ? batch_step_i : utils::random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (index_t)0, sample_index_max, rng);
             T next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];
             utils::memcpy(next_state_action_value_input, replay_buffer.next_observations[sample_index], SPEC::ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             evaluate(actor_critic.actor_target, next_state_action_value_input, &next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
@@ -95,7 +95,7 @@ namespace layer_in_c{
         for(index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
             for(index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 action_noise[batch_sample_i][action_i] = math::clamp(
-                        utils::random::normal_distribution((T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng),
+                        utils::random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng),
                         -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
                         SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
                 );
@@ -124,7 +124,7 @@ namespace layer_in_c{
         zero_gradient(actor_critic.actor);
         index_t sample_index_max = (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
         for (index_t sample_i=0; sample_i < PARAMETERS::ACTOR_BATCH_SIZE; sample_i++){
-            index_t sample_index = DETERMINISTIC ? sample_i : utils::random::uniform_int_distribution((index_t)0, sample_index_max, rng);
+            index_t sample_index = DETERMINISTIC ? sample_i : utils::random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (index_t)0, sample_index_max, rng);
             T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
             utils::memcpy(state_action_value_input, replay_buffer.observations[sample_index], ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             forward(actor_critic.actor, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]);

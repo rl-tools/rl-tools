@@ -1,8 +1,8 @@
 // this is a test to check if everything compiles without any dependencies (by replacing the dependency based math functions with dummy implementations)
-#ifdef LAYER_IN_C_CONTEXT_CPU
-#include <layer_in_c/context/cpu.h>
+#ifdef LAYER_IN_C_OPERATIONS_CPU
+#include <layer_in_c/operations/cpu.h>
 #else
-#include <layer_in_c/context/dummy.h>
+#include <layer_in_c/operations/dummy.h>
 #endif
 
 #include <layer_in_c/rl/environments/environments.h>
@@ -31,8 +31,17 @@
 namespace lic = layer_in_c;
 using DTYPE = float;
 
+#ifdef LAYER_IN_C_OPERATIONS_CPU
+using DEVICE = lic::devices::DefaultCPU;
+using NN_DEVICE = lic::devices::DefaultCPU;
+using AC_DEVICE = lic::devices::DefaultCPU;
+#else
+using DEVICE = lic::devices::DefaultDummy;
+using NN_DEVICE = lic::devices::DefaultDummy;
+using AC_DEVICE = lic::devices::DefaultDummy;
+#endif
 typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
@@ -64,7 +73,6 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
     constexpr static lic::index_t ACTOR_BATCH_SIZE = 100;
 };
 
-using NN_DEVICE = lic::devices::CPU;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
 
@@ -78,13 +86,13 @@ using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecific
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
-using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<lic::devices::CPU, TD3_SPEC>;
+using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 
 constexpr lic::index_t REPLAY_BUFFER_CAP = 500000;
 constexpr lic::index_t ENVIRONMENT_STEP_LIMIT = 200;
 lic::rl::components::OffPolicyRunner<
-        lic::devices::CPU,
+        AC_DEVICE,
         lic::rl::components::off_policy_runner::Spec<
                 DTYPE,
                 ENVIRONMENT,
@@ -102,7 +110,7 @@ int main() {
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
     UI ui;
 #endif
-    lic::utils::random::default_engine rng(1);
+    lic::utils::random::default_engine<DEVICE::SPEC::RANDOM> rng(1);
     lic::init(actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){
@@ -112,7 +120,7 @@ int main() {
         }
 #endif
         if(step_i > REPLAY_BUFFER_CAP){
-            lic::logging::text("warning: replay buffer is rolling over");
+            lic::logging::text(DEVICE::SPEC::LOGGING(), "warning: replay buffer is rolling over");
         }
         lic::step(off_policy_runner, actor_critic.actor, rng);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
@@ -121,7 +129,7 @@ int main() {
 
         if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
-                lic::logging::text("step_i: ", step_i);
+                lic::logging::text(DEVICE::SPEC::LOGGING(), "step_i: ", step_i);
             }
             DTYPE critic_1_loss = lic::train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
             lic::train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
@@ -132,8 +140,8 @@ int main() {
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(env, actor_critic.actor, 1, rng);
-            lic::logging::text("Mean return: ", mean_return);
+            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(DEVICE(), env, actor_critic.actor, 1, rng);
+            lic::logging::text(DEVICE::SPEC::LOGGING(), "Mean return: ", mean_return);
 #ifdef LAYER_IN_C_CONTEXT_CPU
             if(mean_return > -400){
                 return 0;

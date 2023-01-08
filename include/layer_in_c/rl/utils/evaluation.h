@@ -43,8 +43,8 @@ namespace layer_in_c {
         }
         return episode_return;
     }
-    template<typename ENVIRONMENT, typename POLICY, typename RNG, index_t STEP_LIMIT, bool DETERMINISTIC>
-    typename POLICY::T evaluate(const ENVIRONMENT env, POLICY &policy, index_t N, RNG &rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename POLICY, typename RNG, index_t STEP_LIMIT, bool DETERMINISTIC>
+    typename POLICY::T evaluate(const DEVICE& dev, const ENVIRONMENT env, POLICY &policy, index_t N, RNG &rng) {
         typedef typename POLICY::T T;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM, "Action and policy output dimensions must match");
@@ -69,8 +69,8 @@ namespace layer_in_c {
             variance += (episode_returns[i] - mean) * (episode_returns[i] - mean);
         }
         variance /= N;
-        T standard_deviation = math::sqrt(variance);
-        logging::text("Mean: ", mean, ", Standard deviation: ", standard_deviation);
+        T standard_deviation = math::sqrt(typename DEVICE::SPEC::MATH(), variance);
+        logging::text(typename DEVICE::SPEC::LOGGING(), "Mean: ", mean, ", Standard deviation: ", standard_deviation);
         return mean;
     }
 

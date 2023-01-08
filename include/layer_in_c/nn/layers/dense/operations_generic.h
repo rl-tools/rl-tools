@@ -8,19 +8,19 @@
 #endif
 
 namespace layer_in_c{
-    template<typename LS, typename DEVICE, typename RNG>
+    template<typename DEVICE, typename LS, typename RNG>
     void init_kaiming(nn::layers::dense::Layer<DEVICE, LS>& layer, RNG& rng) {
         typedef typename LS::T T;
-        T negative_slope = math::sqrt((T)5);
-        T gain = math::sqrt((T)2.0 / (1 + negative_slope * negative_slope));
+        T negative_slope = math::sqrt(typename DEVICE::SPEC::MATH(), (T)5);
+        T gain = math::sqrt(typename DEVICE::SPEC::MATH(), (T)2.0 / (1 + negative_slope * negative_slope));
         T fan = LS::INPUT_DIM;
-        T std = gain / math::sqrt(fan);
-        T weight_bound = math::sqrt((T)3.0) * std;
-        T bias_bound = 1/math::sqrt((T)LS::INPUT_DIM);
+        T std = gain / math::sqrt(typename DEVICE::SPEC::MATH(), fan);
+        T weight_bound = math::sqrt(typename DEVICE::SPEC::MATH(), (T)3.0) * std;
+        T bias_bound = 1/math::sqrt(typename DEVICE::SPEC::MATH(), (T)LS::INPUT_DIM);
         for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
-            layer.biases[i] = utils::random::uniform_real_distribution(-bias_bound, bias_bound, rng);
+            layer.biases[i] = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng);
             for(index_t j = 0; j < LS::INPUT_DIM; j++) {
-                layer.weights[i][j] = utils::random::uniform_real_distribution(-weight_bound, weight_bound, rng);
+                layer.weights[i][j] = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng);
             }
         }
     }
@@ -33,7 +33,7 @@ namespace layer_in_c{
             for(index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 output[i] += layer.weights[i][j] * input[j];
             }
-            output[i] = nn::activation_functions::activation<T, SPEC::ACTIVATION_FUNCTION>(output[i]);
+            output[i] = nn::activation_functions::activation<typename DEVICE::SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(output[i]);
         }
     }
 
@@ -57,7 +57,7 @@ namespace layer_in_c{
             for(index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 layer.pre_activations[i] += layer.weights[i][j] * input[j];
             }
-            layer.output[i] = nn::activation_functions::activation<T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
+            layer.output[i] = nn::activation_functions::activation<typename DEVICE::SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
         }
     }
     template<typename DEVICE, typename T, typename SPEC>
@@ -94,7 +94,7 @@ namespace layer_in_c{
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
         for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
-            typename LS::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename LS::T, LS::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
+            typename LS::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename DEVICE::SPEC::MATH, typename LS::T, LS::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
             layer.d_biases[i] += d_pre_activation;
             for(index_t j = 0; j < LS::INPUT_DIM; j++) {
                 if(i == 0){
@@ -138,10 +138,10 @@ namespace layer_in_c{
     template<typename DEVICE, typename LS, typename PARAMETERS>
     FUNCTION_PLACEMENT void gradient_descent(nn::layers::dense::LayerBackwardAdam<DEVICE, LS, PARAMETERS>& layer, typename LS::T first_order_moment_bias_correction, typename LS::T second_order_moment_bias_correction){
         for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
-            typename LS::T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_biases_first_order_moment[i] / (math::sqrt(layer.d_biases_second_order_moment[i] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+            typename LS::T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_biases_first_order_moment[i] / (math::sqrt(typename DEVICE::SPEC::MATH(), layer.d_biases_second_order_moment[i] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
             layer.biases[i] -= bias_update;
             for(index_t j = 0; j < LS::INPUT_DIM; j++) {
-                typename LS::T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_weights_first_order_moment[i][j] / (math::sqrt(layer.d_weights_second_order_moment[i][j] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                typename LS::T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_weights_first_order_moment[i][j] / (math::sqrt(typename DEVICE::SPEC::MATH(), layer.d_weights_second_order_moment[i][j] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
                 layer.weights[i][j] -= weight_update;
             }
         }

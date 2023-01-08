@@ -1,4 +1,4 @@
-#include <layer_in_c/context/cpu.h>
+#include <layer_in_c/operations/cpu.h>
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/nn_models/models.h>
@@ -27,8 +27,9 @@
 namespace lic = layer_in_c;
 using DTYPE = float;
 
+using DEVICE = lic::devices::DefaultCPU;
 typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
@@ -60,7 +61,7 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
     constexpr static size_t ACTOR_BATCH_SIZE = 100;
 };
 
-using NN_DEVICE = lic::devices::CPU;
+using NN_DEVICE = lic::devices::DefaultCPU;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
 
@@ -74,13 +75,14 @@ using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecific
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
-using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<lic::devices::CPU, TD3_SPEC>;
+using AC_DEVICE = lic::devices::DefaultCPU;
+using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 
 constexpr size_t REPLAY_BUFFER_CAP = 500000;
 constexpr size_t ENVIRONMENT_STEP_LIMIT = 200;
 lic::rl::components::OffPolicyRunner<
-        lic::devices::CPU,
+        AC_DEVICE,
         lic::rl::components::off_policy_runner::Spec<
                 DTYPE,
                 ENVIRONMENT,
@@ -128,7 +130,7 @@ int main() {
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(env, actor_critic.actor, 1, rng);
+            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(DEVICE(), env, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
 //            if(step_i >= 6000){
 //                ASSERT_GT(mean_return, -1000);

@@ -172,8 +172,8 @@ namespace layer_in_c {
     template<typename DEVICE, typename SPEC>
     FUNCTION_PLACEMENT void update(nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC>& network) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
-        typename SPEC::T  first_order_moment_bias_correction = 1/(1 - math::pow(SPEC::ADAM_PARAMETERS::BETA_1, network.age));
-        typename SPEC::T second_order_moment_bias_correction = 1/(1 - math::pow(SPEC::ADAM_PARAMETERS::BETA_2, network.age));
+        typename SPEC::T  first_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), SPEC::ADAM_PARAMETERS::BETA_1, network.age));
+        typename SPEC::T second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), SPEC::ADAM_PARAMETERS::BETA_2, network.age));
 
         update_layer(network.input_layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
         for(index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){

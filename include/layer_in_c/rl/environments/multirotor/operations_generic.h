@@ -94,8 +94,8 @@ namespace layer_in_c::rl::environments::multirotor {
 }
 
 namespace layer_in_c{
-    template<typename SPEC>
-    static void initial_state(const rl::environments::Multirotor<devices::CPU, SPEC>& env, typename rl::environments::multirotor::State<typename SPEC::T>& state){
+    template<typename DEVICE, typename SPEC>
+    static void initial_state(const rl::environments::Multirotor<DEVICE, SPEC>& env, typename rl::environments::multirotor::State<typename SPEC::T>& state){
         for(index_t i = 0; i < rl::environments::multirotor::STATE_DIM; i++){
             state.state[i] = 0;
         }
@@ -113,7 +113,7 @@ namespace layer_in_c{
         for(index_t state_i = 3; state_i < 3+4; state_i++){
             quaternion_norm += next_state.state[state_i] * next_state.state[state_i];
         }
-        quaternion_norm = math::sqrt(quaternion_norm);
+        quaternion_norm = math::sqrt(typename DEVICE::SPEC::MATH(), quaternion_norm);
         for(index_t state_i = 3; state_i < 3+4; state_i++){
             next_state.state[state_i] /= quaternion_norm;
         }
@@ -155,7 +155,7 @@ namespace layer_in_c{
         T variance_action = env.parameters.reward.action;
         T standardization_factor = (variance_position * 3 + variance_orientation * 4 + variance_linear_velocity * 3 + variance_angular_velocity * 3 + variance_action * 4);
         standardization_factor *= 100;
-        return math::exp(-acc/standardization_factor);
+        return math::exp(typename DEVICE::SPEC::MATH(), -acc/standardization_factor);
     }
 
     template<typename DEVICE, typename SPEC>

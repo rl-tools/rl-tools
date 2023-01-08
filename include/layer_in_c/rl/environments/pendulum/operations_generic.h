@@ -7,24 +7,24 @@ namespace layer_in_c::rl::environments::pendulum {
         x = x < min ? min : (x > max ? max : x);
         return x;
     }
-    template <typename T>
-    T f_mod_python(T a, T b){
-        return a - b * math::floor(a / b);
+    template <typename DEVICE, typename T>
+    T f_mod_python(const DEVICE& dev, T a, T b){
+        return a - b * math::floor(DEVICE(), a / b);
     }
 
-    template <typename T>
-    T angle_normalize(T x){
-        return f_mod_python((x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
+    template <typename DEVICE, typename T>
+    T angle_normalize(const DEVICE& dev, T x){
+        return f_mod_python(DEVICE(), (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
     }
 }
 namespace layer_in_c{
-    template<typename SPEC, typename RNG>
-    static void sample_initial_state(const rl::environments::Pendulum<devices::CPU, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
-        state.theta     = utils::random::uniform_real_distribution(SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
-        state.theta_dot = utils::random::uniform_real_distribution(SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed, rng);
+    template<typename DEVICE, typename SPEC, typename RNG>
+    static void sample_initial_state(const rl::environments::Pendulum<DEVICE, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
+        state.theta     = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
+        state.theta_dot = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed, rng);
     }
-    template<typename SPEC>
-    static void initial_state(const rl::environments::Pendulum<devices::CPU, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state){
+    template<typename DEVICE, typename SPEC>
+    static void initial_state(const rl::environments::Pendulum<DEVICE, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state){
         state.theta = -math::PI<typename SPEC::T>;
         state.theta_dot = 0;
     }
@@ -42,7 +42,7 @@ namespace layer_in_c{
 
         u = clip(u, -PARAMS::max_torque, PARAMS::max_torque);
 
-        T newthdot = state.theta_dot + (3 * g / (2 * l) * math::sin(state.theta) + 3.0 / (m * l * l) * u) * dt;
+        T newthdot = state.theta_dot + (3 * g / (2 * l) * math::sin(typename DEVICE::SPEC::MATH(), state.theta) + 3.0 / (m * l * l) * u) * dt;
         newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
         T newth = state.theta + newthdot * dt;
         
@@ -54,7 +54,7 @@ namespace layer_in_c{
     static typename SPEC::T reward(const rl::environments::Pendulum<DEVICE, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::pendulum::State<typename SPEC::T>& next_state){
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
-        T angle_norm = angle_normalize(state.theta);
+        T angle_norm = angle_normalize(typename DEVICE::SPEC::MATH(), state.theta);
         T u_normalised = action[0];
         T u = SPEC::PARAMETERS::max_torque * u_normalised;
         T costs = angle_norm * angle_norm + 0.1 * state.theta_dot * state.theta_dot + 0.001 * (u * u);
@@ -64,8 +64,8 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     static void observe(const rl::environments::Pendulum<DEVICE, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, typename SPEC::T observation[3]){
         typedef typename SPEC::T T;
-        observation[0] = math::cos(state.theta);
-        observation[1] = math::sin(state.theta);
+        observation[0] = math::cos(typename DEVICE::SPEC::MATH(), state.theta);
+        observation[1] = math::sin(typename DEVICE::SPEC::MATH(), state.theta);
         observation[2] = state.theta_dot;
     }
     template<typename DEVICE, typename SPEC>

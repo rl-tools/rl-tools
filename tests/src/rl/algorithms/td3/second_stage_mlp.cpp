@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-#include <layer_in_c/context/cpu.h>
+#include <layer_in_c/operations/cpu.h>
 
 #include <layer_in_c/rl/environments/operations_cpu.h>
 #include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
@@ -33,8 +33,9 @@ std::string get_data_file_path(){
     return DATA_FILE_PATH;
 }
 #define DTYPE double
+using DEVICE = lic::devices::DefaultCPU;
 typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
@@ -71,7 +72,7 @@ struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultParame
     constexpr static int ACTOR_BATCH_SIZE = 100;
 };
 
-using NN_DEVICE = lic::devices::CPU;
+using NN_DEVICE = lic::devices::DefaultCPU;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
 
@@ -84,7 +85,7 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<NN_DEV
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<NN_DEVICE, CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
-using AC_DEVICE = lic::devices::CPU;
+using AC_DEVICE = lic::devices::DefaultCPU;
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3ParametersCopyTraining<DTYPE>>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
@@ -100,12 +101,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) 
     assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     lic::load(actor_critic.actor, step_group.getGroup("actor"));
-    DTYPE mean_return = lic::evaluate<ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), 200, true>(env, actor_critic.actor, 100, rng);
+    DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), 200, true>(DEVICE(), env, actor_critic.actor, 100, rng);
     std::cout << "mean return: " << mean_return << std::endl;
 }
 
 using ReplayBufferSpecCopyTraining = lic::rl::components::replay_buffer::Spec<DTYPE, 3, 1, 1000>;
-typedef lic::rl::components::ReplayBuffer<lic::devices::CPU, ReplayBufferSpecCopyTraining> ReplayBufferTypeCopyTraining;
+using DEVICE = lic::devices::DefaultCPU;
+typedef lic::rl::components::ReplayBuffer<DEVICE, ReplayBufferSpecCopyTraining> ReplayBufferTypeCopyTraining;
 constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
 template <typename T, typename REPLAY_BUFFER_TYPE>
 void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
@@ -423,7 +425,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             if(!verbose){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            DTYPE mean_return = lic::evaluate<ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), 200, true>(env, actor_critic.actor, 100, rng);
+            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), 200, true>(DEVICE(), env, actor_critic.actor, 100, rng);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("second_stage"), step_i);
 #endif

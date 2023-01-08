@@ -1,5 +1,5 @@
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 
 option(LAYER_IN_C_DOWNLOAD_GTEST OFF)
 
@@ -210,7 +210,7 @@ add_executable(
         test_rl_algorithms_td3_full_training_dummy_dep_training
         src/rl/algorithms/td3/full_training_dummy_dep.cpp
 )
-target_compile_definitions(test_rl_algorithms_td3_full_training_dummy_dep_training PRIVATE LAYER_IN_C_CONTEXT_CPU)
+target_compile_definitions(test_rl_algorithms_td3_full_training_dummy_dep_training PRIVATE LAYER_IN_C_OPERATIONS_CPU)
 target_link_libraries(
         test_rl_algorithms_td3_full_training_dummy_dep_training
         layer_in_c

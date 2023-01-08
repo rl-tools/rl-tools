@@ -15,7 +15,7 @@ struct StructureSpecification{
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
 
-using NN_DEVICE = lic::devices::CPU;
+using NN_DEVICE = lic::devices::DefaultCPU;
 
 using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, StructureSpecification<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, NETWORK_SPEC>;

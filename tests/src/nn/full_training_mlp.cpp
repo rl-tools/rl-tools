@@ -1,9 +1,10 @@
-#include <layer_in_c/context/cpu.h>
+#include <layer_in_c/operations/cpu.h>
 
 
 #include <layer_in_c/nn_models/models.h>
 
 
+#include <layer_in_c/nn/operations_cpu.h>
 #include <layer_in_c/nn_models/operations_cpu.h>
 
 
@@ -30,9 +31,10 @@ struct StructureSpecification{
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
 
-using DEVICE = lic::devices::CPU;
 
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<DEVICE, StructureSpecification<T>, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
+using DEVICE = lic::devices::DefaultCPU;
+
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<DEVICE , StructureSpecification<T>, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;

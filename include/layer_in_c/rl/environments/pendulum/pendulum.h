@@ -33,8 +33,10 @@ namespace layer_in_c::rl::environments::pendulum {
 }
 
 namespace layer_in_c::rl::environments{
-    template <typename DEVICE, typename SPEC>
+    template <typename T_DEVICE, typename T_SPEC>
     struct Pendulum{
+        using DEVICE = T_DEVICE;
+        using SPEC = T_SPEC;
         static constexpr bool REQUIRES_OBSERVATION = true;
         using State = pendulum::State<typename SPEC::T>;
         using PARAMETERS = typename SPEC::PARAMETERS;

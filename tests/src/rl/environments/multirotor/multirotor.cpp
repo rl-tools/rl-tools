@@ -10,7 +10,7 @@ namespace dynamics_legacy{
 constexpr auto STATE_DIM = dynamics_legacy::STATE_DIM;
 constexpr auto ACTION_DIM = dynamics_legacy::ACTION_DIM;
 
-#include <layer_in_c/context/cpu.h>
+#include <layer_in_c/operations/cpu.h>
 
 #include <layer_in_c/rl/environments/multirotor/multirotor.h>
 
@@ -24,8 +24,9 @@ namespace lic = layer_in_c;
 #include <random>
 #include <stdint.h>
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
+    using DEVICE = lic::devices::DefaultCPU;
     using SPEC = lic::rl::environments::multirotor::Specification<DTYPE, lic::rl::environments::multirotor::StaticParameters>;
-    using ENVIRONMENT = lic::rl::environments::Multirotor<lic::devices::CPU, SPEC>;
+    using ENVIRONMENT = lic::rl::environments::Multirotor<DEVICE, SPEC>;
     using PARAMETERS = lic::rl::environments::multirotor::Parameters<DTYPE, 4>;
 
     std::cout << "sizeof state: " << sizeof(lic::rl::environments::multirotor::State<DTYPE>) << std::endl;

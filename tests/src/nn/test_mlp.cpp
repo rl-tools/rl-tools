@@ -1,4 +1,4 @@
-#include <layer_in_c/context/cpu.h>
+#include <layer_in_c/operations/cpu.h>
 
 #include <layer_in_c/nn_models/operations_cpu.h>
 #include <layer_in_c/utils/generic/memcpy.h>

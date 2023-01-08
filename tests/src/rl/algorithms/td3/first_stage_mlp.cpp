@@ -1,4 +1,4 @@
-#include <layer_in_c/context/cpu.h>
+#include <layer_in_c/operations/cpu.h>
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/algorithms/td3/td3.h>
@@ -23,8 +23,9 @@ std::string get_data_file_path(){
     return DATA_FILE_PATH;
 }
 #define DTYPE double
+using DEVICE = lic::devices::DefaultCPU;
 typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<lic::devices::CPU, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
 #define SKIP_FULL_TRAINING
@@ -117,7 +118,7 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
     constexpr static lic::index_t ACTOR_BATCH_SIZE = 32;
 };
 
-using NN_DEVICE = lic::devices::CPU;
+using NN_DEVICE = lic::devices::DefaultCPU;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
 
@@ -130,7 +131,7 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<NN_DEV
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<NN_DEVICE, CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
-using AC_DEVICE = lic::devices::CPU;
+using AC_DEVICE = lic::devices::DefaultCPU;
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
@@ -234,8 +235,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
     lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
+    using DEVICE = lic::devices::DefaultCPU;
     using ReplayBufferSpec = lic::rl::components::replay_buffer::Spec<DTYPE, 3, 1, 100>;
-    using ReplayBufferType = lic::rl::components::ReplayBuffer<lic::devices::Generic, ReplayBufferSpec>;
+    using ReplayBufferType = lic::rl::components::ReplayBuffer<DEVICE, ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     static_assert(TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE == TD3Parameters<DTYPE>::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
@@ -337,8 +339,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
     lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
+    using DEVICE = lic::devices::DefaultCPU;
     using ReplayBufferSpec = lic::rl::components::replay_buffer::Spec<DTYPE, 3, 1, 100>;
-    using ReplayBufferType = lic::rl::components::ReplayBuffer<lic::devices::Generic, ReplayBufferSpec>;
+    using ReplayBufferType = lic::rl::components::ReplayBuffer<DEVICE, ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     static_assert(TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE == TD3Parameters<DTYPE>::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
