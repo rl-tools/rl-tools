@@ -41,7 +41,7 @@ namespace layer_in_c{
             RNG& rng
     ) {
         typedef typename SPEC::T T;
-        utils::assert_exit(DEVICE(), replay_buffer.full || replay_buffer.position >= SPEC::PARAMETERS::CRITIC_BATCH_SIZE, "Error: replay buffer not full enough for training critic");
+        utils::assert_exit(actor_critic.device, replay_buffer.full || replay_buffer.position >= SPEC::PARAMETERS::CRITIC_BATCH_SIZE, "Error: replay buffer not full enough for training critic");
         T loss = 0;
         zero_gradient(critic);
         for(index_t batch_step_i=0; batch_step_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_step_i++){

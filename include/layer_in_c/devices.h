@@ -47,22 +47,33 @@ namespace layer_in_c {
             struct CPU{
                 static constexpr Device DEVICE = Device::CPU;
             };
+            struct CPU_WANDB{
+                static constexpr Device DEVICE = Device::CPU;
+                int counter = 0;
+            };
             template <typename DEVICE>
-            constexpr bool check = utils::typing::is_same_v<DEVICE, Generic> || utils::typing::is_same_v<DEVICE, Dummy> || utils::typing::is_same_v<DEVICE, CPU>;
+            constexpr bool check =
+                utils::typing::is_same_v<DEVICE, Generic> ||
+                utils::typing::is_same_v<DEVICE,   Dummy> ||
+                utils::typing::is_same_v<DEVICE,     CPU> ||
+                utils::typing::is_same_v<DEVICE, CPU_WANDB>;
         }
 
 
         template <typename T_SPEC>
         struct Generic{
             using SPEC = T_SPEC;
+            typename SPEC::LOGGING logger;
         };
         template <typename T_SPEC>
         struct Dummy{
             using SPEC = T_SPEC;
+            typename SPEC::LOGGING logger;
         };
         template <typename T_SPEC>
         struct CPU{
             using SPEC = T_SPEC;
+            typename SPEC::LOGGING logger;
         };
 
 

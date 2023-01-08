@@ -48,6 +48,9 @@ namespace layer_in_c::rl::algorithms::td3 {
         typename SPEC::CRITIC_NETWORK_TYPE critic_2;
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_1;
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_2;
+
+        DEVICE& device;
+        explicit ActorCritic(DEVICE& device): device(device){};
     };
 }
 

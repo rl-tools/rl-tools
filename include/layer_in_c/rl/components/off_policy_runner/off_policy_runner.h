@@ -32,6 +32,8 @@ namespace layer_in_c::rl::components{
         typename SPEC::ENVIRONMENT::State state;
         index_t episode_step = 0;
         typename SPEC::T episode_return = 0;
+
+        DEVICE device;
     };
 }
 

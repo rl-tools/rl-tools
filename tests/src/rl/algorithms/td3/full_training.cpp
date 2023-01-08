@@ -1,3 +1,4 @@
+#include <layer_in_c/logging/operations_cpu_wandb.h>
 #include <layer_in_c/operations/cpu.h>
 
 #include <layer_in_c/rl/environments/environments.h>
@@ -6,6 +7,7 @@
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/rl.h>
 #include <layer_in_c/rl/operations_generic.h>
+
 
 #include <layer_in_c/rl/utils/evaluation.h>
 
@@ -74,7 +76,10 @@ using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecific
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
-using AC_DEVICE = lic::devices::DefaultCPU;
+struct AC_DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
+    using LOGGING = lic::devices::logging::CPU_WANDB;
+};
+using AC_DEVICE = lic::devices::CPU<AC_DEVICE_SPEC>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 
@@ -90,7 +95,9 @@ lic::rl::components::OffPolicyRunner<
         lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
     >
 > off_policy_runner;
-ActorCriticType actor_critic;
+AC_DEVICE::SPEC::LOGGING logger;
+AC_DEVICE ac_dev = {logger};
+ActorCriticType actor_critic(ac_dev);
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -129,7 +136,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(DEVICE(), env, actor_critic.actor, 1, rng);
+            DTYPE mean_return = lic::evaluate<AC_DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(ac_dev, env, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
 //            if(step_i >= 6000){
 //                ASSERT_GT(mean_return, -1000);

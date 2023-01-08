@@ -61,7 +61,7 @@ namespace layer_in_c{
         runner.episode_return += reward_value;
         bool truncated = runner.episode_step == SPEC::STEP_LIMIT;
         if (truncated || terminated_flag) {
-            logging::text(typename DEVICE::SPEC::LOGGING(), "Episode return: ", runner.episode_return);
+            logging::text(runner.device.logger, "Episode return: ", runner.episode_return);
         }
         // todo: add truncation / termination handling (stemming from the environment)
         add(runner.replay_buffer, observation, action, reward_value, next_observation, terminated_flag, truncated);
