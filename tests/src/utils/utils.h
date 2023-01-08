@@ -1,5 +1,6 @@
 #ifndef TEST_UTILS_H
 #define TEST_UTILS_H
+#include <vector>
 
 template <typename T, int DIM>
 void standardise(const T input[DIM], const T mean[DIM], const T std[DIM], T output[DIM]){

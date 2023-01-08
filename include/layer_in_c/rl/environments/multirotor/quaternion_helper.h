@@ -1,8 +1,6 @@
 #ifndef LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_QUATERNION_HELPER_H
 #define LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_QUATERNION_HELPER_H
 
-#include <layer_in_c/utils/generic/vector_operations.h>
-
 #ifndef FUNCTION_PLACEMENT
 #define FUNCTION_PLACEMENT
 #endif

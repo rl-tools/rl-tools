@@ -1,4 +1,4 @@
-#include <layer_in_c/math/operations_cpu.h>
+#include <layer_in_c/context/cpu.h>
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/nn_models/models.h>
@@ -6,7 +6,7 @@
 
 #include <layer_in_c/nn_models/operations_cpu.h>
 #include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
-#include <layer_in_c/rl/components/off_policy_runner/operations_cpu.h>
+#include <layer_in_c/rl/components/off_policy_runner/operations_generic.h>
 #include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
 
 
@@ -24,8 +24,8 @@ lic::rl::environments::multirotor::Parameters<DTYPE, 4> parameters = lic::rl::en
 
 struct ActorStructureSpec{
     using T = DTYPE;
-    static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
-    static constexpr size_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
+    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
+    static constexpr lic::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -34,8 +34,8 @@ struct ActorStructureSpec{
 
 struct CriticStructureSpec{
     using T = DTYPE;
-    static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
-    static constexpr size_t OUTPUT_DIM = 1;
+    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
+    static constexpr lic::index_t OUTPUT_DIM = 1;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -44,8 +44,8 @@ struct CriticStructureSpec{
 
 template <typename T>
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
-    constexpr static size_t CRITIC_BATCH_SIZE = 100;
-    constexpr static size_t ACTOR_BATCH_SIZE = 100;
+    constexpr static lic::index_t CRITIC_BATCH_SIZE = 100;
+    constexpr static lic::index_t ACTOR_BATCH_SIZE = 100;
 };
 
 using NN_DEVICE = lic::devices::CPU;
@@ -65,8 +65,8 @@ using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACT
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<lic::devices::CPU, TD3_SPEC>;
 
 
-constexpr size_t REPLAY_BUFFER_CAP = 500000;
-constexpr size_t ENVIRONMENT_STEP_LIMIT = 200;
+constexpr lic::index_t REPLAY_BUFFER_CAP = 500000;
+constexpr lic::index_t ENVIRONMENT_STEP_LIMIT = 200;
 lic::rl::components::OffPolicyRunner<
         lic::devices::CPU,
         lic::rl::components::off_policy_runner::Spec<

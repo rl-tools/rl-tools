@@ -8,6 +8,22 @@
 #endif
 
 namespace layer_in_c{
+    template<typename LS, typename DEVICE, typename RNG>
+    void init_kaiming(nn::layers::dense::Layer<DEVICE, LS>& layer, RNG& rng) {
+        typedef typename LS::T T;
+        T negative_slope = math::sqrt((T)5);
+        T gain = math::sqrt((T)2.0 / (1 + negative_slope * negative_slope));
+        T fan = LS::INPUT_DIM;
+        T std = gain / math::sqrt(fan);
+        T weight_bound = math::sqrt((T)3.0) * std;
+        T bias_bound = 1/math::sqrt((T)LS::INPUT_DIM);
+        for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
+            layer.biases[i] = utils::random::uniform_real_distribution(-bias_bound, bias_bound, rng);
+            for(index_t j = 0; j < LS::INPUT_DIM; j++) {
+                layer.weights[i][j] = utils::random::uniform_real_distribution(-weight_bound, weight_bound, rng);
+            }
+        }
+    }
     // evaluating a layer does not change its state (like pre_activations and outputs). Before using backward, to fill the state, use the forward method instead
     template<typename DEVICE, typename T, typename SPEC>
     FUNCTION_PLACEMENT void evaluate(const nn::layers::dense::Layer<DEVICE, SPEC>& layer, const T input[SPEC::INPUT_DIM], T output[SPEC::OUTPUT_DIM]) {

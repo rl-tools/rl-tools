@@ -34,5 +34,13 @@ namespace layer_in_c::math {
     auto pow(TX x, TY y) {
         return 1;
     }
+    template<typename T>
+    auto log(T x) {
+        return 0;
+    }
+    template<typename T>
+    auto floor(T x) {
+        return (int)x;
+    }
 }
 #endif

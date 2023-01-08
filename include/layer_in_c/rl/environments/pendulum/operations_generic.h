@@ -9,18 +9,23 @@ namespace layer_in_c::rl::environments::pendulum {
     }
     template <typename T>
     T f_mod_python(T a, T b){
-        return a - b * floor(a / b);
+        return a - b * math::floor(a / b);
     }
 
     template <typename T>
     T angle_normalize(T x){
-        return f_mod_python((x + M_PI), (2 * M_PI)) - M_PI;
+        return f_mod_python((x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
     }
 }
 namespace layer_in_c{
+    template<typename SPEC, typename RNG>
+    static void sample_initial_state(const rl::environments::Pendulum<devices::CPU, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
+        state.theta     = utils::random::uniform_real_distribution(SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
+        state.theta_dot = utils::random::uniform_real_distribution(SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed, rng);
+    }
     template<typename SPEC>
     static void initial_state(const rl::environments::Pendulum<devices::CPU, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state){
-        state.theta = -M_PI;
+        state.theta = -math::PI<typename SPEC::T>;
         state.theta_dot = 0;
     }
     template<typename DEVICE, typename SPEC>

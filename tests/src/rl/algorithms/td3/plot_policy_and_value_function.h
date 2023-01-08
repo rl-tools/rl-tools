@@ -50,8 +50,8 @@ void plot_policy_and_value_function(ACTOR& a, CRITIC& c, std::string dir, int st
             state_actions[theta_i][theta_dot_i] = lic::evaluate(a, critic_input);
         }
     }
-    for(size_t i=0; i<H; i++){
-        for(size_t j=0; j<W; j++){
+    for(lic::index_t i=0; i<H; i++){
+        for(lic::index_t j=0; j<W; j++){
             state_values[i][j] = (state_values[i][j] - abs_min) / (abs_max - abs_min);
         }
     }

@@ -1,19 +1,9 @@
-#ifndef LAYER_IN_C_CPU_GENERIC_MATH_H
-#define LAYER_IN_C_CPU_GENERIC_MATH_H
+#ifndef LAYER_IN_C_MATH_OPERATIONS_CPU_H
+#define LAYER_IN_C_MATH_OPERATIONS_CPU_H
 
 #include "operations_generic.h"
 
-#include <cstddef>
 #include <cmath>
-
-namespace layer_in_c::isolation::math{
-}
-
-
-namespace layer_in_c{
-    using index_t = size_t;
-}
-
 
 namespace layer_in_c::math {
 
@@ -40,6 +30,14 @@ namespace layer_in_c::math {
     template<typename TX, typename TY>
     auto pow(TX x, TY y) {
         return std::pow(x, y);
+    }
+    template<typename T>
+    auto log(T x) {
+        return std::log(x);
+    }
+    template<typename T>
+    auto floor(T x) {
+        return std::floor(x);
     }
 }
 #endif

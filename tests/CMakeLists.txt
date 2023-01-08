@@ -1,5 +1,5 @@
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 
 option(LAYER_IN_C_DOWNLOAD_GTEST OFF)
 
@@ -191,6 +191,34 @@ if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
 endif()
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
 
+# RL Algorithm td3 test full training dummy dependencies compilation without any deps
+add_executable(
+        test_rl_algorithms_td3_full_training_dummy_dep_compilation
+        src/rl/algorithms/td3/full_training_dummy_dep.cpp
+)
+target_link_libraries(
+        test_rl_algorithms_td3_full_training_dummy_dep_compilation
+        layer_in_c
+)
+add_test(
+        NAME test_rl_algorithms_td3_full_training_dummy_dep_compilation
+        COMMAND test_rl_algorithms_td3_full_training_dummy_dep_compilation
+)
+
+# RL Algorithm td3 test full training dummy dependencies training by just replacing the context
+add_executable(
+        test_rl_algorithms_td3_full_training_dummy_dep_training
+        src/rl/algorithms/td3/full_training_dummy_dep.cpp
+)
+target_compile_definitions(test_rl_algorithms_td3_full_training_dummy_dep_training PRIVATE LAYER_IN_C_CONTEXT_CPU)
+target_link_libraries(
+        test_rl_algorithms_td3_full_training_dummy_dep_training
+        layer_in_c
+)
+add_test(
+        NAME test_rl_algorithms_td3_full_training_dummy_dep_training
+        COMMAND test_rl_algorithms_td3_full_training_dummy_dep_training
+)
 
 ## RL Algorithm td3 test training stats
 #find_package(TBB REQUIRED)

@@ -1,13 +1,14 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-#include <layer_in_c/math/operations_cpu.h>
+#include <layer_in_c/context/cpu.h>
 
 #include <layer_in_c/rl/environments/operations_cpu.h>
 #include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
 
 #include <layer_in_c/nn_models/persist.h>
 #include <layer_in_c/rl/utils/evaluation.h>
+#include <layer_in_c/utils/generic/memcpy.h>
 
 #include "../../../utils/utils.h"
 #include "../../../utils/nn_comparison_mlp.h"
@@ -46,8 +47,8 @@ struct TD3Parameters: public lic::rl::algorithms::td3::DefaultParameters<T>{
 };
 struct ActorStructureSpec{
     using T = DTYPE;
-    static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
-    static constexpr size_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
+    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
+    static constexpr lic::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -56,8 +57,8 @@ struct ActorStructureSpec{
 
 struct CriticStructureSpec{
     using T = DTYPE;
-    static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
-    static constexpr size_t OUTPUT_DIM = 1;
+    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
+    static constexpr lic::index_t OUTPUT_DIM = 1;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -83,8 +84,9 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<NN_DEV
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<NN_DEVICE, CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
+using AC_DEVICE = lic::devices::CPU;
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3ParametersCopyTraining<DTYPE>>;
-using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<lic::devices::CPU, TD3_SPEC>;
+using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
@@ -108,9 +110,9 @@ constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION
 template <typename T, typename REPLAY_BUFFER_TYPE>
 void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
     for(int i = 0; i < batch.size(); i++){
-        memcpy( rb.     observations[i], &batch[i][0], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM);
-        memcpy( rb.          actions[i], &batch[i][ENVIRONMENT::OBSERVATION_DIM], sizeof(T) * ENVIRONMENT::ACTION_DIM);
-        memcpy( rb.next_observations[i], &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], sizeof(T) * ENVIRONMENT::OBSERVATION_DIM);
+        lic::utils::memcpy( rb.     observations[i], &batch[i][0], ENVIRONMENT::OBSERVATION_DIM);
+        lic::utils::memcpy( rb.          actions[i], &batch[i][ENVIRONMENT::OBSERVATION_DIM], ENVIRONMENT::ACTION_DIM);
+        lic::utils::memcpy( rb.next_observations[i], &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], ENVIRONMENT::OBSERVATION_DIM);
         rb.   rewards[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM    ];
         rb.terminated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1;
         rb. truncated[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1;
@@ -183,7 +185,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     DTYPE mean_ratio_critic_target = 0;
     auto full_training_group = data_file.getGroup("full_training");
     auto steps_group = full_training_group.getGroup("steps");
-    int num_steps = std::min(steps_group.getNumberObjects(), (size_t)1000);
+    int num_steps = std::min(steps_group.getNumberObjects(), (lic::index_t)1000);
     auto pre_critic_1 = actor_critic.critic_1;
     auto pre_actor = actor_critic.actor;
     auto pre_critic_1_target = actor_critic.critic_target_1;
@@ -212,6 +214,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             lic::load(post_critic_1, step_group.getGroup("critic1"));
 
             DTYPE critic_1_loss = lic::train_critic<
+                    AC_DEVICE,
                     decltype(actor_critic)::SPEC,
                     decltype(actor_critic.critic_1),
                     decltype(replay_buffer)::DEVICE,
@@ -263,6 +266,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             mean_ratio_critic_adam += diff_ratio_adam;
 
             DTYPE critic_2_loss = lic::train_critic<
+                AC_DEVICE,
                 decltype(actor_critic)::SPEC,
                 decltype(actor_critic.critic_2),
                 decltype(replay_buffer)::DEVICE,
@@ -276,8 +280,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 DTYPE diff = 0;
                 for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
                     DTYPE input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-                    memcpy(input, replay_buffer.observations[batch_sample_i], sizeof(DTYPE) * ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
-                    memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], replay_buffer.actions[batch_sample_i], sizeof(DTYPE) * ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
+                    lic::utils::memcpy(input, replay_buffer.observations[batch_sample_i], ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
+                    lic::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], replay_buffer.actions[batch_sample_i], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
                     DTYPE current_value = lic::evaluate(actor_critic.critic_1, input);
                     DTYPE desired_value = lic::evaluate(post_critic_1, input);
                     diff += (current_value - desired_value) * (current_value - desired_value) / ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
@@ -303,7 +307,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             }
 
 
-            DTYPE actor_loss = lic::train_actor<ActorCriticType::SPEC, decltype(replay_buffer)::DEVICE, decltype(replay_buffer)::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+            DTYPE actor_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, decltype(replay_buffer)::DEVICE, decltype(replay_buffer)::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
 
             if(true){//(step_i % 100 == 1){
                 DTYPE diff = 0;
@@ -403,8 +407,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                         DTYPE diff = 0;
                         for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
                             DTYPE input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-                            memcpy(input, replay_buffer.observations[batch_sample_i], sizeof(DTYPE) * ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
-                            memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], replay_buffer.actions[batch_sample_i], sizeof(DTYPE) * ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
+                            lic::utils::memcpy(input, replay_buffer.observations[batch_sample_i], ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
+                            lic::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], replay_buffer.actions[batch_sample_i], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
                             DTYPE current_value = lic::evaluate(actor_critic.critic_target_1, input);
                             DTYPE desired_value = lic::evaluate(post_critic_1_target, input);
                             diff += (current_value - desired_value) * (current_value - desired_value) / ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE;

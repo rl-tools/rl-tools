@@ -5,7 +5,15 @@
 #include <layer_in_c/nn/operations_generic.h>
 
 namespace layer_in_c {
-
+    template<typename SPEC, typename DEVICE, typename RNG>
+    FUNCTION_PLACEMENT void init_weights(nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& network, RNG& rng) {
+        using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
+        init_kaiming(network.input_layer, rng);
+        for (index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+            init_kaiming(network.hidden_layers[layer_i], rng);
+        }
+        init_kaiming(network.output_layer, rng);
+    }
     // evaluate does not set intermediate outputs and hence can also be called from stateless layers, for register efficiency use forward when working with "Backward" compatible layers
     template<typename DEVICE, typename SPEC>
     FUNCTION_PLACEMENT void evaluate(nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], typename SPEC::T output[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM]){

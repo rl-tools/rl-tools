@@ -1,6 +1,7 @@
-#include <layer_in_c/math/operations_cpu.h>
+#include <layer_in_c/context/cpu.h>
 
 #include <layer_in_c/nn_models/operations_cpu.h>
+#include <layer_in_c/utils/generic/memcpy.h>
 #include "../utils/utils.h"
 #include <sstream>
 #include <random>
@@ -80,11 +81,11 @@ protected:
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
         assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights     , input_layer_weights);
-        memcpy(network.input_layer.biases, input_layer_biases.data(), sizeof(DTYPE) * LAYER_1_DIM);
+        lic::utils::memcpy(network.input_layer.biases, input_layer_biases.data(), LAYER_1_DIM);
         assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights     , hidden_layer_0_weights);
-        memcpy(network.hidden_layers[0].biases, hidden_layer_0_biases.data(), sizeof(DTYPE) * LAYER_2_DIM);
+        lic::utils::memcpy(network.hidden_layers[0].biases, hidden_layer_0_biases.data(), LAYER_2_DIM);
         assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights, output_layer_weights);
-        memcpy(network.output_layer.biases, output_layer_biases.data(), sizeof(DTYPE) * OUTPUT_DIM);
+        lic::utils::memcpy(network.output_layer.biases, output_layer_biases.data(), OUTPUT_DIM);
     }
 
     NetworkType network;

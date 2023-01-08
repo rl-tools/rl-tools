@@ -1,4 +1,4 @@
-#include <layer_in_c/math/operations_cpu.h>
+#include <layer_in_c/context/cpu.h>
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/algorithms/td3/td3.h>
@@ -93,8 +93,8 @@ struct TD3Parameters: public lic::rl::algorithms::td3::DefaultParameters<T>{
 };
 struct ActorStructureSpec{
     using T = DTYPE;
-    static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
-    static constexpr size_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
+    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
+    static constexpr lic::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -103,8 +103,8 @@ struct ActorStructureSpec{
 
 struct CriticStructureSpec{
     using T = DTYPE;
-    static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
-    static constexpr size_t OUTPUT_DIM = 1;
+    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
+    static constexpr lic::index_t OUTPUT_DIM = 1;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -113,8 +113,8 @@ struct CriticStructureSpec{
 
 template <typename T>
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
-    constexpr static size_t CRITIC_BATCH_SIZE = 32;
-    constexpr static size_t ACTOR_BATCH_SIZE = 32;
+    constexpr static lic::index_t CRITIC_BATCH_SIZE = 32;
+    constexpr static lic::index_t ACTOR_BATCH_SIZE = 32;
 };
 
 using NN_DEVICE = lic::devices::CPU;
@@ -130,8 +130,9 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<NN_DEV
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<NN_DEVICE, CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
+using AC_DEVICE = lic::devices::CPU;
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
-using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<lic::devices::CPU, TD3_SPEC>;
+using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -265,6 +266,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         }
 
         DTYPE critic_1_loss = lic::train_critic<
+                AC_DEVICE,
                 decltype(actor_critic)::SPEC,
                 decltype(actor_critic.critic_1),
                 decltype(replay_buffer)::DEVICE,
@@ -354,7 +356,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
         ss << "actor_training/" << training_step_i;
         lic::load(post_actor, data_file.getGroup(ss.str()));
 
-        DTYPE actor_1_loss = lic::train_actor<ActorCriticType::SPEC, ReplayBufferType::DEVICE, ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+        DTYPE actor_1_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, ReplayBufferType::DEVICE, ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
 
         DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;

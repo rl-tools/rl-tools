@@ -7,8 +7,8 @@ using DTYPE = double;
 template <typename T_T>
 struct StructureSpecification{
     typedef T_T T;
-    static constexpr size_t INPUT_DIM = 17;
-    static constexpr size_t OUTPUT_DIM = 13;
+    static constexpr lic::index_t INPUT_DIM = 17;
+    static constexpr lic::index_t OUTPUT_DIM = 13;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 50;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -23,10 +23,10 @@ using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, NETWORK_SP
 using NETWORK_SPEC_BACKWARD_ONLY = lic::nn_models::mlp::InferenceBackwardSpecification<NN_DEVICE, StructureSpecification<DTYPE>>;
 using NetworkTypeBackwardOnly = lic::nn_models::mlp::NeuralNetworkBackward<NN_DEVICE, NETWORK_SPEC_BACKWARD_ONLY>;
 
-constexpr size_t INPUT_DIM = StructureSpecification<DTYPE>::INPUT_DIM;
-constexpr size_t LAYER_1_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
-constexpr size_t LAYER_2_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
-constexpr size_t OUTPUT_DIM = StructureSpecification<DTYPE>::OUTPUT_DIM;
+constexpr lic::index_t INPUT_DIM = StructureSpecification<DTYPE>::INPUT_DIM;
+constexpr lic::index_t LAYER_1_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
+constexpr lic::index_t LAYER_2_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
+constexpr lic::index_t OUTPUT_DIM = StructureSpecification<DTYPE>::OUTPUT_DIM;
 
 class NeuralNetworkTest : public ::testing::Test {
 protected:
@@ -63,8 +63,8 @@ protected:
 template <typename T_T>
 struct StructureSpecification_3{
     typedef T_T T;
-    static constexpr size_t INPUT_DIM = 17;
-    static constexpr size_t OUTPUT_DIM = 13;
+    static constexpr lic::index_t INPUT_DIM = 17;
+    static constexpr lic::index_t OUTPUT_DIM = 13;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 50;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;

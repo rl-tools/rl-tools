@@ -7,6 +7,14 @@ namespace layer_in_c::math {
         return x < min ? min : (x > max ? max : x);
     }
     template<typename T>
+    T min(T x, T y){
+        return x < y ? x : y;
+    }
+    template<typename T>
+    T max(T x, T y){
+        return x > y ? x : y;
+    }
+    template<typename T>
     constexpr T PI = 3.141592653589793238462643383279502884L;
 
     template<typename T>

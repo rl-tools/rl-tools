@@ -7,9 +7,6 @@
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/math/operations_generic.h>
 
-
-//#include <iostream>
-
 namespace layer_in_c {
     template<typename ENVIRONMENT, typename POLICY, index_t STEP_LIMIT>
     typename POLICY::T evaluate(const ENVIRONMENT env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
@@ -55,7 +52,7 @@ namespace layer_in_c {
         for(index_t i = 0; i < N; i++) {
             typename ENVIRONMENT::State initial_state;
             if(DETERMINISTIC) {
-                lic::initial_state(env, initial_state);
+                layer_in_c::initial_state(env, initial_state);
             }
             else{
                 sample_initial_state(env, initial_state, rng);
@@ -72,8 +69,8 @@ namespace layer_in_c {
             variance += (episode_returns[i] - mean) * (episode_returns[i] - mean);
         }
         variance /= N;
-        T standard_deviation = std::sqrt(variance);
-        std::cout << "Mean: " << mean << ", standard deviation: " << standard_deviation << std::endl;
+        T standard_deviation = math::sqrt(variance);
+        logging::text("Mean: ", mean, ", Standard deviation: ", standard_deviation);
         return mean;
     }
 

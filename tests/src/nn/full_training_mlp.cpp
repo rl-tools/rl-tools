@@ -1,8 +1,11 @@
-#include <layer_in_c/math/operations_cpu.h>
+#include <layer_in_c/context/cpu.h>
+
 
 #include <layer_in_c/nn_models/models.h>
 
+
 #include <layer_in_c/nn_models/operations_cpu.h>
+
 
 #include "../utils/utils.h"
 
@@ -19,16 +22,18 @@ typedef double T;
 template <typename T_T>
 struct StructureSpecification{
     typedef T_T T;
-    static constexpr size_t INPUT_DIM = 17;
-    static constexpr size_t OUTPUT_DIM = 13;
+    static constexpr lic::index_t INPUT_DIM = 17;
+    static constexpr lic::index_t OUTPUT_DIM = 13;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 50;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
 
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<lic::devices::CPU, StructureSpecification<T>, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
-using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<lic::devices::CPU, NETWORK_SPEC>;
+using DEVICE = lic::devices::CPU;
+
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<DEVICE, StructureSpecification<T>, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
+using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
 std::vector<std::vector<T>> Y_train;
@@ -39,8 +44,8 @@ std::vector<T> X_std;
 std::vector<T> Y_mean;
 std::vector<T> Y_std;
 
-constexpr size_t INPUT_DIM = StructureSpecification<T>::INPUT_DIM;
-constexpr size_t OUTPUT_DIM = StructureSpecification<T>::OUTPUT_DIM;
+constexpr lic::index_t INPUT_DIM = StructureSpecification<T>::INPUT_DIM;
+constexpr lic::index_t OUTPUT_DIM = StructureSpecification<T>::OUTPUT_DIM;
 
 TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
@@ -67,6 +72,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     constexpr int n_epochs = 3;
     //    this->reset();
     lic::reset_optimizer_state(network);
+//    lic::index_t rng = 2;
     std::mt19937 rng(2);
     lic::init_weights(network, rng);
 

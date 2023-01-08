@@ -1,3 +1,6 @@
+#ifndef LAYER_IN_C_UTILS_GENERIC_INTEGRATORS_H
+#define LAYER_IN_C_UTILS_GENERIC_INTEGRATORS_H
+
 #ifndef FUNCTION_PLACEMENT
 #define FUNCTION_PLACEMENT
 #endif
@@ -60,3 +63,5 @@ namespace layer_in_c::utils::integrators{
         // total flops: 157 + 13 + 157 + 13 + 13 + 157 + 13 + 13 + 157 + 13 = 706
     }
 }
+
+#endif

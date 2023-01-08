@@ -10,11 +10,13 @@ namespace dynamics_legacy{
 constexpr auto STATE_DIM = dynamics_legacy::STATE_DIM;
 constexpr auto ACTION_DIM = dynamics_legacy::ACTION_DIM;
 
-#include <layer_in_c/math/operations_cpu.h>
+#include <layer_in_c/context/cpu.h>
 
 #include <layer_in_c/rl/environments/multirotor/multirotor.h>
 
 #include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
+
+#include <layer_in_c/utils/generic/memcpy.h>
 
 namespace lic = layer_in_c;
 
@@ -45,7 +47,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
             state[i] = env_state.state[i];
         }
 
-        memcpy(env_state.state, state, sizeof(DTYPE) * STATE_DIM);
+        lic::utils::memcpy(env_state.state, state, STATE_DIM);
 
         for(COUNTER_TYPE substep_i = 0; substep_i < 100; substep_i++){
             DTYPE action[ACTION_DIM];

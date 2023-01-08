@@ -113,7 +113,7 @@ namespace layer_in_c{
         for(index_t state_i = 3; state_i < 3+4; state_i++){
             quaternion_norm += next_state.state[state_i] * next_state.state[state_i];
         }
-        quaternion_norm = std::sqrt(quaternion_norm);
+        quaternion_norm = math::sqrt(quaternion_norm);
         for(index_t state_i = 3; state_i < 3+4; state_i++){
             next_state.state[state_i] /= quaternion_norm;
         }

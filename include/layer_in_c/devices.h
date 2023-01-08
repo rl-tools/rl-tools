@@ -5,6 +5,7 @@ namespace layer_in_c {
     namespace devices {
         enum class Device {
             Generic,
+            Dummy,
             CPU
         };
         struct Generic{
@@ -12,6 +13,9 @@ namespace layer_in_c {
         };
         struct CPU{
             static constexpr Device DEVICE = Device::CPU;
+        };
+        struct Dummy{ // for testing the dependencylessness
+            static constexpr Device DEVICE = Device::Dummy;
         };
     }
 }

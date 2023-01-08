@@ -9,7 +9,7 @@ typename SPEC::T abs_diff(const layer_in_c::nn_models::mlp::NeuralNetwork<DEVICE
     typedef typename SPEC::T T;
     T acc = 0;
     acc += abs_diff(n1.input_layer, n2.input_layer);
-    for(size_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
+    for(lic::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
         acc += abs_diff(n1.hidden_layers[layer_i], n2.hidden_layers[layer_i]);
     }
     acc += abs_diff(n1.output_layer, n2.output_layer);
@@ -21,7 +21,7 @@ typename SPEC::T abs_diff_grad(const layer_in_c::nn_models::mlp::NeuralNetworkBa
     typedef typename SPEC::T T;
     T acc = 0;
     acc += abs_diff(n1.input_layer, n2.input_layer);
-    for(size_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
+    for(lic::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
         acc += abs_diff(n1.hidden_layers[layer_i], n2.hidden_layers[layer_i]);
     }
     acc += abs_diff(n1.output_layer, n2.output_layer);
@@ -34,7 +34,7 @@ typename SPEC::T abs_diff_adam(const layer_in_c::nn_models::mlp::NeuralNetworkAd
     typedef typename SPEC::T T;
     T acc = 0;
     acc += abs_diff(n1.input_layer, n2.input_layer);
-    for(size_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
+    for(lic::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {
         acc += abs_diff(n1.hidden_layers[layer_i], n2.hidden_layers[layer_i]);
     }
     acc += abs_diff(n1.output_layer, n2.output_layer);

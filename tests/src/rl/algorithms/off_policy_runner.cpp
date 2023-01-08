@@ -1,4 +1,5 @@
-#include <layer_in_c/math/operations_cpu.h>
+#include <layer_in_c/context/cpu.h>
+
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
@@ -21,8 +22,8 @@ typedef lic::rl::components::OffPolicyRunner<lic::devices::CPU, OffPolicyRunnerS
 
 struct PendulumStructureSpecification{
     typedef DTYPE T;
-    static constexpr size_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
-    static constexpr size_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
+    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
+    static constexpr lic::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
     static constexpr int NUM_LAYERS = 3; // The input and output layers count towards the total number of layers
     static constexpr int HIDDEN_DIM = 30;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;

@@ -1,4 +1,4 @@
-template <typename T, int BLOCK_DIM, typename POLICY, size_t N_ITERATIONS>
+template <typename T, int BLOCK_DIM, typename POLICY, lic::index_t N_ITERATIONS>
 __global__ void
 __launch_bounds__(N_THREADS)//, minBlocksPerMultiprocessor, maxBlocksPerCluster)
 simulate_parallel(
