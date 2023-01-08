@@ -16,7 +16,9 @@
 #include <random>
 TEST(LAYER_IN_C_NN_PERSIST, Saving) {
 
-    NetworkType network_1, network_2;
+    NN_DEVICE::SPEC::LOGGING logger;
+    NN_DEVICE device(logger);
+    NetworkType network_1(device), network_2(device);
     std::mt19937 rng(2);
     lic::init_weights(network_1, rng);
     lic::init_weights(network_2, rng);

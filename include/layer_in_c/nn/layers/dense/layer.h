@@ -23,17 +23,6 @@ namespace layer_in_c::nn::layers::dense {
 
         DEVICE& device;
         explicit Layer(DEVICE& device) : device(device) {}
-        template <typename L>
-        Layer& operator=(const L& l)
-        {
-            for (index_t i = 0; i < OUTPUT_DIM; i++) {
-                for (index_t j = 0; j < INPUT_DIM; j++) {
-                    weights[i][j] = l.weights[i][j];
-                }
-                biases[i] = l.biases[i];
-            }
-            return *this;
-        }
     };
     template<typename DEVICE, typename SPEC>
     struct LayerBackward : public Layer<DEVICE, SPEC> {

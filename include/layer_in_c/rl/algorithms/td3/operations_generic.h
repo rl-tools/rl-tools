@@ -13,16 +13,16 @@
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC, typename RNG>
     void init(rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, RNG& rng){
-        layer_in_c::init_weights(actor_critic.actor   , rng);
-        layer_in_c::init_weights(actor_critic.critic_1, rng);
-        layer_in_c::init_weights(actor_critic.critic_2, rng);
-        layer_in_c::reset_optimizer_state(actor_critic.actor);
-        layer_in_c::reset_optimizer_state(actor_critic.critic_1);
-        layer_in_c::reset_optimizer_state(actor_critic.critic_2);
+        init_weights(actor_critic.actor   , rng);
+        init_weights(actor_critic.critic_1, rng);
+        init_weights(actor_critic.critic_2, rng);
+        reset_optimizer_state(actor_critic.actor);
+        reset_optimizer_state(actor_critic.critic_1);
+        reset_optimizer_state(actor_critic.critic_2);
 
-        actor_critic.actor_target = actor_critic.actor;
-        actor_critic.critic_target_1 = actor_critic.critic_1;
-        actor_critic.critic_target_2 = actor_critic.critic_2;
+        copy(actor_critic.actor_target, actor_critic.actor);
+        copy(actor_critic.critic_target_1, actor_critic.critic_1);
+        copy(actor_critic.critic_target_2, actor_critic.critic_2);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, index_t REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
     typename SPEC::T train_critic(

@@ -198,6 +198,16 @@ namespace layer_in_c {
         network.age = 1;
     }
 
+    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source){
+        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
+        copy(target.input_layer, source.input_layer);
+        for(index_t layer_i = 0; layer_i < utils::typing::remove_reference<decltype(target)>::type::NUM_HIDDEN_LAYERS; layer_i++){
+            copy(target.hidden_layers[layer_i], source.hidden_layers[layer_i]);
+        }
+        copy(target.output_layer, source.output_layer);
+    }
+
 
 }
 

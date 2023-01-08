@@ -157,7 +157,16 @@ namespace layer_in_c{
         utils::polyak::update_squared       <DEVICE, typename LS::T, LS::OUTPUT_DIM>               (layer.device, layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
 
         gradient_descent(layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
+    }
 
+    template<typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void copy(nn::layers::dense::Layer<DEVICE, SPEC>& target, const nn::layers::dense::Layer<DEVICE, SPEC>& source){
+        for(index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
+            target.biases[i] = source.biases[i];
+            for(index_t j = 0; j < SPEC::INPUT_DIM; j++) {
+                target.weights[i][j] = source.weights[i][j];
+            }
+        }
     }
 }
 

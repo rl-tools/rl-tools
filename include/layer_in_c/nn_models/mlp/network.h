@@ -90,27 +90,12 @@ namespace layer_in_c::nn_models::mlp {
 
         explicit NeuralNetwork(DEVICE& device) : device(device), input_layer(device), output_layer(device) { };
 
-        // Conversion
-        template<typename NN>
-        NeuralNetwork& operator= (const NN& other) {
-            static_assert(utils::typing::is_same_v<typename NeuralNetwork::SPEC::STRUCTURE_SPEC, typename NN::SPEC::STRUCTURE_SPEC>);
-            input_layer = other.input_layer;
-            for(index_t i = 0; i < NUM_HIDDEN_LAYERS; i++){
-                hidden_layers[i] = other.hidden_layers[i];
-            }
-            output_layer = other.output_layer;
-            return *this;
-        }
+//        NeuralNetwork& operator= (const NeuralNetwork& other) = default;
     };
 
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkBackward: public NeuralNetwork<DEVICE, SPEC>{
         explicit NeuralNetworkBackward(DEVICE& device) : NeuralNetwork<DEVICE, SPEC>(device) {};
-        template<typename NN>
-        NeuralNetworkBackward& operator= (const NN& other) {
-            NeuralNetwork<DEVICE, SPEC>::operator=(other);
-            return *this;
-        }
     };
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<DEVICE, SPEC>{

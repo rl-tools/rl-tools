@@ -132,7 +132,7 @@ using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecific
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
 using AC_DEVICE = lic::devices::DefaultCPU;
-using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
+using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, NN_DEVICE, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 template <typename T, typename NT>
@@ -144,8 +144,10 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     return acc;
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
-    AC_DEVICE device;
-    ActorCriticType actor_critic(device);
+    AC_DEVICE::SPEC::LOGGING logger;
+    AC_DEVICE device(logger);
+    NN_DEVICE nn_device(logger);
+    ActorCriticType actor_critic(device, nn_device);
 
     std::mt19937 rng(0);
     lic::init(actor_critic, rng);
@@ -181,7 +183,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 //    using ActorCriticSpec = lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>>;
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
-    ActorCriticType actor_critic;
+    AC_DEVICE::SPEC::LOGGING logger;
+    AC_DEVICE device(logger);
+    NN_DEVICE nn_device(logger);
+    ActorCriticType actor_critic(device, nn_device);
 
     std::mt19937 rng(0);
     lic::init(actor_critic, rng);
@@ -223,7 +228,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     constexpr bool verbose = true;
 //    typedef lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
-    ActorCriticType actor_critic;
+    AC_DEVICE::SPEC::LOGGING logger;
+    AC_DEVICE device(logger);
+    NN_DEVICE nn_device(logger);
+    ActorCriticType actor_critic(device, nn_device);
 
     std::mt19937 rng(0);
     lic::init(actor_critic, rng);
@@ -254,7 +262,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     for(int training_step_i = 0; training_step_i < num_updates; training_step_i++){
         auto step_group = critic_training_group.getGroup(std::to_string(training_step_i));
 
-        ActorCriticType::SPEC::CRITIC_NETWORK_TYPE post_critic_1;
+        ActorCriticType::SPEC::CRITIC_NETWORK_TYPE post_critic_1(nn_device);
         lic::load(post_critic_1, step_group.getGroup("critic"));
 
         std::vector<std::vector<DTYPE>> target_next_action_noise_vector;
@@ -327,7 +335,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     constexpr bool verbose = true;
 //    typedef lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3Parameters<DTYPE>> ActorCriticSpec;
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
-    ActorCriticType actor_critic;
+    AC_DEVICE::SPEC::LOGGING logger;
+    AC_DEVICE device(logger);
+    NN_DEVICE nn_device(logger);
+    ActorCriticType actor_critic(device, nn_device);
 
     std::mt19937 rng(0);
     lic::init(actor_critic, rng);

@@ -92,7 +92,10 @@ using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPE
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;
-    ActorCriticType actor_critic;
+    AC_DEVICE::SPEC::LOGGING logger;
+    AC_DEVICE device(logger);
+    NN_DEVICE nn_device(logger);
+    ActorCriticType actor_critic(device, nn_device);
 
     std::mt19937 rng(0);
 
@@ -101,7 +104,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) 
     assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     lic::load(actor_critic.actor, step_group.getGroup("actor"));
-    DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), 200, true>(DEVICE(), env, actor_critic.actor, 100, rng);
+    DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), 200, true>(device, env, actor_critic.actor, 100, rng);
     std::cout << "mean return: " << mean_return << std::endl;
 }
 
@@ -158,7 +161,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     UI ui;
 #endif
     constexpr bool verbose = true;
-    ActorCriticType actor_critic;
+    AC_DEVICE::SPEC::LOGGING logger;
+    AC_DEVICE device(logger);
+    NN_DEVICE nn_device(logger);
+    ActorCriticType actor_critic(device, nn_device);
 
     std::mt19937 rng(0);
     lic::init(actor_critic, rng);
@@ -206,13 +212,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
             load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
             if (step_i == 0 && step_group.exist("pre_critic1")){
-                decltype(actor_critic.critic_1) pre_critic_1_step;
+                decltype(actor_critic.critic_1) pre_critic_1_step(nn_device);
                 lic::load(pre_critic_1_step, step_group.getGroup("pre_critic1"));
                 DTYPE pre_current_diff = abs_diff(pre_critic_1_step, actor_critic.critic_1);
                 ASSERT_EQ(pre_current_diff, 0);
             }
 
-            decltype(actor_critic.critic_1) post_critic_1;// = actor_critic.critic_1;
+            decltype(actor_critic.critic_1) post_critic_1(nn_device);// = actor_critic.critic_1;
             lic::load(post_critic_1, step_group.getGroup("critic1"));
 
             DTYPE critic_1_loss = lic::train_critic<
@@ -276,7 +282,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 decltype(rng),
                 true
             >(actor_critic, actor_critic.critic_2, replay_buffer, target_next_action_noise, rng);
-            pre_critic_1 = actor_critic.critic_1;
+            lic::copy(pre_critic_1, actor_critic.critic_1);
 
             if(true){//(step_i % 100 == 0){
                 DTYPE diff = 0;
@@ -298,10 +304,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
             load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
 
-            decltype(actor_critic.actor) post_actor;
+            decltype(actor_critic.actor) post_actor(nn_device);
             lic::load(post_actor, step_group.getGroup("actor"));
 
-            decltype(actor_critic.actor) pre_actor_loaded;
+            decltype(actor_critic.actor) pre_actor_loaded(nn_device);
             lic::load(pre_actor_loaded, step_group.getGroup("pre_actor"));
             DTYPE pre_current_diff = abs_diff(pre_actor_loaded, actor_critic.actor);
             if(step_i == 0){
@@ -363,14 +369,14 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             mean_ratio_actor_grad += diff_ratio_grad;
             mean_ratio_actor_adam += diff_ratio_adam;
 
-            pre_actor = actor_critic.actor;
+            lic::copy(pre_actor, actor_critic.actor);
         }
         if(step_group.exist("critic1_target")){
             if(verbose){
                 std:: cout << "    target update" << std::endl;
             }
             if (step_i == 0){
-                decltype(actor_critic.critic_target_1) pre_critic_1_target_step;
+                decltype(actor_critic.critic_target_1) pre_critic_1_target_step(nn_device);
                 lic::load(pre_critic_1_target_step, step_group.getGroup("pre_critic1_target"));
                 DTYPE pre_current_diff = abs_diff(pre_critic_1_target_step, actor_critic.critic_target_1);
                 ASSERT_EQ(pre_current_diff, 0);
@@ -378,7 +384,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             else{
                 if (step_i >= ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE){
 
-                    decltype(actor_critic.critic_target_1) post_critic_1_target;
+                    decltype(actor_critic.critic_target_1) post_critic_1_target(nn_device);
                     lic::load(post_critic_1_target, step_group.getGroup("critic1_target"));
 
                     lic::update_targets(actor_critic);
@@ -403,7 +409,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
                     mean_ratio_critic_target += diff_ratio;
 
-                    pre_critic_1_target = actor_critic.critic_target_1;
+                    lic::copy(pre_critic_1_target, actor_critic.critic_target_1);
 
                     if(true){//(step_i % 100 == 0){
                         DTYPE diff = 0;
@@ -425,7 +431,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             if(!verbose){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), 200, true>(DEVICE(), env, actor_critic.actor, 100, rng);
+            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), 200, true>(device, env, actor_critic.actor, 100, rng);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("second_stage"), step_i);
 #endif
