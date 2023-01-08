@@ -63,17 +63,20 @@ namespace layer_in_c {
         template <typename T_SPEC>
         struct Generic{
             using SPEC = T_SPEC;
-            typename SPEC::LOGGING logger;
+            typename SPEC::LOGGING& logger;
+            explicit Generic(typename SPEC::LOGGING& logger) : logger(logger) {}
         };
         template <typename T_SPEC>
         struct Dummy{
             using SPEC = T_SPEC;
-            typename SPEC::LOGGING logger;
+            typename SPEC::LOGGING& logger;
+            explicit Dummy(typename SPEC::LOGGING& logger) : logger(logger) {}
         };
         template <typename T_SPEC>
         struct CPU{
             using SPEC = T_SPEC;
-            typename SPEC::LOGGING logger;
+            typename SPEC::LOGGING& logger;
+            explicit CPU(typename SPEC::LOGGING& logger) : logger(logger) {}
         };
 
 

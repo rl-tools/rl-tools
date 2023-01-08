@@ -150,11 +150,11 @@ namespace layer_in_c{
     template<typename DEVICE, typename LS, typename PARAMETERS>
     FUNCTION_PLACEMENT void update_layer(nn::layers::dense::LayerBackwardAdam<DEVICE, LS, PARAMETERS>& layer, typename LS::T first_order_moment_bias_correction, typename LS::T second_order_moment_bias_correction) {
         // todo remove template params (auto inference)
-        utils::polyak::update_matrix<DEVICE, typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(DEVICE(), layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
-        utils::polyak::update       <DEVICE, typename LS::T, LS::OUTPUT_DIM>               (DEVICE(), layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
+        utils::polyak::update_matrix<DEVICE, typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(layer.device, layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
+        utils::polyak::update       <DEVICE, typename LS::T, LS::OUTPUT_DIM>               (layer.device, layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
 
-        utils::polyak::update_squared_matrix<DEVICE, typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(DEVICE(), layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
-        utils::polyak::update_squared       <DEVICE, typename LS::T, LS::OUTPUT_DIM>               (DEVICE(), layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
+        utils::polyak::update_squared_matrix<DEVICE, typename LS::T, LS::OUTPUT_DIM, LS::INPUT_DIM>(layer.device, layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
+        utils::polyak::update_squared       <DEVICE, typename LS::T, LS::OUTPUT_DIM>               (layer.device, layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
 
         gradient_descent(layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
 

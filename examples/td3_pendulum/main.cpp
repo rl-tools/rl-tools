@@ -74,13 +74,16 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<NN_DEV
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<NN_DEVICE, CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
-using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
+using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, NN_DEVICE, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
 using AC_DEVICE = lic::devices::DefaultCPU;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 
 constexpr size_t REPLAY_BUFFER_CAP = 500000;
 constexpr size_t ENVIRONMENT_STEP_LIMIT = 200;
+AC_DEVICE::SPEC::LOGGING logger;
+AC_DEVICE device(logger);
+NN_DEVICE nn_device(logger);
 lic::rl::components::OffPolicyRunner<
         AC_DEVICE,
         lic::rl::components::off_policy_runner::Spec<
@@ -90,8 +93,8 @@ lic::rl::components::OffPolicyRunner<
                 ENVIRONMENT_STEP_LIMIT,
                 lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
         >
-> off_policy_runner;
-ActorCriticType actor_critic;
+> off_policy_runner(device);
+ActorCriticType actor_critic(device, nn_device);
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -130,7 +133,7 @@ int main() {
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(DEVICE(), env, actor_critic.actor, 1, rng);
+            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
 //            if(step_i >= 6000){
 //                ASSERT_GT(mean_return, -1000);

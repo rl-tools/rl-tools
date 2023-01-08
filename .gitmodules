@@ -4,3 +4,6 @@
 [submodule "tests/lib/matplotlib"]
 	path = tests/lib/matplotlib
 	url = https://github.com/lava/matplotlib-cpp.git
+[submodule "tests/lib/tensorboard"]
+	path = tests/lib/tensorboard
+	url = https://github.com/RustingSword/tensorboard_logger.git

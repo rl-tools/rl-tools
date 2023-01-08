@@ -67,7 +67,9 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     data_file.getDataSet("data/Y_mean").read(Y_mean);
     data_file.getDataSet("data/Y_std").read(Y_std);
 
-    NetworkType network;
+    DEVICE::SPEC::LOGGING logger;
+    DEVICE device(logger);
+    NetworkType network(device);
     std::vector<T> losses;
     std::vector<T> val_losses;
     std::vector<T> epoch_durations;

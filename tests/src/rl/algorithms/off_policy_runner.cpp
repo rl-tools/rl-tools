@@ -33,10 +33,12 @@ struct PendulumStructureSpecification{
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     typedef lic::nn_models::mlp::AdamSpecification<DEVICE, PendulumStructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> SPEC;
-    lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC> policy;
+    DEVICE::SPEC::LOGGING logger;
+    DEVICE device(logger);
+    lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC> policy(device);
     std::mt19937 rng(0);
     lic::init_weights(policy, rng);
-    OffPolicyRunner off_policy_runner;
+    OffPolicyRunner off_policy_runner(device);
     for(int step_i = 0; step_i < 10000; step_i++){
         lic::step(off_policy_runner, policy, rng);
     }

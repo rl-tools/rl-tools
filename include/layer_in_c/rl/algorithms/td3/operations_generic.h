@@ -143,8 +143,8 @@ namespace layer_in_c{
     }
     template<typename DEVICE, typename SPEC>
     void update_target_layer(nn::layers::dense::Layer<DEVICE, SPEC>& target, const nn::layers::dense::Layer<DEVICE, SPEC>& source, typename SPEC::T polyak) {
-        utils::polyak::update_matrix<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(DEVICE(), target.weights, source.weights, polyak);
-        utils::polyak::update       <DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM                 >(DEVICE(), target.biases , source.biases , polyak);
+        utils::polyak::update_matrix<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(target.device, target.weights, source.weights, polyak);
+        utils::polyak::update       <DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM                 >(target.device, target.biases , source.biases , polyak);
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void update_target_network(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {

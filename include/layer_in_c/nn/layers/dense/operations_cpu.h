@@ -8,6 +8,7 @@ namespace layer_in_c{
     template<typename DEV_SPEC, typename LS, typename RNG>
     void init_kaiming(nn::layers::dense::Layer<devices::CPU<DEV_SPEC>, LS>& layer, RNG& rng) {
         typedef typename LS::T T;
+        logging::text(layer.device.logger, "Initializing layer with the Kaiming scheme");
         T negative_slope = math::sqrt(typename DEV_SPEC::MATH(), (T)5);
         T gain = math::sqrt(typename DEV_SPEC::MATH(), (T)2.0 / (1 + negative_slope * negative_slope));
         T fan = LS::INPUT_DIM;

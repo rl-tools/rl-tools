@@ -144,7 +144,8 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     return acc;
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
-    ActorCriticType actor_critic;
+    AC_DEVICE device;
+    ActorCriticType actor_critic(device);
 
     std::mt19937 rng(0);
     lic::init(actor_critic, rng);

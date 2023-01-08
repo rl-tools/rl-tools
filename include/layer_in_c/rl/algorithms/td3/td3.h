@@ -19,6 +19,7 @@ namespace layer_in_c::rl::algorithms::td3 {
     template<
         typename T_T,
         typename T_ENVIRONMENT,
+        typename T_NN_DEVICE,
         typename T_ACTOR_NETWORK_TYPE,
         typename T_ACTOR_TARGET_NETWORK_TYPE,
         typename T_CRITIC_NETWORK_TYPE,
@@ -28,6 +29,7 @@ namespace layer_in_c::rl::algorithms::td3 {
     struct Specification {
         using T = T_T;
         using ENVIRONMENT = T_ENVIRONMENT;
+        using NN_DEVICE = T_NN_DEVICE;
         using ACTOR_NETWORK_TYPE = T_ACTOR_NETWORK_TYPE;
         using ACTOR_TARGET_NETWORK_TYPE = T_ACTOR_TARGET_NETWORK_TYPE;
         using CRITIC_NETWORK_TYPE = T_CRITIC_NETWORK_TYPE;
@@ -50,7 +52,14 @@ namespace layer_in_c::rl::algorithms::td3 {
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_2;
 
         DEVICE& device;
-        explicit ActorCritic(DEVICE& device): device(device){};
+        explicit ActorCritic(DEVICE& device, typename SPEC::NN_DEVICE& nn_device) :
+            device(device),
+            actor(nn_device),
+            actor_target(nn_device),
+            critic_1(nn_device),
+            critic_2(nn_device),
+            critic_target_1(nn_device),
+            critic_target_2(nn_device){};
     };
 }
 

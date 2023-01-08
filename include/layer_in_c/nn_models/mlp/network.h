@@ -84,8 +84,11 @@ namespace layer_in_c::nn_models::mlp {
 
         // Storage
         typename SPEC:: INPUT_LAYER input_layer;
-        typename SPEC::HIDDEN_LAYER hidden_layers[NUM_HIDDEN_LAYERS];
+        DEVICE& device;
+        typename SPEC::HIDDEN_LAYER hidden_layers[NUM_HIDDEN_LAYERS] = {typename SPEC::HIDDEN_LAYER(device)};
         typename SPEC::OUTPUT_LAYER output_layer;
+
+        explicit NeuralNetwork(DEVICE& device) : device(device), input_layer(device), output_layer(device) { };
 
         // Conversion
         template<typename NN>
@@ -102,6 +105,7 @@ namespace layer_in_c::nn_models::mlp {
 
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkBackward: public NeuralNetwork<DEVICE, SPEC>{
+        explicit NeuralNetworkBackward(DEVICE& device) : NeuralNetwork<DEVICE, SPEC>(device) {};
         template<typename NN>
         NeuralNetworkBackward& operator= (const NN& other) {
             NeuralNetwork<DEVICE, SPEC>::operator=(other);
@@ -110,15 +114,18 @@ namespace layer_in_c::nn_models::mlp {
     };
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<DEVICE, SPEC>{
+        explicit NeuralNetworkBackwardGradient(DEVICE& device) : NeuralNetworkBackward<DEVICE, SPEC>(device) {};
     };
 
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkSGD: public NeuralNetworkBackwardGradient<DEVICE, SPEC>{
+        explicit NeuralNetworkSGD(DEVICE& device) : NeuralNetworkBackwardGradient<DEVICE, SPEC>(device) {};
     };
 
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<DEVICE, SPEC>{
         index_t age = 1;
+        explicit NeuralNetworkAdam(DEVICE& device) : NeuralNetworkBackwardGradient<DEVICE, SPEC>(device) {};
     };
 
 

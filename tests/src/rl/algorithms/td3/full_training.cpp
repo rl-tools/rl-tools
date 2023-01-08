@@ -1,5 +1,6 @@
 #include <layer_in_c/logging/operations_cpu_wandb.h>
 #include <layer_in_c/operations/cpu.h>
+#include <layer_in_c/nn/operations_cpu.h>
 
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/rl/environments/operations_generic.h>
@@ -62,7 +63,12 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
     constexpr static lic::index_t ACTOR_BATCH_SIZE = 100;
 };
 
-using NN_DEVICE = lic::devices::DefaultCPU;
+struct AC_DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
+    using LOGGING = lic::devices::logging::CPU_WANDB;
+};
+using AC_DEVICE = lic::devices::CPU<AC_DEVICE_SPEC>;
+//using NN_DEVICE = lic::devices::DefaultCPU;
+using NN_DEVICE = AC_DEVICE;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
 
@@ -75,18 +81,16 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<NN_DEV
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<NN_DEVICE, CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
-using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
-struct AC_DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
-    using LOGGING = lic::devices::logging::CPU_WANDB;
-};
-using AC_DEVICE = lic::devices::CPU<AC_DEVICE_SPEC>;
+using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, NN_DEVICE, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 
 constexpr lic::index_t REPLAY_BUFFER_CAP = 500000;
 constexpr lic::index_t ENVIRONMENT_STEP_LIMIT = 200;
 AC_DEVICE::SPEC::LOGGING logger;
-AC_DEVICE ac_dev = {logger};
+AC_DEVICE ac_dev(logger);
+//NN_DEVICE::SPEC::LOGGING nn_logger;
+NN_DEVICE nn_dev(logger);
 lic::rl::components::OffPolicyRunner<
     AC_DEVICE,
     lic::rl::components::off_policy_runner::Spec<
@@ -97,7 +101,7 @@ lic::rl::components::OffPolicyRunner<
         lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
     >
 > off_policy_runner(ac_dev);
-ActorCriticType actor_critic(ac_dev);
+ActorCriticType actor_critic(ac_dev, nn_dev);
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
