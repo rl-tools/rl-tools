@@ -251,6 +251,9 @@ target_link_libraries(
 )
 gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
+
+
+add_subdirectory(lib/tensorboard)
 # Multirotor Training test
 add_executable(
         test_rl_environments_multirotor_training_test
@@ -261,6 +264,12 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         HighFive
+        tensorboard_logger
+)
+target_include_directories(
+        test_rl_environments_multirotor_training_test
+        PRIVATE
+        lib/tensorboard/include
 )
 gtest_discover_tests(test_rl_environments_multirotor_training_test)
 

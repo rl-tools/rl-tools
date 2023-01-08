@@ -12,7 +12,11 @@
 
 #include <layer_in_c/rl/utils/evaluation.h>
 
+#include <tensorboard_logger.h>
 #include <gtest/gtest.h>
+#include <ctime>
+#include <iostream>
+#include <filesystem>
 
 
 namespace lic = layer_in_c;
@@ -88,6 +92,24 @@ constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SI
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
+    TensorBoardLoggerOptions tb_opts;
+    tb_opts.flush_period_s(1);
+
+    time_t now;
+    time(&now);
+    char buf[sizeof "2011-10-08T07:07:09Z"];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+
+    std::string logs_dir = "logs";
+    if (!std::filesystem::is_directory(logs_dir.c_str()) || !std::filesystem::exists(logs_dir.c_str())) {
+        std::filesystem::create_directory(logs_dir.c_str());
+    }
+    std::string log_dir = logs_dir + "/" + std::string(buf);
+    if (!std::filesystem::is_directory(log_dir.c_str()) || !std::filesystem::exists(log_dir.c_str())) {
+        std::filesystem::create_directory(log_dir.c_str());
+    }
+    std::string log_file = log_dir + "/" + std::string("data.tfevents");
+    TensorBoardLogger tb_logger(log_file.c_str());
     std::mt19937 rng(2);
     lic::init(actor_critic, rng);
     parameters.init = lic::rl::environments::multirotor::simple_init_parameters<DTYPE, 4>;
@@ -105,6 +127,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             }
             DTYPE critic_1_loss = lic::train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
             lic::train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+            tb_logger.add_scalar("critic_1_loss", step_i, critic_1_loss);
 //            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
                 lic::train_actor(actor_critic, off_policy_runner.replay_buffer, rng);

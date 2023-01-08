@@ -19,7 +19,7 @@ namespace layer_in_c::math {
     }
     template<typename T>
     T exp(const devices::math::CPU&, const T x) {
-        return std::tanh(x);
+        return std::exp(x);
     }
     template<typename T>
     T sin(const devices::math::CPU&, const T x) {
