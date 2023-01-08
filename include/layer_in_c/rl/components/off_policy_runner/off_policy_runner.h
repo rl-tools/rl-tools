@@ -33,7 +33,8 @@ namespace layer_in_c::rl::components{
         index_t episode_step = 0;
         typename SPEC::T episode_return = 0;
 
-        DEVICE device;
+        DEVICE& device;
+        explicit OffPolicyRunner(DEVICE& device) : device(device) {};
     };
 }
 

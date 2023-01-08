@@ -85,6 +85,8 @@ using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPE
 
 constexpr lic::index_t REPLAY_BUFFER_CAP = 500000;
 constexpr lic::index_t ENVIRONMENT_STEP_LIMIT = 200;
+AC_DEVICE::SPEC::LOGGING logger;
+AC_DEVICE ac_dev = {logger};
 lic::rl::components::OffPolicyRunner<
     AC_DEVICE,
     lic::rl::components::off_policy_runner::Spec<
@@ -94,9 +96,7 @@ lic::rl::components::OffPolicyRunner<
         ENVIRONMENT_STEP_LIMIT,
         lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
     >
-> off_policy_runner;
-AC_DEVICE::SPEC::LOGGING logger;
-AC_DEVICE ac_dev = {logger};
+> off_policy_runner(ac_dev);
 ActorCriticType actor_critic(ac_dev);
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
