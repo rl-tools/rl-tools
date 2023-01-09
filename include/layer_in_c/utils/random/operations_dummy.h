@@ -1,7 +1,7 @@
 #ifndef LAYER_IN_C_UTILS_RANDOM_OPERATIONS_DUMMY_H
 #define LAYER_IN_C_UTILS_RANDOM_OPERATIONS_DUMMY_H
 
-#include <layer_in_c/devices.h>
+#include <layer_in_c/devices/dummy.h>
 #include <layer_in_c/utils/generic/typing.h>
 
 namespace layer_in_c::utils::random{

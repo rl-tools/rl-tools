@@ -1,8 +1,6 @@
 #ifndef LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_MULTIROTOR_H
 #define LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_MULTIROTOR_H
 
-#include <layer_in_c/devices.h>
-
 namespace layer_in_c::rl::environments::multirotor {
     constexpr index_t STATE_DIM = 13;
     constexpr index_t ACTION_DIM = 4;

@@ -1,7 +1,7 @@
 #ifndef LAYER_IN_C_CPU_GENERIC_MATH_H
 #define LAYER_IN_C_CPU_GENERIC_MATH_H
 
-#include <layer_in_c/devices.h>
+#include <layer_in_c/devices/dummy.h>
 
 #include "operations_generic.h"
 

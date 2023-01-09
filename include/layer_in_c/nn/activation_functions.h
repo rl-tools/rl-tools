@@ -14,7 +14,7 @@ namespace layer_in_c::nn::activation_functions {
 
     template<typename DEVICE, typename T, ActivationFunction F>
     T activation(T x){
-        static_assert(devices::math::check<DEVICE>, "DEVICE is not a math device");
+        static_assert(DEVICE::DOMAIN == devices::Domain::math, "DEVICE is not a math device");
         static_assert(check_activation_function<F>, "Invalid activation function");
         if (F == IDENTITY){
             return x;
@@ -39,7 +39,7 @@ namespace layer_in_c::nn::activation_functions {
 
     template<typename DEVICE, typename T, ActivationFunction F>
     T d_activation_d_x(T x){
-        static_assert(devices::math::check<DEVICE>, "DEVICE is not a math device");
+        static_assert(DEVICE::DOMAIN == devices::Domain::math, "DEVICE is not a math device");
         static_assert(check_activation_function<F>, "Invalid activation function");
         if (F == IDENTITY){
             return 1;

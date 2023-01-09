@@ -3,7 +3,7 @@
 
 #include "operations_generic.h"
 
-#include <layer_in_c/devices.h>
+#include <layer_in_c/devices/cpu.h>
 
 #include <cmath>
 

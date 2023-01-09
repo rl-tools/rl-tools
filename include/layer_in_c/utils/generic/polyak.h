@@ -1,6 +1,6 @@
 #ifndef LAYER_IN_C_NN_UTILS_POLYAK
 #define LAYER_IN_C_NN_UTILS_POLYAK
-#include <layer_in_c/devices.h>
+
 
 namespace layer_in_c::utils::polyak {
     // todo: polyak factor as template parameter (reciprocal INT e.g.)

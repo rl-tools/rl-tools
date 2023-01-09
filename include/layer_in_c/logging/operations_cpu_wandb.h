@@ -1,7 +1,7 @@
 #ifndef LAYER_IN_C_UTILS_LOGGING_OPERATIONS_CPU_WANDB_H
 #define LAYER_IN_C_UTILS_LOGGING_OPERATIONS_CPU_WANDB_H
 
-#include <layer_in_c/devices.h>
+#include <layer_in_c/devices/cpu.h>
 
 #include <iostream>
 

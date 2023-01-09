@@ -1,7 +1,6 @@
 #ifndef LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H
 #define LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H
 
-#include <layer_in_c/devices.h>
 #include <layer_in_c/math/operations_generic.h>
 
 namespace layer_in_c::rl::environments::pendulum {
