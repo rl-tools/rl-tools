@@ -15,7 +15,7 @@
 
 
 namespace layer_in_c::rl::environments::multirotor {
-    template<typename T, index_t N>
+    template<typename T, auto N>
     FUNCTION_PLACEMENT void multirotor_dynamics(
             const Parameters<T, N> &params,
 

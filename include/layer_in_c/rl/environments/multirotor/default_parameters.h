@@ -1,7 +1,7 @@
 #include "multirotor.h"
 
 namespace layer_in_c::rl::environments::multirotor {
-    template<typename T, index_t ACTION_DIM>
+    template<typename T, auto ACTION_DIM>
     typename Parameters <T, ACTION_DIM>::Dynamics default_dynamics_parameters = {
             // Rotor positions
 //            {
@@ -113,7 +113,7 @@ namespace layer_in_c::rl::environments::multirotor {
                     }
             }
     };
-    template<typename T, index_t ACTION_DIM>
+    template<typename T, auto ACTION_DIM>
     typename Parameters<T, ACTION_DIM>::Reward default_reward_parameters = {
             10,
             10,
@@ -121,15 +121,15 @@ namespace layer_in_c::rl::environments::multirotor {
             0,
             1
     };
-    template<typename T, index_t ACTION_DIM>
+    template<typename T, auto ACTION_DIM>
     typename Parameters<T, ACTION_DIM>::ActionLimit default_action_limit = {0, 2000};
-    template<typename T, index_t ACTION_DIM>
+    template<typename T, auto ACTION_DIM>
     typename Parameters<T, ACTION_DIM>::Initialization default_init_parameters = {
             2,
             1,
             0.5 * math::PI<T> * 2
     };
-    template<typename T, index_t ACTION_DIM>
+    template<typename T, auto ACTION_DIM>
     typename Parameters<T, ACTION_DIM>::Initialization simple_init_parameters = {
             0,
             0,

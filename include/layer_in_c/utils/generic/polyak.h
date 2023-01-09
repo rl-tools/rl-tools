@@ -4,7 +4,7 @@
 
 namespace layer_in_c::utils::polyak {
     // todo: polyak factor as template parameter (reciprocal INT e.g.)
-    template<typename DEVICE, typename T, index_t N_ROWS, index_t N_COLS>
+    template<typename DEVICE, typename T, auto N_ROWS, auto N_COLS>
     void update_matrix(DEVICE dev, T target[N_ROWS][N_COLS], const T source[N_ROWS][N_COLS], const T polyak) {
         for(index_t i = 0; i < N_ROWS; i++) {
             for(index_t j = 0; j < N_COLS; j++) {
@@ -12,14 +12,14 @@ namespace layer_in_c::utils::polyak {
             }
         }
     }
-    template<typename DEVICE, typename T, index_t DIM>
+    template<typename DEVICE, typename T, auto DIM>
     void update(DEVICE dev, T target[DIM], const T source[DIM], const T polyak) {
         for(index_t i = 0; i < DIM; i++) {
             target[i] = polyak * target[i] + (1 - polyak) * source[i];
         }
     }
 
-    template<typename DEVICE, typename T, index_t N_ROWS, index_t N_COLS>
+    template<typename DEVICE, typename T, auto N_ROWS, auto N_COLS>
     void update_squared_matrix(DEVICE dev, T target[N_ROWS][N_COLS], const T source[N_ROWS][N_COLS], const T polyak) {
         for(index_t i = 0; i < N_ROWS; i++) {
             for(index_t j = 0; j < N_COLS; j++) {
@@ -27,7 +27,7 @@ namespace layer_in_c::utils::polyak {
             }
         }
     }
-    template<typename DEVICE, typename T, index_t DIM>
+    template<typename DEVICE, typename T, auto DIM>
     void update_squared(DEVICE dev, T target[DIM], const T source[DIM], const T polyak) {
         for(index_t i = 0; i < DIM; i++) {
             target[i] = polyak * target[i] + (1 - polyak) * source[i] * source[i];

@@ -149,7 +149,7 @@ namespace layer_in_c {
             backward(network.input_layer, input, d_layer_input_tock, d_input);
         }
     }
-    template<typename DEVICE, typename SPEC, index_t BATCH_SIZE>
+    template<typename DEVICE, typename SPEC, auto BATCH_SIZE>
     FUNCTION_PLACEMENT void forward_backward_mse(nn_models::mlp::NeuralNetworkBackwardGradient<DEVICE, SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], typename SPEC::T target[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM]) {
         typename SPEC::T d_input[SPEC::STRUCTURE_SPEC::INPUT_DIM];
         forward(network, input);

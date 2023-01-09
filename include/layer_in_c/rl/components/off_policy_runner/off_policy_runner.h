@@ -11,7 +11,7 @@ namespace layer_in_c::rl::components::off_policy_runner {
     struct DefaultParameters{
         static constexpr T EXPLORATION_NOISE = 0.1;
     };
-    template<typename T_T, typename T_ENVIRONMENT, index_t T_REPLAY_BUFFER_CAPACITY, index_t T_STEP_LIMIT, typename T_PARAMETERS>
+    template<typename T_T, typename T_ENVIRONMENT, auto T_REPLAY_BUFFER_CAPACITY, auto T_STEP_LIMIT, typename T_PARAMETERS>
     struct Spec{
         typedef T_T T;
         typedef T_ENVIRONMENT ENVIRONMENT;

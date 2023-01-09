@@ -2,7 +2,7 @@
 #include <thread>
 
 namespace layer_in_c{
-    template<typename ENVIRONMENT, typename UI, typename POLICY, index_t STEP_LIMIT, index_t TIME_LAPSE=1>
+    template<typename ENVIRONMENT, typename UI, typename POLICY, auto STEP_LIMIT, auto TIME_LAPSE=1>
     typename POLICY::T evaluate_visual(const ENVIRONMENT env, UI& ui, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
         typedef typename POLICY::T T;
         typename ENVIRONMENT::State state;

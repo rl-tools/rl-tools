@@ -1,7 +1,7 @@
 #ifndef LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER
 #define LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER
 namespace layer_in_c::rl::components::replay_buffer{
-    template<typename T_T, index_t T_OBSERVATION_DIM, index_t T_ACTION_DIM, index_t T_CAPACITY>
+    template<typename T_T, auto T_OBSERVATION_DIM, auto T_ACTION_DIM, auto T_CAPACITY>
     struct Spec{
         using T = T_T;
         static constexpr index_t OBSERVATION_DIM = T_OBSERVATION_DIM;

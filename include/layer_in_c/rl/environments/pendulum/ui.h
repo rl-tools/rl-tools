@@ -33,7 +33,7 @@ namespace layer_in_c::rl::environments::pendulum {
     };
 
 
-    template<typename T, index_t FPS=60>
+    template<typename T, auto FPS=60>
     struct UI {
         char* argv[1] = {"pendulum_render"};
         index_t argc = 1;

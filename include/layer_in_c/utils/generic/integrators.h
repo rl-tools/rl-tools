@@ -6,7 +6,7 @@
 #endif
 
 namespace layer_in_c::utils::integrators{
-    template<typename T, typename PARAMETER_TYPE, index_t STATE_DIM, index_t ACTION_DIM, auto DYNAMICS>
+    template<typename T, typename PARAMETER_TYPE, auto STATE_DIM, auto ACTION_DIM, auto DYNAMICS>
     FUNCTION_PLACEMENT void euler(const PARAMETER_TYPE& params, const T state[STATE_DIM], const T action[ACTION_DIM], const T dt, T next_state[STATE_DIM]) {
         T dfdt[STATE_DIM];
         DYNAMICS(params, state, action, dfdt);
@@ -14,7 +14,7 @@ namespace layer_in_c::utils::integrators{
         utils::vector_operations::add_accumulate<STATE_DIM>(state, next_state);
     }
 
-    template<typename T, typename PARAMETER_TYPE, index_t STATE_DIM, index_t ACTION_DIM, auto DYNAMICS>
+    template<typename T, typename PARAMETER_TYPE, auto STATE_DIM, auto ACTION_DIM, auto DYNAMICS>
     FUNCTION_PLACEMENT void rk4(const PARAMETER_TYPE& params, const T state[STATE_DIM], const T action[ACTION_DIM], const T dt, T next_state[STATE_DIM]) {
         using namespace vector_operations;
         T *k1 = next_state; //[STATE_DIM];
