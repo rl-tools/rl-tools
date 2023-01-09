@@ -245,7 +245,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
     using DEVICE = lic::devices::DefaultCPU;
-    using ReplayBufferSpec = lic::rl::components::replay_buffer::Spec<DTYPE, 3, 1, 100>;
+    using ReplayBufferSpec = lic::rl::components::replay_buffer::Spec<DTYPE, (lic::index_t)3, (lic::index_t)1, (lic::index_t)100>;
     using ReplayBufferType = lic::rl::components::ReplayBuffer<DEVICE, ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);
@@ -352,7 +352,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
     using DEVICE = lic::devices::DefaultCPU;
-    using ReplayBufferSpec = lic::rl::components::replay_buffer::Spec<DTYPE, 3, 1, 100>;
+    using ReplayBufferSpec = lic::rl::components::replay_buffer::Spec<DTYPE, (lic::index_t)3, (lic::index_t)1, (lic::index_t)100>;
     using ReplayBufferType = lic::rl::components::ReplayBuffer<DEVICE, ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);

@@ -3,11 +3,11 @@
 #include <vector>
 
 namespace layer_in_c::utils::persist::array_conversion{
-    template <typename T, index_t ROWS>
+    template <typename T, auto ROWS>
     std::vector<T> vector_to_std_vector(T M[ROWS]){
         return std::vector<T>(M, M + ROWS);
     }
-    template <typename T, index_t ROWS, index_t COLS>
+    template <typename T, auto ROWS, auto COLS>
     std::vector<std::vector<T>> matrix_to_std_vector(T M[ROWS][COLS]){
         std::vector<std::vector<T>> data(ROWS);
         for(index_t i=0; i < ROWS; i++){
@@ -15,13 +15,13 @@ namespace layer_in_c::utils::persist::array_conversion{
         }
         return data;
     }
-    template <typename T, index_t ROWS>
+    template <typename T, auto ROWS>
     void std_vector_to_vector(T target[ROWS], std::vector<T> source){
         for (index_t i=0; i < ROWS; i++){
             target[i] = source[i];
         }
     }
-    template <typename T, index_t ROWS, index_t COLS>
+    template <typename T, auto ROWS, auto COLS>
     void std_vector_to_matrix(T target[ROWS][COLS], std::vector<std::vector<T>> source){
         for(index_t i=0; i < ROWS; i++){
             for(index_t j=0; j < COLS; j++){

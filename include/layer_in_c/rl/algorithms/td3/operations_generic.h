@@ -24,7 +24,7 @@ namespace layer_in_c{
         copy(actor_critic.critic_target_1, actor_critic.critic_1);
         copy(actor_critic.critic_target_2, actor_critic.critic_2);
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, index_t REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
     typename SPEC::T train_critic(
             rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
             CRITIC_TYPE& critic,
@@ -75,7 +75,7 @@ namespace layer_in_c{
         update(critic);
         return loss;
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, index_t REPLAY_BUFFER_CAPACITY, typename RNG>
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG>
     typename SPEC::T train_critic(
             rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
             CRITIC_TYPE& critic,
@@ -103,7 +103,7 @@ namespace layer_in_c{
         }
         return train_critic(actor_critic, critic, replay_buffer, action_noise, rng);
     }
-    template <typename DEVICE, typename SPEC, typename REPLAY_BUFFER_DEVICE, index_t REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC = false>
+    template <typename DEVICE, typename SPEC, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC = false>
     typename SPEC::T train_actor(
             rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
             rl::components::ReplayBuffer<

@@ -108,7 +108,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) 
     std::cout << "mean return: " << mean_return << std::endl;
 }
 
-using ReplayBufferSpecCopyTraining = lic::rl::components::replay_buffer::Spec<DTYPE, 3, 1, 1000>;
+using ReplayBufferSpecCopyTraining = lic::rl::components::replay_buffer::Spec<DTYPE, (lic::index_t)3, (lic::index_t)1, (lic::index_t)1000>;
 using DEVICE = lic::devices::DefaultCPU;
 typedef lic::rl::components::ReplayBuffer<DEVICE, ReplayBufferSpecCopyTraining> ReplayBufferTypeCopyTraining;
 constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;

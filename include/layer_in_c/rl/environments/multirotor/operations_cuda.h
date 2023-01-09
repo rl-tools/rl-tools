@@ -1,6 +1,6 @@
 #include "operations_generic.h"
 
-template <typename T, index_t BLOCK_DIM, typename POLICY, index_t N_ITERATIONS>
+template <typename T, auto BLOCK_DIM, typename POLICY, auto N_ITERATIONS>
 __global__ void
 __launch_bounds__(N_THREADS)//, minBlocksPerMultiprocessor, maxBlocksPerCluster)
 simulate_parallel(
