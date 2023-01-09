@@ -1,12 +1,9 @@
 #include <layer_in_c/logging/operations_cpu_wandb.h>
 #include <layer_in_c/operations/cpu.h>
-#include <layer_in_c/nn/operations_cpu.h>
 
-#include <layer_in_c/rl/environments/environments.h>
+#include <layer_in_c/nn/operations_generic.h>
 #include <layer_in_c/rl/environments/operations_generic.h>
-#include <layer_in_c/nn_models/models.h>
 #include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/rl/rl.h>
 #include <layer_in_c/rl/operations_generic.h>
 
 
