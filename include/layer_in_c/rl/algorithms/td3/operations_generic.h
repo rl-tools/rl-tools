@@ -26,9 +26,9 @@ namespace layer_in_c{
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
     typename SPEC::T train_critic(
-            rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
+            const rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
             CRITIC_TYPE& critic,
-            rl::components::ReplayBuffer<
+            const rl::components::ReplayBuffer<
                     REPLAY_BUFFER_DEVICE,
                     rl::components::replay_buffer::Specification<
                             REPLAY_BUFFER_DEVICE,
@@ -78,9 +78,9 @@ namespace layer_in_c{
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG>
     typename SPEC::T train_critic(
-            rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
+            const rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
             CRITIC_TYPE& critic,
-            rl::components::ReplayBuffer<
+            const rl::components::ReplayBuffer<
                     REPLAY_BUFFER_DEVICE,
                     rl::components::replay_buffer::Specification<
                             REPLAY_BUFFER_DEVICE,
