@@ -7,3 +7,6 @@
 [submodule "tests/lib/tensorboard"]
 	path = tests/lib/tensorboard
 	url = https://github.com/RustingSword/tensorboard_logger.git
+[submodule "tests/lib/googletest"]
+	path = tests/lib/googletest
+	url = https://github.com/google/googletest.git
