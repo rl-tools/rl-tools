@@ -4,7 +4,7 @@
 #include <layer_in_c/devices/dummy.h>
 #include <layer_in_c/utils/generic/typing.h>
 
-namespace layer_in_c::utils::random{
+namespace layer_in_c::random{
     template<typename DEVICE>
     using default_engine = utils::typing::enable_if_t<utils::typing::is_same_v<DEVICE, devices::random::Dummy>, typename DEVICE::index_t>;
 

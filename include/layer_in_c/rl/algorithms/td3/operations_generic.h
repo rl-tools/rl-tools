@@ -47,7 +47,7 @@ namespace layer_in_c{
         zero_gradient(critic);
         for(typename DEVICE::index_t batch_step_i=0; batch_step_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_step_i++){
             typename DEVICE::index_t sample_index_max = (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
-            typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : utils::random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t)0, sample_index_max, rng);
+            typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t)0, sample_index_max, rng);
             T next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];
             utils::memcpy(next_state_action_value_input, replay_buffer.next_observations[sample_index], SPEC::ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             evaluate(actor_critic.actor_target, next_state_action_value_input, &next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
@@ -97,7 +97,7 @@ namespace layer_in_c{
         for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
             for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 action_noise[batch_sample_i][action_i] = math::clamp(
-                        utils::random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng),
+                        random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng),
                         -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
                         SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
                 );
@@ -127,7 +127,7 @@ namespace layer_in_c{
         zero_gradient(actor_critic.actor);
         typename DEVICE::index_t sample_index_max = (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
         for (typename DEVICE::index_t sample_i=0; sample_i < PARAMETERS::ACTOR_BATCH_SIZE; sample_i++){
-            typename DEVICE::index_t sample_index = DETERMINISTIC ? sample_i : utils::random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t)0, sample_index_max, rng);
+            typename DEVICE::index_t sample_index = DETERMINISTIC ? sample_i : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t)0, sample_index_max, rng);
             T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
             utils::memcpy(state_action_value_input, replay_buffer.observations[sample_index], ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             forward(actor_critic.actor, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]);

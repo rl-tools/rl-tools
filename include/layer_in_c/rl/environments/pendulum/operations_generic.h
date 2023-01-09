@@ -20,8 +20,8 @@ namespace layer_in_c::rl::environments::pendulum {
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC, typename RNG>
     static void sample_initial_state(const rl::environments::Pendulum<DEVICE, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
-        state.theta     = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
-        state.theta_dot = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed, rng);
+        state.theta     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
+        state.theta_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed, rng);
     }
     template<typename DEVICE, typename SPEC>
     static void initial_state(const rl::environments::Pendulum<DEVICE, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state){

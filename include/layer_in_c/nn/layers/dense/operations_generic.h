@@ -18,9 +18,9 @@ namespace layer_in_c{
         T weight_bound = math::sqrt(typename DEVICE::SPEC::MATH(), (T)3.0) * std;
         T bias_bound = 1/math::sqrt(typename DEVICE::SPEC::MATH(), (T)LS::INPUT_DIM);
         for(typename DEVICE::index_t i = 0; i < LS::OUTPUT_DIM; i++) {
-            layer.biases[i] = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng);
+            layer.biases[i] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng);
             for(typename DEVICE::index_t j = 0; j < LS::INPUT_DIM; j++) {
-                layer.weights[i][j] = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng);
+                layer.weights[i][j] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng);
             }
         }
     }

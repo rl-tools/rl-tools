@@ -39,7 +39,7 @@ namespace layer_in_c{
         T action[ENVIRONMENT::ACTION_DIM];
         evaluate(policy, observation, action);
         for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
-            action[i] += utils::random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, PARAMETERS::EXPLORATION_NOISE, rng);
+            action[i] += random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, PARAMETERS::EXPLORATION_NOISE, rng);
             action[i] = lic::math::clamp<T>(action[i], -1, 1);
         }
         step(runner.env, runner.state, action, next_state);
