@@ -4,11 +4,11 @@ namespace lic = layer_in_c;
 using DTYPE = double;
 
 
-template <typename T_T>
+template <typename DEVICE, typename T_T>
 struct StructureSpecification{
     typedef T_T T;
-    static constexpr lic::index_t INPUT_DIM = 17;
-    static constexpr lic::index_t OUTPUT_DIM = 13;
+    static constexpr typename DEVICE::index_t INPUT_DIM = 17;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = 13;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 50;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -17,16 +17,17 @@ struct StructureSpecification{
 
 using NN_DEVICE = lic::devices::DefaultCPU;
 
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, StructureSpecification<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using STRUCTURE_SPEC = StructureSpecification<NN_DEVICE, DTYPE>;
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, NETWORK_SPEC>;
 
-using NETWORK_SPEC_BACKWARD_ONLY = lic::nn_models::mlp::InferenceBackwardSpecification<NN_DEVICE, StructureSpecification<DTYPE>>;
+using NETWORK_SPEC_BACKWARD_ONLY = lic::nn_models::mlp::InferenceBackwardSpecification<NN_DEVICE, StructureSpecification<NN_DEVICE, DTYPE>>;
 using NetworkTypeBackwardOnly = lic::nn_models::mlp::NeuralNetworkBackward<NN_DEVICE, NETWORK_SPEC_BACKWARD_ONLY>;
 
-constexpr lic::index_t INPUT_DIM = StructureSpecification<DTYPE>::INPUT_DIM;
-constexpr lic::index_t LAYER_1_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
-constexpr lic::index_t LAYER_2_DIM = StructureSpecification<DTYPE>::HIDDEN_DIM;
-constexpr lic::index_t OUTPUT_DIM = StructureSpecification<DTYPE>::OUTPUT_DIM;
+constexpr typename NN_DEVICE::index_t INPUT_DIM = STRUCTURE_SPEC::INPUT_DIM;
+constexpr typename NN_DEVICE::index_t LAYER_1_DIM = STRUCTURE_SPEC::HIDDEN_DIM;
+constexpr typename NN_DEVICE::index_t LAYER_2_DIM = STRUCTURE_SPEC::HIDDEN_DIM;
+constexpr typename NN_DEVICE::index_t OUTPUT_DIM = STRUCTURE_SPEC::OUTPUT_DIM;
 
 class NeuralNetworkTest : public ::testing::Test {
 protected:
@@ -60,15 +61,15 @@ protected:
     std::vector<DTYPE> Y_std;
 };
 
-template <typename T_T>
+template <typename DEVICE, typename T_T>
 struct StructureSpecification_3{
     typedef T_T T;
-    static constexpr lic::index_t INPUT_DIM = 17;
-    static constexpr lic::index_t OUTPUT_DIM = 13;
+    static constexpr typename DEVICE::index_t INPUT_DIM = 17;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = 13;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 50;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
-using NETWORK_SPEC_3 = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, StructureSpecification_3<DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using NETWORK_SPEC_3 = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, StructureSpecification_3<NN_DEVICE, DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
 using NetworkType_3 = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, NETWORK_SPEC_3>;

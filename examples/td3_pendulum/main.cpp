@@ -55,8 +55,9 @@ struct CriticStructureSpec{
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
 
+using AC_DEVICE = lic::devices::DefaultCPU;
 template <typename T>
-struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
+struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<AC_DEVICE, T>{
     constexpr static size_t CRITIC_BATCH_SIZE = 100;
     constexpr static size_t ACTOR_BATCH_SIZE = 100;
 };
@@ -75,7 +76,6 @@ using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecific
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, NN_DEVICE, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
-using AC_DEVICE = lic::devices::DefaultCPU;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 
@@ -86,7 +86,8 @@ AC_DEVICE device(logger);
 NN_DEVICE nn_device(logger);
 lic::rl::components::OffPolicyRunner<
         AC_DEVICE,
-        lic::rl::components::off_policy_runner::Spec<
+        lic::rl::components::off_policy_runner::Specification<
+                AC_DEVICE,
                 DTYPE,
                 ENVIRONMENT,
                 REPLAY_BUFFER_CAP,

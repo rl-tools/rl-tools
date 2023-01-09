@@ -38,7 +38,7 @@ namespace layer_in_c{
         typename ENVIRONMENT::State next_state;
         T action[ENVIRONMENT::ACTION_DIM];
         evaluate(policy, observation, action);
-        for(index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             action[i] += utils::random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, PARAMETERS::EXPLORATION_NOISE, rng);
             action[i] = lic::math::clamp<T>(action[i], -1, 1);
         }

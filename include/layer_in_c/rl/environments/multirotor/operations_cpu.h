@@ -6,14 +6,15 @@
 #include <random>
 namespace layer_in_c{
     template<typename DEV_SPEC, typename SPEC, typename RNG>
-    static void sample_initial_state(const rl::environments::Multirotor<devices::CPU<DEV_SPEC>, SPEC>& env, typename rl::environments::multirotor::State<typename SPEC::T>& state, RNG& rng){
+    static void sample_initial_state(const rl::environments::Multirotor<devices::CPU<DEV_SPEC>, SPEC>& env, typename rl::environments::Multirotor<devices::CPU<DEV_SPEC>, SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
+        using index_t = typename devices::CPU<DEV_SPEC>::index_t;
         for(index_t i = 0; i < 3; i++){
             state.state[i] = std::uniform_real_distribution<T>(-env.parameters.init.max_position, env.parameters.init.max_position)(rng);
         }
         // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
         T u[3];
-        for(index_t i = 0; i < 3; i++){
+        for(typename devices::CPU<DEV_SPEC>::index_t i = 0; i < 3; i++){
             u[i] = std::uniform_real_distribution<T>(0, 1)(rng);
         }
         state.state[3+0] = math::sqrt(typename DEV_SPEC::MATH(), 1-u[0]) * math::sin(typename DEV_SPEC::MATH(), 2*M_PI*u[1]);

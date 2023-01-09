@@ -5,13 +5,13 @@
 #include <layer_in_c/utils/generic/typing.h>
 
 namespace layer_in_c::nn_models::mlp {
-    template <typename T_T>
+    template <typename DEVICE, typename T_T>
     struct ExampleStructureSpecification{
         typedef T_T T;
-        static constexpr index_t INPUT_DIM = 10;
-        static constexpr index_t OUTPUT_DIM = 5;
-        static constexpr index_t NUM_LAYERS = 3; // The input and output layers count towards the total number of layers
-        static constexpr index_t HIDDEN_DIM = 30;
+        static constexpr typename DEVICE::index_t INPUT_DIM = 10;
+        static constexpr typename DEVICE::index_t OUTPUT_DIM = 5;
+        static constexpr typename DEVICE::index_t NUM_LAYERS = 3; // The input and output layers count towards the total number of layers
+        static constexpr typename DEVICE::index_t HIDDEN_DIM = 30;
         static constexpr nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = nn::activation_functions::GELU;
         static constexpr nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = nn::activation_functions::IDENTITY;
     };
@@ -74,12 +74,12 @@ namespace layer_in_c::nn_models::mlp {
 
         // Convenience
         static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required
-        static constexpr index_t NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_LAYERS - 2;
+        static constexpr typename DEVICE::index_t NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_LAYERS - 2;
 
         // Interface
-        static constexpr index_t  INPUT_DIM = SPEC::INPUT_LAYER ::SPEC::INPUT_DIM;
-        static constexpr index_t OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
-        static constexpr index_t NUM_WEIGHTS = SPEC::INPUT_LAYER::NUM_WEIGHTS + SPEC::HIDDEN_LAYER::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER::NUM_WEIGHTS;
+        static constexpr typename DEVICE::index_t  INPUT_DIM = SPEC::INPUT_LAYER ::SPEC::INPUT_DIM;
+        static constexpr typename DEVICE::index_t OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
+        static constexpr typename DEVICE::index_t NUM_WEIGHTS = SPEC::INPUT_LAYER::NUM_WEIGHTS + SPEC::HIDDEN_LAYER::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER::NUM_WEIGHTS;
 
 
         // Storage
@@ -109,7 +109,7 @@ namespace layer_in_c::nn_models::mlp {
 
     template<typename DEVICE, typename SPEC>
     struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<DEVICE, SPEC>{
-        index_t age = 1;
+        typename DEVICE::index_t age = 1;
         explicit NeuralNetworkAdam(DEVICE& device) : NeuralNetworkBackwardGradient<DEVICE, SPEC>(device) {};
     };
 

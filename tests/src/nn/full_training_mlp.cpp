@@ -21,19 +21,19 @@ namespace lic = layer_in_c;
 
 typedef double T;
 
+
+using DEVICE = lic::devices::DefaultCPU;
 template <typename T_T>
 struct StructureSpecification{
     typedef T_T T;
-    static constexpr lic::index_t INPUT_DIM = 17;
-    static constexpr lic::index_t OUTPUT_DIM = 13;
+    static constexpr typename DEVICE::index_t INPUT_DIM = 17;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = 13;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 50;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
 
-
-using DEVICE = lic::devices::DefaultCPU;
 
 using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<DEVICE , StructureSpecification<T>, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, NETWORK_SPEC>;
@@ -47,8 +47,8 @@ std::vector<T> X_std;
 std::vector<T> Y_mean;
 std::vector<T> Y_std;
 
-constexpr lic::index_t INPUT_DIM = StructureSpecification<T>::INPUT_DIM;
-constexpr lic::index_t OUTPUT_DIM = StructureSpecification<T>::OUTPUT_DIM;
+constexpr typename DEVICE::index_t INPUT_DIM = StructureSpecification<T>::INPUT_DIM;
+constexpr typename DEVICE::index_t OUTPUT_DIM = StructureSpecification<T>::OUTPUT_DIM;
 
 TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
@@ -77,7 +77,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     constexpr int n_epochs = 3;
     //    this->reset();
     lic::reset_optimizer_state(network);
-//    lic::index_t rng = 2;
+//    typename DEVICE::index_t rng = 2;
     std::mt19937 rng(2);
     lic::init_weights(network, rng);
 
@@ -97,8 +97,8 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
                 standardise<T, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 lic::forward(network, input);
                 T d_loss_d_output[OUTPUT_DIM];
-                lic::nn::loss_functions::d_mse_d_x<T, OUTPUT_DIM, batch_size>(network.output_layer.output, output, d_loss_d_output);
-                loss += lic::nn::loss_functions::mse<T, OUTPUT_DIM, batch_size>(network.output_layer.output, output);
+                lic::nn::loss_functions::d_mse_d_x<DEVICE, T, OUTPUT_DIM, batch_size>(network.output_layer.output, output, d_loss_d_output);
+                loss += lic::nn::loss_functions::mse<DEVICE, T, OUTPUT_DIM, batch_size>(network.output_layer.output, output);
 
                 T d_input[INPUT_DIM];
                 lic::backward(network, input, d_loss_d_output, d_input);
@@ -128,7 +128,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
         standardise<T,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
         standardise<T, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
         lic::forward(network, input);
-        val_loss += lic::nn::loss_functions::mse<T, OUTPUT_DIM, batch_size>(network.output_layer.output, output);
+        val_loss += lic::nn::loss_functions::mse<DEVICE, T, OUTPUT_DIM, batch_size>(network.output_layer.output, output);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);

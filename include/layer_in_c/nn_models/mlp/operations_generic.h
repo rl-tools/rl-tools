@@ -9,7 +9,7 @@ namespace layer_in_c {
     FUNCTION_PLACEMENT void init_weights(nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& network, RNG& rng) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         init_kaiming(network.input_layer, rng);
-        for (index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for (typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             init_kaiming(network.hidden_layers[layer_i], rng);
         }
         init_kaiming(network.output_layer, rng);
@@ -21,7 +21,7 @@ namespace layer_in_c {
         typename SPEC::T layer_output_tick[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         typename SPEC::T layer_output_tock[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         evaluate(network.input_layer, input, layer_output_tick);
-        for (index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for (typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             if(layer_i % 2 == 0){
                 evaluate(network.hidden_layers[layer_i], layer_output_tick, layer_output_tock);
             } else {
@@ -50,7 +50,7 @@ namespace layer_in_c {
         typename SPEC::T layer_output_tick[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         typename SPEC::T layer_output_tock[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         forward(network.input_layer, input, layer_output_tick);
-        for (index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for (typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             if(layer_i % 2 == 0){
                 forward(network.hidden_layers[layer_i], layer_output_tick, layer_output_tock);
             } else {
@@ -69,7 +69,7 @@ namespace layer_in_c {
         forward(network.input_layer, input);
 
         auto current_output = network.input_layer.output;
-        for (index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for (typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             forward(network.hidden_layers[layer_i], current_output);
             current_output = network.hidden_layers[layer_i].output;
         }
@@ -79,7 +79,7 @@ namespace layer_in_c {
     [[deprecated("Calling forward with an output buffer on a layer requiring the gradient is not recommended. Consider using forward without an output buffer to avoid unecessary copies instead.")]]
     FUNCTION_PLACEMENT void forward(nn_models::mlp::NeuralNetworkBackwardGradient<DEVICE, SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], typename SPEC::T output[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM]) {
         forward(network, input);
-        for(index_t i=0; i < utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM; i++){
+        for(typename DEVICE::index_t i=0; i < utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM; i++){
             output[i] = network.output_layer.output[i];
         }
     }
@@ -101,7 +101,7 @@ namespace layer_in_c {
     FUNCTION_PLACEMENT void zero_gradient(nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& network) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         zero_gradient(network.input_layer);
-        for(index_t i = 0; i < NetworkType::NUM_HIDDEN_LAYERS; i++){
+        for(typename DEVICE::index_t i = 0; i < NetworkType::NUM_HIDDEN_LAYERS; i++){
             zero_gradient(network.hidden_layers[i]);
         }
         zero_gradient(network.output_layer);
@@ -112,8 +112,8 @@ namespace layer_in_c {
         typename SPEC::T d_layer_input_tick[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         typename SPEC::T d_layer_input_tock[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         backward(network.output_layer, d_output, d_layer_input_tick);
-        for (index_t layer_i_plus_one = NetworkType::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
-            index_t layer_i = layer_i_plus_one - 1;
+        for (typename DEVICE::index_t layer_i_plus_one = NetworkType::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
+            typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
             if(layer_i % 2 == (NetworkType::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
                 backward(network.hidden_layers[layer_i], d_layer_input_tick, d_layer_input_tock);
             } else {
@@ -134,8 +134,8 @@ namespace layer_in_c {
         typename SPEC::T d_layer_input_tock[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         auto previous_output = NetworkType::NUM_HIDDEN_LAYERS > 0 ? network.hidden_layers[NetworkType::NUM_HIDDEN_LAYERS - 1].output : network.input_layer.output;
         backward(network.output_layer, previous_output, d_output, d_layer_input_tick);
-        for (index_t layer_i_plus_one = NetworkType::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
-            index_t layer_i = layer_i_plus_one - 1;
+        for (typename DEVICE::index_t layer_i_plus_one = NetworkType::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
+            typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
             previous_output = layer_i > 0 ? network.hidden_layers[layer_i - 1].output : network.input_layer.output;
             if(layer_i % 2 == (NetworkType::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
                 backward(network.hidden_layers[layer_i], previous_output, d_layer_input_tick, d_layer_input_tock);
@@ -154,7 +154,7 @@ namespace layer_in_c {
         typename SPEC::T d_input[SPEC::STRUCTURE_SPEC::INPUT_DIM];
         forward(network, input);
         typename SPEC::T d_loss_d_output[SPEC::STRUCTURE_SPEC::OUTPUT_DIM];
-        nn::loss_functions::d_mse_d_x<typename SPEC::T, SPEC::STRUCTURE_SPEC::OUTPUT_DIM, BATCH_SIZE>(network.output_layer.output, target, d_loss_d_output);
+        nn::loss_functions::d_mse_d_x<DEVICE, typename SPEC::T, SPEC::STRUCTURE_SPEC::OUTPUT_DIM, BATCH_SIZE>(network.output_layer.output, target, d_loss_d_output);
         backward(network, input, d_loss_d_output, d_input);
     }
 
@@ -162,7 +162,7 @@ namespace layer_in_c {
     FUNCTION_PLACEMENT void update(nn_models::mlp::NeuralNetworkSGD<DEVICE, SPEC>& network) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         update_layer(network.input_layer);
-        for (index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for (typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             update_layer(network.hidden_layers[layer_i]);
         }
         update_layer(network.output_layer);
@@ -176,7 +176,7 @@ namespace layer_in_c {
         typename SPEC::T second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), SPEC::ADAM_PARAMETERS::BETA_2, network.age));
 
         update_layer(network.input_layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
-        for(index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for(typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             update_layer(network.hidden_layers[layer_i], first_order_moment_bias_correction, second_order_moment_bias_correction);
         }
         update_layer(network.output_layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
@@ -191,7 +191,7 @@ namespace layer_in_c {
     FUNCTION_PLACEMENT void reset_optimizer_state(nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC>& network) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         reset_optimizer_state(network.input_layer);
-        for(index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for(typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             reset_optimizer_state(network.hidden_layers[layer_i]);
         }
         reset_optimizer_state(network.output_layer);
@@ -202,7 +202,7 @@ namespace layer_in_c {
     FUNCTION_PLACEMENT void copy(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source){
         static_assert(utils::typing::is_same_v<typename TARGET_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
         copy(target.input_layer, source.input_layer);
-        for(index_t layer_i = 0; layer_i < utils::typing::remove_reference<decltype(target)>::type::NUM_HIDDEN_LAYERS; layer_i++){
+        for(typename DEVICE::index_t layer_i = 0; layer_i < utils::typing::remove_reference<decltype(target)>::type::NUM_HIDDEN_LAYERS; layer_i++){
             copy(target.hidden_layers[layer_i], source.hidden_layers[layer_i]);
         }
         copy(target.output_layer, source.output_layer);

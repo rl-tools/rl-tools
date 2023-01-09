@@ -5,11 +5,11 @@
 namespace layer_in_c::rl::algorithms::td3 {
     // todo remove namespace assignment
     namespace lic = layer_in_c;
-    template<typename T>
+    template<typename DEVICE, typename T>
     struct DefaultParameters {
         static constexpr T GAMMA = 0.99;
-        static constexpr index_t ACTOR_BATCH_SIZE = 32;
-        static constexpr index_t CRITIC_BATCH_SIZE = 32;
+        static constexpr typename DEVICE::index_t ACTOR_BATCH_SIZE = 32;
+        static constexpr typename DEVICE::index_t CRITIC_BATCH_SIZE = 32;
         static constexpr T ACTOR_POLYAK = 1.0 - 0.005;
         static constexpr T CRITIC_POLYAK = 1.0 - 0.005;
         static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;

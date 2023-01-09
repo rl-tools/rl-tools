@@ -41,15 +41,10 @@ typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 ENVIRONMENT env;
 
-template <typename T>
-struct TD3Parameters: public lic::rl::algorithms::td3::DefaultParameters<T>{
-    constexpr static int CRITIC_BATCH_SIZE = 32;
-    constexpr static int ACTOR_BATCH_SIZE = 32;
-};
 struct ActorStructureSpec{
     using T = DTYPE;
-    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
-    static constexpr lic::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
+    static constexpr typename DEVICE::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -58,18 +53,12 @@ struct ActorStructureSpec{
 
 struct CriticStructureSpec{
     using T = DTYPE;
-    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
-    static constexpr lic::index_t OUTPUT_DIM = 1;
+    static constexpr typename DEVICE::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = 1;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
-};
-
-template <typename T>
-struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultParameters<T>{
-    constexpr static int CRITIC_BATCH_SIZE = 100;
-    constexpr static int ACTOR_BATCH_SIZE = 100;
 };
 
 using NN_DEVICE = lic::devices::DefaultCPU;
@@ -86,6 +75,12 @@ using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecific
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
 using AC_DEVICE = lic::devices::DefaultCPU;
+template <typename T>
+struct TD3ParametersCopyTraining: public lic::rl::algorithms::td3::DefaultParameters<AC_DEVICE, T>{
+    constexpr static int CRITIC_BATCH_SIZE = 100;
+    constexpr static int ACTOR_BATCH_SIZE = 100;
+};
+
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, NN_DEVICE, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3ParametersCopyTraining<DTYPE>>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
@@ -108,7 +103,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) 
     std::cout << "mean return: " << mean_return << std::endl;
 }
 
-using ReplayBufferSpecCopyTraining = lic::rl::components::replay_buffer::Spec<DTYPE, (lic::index_t)3, (lic::index_t)1, (lic::index_t)1000>;
+using ReplayBufferSpecCopyTraining = lic::rl::components::replay_buffer::Specification<AC_DEVICE, DTYPE, (typename DEVICE::index_t)3, (typename DEVICE::index_t)1, (typename DEVICE::index_t)1000>;
 using DEVICE = lic::devices::DefaultCPU;
 typedef lic::rl::components::ReplayBuffer<DEVICE, ReplayBufferSpecCopyTraining> ReplayBufferTypeCopyTraining;
 constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
@@ -193,7 +188,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     DTYPE mean_ratio_critic_target = 0;
     auto full_training_group = data_file.getGroup("full_training");
     auto steps_group = full_training_group.getGroup("steps");
-    int num_steps = std::min(steps_group.getNumberObjects(), (lic::index_t)1000);
+    int num_steps = std::min(steps_group.getNumberObjects(), (typename DEVICE::index_t)1000);
     auto pre_critic_1 = actor_critic.critic_1;
     auto pre_actor = actor_critic.actor;
     auto pre_critic_1_target = actor_critic.critic_target_1;
@@ -324,7 +319,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                     lic::evaluate(actor_critic.actor, replay_buffer.observations[batch_sample_i], current_action);
                     DTYPE desired_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
                     lic::evaluate(post_actor, replay_buffer.observations[batch_sample_i], desired_action);
-                    diff += lic::nn::loss_functions::mse<DTYPE, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>(current_action, desired_action);
+                    diff += lic::nn::loss_functions::mse<DEVICE, DTYPE, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>(current_action, desired_action);
                 }
 //                std::cout << "action mse: " << diff << std::endl;
             }

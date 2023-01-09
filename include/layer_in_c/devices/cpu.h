@@ -5,9 +5,6 @@
 #include "devices.h"
 
 #include <cstddef>
-namespace layer_in_c{
-    using index_t = size_t;
-}
 namespace layer_in_c::devices{
     namespace cpu{
         struct Base{

@@ -5,11 +5,6 @@
 
 #include "operations_generic.h"
 
-namespace layer_in_c{
-    using index_t = unsigned;
-}
-
-
 namespace layer_in_c::math {
 
     template<typename T>

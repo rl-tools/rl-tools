@@ -15,7 +15,7 @@
 
 
 namespace layer_in_c::rl::environments::multirotor {
-    template<typename T, auto N>
+    template<typename DEVICE, typename T, auto STATE_DIM, auto N>
     FUNCTION_PLACEMENT void multirotor_dynamics(
             const Parameters<T, N> &params,
 
@@ -47,19 +47,19 @@ namespace layer_in_c::rl::environments::multirotor {
         torque[1] = 0;
         torque[2] = 0;
         // flops: N*23 => 4 * 23 = 92
-        for(index_t i_rotor = 0; i_rotor < N; i_rotor++) {
+        for(typename DEVICE::index_t i_rotor = 0; i_rotor < N; i_rotor++) {
             // flops: 3 + 1 + 3 + 3 + 3 + 4 + 6 = 23
             T rpm = rpms[i_rotor];
             T thrust_magnitude =
                     params.dynamics.thrust_constants[0] * rpm * rpm + params.dynamics.thrust_constants[1] * rpm +
                     params.dynamics.thrust_constants[2];
             T rotor_thrust[3];
-            utils::vector_operations::scalar_multiply<T, 3>(params.dynamics.rotor_thrust_directions[i_rotor], thrust_magnitude, rotor_thrust);
-            utils::vector_operations::add_accumulate<T, 3>(rotor_thrust, thrust);
+            utils::vector_operations::scalar_multiply<DEVICE, T, 3>(params.dynamics.rotor_thrust_directions[i_rotor], thrust_magnitude, rotor_thrust);
+            utils::vector_operations::add_accumulate<DEVICE, T, 3>(rotor_thrust, thrust);
 
-            utils::vector_operations::scalar_multiply_accumulate<T, 3>(params.dynamics.rotor_torque_directions[i_rotor],
+            utils::vector_operations::scalar_multiply_accumulate<DEVICE, T, 3>(params.dynamics.rotor_torque_directions[i_rotor],
                                              thrust_magnitude * params.dynamics.torque_constant, torque);
-            utils::vector_operations::cross_product_accumulate<T>(params.dynamics.rotor_positions[i_rotor], rotor_thrust, torque);
+            utils::vector_operations::cross_product_accumulate<DEVICE, T>(params.dynamics.rotor_positions[i_rotor], rotor_thrust, torque);
         }
 
         // linear_velocity_global
@@ -69,52 +69,54 @@ namespace layer_in_c::rl::environments::multirotor {
 
         // angular_velocity_global
         // flops: 16
-        quaternion_derivative(orientation_global_input, angular_velocity_local_input, angular_velocity_global);
+        quaternion_derivative<DEVICE, T>(orientation_global_input, angular_velocity_local_input, angular_velocity_global);
 
         // linear_acceleration_global
         // flops: 21
-        rotate_vector_by_quaternion(orientation_global_input, thrust, linear_acceleration_global);
+        rotate_vector_by_quaternion<DEVICE, T>(orientation_global_input, thrust, linear_acceleration_global);
         // flops: 4
-        utils::vector_operations::scalar_multiply<T, 3>(linear_acceleration_global, 1 / params.dynamics.mass);
-        utils::vector_operations::add_accumulate<T, 3>(params.dynamics.gravity, linear_acceleration_global);
+        utils::vector_operations::scalar_multiply<DEVICE, T, 3>(linear_acceleration_global, 1 / params.dynamics.mass);
+        utils::vector_operations::add_accumulate<DEVICE, T, 3>(params.dynamics.gravity, linear_acceleration_global);
 
         T vector[3];
         T vector2[3];
 
         // angular_acceleration_local
         // flops: 9
-        utils::vector_operations::matrix_vector_product<T, 3, 3>(params.dynamics.J, angular_velocity_local_input, vector);
+        utils::vector_operations::matrix_vector_product<DEVICE, T, 3, 3>(params.dynamics.J, angular_velocity_local_input, vector);
         // flops: 6
-        utils::vector_operations::cross_product<T>(angular_velocity_local_input, vector, vector2);
-        utils::vector_operations::sub<T, 3>(torque, vector2, vector);
+        utils::vector_operations::cross_product<DEVICE, T>(angular_velocity_local_input, vector, vector2);
+        utils::vector_operations::sub<DEVICE, T, 3>(torque, vector2, vector);
         // flops: 9
-        utils::vector_operations::matrix_vector_product<T, 3, 3>(params.dynamics.J_inv, vector, angular_acceleration_local);
+        utils::vector_operations::matrix_vector_product<DEVICE, T, 3, 3>(params.dynamics.J_inv, vector, angular_acceleration_local);
         // total flops: (quadrotor): 92 + 16 + 21 + 4 + 9 + 6 + 9 = 157
     }
 }
 
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
-    static void initial_state(const rl::environments::Multirotor<DEVICE, SPEC>& env, typename rl::environments::multirotor::State<typename SPEC::T>& state){
-        for(index_t i = 0; i < rl::environments::multirotor::STATE_DIM; i++){
+    static void initial_state(const rl::environments::Multirotor<DEVICE, SPEC>& env, typename rl::environments::Multirotor<DEVICE, SPEC>::State& state){
+        for(typename DEVICE::index_t i = 0; i < utils::typing::remove_reference<decltype(env)>::type::STATE_DIM; i++){
             state.state[i] = 0;
         }
         state.state[3] = 1;
     }
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T step(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[rl::environments::multirotor::ACTION_DIM], rl::environments::multirotor::State<typename SPEC::T>& next_state) {
-        typename SPEC::T action_scaled[rl::environments::multirotor::ACTION_DIM];
-        for(index_t action_i = 0; action_i < rl::environments::multirotor::ACTION_DIM; action_i++){
+    static typename SPEC::T step(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM], typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state) {
+        constexpr auto STATE_DIM = rl::environments::Multirotor<DEVICE, SPEC>::STATE_DIM;
+        constexpr auto ACTION_DIM = rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM;
+        typename SPEC::T action_scaled[ACTION_DIM];
+        for(typename DEVICE::index_t action_i = 0; action_i < ACTION_DIM; action_i++){
             typename SPEC::T half_range = (env.parameters.action_limit.max - env.parameters.action_limit.min) / 2;
             action_scaled[action_i] = action[action_i] * half_range + env.parameters.action_limit.min + half_range;
         }
-        utils::integrators::rk4<typename SPEC::T, typename utils::typing::remove_reference<decltype(env.parameters)>::type, rl::environments::multirotor::STATE_DIM, rl::environments::multirotor::ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<typename SPEC::T, 4>>(env.parameters, state.state, action_scaled, env.parameters.dt, next_state.state);
+        utils::integrators::rk4<DEVICE, typename SPEC::T, typename utils::typing::remove_reference<decltype(env.parameters)>::type, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, STATE_DIM, ACTION_DIM>>(env.parameters, state.state, action_scaled, env.parameters.dt, next_state.state);
         typename SPEC::T quaternion_norm = 0;
-        for(index_t state_i = 3; state_i < 3+4; state_i++){
+        for(typename DEVICE::index_t state_i = 3; state_i < 3+4; state_i++){
             quaternion_norm += next_state.state[state_i] * next_state.state[state_i];
         }
         quaternion_norm = math::sqrt(typename DEVICE::SPEC::MATH(), quaternion_norm);
-        for(index_t state_i = 3; state_i < 3+4; state_i++){
+        for(typename DEVICE::index_t state_i = 3; state_i < 3+4; state_i++){
             next_state.state[state_i] /= quaternion_norm;
         }
 
@@ -122,10 +124,12 @@ namespace layer_in_c{
         return env.parameters.dt;
     }
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const rl::environments::multirotor::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::multirotor::State<typename SPEC::T>& next_state){
+    static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[1], const typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state){
+        constexpr auto STATE_DIM = rl::environments::Multirotor<DEVICE, SPEC>::STATE_DIM;
+        constexpr auto ACTION_DIM = rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM;
         using T = typename SPEC::T;
         T acc = 0;
-        for(index_t state_i = 0; state_i < rl::environments::multirotor::STATE_DIM; state_i++){
+        for(typename DEVICE::index_t state_i = 0; state_i < STATE_DIM; state_i++){
             if(state_i < 3){
                 acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.position;
             }
@@ -144,7 +148,7 @@ namespace layer_in_c{
                 }
             }
         }
-        for(index_t action_i = 0; action_i < rl::environments::multirotor::ACTION_DIM; action_i++){
+        for(typename DEVICE::index_t action_i = 0; action_i < ACTION_DIM; action_i++){
             T v = action[action_i] - env.parameters.reward.action_baseline;
             acc += v * v * env.parameters.reward.action;
         }
@@ -159,7 +163,7 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC>
-    static bool terminated(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::multirotor::State<typename SPEC::T> state){
+    static bool terminated(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state){
         return false;
     }
 }

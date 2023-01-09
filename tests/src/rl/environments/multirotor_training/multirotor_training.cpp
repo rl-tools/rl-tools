@@ -25,12 +25,12 @@ using DTYPE = float;
 using DEVICE = lic::devices::DefaultCPU;
 typedef lic::rl::environments::multirotor::Specification<DTYPE, lic::rl::environments::multirotor::StaticParameters> ENVIRONMENT_SPEC;
 typedef lic::rl::environments::Multirotor<DEVICE, ENVIRONMENT_SPEC> ENVIRONMENT;
-lic::rl::environments::multirotor::Parameters<DTYPE, 4> parameters = lic::rl::environments::multirotor::default_parameters<DTYPE>;
+auto parameters = lic::rl::environments::multirotor::default_parameters<DTYPE, DEVICE::index_t(4)>;
 
 struct ActorStructureSpec{
     using T = DTYPE;
-    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
-    static constexpr lic::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
+    static constexpr typename DEVICE::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -39,18 +39,19 @@ struct ActorStructureSpec{
 
 struct CriticStructureSpec{
     using T = DTYPE;
-    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
-    static constexpr lic::index_t OUTPUT_DIM = 1;
+    static constexpr typename DEVICE::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = 1;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
 
+using AC_DEVICE = lic::devices::DefaultCPU;
 template <typename T>
-struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
-    constexpr static lic::index_t CRITIC_BATCH_SIZE = 100;
-    constexpr static lic::index_t ACTOR_BATCH_SIZE = 100;
+struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<AC_DEVICE, T>{
+    constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
+    constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
 
 using NN_DEVICE = lic::devices::DefaultCPU;
@@ -66,19 +67,19 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<NN_DEV
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<NN_DEVICE, CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
 
-using AC_DEVICE = lic::devices::DefaultCPU;
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, NN_DEVICE, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 
-constexpr lic::index_t REPLAY_BUFFER_CAP = 500000;
-constexpr lic::index_t ENVIRONMENT_STEP_LIMIT = 200;
+constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
+constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 AC_DEVICE::SPEC::LOGGING logger;
 AC_DEVICE device(logger);
 NN_DEVICE nn_device(logger);
 lic::rl::components::OffPolicyRunner<
         DEVICE,
-        lic::rl::components::off_policy_runner::Spec<
+        lic::rl::components::off_policy_runner::Specification<
+                AC_DEVICE,
                 DTYPE,
                 ENVIRONMENT,
                 REPLAY_BUFFER_CAP,
@@ -112,7 +113,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     TensorBoardLogger tb_logger(log_file.c_str());
     std::mt19937 rng(2);
     lic::init(actor_critic, rng);
-    parameters.init = lic::rl::environments::multirotor::simple_init_parameters<DTYPE, 4>;
+    parameters.init = lic::rl::environments::multirotor::simple_init_parameters<DTYPE, DEVICE::index_t(4)>;
     ENVIRONMENT env({parameters});
     off_policy_runner.env = env;
 

@@ -20,7 +20,7 @@ simulate_parallel(
     T state[STATE_DIM];
     T next_state[STATE_DIM];
     memcpy(state,  &state_input[full_id *  STATE_DIM],  STATE_DIM * sizeof(T));
-    for(index_t i=0; i<N_ITERATIONS; i++){
+    for(typename DEVICE::index_t i=0; i<N_ITERATIONS; i++){
         T action[ACTION_DIM];
         evaluate(policy, state, action);
 //        memcpy(state, action, ACTION_DIM * sizeof(T));

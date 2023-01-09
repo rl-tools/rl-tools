@@ -18,13 +18,13 @@ namespace lic = layer_in_c;
 using DEVICE = lic::devices::DefaultCPU;
 using ENVIRONMENT_SPEC = lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>;
 using ENVIRONMENT = lic::rl::environments::Pendulum<DEVICE, ENVIRONMENT_SPEC>;
-typedef lic::rl::components::off_policy_runner::Spec<DTYPE, ENVIRONMENT, 5000, 100, lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
+typedef lic::rl::components::off_policy_runner::Specification<DEVICE, DTYPE, ENVIRONMENT, 5000, 100, lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
 typedef lic::rl::components::OffPolicyRunner<DEVICE, OffPolicyRunnerSpec> OffPolicyRunner;
 
 struct PendulumStructureSpecification{
     typedef DTYPE T;
-    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
-    static constexpr lic::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
+    static constexpr typename DEVICE::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
     static constexpr int NUM_LAYERS = 3; // The input and output layers count towards the total number of layers
     static constexpr int HIDDEN_DIM = 30;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;

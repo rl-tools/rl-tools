@@ -39,8 +39,8 @@ namespace layer_in_c::rl::environments{
         static constexpr bool REQUIRES_OBSERVATION = true;
         using State = pendulum::State<typename SPEC::T>;
         using PARAMETERS = typename SPEC::PARAMETERS;
-        static constexpr index_t OBSERVATION_DIM = 3;
-        static constexpr index_t ACTION_DIM = 1;
+        static constexpr typename DEVICE::index_t OBSERVATION_DIM = 3;
+        static constexpr typename DEVICE::index_t ACTION_DIM = 1;
     };
 }
 

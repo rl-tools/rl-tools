@@ -27,11 +27,11 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     using DEVICE = lic::devices::DefaultCPU;
     using SPEC = lic::rl::environments::multirotor::Specification<DTYPE, lic::rl::environments::multirotor::StaticParameters>;
     using ENVIRONMENT = lic::rl::environments::Multirotor<DEVICE, SPEC>;
-    using PARAMETERS = lic::rl::environments::multirotor::Parameters<DTYPE, 4>;
+    using PARAMETERS = lic::rl::environments::multirotor::Parameters<DTYPE, DEVICE::index_t(4)>;
 
-    std::cout << "sizeof state: " << sizeof(lic::rl::environments::multirotor::State<DTYPE>) << std::endl;
+    std::cout << "sizeof state: " << sizeof(ENVIRONMENT::State) << std::endl;
 
-    PARAMETERS parameters = lic::rl::environments::multirotor::default_parameters<DTYPE>;
+    PARAMETERS parameters = lic::rl::environments::multirotor::default_parameters<DTYPE, DEVICE::index_t(4)>;
     ENVIRONMENT env({parameters});
     std::mt19937 rng(0);
 

@@ -14,7 +14,7 @@ namespace layer_in_c {
         typename ENVIRONMENT::State state;
         state = initial_state;
         T episode_return = 0;
-        for (index_t i = 0; i < STEP_LIMIT; i++) {
+        for (typename ENVIRONMENT::DEVICE::index_t i = 0; i < STEP_LIMIT; i++) {
             T observation_mem[ENVIRONMENT::OBSERVATION_DIM];
             T* observation;
             if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
@@ -28,7 +28,7 @@ namespace layer_in_c {
             T action[ENVIRONMENT::ACTION_DIM];
             evaluate(policy, observation, action);
             T action_clipped[ENVIRONMENT::ACTION_DIM];
-            for(index_t action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
+            for(typename ENVIRONMENT::DEVICE::index_t action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
                 action_clipped[action_i] = math::clamp<T>(action[action_i], -1, 1);
             }
             typename ENVIRONMENT::State next_state;
@@ -44,12 +44,12 @@ namespace layer_in_c {
         return episode_return;
     }
     template<typename DEVICE, typename ENVIRONMENT, typename POLICY, typename RNG, auto STEP_LIMIT, bool DETERMINISTIC>
-    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT env, POLICY &policy, index_t N, RNG &rng) {
+    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT env, POLICY &policy, typename DEVICE::index_t N, RNG &rng) {
         typedef typename POLICY::T T;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM, "Action and policy output dimensions must match");
         T episode_returns[N];
-        for(index_t i = 0; i < N; i++) {
+        for(typename DEVICE::index_t i = 0; i < N; i++) {
             typename ENVIRONMENT::State initial_state;
             if(DETERMINISTIC) {
                 layer_in_c::initial_state(env, initial_state);
@@ -60,12 +60,12 @@ namespace layer_in_c {
             episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(env, policy, initial_state);
         }
         T mean = 0;
-        for(index_t i = 0; i < N; i++) {
+        for(typename DEVICE::index_t i = 0; i < N; i++) {
             mean += episode_returns[i];
         }
         mean /= N;
         T variance = 0;
-        for(index_t i = 0; i < N; i++) {
+        for(typename DEVICE::index_t i = 0; i < N; i++) {
             variance += (episode_returns[i] - mean) * (episode_returns[i] - mean);
         }
         variance /= N;

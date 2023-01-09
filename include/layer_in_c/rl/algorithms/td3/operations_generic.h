@@ -30,7 +30,8 @@ namespace layer_in_c{
             CRITIC_TYPE& critic,
             rl::components::ReplayBuffer<
                     REPLAY_BUFFER_DEVICE,
-                    rl::components::replay_buffer::Spec<
+                    rl::components::replay_buffer::Specification<
+                            REPLAY_BUFFER_DEVICE,
                             typename SPEC::T,
                             SPEC::ENVIRONMENT::OBSERVATION_DIM,
                             SPEC::ENVIRONMENT::ACTION_DIM,
@@ -44,13 +45,13 @@ namespace layer_in_c{
         utils::assert_exit(actor_critic.device, replay_buffer.full || replay_buffer.position >= SPEC::PARAMETERS::CRITIC_BATCH_SIZE, "Error: replay buffer not full enough for training critic");
         T loss = 0;
         zero_gradient(critic);
-        for(index_t batch_step_i=0; batch_step_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_step_i++){
-            index_t sample_index_max = (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
-            index_t sample_index = DETERMINISTIC ? batch_step_i : utils::random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (index_t)0, sample_index_max, rng);
+        for(typename DEVICE::index_t batch_step_i=0; batch_step_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_step_i++){
+            typename DEVICE::index_t sample_index_max = (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
+            typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : utils::random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t)0, sample_index_max, rng);
             T next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];
             utils::memcpy(next_state_action_value_input, replay_buffer.next_observations[sample_index], SPEC::ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             evaluate(actor_critic.actor_target, next_state_action_value_input, &next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
-            for(index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
+            for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 T noisy_next_action = next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] + target_next_action_noise[batch_step_i][action_i];
                 noisy_next_action = math::clamp<T>(noisy_next_action, -1, 1);
                 next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] = noisy_next_action;
@@ -69,7 +70,7 @@ namespace layer_in_c{
 
             forward_backward_mse<typename CRITIC_TYPE::DEVICE, typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic, state_action_value_input, target_action_value);
             static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
-            T loss_sample = nn::loss_functions::mse<T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.pre_activations, target_action_value);
+            T loss_sample = nn::loss_functions::mse<DEVICE, T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(critic.output_layer.pre_activations, target_action_value);
             loss += loss_sample;
         }
         update(critic);
@@ -81,7 +82,8 @@ namespace layer_in_c{
             CRITIC_TYPE& critic,
             rl::components::ReplayBuffer<
                     REPLAY_BUFFER_DEVICE,
-                    rl::components::replay_buffer::Spec<
+                    rl::components::replay_buffer::Specification<
+                            REPLAY_BUFFER_DEVICE,
                             typename SPEC::T,
                             SPEC::ENVIRONMENT::OBSERVATION_DIM,
                             SPEC::ENVIRONMENT::ACTION_DIM,
@@ -92,8 +94,8 @@ namespace layer_in_c{
     ) {
         typedef typename SPEC::T T;
         T action_noise[SPEC::PARAMETERS::CRITIC_BATCH_SIZE][SPEC::ENVIRONMENT::ACTION_DIM];
-        for(index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
-            for(index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
+        for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
+            for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 action_noise[batch_sample_i][action_i] = math::clamp(
                         utils::random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng),
                         -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
@@ -108,7 +110,8 @@ namespace layer_in_c{
             rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
             rl::components::ReplayBuffer<
                     REPLAY_BUFFER_DEVICE,
-                    rl::components::replay_buffer::Spec<
+                    rl::components::replay_buffer::Specification<
+                            REPLAY_BUFFER_DEVICE,
                             typename SPEC::T,
                             SPEC::ENVIRONMENT::OBSERVATION_DIM,
                             SPEC::ENVIRONMENT::ACTION_DIM,
@@ -122,9 +125,9 @@ namespace layer_in_c{
         typedef typename SPEC::ENVIRONMENT ENVIRONMENT;
         T actor_value = 0;
         zero_gradient(actor_critic.actor);
-        index_t sample_index_max = (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
-        for (index_t sample_i=0; sample_i < PARAMETERS::ACTOR_BATCH_SIZE; sample_i++){
-            index_t sample_index = DETERMINISTIC ? sample_i : utils::random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (index_t)0, sample_index_max, rng);
+        typename DEVICE::index_t sample_index_max = (replay_buffer.full ? REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
+        for (typename DEVICE::index_t sample_i=0; sample_i < PARAMETERS::ACTOR_BATCH_SIZE; sample_i++){
+            typename DEVICE::index_t sample_index = DETERMINISTIC ? sample_i : utils::random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t)0, sample_index_max, rng);
             T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
             utils::memcpy(state_action_value_input, replay_buffer.observations[sample_index], ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
             forward(actor_critic.actor, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]);
@@ -150,7 +153,7 @@ namespace layer_in_c{
     void update_target_network(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {
         using TargetNetworkType = typename utils::typing::remove_reference<decltype(target)>::type;
         update_target_layer(target.input_layer, source.input_layer, polyak);
-        for(index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+        for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             update_target_layer(target.hidden_layers[layer_i], source.hidden_layers[layer_i], polyak);
         }
         update_target_layer(target.output_layer, source.output_layer, polyak);

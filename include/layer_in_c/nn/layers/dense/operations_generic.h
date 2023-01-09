@@ -17,9 +17,9 @@ namespace layer_in_c{
         T std = gain / math::sqrt(typename DEVICE::SPEC::MATH(), fan);
         T weight_bound = math::sqrt(typename DEVICE::SPEC::MATH(), (T)3.0) * std;
         T bias_bound = 1/math::sqrt(typename DEVICE::SPEC::MATH(), (T)LS::INPUT_DIM);
-        for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < LS::OUTPUT_DIM; i++) {
             layer.biases[i] = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng);
-            for(index_t j = 0; j < LS::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < LS::INPUT_DIM; j++) {
                 layer.weights[i][j] = utils::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng);
             }
         }
@@ -28,9 +28,9 @@ namespace layer_in_c{
     template<typename DEVICE, typename T, typename SPEC>
     FUNCTION_PLACEMENT void evaluate(const nn::layers::dense::Layer<DEVICE, SPEC>& layer, const T input[SPEC::INPUT_DIM], T output[SPEC::OUTPUT_DIM]) {
         // Warning do not use the same buffer for input and output!
-        for(index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
             output[i] = layer.biases[i];
-            for(index_t j = 0; j < SPEC::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 output[i] += layer.weights[i][j] * input[j];
             }
             output[i] = nn::activation_functions::activation<typename DEVICE::SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(output[i]);
@@ -40,9 +40,9 @@ namespace layer_in_c{
     template<typename DEVICE, typename T, typename SPEC>
     FUNCTION_PLACEMENT void forward(nn::layers::dense::LayerBackward<DEVICE, SPEC>& layer, const T input[SPEC::INPUT_DIM], T output[SPEC::OUTPUT_DIM]) {
         // Warning do not use the same buffer for input and output!
-        for(index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
             layer.pre_activations[i] = layer.biases[i];
-            for(index_t j = 0; j < SPEC::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 layer.pre_activations[i] += layer.weights[i][j] * input[j];
             }
             output[i] = nn::activation_functions::activation<T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
@@ -52,9 +52,9 @@ namespace layer_in_c{
     template<typename DEVICE, typename T, typename SPEC>
     FUNCTION_PLACEMENT void forward(nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& layer, const T input[SPEC::INPUT_DIM]) {
         // Warning do not use the same buffer for input and output!
-        for(index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
             layer.pre_activations[i] = layer.biases[i];
-            for(index_t j = 0; j < SPEC::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 layer.pre_activations[i] += layer.weights[i][j] * input[j];
             }
             layer.output[i] = nn::activation_functions::activation<typename DEVICE::SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
@@ -65,7 +65,7 @@ namespace layer_in_c{
     FUNCTION_PLACEMENT void forward(nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& layer, const T input[SPEC::INPUT_DIM], T output[SPEC::OUTPUT_DIM]) {
         // compile time warning if used
         forward(layer, input);
-        for(index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
             output[i] = layer.output[i];
         }
     }
@@ -73,9 +73,9 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     FUNCTION_PLACEMENT void backward(nn::layers::dense::LayerBackward<DEVICE, SPEC>& layer, const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
-        for(index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
             typename SPEC::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
-            for(index_t j = 0; j < SPEC::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 if(i == 0){
                     d_input[j] = 0;
                 }
@@ -93,10 +93,10 @@ namespace layer_in_c{
     FUNCTION_PLACEMENT void backward(nn::layers::dense::LayerBackwardGradient<DEVICE, LS>& layer, const typename LS::T input[LS::INPUT_DIM], const typename LS::T d_output[LS::OUTPUT_DIM], typename LS::T d_input[LS::INPUT_DIM]) {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
-        for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < LS::OUTPUT_DIM; i++) {
             typename LS::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename DEVICE::SPEC::MATH, typename LS::T, LS::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
             layer.d_biases[i] += d_pre_activation;
-            for(index_t j = 0; j < LS::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < LS::INPUT_DIM; j++) {
                 if(i == 0){
                     d_input[j] = 0;
                 }
@@ -107,18 +107,18 @@ namespace layer_in_c{
     }
     template<typename DEVICE, typename LS>
     FUNCTION_PLACEMENT void zero_gradient(nn::layers::dense::LayerBackwardGradient<DEVICE, LS>& layer) {
-        for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < LS::OUTPUT_DIM; i++) {
             layer.d_biases[i] = 0;
-            for(index_t j = 0; j < LS::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < LS::INPUT_DIM; j++) {
                 layer.d_weights[i][j] = 0;
             }
         }
     }
     template<typename DEVICE, typename LS, typename PARAMETERS>
     FUNCTION_PLACEMENT void update_layer(nn::layers::dense::LayerBackwardSGD<DEVICE, LS, PARAMETERS>& layer){
-        for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < LS::OUTPUT_DIM; i++) {
             layer.biases[i] -= PARAMETERS::ALPHA * layer.d_biases[i];
-            for(index_t j = 0; j < LS::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < LS::INPUT_DIM; j++) {
                 layer.weights[i][j] -= PARAMETERS::ALPHA * layer.d_weights[i][j];
             }
         }
@@ -126,10 +126,10 @@ namespace layer_in_c{
 
     template<typename DEVICE, typename LS, typename PARAMETERS>
     FUNCTION_PLACEMENT void reset_optimizer_state(nn::layers::dense::LayerBackwardAdam<DEVICE, LS, PARAMETERS>& layer) {
-        for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < LS::OUTPUT_DIM; i++) {
             layer.d_biases_first_order_moment [i] = 0;
             layer.d_biases_second_order_moment[i] = 0;
-            for(index_t j = 0; j < LS::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < LS::INPUT_DIM; j++) {
                 layer.d_weights_first_order_moment [i][j] = 0;
                 layer.d_weights_second_order_moment[i][j] = 0;
             }
@@ -137,10 +137,10 @@ namespace layer_in_c{
     }
     template<typename DEVICE, typename LS, typename PARAMETERS>
     FUNCTION_PLACEMENT void gradient_descent(nn::layers::dense::LayerBackwardAdam<DEVICE, LS, PARAMETERS>& layer, typename LS::T first_order_moment_bias_correction, typename LS::T second_order_moment_bias_correction){
-        for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < LS::OUTPUT_DIM; i++) {
             typename LS::T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_biases_first_order_moment[i] / (math::sqrt(typename DEVICE::SPEC::MATH(), layer.d_biases_second_order_moment[i] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
             layer.biases[i] -= bias_update;
-            for(index_t j = 0; j < LS::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < LS::INPUT_DIM; j++) {
                 typename LS::T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_weights_first_order_moment[i][j] / (math::sqrt(typename DEVICE::SPEC::MATH(), layer.d_weights_second_order_moment[i][j] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
                 layer.weights[i][j] -= weight_update;
             }
@@ -161,9 +161,9 @@ namespace layer_in_c{
 
     template<typename DEVICE, typename SPEC>
     FUNCTION_PLACEMENT void copy(nn::layers::dense::Layer<DEVICE, SPEC>& target, const nn::layers::dense::Layer<DEVICE, SPEC>& source){
-        for(index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
+        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
             target.biases[i] = source.biases[i];
-            for(index_t j = 0; j < SPEC::INPUT_DIM; j++) {
+            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 target.weights[i][j] = source.weights[i][j];
             }
         }

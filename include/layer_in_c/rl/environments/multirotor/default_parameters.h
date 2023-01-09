@@ -135,12 +135,12 @@ namespace layer_in_c::rl::environments::multirotor {
             0,
             0
     };
-    template<typename T>
-    Parameters<T, 4> default_parameters = {
-            default_dynamics_parameters<T, 4>,
-            default_action_limit<T, 4>,
-            simple_init_parameters<T, 4>,
-            default_reward_parameters<T, 4>,
+    template<typename T, auto N>
+    Parameters<T, N> default_parameters = {
+            default_dynamics_parameters<T, N>,
+            default_action_limit<T, N>,
+            simple_init_parameters<T, N>,
+            default_reward_parameters<T, N>,
             // dt
             0.02
     };

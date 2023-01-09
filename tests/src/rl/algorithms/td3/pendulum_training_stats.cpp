@@ -43,8 +43,8 @@ constexpr int N_CORES = 4;
 constexpr int N_BLOCKS = 50;
 constexpr int N_TRAINING_RUNS = N_CORES * N_BLOCKS;
 
-constexpr lic::index_t REPLAY_BUFFER_CAP = N_STEPS;
-constexpr lic::index_t ENVIRONMENT_STEP_LIMIT = 200;
+constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = N_STEPS;
+constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, lic::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3PendulumParameters<DTYPE>>> ActorCriticType;
 typedef lic::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, lic::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT>> OFF_POLICY_RUNNER_TYPE;
 const DTYPE STATE_TOLERANCE = 0.00001;
@@ -57,11 +57,11 @@ ActorCriticType actor_critics[N_CORES];
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
 
-    std::vector<lic::index_t> mean_returns_steps;
+    std::vector<typename DEVICE::index_t> mean_returns_steps;
     std::vector<std::vector<DTYPE>> mean_returns(N_TRAINING_RUNS);
 
     for(int block_i=0; block_i < N_BLOCKS; block_i++){
-        std::vector<lic::index_t> training_run_indices;
+        std::vector<typename DEVICE::index_t> training_run_indices;
         for(int training_run_i=0; training_run_i < N_CORES; training_run_i++){
             training_run_indices.push_back(training_run_i);
         }
@@ -125,7 +125,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
 
     std::string training_stats_file = training_stats_dir + "/td3_pendulum_training_stats.h5";
     HighFive::File file(training_stats_file, HighFive::File::Overwrite);
-    HighFive::DataSet dataset = file.createDataSet<lic::index_t>("mean_returns_steps", HighFive::DataSpace::From(mean_returns_steps));
+    HighFive::DataSet dataset = file.createDataSet<typename DEVICE::index_t>("mean_returns_steps", HighFive::DataSpace::From(mean_returns_steps));
     dataset.write(mean_returns_steps);
     dataset = file.createDataSet<DTYPE>("mean_returns", HighFive::DataSpace::From(mean_returns));
     dataset.write(mean_returns);

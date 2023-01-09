@@ -39,8 +39,8 @@ ENVIRONMENT env;
 
 struct ActorStructureSpec{
     using T = DTYPE;
-    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
-    static constexpr lic::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
+    static constexpr typename DEVICE::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
@@ -49,24 +49,24 @@ struct ActorStructureSpec{
 
 struct CriticStructureSpec{
     using T = DTYPE;
-    static constexpr lic::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
-    static constexpr lic::index_t OUTPUT_DIM = 1;
+    static constexpr typename DEVICE::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
+    static constexpr typename DEVICE::index_t OUTPUT_DIM = 1;
     static constexpr int NUM_LAYERS = 3;
     static constexpr int HIDDEN_DIM = 64;
     static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
     static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 };
 
-template <typename T>
-struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T>{
-    constexpr static lic::index_t CRITIC_BATCH_SIZE = 100;
-    constexpr static lic::index_t ACTOR_BATCH_SIZE = 100;
-};
-
 struct AC_DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
     using LOGGING = lic::devices::logging::CPU_WANDB;
 };
 using AC_DEVICE = lic::devices::CPU<AC_DEVICE_SPEC>;
+template <typename T>
+struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<AC_DEVICE, T>{
+    constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
+    constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
+};
+
 //using NN_DEVICE = lic::devices::DefaultCPU;
 using NN_DEVICE = AC_DEVICE;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
@@ -85,15 +85,16 @@ using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, NN_
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
 
 
-constexpr lic::index_t REPLAY_BUFFER_CAP = 500000;
-constexpr lic::index_t ENVIRONMENT_STEP_LIMIT = 200;
+constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
+constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 AC_DEVICE::SPEC::LOGGING logger;
 AC_DEVICE ac_dev(logger);
 //NN_DEVICE::SPEC::LOGGING nn_logger;
 NN_DEVICE nn_dev(logger);
 lic::rl::components::OffPolicyRunner<
     AC_DEVICE,
-    lic::rl::components::off_policy_runner::Spec<
+    lic::rl::components::off_policy_runner::Specification<
+        AC_DEVICE,
         DTYPE,
         ENVIRONMENT,
         REPLAY_BUFFER_CAP,
