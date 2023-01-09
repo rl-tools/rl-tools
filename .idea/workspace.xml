@@ -78,13 +78,6 @@
     <list default="true" id="9f030793-4e72-46a6-a556-d88b60910c80" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/layer_in_c/math/operations_cpu.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/layer_in_c/math/operations_cpu.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/tests/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/lib/highfive" beforeDir="false" afterPath="$PROJECT_DIR$/tests/lib/highfive" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/lib/highfive/deps/catch2" beforeDir="false" afterPath="$PROJECT_DIR$/tests/lib/highfive/deps/catch2" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/lib/highfive/deps/catch2/extras/catch_amalgamated.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/lib/highfive/deps/catch2/extras/catch_amalgamated.hpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/lib/highfive/deps/catch2/src/catch2/benchmark/detail/catch_estimate_clock.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/lib/highfive/deps/catch2/src/catch2/benchmark/detail/catch_estimate_clock.hpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/src/rl/environments/multirotor_training/multirotor_training.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/src/rl/environments/multirotor_training/multirotor_training.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -122,13 +115,13 @@
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "ctest.advertisement.all.test.configuration.is.created": "true",
-    "last_opened_file_path": "/Users/jonas/phd/projects/layer-in-c/include/layer_in_c/logging",
+    "last_opened_file_path": "/home/jonas/phd/projects/rl_for_control/layer-in-c",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "CPPToolchains",
+    "settings.editor.selected.configurable": "settings.sync",
     "settings.editor.splitter.proportion": "0.2579365",
     "vue.rearranger.settings.migration": "true"
   }
@@ -251,26 +244,6 @@
         <option name="BeforeTestRunTask" enabled="true" />
       </method>
     </configuration>
-    <configuration name="example_td3_pendulum" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="example_td3_pendulum" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="example_td3_pendulum">
-      <method v="2">
-        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="tensorboard_logger" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="tensorboard_logger" CONFIG_NAME="Debug">
-      <method v="2">
-        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="test_rl_algorithms_td3_full_training_dummy_dep_compilation" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_rl_algorithms_td3_full_training_dummy_dep_compilation" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_rl_algorithms_td3_full_training_dummy_dep_compilation">
-      <method v="2">
-        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="test_rl_algorithms_td3_full_training_dummy_dep_training" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_rl_algorithms_td3_full_training_dummy_dep_training" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_rl_algorithms_td3_full_training_dummy_dep_training">
-      <method v="2">
-        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
-      </method>
-    </configuration>
     <configuration name="All CTest" type="CTestRunConfiguration" factoryName="CTestRun" PROGRAM_PARAMS="--extra-verbose -j16" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$CMakeCurrentLocalGenerationDir$" PASS_PARENT_ENVS_2="true" CONFIG_NAME="Debug" RUN_PATH="$CTestCurrentExecutableName$" EXPLICIT_BUILD_TARGET_NAME="all" TEST_MODE="PATTERN">
       <envs>
         <env name="LAYER_IN_C_TEST_NN_DATA_FILE" value="$PROJECT_DIR$/../model-learning/data.hdf5" />
@@ -320,11 +293,8 @@
       <workItem from="1672405682889" duration="57000" />
       <workItem from="1672405752444" duration="7795000" />
       <workItem from="1672419024280" duration="25859000" />
-      <workItem from="1672769712306" duration="4892000" />
-      <workItem from="1672921937094" duration="1414000" />
-      <workItem from="1672958584327" duration="17158000" />
-      <workItem from="1673112226398" duration="7850000" />
-      <workItem from="1673120892780" duration="41355000" />
+      <workItem from="1672949381514" duration="26000" />
+      <workItem from="1672951856225" duration="343000" />
     </task>
     <servers />
   </component>
