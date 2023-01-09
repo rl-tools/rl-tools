@@ -114,7 +114,7 @@ int main() {
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
     UI ui;
 #endif
-    lic::utils::random::default_engine<DEVICE::SPEC::RANDOM> rng(1);
+    lic::random::default_engine<DEVICE::SPEC::RANDOM> rng(1);
     lic::init(actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){

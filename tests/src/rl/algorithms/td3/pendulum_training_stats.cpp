@@ -81,7 +81,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
                     actor_critics[training_run_sub_i] = *temp_actor_critic;
                     delete temp_actor_critic;
                     auto& actor_critic = actor_critics[training_run_sub_i];
-                    lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::utils::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
+                    lic::init<lic::devices::Generic, ActorCriticType::SPEC, layer_in_c::random::stdlib::uniform<DTYPE, typeof(rng)>, typeof(rng)>(actor_critic, rng);
                     for(int step_i = 0; step_i < N_STEPS; step_i++){
                         lic::step(off_policy_runner, actor_critic.actor, rng);
                         if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
