@@ -8,7 +8,8 @@ namespace layer_in_c {
         enum class Device {
             Generic,
             Dummy,
-            CPU
+            CPU,
+            CUDA
         };
         enum class Domain {
             math,

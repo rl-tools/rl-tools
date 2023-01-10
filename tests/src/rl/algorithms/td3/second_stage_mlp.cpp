@@ -209,6 +209,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             if (step_i == 0 && step_group.exist("pre_critic1")){
                 decltype(actor_critic.critic_1) pre_critic_1_step(nn_device);
                 lic::load(pre_critic_1_step, step_group.getGroup("pre_critic1"));
+                lic::reset_forward_state(pre_critic_1_step);
+                lic::reset_forward_state(actor_critic.critic_1);
                 DTYPE pre_current_diff = abs_diff(pre_critic_1_step, actor_critic.critic_1);
                 ASSERT_EQ(pre_current_diff, 0);
             }
@@ -227,6 +229,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             >(actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
 
 
+            lic::reset_forward_state(pre_critic_1);
+            lic::reset_forward_state(post_critic_1);
+            lic::reset_forward_state(actor_critic.critic_1);
             DTYPE pre_post_diff_per_weight = abs_diff(pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
             DTYPE diff_target_per_weight = abs_diff(post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
             DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
@@ -304,6 +309,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
             decltype(actor_critic.actor) pre_actor_loaded(nn_device);
             lic::load(pre_actor_loaded, step_group.getGroup("pre_actor"));
+            lic::reset_forward_state(pre_actor_loaded);
+            lic::reset_forward_state(actor_critic.actor);
             DTYPE pre_current_diff = abs_diff(pre_actor_loaded, actor_critic.actor);
             if(step_i == 0){
                 ASSERT_EQ(pre_current_diff, 0);
@@ -323,6 +330,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 }
 //                std::cout << "action mse: " << diff << std::endl;
             }
+
+            lic::reset_forward_state(pre_actor);
+            lic::reset_forward_state(post_actor);
+            lic::reset_forward_state(actor_critic.actor);
 
             DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
             DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;

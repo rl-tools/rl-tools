@@ -263,3 +263,16 @@ target_include_directories(
 )
 gtest_discover_tests(test_rl_environments_multirotor_training_test)
 
+# Neural Network Test MLP
+add_executable(
+        test_neural_network_conversions
+        src/nn/conversions.cpp
+)
+target_link_libraries(
+        test_neural_network_conversions
+        layer_in_c
+)
+add_test(
+        NAME test_neural_network_conversions
+        COMMAND test_neural_network_conversions
+)

@@ -198,14 +198,54 @@ namespace layer_in_c {
         network.age = 1;
     }
 
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source){
-        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
-        copy(target.input_layer, source.input_layer);
-        for(typename DEVICE::index_t layer_i = 0; layer_i < utils::typing::remove_reference<decltype(target)>::type::NUM_HIDDEN_LAYERS; layer_i++){
-            copy(target.hidden_layers[layer_i], source.hidden_layers[layer_i]);
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(nn_models::mlp::NeuralNetwork<TARGET_DEVICE, TARGET_SPEC>* target, const nn_models::mlp::NeuralNetwork<SOURCE_DEVICE, SOURCE_SPEC>* source){
+        static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
+        copy(target->input_layer, source->input_layer);
+        for(typename TARGET_DEVICE::index_t layer_i = 0; layer_i <  utils::typing::remove_pointer<decltype(target)>::type::NUM_HIDDEN_LAYERS; layer_i++){
+            copy(target->hidden_layers[layer_i], source->hidden_layers[layer_i]);
         }
-        copy(target.output_layer, source.output_layer);
+        copy(target->output_layer, source->output_layer);
+    }
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(nn_models::mlp::NeuralNetwork<TARGET_DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_DEVICE, SOURCE_SPEC>& source){
+        static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
+        copy(&target, &source);
+    }
+
+    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(nn_models::mlp::NeuralNetworkAdam<DEVICE, TARGET_SPEC>* target, const nn_models::mlp::NeuralNetworkAdam<DEVICE, SOURCE_SPEC>* source){
+        static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
+        copy((nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>*)target, (nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>*)source);
+        target->age = source->age;
+    }
+    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(nn_models::mlp::NeuralNetworkAdam<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkAdam<DEVICE, SOURCE_SPEC>& source){
+        static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
+        copy(&target, &source);
+    }
+
+    template<typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void reset_forward_state(nn_models::mlp::NeuralNetwork<DEVICE, SPEC>* n){
+        reset_forward_state(n->input_layer);
+        for(typename DEVICE::index_t layer_i = 0; layer_i <  utils::typing::remove_pointer<decltype(n)>::type::NUM_HIDDEN_LAYERS; layer_i++){
+            reset_forward_state(n->hidden_layers[layer_i]);
+        }
+        reset_forward_state(n->output_layer);
+    }
+    template<typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void reset_forward_state(nn_models::mlp::NeuralNetwork<DEVICE, SPEC>& n){
+        reset_forward_state(&n);
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS>
+    FUNCTION_PLACEMENT void reset_forward_state(nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC>* n){
+        reset_forward_state((nn_models::mlp::NeuralNetwork<DEVICE, SPEC>*)n);
+        n->age = 1; // not technically forward state but fits the same category from a usage point of view
+    }
+
+    template<typename DEVICE, typename SPEC, typename PARAMETERS>
+    FUNCTION_PLACEMENT void reset_forward_state(nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC>& n){
+        reset_forward_state(&n);
     }
 
 

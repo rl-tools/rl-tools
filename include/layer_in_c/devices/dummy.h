@@ -18,6 +18,7 @@ namespace layer_in_c::devices{
     namespace random{
         struct Dummy: dummy::Base{
             static constexpr Domain DOMAIN = Domain::random;
+            using State = unsigned;
         };
     }
     namespace logging{

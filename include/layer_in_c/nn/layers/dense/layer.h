@@ -1,10 +1,11 @@
 #ifndef LAYER_IN_C_NN_LAYERS_DENSE_LAYER_H
 #define LAYER_IN_C_NN_LAYERS_DENSE_LAYER_H
 #include <layer_in_c/nn/activation_functions.h>
+#include <layer_in_c/utils/generic/typing.h>
 
 namespace layer_in_c::nn::layers::dense {
     template<typename T_T, auto T_INPUT_DIM, auto T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION>
-    struct LayerSpecification {
+    struct Specification {
         typedef T_T T;
         static constexpr auto INPUT_DIM = T_INPUT_DIM;
         static constexpr auto OUTPUT_DIM = T_OUTPUT_DIM;
@@ -12,6 +13,16 @@ namespace layer_in_c::nn::layers::dense {
         // Summary
         static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
     };
+    template<typename SPEC_1, typename SPEC_2>
+    constexpr bool check_spec_memory =
+            utils::typing::is_same_v<typename SPEC_1::T, typename SPEC_2::T>
+            && SPEC_1::INPUT_DIM == SPEC_2::INPUT_DIM
+            && SPEC_1::OUTPUT_DIM == SPEC_2::OUTPUT_DIM;
+    template<typename SPEC_1, typename SPEC_2>
+    constexpr bool check_spec =
+        check_spec_memory<SPEC_1, SPEC_2>
+        && SPEC_1::ACTIVATION_FUNCTION == SPEC_2::ACTIVATION_FUNCTION;
+
     template<typename DEVICE, typename T_SPEC>
     struct Layer {
         typedef T_SPEC SPEC;

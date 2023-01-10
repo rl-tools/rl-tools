@@ -1,14 +1,9 @@
 #include <layer_in_c/operations/cpu.h>
 
-#include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
-
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/environments/pendulum/operations_generic.h>
 #include <layer_in_c/rl/components/off_policy_runner/operations_generic.h>
-#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
-
+#include <layer_in_c/rl/algorithms/td3/operations_generic.h>
 
 #include <layer_in_c/rl/utils/evaluation.h>
 
@@ -101,7 +96,6 @@ int main() {
             }
             DTYPE critic_1_loss = lic::train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
             lic::train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
-//            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
                 lic::train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
                 lic::update_targets(actor_critic);

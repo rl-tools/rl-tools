@@ -219,6 +219,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 
     auto critic_1_after_backward = actor_critic.critic_1;
     lic::load(critic_1_after_backward, data_file.getGroup("critic_1_backward"));
+    lic::reset_forward_state(actor_critic.critic_1);
+    lic::reset_forward_state(critic_1_after_backward);
     DTYPE diff_grad_per_weight = abs_diff_grad(actor_critic.critic_1, critic_1_after_backward)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
     ASSERT_LT(diff_grad_per_weight, 1e-17);
 
@@ -285,6 +287,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
                 decltype(rng),
                 true
         >(actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
+
+        lic::reset_forward_state(pre_critic_1);
+        lic::reset_forward_state(post_critic_1);
+        lic::reset_forward_state(actor_critic.critic_1);
 
         DTYPE pre_post_diff_per_weight = abs_diff(pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_target_per_weight = abs_diff(post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
@@ -372,6 +378,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
         lic::load(post_actor, data_file.getGroup(ss.str()));
 
         DTYPE actor_1_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, ReplayBufferType::DEVICE, ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+
+        lic::reset_forward_state(pre_actor);
+        lic::reset_forward_state(post_actor);
+        lic::reset_forward_state(actor_critic.actor);
 
         DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;

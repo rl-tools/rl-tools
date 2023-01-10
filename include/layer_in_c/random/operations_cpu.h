@@ -7,8 +7,9 @@
 #include <random>
 
 namespace layer_in_c::random{
-    template<typename DEVICE>
-    using default_engine = utils::typing::enable_if_t<utils::typing::is_same_v<DEVICE, devices::random::CPU>, std::default_random_engine>;
+    auto default_engine(const devices::random::CPU& dev){
+        return std::default_random_engine(0);
+    };
 
     template<typename T, typename RNG>
     T uniform_int_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){

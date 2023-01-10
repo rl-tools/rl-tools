@@ -2,8 +2,10 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/tests/lib/googletest" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/tests/lib/highfive" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/tests/lib/highfive/deps/catch2" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/tests/lib/matplotlib" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/tests/lib/tensorboard" vcs="Git" />
   </component>
 </project>

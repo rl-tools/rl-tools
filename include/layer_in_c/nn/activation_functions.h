@@ -1,5 +1,6 @@
 #ifndef LAYER_IN_C_NN_ACTIVATION_FUNCTIONS
 #define LAYER_IN_C_NN_ACTIVATION_FUNCTIONS
+#include <layer_in_c/devices/devices.h>
 namespace layer_in_c::nn::activation_functions {
     enum ActivationFunction{
         IDENTITY,
@@ -35,6 +36,9 @@ namespace layer_in_c::nn::activation_functions {
         else if (F == SIGMOID_STRETCHED){
             return activation<DEVICE, T, SIGMOID>(x) * (T)2 - (T)1;
         }
+        else{
+            return 0;
+        }
     }
 
     template<typename DEVICE, typename T, ActivationFunction F>
@@ -62,6 +66,9 @@ namespace layer_in_c::nn::activation_functions {
         }
         else if (F == SIGMOID_STRETCHED){
             return d_activation_d_x<DEVICE, T, SIGMOID>(x) * (T)2;
+        }
+        else{
+            return 0;
         }
     }
 }

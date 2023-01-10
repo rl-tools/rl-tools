@@ -30,6 +30,13 @@ namespace layer_in_c::utils::typing {
     struct remove_reference<T&>{
         typedef T type;
     };
+
+    template< class T > struct remove_pointer                    {typedef T type;};
+    template< class T > struct remove_pointer<T*>                {typedef T type;};
+    template< class T > struct remove_pointer<T* const>          {typedef T type;};
+    template< class T > struct remove_pointer<T* volatile>       {typedef T type;};
+    template< class T > struct remove_pointer<T* const volatile> {typedef T type;};
+
     template<bool B, class T = void>
     struct enable_if {};
 

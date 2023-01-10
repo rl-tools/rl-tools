@@ -12,7 +12,7 @@
 
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC, typename RNG>
-    void init(rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, RNG& rng){
+    FUNCTION_PLACEMENT void init(rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, RNG& rng){
         init_weights(actor_critic.actor   , rng);
         init_weights(actor_critic.critic_1, rng);
         init_weights(actor_critic.critic_2, rng);
@@ -25,7 +25,7 @@ namespace layer_in_c{
         copy(actor_critic.critic_target_2, actor_critic.critic_2);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
-    typename SPEC::T train_critic(
+    FUNCTION_PLACEMENT typename SPEC::T train_critic(
             const rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
             CRITIC_TYPE& critic,
             const rl::components::ReplayBuffer<
@@ -77,7 +77,7 @@ namespace layer_in_c{
         return loss;
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG>
-    typename SPEC::T train_critic(
+    FUNCTION_PLACEMENT typename SPEC::T train_critic(
             const rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
             CRITIC_TYPE& critic,
             const rl::components::ReplayBuffer<
@@ -106,7 +106,7 @@ namespace layer_in_c{
         return train_critic(actor_critic, critic, replay_buffer, action_noise, rng);
     }
     template <typename DEVICE, typename SPEC, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC = false>
-    typename SPEC::T train_actor(
+    FUNCTION_PLACEMENT typename SPEC::T train_actor(
             rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
             rl::components::ReplayBuffer<
                     REPLAY_BUFFER_DEVICE,
@@ -145,12 +145,12 @@ namespace layer_in_c{
         return actor_value;
     }
     template<typename DEVICE, typename SPEC>
-    void update_target_layer(nn::layers::dense::Layer<DEVICE, SPEC>& target, const nn::layers::dense::Layer<DEVICE, SPEC>& source, typename SPEC::T polyak) {
+    FUNCTION_PLACEMENT void update_target_layer(nn::layers::dense::Layer<DEVICE, SPEC>& target, const nn::layers::dense::Layer<DEVICE, SPEC>& source, typename SPEC::T polyak) {
         utils::polyak::update_matrix<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(target.device, target.weights, source.weights, polyak);
         utils::polyak::update       <DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM                 >(target.device, target.biases , source.biases , polyak);
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void update_target_network(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {
+    FUNCTION_PLACEMENT void update_target_network(nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {
         using TargetNetworkType = typename utils::typing::remove_reference<decltype(target)>::type;
         update_target_layer(target.input_layer, source.input_layer, polyak);
         for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
@@ -160,7 +160,7 @@ namespace layer_in_c{
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_targets(rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic) {
+    FUNCTION_PLACEMENT void update_targets(rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic) {
         update_target_network(actor_critic.actor_target   , actor_critic.   actor, SPEC::PARAMETERS::ACTOR_POLYAK);
         update_target_network(actor_critic.critic_target_1, actor_critic.critic_1, SPEC::PARAMETERS::CRITIC_POLYAK);
         update_target_network(actor_critic.critic_target_2, actor_critic.critic_2, SPEC::PARAMETERS::CRITIC_POLYAK);
