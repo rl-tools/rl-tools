@@ -40,7 +40,7 @@ int main(){
     NetworkType_CPU network_cpu;
 
     DEVICE_CUDA::SPEC::LOGGING logger_cuda;
-    DEVICE_CUDA device_cuda = {logger_cuda};
+    DEVICE_CUDA device_cuda(logger_cuda);
     NetworkType_CUDA network_cuda;
 
     lic::reset_optimizer_state(device_cpu, network_cpu);
