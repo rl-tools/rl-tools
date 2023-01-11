@@ -9,7 +9,7 @@
 
 namespace layer_in_c {
     template<typename ENVIRONMENT, typename POLICY, auto STEP_LIMIT>
-    typename POLICY::T evaluate(const ENVIRONMENT env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
+    typename POLICY::T evaluate(typename POLICY::DEVICE& device, const ENVIRONMENT env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
         typedef typename POLICY::T T;
         typename ENVIRONMENT::State state;
         state = initial_state;
@@ -26,7 +26,7 @@ namespace layer_in_c {
                 observation = state.state;
             }
             T action[ENVIRONMENT::ACTION_DIM];
-            evaluate(policy, observation, action);
+            evaluate(device, policy, observation, action);
             T action_clipped[ENVIRONMENT::ACTION_DIM];
             for(typename ENVIRONMENT::DEVICE::index_t action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
                 action_clipped[action_i] = math::clamp<T>(action[action_i], -1, 1);
@@ -57,7 +57,7 @@ namespace layer_in_c {
             else{
                 sample_initial_state(env, initial_state, rng);
             }
-            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(env, policy, initial_state);
+            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(device, env, policy, initial_state);
         }
         T mean = 0;
         for(typename DEVICE::index_t i = 0; i < N; i++) {

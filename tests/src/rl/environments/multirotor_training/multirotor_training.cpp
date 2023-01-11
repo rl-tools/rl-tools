@@ -87,7 +87,7 @@ lic::rl::components::OffPolicyRunner<
                 lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
         >
 > off_policy_runner(device);
-ActorCriticType actor_critic(device, nn_device);
+ActorCriticType actor_critic;
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -112,7 +112,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     std::string log_file = log_dir + "/" + std::string("data.tfevents");
     TensorBoardLogger tb_logger(log_file.c_str());
     std::mt19937 rng(2);
-    lic::init(actor_critic, rng);
+    lic::init(device, actor_critic, rng);
     parameters.init = lic::rl::environments::multirotor::simple_init_parameters<DTYPE, DEVICE::index_t(4)>;
     ENVIRONMENT env({parameters});
     off_policy_runner.env = env;
@@ -121,18 +121,18 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         if(step_i > REPLAY_BUFFER_CAP){
             std::cout << "warning: replay buffer is rolling over" << std::endl;
         }
-        lic::step(off_policy_runner, actor_critic.actor, rng);
+        lic::step(device, off_policy_runner, actor_critic.actor, rng);
         if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            DTYPE critic_1_loss = lic::train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
-            lic::train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+            DTYPE critic_1_loss = lic::train_critic(device, actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
+            lic::train_critic(device, actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
             tb_logger.add_scalar("critic_1_loss", step_i, critic_1_loss);
 //            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
-                lic::train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
-                lic::update_targets(actor_critic);
+                lic::train_actor(device, actor_critic, off_policy_runner.replay_buffer, rng);
+                lic::update_targets(device, actor_critic);
             }
         }
         if(step_i % 1000 == 0){

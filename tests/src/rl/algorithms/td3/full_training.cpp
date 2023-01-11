@@ -99,7 +99,7 @@ lic::rl::components::OffPolicyRunner<
         lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
     >
 > off_policy_runner(ac_dev);
-ActorCriticType actor_critic(ac_dev, nn_dev);
+ActorCriticType actor_critic;
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -109,7 +109,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     UI ui;
 #endif
     std::mt19937 rng(4);
-    lic::init(actor_critic, rng);
+    lic::init(nn_dev, actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
@@ -120,7 +120,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
         if(step_i > REPLAY_BUFFER_CAP){
             std::cout << "warning: replay buffer is rolling over" << std::endl;
         }
-        lic::step(off_policy_runner, actor_critic.actor, rng);
+        lic::step(ac_dev, off_policy_runner, actor_critic.actor, rng);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
         lic::set_state(ui, off_policy_runner.state);
 #endif
@@ -129,12 +129,12 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             if(step_i % 1000 == 0){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            DTYPE critic_1_loss = lic::train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
-            lic::train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+            DTYPE critic_1_loss = lic::train_critic(ac_dev, actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
+            lic::train_critic(ac_dev, actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
 //            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
-                lic::train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
-                lic::update_targets(actor_critic);
+                lic::train_actor(ac_dev, actor_critic, off_policy_runner.replay_buffer, rng);
+                lic::update_targets(ac_dev, actor_critic);
             }
         }
         if(step_i % 1000 == 0){

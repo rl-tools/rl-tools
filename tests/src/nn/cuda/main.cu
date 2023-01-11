@@ -37,16 +37,16 @@ using NetworkType_CPU = lic::nn_models::mlp::NeuralNetworkAdam<DEVICE_CPU, NETWO
 int main(){
     DEVICE_CPU::SPEC::LOGGING logger_cpu;
     DEVICE_CPU device_cpu(logger_cpu);
-    NetworkType_CPU network_cpu(device_cpu);
+    NetworkType_CPU network_cpu;
 
     DEVICE_CUDA::SPEC::LOGGING logger_cuda;
-    DEVICE_CUDA device_cuda(logger_cuda);
-    NetworkType_CUDA network_cuda(device_cuda);
+    DEVICE_CUDA device_cuda = {logger_cuda};
+    NetworkType_CUDA network_cuda;
 
-    lic::reset_optimizer_state(network_cpu);
-    lic::zero_gradient(network_cpu);
+    lic::reset_optimizer_state(device_cpu, network_cpu);
+    lic::zero_gradient(device_cpu, network_cpu);
     auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
-    lic::init_weights(network_cpu, rng);
+    lic::init_weights(device_cpu, network_cpu, rng);
 
     lic::copy(network_cuda, network_cpu);
 
@@ -61,10 +61,10 @@ int main(){
         output_cpu[i] = lic::random::uniform_real_distribution(DEVICE_CPU::SPEC::RANDOM(), -(DTYPE)1, (DTYPE)1, rng);
     }
 
-    lic::forward(network_cpu, input_cpu);
-    lic::nn::loss_functions::d_mse_d_x<DEVICE_CPU, DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, 1>(network_cpu.output_layer.output, output_cpu, d_loss_d_output_cpu);
-    DTYPE loss_cpu = lic::nn::loss_functions::mse<DEVICE_CPU, DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, 1>(network_cpu.output_layer.output, output_cpu);
-    lic::backward(network_cpu, input_cpu, d_loss_d_output_cpu, d_input_cpu);
+    lic::forward(device_cpu, network_cpu, input_cpu);
+    lic::nn::loss_functions::d_mse_d_x<DEVICE_CPU, DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, 1>(device_cpu, network_cpu.output_layer.output, output_cpu, d_loss_d_output_cpu);
+    DTYPE loss_cpu = lic::nn::loss_functions::mse<DEVICE_CPU, DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, 1>(device_cpu, network_cpu.output_layer.output, output_cpu);
+    lic::backward(device_cpu, network_cpu, input_cpu, d_loss_d_output_cpu, d_input_cpu);
 
     NetworkType_CUDA* network_cuda_device;
     cudaMalloc(&network_cuda_device, sizeof(NetworkType_CUDA));
@@ -78,7 +78,7 @@ int main(){
     DTYPE* output_gpu;
     cudaMalloc(&output_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM);
 
-    lic::evaluate(*network_cuda_device, input_gpu, output_gpu);
+    lic::evaluate(device_cuda, *network_cuda_device, input_gpu, output_gpu);
 
     DTYPE output_gpu_cpu[NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM];
     cudaMemcpy(output_gpu_cpu, output_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);

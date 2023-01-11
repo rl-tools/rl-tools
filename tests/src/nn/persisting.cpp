@@ -18,16 +18,16 @@ TEST(LAYER_IN_C_NN_PERSIST, Saving) {
 
     NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device(logger);
-    NetworkType network_1(device), network_2(device);
+    NetworkType network_1, network_2;
     std::mt19937 rng(2);
-    lic::init_weights(network_1, rng);
-    lic::init_weights(network_2, rng);
-    lic::reset_forward_state(network_1);
-    lic::reset_optimizer_state(network_1);
-    lic::zero_gradient(network_1);
-    lic::reset_forward_state(network_2);
-    lic::reset_optimizer_state(network_2);
-    lic::zero_gradient(network_2);
+    lic::init_weights(device, network_1, rng);
+    lic::init_weights(device, network_2, rng);
+    lic::reset_forward_state(device, network_1);
+    lic::reset_optimizer_state(device, network_1);
+    lic::zero_gradient(device, network_1);
+    lic::reset_forward_state(device, network_2);
+    lic::reset_optimizer_state(device, network_2);
+    lic::zero_gradient(device, network_2);
     {
         auto output_file = HighFive::File(std::string("test.hdf5"), HighFive::File::Overwrite);
         lic::save(network_1, output_file.createGroup("three_layer_fc"));
@@ -40,8 +40,8 @@ TEST(LAYER_IN_C_NN_PERSIST, Saving) {
         auto input_file = HighFive::File(std::string("test.hdf5"), HighFive::File::ReadOnly);
         lic::load(network_2, input_file.getGroup("three_layer_fc"));
     }
-    lic::reset_forward_state(network_1);
-    lic::reset_forward_state(network_2);
+    lic::reset_forward_state(device, network_1);
+    lic::reset_forward_state(device, network_2);
     DTYPE diff_post_load = abs_diff(network_1, network_2);
     ASSERT_EQ(diff_post_load, 0);
     std::cout << "diff_post_load: " << diff_post_load << std::endl;

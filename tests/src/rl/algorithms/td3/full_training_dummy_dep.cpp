@@ -105,7 +105,7 @@ lic::rl::components::OffPolicyRunner<
                 lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
         >
 > off_policy_runner(device);
-ActorCriticType actor_critic(device, nn_device);
+ActorCriticType actor_critic;
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -115,7 +115,7 @@ int main() {
     UI ui;
 #endif
     auto rng = lic::random::default_engine(decltype(device)::SPEC::RANDOM());
-    lic::init(actor_critic, rng);
+    lic::init(device, actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
@@ -126,7 +126,7 @@ int main() {
         if(step_i > REPLAY_BUFFER_CAP){
             lic::logging::text(device.logger, "warning: replay buffer is rolling over");
         }
-        lic::step(off_policy_runner, actor_critic.actor, rng);
+        lic::step(device, off_policy_runner, actor_critic.actor, rng);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
         lic::set_state(ui, off_policy_runner.state);
 #endif
@@ -135,12 +135,12 @@ int main() {
             if(step_i % 1000 == 0){
                 lic::logging::text(device.logger, "step_i: ", step_i);
             }
-            DTYPE critic_1_loss = lic::train_critic(actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
-            lic::train_critic(actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+            DTYPE critic_1_loss = lic::train_critic(device, actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
+            lic::train_critic(device, actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
 //            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
-                lic::train_actor(actor_critic, off_policy_runner.replay_buffer, rng);
-                lic::update_targets(actor_critic);
+                lic::train_actor(device, actor_critic, off_policy_runner.replay_buffer, rng);
+                lic::update_targets(device, actor_critic);
             }
         }
         if(step_i % 1000 == 0){

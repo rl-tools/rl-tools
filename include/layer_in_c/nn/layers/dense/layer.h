@@ -32,20 +32,16 @@ namespace layer_in_c::nn::layers::dense {
         typename SPEC::T weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T biases[SPEC::OUTPUT_DIM];
 
-        DEVICE& device;
-        explicit Layer(DEVICE& device) : device(device) {}
     };
     template<typename DEVICE, typename SPEC>
     struct LayerBackward : public Layer<DEVICE, SPEC> {
         typename SPEC::T pre_activations[SPEC::OUTPUT_DIM];
-        explicit LayerBackward(DEVICE& device) : Layer<DEVICE, SPEC>(device) {}
     };
     template<typename DEVICE, typename SPEC>
     struct LayerBackwardGradient : public LayerBackward<DEVICE, SPEC> {
         typename SPEC::T output[SPEC::OUTPUT_DIM];
         typename SPEC::T d_weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T d_biases[SPEC::OUTPUT_DIM];
-        explicit LayerBackwardGradient(DEVICE& device) : LayerBackward<DEVICE, SPEC>(device) {}
     };
     template<typename T>
     struct DefaultSGDParameters {
@@ -54,9 +50,7 @@ namespace layer_in_c::nn::layers::dense {
 
     };
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    struct LayerBackwardSGD : public LayerBackwardGradient<DEVICE, SPEC> {
-        explicit LayerBackwardSGD(DEVICE& device) : LayerBackwardGradient<DEVICE, SPEC>(device) {}
-    };
+    struct LayerBackwardSGD : public LayerBackwardGradient<DEVICE, SPEC> {};
 
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     struct LayerBackwardAdam : public LayerBackwardGradient<DEVICE, SPEC> {
@@ -64,7 +58,6 @@ namespace layer_in_c::nn::layers::dense {
         typename SPEC::T d_weights_second_order_moment[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T d_biases_first_order_moment[SPEC::OUTPUT_DIM];
         typename SPEC::T d_biases_second_order_moment[SPEC::OUTPUT_DIM];
-        explicit LayerBackwardAdam(DEVICE& device) : LayerBackwardGradient<DEVICE, SPEC>(device) {}
     };
 }
 

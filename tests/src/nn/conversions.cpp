@@ -38,25 +38,25 @@ using Layer1 = lic::nn::layers::dense::Layer<Device1, LayerSpec1>;
 
 Device1::SPEC::LOGGING logger;
 Device1 device1(logger);
-Layer1 layer1(device1);
+Layer1 layer1;
 
-Layer1 layer11(device1);
+Layer1 layer11;
 
 using Device2 = lic::devices::DefaultCPU;
 using Layer2 = lic::nn::layers::dense::Layer<Device2, LayerSpec2>;
 
 Device2::SPEC::LOGGING logger2;
 Device2 device2(logger2);
-Layer2 layer2(device2);
-Layer2 layer22(device2);
-Layer2 layer222(device2);
+Layer2 layer2;
+Layer2 layer22;
+Layer2 layer222;
 
 TEST(LAYER_IN_C_NN_MLP_CONVERSIONS, CONVERSIONS) {
 
     auto rng = lic::random::default_engine(Device2::SPEC::RANDOM());
-    lic::init_kaiming(layer2, rng);
-    lic::init_kaiming(layer22, rng);
-    lic::init_kaiming(layer222, rng);
+    lic::init_kaiming(device2, layer2, rng);
+    lic::init_kaiming(device2, layer22, rng);
+    lic::init_kaiming(device2, layer222, rng);
 
     ASSERT_GT(lic::abs_diff(layer2, layer22), 0);
 

@@ -8,7 +8,7 @@
 
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    void step(rl::components::OffPolicyRunner<DEVICE, SPEC> &runner, POLICY &policy, RNG &rng) {
+    void step(DEVICE& device, rl::components::OffPolicyRunner<DEVICE, SPEC> &runner, POLICY &policy, RNG &rng) {
         static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
         static_assert(POLICY::OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         using T = typename SPEC::T;
@@ -37,7 +37,7 @@ namespace layer_in_c{
 
         typename ENVIRONMENT::State next_state;
         T action[ENVIRONMENT::ACTION_DIM];
-        evaluate(policy, observation, action);
+        evaluate(device, policy, observation, action);
         for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             action[i] += random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, PARAMETERS::EXPLORATION_NOISE, rng);
             action[i] = lic::math::clamp<T>(action[i], -1, 1);

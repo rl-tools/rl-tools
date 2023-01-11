@@ -147,10 +147,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
-    ActorCriticType actor_critic(device, nn_device);
+    ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::init(actor_critic, rng);
+    lic::init(device, actor_critic, rng);
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
     lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
@@ -170,11 +170,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
         }
 
         DTYPE output[1];
-        lic::evaluate(actor_critic.critic_1, input, output);
+        lic::evaluate(device, actor_critic.critic_1, input, output);
         std::cout << "output: " << output[0] << std::endl;
         ASSERT_LT(abs(output[0] - outputs[batch_sample_i][0]), 1e-15);
 
-        lic::evaluate(actor_critic.critic_target_1, input, output);
+        lic::evaluate(device, actor_critic.critic_target_1, input, output);
         std::cout << "output: " << output[0] << std::endl;
         ASSERT_LT(abs(output[0] - outputs[batch_sample_i][0]), 1e-15);
     }
@@ -186,10 +186,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
-    ActorCriticType actor_critic(device, nn_device);
+    ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::init(actor_critic, rng);
+    lic::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
@@ -199,7 +199,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     assert(batch.states.size() == 32);
 
     DTYPE loss = 0;
-    lic::zero_gradient(actor_critic.critic_1);
+    lic::zero_gradient(device, actor_critic.critic_1);
     for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
         DTYPE input[ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM];
         for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
@@ -210,17 +210,17 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         }
         DTYPE target[1] = {1};
         DTYPE output[1];
-        lic::evaluate(actor_critic.critic_1, input, output);
-        loss += lic::nn::loss_functions::mse<DEVICE, DTYPE, 1, 1>(output, target);
+        lic::evaluate(device, actor_critic.critic_1, input, output);
+        loss += lic::nn::loss_functions::mse<DEVICE, DTYPE, 1, 1>(device, output, target);
 
-        lic::forward_backward_mse<decltype(actor_critic.critic_1)::DEVICE, decltype(actor_critic.critic_1)::SPEC, 32>(actor_critic.critic_1, input, target);
+        lic::forward_backward_mse<decltype(actor_critic.critic_1)::DEVICE, decltype(actor_critic.critic_1)::SPEC, 32>(device, actor_critic.critic_1, input, target);
         std::cout << "output: " << actor_critic.critic_1.output_layer.output[0] << std::endl;
     }
 
     auto critic_1_after_backward = actor_critic.critic_1;
     lic::load(critic_1_after_backward, data_file.getGroup("critic_1_backward"));
-    lic::reset_forward_state(actor_critic.critic_1);
-    lic::reset_forward_state(critic_1_after_backward);
+    lic::reset_forward_state(device, actor_critic.critic_1);
+    lic::reset_forward_state(device, critic_1_after_backward);
     DTYPE diff_grad_per_weight = abs_diff_grad(actor_critic.critic_1, critic_1_after_backward)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
     ASSERT_LT(diff_grad_per_weight, 1e-17);
 
@@ -233,10 +233,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
-    ActorCriticType actor_critic(device, nn_device);
+    ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::init(actor_critic, rng);
+    lic::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
@@ -255,7 +255,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     replay_buffer.position = TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE;
 
     auto pre_critic_1 = actor_critic.critic_1;
-    lic::reset_optimizer_state(actor_critic.critic_1);
+    lic::reset_optimizer_state(device, actor_critic.critic_1);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
     DTYPE mean_ratio_adam = 0;
@@ -264,7 +264,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     for(int training_step_i = 0; training_step_i < num_updates; training_step_i++){
         auto step_group = critic_training_group.getGroup(std::to_string(training_step_i));
 
-        ActorCriticType::SPEC::CRITIC_NETWORK_TYPE post_critic_1(nn_device);
+        ActorCriticType::SPEC::CRITIC_NETWORK_TYPE post_critic_1;
         lic::load(post_critic_1, step_group.getGroup("critic"));
 
         std::vector<std::vector<DTYPE>> target_next_action_noise_vector;
@@ -286,11 +286,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
                 decltype(replay_buffer)::CAPACITY,
                 decltype(rng),
                 true
-        >(actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
+        >(device, actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
 
-        lic::reset_forward_state(pre_critic_1);
-        lic::reset_forward_state(post_critic_1);
-        lic::reset_forward_state(actor_critic.critic_1);
+        lic::reset_forward_state(device, pre_critic_1);
+        lic::reset_forward_state(device, post_critic_1);
+        lic::reset_forward_state(device, actor_critic.critic_1);
 
         DTYPE pre_post_diff_per_weight = abs_diff(pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_target_per_weight = abs_diff(post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
@@ -344,10 +344,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
-    ActorCriticType actor_critic(device, nn_device);
+    ActorCriticType actor_critic;
 
     std::mt19937 rng(0);
-    lic::init(actor_critic, rng);
+    lic::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(actor_critic.actor, data_file.getGroup("actor"));
@@ -366,7 +366,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     replay_buffer.position = TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE;
 
     auto pre_actor = actor_critic.actor;
-    lic::reset_optimizer_state(actor_critic.actor);
+    lic::reset_optimizer_state(device, actor_critic.actor);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
     DTYPE mean_ratio_adam = 0;
@@ -377,11 +377,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
         ss << "actor_training/" << training_step_i;
         lic::load(post_actor, data_file.getGroup(ss.str()));
 
-        DTYPE actor_1_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, ReplayBufferType::DEVICE, ReplayBufferType::CAPACITY, typeof(rng), true>(actor_critic, replay_buffer, rng);
+        DTYPE actor_1_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, ReplayBufferType::DEVICE, ReplayBufferType::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
 
-        lic::reset_forward_state(pre_actor);
-        lic::reset_forward_state(post_actor);
-        lic::reset_forward_state(actor_critic.actor);
+        lic::reset_forward_state(device, pre_actor);
+        lic::reset_forward_state(device, post_actor);
+        lic::reset_forward_state(device, actor_critic.actor);
 
         DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;

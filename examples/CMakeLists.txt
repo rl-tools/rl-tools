@@ -4,6 +4,3 @@ add_executable(example_td3_pendulum
         td3_pendulum/main.cpp
 )
 target_include_directories(example_td3_pendulum PRIVATE ${PROJECT_SOURCE_DIR}/include)
-
-
-add_subdirectory(td3_pendulum_cuda)

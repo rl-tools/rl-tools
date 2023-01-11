@@ -21,9 +21,9 @@ typename SPEC::T abs_diff_grad(const layer_in_c::nn_models::mlp::NeuralNetworkBa
     typedef typename SPEC::T T;
     using GradNetworkSpec = layer_in_c::nn_models::mlp::BackwardGradientSpecification<DEVICE, typename SPEC::STRUCTURE_SPEC>;
     using GradNetworkType = layer_in_c::nn_models::mlp::NeuralNetworkBackwardGradient<DEVICE, GradNetworkSpec>;
-    GradNetworkType n1g(n1.device);
+    GradNetworkType n1g;
     lic::copy(n1g, n1);
-    GradNetworkType n2g(n2.device);
+    GradNetworkType n2g;
     lic::copy(n2g, n2);
     T acc = 0;
     acc += lic::abs_diff(n1g.input_layer, n2g.input_layer);

@@ -35,12 +35,12 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     typedef lic::nn_models::mlp::AdamSpecification<DEVICE, PendulumStructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> SPEC;
     DEVICE::SPEC::LOGGING logger;
     DEVICE device(logger);
-    lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC> policy(device);
+    lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, SPEC> policy;
     std::mt19937 rng(0);
-    lic::init_weights(policy, rng);
+    lic::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner(device);
     for(int step_i = 0; step_i < 10000; step_i++){
-        lic::step(off_policy_runner, policy, rng);
+        lic::step(device, off_policy_runner, policy, rng);
     }
     std::cout << "hello" << std::endl;
 }

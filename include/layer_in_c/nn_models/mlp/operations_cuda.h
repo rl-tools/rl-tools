@@ -8,7 +8,11 @@ namespace layer_in_c{
     namespace nn_models::mlp::cuda{
         template<typename DEV_SPEC, typename SPEC>
         __global__ void
-        evaluate_kernel(const nn_models::mlp::NeuralNetwork<devices::CUDA<DEV_SPEC>, SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], typename SPEC::T output[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM]){
+        evaluate_kernel(const nn_models::mlp::NeuralNetwork<devices::CUDA<DEV_SPEC>, SPEC>& p_network, const typename SPEC::T input[utils::typing::remove_reference<decltype(p_network)>::type::INPUT_DIM], typename SPEC::T output[utils::typing::remove_reference<decltype(p_network)>::type::OUTPUT_DIM]){
+            __shared__ nn_models::mlp::NeuralNetwork<devices::CUDA<DEV_SPEC>, SPEC> network;
+            if(blockIdx.x == 0 && threadIdx.x == 0){
+                network = p_network;
+            }
             if(blockIdx.x == 0 && threadIdx.x == 0){
                 layer_in_c::evaluate((nn_models::mlp::NeuralNetwork<devices::CUDA_GENERIC<DEV_SPEC>, SPEC>&) network, input, output);
             }
