@@ -9,7 +9,7 @@
 
 namespace layer_in_c{
     template<typename DEVICE, typename LS, typename RNG>
-    void init_kaiming(nn::layers::dense::Layer<DEVICE, LS>& layer, RNG& rng) {
+    FUNCTION_PLACEMENT void init_kaiming(nn::layers::dense::Layer<DEVICE, LS>& layer, RNG& rng) {
         typedef typename LS::T T;
         T negative_slope = math::sqrt(typename DEVICE::SPEC::MATH(), (T)5);
         T gain = math::sqrt(typename DEVICE::SPEC::MATH(), (T)2.0 / (1 + negative_slope * negative_slope));

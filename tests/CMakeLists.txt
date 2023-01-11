@@ -1,5 +1,5 @@
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 
 option(LAYER_IN_C_DOWNLOAD_GTEST OFF)
 
@@ -263,7 +263,7 @@ target_include_directories(
 )
 gtest_discover_tests(test_rl_environments_multirotor_training_test)
 
-# Neural Network Test MLP
+# Neural Network Test Conversions
 add_executable(
         test_neural_network_conversions
         src/nn/conversions.cpp
@@ -271,8 +271,9 @@ add_executable(
 target_link_libraries(
         test_neural_network_conversions
         layer_in_c
+        GTest::gtest_main
 )
-add_test(
-        NAME test_neural_network_conversions
-        COMMAND test_neural_network_conversions
-)
+gtest_discover_tests(test_neural_network_conversions)
+
+
+add_subdirectory(src/nn/cuda)

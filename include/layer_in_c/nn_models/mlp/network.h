@@ -5,15 +5,15 @@
 #include <layer_in_c/utils/generic/typing.h>
 
 namespace layer_in_c::nn_models::mlp {
-    template <typename T_T, auto T_INPUT_DIM, auto T_OUTPUT_DIM, auto T_NUM_LAYERS, auto T_HIDDEN_DIM>
+    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION>
     struct StructureSpecification{
         typedef T_T T;
-        static constexpr auto INPUT_DIM = T_INPUT_DIM;
-        static constexpr auto OUTPUT_DIM = T_OUTPUT_DIM;
-        static constexpr auto NUM_LAYERS = T_NUM_LAYERS; // The input and output layers count towards the total number of layers
-        static constexpr auto HIDDEN_DIM = T_HIDDEN_DIM;
-        static constexpr nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = nn::activation_functions::GELU;
-        static constexpr nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = nn::activation_functions::IDENTITY;
+        static constexpr T_TI INPUT_DIM = T_INPUT_DIM;
+        static constexpr T_TI OUTPUT_DIM = T_OUTPUT_DIM;
+        static constexpr T_TI NUM_LAYERS = T_NUM_LAYERS; // The input and output layers count towards the total number of layers
+        static constexpr T_TI HIDDEN_DIM = T_HIDDEN_DIM;
+        static constexpr auto HIDDEN_ACTIVATION_FUNCTION = T_HIDDEN_ACTIVATION_FUNCTION;
+        static constexpr auto OUTPUT_ACTIVATION_FUNCTION = T_OUTPUT_ACTIVATION_FUNCTION;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
@@ -80,7 +80,7 @@ namespace layer_in_c::nn_models::mlp {
     template<typename T_DEVICE, typename T_SPEC>
     struct NeuralNetwork{
         typedef T_DEVICE DEVICE;
-        static_assert(utils::typing::is_same_v<DEVICE, typename T_SPEC::DEVICE>);
+        static_assert(DEVICE::template compatible<typename T_SPEC::DEVICE>);
         typedef T_SPEC SPEC;
         typedef typename SPEC::T T;
 

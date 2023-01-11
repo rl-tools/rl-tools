@@ -1,5 +1,8 @@
 #ifndef LAYER_IN_C_NN_ACTIVATION_FUNCTIONS
 #define LAYER_IN_C_NN_ACTIVATION_FUNCTIONS
+#ifndef FUNCTION_PLACEMENT
+#define FUNCTION_PLACEMENT
+#endif
 #include <layer_in_c/devices/devices.h>
 namespace layer_in_c::nn::activation_functions {
     enum ActivationFunction{
@@ -14,7 +17,7 @@ namespace layer_in_c::nn::activation_functions {
     constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == SIGMOID || F == SIGMOID_STRETCHED;
 
     template<typename DEVICE, typename T, ActivationFunction F>
-    T activation(T x){
+    FUNCTION_PLACEMENT T activation(T x){
         static_assert(DEVICE::DOMAIN == devices::Domain::math, "DEVICE is not a math device");
         static_assert(check_activation_function<F>, "Invalid activation function");
         if (F == IDENTITY){
@@ -42,7 +45,7 @@ namespace layer_in_c::nn::activation_functions {
     }
 
     template<typename DEVICE, typename T, ActivationFunction F>
-    T d_activation_d_x(T x){
+    FUNCTION_PLACEMENT T d_activation_d_x(T x){
         static_assert(DEVICE::DOMAIN == devices::Domain::math, "DEVICE is not a math device");
         static_assert(check_activation_function<F>, "Invalid activation function");
         if (F == IDENTITY){

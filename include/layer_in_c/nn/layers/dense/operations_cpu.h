@@ -2,7 +2,6 @@
 #define LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_CPU_H
 
 #include "operations_generic.h"
-#include <type_traits>
 
 namespace layer_in_c{
     template<typename DEV_SPEC, typename LS, typename RNG>
