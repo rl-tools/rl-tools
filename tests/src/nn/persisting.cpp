@@ -30,19 +30,19 @@ TEST(LAYER_IN_C_NN_PERSIST, Saving) {
     lic::zero_gradient(device, network_2);
     {
         auto output_file = HighFive::File(std::string("test.hdf5"), HighFive::File::Overwrite);
-        lic::save(network_1, output_file.createGroup("three_layer_fc"));
+        lic::save(device, network_1, output_file.createGroup("three_layer_fc"));
     }
 
-    DTYPE diff_pre_load = abs_diff(network_1, network_2);
+    DTYPE diff_pre_load = abs_diff(device, network_1, network_2);
     ASSERT_GT(diff_pre_load, 10);
     std::cout << "diff_pre_load: " << diff_pre_load << std::endl;
     {
         auto input_file = HighFive::File(std::string("test.hdf5"), HighFive::File::ReadOnly);
-        lic::load(network_2, input_file.getGroup("three_layer_fc"));
+        lic::load(device, network_2, input_file.getGroup("three_layer_fc"));
     }
     lic::reset_forward_state(device, network_1);
     lic::reset_forward_state(device, network_2);
-    DTYPE diff_post_load = abs_diff(network_1, network_2);
+    DTYPE diff_post_load = abs_diff(device, network_1, network_2);
     ASSERT_EQ(diff_post_load, 0);
     std::cout << "diff_post_load: " << diff_post_load << std::endl;
 }

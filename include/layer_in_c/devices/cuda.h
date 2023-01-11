@@ -49,6 +49,7 @@ namespace layer_in_c::devices{
         using LOGGING = logging::CUDA;
     };
     using DefaultCUDA = CUDA<DefaultCUDASpecification>;
+    using DefaultCUDAGeneric = CUDA_GENERIC<DefaultCUDASpecification>;
 }
 
 #endif

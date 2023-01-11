@@ -213,7 +213,7 @@ TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     standardise<DTYPE, OUTPUT_DIM>(&Y_train[0][0], &Y_mean[0], &Y_std[0], output);
     lic::forward(device, network, input);
     DTYPE d_loss_d_output[OUTPUT_DIM];
-    lic::nn::loss_functions::d_mse_d_x<NetworkType::DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output, output, d_loss_d_output);
+    lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output, output, d_loss_d_output);
     DTYPE d_input[INPUT_DIM];
     lic::zero_gradient(device, network);
     lic::backward(device, network, input, d_loss_d_output, d_input);
@@ -303,8 +303,8 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
             standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i_real * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
             lic::forward(device, network, input);
             DTYPE d_loss_d_output[OUTPUT_DIM];
-            lic::nn::loss_functions::d_mse_d_x<NetworkType::DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output, d_loss_d_output);
-            loss += lic::nn::loss_functions::mse<NetworkType::DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
+            lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output, d_loss_d_output);
+            loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
 
             DTYPE d_input[INPUT_DIM];
             lic::backward(device, network, input, d_loss_d_output, d_input);

@@ -11,30 +11,28 @@ namespace layer_in_c::rl::components::off_policy_runner {
     struct DefaultParameters{
         static constexpr T EXPLORATION_NOISE = 0.1;
     };
-    template<typename DEVICE, typename T_T, typename T_ENVIRONMENT, auto T_REPLAY_BUFFER_CAPACITY, auto T_STEP_LIMIT, typename T_PARAMETERS>
+    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_REPLAY_BUFFER_CAPACITY, T_TI T_STEP_LIMIT, typename T_PARAMETERS>
     struct Specification{
-        typedef T_T T;
+        using T = T_T;
+        using TI = T_TI;
         typedef T_ENVIRONMENT ENVIRONMENT;
-        static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAPACITY = T_REPLAY_BUFFER_CAPACITY;
-        static constexpr typename DEVICE::index_t STEP_LIMIT = T_STEP_LIMIT;
+        static constexpr TI REPLAY_BUFFER_CAPACITY = T_REPLAY_BUFFER_CAPACITY;
+        static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
         typedef T_PARAMETERS PARAMETERS;
     };
 
 }
 
 namespace layer_in_c::rl::components{
-    template<typename DEVICE, typename SPEC>
+    template<typename SPEC>
     struct OffPolicyRunner {
-        typedef replay_buffer::Specification<DEVICE, typename SPEC::T, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY> ReplayBufferSpec;
+        using ReplayBufferSpec = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY>;
 
         typename SPEC::ENVIRONMENT env;
-        ReplayBuffer<DEVICE, ReplayBufferSpec> replay_buffer;
+        ReplayBuffer<ReplayBufferSpec> replay_buffer;
         typename SPEC::ENVIRONMENT::State state;
-        typename DEVICE::index_t episode_step = 0;
+        typename SPEC::TI episode_step = 0;
         typename SPEC::T episode_return = 0;
-
-        DEVICE& device;
-        explicit OffPolicyRunner(DEVICE& device) : device(device) {};
     };
 }
 

@@ -8,7 +8,7 @@
 
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<DEVICE, SPEC> &runner, POLICY &policy, RNG &rng) {
+    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, POLICY &policy, RNG &rng) {
         static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
         static_assert(POLICY::OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         using T = typename SPEC::T;
@@ -61,10 +61,10 @@ namespace layer_in_c{
         runner.episode_return += reward_value;
         bool truncated = runner.episode_step == SPEC::STEP_LIMIT;
         if (truncated || terminated_flag) {
-            logging::text(runner.device.logger, "Episode return: ", runner.episode_return);
+            logging::text(device.logger, "Episode return: ", runner.episode_return);
         }
         // todo: add truncation / termination handling (stemming from the environment)
-        add(runner.replay_buffer, observation, action, reward_value, next_observation, terminated_flag, truncated);
+        add(device, runner.replay_buffer, observation, action, reward_value, next_observation, terminated_flag, truncated);
     }
 }
 

@@ -67,8 +67,8 @@ void load_dataset(HighFive::Group g, RB& rb){
 
 
 
-template <typename DEVICE, typename SPEC>
-typename SPEC::T assign(lic::nn::layers::dense::Layer<DEVICE, SPEC>& layer, const HighFive::Group g){
+template <typename SPEC>
+typename SPEC::T assign(lic::nn::layers::dense::Layer<SPEC>& layer, const HighFive::Group g){
     std::vector<std::vector<typename SPEC::T>> weights;
     std::vector<typename SPEC::T> biases;
     g.getDataSet("weight").read(weights);
@@ -87,53 +87,36 @@ void assign_network(NT& network, const HighFive::Group g){
     assign(network.output_layer, g.getGroup("2"));
 }
 
-struct ActorStructureSpec{
-    using T = DTYPE;
-    static constexpr typename DEVICE::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM;
-    static constexpr typename DEVICE::index_t OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
-    static constexpr int NUM_LAYERS = 3;
-    static constexpr int HIDDEN_DIM = 64;
-    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
-    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::TANH;
-};
-
-struct CriticStructureSpec{
-    using T = DTYPE;
-    static constexpr typename DEVICE::index_t INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM;
-    static constexpr typename DEVICE::index_t OUTPUT_DIM = 1;
-    static constexpr int NUM_LAYERS = 3;
-    static constexpr int HIDDEN_DIM = 64;
-    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
-    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
-};
+using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH>;
+using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY>;
 
 using NN_DEVICE = lic::devices::DefaultCPU;
-using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
-using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, ACTOR_NETWORK_SPEC>;
+using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
-using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<NN_DEVICE, ActorStructureSpec>;
-using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE , ACTOR_TARGET_NETWORK_SPEC>;
+using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
+using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
-using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<NN_DEVICE, CriticStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
-using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<NN_DEVICE, CRITIC_NETWORK_SPEC>;
+using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<NN_DEVICE, CriticStructureSpec>;
-using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<NN_DEVICE, CRITIC_TARGET_NETWORK_SPEC>;
+using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
+using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 using AC_DEVICE = lic::devices::DefaultCPU;
 template <typename T>
-struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<AC_DEVICE, T>{
+struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, AC_DEVICE::index_t>{
     constexpr static typename AC_DEVICE::index_t CRITIC_BATCH_SIZE = 32;
     constexpr static typename AC_DEVICE::index_t ACTOR_BATCH_SIZE = 32;
 };
 template <typename T>
-struct TD3Parameters: public lic::rl::algorithms::td3::DefaultParameters<AC_DEVICE, T>{
+struct TD3Parameters: public lic::rl::algorithms::td3::DefaultParameters<T, AC_DEVICE::index_t>{
     constexpr static typename AC_DEVICE::index_t CRITIC_BATCH_SIZE = 32;
     constexpr static typename AC_DEVICE::index_t ACTOR_BATCH_SIZE = 32;
 };
 
-using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, NN_DEVICE, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
-using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<AC_DEVICE, TD3_SPEC>;
+using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT,  ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
+using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 template <typename T, typename NT>
 T abs_diff_network(const NT network, const HighFive::Group g){
@@ -152,8 +135,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     std::mt19937 rng(0);
     lic::init(device, actor_critic, rng);
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
-    lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
-    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
+    lic::load(device, actor_critic.critic_1, data_file.getGroup("critic_1"));
+    lic::load(device, actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
 
     Dataset<DTYPE> batch(data_file.getGroup("batch"));
 
@@ -192,8 +175,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     lic::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
-    lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
-    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
+    lic::load(device, actor_critic.critic_1, data_file.getGroup("critic_1"));
+    lic::load(device, actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
 
     Dataset<DTYPE> batch(data_file.getGroup("batch"));
     assert(batch.states.size() == 32);
@@ -213,15 +196,15 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         lic::evaluate(device, actor_critic.critic_1, input, output);
         loss += lic::nn::loss_functions::mse<DEVICE, DTYPE, 1, 1>(device, output, target);
 
-        lic::forward_backward_mse<decltype(actor_critic.critic_1)::DEVICE, decltype(actor_critic.critic_1)::SPEC, 32>(device, actor_critic.critic_1, input, target);
+        lic::forward_backward_mse<NN_DEVICE, decltype(actor_critic.critic_1)::SPEC, 32>(device, actor_critic.critic_1, input, target);
         std::cout << "output: " << actor_critic.critic_1.output_layer.output[0] << std::endl;
     }
 
     auto critic_1_after_backward = actor_critic.critic_1;
-    lic::load(critic_1_after_backward, data_file.getGroup("critic_1_backward"));
+    lic::load(device, critic_1_after_backward, data_file.getGroup("critic_1_backward"));
     lic::reset_forward_state(device, actor_critic.critic_1);
     lic::reset_forward_state(device, critic_1_after_backward);
-    DTYPE diff_grad_per_weight = abs_diff_grad(actor_critic.critic_1, critic_1_after_backward)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+    DTYPE diff_grad_per_weight = abs_diff_grad(device, actor_critic.critic_1, critic_1_after_backward)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
     ASSERT_LT(diff_grad_per_weight, 1e-17);
 
     std::cout << "diff_grad_per_weight: " << diff_grad_per_weight << std::endl;
@@ -239,16 +222,16 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     lic::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
-    lic::load(actor_critic.actor, data_file.getGroup("actor"));
-    lic::load(actor_critic.actor_target, data_file.getGroup("actor_target"));
-    lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
-    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
-    lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
-    lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
+    lic::load(device, actor_critic.actor, data_file.getGroup("actor"));
+    lic::load(device, actor_critic.actor_target, data_file.getGroup("actor_target"));
+    lic::load(device, actor_critic.critic_1, data_file.getGroup("critic_1"));
+    lic::load(device, actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
+    lic::load(device, actor_critic.critic_2, data_file.getGroup("critic_2"));
+    lic::load(device, actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
     using DEVICE = lic::devices::DefaultCPU;
-    using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<AC_DEVICE, DTYPE, (typename DEVICE::index_t)3, (typename DEVICE::index_t)1, (typename DEVICE::index_t)100>;
-    using ReplayBufferType = lic::rl::components::ReplayBuffer<DEVICE, ReplayBufferSpec>;
+    using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 100>;
+    using ReplayBufferType = lic::rl::components::ReplayBuffer<ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     static_assert(TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE == TD3Parameters<DTYPE>::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
@@ -265,7 +248,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         auto step_group = critic_training_group.getGroup(std::to_string(training_step_i));
 
         ActorCriticType::SPEC::CRITIC_NETWORK_TYPE post_critic_1;
-        lic::load(post_critic_1, step_group.getGroup("critic"));
+        lic::load(device, post_critic_1, step_group.getGroup("critic"));
 
         std::vector<std::vector<DTYPE>> target_next_action_noise_vector;
         step_group.getDataSet("target_next_action_noise").read(target_next_action_noise_vector);
@@ -282,7 +265,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
                 AC_DEVICE,
                 decltype(actor_critic)::SPEC,
                 decltype(actor_critic.critic_1),
-                decltype(replay_buffer)::DEVICE,
                 decltype(replay_buffer)::CAPACITY,
                 decltype(rng),
                 true
@@ -292,16 +274,16 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         lic::reset_forward_state(device, post_critic_1);
         lic::reset_forward_state(device, actor_critic.critic_1);
 
-        DTYPE pre_post_diff_per_weight = abs_diff(pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_per_weight = abs_diff(post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_per_weight = abs_diff(device, pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_per_weight = abs_diff(device, post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_grad_per_weight = abs_diff_grad(post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
-        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_adam_per_weight = abs_diff_adam(post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
 
         if(verbose){
@@ -350,16 +332,16 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     lic::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
-    lic::load(actor_critic.actor, data_file.getGroup("actor"));
-    lic::load(actor_critic.actor_target, data_file.getGroup("actor_target"));
-    lic::load(actor_critic.critic_1, data_file.getGroup("critic_1"));
-    lic::load(actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
-    lic::load(actor_critic.critic_2, data_file.getGroup("critic_2"));
-    lic::load(actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
+    lic::load(device, actor_critic.actor, data_file.getGroup("actor"));
+    lic::load(device, actor_critic.actor_target, data_file.getGroup("actor_target"));
+    lic::load(device, actor_critic.critic_1, data_file.getGroup("critic_1"));
+    lic::load(device, actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
+    lic::load(device, actor_critic.critic_2, data_file.getGroup("critic_2"));
+    lic::load(device, actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
     using DEVICE = lic::devices::DefaultCPU;
-    using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<AC_DEVICE, DTYPE, (typename DEVICE::index_t)3, (typename DEVICE::index_t)1, (typename DEVICE::index_t)100>;
-    using ReplayBufferType = lic::rl::components::ReplayBuffer<DEVICE, ReplayBufferSpec>;
+    using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 100>;
+    using ReplayBufferType = lic::rl::components::ReplayBuffer<ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     static_assert(TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE == TD3Parameters<DTYPE>::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
@@ -375,24 +357,24 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
         auto post_actor = actor_critic.actor;
         std::stringstream ss;
         ss << "actor_training/" << training_step_i;
-        lic::load(post_actor, data_file.getGroup(ss.str()));
+        lic::load(device, post_actor, data_file.getGroup(ss.str()));
 
-        DTYPE actor_1_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, ReplayBufferType::DEVICE, ReplayBufferType::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
+        DTYPE actor_1_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, ReplayBufferType::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
 
         lic::reset_forward_state(device, pre_actor);
         lic::reset_forward_state(device, post_actor);
         lic::reset_forward_state(device, actor_critic.actor);
 
-        DTYPE pre_post_diff_per_weight = abs_diff(pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_per_weight = abs_diff(post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_per_weight = abs_diff(device, pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_per_weight = abs_diff(device, post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_grad_per_weight = abs_diff_grad(post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
-        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_adam_per_weight = abs_diff_adam(post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
 
         if(verbose){

@@ -5,19 +5,19 @@
 
 namespace layer_in_c{
     template<typename DEV_SPEC, typename LS, typename RNG>
-    void init_kaiming(nn::layers::dense::Layer<devices::CPU<DEV_SPEC>, LS>& layer, RNG& rng) {
-        using index_t = typename devices::CPU<DEV_SPEC>::index_t;
-        typedef typename LS::T T;
-        logging::text(layer.device.logger, "Initializing layer with the Kaiming scheme");
+    void init_kaiming(devices::CPU<DEV_SPEC>& device, nn::layers::dense::Layer<LS>& layer, RNG& rng) {
+        using T = typename LS::T;
+        using TI = typename LS::TI;
+        logging::text(device.logger, "Initializing layer with the Kaiming scheme");
         T negative_slope = math::sqrt(typename DEV_SPEC::MATH(), (T)5);
         T gain = math::sqrt(typename DEV_SPEC::MATH(), (T)2.0 / (1 + negative_slope * negative_slope));
         T fan = LS::INPUT_DIM;
         T std = gain / math::sqrt(typename DEV_SPEC::MATH(), fan);
         T weight_bound = math::sqrt(typename DEV_SPEC::MATH(), (T)3.0) * std;
         T bias_bound = 1/math::sqrt(typename DEV_SPEC::MATH(), (T)LS::INPUT_DIM);
-        for(index_t i = 0; i < LS::OUTPUT_DIM; i++) {
+        for(TI i = 0; i < LS::OUTPUT_DIM; i++) {
             layer.biases[i] = random::uniform_real_distribution(typename DEV_SPEC::RANDOM(), -bias_bound, bias_bound, rng);
-            for(index_t j = 0; j < LS::INPUT_DIM; j++) {
+            for(TI j = 0; j < LS::INPUT_DIM; j++) {
                 layer.weights[i][j] = random::uniform_real_distribution(typename DEV_SPEC::RANDOM(), -weight_bound, weight_bound, rng);
             }
         }

@@ -4,9 +4,10 @@
 #include <layer_in_c/utils/generic/typing.h>
 
 namespace layer_in_c::nn::layers::dense {
-    template<typename T_T, auto T_INPUT_DIM, auto T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION>
+    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION>
     struct Specification {
-        typedef T_T T;
+        using T = T_T;
+        using TI = T_TI;
         static constexpr auto INPUT_DIM = T_INPUT_DIM;
         static constexpr auto OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
@@ -23,22 +24,24 @@ namespace layer_in_c::nn::layers::dense {
         check_spec_memory<SPEC_1, SPEC_2>
         && SPEC_1::ACTIVATION_FUNCTION == SPEC_2::ACTIVATION_FUNCTION;
 
-    template<typename DEVICE, typename T_SPEC>
+    template<typename T_SPEC>
     struct Layer {
-        typedef T_SPEC SPEC;
-        static constexpr typename DEVICE::index_t INPUT_DIM = SPEC::INPUT_DIM;
-        static constexpr typename DEVICE::index_t OUTPUT_DIM = SPEC::OUTPUT_DIM;
-        static constexpr typename DEVICE::index_t NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
+        static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
+        static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
         typename SPEC::T weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T biases[SPEC::OUTPUT_DIM];
 
     };
-    template<typename DEVICE, typename SPEC>
-    struct LayerBackward : public Layer<DEVICE, SPEC> {
+    template<typename SPEC>
+    struct LayerBackward : public Layer<SPEC> {
         typename SPEC::T pre_activations[SPEC::OUTPUT_DIM];
     };
-    template<typename DEVICE, typename SPEC>
-    struct LayerBackwardGradient : public LayerBackward<DEVICE, SPEC> {
+    template<typename SPEC>
+    struct LayerBackwardGradient : public LayerBackward<SPEC> {
         typename SPEC::T output[SPEC::OUTPUT_DIM];
         typename SPEC::T d_weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T d_biases[SPEC::OUTPUT_DIM];
@@ -49,11 +52,11 @@ namespace layer_in_c::nn::layers::dense {
         static constexpr T ALPHA = 0.001;
 
     };
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    struct LayerBackwardSGD : public LayerBackwardGradient<DEVICE, SPEC> {};
+    template<typename SPEC, typename PARAMETERS>
+    struct LayerBackwardSGD : public LayerBackwardGradient<SPEC> {};
 
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    struct LayerBackwardAdam : public LayerBackwardGradient<DEVICE, SPEC> {
+    template<typename SPEC, typename PARAMETERS>
+    struct LayerBackwardAdam : public LayerBackwardGradient<SPEC> {
         typename SPEC::T d_weights_first_order_moment[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T d_weights_second_order_moment[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
         typename SPEC::T d_biases_first_order_moment[SPEC::OUTPUT_DIM];

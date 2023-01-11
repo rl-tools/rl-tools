@@ -7,7 +7,8 @@
 namespace layer_in_c::nn_models::mlp {
     template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION>
     struct StructureSpecification{
-        typedef T_T T;
+        using T = T_T;
+        using TI = T_TI;
         static constexpr T_TI INPUT_DIM = T_INPUT_DIM;
         static constexpr T_TI OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr T_TI NUM_LAYERS = T_NUM_LAYERS; // The input and output layers count towards the total number of layers
@@ -29,69 +30,68 @@ namespace layer_in_c::nn_models::mlp {
             && SPEC_1::OUTPUT_ACTIVATION_FUNCTION == SPEC_2::OUTPUT_ACTIVATION_FUNCTION;
 
 
-    template <typename T_DEVICE, typename T_STRUCTURE_SPEC>
+    template <typename T_STRUCTURE_SPEC>
     struct Specification{
-        using DEVICE = T_DEVICE;
         using STRUCTURE_SPEC = T_STRUCTURE_SPEC;
         using S = STRUCTURE_SPEC;
         using T = typename S::T;
-        using INPUT_LAYER_SPEC = nn::layers::dense::Specification<T,  S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>;
+        using TI = typename S::TI;
+        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, S::INPUT_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>;
+        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, S::HIDDEN_DIM, S::HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION>;
+        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, S::HIDDEN_DIM, S::OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION>;
     };
 
-    template <typename T_DEVICE, typename T_STRUCTURE_SPEC>
-    struct InferenceSpecification: Specification<T_DEVICE, T_STRUCTURE_SPEC>{
-        using  INPUT_LAYER = nn::layers::dense::Layer<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::Layer<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::Layer<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC>;
+    template <typename T_STRUCTURE_SPEC>
+    struct InferenceSpecification: Specification<T_STRUCTURE_SPEC>{
+        using  INPUT_LAYER = nn::layers::dense::Layer<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::Layer<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::Layer<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC>;
     };
 
-    template <typename T_DEVICE, typename T_STRUCTURE_SPEC>
-    struct InferenceBackwardSpecification: Specification<T_DEVICE, T_STRUCTURE_SPEC>{
-        using  INPUT_LAYER = nn::layers::dense::LayerBackward<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackward<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackward<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC>;
+    template <typename T_STRUCTURE_SPEC>
+    struct InferenceBackwardSpecification: Specification<T_STRUCTURE_SPEC>{
+        using  INPUT_LAYER = nn::layers::dense::LayerBackward<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackward<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackward<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC>;
     };
 
-    template <typename T_DEVICE, typename T_STRUCTURE_SPEC>
-    struct BackwardGradientSpecification: Specification<T_DEVICE, T_STRUCTURE_SPEC>{
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardGradient<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardGradient<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC>;
+    template <typename T_STRUCTURE_SPEC>
+    struct BackwardGradientSpecification: Specification<T_STRUCTURE_SPEC>{
+        using  INPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardGradient<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC>;
     };
 
-    template<typename T_DEVICE, typename T_STRUCTURE_SPEC, typename T_SGD_PARAMETERS>
-    struct SGDSpecification: Specification<T_DEVICE, T_STRUCTURE_SPEC>{
+    template<typename T_STRUCTURE_SPEC, typename T_SGD_PARAMETERS>
+    struct SGDSpecification: Specification<T_STRUCTURE_SPEC>{
         using SGD_PARAMETERS = T_SGD_PARAMETERS;
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardSGD<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC, T_SGD_PARAMETERS>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardSGD<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC, T_SGD_PARAMETERS>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardSGD<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC, T_SGD_PARAMETERS>;
+        using  INPUT_LAYER = nn::layers::dense::LayerBackwardSGD<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC, T_SGD_PARAMETERS>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardSGD<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC, T_SGD_PARAMETERS>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardSGD<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC, T_SGD_PARAMETERS>;
     };
 
-    template<typename T_DEVICE, typename T_STRUCTURE_SPEC, typename T_ADAM_PARAMETERS>
-    struct AdamSpecification: Specification<T_DEVICE, T_STRUCTURE_SPEC>{
+    template<typename T_STRUCTURE_SPEC, typename T_ADAM_PARAMETERS>
+    struct AdamSpecification: Specification<T_STRUCTURE_SPEC>{
         using ADAM_PARAMETERS = T_ADAM_PARAMETERS;
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardAdam<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC, T_ADAM_PARAMETERS>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardAdam<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC, T_ADAM_PARAMETERS>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardAdam<T_DEVICE, typename Specification<T_DEVICE, T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC, T_ADAM_PARAMETERS>;
+        using  INPUT_LAYER = nn::layers::dense::LayerBackwardAdam<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC, T_ADAM_PARAMETERS>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardAdam<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC, T_ADAM_PARAMETERS>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardAdam<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC, T_ADAM_PARAMETERS>;
     };
 
-    template<typename T_DEVICE, typename T_SPEC>
+    template<typename T_SPEC>
     struct NeuralNetwork{
-        typedef T_DEVICE DEVICE;
-        static_assert(DEVICE::template compatible<typename T_SPEC::DEVICE>);
-        typedef T_SPEC SPEC;
-        typedef typename SPEC::T T;
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
 
         // Convenience
         static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required
-        static constexpr typename DEVICE::index_t NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_LAYERS - 2;
+        static constexpr TI NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_LAYERS - 2;
 
         // Interface
-        static constexpr typename DEVICE::index_t  INPUT_DIM = SPEC::INPUT_LAYER ::SPEC::INPUT_DIM;
-        static constexpr typename DEVICE::index_t OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
-        static constexpr typename DEVICE::index_t NUM_WEIGHTS = SPEC::INPUT_LAYER::NUM_WEIGHTS + SPEC::HIDDEN_LAYER::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER::NUM_WEIGHTS;
+        static constexpr TI  INPUT_DIM = SPEC::INPUT_LAYER ::SPEC::INPUT_DIM;
+        static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
+        static constexpr TI NUM_WEIGHTS = SPEC::INPUT_LAYER::NUM_WEIGHTS + SPEC::HIDDEN_LAYER::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER::NUM_WEIGHTS;
 
 
         // Storage
@@ -100,20 +100,20 @@ namespace layer_in_c::nn_models::mlp {
         typename SPEC::OUTPUT_LAYER output_layer;
     };
 
-    template<typename DEVICE, typename SPEC>
-    struct NeuralNetworkBackward: public NeuralNetwork<DEVICE, SPEC>{
+    template<typename SPEC>
+    struct NeuralNetworkBackward: public NeuralNetwork<SPEC>{
     };
-    template<typename DEVICE, typename SPEC>
-    struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<DEVICE, SPEC>{
-    };
-
-    template<typename DEVICE, typename SPEC>
-    struct NeuralNetworkSGD: public NeuralNetworkBackwardGradient<DEVICE, SPEC>{
+    template<typename SPEC>
+    struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<SPEC>{
     };
 
-    template<typename DEVICE, typename SPEC>
-    struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<DEVICE, SPEC>{
-        typename DEVICE::index_t age = 1;
+    template<typename SPEC>
+    struct NeuralNetworkSGD: public NeuralNetworkBackwardGradient<SPEC>{
+    };
+
+    template<typename SPEC>
+    struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<SPEC>{
+        typename SPEC::TI age = 1;
     };
 
 

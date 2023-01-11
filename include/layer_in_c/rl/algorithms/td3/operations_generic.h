@@ -12,7 +12,7 @@
 
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC, typename RNG>
-    FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic, RNG& rng){
+    FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
         init_weights(device, actor_critic.critic_1, rng);
         init_weights(device, actor_critic.critic_2, rng);
@@ -24,16 +24,15 @@ namespace layer_in_c{
         copy(actor_critic.critic_target_1, actor_critic.critic_1);
         copy(actor_critic.critic_target_2, actor_critic.critic_2);
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
     FUNCTION_PLACEMENT typename SPEC::T train_critic(
             DEVICE& device,
-            const rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
+            const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic,
             CRITIC_TYPE& critic,
             const rl::components::ReplayBuffer<
-                    REPLAY_BUFFER_DEVICE,
                     rl::components::replay_buffer::Specification<
-                            REPLAY_BUFFER_DEVICE,
                             typename SPEC::T,
+                            typename DEVICE::index_t,
                             SPEC::ENVIRONMENT::OBSERVATION_DIM,
                             SPEC::ENVIRONMENT::ACTION_DIM,
                             REPLAY_BUFFER_CAPACITY
@@ -69,7 +68,7 @@ namespace layer_in_c{
             utils::memcpy(&state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM], replay_buffer.actions[sample_index], SPEC::ENVIRONMENT::ACTION_DIM); // setting the first part with the current action
             T target_action_value[1] = {replay_buffer.rewards[sample_index] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!replay_buffer.terminated[sample_index])};
 
-            forward_backward_mse<typename CRITIC_TYPE::DEVICE, typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(device, critic, state_action_value_input, target_action_value);
+            forward_backward_mse<DEVICE, typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(device, critic, state_action_value_input, target_action_value);
             static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
             T loss_sample = nn::loss_functions::mse<DEVICE, T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(device, critic.output_layer.pre_activations, target_action_value);
             loss += loss_sample;
@@ -77,16 +76,15 @@ namespace layer_in_c{
         update(device, critic);
         return loss;
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG>
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, auto REPLAY_BUFFER_CAPACITY, typename RNG>
     FUNCTION_PLACEMENT typename SPEC::T train_critic(
             DEVICE& device,
-            const rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
+            const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic,
             CRITIC_TYPE& critic,
             const rl::components::ReplayBuffer<
-                    REPLAY_BUFFER_DEVICE,
                     rl::components::replay_buffer::Specification<
-                            REPLAY_BUFFER_DEVICE,
                             typename SPEC::T,
+                            typename DEVICE::index_t,
                             SPEC::ENVIRONMENT::OBSERVATION_DIM,
                             SPEC::ENVIRONMENT::ACTION_DIM,
                             REPLAY_BUFFER_CAPACITY
@@ -107,15 +105,14 @@ namespace layer_in_c{
         }
         return train_critic(device, actor_critic, critic, replay_buffer, action_noise, rng);
     }
-    template <typename DEVICE, typename SPEC, typename REPLAY_BUFFER_DEVICE, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC = false>
+    template <typename DEVICE, typename SPEC, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC = false>
     FUNCTION_PLACEMENT typename SPEC::T train_actor(
             DEVICE& device,
-            rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic,
+            rl::algorithms::td3::ActorCritic<SPEC>& actor_critic,
             rl::components::ReplayBuffer<
-                    REPLAY_BUFFER_DEVICE,
                     rl::components::replay_buffer::Specification<
-                            REPLAY_BUFFER_DEVICE,
                             typename SPEC::T,
+                            typename DEVICE::index_t,
                             SPEC::ENVIRONMENT::OBSERVATION_DIM,
                             SPEC::ENVIRONMENT::ACTION_DIM,
                             REPLAY_BUFFER_CAPACITY
@@ -148,12 +145,12 @@ namespace layer_in_c{
         return actor_value;
     }
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void update_target_layer(DEVICE& device, nn::layers::dense::Layer<DEVICE, SPEC>& target, const nn::layers::dense::Layer<DEVICE, SPEC>& source, typename SPEC::T polyak) {
+    FUNCTION_PLACEMENT void update_target_layer(DEVICE& device, nn::layers::dense::Layer<SPEC>& target, const nn::layers::dense::Layer<SPEC>& source, typename SPEC::T polyak) {
         utils::polyak::update_matrix<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(device, target.weights, source.weights, polyak);
         utils::polyak::update       <DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM                 >(device, target.biases , source.biases , polyak);
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void update_target_network(DEVICE& device, nn_models::mlp::NeuralNetwork<DEVICE, TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<DEVICE, SOURCE_SPEC>& source, T polyak) {
+    FUNCTION_PLACEMENT void update_target_network(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, T polyak) {
         using TargetNetworkType = typename utils::typing::remove_reference<decltype(target)>::type;
         update_target_layer(device, target.input_layer, source.input_layer, polyak);
         for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
@@ -163,7 +160,7 @@ namespace layer_in_c{
     }
 
     template <typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void update_targets(DEVICE& device, rl::algorithms::td3::ActorCritic<DEVICE, SPEC>& actor_critic) {
+    FUNCTION_PLACEMENT void update_targets(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
         update_target_network(device, actor_critic.actor_target   , actor_critic.   actor, SPEC::PARAMETERS::ACTOR_POLYAK);
         update_target_network(device, actor_critic.critic_target_1, actor_critic.critic_1, SPEC::PARAMETERS::CRITIC_POLYAK);
         update_target_network(device, actor_critic.critic_target_2, actor_critic.critic_2, SPEC::PARAMETERS::CRITIC_POLYAK);

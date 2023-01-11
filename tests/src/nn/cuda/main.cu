@@ -21,16 +21,17 @@ typedef double DTYPE;
 
 
 using DEVICE_CUDA = lic::devices::DefaultCUDA;
+using DEVICE_CUDA_GENERIC = lic::devices::CUDA_GENERIC<DEVICE_CUDA::SPEC>;
 using DEVICE_CPU = lic::devices::DefaultCPU;
 
 template <typename DEVICE, typename T_T>
 using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 5, 4, 3, 3, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
 
 
-using NETWORK_SPEC_CUDA = lic::nn_models::mlp::AdamSpecification<DEVICE_CUDA, StructureSpecification<DEVICE_CUDA, DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
-using NetworkType_CUDA = lic::nn_models::mlp::NeuralNetworkAdam<DEVICE_CUDA, NETWORK_SPEC_CUDA>;
-using NETWORK_SPEC_CPU = lic::nn_models::mlp::AdamSpecification<DEVICE_CPU, StructureSpecification<DEVICE_CPU, DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
-using NetworkType_CPU = lic::nn_models::mlp::NeuralNetworkAdam<DEVICE_CPU, NETWORK_SPEC_CPU>;
+using NETWORK_SPEC_CUDA = lic::nn_models::mlp::AdamSpecification<StructureSpecification<DEVICE_CUDA_GENERIC, DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using NetworkType_CUDA = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC_CUDA>;
+using NETWORK_SPEC_CPU = lic::nn_models::mlp::AdamSpecification<StructureSpecification<DEVICE_CPU, DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using NetworkType_CPU = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC_CPU>;
 
 
 //TEST(LAYER_IN_C_NN_MLP_CUDA, FULL_TRAINING) {
@@ -78,7 +79,11 @@ int main(){
     DTYPE* output_gpu;
     cudaMalloc(&output_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM);
 
-    lic::evaluate(device_cuda, *network_cuda_device, input_gpu, output_gpu);
+    DEVICE_CUDA* device_cuda_gpu;
+    cudaMalloc(&device_cuda_gpu, sizeof(DEVICE_CUDA));
+    cudaMemcpy(device_cuda_gpu, &device_cuda, sizeof(DEVICE_CUDA), cudaMemcpyHostToDevice);
+
+    lic::evaluate(*device_cuda_gpu, device_cpu, *network_cuda_device, input_gpu, output_gpu);
 
     DTYPE output_gpu_cpu[NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM];
     cudaMemcpy(output_gpu_cpu, output_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);

@@ -7,21 +7,21 @@
 #include <iostream>
 namespace layer_in_c {
     template<typename DEVICE, typename SPEC>
-    void save(nn::layers::dense::Layer<DEVICE, SPEC>& layer, HighFive::Group group) {
+    void save(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer, HighFive::Group group) {
         auto weights = utils::persist::array_conversion::matrix_to_std_vector<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(layer.weights);
         auto biases  = utils::persist::array_conversion::vector_to_std_vector<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM>(layer.biases);
         group.createDataSet("weights", weights);
         group.createDataSet("biases" , biases);
     }
     template<typename DEVICE, typename SPEC>
-    void save(nn::layers::dense::LayerBackward<DEVICE, SPEC>& layer, HighFive::Group group) {
-        save((nn::layers::dense::Layer<DEVICE, SPEC>&)layer, group);
+    void save(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, HighFive::Group group) {
+        save(device, (nn::layers::dense::Layer<SPEC>&)layer, group);
         auto weights = utils::persist::array_conversion::vector_to_std_vector<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM>(layer.pre_activations);
         group.createDataSet("pre_activations", weights);
     }
     template<typename DEVICE, typename SPEC>
-    void save(nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& layer, HighFive::Group group) {
-        save((nn::layers::dense::LayerBackward<DEVICE, SPEC>&)layer, group);
+    void save(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, HighFive::Group group) {
+        save(device, (nn::layers::dense::LayerBackward<SPEC>&)layer, group);
         auto output    = utils::persist::array_conversion::vector_to_std_vector<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM>(layer.output);
         auto d_weights = utils::persist::array_conversion::matrix_to_std_vector<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(layer.d_weights);
         auto d_biases  = utils::persist::array_conversion::vector_to_std_vector<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM>(layer.d_biases);
@@ -30,12 +30,12 @@ namespace layer_in_c {
         group.createDataSet("d_biases" , d_biases);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void save(nn::layers::dense::LayerBackwardSGD<DEVICE, SPEC, PARAMETERS>& layer, HighFive::Group group) {
-        save((nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)layer, group);
+    void save(DEVICE& device, nn::layers::dense::LayerBackwardSGD<SPEC, PARAMETERS>& layer, HighFive::Group group) {
+        save(device, (nn::layers::dense::LayerBackwardGradient<SPEC>&)layer, group);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void save(nn::layers::dense::LayerBackwardAdam<DEVICE, SPEC, PARAMETERS>& layer, HighFive::Group group) {
-        save((nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)layer, group);
+    void save(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer, HighFive::Group group) {
+        save(device, (nn::layers::dense::LayerBackwardGradient<SPEC>&)layer, group);
         auto d_weights_first_order_moment  = utils::persist::array_conversion::matrix_to_std_vector<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(layer.d_weights_first_order_moment);
         auto d_weights_second_order_moment = utils::persist::array_conversion::matrix_to_std_vector<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(layer.d_weights_second_order_moment);
         auto d_biases_first_order_moment   = utils::persist::array_conversion::vector_to_std_vector<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM>(layer.d_biases_first_order_moment);
@@ -46,7 +46,7 @@ namespace layer_in_c {
         group.createDataSet("d_biases_second_order_moment" , d_biases_second_order_moment);
     }
     template<typename DEVICE, typename SPEC>
-    void load(nn::layers::dense::Layer<DEVICE, SPEC>& layer, HighFive::Group group) {
+    void load(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer, HighFive::Group group) {
         auto weights_dataset = group.getDataSet("weights");
         auto weights_dims = weights_dataset.getDimensions();
         assert(weights_dims[0] == SPEC::OUTPUT_DIM);
@@ -59,12 +59,12 @@ namespace layer_in_c {
         biases_dataset.read(layer.biases);
     }
     template<typename DEVICE, typename SPEC>
-    void load(nn::layers::dense::LayerBackward<DEVICE, SPEC>& layer, HighFive::Group group) {
-        load((nn::layers::dense::Layer<DEVICE, SPEC>&)layer, group);
+    void load(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, HighFive::Group group) {
+        load(device, (nn::layers::dense::Layer<SPEC>&)layer, group);
     }
     template<typename DEVICE, typename SPEC>
-    void load(nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>& layer, HighFive::Group group) {
-        load((nn::layers::dense::LayerBackward<DEVICE, SPEC>&)layer, group);
+    void load(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, HighFive::Group group) {
+        load(device, (nn::layers::dense::LayerBackward<SPEC>&)layer, group);
         auto d_weights_dataset = group.getDataSet("d_weights");
         auto d_weights_dims = d_weights_dataset.getDimensions();
         assert(d_weights_dims[0] == SPEC::OUTPUT_DIM);
@@ -77,12 +77,12 @@ namespace layer_in_c {
         d_biases_dataset.read(layer.d_biases);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void load(nn::layers::dense::LayerBackwardSGD<DEVICE, SPEC, PARAMETERS>& layer, HighFive::Group group) {
-        load((nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)(layer), group);
+    void load(DEVICE& device, nn::layers::dense::LayerBackwardSGD<SPEC, PARAMETERS>& layer, HighFive::Group group) {
+        load(device, (nn::layers::dense::LayerBackwardGradient<SPEC>&)(layer), group);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void load(nn::layers::dense::LayerBackwardAdam<DEVICE, SPEC, PARAMETERS>& layer, HighFive::Group group) {
-        load((nn::layers::dense::LayerBackwardGradient<DEVICE, SPEC>&)layer, group);
+    void load(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer, HighFive::Group group) {
+        load(device, (nn::layers::dense::LayerBackwardGradient<SPEC>&)layer, group);
         if(group.exist("d_biases_first_order_moment")) {
             auto d_weights_first_order_moment_dataset = group.getDataSet("d_weights_first_order_moment");
             auto d_weights_first_order_moment_dims = d_weights_first_order_moment_dataset.getDimensions();

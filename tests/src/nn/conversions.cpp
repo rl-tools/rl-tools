@@ -12,9 +12,9 @@ constexpr index_t OUTER_INPUT_DIM = 10;
 constexpr index_t OUTER_OUTPUT_DIM = 10;
 constexpr unsigned OUTER_INPUT_DIM_2 = 10;
 constexpr unsigned OUTER_OUTPUT_DIM_2 = 10;
-using LayerSpec1 = lic::nn::layers::dense::Specification<DTYPE, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, lic::nn::activation_functions::ActivationFunction::IDENTITY>;
-using LayerSpec2 = lic::nn::layers::dense::Specification<DTYPE, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, lic::nn::activation_functions::ActivationFunction::IDENTITY>;
-using LayerSpec3 = lic::nn::layers::dense::Specification<DTYPE, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, lic::nn::activation_functions::ActivationFunction::RELU>;
+using LayerSpec1 = lic::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, lic::nn::activation_functions::ActivationFunction::IDENTITY>;
+using LayerSpec2 = lic::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, lic::nn::activation_functions::ActivationFunction::IDENTITY>;
+using LayerSpec3 = lic::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, lic::nn::activation_functions::ActivationFunction::RELU>;
 
 struct LayerSpec4{
     typedef DTYPE T;
@@ -24,7 +24,7 @@ struct LayerSpec4{
     // Summary
     static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
 };
-using LayerSpec5 = lic::nn::layers::dense::Specification<DTYPE, OUTER_INPUT_DIM_2, OUTER_OUTPUT_DIM_2, lic::nn::activation_functions::ActivationFunction::RELU>;
+using LayerSpec5 = lic::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM_2, OUTER_OUTPUT_DIM_2, lic::nn::activation_functions::ActivationFunction::RELU>;
 
 static_assert(lic::utils::typing::is_same_v<LayerSpec1, LayerSpec2>);
 // these should fail
@@ -34,7 +34,7 @@ static_assert(lic::utils::typing::is_same_v<LayerSpec1, LayerSpec2>);
 
 
 using Device1 = lic::devices::DefaultDummy;
-using Layer1 = lic::nn::layers::dense::Layer<Device1, LayerSpec1>;
+using Layer1 = lic::nn::layers::dense::Layer<LayerSpec1>;
 
 Device1::SPEC::LOGGING logger;
 Device1 device1(logger);
@@ -43,7 +43,7 @@ Layer1 layer1;
 Layer1 layer11;
 
 using Device2 = lic::devices::DefaultCPU;
-using Layer2 = lic::nn::layers::dense::Layer<Device2, LayerSpec2>;
+using Layer2 = lic::nn::layers::dense::Layer<LayerSpec2>;
 
 Device2::SPEC::LOGGING logger2;
 Device2 device2(logger2);

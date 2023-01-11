@@ -23,20 +23,22 @@ typedef double T;
 
 
 using DEVICE = lic::devices::DefaultCPU;
-template <typename T_T>
-struct StructureSpecification{
-    typedef T_T T;
-    static constexpr typename DEVICE::index_t INPUT_DIM = 17;
-    static constexpr typename DEVICE::index_t OUTPUT_DIM = 13;
-    static constexpr int NUM_LAYERS = 3;
-    static constexpr int HIDDEN_DIM = 50;
-    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
-    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
-};
+//template <typename T_T>
+//struct StructureSpecification{
+//    typedef T_T T;
+//    static constexpr typename DEVICE::index_t INPUT_DIM = 17;
+//    static constexpr typename DEVICE::index_t OUTPUT_DIM = 13;
+//    static constexpr int NUM_LAYERS = 3;
+//    static constexpr int HIDDEN_DIM = 50;
+//    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
+//    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
+//};
+
+using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
 
 
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<DEVICE , StructureSpecification<T>, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
-using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<DEVICE, NETWORK_SPEC>;
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
+using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
 std::vector<std::vector<T>> Y_train;
@@ -47,8 +49,8 @@ std::vector<T> X_std;
 std::vector<T> Y_mean;
 std::vector<T> Y_std;
 
-constexpr typename DEVICE::index_t INPUT_DIM = StructureSpecification<T>::INPUT_DIM;
-constexpr typename DEVICE::index_t OUTPUT_DIM = StructureSpecification<T>::OUTPUT_DIM;
+constexpr typename DEVICE::index_t INPUT_DIM = StructureSpecification::INPUT_DIM;
+constexpr typename DEVICE::index_t OUTPUT_DIM = StructureSpecification::OUTPUT_DIM;
 
 TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data

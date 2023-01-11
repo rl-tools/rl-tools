@@ -8,8 +8,8 @@
 #include <layer_in_c/math/operations_generic.h>
 
 namespace layer_in_c {
-    template<typename ENVIRONMENT, typename POLICY, auto STEP_LIMIT>
-    typename POLICY::T evaluate(typename POLICY::DEVICE& device, const ENVIRONMENT env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
+    template<typename DEVICE, typename ENVIRONMENT, typename POLICY, auto STEP_LIMIT>
+    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
         typedef typename POLICY::T T;
         typename ENVIRONMENT::State state;
         state = initial_state;
@@ -57,7 +57,7 @@ namespace layer_in_c {
             else{
                 sample_initial_state(env, initial_state, rng);
             }
-            episode_returns[i] = evaluate<ENVIRONMENT, POLICY, STEP_LIMIT>(device, env, policy, initial_state);
+            episode_returns[i] = evaluate<DEVICE, ENVIRONMENT, POLICY, STEP_LIMIT>(device, env, policy, initial_state);
         }
         T mean = 0;
         for(typename DEVICE::index_t i = 0; i < N; i++) {
