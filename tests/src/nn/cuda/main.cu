@@ -3,6 +3,7 @@
 #include <layer_in_c/operations/cuda.h>
 #include <layer_in_c/operations/cpu.h>
 
+#include <layer_in_c/nn/operations_cuda.h>
 #include <layer_in_c/nn_models/operations_cuda.h>
 #include <layer_in_c/nn_models/operations_cpu.h>
 
@@ -17,7 +18,7 @@
 
 namespace lic = layer_in_c;
 
-typedef double DTYPE;
+using DTYPE = double;
 
 
 using DEVICE_CUDA = lic::devices::DefaultCUDA;
@@ -25,7 +26,7 @@ using DEVICE_CUDA_GENERIC = lic::devices::CUDA_GENERIC<DEVICE_CUDA::SPEC>;
 using DEVICE_CPU = lic::devices::DefaultCPU;
 
 template <typename DEVICE, typename T_T>
-using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 5, 4, 3, 3, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
+using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 10, 5, 3, 24, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
 
 
 using NETWORK_SPEC_CUDA = lic::nn_models::mlp::AdamSpecification<StructureSpecification<DEVICE_CUDA_GENERIC, DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
@@ -67,6 +68,11 @@ int main(){
     DTYPE loss_cpu = lic::nn::loss_functions::mse<DEVICE_CPU, DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, 1>(device_cpu, network_cpu.output_layer.output, output_cpu);
     lic::backward(device_cpu, network_cpu, input_cpu, d_loss_d_output_cpu, d_input_cpu);
 
+    // GPU part
+    DEVICE_CUDA* device_cuda_gpu;
+    cudaMalloc(&device_cuda_gpu, sizeof(DEVICE_CUDA));
+    cudaMemcpy(device_cuda_gpu, &device_cuda, sizeof(DEVICE_CUDA), cudaMemcpyHostToDevice);
+
     NetworkType_CUDA* network_cuda_device;
     cudaMalloc(&network_cuda_device, sizeof(NetworkType_CUDA));
     cudaMemcpy(network_cuda_device, &network_cuda, sizeof(NetworkType_CUDA), cudaMemcpyHostToDevice);
@@ -76,29 +82,50 @@ int main(){
     cudaMalloc(&input_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM);
     cudaMemcpy(input_gpu, input_cpu, sizeof(input_gpu) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM, cudaMemcpyHostToDevice);
     cudaDeviceSynchronize();
-    DTYPE* output_gpu;
-    cudaMalloc(&output_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM);
 
-    DEVICE_CUDA* device_cuda_gpu;
-    cudaMalloc(&device_cuda_gpu, sizeof(DEVICE_CUDA));
-    cudaMemcpy(device_cuda_gpu, &device_cuda, sizeof(DEVICE_CUDA), cudaMemcpyHostToDevice);
+    // Test first layer
+    DTYPE* output_first_layer_gpu;
+    cudaMalloc(&output_first_layer_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM);
 
-    lic::evaluate(*device_cuda_gpu, device_cpu, *network_cuda_device, input_gpu, output_gpu);
+    auto start = std::chrono::high_resolution_clock::now();
+    lic::evaluate(*device_cuda_gpu, network_cuda_device->input_layer, input_gpu, output_first_layer_gpu);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end-start;
+    std::cout << "Elapsed time: " << elapsed_seconds.count() * 1000 * 1000 << "us" << std::endl;
 
-    DTYPE output_gpu_cpu[NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM];
-    cudaMemcpy(output_gpu_cpu, output_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);
+    DTYPE output_first_layer_gpu_cpu[NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM];
+    cudaMemcpy(output_first_layer_gpu_cpu, output_first_layer_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
 
-    DTYPE output_diff = lic::nn::layers::dense::helper::abs_diff_vector<DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM>(output_gpu_cpu, network_cpu.output_layer.output);
-//    ASSERT_LT(output_diff, 1e-15);
+    DTYPE output_first_layer_diff = lic::nn::layers::dense::helper::abs_diff_vector<DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM>(output_first_layer_gpu_cpu, network_cpu.input_layer.output);
 
-    std::cout << "CPU - CUDA evaluation diff: " << output_diff << std::endl;
+    std::cout << "CPU - CUDA evaluation diff: " << output_first_layer_diff << std::endl;
+    assert(output_first_layer_diff < 1e-12);
 
-    DTYPE* d_loss_d_output_gpu;
-    cudaMalloc(&d_loss_d_output_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM);
-
-
-    DTYPE* d_input;
-    cudaMalloc(&d_input, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM);
+//    // Test full network
+//    DTYPE* output_first_layer_gpu;
+//    cudaMalloc(&output_first_layer_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM);
+//
+//    auto start = std::chrono::high_resolution_clock::now();
+//    lic::evaluate(*device_cuda_gpu, network_cuda_device->input_layer, input_gpu, output_first_layer_gpu);
+//    auto end = std::chrono::high_resolution_clock::now();
+//    std::chrono::duration<double> elapsed_seconds = end-start;
+//    std::cout << "Elapsed time: " << elapsed_seconds.count() * 1000 * 1000 << "us" << std::endl;
+//
+//    DTYPE output_first_layer_gpu_cpu[NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM];
+//    cudaMemcpy(output_first_layer_gpu_cpu, output_first_layer_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);
+//    cudaDeviceSynchronize();
+//
+//    DTYPE output_first_layer_diff = lic::nn::layers::dense::helper::abs_diff_vector<DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM>(output_first_layer_gpu_cpu, network_cpu.input_layer.output);
+//
+//    std::cout << "CPU - CUDA evaluation diff: " << output_first_layer_diff << std::endl;
+//    assert(output_first_layer_diff < 1e-12);
+//
+//    DTYPE* d_loss_d_output_gpu;
+//    cudaMalloc(&d_loss_d_output_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM);
+//
+//
+//    DTYPE* d_input;
+//    cudaMalloc(&d_input, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM);
     return 0;
 }

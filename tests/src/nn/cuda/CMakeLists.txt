@@ -8,8 +8,8 @@ project(test_layer_in_c_nn_cuda CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD  17)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_RELEASE} -O0")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O0")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O0 -g -G -use_fast_math -prec-div=false --ptxas-options=-v")
+#set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O0 ")
 
 add_compile_options(-g -G)
 add_executable(test_nn_cuda main.cu)
