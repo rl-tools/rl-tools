@@ -14,12 +14,12 @@ namespace layer_in_c {
         }
         init_kaiming(device, network.output_layer, rng);
     }
+
     // evaluate does not set intermediate outputs and hence can also be called from stateless layers, for register efficiency use forward when working with "Backward" compatible layers
+
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], typename SPEC::T output[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM]){
+    FUNCTION_PLACEMENT void evaluate_memless(DEVICE& device, const nn_models::mlp::NeuralNetwork<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM], typename SPEC::T output[SPEC::STRUCTURE_SPEC::OUTPUT_DIM], typename SPEC::T layer_output_tick[SPEC::STRUCTURE_SPEC::HIDDEN_DIM], typename SPEC::T layer_output_tock[SPEC::STRUCTURE_SPEC::HIDDEN_DIM]){
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
-        typename SPEC::T layer_output_tick[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
-        typename SPEC::T layer_output_tock[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         evaluate(device, network.input_layer, input, layer_output_tick);
         for (typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
             if(layer_i % 2 == 0){
@@ -34,9 +34,16 @@ namespace layer_in_c {
             evaluate(device, network.output_layer, layer_output_tock, output);
         }
     }
+    template<typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM], typename SPEC::T output[SPEC::STRUCTURE_SPEC::OUTPUT_DIM]){
+        using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
+        typename SPEC::T layer_output_tick[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
+        typename SPEC::T layer_output_tock[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
+        evaluate_memless(device, network, input, output, layer_output_tick, layer_output_tock);
+    }
 
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT typename SPEC::T evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM]) {
+    FUNCTION_PLACEMENT typename SPEC::T evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM]) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         static_assert(NetworkType::OUTPUT_DIM == 1, "OUTPUT_DIM has to be 1 for return based evaluation");
         typename SPEC::T output[NetworkType::OUTPUT_DIM];
@@ -45,7 +52,7 @@ namespace layer_in_c {
     }
     // forward modifies intermediate outputs and pre activations to facilitate backward pass
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], typename SPEC::T output[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM]){
+    FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM], typename SPEC::T output[SPEC::STRUCTURE_SPEC::OUTPUT_DIM]){
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         typename SPEC::T layer_output_tick[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         typename SPEC::T layer_output_tock[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
@@ -64,7 +71,7 @@ namespace layer_in_c {
         }
     }
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM]) {
+    FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM]) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         forward(device, network.input_layer, input);
 
@@ -76,22 +83,22 @@ namespace layer_in_c {
         forward(device, network.output_layer, current_output);
     }
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], typename SPEC::T output[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM]) {
+    FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM], typename SPEC::T output[SPEC::STRUCTURE_SPEC::OUTPUT_DIM]) {
         forward(device, network, input);
-        for(typename DEVICE::index_t i=0; i < utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM; i++){
+        for(typename DEVICE::index_t i=0; i < SPEC::STRUCTURE_SPEC::OUTPUT_DIM; i++){
             output[i] = network.output_layer.output[i];
         }
     }
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT typename SPEC::T forward_univariate(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM]) {
-        static_assert(utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM == 1, "OUTPUT_DIM has to be 1 for return based evaluation");
+    FUNCTION_PLACEMENT typename SPEC::T forward_univariate(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM]) {
+        static_assert(SPEC::STRUCTURE_SPEC::OUTPUT_DIM == 1, "OUTPUT_DIM has to be 1 for return based evaluation");
         typename SPEC::T output[1];
         forward(device, network, input, output);
         return output[0];
     }
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT typename SPEC::T forward_univariate(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM]) {
-        static_assert(utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM == 1, "OUTPUT_DIM has to be 1 for return based evaluation");
+    FUNCTION_PLACEMENT typename SPEC::T forward_univariate(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM]) {
+        static_assert(SPEC::STRUCTURE_SPEC::OUTPUT_DIM == 1, "OUTPUT_DIM has to be 1 for return based evaluation");
         forward(device, network, input);
         return network.output_layer.output[0];
     }
@@ -106,7 +113,7 @@ namespace layer_in_c {
         zero_gradient(device, network.output_layer);
     }
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& network, const typename SPEC::T d_output[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM], typename SPEC::T d_input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM]) {
+    FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& network, const typename SPEC::T d_output[SPEC::STRUCTURE_SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::STRUCTURE_SPEC::INPUT_DIM]) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         typename SPEC::T d_layer_input_tick[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
         typename SPEC::T d_layer_input_tock[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
@@ -126,7 +133,7 @@ namespace layer_in_c {
         }
     }
     template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], const typename SPEC::T d_output[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM], typename SPEC::T d_input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM]) {
+    FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM], const typename SPEC::T d_output[SPEC::STRUCTURE_SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::STRUCTURE_SPEC::INPUT_DIM]) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
 
         typename SPEC::T d_layer_input_tick[SPEC::STRUCTURE_SPEC::HIDDEN_DIM];
@@ -149,7 +156,7 @@ namespace layer_in_c {
         }
     }
     template<typename DEVICE, typename SPEC, auto BATCH_SIZE>
-    FUNCTION_PLACEMENT void forward_backward_mse(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[utils::typing::remove_reference<decltype(network)>::type::INPUT_DIM], typename SPEC::T target[utils::typing::remove_reference<decltype(network)>::type::OUTPUT_DIM]) {
+    FUNCTION_PLACEMENT void forward_backward_mse(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, const typename SPEC::T input[SPEC::STRUCTURE_SPEC::INPUT_DIM], typename SPEC::T target[SPEC::STRUCTURE_SPEC::OUTPUT_DIM]) {
         typename SPEC::T d_input[SPEC::STRUCTURE_SPEC::INPUT_DIM];
         forward(device, network, input);
         typename SPEC::T d_loss_d_output[SPEC::STRUCTURE_SPEC::OUTPUT_DIM];
