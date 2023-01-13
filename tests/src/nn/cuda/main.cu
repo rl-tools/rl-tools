@@ -29,7 +29,7 @@ using DEVICE_CUDA = lic::devices::DefaultCUDA;
 using DEVICE_CUDA_GENERIC = lic::devices::CUDA_GENERIC<DEVICE_CUDA::SPEC>;
 using DEVICE_CPU = lic::devices::DefaultCPU;
 
-constexpr DEVICE_CPU::index_t BATCH_SIZE = 1000;
+constexpr DEVICE_CPU::index_t BATCH_SIZE = 100;
 
 template <typename DEVICE, typename T_T>
 using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 10, 5, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY>;
