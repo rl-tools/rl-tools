@@ -16,7 +16,9 @@
 #include <chrono>
 #include <highfive/H5File.hpp>
 
+#ifdef LAYER_IN_C_TESTS_NN_CUDA_ENABLE_CUTLASS
 #include "cutlass/gemm/device/gemm.h"
+#endif
 
 namespace lic = layer_in_c;
 
@@ -123,6 +125,7 @@ int main(){
 
 
 
+#ifdef LAYER_IN_C_TESTS_NN_CUDA_ENABLE_CUTLASS
     // Speed tests CUTLASS
     {
         constexpr unsigned M = NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM;
@@ -162,6 +165,7 @@ int main(){
     DTYPE output_first_layer_cutlass_diff = lic::nn::layers::dense::helper::abs_diff_vector<DTYPE, NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM>(output_first_layer_gpu_cpu, network_cpu.input_layer.output);
 
     std::cout << "CPU - CUDA evaluation diff input layer cutlass: " << output_first_layer_cutlass_diff << std::endl;
+#endif
 
     // Test full network
     DTYPE* output_full_network_gpu;
