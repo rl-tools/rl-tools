@@ -32,9 +32,16 @@ namespace layer_in_c{
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
+            using TX_TYPE = uint8_t;
+            constexpr TI NUM_TX_OPS = sizeof(nn::layers::dense::Layer<SPEC>);
+            TI NUM_TX_ITERATIONS = NUM_TX_OPS/blockDim.x + (NUM_TX_OPS % blockDim.x == 0 ? 0 : 1);
             __shared__ nn::layers::dense::Layer<SPEC> layer;
-            if(threadIdx.x == 0){
-                layer = p_layer;
+
+            for(TI sm_i = 0; sm_i < NUM_TX_ITERATIONS; sm_i++) {
+                TI sm_offset = sm_i * blockDim.x + threadIdx.x;
+                if(sm_offset < NUM_TX_OPS) {
+                    ((TX_TYPE*)&layer)[sm_offset] = ((TX_TYPE*)&p_layer)[sm_offset];
+                }
             }
             __syncthreads();
             TI thread_id = blockIdx.x * blockDim.x + threadIdx.x;

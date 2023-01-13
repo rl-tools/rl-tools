@@ -9,7 +9,7 @@ namespace layer_in_c::devices{
     namespace cuda{
         struct Base{
             static constexpr Device DEVICE = Device::CUDA;
-            using index_t = size_t;
+            using index_t = unsigned int;
         };
     }
     namespace math{

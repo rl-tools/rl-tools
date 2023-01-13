@@ -226,6 +226,10 @@ int main(){
         cudaDeviceSynchronize();
         DTYPE output_layer_batch_network_diff_per_weight = lic::nn::layers::dense::helper::abs_diff_matrix<DTYPE, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>(output_layer_batch_gpu_cpu, output_first_layer_cpu) / NetworkType_CUDA::NUM_WEIGHTS;
         std::cout << "CPU - CUDA evaluation batch diff: " << output_layer_batch_network_diff_per_weight << std::endl;
+        auto layer_cpu = network_cpu.input_layer;
+        decltype(layer_cpu)* input_layer_gpu;
+        cudaMalloc(&input_layer_gpu, sizeof(decltype(layer_cpu)));
+        cudaMemcpy(input_layer_gpu, &network_cuda.input_layer, sizeof(decltype(layer_cpu)), cudaMemcpyDeviceToHost);
         assert(output_layer_batch_network_diff_per_weight < 1e-15);
     }
 
