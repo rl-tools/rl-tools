@@ -10,16 +10,18 @@ namespace layer_in_c{
         template<typename DEV_SPEC, typename SPEC>
         __global__ void
         evaluate_kernel(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::Layer<SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], typename SPEC::T output[SPEC::OUTPUT_DIM]){
+            using T = typename SPEC::T;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
             TI thread_id = blockIdx.x * blockDim.x + threadIdx.x;
             if(thread_id < OUTPUT_DIM){
-                output[thread_id] = layer.biases[thread_id];
+                T acc = layer.biases[thread_id];
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
-                    output[thread_id] += layer.weights[thread_id][input_i] * input[input_i];
+                    acc += layer.weights[thread_id][input_i] * input[input_i];
                 }
-                output[thread_id] = nn::activation_functions::activation<typename devices::CUDA<DEV_SPEC>::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output[thread_id]);
+                acc = nn::activation_functions::activation<typename devices::CUDA<DEV_SPEC>::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(acc);
+                output[thread_id] = acc;
             }
         }
 

@@ -77,10 +77,10 @@ namespace layer_in_c::math {
     FUNCTION_PLACEMENT T tanh(const devices::math::CUDA_FAST&, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr(utils::typing::is_same_v<T, float>){
-            return __tanhf(x);
+            return ::tanhf(x);
         }
         else{
-            return __tanh(x);
+            return ::tanh(x);
         }
     }
     template<typename T>
