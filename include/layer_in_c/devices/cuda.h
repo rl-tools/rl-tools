@@ -47,7 +47,7 @@ namespace layer_in_c::devices{
         explicit CUDA_GENERIC(typename SPEC::LOGGING& logger) : logger(logger) {}
     };
     struct DefaultCUDASpecification{
-        using MATH = math::CUDA;
+        using MATH = math::CUDA_FAST;
         using RANDOM = random::CUDA;
         using LOGGING = logging::CUDA;
     };

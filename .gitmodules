@@ -10,3 +10,6 @@
 [submodule "tests/lib/googletest"]
 	path = tests/lib/googletest
 	url = https://github.com/google/googletest.git
+[submodule "tests/src/nn/cuda/lib/cutlass"]
+	path = tests/src/nn/cuda/lib/cutlass
+	url = https://github.com/NVIDIA/cutlass.git

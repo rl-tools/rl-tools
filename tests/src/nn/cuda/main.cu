@@ -16,9 +16,11 @@
 #include <chrono>
 #include <highfive/H5File.hpp>
 
+#include "cutlass/gemm/device/gemm.h"
+
 namespace lic = layer_in_c;
 
-using DTYPE = double;
+using DTYPE = float;
 
 
 using DEVICE_CUDA = lic::devices::DefaultCUDA;
@@ -26,7 +28,7 @@ using DEVICE_CUDA_GENERIC = lic::devices::CUDA_GENERIC<DEVICE_CUDA::SPEC>;
 using DEVICE_CPU = lic::devices::DefaultCPU;
 
 template <typename DEVICE, typename T_T>
-using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 10, 5, 3, 64, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
+using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 10, 5, 3, 2048, lic::nn::activation_functions::IDENTITY, lic::nn::activation_functions::IDENTITY>;
 
 
 using NETWORK_SPEC_CUDA = lic::nn_models::mlp::AdamSpecification<StructureSpecification<DEVICE_CUDA_GENERIC, DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
@@ -63,16 +65,16 @@ int main(){
         output_cpu[i] = lic::random::uniform_real_distribution(DEVICE_CPU::SPEC::RANDOM(), -(DTYPE)1, (DTYPE)1, rng);
     }
 
+    constexpr unsigned NUM_ITERATIONS = 1000;
+
     {
-        cudaDeviceSynchronize();
         auto start = std::chrono::high_resolution_clock::now();
-        for(DEVICE_CPU::index_t i = 0; i < 1000; ++i) {
+        for(DEVICE_CPU::index_t i = 0; i < NUM_ITERATIONS; ++i) {
             lic::forward(device_cpu, network_cpu, input_cpu);
         }
-        cudaDeviceSynchronize();
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
-        std::cout << "Elapsed time CPU forward: " << elapsed_seconds.count() * 1000 * 1000 << "us" << std::endl;
+        std::cout << "Elapsed time CPU forward: " << elapsed_seconds.count() * 1000 * 1000 << " us" << std::endl;
     }
     lic::nn::loss_functions::d_mse_d_x<DEVICE_CPU, DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, 1>(device_cpu, network_cpu.output_layer.output, output_cpu, d_loss_d_output_cpu);
     DTYPE loss_cpu = lic::nn::loss_functions::mse<DEVICE_CPU, DTYPE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, 1>(device_cpu, network_cpu.output_layer.output, output_cpu);
@@ -90,7 +92,7 @@ int main(){
 
     DTYPE* input_gpu;
     cudaMalloc(&input_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM);
-    cudaMemcpy(input_gpu, input_cpu, sizeof(input_gpu) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM, cudaMemcpyHostToDevice);
+    cudaMemcpy(input_gpu, input_cpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM, cudaMemcpyHostToDevice);
     cudaDeviceSynchronize();
 
     // Test first layer
@@ -100,13 +102,13 @@ int main(){
     {
         cudaDeviceSynchronize();
         auto start = std::chrono::high_resolution_clock::now();
-        for(DEVICE_CPU::index_t i = 0; i < 1000; ++i) {
+        for(DEVICE_CPU::index_t i = 0; i < NUM_ITERATIONS; ++i) {
             lic::evaluate(*device_cuda_gpu, network_cuda_device->input_layer, input_gpu, output_first_layer_gpu);
         }
         cudaDeviceSynchronize();
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
-        std::cout << "Elapsed time GPU layer: " << elapsed_seconds.count() * 1000 * 1000 << "us" << std::endl;
+        std::cout << "Elapsed time GPU layer: " << elapsed_seconds.count() * 1000 * 1000 << " us" << std::endl;
     }
 
     DTYPE output_first_layer_gpu_cpu[NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM];
@@ -117,6 +119,49 @@ int main(){
 
     std::cout << "CPU - CUDA evaluation diff input layer: " << output_first_layer_diff << std::endl;
 //    assert(output_first_layer_diff < 1e-15);
+
+
+
+
+    // Speed tests CUTLASS
+    {
+        constexpr unsigned M = NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM;
+        constexpr unsigned K = NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM;
+        constexpr unsigned N = 1;
+        constexpr DTYPE alpha = 1, beta = 1;
+        constexpr unsigned lda = M, ldb = K, ldc = M;
+        using Majority = cutlass::layout::RowMajor;
+        using CutlassGemm = cutlass::gemm::device::Gemm<DTYPE,        // Data-type of A matrix
+                Majority,  // Layout of A matrix
+                float,        // Data-type of B matrix
+                Majority,  // Layout of B matrix
+                float,        // Data-type of C matrix
+                Majority>; // Layout of C matrix
+        CutlassGemm::Arguments args({M, N, K},  // Gemm Problem dimensions
+                                    {(DTYPE *) network_cuda_device->input_layer.weights, K},    // Tensor-ref for source matrix A
+                                    {input_gpu, N},    // Tensor-ref for source matrix B
+                                    {(DTYPE *) network_cuda_device->input_layer.biases, N},    // Tensor-ref for source matrix C
+                                    {output_first_layer_gpu, N},    // Tensor-ref for destination matrix D (may be different memory than source C matrix)
+                                    {alpha, beta}); // Scalars used in the Epilogue
+
+        CutlassGemm gemm_operator;
+        cudaDeviceSynchronize();
+        auto start = std::chrono::high_resolution_clock::now();
+        for(DEVICE_CPU::index_t i = 0; i < NUM_ITERATIONS; ++i) {
+            cutlass::Status status = gemm_operator(args);
+        }
+        cudaDeviceSynchronize();
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end-start;
+        std::cout << "Elapsed time CUTLASS layer: " << elapsed_seconds.count() * 1000 * 1000 << " us" << std::endl;
+    }
+
+    cudaMemcpy(output_first_layer_gpu_cpu, output_first_layer_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
+
+    DTYPE output_first_layer_cutlass_diff = lic::nn::layers::dense::helper::abs_diff_vector<DTYPE, NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM>(output_first_layer_gpu_cpu, network_cpu.input_layer.output);
+
+    std::cout << "CPU - CUDA evaluation diff input layer cutlass: " << output_first_layer_cutlass_diff << std::endl;
 
     // Test full network
     DTYPE* output_full_network_gpu;
@@ -129,7 +174,7 @@ int main(){
         cudaMalloc((void**)&layer_output_tock, sizeof(DTYPE) * NETWORK_SPEC_CUDA::STRUCTURE_SPEC::HIDDEN_DIM);
         cudaDeviceSynchronize();
         auto start = std::chrono::high_resolution_clock::now();
-        for(DEVICE_CPU::index_t i = 0; i < 1000; ++i) {
+        for(DEVICE_CPU::index_t i = 0; i < NUM_ITERATIONS; ++i) {
             lic::evaluate_memless(*device_cuda_gpu, *network_cuda_device, input_gpu, output_full_network_gpu, layer_output_tick, layer_output_tock);
         }
         cudaDeviceSynchronize();
@@ -137,7 +182,7 @@ int main(){
         cudaFree((void**)&layer_output_tick);
         cudaFree((void**)&layer_output_tock);
         std::chrono::duration<double> elapsed_seconds = end-start;
-        std::cout << "Elapsed time GPU forward: " << elapsed_seconds.count() * 1000 * 1000 << "us" << std::endl;
+        std::cout << "Elapsed time GPU forward: " << elapsed_seconds.count() * 1000 * 1000 << " us" << std::endl;
     }
 
     DTYPE output_full_network_gpu_cpu[NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM];
