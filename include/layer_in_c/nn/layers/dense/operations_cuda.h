@@ -26,7 +26,7 @@ namespace layer_in_c{
 
     template<typename DEV_SPEC, typename SPEC>
     void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::Layer<SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], typename SPEC::T output[SPEC::OUTPUT_DIM]) {
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE = 128;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS = SPEC::OUTPUT_DIM / BLOCKSIZE + (SPEC::OUTPUT_DIM % BLOCKSIZE == 0 ? 0 : 1);
         dim3 grid(N_BLOCKS);
         dim3 block(BLOCKSIZE);

@@ -16,6 +16,9 @@ namespace layer_in_c::devices{
         struct CUDA: cuda::Base{
             static constexpr Domain DOMAIN = Domain::math;
         };
+        struct CUDA_FAST: cuda::Base{
+            static constexpr Domain DOMAIN = Domain::math;
+        };
     }
     namespace random{
         struct CUDA: cuda::Base{

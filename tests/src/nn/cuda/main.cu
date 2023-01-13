@@ -26,7 +26,7 @@ using DEVICE_CUDA_GENERIC = lic::devices::CUDA_GENERIC<DEVICE_CUDA::SPEC>;
 using DEVICE_CPU = lic::devices::DefaultCPU;
 
 template <typename DEVICE, typename T_T>
-using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 10, 5, 3, 1024, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
+using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 10, 5, 3, 64, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
 
 
 using NETWORK_SPEC_CUDA = lic::nn_models::mlp::AdamSpecification<StructureSpecification<DEVICE_CUDA_GENERIC, DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
