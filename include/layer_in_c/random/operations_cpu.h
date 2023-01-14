@@ -7,7 +7,7 @@
 #include <random>
 
 namespace layer_in_c::random{
-    auto default_engine(const devices::random::CPU& dev){
+    std::default_random_engine default_engine(const devices::random::CPU& dev){
         return std::default_random_engine(0);
     };
 

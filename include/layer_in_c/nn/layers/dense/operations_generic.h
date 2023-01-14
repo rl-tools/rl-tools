@@ -1,6 +1,7 @@
 #ifndef LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H
 #define LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H
 
+#include <layer_in_c/containers.h>
 #include <layer_in_c/nn/layers/dense/layer.h>
 #include <layer_in_c/utils/generic/polyak.h>
 #ifndef FUNCTION_PLACEMENT
@@ -34,7 +35,24 @@ namespace layer_in_c{
             for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 output[i] += layer.weights[i][j] * input[j];
             }
-            output[i] = nn::activation_functions::activation<typename DEVICE::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output[i]);
+            output[i] = activation<typename DEVICE::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output[i]);
+        }
+    }
+
+    template<typename DEVICE, typename SPEC, typename DEVICE::index_t BATCH_SIZE>
+    FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::dense::Layer<SPEC>& layer, const Matrix<typename SPEC::T, typename DEVICE::index_t, BATCH_SIZE, SPEC::INPUT_DIM, RowMajor>& input, Matrix<typename SPEC::T, typename DEVICE::index_t, BATCH_SIZE, SPEC::OUTPUT_DIM, RowMajor>& output) {
+        // Warning do not use the same buffer for input and output!
+        using TI = typename DEVICE::index_t;
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            for(TI output_i = 0; output_i < SPEC::OUTPUT_DIM; output_i++) {
+                TI output_index = batch_i * SPEC::OUTPUT_DIM + output_i;
+                output.data[output_index] = layer.biases[output_i];
+                for(TI input_i = 0; input_i < SPEC::INPUT_DIM; input_i++) {
+                    TI input_index = batch_i * SPEC::INPUT_DIM + input_i;
+                    output.data[output_index] += layer.weights[output_i][input_i] * input.data[input_index];
+                }
+                output.data[output_index] = activation<typename DEVICE::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output.data[output_index]);
+            }
         }
     }
 
@@ -46,7 +64,7 @@ namespace layer_in_c{
             for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 layer.pre_activations[i] += layer.weights[i][j] * input[j];
             }
-            output[i] = nn::activation_functions::activation<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
+            output[i] = activation<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
         }
     }
 
@@ -58,7 +76,7 @@ namespace layer_in_c{
             for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 layer.pre_activations[i] += layer.weights[i][j] * input[j];
             }
-            layer.output[i] = nn::activation_functions::activation<typename DEVICE::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
+            layer.output[i] = activation<typename DEVICE::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]);
         }
     }
     template<typename DEVICE, typename SPEC>
@@ -74,7 +92,7 @@ namespace layer_in_c{
     FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            typename SPEC::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
+            typename SPEC::T d_pre_activation = d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
             for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
                 if(i == 0){
                     d_input[j] = 0;
@@ -93,7 +111,7 @@ namespace layer_in_c{
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
         for(typename DEVICE::index_t i = 0; i < LS::OUTPUT_DIM; i++) {
-            typename LS::T d_pre_activation = nn::activation_functions::d_activation_d_x<typename DEVICE::SPEC::MATH, typename LS::T, LS::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
+            typename LS::T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, typename LS::T, LS::ACTIVATION_FUNCTION>(layer.pre_activations[i]) * d_output[i];
             layer.d_biases[i] += d_pre_activation;
             for(typename DEVICE::index_t j = 0; j < LS::INPUT_DIM; j++) {
                 if(i == 0){

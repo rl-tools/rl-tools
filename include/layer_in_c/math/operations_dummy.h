@@ -27,6 +27,10 @@ namespace layer_in_c::math {
     T cos(const devices::math::Dummy&, const T x) {
         return x;
     }
+    template<typename T>
+    T acos(const devices::math::Dummy&, const T x) {
+        return x;
+    }
     template<typename TX, typename TY>
     auto pow(const devices::math::Dummy&, const TX x, const TY y) {
         return 1;

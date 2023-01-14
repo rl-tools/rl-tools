@@ -283,6 +283,10 @@ add_subdirectory(src/nn/cuda)
 # Neural Network Benchmark
 find_package(BLAS REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(OpenMP REQUIRED)
+
+# To obtain MKL: sudo apt install intel-oneapi-mkl-devel
+find_package(MKL REQUIRED)
 add_executable(
         test_neural_network_benchmark
         src/nn/benchmark.cpp
@@ -292,6 +296,8 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         Eigen3::Eigen
-        blas
+#        OpenMP::OpenMP_CXX
+        MKL::MKL
 )
+target_include_directories(test_neural_network_benchmark PRIVATE /usr/include/mkl)
 gtest_discover_tests(test_neural_network_benchmark)
