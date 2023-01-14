@@ -30,12 +30,15 @@ using InferenceSpecification = lic::nn_models::mlp::InferenceSpecification<Struc
 constexpr INDEX_TYPE ITERATIONS = 1000;
 
 
+using NetworkType = lic::nn_models::mlp::NeuralNetwork<InferenceSpecification<DTYPE, DEVICE::index_t, lic::nn::activation_functions::RELU>>;
+Eigen::Matrix<DTYPE, BATCH_SIZE, NetworkType::INPUT_DIM> input;
+Eigen::Matrix<DTYPE, HIDDEN_DIM, NetworkType::INPUT_DIM> W;
+Eigen::Matrix<DTYPE, HIDDEN_DIM, BATCH_SIZE> output;
+
 TEST(LAYER_IN_C_NN_DENSE_BENCHMARK, EIGEN_ROW_VS_COLUMN_MAJOR) {
-    using NetworkType = lic::nn_models::mlp::NeuralNetwork<InferenceSpecification<DTYPE, DEVICE::index_t, lic::nn::activation_functions::RELU>>;
     constexpr auto HIDDEN_DIM = NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM;
-    Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic> input = Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic>::Random(BATCH_SIZE, NetworkType::INPUT_DIM);
-    Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic> W = Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic>::Random(HIDDEN_DIM, NetworkType::INPUT_DIM);
-    Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic> output;
+    input = Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic>::Random(BATCH_SIZE, NetworkType::INPUT_DIM);
+    W = Eigen::Matrix<DTYPE, Eigen::Dynamic, Eigen::Dynamic>::Random(HIDDEN_DIM, NetworkType::INPUT_DIM);
 
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
         output = W * input.transpose();
