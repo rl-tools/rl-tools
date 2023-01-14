@@ -8,7 +8,7 @@ namespace layer_in_c::utils::persist::array_conversion{
         return std::vector<T>(M, M + ROWS);
     }
     template <typename DEVICE, typename T, auto ROWS, auto COLS>
-    std::vector<std::vector<T>> matrix_to_std_vector(T M[ROWS][COLS]){
+    std::vector<std::vector<T>> matrix_to_std_vector(Matrix<T, typename DEVICE::index_t, ROWS, COLS, RowMajor> M){
         std::vector<std::vector<T>> data(ROWS);
         for(typename DEVICE::index_t i=0; i < ROWS; i++){
             data[i] = std::vector<T>(M[i], M[i] + COLS);
@@ -22,10 +22,10 @@ namespace layer_in_c::utils::persist::array_conversion{
         }
     }
     template <typename DEVICE, typename T, auto ROWS, auto COLS>
-    void std_vector_to_matrix(T target[ROWS][COLS], std::vector<std::vector<T>> source){
+    void std_vector_to_matrix(Matrix<T, typename DEVICE::index_t, ROWS, COLS, RowMajor> target, std::vector<std::vector<T>> source){
         for(typename DEVICE::index_t i=0; i < ROWS; i++){
             for(typename DEVICE::index_t j=0; j < COLS; j++){
-                target[i][j] = source[i][j];
+                target->data[i * COLS + j] = source[i][j];
             }
         }
     }

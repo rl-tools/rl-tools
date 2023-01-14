@@ -32,7 +32,7 @@ using NetworkType = lic::nn_models::mlp::NeuralNetwork<InferenceSpecification<DT
 DEVICE::SPEC::LOGGING logger;
 DEVICE device(logger);
 
-constexpr INDEX_TYPE ITERATIONS = 10000;
+constexpr INDEX_TYPE ITERATIONS = 100;
 
 class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
 {
@@ -46,6 +46,7 @@ protected:
     virtual void SetUp()
     {
         auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+        lic::malloc(device, network);
         lic::init_weights(device, network, rng);
 
         for (INDEX_TYPE i = 0; i < BATCH_SIZE * NetworkType::INPUT_DIM; ++i)
@@ -100,7 +101,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
 
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, EIGEN_ROW_VS_COLUMN_MAJOR) {
     Eigen::Map<Eigen::Matrix<DTYPE, BATCH_SIZE, NetworkType::INPUT_DIM, Eigen::RowMajor>> input(input_lic);
-    Eigen::Map<Eigen::Matrix<DTYPE, HIDDEN_DIM, NetworkType::INPUT_DIM, Eigen::RowMajor>> W((DTYPE*)network.input_layer.weights);
+    Eigen::Map<Eigen::Matrix<DTYPE, HIDDEN_DIM, NetworkType::INPUT_DIM, Eigen::RowMajor>> W((DTYPE*)network.input_layer.weights.data);
     lic::Matrix<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM> output_eigen_matrix;
     lic::malloc(device, output_eigen_matrix);
     Eigen::Map<Eigen::Matrix<DTYPE, HIDDEN_DIM, BATCH_SIZE, Eigen::ColMajor>> output(output_eigen_matrix.data);
@@ -112,7 +113,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, EIGEN_ROW_VS_COLUMN_MAJOR) {
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
         output = W * input.transpose();
     }
-    output.colwise() += Eigen::Map<Eigen::Matrix<DTYPE, HIDDEN_DIM, 1>>((DTYPE*)network.input_layer.biases);
+    output.colwise() += Eigen::Map<Eigen::Matrix<DTYPE, HIDDEN_DIM, 1>>((DTYPE*)network.input_layer.biases.data);
     for(INDEX_TYPE batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(INDEX_TYPE hidden_i = 0; hidden_i < HIDDEN_DIM; hidden_i++){
             output(hidden_i, batch_i) = lic::activation<DEVICE::SPEC::MATH, DTYPE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>(output(hidden_i, batch_i));
@@ -156,7 +157,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
         }
     }
 
-    memcpy(A, network.input_layer.weights, m*k*sizeof( DTYPE ));
+    memcpy(A, network.input_layer.weights.data, m*k*sizeof( DTYPE ));
 
     lic::Matrix<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM> input_mkl_matrix({B});
 
@@ -186,7 +187,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
     for(INDEX_TYPE batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(INDEX_TYPE output_i=0; output_i < HIDDEN_DIM; output_i++){
-            C[batch_i + output_i * BATCH_SIZE] = lic::activation<DEVICE::SPEC::MATH, DTYPE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>(C[batch_i + output_i * BATCH_SIZE] + network.input_layer.biases[output_i]);
+            C[batch_i + output_i * BATCH_SIZE] = lic::activation<DEVICE::SPEC::MATH, DTYPE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>(C[batch_i + output_i * BATCH_SIZE] + network.input_layer.biases.data[output_i]);
         }
     }
 

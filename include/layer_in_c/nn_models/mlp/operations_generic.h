@@ -5,6 +5,15 @@
 #include <layer_in_c/nn/operations_generic.h>
 
 namespace layer_in_c {
+    template<typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
+        using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
+        malloc(device, network.input_layer);
+        for (typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+            malloc(device, network.hidden_layers[layer_i]);
+        }
+        malloc(device, network.output_layer);
+    }
     template<typename DEVICE, typename SPEC, typename RNG>
     FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, RNG& rng) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;

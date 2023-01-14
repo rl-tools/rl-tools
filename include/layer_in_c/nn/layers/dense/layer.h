@@ -2,15 +2,17 @@
 #define LAYER_IN_C_NN_LAYERS_DENSE_LAYER_H
 #include <layer_in_c/nn/activation_functions.h>
 #include <layer_in_c/utils/generic/typing.h>
+#include <layer_in_c/containers.h>
 
 namespace layer_in_c::nn::layers::dense {
-    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION>
+    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
         static constexpr auto INPUT_DIM = T_INPUT_DIM;
         static constexpr auto OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
+        static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
         // Summary
         static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
     };
@@ -32,19 +34,18 @@ namespace layer_in_c::nn::layers::dense {
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
-        typename SPEC::T weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
-        typename SPEC::T biases[SPEC::OUTPUT_DIM];
-
+        Matrix<T, TI, OUTPUT_DIM, INPUT_DIM, RowMajor>  weights;
+        Matrix<T, TI, OUTPUT_DIM, 1> biases;
     };
     template<typename SPEC>
     struct LayerBackward : public Layer<SPEC> {
-        typename SPEC::T pre_activations[SPEC::OUTPUT_DIM];
+        Matrix<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM, RowMajor> pre_activations;
     };
     template<typename SPEC>
     struct LayerBackwardGradient : public LayerBackward<SPEC> {
-        typename SPEC::T output[SPEC::OUTPUT_DIM];
-        typename SPEC::T d_weights[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
-        typename SPEC::T d_biases[SPEC::OUTPUT_DIM];
+        Matrix<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM, RowMajor> output;
+        Matrix<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM, RowMajor> d_weights;
+        Matrix<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, 1, RowMajor> d_biases;
     };
     template<typename T>
     struct DefaultSGDParameters {
@@ -57,10 +58,10 @@ namespace layer_in_c::nn::layers::dense {
 
     template<typename SPEC, typename PARAMETERS>
     struct LayerBackwardAdam : public LayerBackwardGradient<SPEC> {
-        typename SPEC::T d_weights_first_order_moment[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
-        typename SPEC::T d_weights_second_order_moment[SPEC::OUTPUT_DIM][SPEC::INPUT_DIM];
-        typename SPEC::T d_biases_first_order_moment[SPEC::OUTPUT_DIM];
-        typename SPEC::T d_biases_second_order_moment[SPEC::OUTPUT_DIM];
+        Matrix<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM, RowMajor> d_weights_first_order_moment;
+        Matrix<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM, RowMajor> d_weights_second_order_moment;
+        Matrix<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, 1, RowMajor> d_biases_first_order_moment;
+        Matrix<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, 1, RowMajor> d_biases_second_order_moment;
     };
 }
 
