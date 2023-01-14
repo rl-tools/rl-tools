@@ -1,3 +1,7 @@
+constexpr bool test_full_network = true;
+//constexpr bool test_full_network = false;
+constexpr bool test_first_layer = true;
+//constexpr bool test_first_layer = false;
 #define FUNCTION_PLACEMENT __device__ __host__
 
 #include <layer_in_c/operations/cuda.h>
@@ -22,18 +26,17 @@
 
 namespace lic = layer_in_c;
 
-using DTYPE = float;
+using DTYPE = double;
 
 
 using DEVICE_CUDA = lic::devices::DefaultCUDA;
 using DEVICE_CUDA_GENERIC = lic::devices::CUDA_GENERIC<DEVICE_CUDA::SPEC>;
 using DEVICE_CPU = lic::devices::DefaultCPU;
 
-constexpr DEVICE_CPU::index_t BATCH_SIZE = 100;
+constexpr DEVICE_CPU::index_t BATCH_SIZE = 128;
 
 template <typename DEVICE, typename T_T>
-using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 10, 5, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY>;
-
+using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T_T, typename DEVICE::index_t, 64, 5, 3, 64, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
 
 using NETWORK_SPEC_CUDA = lic::nn_models::mlp::AdamSpecification<StructureSpecification<DEVICE_CUDA_GENERIC, DTYPE>, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
 using NetworkType_CUDA = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC_CUDA>;
@@ -99,7 +102,7 @@ int main(){
 
     // Test first layer
 
-    {
+    if constexpr(test_first_layer){
         DTYPE* output_first_layer_gpu;
         cudaMalloc(&output_first_layer_gpu, sizeof(DTYPE) * BATCH_SIZE * NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM);
         cudaDeviceSynchronize();
@@ -133,7 +136,7 @@ int main(){
     {
         constexpr unsigned M = NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM;
         constexpr unsigned K = NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM;
-        constexpr unsigned N = 1;
+        constexpr unsigned N = BATCH_SIZE;
         constexpr DTYPE alpha = 1, beta = 1;
         constexpr unsigned lda = M, ldb = K, ldc = M;
         using Majority = cutlass::layout::RowMajor;
@@ -143,6 +146,9 @@ int main(){
                 Majority,  // Layout of B matrix
                 float,        // Data-type of C matrix
                 Majority>; // Layout of C matrix
+        DTYPE* output_first_layer_gpu;
+        cudaMalloc(&output_first_layer_gpu, sizeof(DTYPE) * BATCH_SIZE * NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM);
+        cudaDeviceSynchronize();
         CutlassGemm::Arguments args({M, N, K},  // Gemm Problem dimensions
                                     {(DTYPE *) network_cuda_device->input_layer.weights, K},    // Tensor-ref for source matrix A
                                     {input_gpu, N},    // Tensor-ref for source matrix B
@@ -160,21 +166,23 @@ int main(){
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
         std::cout << "Elapsed time CUTLASS layer: " << elapsed_seconds.count() * 1000 * 1000 << " us" << std::endl;
+
+        DTYPE output_first_layer_gpu_cpu[BATCH_SIZE][NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM];
+        cudaMemcpy(output_first_layer_gpu_cpu, output_first_layer_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+
+        DTYPE output_first_layer_cutlass_diff = lic::nn::layers::dense::helper::abs_diff_matrix<DTYPE, BATCH_SIZE, NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM>(output_first_layer_gpu_cpu, output_first_layer_cpu);
+
+        std::cout << "CPU - CUDA evaluation diff input layer cutlass: " << output_first_layer_cutlass_diff << std::endl;
     }
 
-    cudaMemcpy(output_first_layer_gpu_cpu, output_first_layer_gpu, sizeof(DTYPE) * NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);
-    cudaDeviceSynchronize();
-
-    DTYPE output_first_layer_cutlass_diff = lic::nn::layers::dense::helper::abs_diff_vector<DTYPE, NETWORK_SPEC_CPU::INPUT_LAYER::SPEC::OUTPUT_DIM>(output_first_layer_gpu_cpu, network_cpu.input_layer.output);
-
-    std::cout << "CPU - CUDA evaluation diff input layer cutlass: " << output_first_layer_cutlass_diff << std::endl;
 #endif
 
     // Test full network
     DTYPE* output_full_network_gpu;
     cudaMalloc(&output_full_network_gpu, sizeof(DTYPE) * BATCH_SIZE * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM);
 
-    {
+    if constexpr(test_full_network){
         DTYPE* layer_output_tick;
         DTYPE* layer_output_tock;
         cudaMalloc((void**)&layer_output_tick, sizeof(DTYPE) * NETWORK_SPEC_CUDA::STRUCTURE_SPEC::HIDDEN_DIM);
@@ -192,15 +200,15 @@ int main(){
 //        cudaFree((void**)&layer_output_tock);
         std::chrono::duration<double> elapsed_seconds = end-start;
         std::cout << "Elapsed time GPU forward: " << elapsed_seconds.count() * 1000 * 1000 << " us" << std::endl;
+        DTYPE output_full_network_gpu_cpu[BATCH_SIZE][NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM];
+        cudaMemcpy(output_full_network_gpu_cpu, output_full_network_gpu, sizeof(DTYPE) * BATCH_SIZE * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+
+        DTYPE output_full_network_diff = lic::nn::layers::dense::helper::abs_diff_matrix<DTYPE, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM>(output_full_network_gpu_cpu, output_cpu);
+
+        std::cout << "CPU - CUDA evaluation diff full output: " << output_full_network_diff << std::endl;
     }
 
-    DTYPE output_full_network_gpu_cpu[BATCH_SIZE][NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM];
-    cudaMemcpy(output_full_network_gpu_cpu, output_full_network_gpu, sizeof(DTYPE) * BATCH_SIZE * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);
-    cudaDeviceSynchronize();
-
-    DTYPE output_full_network_diff = lic::nn::layers::dense::helper::abs_diff_matrix<DTYPE, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM>(output_full_network_gpu_cpu, output_cpu);
-
-    std::cout << "CPU - CUDA evaluation diff full output: " << output_full_network_diff << std::endl;
 
     // Test batch layer evaluation
     {

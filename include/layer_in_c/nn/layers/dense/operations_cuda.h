@@ -46,7 +46,6 @@ namespace layer_in_c{
             __syncthreads();
             TI thread_id = blockIdx.x * blockDim.x + threadIdx.x;
             T input[INPUT_DIM];
-#pragma unroll
             for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
                 input[input_i] = p_input[thread_id * INPUT_DIM + input_i];
             }
@@ -54,9 +53,9 @@ namespace layer_in_c{
                 for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++){
                     auto batch_output_i = thread_id * OUTPUT_DIM + output_i;
                     output[batch_output_i] = layer.biases[output_i];
-#pragma unroll
                     for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
                         output[batch_output_i] += layer.weights[output_i][input_i] * input[input_i];
+//                        output[batch_output_i] += layer.weights[output_i][input_i] * p_input[thread_id * INPUT_DIM + input_i];
                     }
                     output[batch_output_i] = nn::activation_functions::activation<typename devices::CUDA<DEV_SPEC>::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output[batch_output_i]);
                 }
@@ -71,11 +70,15 @@ namespace layer_in_c{
         dim3 grid(N_BLOCKS);
         dim3 block(BLOCKSIZE);
         nn::dense::cuda::evaluate_kernel<<<grid, block>>>(device, layer, input, output);
+        auto error = cudaGetLastError();
+        if(error != cudaSuccess) {
+            printf("CUDA error: %s", cudaGetErrorString(error));
+        }
     }
 
     template<typename DEV_SPEC, typename SPEC, typename devices::CUDA<DEV_SPEC>::index_t BATCH_SIZE>
     void evaluate_batch(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::Layer<SPEC>& layer, const typename SPEC::T* input, typename SPEC::T* output) {
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE = 32;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE = 1024;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS = BATCH_SIZE / BLOCKSIZE + (BATCH_SIZE % BLOCKSIZE == 0 ? 0 : 1);
         dim3 grid(N_BLOCKS);
         dim3 block(BLOCKSIZE);
