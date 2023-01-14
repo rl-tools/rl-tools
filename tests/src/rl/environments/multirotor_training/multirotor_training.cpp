@@ -95,6 +95,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     std::string log_file = log_dir + "/" + std::string("data.tfevents");
     TensorBoardLogger tb_logger(log_file.c_str());
     std::mt19937 rng(2);
+    lic::malloc(device, actor_critic);
     lic::init(device, actor_critic, rng);
     parameters.init = lic::rl::environments::multirotor::simple_init_parameters<DTYPE, DEVICE::index_t(4)>;
     ENVIRONMENT env({parameters});

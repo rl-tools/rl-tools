@@ -16,9 +16,9 @@ namespace layer_in_c{
         T weight_bound = math::sqrt(typename DEV_SPEC::MATH(), (T)3.0) * std;
         T bias_bound = 1/math::sqrt(typename DEV_SPEC::MATH(), (T)LS::INPUT_DIM);
         for(TI i = 0; i < LS::OUTPUT_DIM; i++) {
-            layer.biases[i] = random::uniform_real_distribution(typename DEV_SPEC::RANDOM(), -bias_bound, bias_bound, rng);
+            layer.biases.data[i] = random::uniform_real_distribution(typename DEV_SPEC::RANDOM(), -bias_bound, bias_bound, rng);
             for(TI j = 0; j < LS::INPUT_DIM; j++) {
-                layer.weights[i][j] = random::uniform_real_distribution(typename DEV_SPEC::RANDOM(), -weight_bound, weight_bound, rng);
+                layer.weights.data[i * LS::INPUT_DIM + j] = random::uniform_real_distribution(typename DEV_SPEC::RANDOM(), -weight_bound, weight_bound, rng);
             }
         }
     }

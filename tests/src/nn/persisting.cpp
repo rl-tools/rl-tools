@@ -19,6 +19,8 @@ TEST(LAYER_IN_C_NN_PERSIST, Saving) {
     NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device(logger);
     NetworkType network_1, network_2;
+    lic::malloc(device, network_1);
+    lic::malloc(device, network_2);
     std::mt19937 rng(2);
     lic::init_weights(device, network_1, rng);
     lic::init_weights(device, network_2, rng);

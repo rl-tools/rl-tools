@@ -64,6 +64,7 @@ static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCritic
 
 int main() {
     std::mt19937 rng(2);
+    lic::malloc(device, actor_critic);
     lic::init(device, actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){

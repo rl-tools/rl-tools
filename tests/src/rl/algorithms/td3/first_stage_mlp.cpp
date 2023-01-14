@@ -131,6 +131,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
     ActorCriticType actor_critic;
+    lic::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
     lic::init(device, actor_critic, rng);
@@ -170,6 +171,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
     ActorCriticType actor_critic;
+    lic::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
     lic::init(device, actor_critic, rng);
@@ -197,10 +199,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         loss += lic::nn::loss_functions::mse<DEVICE, DTYPE, 1, 1>(device, output, target);
 
         lic::forward_backward_mse<NN_DEVICE, decltype(actor_critic.critic_1)::SPEC, 32>(device, actor_critic.critic_1, input, target);
-        std::cout << "output: " << actor_critic.critic_1.output_layer.output[0] << std::endl;
+        std::cout << "output: " << actor_critic.critic_1.output_layer.output.data[0] << std::endl;
     }
 
-    auto critic_1_after_backward = actor_critic.critic_1;
+    decltype(actor_critic.critic_1) critic_1_after_backward;
+    lic::malloc(device, critic_1_after_backward);
     lic::load(device, critic_1_after_backward, data_file.getGroup("critic_1_backward"));
     lic::reset_forward_state(device, actor_critic.critic_1);
     lic::reset_forward_state(device, critic_1_after_backward);
@@ -217,6 +220,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
     ActorCriticType actor_critic;
+    lic::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
     lic::init(device, actor_critic, rng);
@@ -237,7 +241,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     static_assert(TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE == TD3Parameters<DTYPE>::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
     replay_buffer.position = TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE;
 
-    auto pre_critic_1 = actor_critic.critic_1;
+    decltype(actor_critic.critic_1) pre_critic_1;
+    lic::malloc(device, pre_critic_1);
     lic::reset_optimizer_state(device, actor_critic.critic_1);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
@@ -248,6 +253,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         auto step_group = critic_training_group.getGroup(std::to_string(training_step_i));
 
         ActorCriticType::SPEC::CRITIC_NETWORK_TYPE post_critic_1;
+        lic::malloc(device, post_critic_1);
         lic::load(device, post_critic_1, step_group.getGroup("critic"));
 
         std::vector<std::vector<DTYPE>> target_next_action_noise_vector;
@@ -327,6 +333,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
     ActorCriticType actor_critic;
+    lic::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
     lic::init(device, actor_critic, rng);
@@ -347,14 +354,17 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     static_assert(TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE == TD3Parameters<DTYPE>::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
     replay_buffer.position = TD3Parameters<DTYPE>::ACTOR_BATCH_SIZE;
 
-    auto pre_actor = actor_critic.actor;
+    decltype(actor_critic.actor) pre_actor;
+    lic::malloc(device, pre_actor);
+    lic::copy(device, pre_actor, actor_critic.actor);
     lic::reset_optimizer_state(device, actor_critic.actor);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
     DTYPE mean_ratio_adam = 0;
     int num_updates = data_file.getGroup("actor_training").getNumberObjects();
     for(int training_step_i = 0; training_step_i < num_updates; training_step_i++){
-        auto post_actor = actor_critic.actor;
+        decltype(actor_critic.actor) post_actor;
+        lic::malloc(device, post_actor);
         std::stringstream ss;
         ss << "actor_training/" << training_step_i;
         lic::load(device, post_actor, data_file.getGroup(ss.str()));

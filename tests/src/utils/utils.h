@@ -18,22 +18,22 @@ T abs_diff(const T A[DIM], const T B[DIM]){
 }
 
 template <typename T, int N_ROWS, int N_COLS>
-T abs_diff_matrix(const T A[N_ROWS][N_COLS], const std::vector<std::vector<T>>& B) {
+T abs_diff_matrix(const T* A, const std::vector<std::vector<T>>& B) {
     T acc = 0;
     for (int i = 0; i < N_ROWS; i++){
         for (int j = 0; j < N_COLS; j++){
-            acc += std::abs(A[i][j] - B[i][j]);
+            acc += std::abs(A[i * N_COLS + j] - B[i][j]);
         }
     }
     return acc;
 }
 
 template <typename T, int N_ROWS, int N_COLS>
-T abs_diff_matrix(const T A[N_ROWS][N_COLS], const T B[N_ROWS][N_COLS]) {
+T abs_diff_matrix(const T* A, const T* B) {
     T acc = 0;
     for (int i = 0; i < N_ROWS; i++){
         for (int j = 0; j < N_COLS; j++){
-            acc += std::abs(A[i][j] - B[i][j]);
+            acc += std::abs(A[i * N_COLS + j] - B[i * N_COLS + j]);
         }
     }
     return acc;
@@ -49,10 +49,10 @@ T abs_diff_vector(const T A[N_ROWS], const T B[N_ROWS]) {
 }
 
 template <typename T, int N_ROWS, int N_COLS>
-void assign(T A[N_ROWS][N_COLS], const std::vector<std::vector<T>>& B) {
+void assign(T* A, const std::vector<std::vector<T>>& B) {
     for (int i = 0; i < N_ROWS; i++){
         for (int j = 0; j < N_COLS; j++){
-            A[i][j] = B[i][j];
+            A[i * N_COLS + j] = B[i][j];
         }
     }
 }

@@ -53,24 +53,29 @@ Layer2 layer222;
 
 TEST(LAYER_IN_C_NN_MLP_CONVERSIONS, CONVERSIONS) {
 
+    lic::malloc(device1, layer1);
+    lic::malloc(device2, layer2);
+    lic::malloc(device2, layer22);
+    lic::malloc(device2, layer222);
+
     auto rng = lic::random::default_engine(Device2::SPEC::RANDOM());
     lic::init_kaiming(device2, layer2, rng);
     lic::init_kaiming(device2, layer22, rng);
     lic::init_kaiming(device2, layer222, rng);
 
-    ASSERT_GT(lic::abs_diff(layer2, layer22), 0);
+    ASSERT_GT(lic::abs_diff(device2, layer2, layer22), 0);
 
-    lic::copy(layer22, layer222);
+    lic::copy(device2, layer22, layer222);
 
-    ASSERT_GT(lic::abs_diff(layer2, layer22), 0);
-    ASSERT_EQ(lic::abs_diff(layer22, layer222), 0);
+    ASSERT_GT(lic::abs_diff(device2, layer2, layer22), 0);
+    ASSERT_EQ(lic::abs_diff(device2, layer22, layer222), 0);
 
-    lic::copy(layer2, layer22);
+    lic::copy(device2, layer2, layer22);
 
-    ASSERT_EQ(lic::abs_diff(layer2, layer222), 0);
+    ASSERT_EQ(lic::abs_diff(device2, layer2, layer222), 0);
 
-    lic::copy(layer1, layer2);
+    lic::copy(device1, layer1, layer2);
 
-    ASSERT_EQ(lic::abs_diff(layer1, layer222), 0);
+    ASSERT_EQ(lic::abs_diff(device1, layer1, layer222), 0);
 
 }

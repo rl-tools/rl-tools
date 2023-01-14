@@ -54,12 +54,13 @@ NetworkType_CUDA network_cuda;
 //TEST(LAYER_IN_C_NN_MLP_CUDA, FULL_TRAINING) {
 int main(){
 
+    lic::malloc(device_cpu, network_cpu);
     lic::reset_optimizer_state(device_cpu, network_cpu);
     lic::zero_gradient(device_cpu, network_cpu);
     auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     lic::init_weights(device_cpu, network_cpu, rng);
 
-    lic::copy(network_cuda, network_cpu);
+    lic::copy(device_cuda, network_cuda, network_cpu);
 
     DTYPE input_cpu[BATCH_SIZE][NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM];
     DTYPE output_cpu[BATCH_SIZE][NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM];
@@ -77,7 +78,7 @@ int main(){
         for(DEVICE_CPU::index_t i = 0; i < NUM_ITERATIONS; ++i) {
             for(DEVICE_CPU::CPU::index_t batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
                 lic::forward(device_cpu, network_cpu, input_cpu[batch_i], output_cpu[batch_i]);
-                memcpy(output_first_layer_cpu[batch_i], network_cpu.input_layer.output, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM);
+                memcpy(output_first_layer_cpu[batch_i], network_cpu.input_layer.output.data, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM);
             }
         }
         auto end = std::chrono::high_resolution_clock::now();
@@ -121,7 +122,10 @@ int main(){
         cudaMemcpy(output_first_layer_gpu_cpu, output_first_layer_gpu, sizeof(DTYPE) * BATCH_SIZE * NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM, cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
 
-        DTYPE output_first_layer_diff_per_weight = lic::nn::layers::dense::helper::abs_diff_matrix<DTYPE, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>(output_first_layer_gpu_cpu, output_first_layer_cpu) / NetworkType_CUDA::NUM_WEIGHTS ;
+        DTYPE output_first_layer_diff_per_weight = lic::abs_diff(device_cpu,
+                lic::Matrix<DTYPE, DEVICE_CUDA::index_t, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>({(DTYPE*)output_first_layer_gpu_cpu}),
+                lic::Matrix<DTYPE, DEVICE_CUDA::index_t, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>({(DTYPE*)output_first_layer_cpu})
+        ) / NetworkType_CUDA::NUM_WEIGHTS ;
 
         std::cout << "CPU - CUDA evaluation diff input layer: " << output_first_layer_diff_per_weight << std::endl;
         assert(output_first_layer_diff_per_weight < 1e-7);
@@ -204,7 +208,10 @@ int main(){
         cudaMemcpy(output_full_network_gpu_cpu, output_full_network_gpu, sizeof(DTYPE) * BATCH_SIZE * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM, cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
 
-        DTYPE output_full_network_diff = lic::nn::layers::dense::helper::abs_diff_matrix<DTYPE, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM>(output_full_network_gpu_cpu, output_cpu);
+        DTYPE output_full_network_diff = lic::abs_diff(device_cpu,
+             lic::Matrix<DTYPE, DEVICE_CUDA::index_t, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>({(DTYPE*)output_full_network_gpu_cpu}),
+             lic::Matrix<DTYPE, DEVICE_CUDA::index_t, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>({(DTYPE*)output_cpu})
+        ) / NetworkType_CUDA::NUM_WEIGHTS ;
 
         std::cout << "CPU - CUDA evaluation diff full output: " << output_full_network_diff << std::endl;
     }
@@ -232,7 +239,10 @@ int main(){
         DTYPE output_layer_batch_gpu_cpu[BATCH_SIZE][NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM];
         cudaMemcpy(output_layer_batch_gpu_cpu, output, sizeof(DTYPE) * BATCH_SIZE * NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM, cudaMemcpyDeviceToHost);
         cudaDeviceSynchronize();
-        DTYPE output_layer_batch_network_diff_per_weight = lic::nn::layers::dense::helper::abs_diff_matrix<DTYPE, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>(output_layer_batch_gpu_cpu, output_first_layer_cpu) / NetworkType_CUDA::NUM_WEIGHTS;
+        DTYPE output_layer_batch_network_diff_per_weight = lic::abs_diff(device_cpu,
+               lic::Matrix<DTYPE, DEVICE_CUDA::index_t, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>({(DTYPE*)output_layer_batch_gpu_cpu}),
+               lic::Matrix<DTYPE, DEVICE_CUDA::index_t, BATCH_SIZE, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>({(DTYPE*)output_first_layer_cpu})
+        ) / NetworkType_CUDA::NUM_WEIGHTS ;
         std::cout << "CPU - CUDA evaluation batch diff: " << output_layer_batch_network_diff_per_weight << std::endl;
         auto layer_cpu = network_cpu.input_layer;
         decltype(layer_cpu)* input_layer_gpu;

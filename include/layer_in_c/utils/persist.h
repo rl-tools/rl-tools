@@ -3,20 +3,21 @@
 #include <vector>
 
 namespace layer_in_c::utils::persist::array_conversion{
-    template <typename DEVICE, typename T, auto ROWS>
-    std::vector<T> vector_to_std_vector(T M[ROWS]){
-        return std::vector<T>(M, M + ROWS);
-    }
-    template <typename DEVICE, typename T, auto ROWS, auto COLS>
-    std::vector<std::vector<T>> matrix_to_std_vector(Matrix<T, typename DEVICE::index_t, ROWS, COLS, RowMajor> M){
-        std::vector<std::vector<T>> data(ROWS);
-        for(typename DEVICE::index_t i=0; i < ROWS; i++){
-            data[i] = std::vector<T>(M[i], M[i] + COLS);
+    template <typename DEVICE, typename T, typename TI, TI ROWS, TI COLS>
+    auto matrix_to_std_vector(DEVICE& device, Matrix<T, TI, ROWS, COLS, RowMajor> M){
+        if constexpr(COLS == 1){
+            return std::vector<T>(M.data, M.data + ROWS);
         }
-        return data;
+        else{
+            std::vector<std::vector<T>> data(ROWS);
+            for(typename DEVICE::index_t i=0; i < ROWS; i++){
+                data[i] = std::vector<T>(&M.data[i * COLS], &M.data[i * COLS] + COLS);
+            }
+            return data;
+        }
     }
     template <typename DEVICE, typename T, auto ROWS>
-    void std_vector_to_vector(T target[ROWS], std::vector<T> source){
+    void std_vector_to_vector(DEVICE& device, T target[ROWS], std::vector<T> source){
         for (typename DEVICE::index_t i=0; i < ROWS; i++){
             target[i] = source[i];
         }

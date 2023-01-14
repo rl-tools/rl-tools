@@ -28,6 +28,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     DEVICE::SPEC::LOGGING logger;
     DEVICE device(logger);
     lic::nn_models::mlp::NeuralNetworkAdam<SPEC> policy;
+    lic::malloc(device, policy);
     std::mt19937 rng(0);
     lic::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner;

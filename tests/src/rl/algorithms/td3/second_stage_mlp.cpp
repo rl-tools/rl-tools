@@ -74,6 +74,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) 
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
     ActorCriticType actor_critic;
+    lic::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
 
@@ -143,6 +144,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     AC_DEVICE device(logger);
     NN_DEVICE nn_device(logger);
     ActorCriticType actor_critic;
+    lic::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
     lic::init(device, actor_critic, rng);
@@ -172,9 +174,16 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     auto full_training_group = data_file.getGroup("full_training");
     auto steps_group = full_training_group.getGroup("steps");
     int num_steps = std::min(steps_group.getNumberObjects(), (typename DEVICE::index_t)1000);
-    auto pre_critic_1 = actor_critic.critic_1;
-    auto pre_actor = actor_critic.actor;
-    auto pre_critic_1_target = actor_critic.critic_target_1;
+    decltype(actor_critic.critic_1) pre_critic_1;
+    lic::malloc(device, pre_critic_1);
+    lic::copy(device, pre_critic_1, actor_critic.critic_1);
+    decltype(actor_critic.actor) pre_actor;
+    lic::malloc(device, pre_actor);
+    lic::copy(device, pre_actor, actor_critic.actor);
+    decltype(actor_critic.critic_target_1) pre_critic_1_target;
+    lic::malloc(device, pre_critic_1_target);
+    lic::copy(device, pre_critic_1_target, actor_critic.critic_target_1);
+
     for(int step_i = 0; step_i < num_steps; step_i++){
         if(verbose){
             std::cout << "step_i: " << step_i << std::endl;
@@ -191,14 +200,17 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
             if (step_i == 0 && step_group.exist("pre_critic1")){
                 decltype(actor_critic.critic_1) pre_critic_1_step;
+                lic::malloc(device, pre_critic_1_step);
                 lic::load(device, pre_critic_1_step, step_group.getGroup("pre_critic1"));
                 lic::reset_forward_state(device, pre_critic_1_step);
                 lic::reset_forward_state(device, actor_critic.critic_1);
                 DTYPE pre_current_diff = abs_diff(device, pre_critic_1_step, actor_critic.critic_1);
                 ASSERT_EQ(pre_current_diff, 0);
+                lic::free(device, pre_critic_1_step);
             }
 
             decltype(actor_critic.critic_1) post_critic_1;// = actor_critic.critic_1;
+            lic::malloc(device, post_critic_1);
             lic::load(device, post_critic_1, step_group.getGroup("critic1"));
 
             DTYPE critic_1_loss = lic::train_critic<
@@ -263,7 +275,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 decltype(rng),
                 true
             >(device, actor_critic, actor_critic.critic_2, replay_buffer, target_next_action_noise, rng);
-            lic::copy(pre_critic_1, actor_critic.critic_1);
+            lic::copy(device, pre_critic_1, actor_critic.critic_1);
 
             if(true){//(step_i % 100 == 0){
                 DTYPE diff = 0;
@@ -277,6 +289,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 }
 //                std::cout << "value mse: " << diff << std::endl;
             }
+            lic::free(device, post_critic_1);
         }
 
         if(step_group.exist("actor_batch")){
@@ -286,9 +299,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
 
             decltype(actor_critic.actor) post_actor;
+            lic::malloc(device, post_actor);
             lic::load(device, post_actor, step_group.getGroup("actor"));
 
             decltype(actor_critic.actor) pre_actor_loaded;
+            lic::malloc(device, pre_actor_loaded);
             lic::load(device, pre_actor_loaded, step_group.getGroup("pre_actor"));
             lic::reset_forward_state(device, pre_actor_loaded);
             lic::reset_forward_state(device, actor_critic.actor);
@@ -356,7 +371,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             mean_ratio_actor_grad += diff_ratio_grad;
             mean_ratio_actor_adam += diff_ratio_adam;
 
-            lic::copy(pre_actor, actor_critic.actor);
+            lic::copy(device, pre_actor, actor_critic.actor);
+            lic::free(device, post_actor);
+            lic::free(device, pre_actor_loaded);
         }
         if(step_group.exist("critic1_target")){
             if(verbose){
@@ -364,14 +381,17 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             }
             if (step_i == 0){
                 decltype(actor_critic.critic_target_1) pre_critic_1_target_step;
+                lic::malloc(device, pre_critic_1_target_step);
                 lic::load(device, pre_critic_1_target_step, step_group.getGroup("pre_critic1_target"));
                 DTYPE pre_current_diff = abs_diff(device, pre_critic_1_target_step, actor_critic.critic_target_1);
                 ASSERT_EQ(pre_current_diff, 0);
+                lic::free(device, pre_critic_1_target_step);
             }
             else{
                 if (step_i >= ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE){
 
                     decltype(actor_critic.critic_target_1) post_critic_1_target;
+                    lic::malloc(device, post_critic_1_target);
                     lic::load(device, post_critic_1_target, step_group.getGroup("critic1_target"));
 
                     lic::update_targets(device, actor_critic);
@@ -396,7 +416,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
                     mean_ratio_critic_target += diff_ratio;
 
-                    lic::copy(pre_critic_1_target, actor_critic.critic_target_1);
+                    lic::copy(device, pre_critic_1_target, actor_critic.critic_target_1);
 
                     if(true){//(step_i % 100 == 0){
                         DTYPE diff = 0;
@@ -410,6 +430,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                         }
 //                        std::cout << "value mse: " << diff << std::endl;
                     }
+                    lic::free(device, post_critic_1_target);
                 }
             }
 

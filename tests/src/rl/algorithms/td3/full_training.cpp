@@ -91,6 +91,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     UI ui;
 #endif
     std::mt19937 rng(4);
+    lic::malloc(nn_dev, actor_critic);
     lic::init(nn_dev, actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){

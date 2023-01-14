@@ -116,6 +116,7 @@ int main() {
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
     UI ui;
 #endif
+    lic::malloc(device, actor_critic);
     auto rng = lic::random::default_engine(decltype(device)::SPEC::RANDOM());
     lic::init(device, actor_critic, rng);
 

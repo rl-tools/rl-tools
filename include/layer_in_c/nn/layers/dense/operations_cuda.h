@@ -16,9 +16,9 @@ namespace layer_in_c{
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
             TI thread_id = blockIdx.x * blockDim.x + threadIdx.x;
             if(thread_id < OUTPUT_DIM){
-                T acc = layer.biases[thread_id];
+                T acc = layer.biases.data[thread_id];
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
-                    acc += layer.weights[thread_id][input_i] * input[input_i];
+                    acc += layer.weights.data[thread_id * INPUT_DIM + input_i] * input[input_i];
                 }
                 acc = activation<typename devices::CUDA<DEV_SPEC>::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(acc);
                 output[thread_id] = acc;
@@ -52,9 +52,9 @@ namespace layer_in_c{
             if(thread_id < BATCH_SIZE){
                 for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++){
                     auto batch_output_i = thread_id * OUTPUT_DIM + output_i;
-                    output[batch_output_i] = layer.biases[output_i];
+                    output[batch_output_i] = layer.biases.data[output_i];
                     for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
-                        output[batch_output_i] += layer.weights[output_i][input_i] * input[input_i];
+                        output[batch_output_i] += layer.weights.data[output_i * INPUT_DIM + input_i] * input[input_i];
 //                        output[batch_output_i] += layer.weights[output_i][input_i] * p_input[thread_id * INPUT_DIM + input_i];
                     }
                     output[batch_output_i] = activation<typename devices::CUDA<DEV_SPEC>::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output[batch_output_i]);

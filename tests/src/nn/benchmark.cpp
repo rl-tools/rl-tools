@@ -32,7 +32,7 @@ using NetworkType = lic::nn_models::mlp::NeuralNetwork<InferenceSpecification<DT
 DEVICE::SPEC::LOGGING logger;
 DEVICE device(logger);
 
-constexpr INDEX_TYPE ITERATIONS = 100;
+constexpr INDEX_TYPE ITERATIONS = 1000;
 
 class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
 {

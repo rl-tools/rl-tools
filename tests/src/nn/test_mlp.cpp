@@ -1,5 +1,7 @@
 #include <layer_in_c/operations/cpu.h>
 
+namespace lic = layer_in_c;
+
 #include <layer_in_c/nn_models/operations_cpu.h>
 #include <layer_in_c/utils/generic/memcpy.h>
 #include "../utils/utils.h"
@@ -29,7 +31,7 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
     g.getDataSet("input_layer/weight").read(weights);
-    acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights, weights);
+    acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights.data, weights);
     return acc;
 }
 
@@ -68,13 +70,14 @@ protected:
         standardise<DTYPE, OUTPUT_DIM>(Y_train[0].data(), Y_mean.data(), Y_std.data(), output);
         lic::forward(device, network, input);
         DTYPE d_loss_d_output[OUTPUT_DIM];
-        lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output, output, d_loss_d_output);
+        lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output.data, output, d_loss_d_output);
         DTYPE d_input[INPUT_DIM];
         lic::zero_gradient(device, network);
         lic::backward(device, network, input, d_loss_d_output, d_input);
     }
     void reset(){
 
+        lic::malloc(device, network);
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet(model_name + "/init/input_layer/weight").read(input_layer_weights);
         data_file.getDataSet(model_name + "/init/input_layer/bias").read(input_layer_biases);
@@ -82,12 +85,12 @@ protected:
         data_file.getDataSet(model_name + "/init/hidden_layer_0/bias").read(hidden_layer_0_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights     , input_layer_weights);
-        lic::utils::memcpy(network.input_layer.biases, input_layer_biases.data(), LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights     , hidden_layer_0_weights);
-        lic::utils::memcpy(network.hidden_layers[0].biases, hidden_layer_0_biases.data(), LAYER_2_DIM);
-        assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights, output_layer_weights);
-        lic::utils::memcpy(network.output_layer.biases, output_layer_biases.data(), OUTPUT_DIM);
+        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights.data     , input_layer_weights);
+        lic::utils::memcpy(network.input_layer.biases.data, input_layer_biases.data(), LAYER_1_DIM);
+        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights.data     , hidden_layer_0_weights);
+        lic::utils::memcpy(network.hidden_layers[0].biases.data, hidden_layer_0_biases.data(), LAYER_2_DIM);
+        assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights.data, output_layer_weights);
+        lic::utils::memcpy(network.output_layer.biases.data, output_layer_biases.data(), OUTPUT_DIM);
     }
 
     NetworkType network;
@@ -113,7 +116,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_1_DIM, INPUT_DIM
     >(
-            network.input_layer.d_weights,
+            network.input_layer.d_weights.data,
             batch_0_input_layer_weights_grad
     );
     std::cout << "input_layer_weights diff: " << out << std::endl;
@@ -126,7 +129,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_biases) {
     DTYPE out = abs_diff<
             DTYPE, LAYER_1_DIM
     >(
-            network.input_layer.d_biases,
+            network.input_layer.d_biases.data,
             batch_0_input_layer_biases_grad.data()
     );
     std::cout << "input_layer_biases diff: " << out << std::endl;
@@ -139,7 +142,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, LAYER_2_DIM, LAYER_1_DIM
     >(
-            network.hidden_layers[0].d_weights,
+            network.hidden_layers[0].d_weights.data,
             batch_0_hidden_layer_0_weights_grad
     );
     std::cout << "hidden_layer_0_weights diff: " << out << std::endl;
@@ -152,7 +155,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
     DTYPE out = abs_diff<
             DTYPE, LAYER_2_DIM
     >(
-            network.hidden_layers[0].d_biases,
+            network.hidden_layers[0].d_biases.data,
             batch_0_hidden_layer_0_biases_grad.data()
     );
     std::cout << "hidden_layer_0_biases diff: " << out << std::endl;
@@ -165,7 +168,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_weights) {
     DTYPE out = abs_diff_matrix<
             DTYPE, OUTPUT_DIM, LAYER_2_DIM
     >(
-            network.output_layer.d_weights,
+            network.output_layer.d_weights.data,
             batch_0_output_layer_weights_grad
     );
     std::cout << "output_layer_weights diff: " << out << std::endl;
@@ -178,7 +181,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_biases) {
     DTYPE out = abs_diff<
             DTYPE, OUTPUT_DIM
     >(
-            network.output_layer.d_biases,
+            network.output_layer.d_biases.data,
             batch_0_output_layer_biases_grad.data()
     );
     std::cout << "output_layer_biases diff: " << out << std::endl;
@@ -213,7 +216,7 @@ TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     standardise<DTYPE, OUTPUT_DIM>(&Y_train[0][0], &Y_mean[0], &Y_std[0], output);
     lic::forward(device, network, input);
     DTYPE d_loss_d_output[OUTPUT_DIM];
-    lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output, output, d_loss_d_output);
+    lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output.data, output, d_loss_d_output);
     DTYPE d_input[INPUT_DIM];
     lic::zero_gradient(device, network);
     lic::backward(device, network, input, d_loss_d_output, d_input);
@@ -225,7 +228,7 @@ TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
             LAYER_1_DIM,
             INPUT_DIM
     >(
-            network.input_layer.weights,
+            network.input_layer.weights.data,
             batch_0_input_layer_weights
     );
     ASSERT_LT(out, 1.5e-7);
@@ -303,8 +306,8 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
             standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i_real * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
             lic::forward(device, network, input);
             DTYPE d_loss_d_output[OUTPUT_DIM];
-            lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output, d_loss_d_output);
-            loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
+            lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output, d_loss_d_output);
+            loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output);
 
             DTYPE d_input[INPUT_DIM];
             lic::backward(device, network, input, d_loss_d_output, d_input);
@@ -353,8 +356,8 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
                 standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i_real * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 lic::forward(device, network, input);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
-                lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output, d_loss_d_output);
-                loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
+                lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output, d_loss_d_output);
+                loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output);
 
                 DTYPE d_input[INPUT_DIM];
                 lic::backward(device, network, input, d_loss_d_output, d_input);
@@ -448,8 +451,8 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
                 standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 lic::forward(device, network, input);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
-                lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output, d_loss_d_output);
-                loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
+                lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output, d_loss_d_output);
+                loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output);
 
                 DTYPE d_input[INPUT_DIM];
                 lic::backward(device, network, input, d_loss_d_output, d_input);
@@ -472,7 +475,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
             standardise<DTYPE,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
             standardise<DTYPE, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
             lic::forward(device, network, input);
-            val_loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
+            val_loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);
@@ -510,6 +513,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device(logger);
     NetworkType network;
+    lic::malloc(device, network);
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
@@ -533,8 +537,8 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
                 standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 lic::forward(device, network, input);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
-                lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output, d_loss_d_output);
-                loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
+                lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output, d_loss_d_output);
+                loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output);
 
                 DTYPE d_input[INPUT_DIM];
                 lic::backward(device, network, input, d_loss_d_output, d_input);
@@ -557,7 +561,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
             standardise<DTYPE,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
             standardise<DTYPE, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
             lic::forward(device, network, input);
-            val_loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
+            val_loss += lic::nn::loss_functions::mse<NN_DEVICE, DTYPE, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);

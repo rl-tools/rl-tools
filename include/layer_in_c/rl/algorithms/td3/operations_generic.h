@@ -11,6 +11,15 @@
 #include <layer_in_c/utils/generic/memcpy.h>
 
 namespace layer_in_c{
+    template <typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
+        malloc(device, actor_critic.actor);
+        malloc(device, actor_critic.actor_target);
+        malloc(device, actor_critic.critic_1);
+        malloc(device, actor_critic.critic_2);
+        malloc(device, actor_critic.critic_target_1);
+        malloc(device, actor_critic.critic_target_2);
+    }
     template <typename DEVICE, typename SPEC, typename RNG>
     FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
@@ -20,9 +29,9 @@ namespace layer_in_c{
         reset_optimizer_state(device, actor_critic.critic_1);
         reset_optimizer_state(device, actor_critic.critic_2);
 
-        copy(actor_critic.actor_target, actor_critic.actor);
-        copy(actor_critic.critic_target_1, actor_critic.critic_1);
-        copy(actor_critic.critic_target_2, actor_critic.critic_2);
+        copy(device, actor_critic.actor_target, actor_critic.actor);
+        copy(device, actor_critic.critic_target_1, actor_critic.critic_1);
+        copy(device, actor_critic.critic_target_2, actor_critic.critic_2);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC=false>
     FUNCTION_PLACEMENT typename SPEC::T train_critic(
@@ -70,7 +79,7 @@ namespace layer_in_c{
 
             forward_backward_mse<DEVICE, typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(device, critic, state_action_value_input, target_action_value);
             static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
-            T loss_sample = nn::loss_functions::mse<DEVICE, T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(device, critic.output_layer.pre_activations, target_action_value);
+            T loss_sample = nn::loss_functions::mse<DEVICE, T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(device, critic.output_layer.pre_activations.data, target_action_value);
             loss += loss_sample;
         }
         update(device, critic);
@@ -146,8 +155,8 @@ namespace layer_in_c{
     }
     template<typename DEVICE, typename SPEC>
     FUNCTION_PLACEMENT void update_target_layer(DEVICE& device, nn::layers::dense::Layer<SPEC>& target, const nn::layers::dense::Layer<SPEC>& source, typename SPEC::T polyak) {
-        utils::polyak::update_matrix<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(device, target.weights, source.weights, polyak);
-        utils::polyak::update       <DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM                 >(device, target.biases , source.biases , polyak);
+        utils::polyak::update(device, target.weights, source.weights, polyak);
+        utils::polyak::update(device, target.biases , source.biases , polyak);
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     FUNCTION_PLACEMENT void update_target_network(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, T polyak) {

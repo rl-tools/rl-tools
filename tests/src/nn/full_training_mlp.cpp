@@ -73,6 +73,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     DEVICE::SPEC::LOGGING logger;
     DEVICE device(logger);
     NetworkType network;
+    lic::malloc(device, network);
     std::vector<T> losses;
     std::vector<T> val_losses;
     std::vector<T> epoch_durations;
@@ -99,8 +100,8 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
                 standardise<T, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 lic::forward(device, network, input);
                 T d_loss_d_output[OUTPUT_DIM];
-                lic::nn::loss_functions::d_mse_d_x<DEVICE, T, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output, d_loss_d_output);
-                loss += lic::nn::loss_functions::mse<DEVICE, T, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
+                lic::nn::loss_functions::d_mse_d_x<DEVICE, T, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output, d_loss_d_output);
+                loss += lic::nn::loss_functions::mse<DEVICE, T, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output);
 
                 T d_input[INPUT_DIM];
                 lic::backward(device, network, input, d_loss_d_output, d_input);
@@ -130,7 +131,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
         standardise<T,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
         standardise<T, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
         lic::forward(device, network, input);
-        val_loss += lic::nn::loss_functions::mse<DEVICE, T, OUTPUT_DIM, batch_size>(device, network.output_layer.output, output);
+        val_loss += lic::nn::loss_functions::mse<DEVICE, T, OUTPUT_DIM, batch_size>(device, network.output_layer.output.data, output);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);
