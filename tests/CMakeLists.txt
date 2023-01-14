@@ -276,4 +276,22 @@ target_link_libraries(
 gtest_discover_tests(test_neural_network_conversions)
 
 
+# CUDA tests
 add_subdirectory(src/nn/cuda)
+
+
+# Neural Network Benchmark
+find_package(BLAS REQUIRED)
+find_package(Eigen3 REQUIRED)
+add_executable(
+        test_neural_network_benchmark
+        src/nn/benchmark.cpp
+)
+target_link_libraries(
+        test_neural_network_benchmark
+        layer_in_c
+        GTest::gtest_main
+        Eigen3::Eigen
+        blas
+)
+gtest_discover_tests(test_neural_network_benchmark)
