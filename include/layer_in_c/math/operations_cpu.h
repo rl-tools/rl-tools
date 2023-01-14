@@ -29,6 +29,10 @@ namespace layer_in_c::math {
     T cos(const devices::math::CPU&, const T x) {
         return std::cos(x);
     }
+    template<typename T>
+    T acos(const devices::math::CPU&, const T x) {
+        return std::acos(x);
+    }
     template<typename TX, typename TY>
     auto pow(const devices::math::CPU&, const TX x, const TY y) {
         return std::pow(x, y);

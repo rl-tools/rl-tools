@@ -78,6 +78,12 @@ namespace layer_in_c::utils::vector_operations{
         }
     }
     template <typename DEVICE, typename T, auto N>
+    FUNCTION_PLACEMENT void sub(T const v1[N], const T v2, T out[N]) {
+        for(typename DEVICE::index_t i = 0; i < N; i++) {
+            out[i] = v1[i] - v2;
+        }
+    }
+    template <typename DEVICE, typename T, auto N>
     FUNCTION_PLACEMENT void sub_accumulate(const T v1[N], const T v2[N], T out[N]) {
         for(typename DEVICE::index_t i = 0; i < N; i++) {
             out[i] += v1[i] - v2[i];
@@ -135,14 +141,27 @@ namespace layer_in_c::utils::vector_operations{
     }
 
     template <typename DEVICE, typename T, auto N>
-    FUNCTION_PLACEMENT void normalize(const T source[N], T target[N]) {
+    FUNCTION_PLACEMENT T norm(const T source[N]) {
         T acc = 0;
         for(typename DEVICE::index_t i = 0; i < N; i++) {
             acc += source[i]*source[i];
         }
+        return math::sqrt(typename DEVICE::SPEC::MATH(), acc);
+    }
+    template <typename DEVICE, typename T, auto N>
+    FUNCTION_PLACEMENT void normalize(const T source[N], T target[N]) {
+        T n = norm(source);
         for(typename DEVICE::index_t i = 0; i < N; i++) {
-            target[i] = source[i]/math::sqrt(acc);
+            target[i] = source[i]/n;
         }
+    }
+    template <typename DEVICE, typename T, auto N>
+    FUNCTION_PLACEMENT T mean(const T source[N]) {
+        T acc = 0;
+        for(typename DEVICE::index_t i = 0; i < N; i++) {
+            acc += source[i];
+        }
+        return acc/N;
     }
 }
 

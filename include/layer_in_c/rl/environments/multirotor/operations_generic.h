@@ -15,6 +15,71 @@
 
 
 namespace layer_in_c::rl::environments::multirotor {
+    namespace reward_function{
+        template <typename T>
+        struct reward_263_weights {
+            static constexpr T position = 10;
+            static constexpr T orientation = 10;
+            static constexpr T linear_vel = 0;
+            static constexpr T angular_vel = 0;
+            static constexpr T action = 1;
+        };
+        template<typename DEVICE, typename SPEC, typename WEIGHTS>
+        static typename SPEC::T reward_classic(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state) {
+            using T = typename SPEC::T;
+            constexpr typename DEVICE::index_t ACTION_DIM = rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM;
+            T quaternion_w = state.state[3];
+            T orientation_cost = math::abs(2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
+            T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.state);
+            T linear_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4]);
+            T angular_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4+3]);
+            T action_diff[ACTION_DIM];
+            utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, utils::vector_operations::mean<DEVICE, T, ACTION_DIM>(action), action_diff);
+            T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
+            T weighted_abs_cost = WEIGHTS::position * position_cost + WEIGHTS::orientation * orientation_cost + WEIGHTS::linear_vel * linear_vel_cost + WEIGHTS::angular_vel * angular_vel_cost + WEIGHTS::action * action_cost;
+            T r = math::exp(typename DEVICE::SPEC::MATH(), -weighted_abs_cost);
+            return r * 10;
+//            return -weighted_abs_cost;
+        }
+        template<typename DEVICE, typename SPEC>
+        static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state){
+            constexpr auto STATE_DIM = rl::environments::Multirotor<DEVICE, SPEC>::STATE_DIM;
+            constexpr auto ACTION_DIM = rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM;
+            using T = typename SPEC::T;
+            T acc = 0;
+            for(typename DEVICE::index_t state_i = 0; state_i < STATE_DIM; state_i++){
+                if(state_i < 3){
+                    acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.position;
+                }
+                else{
+                    if(state_i < 3+4){
+                        T v = state_i == 3 ? state.state[state_i] - 1 : state.state[state_i];
+                        acc += v * v * env.parameters.reward.orientation;
+                    }
+                    else{
+                        if(state_i < 3+4+3){
+                            acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.linear_velocity;
+                        }
+                        else{
+                            acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.angular_velocity;
+                        }
+                    }
+                }
+            }
+            for(typename DEVICE::index_t action_i = 0; action_i < ACTION_DIM; action_i++){
+                T v = action[action_i] - env.parameters.reward.action_baseline;
+                acc += v * v * env.parameters.reward.action;
+            }
+            T variance_position = env.parameters.init.max_position * env.parameters.init.max_position/(2*2) * env.parameters.reward.position;
+            T variance_orientation = env.parameters.reward.orientation;
+            T variance_linear_velocity = env.parameters.init.max_linear_velocity * env.parameters.init.max_linear_velocity/(2*2) * env.parameters.reward.linear_velocity;
+            T variance_angular_velocity = env.parameters.init.max_angular_velocity * env.parameters.init.max_angular_velocity/(2*2) * env.parameters.reward.angular_velocity;
+            T variance_action = env.parameters.reward.action;
+            T standardization_factor = (variance_position * 3 + variance_orientation * 4 + variance_linear_velocity * 3 + variance_angular_velocity * 3 + variance_action * 4);
+            standardization_factor *= 100;
+            return math::exp(typename DEVICE::SPEC::MATH(), -acc/standardization_factor);
+        }
+    }
     template<typename DEVICE, typename T, auto STATE_DIM, auto N>
     FUNCTION_PLACEMENT void multirotor_dynamics(
             const Parameters<T, N> &params,
@@ -124,47 +189,20 @@ namespace layer_in_c{
         return env.parameters.dt;
     }
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[1], const typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state){
-        constexpr auto STATE_DIM = rl::environments::Multirotor<DEVICE, SPEC>::STATE_DIM;
-        constexpr auto ACTION_DIM = rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM;
+    static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state){
         using T = typename SPEC::T;
-        T acc = 0;
-        for(typename DEVICE::index_t state_i = 0; state_i < STATE_DIM; state_i++){
-            if(state_i < 3){
-                acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.position;
-            }
-            else{
-                if(state_i < 3+4){
-                    T v = state_i == 3 ? state.state[state_i] - 1 : state.state[state_i];
-                    acc += v * v * env.parameters.reward.orientation;
-                }
-                else{
-                    if(state_i < 3+4+3){
-                        acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.linear_velocity;
-                    }
-                    else{
-                        acc += state.state[state_i] * state.state[state_i] * env.parameters.reward.angular_velocity;
-                    }
-                }
-            }
-        }
-        for(typename DEVICE::index_t action_i = 0; action_i < ACTION_DIM; action_i++){
-            T v = action[action_i] - env.parameters.reward.action_baseline;
-            acc += v * v * env.parameters.reward.action;
-        }
-        T variance_position = env.parameters.init.max_position * env.parameters.init.max_position/(2*2) * env.parameters.reward.position;
-        T variance_orientation = env.parameters.reward.orientation;
-        T variance_linear_velocity = env.parameters.init.max_linear_velocity * env.parameters.init.max_linear_velocity/(2*2) * env.parameters.reward.linear_velocity;
-        T variance_angular_velocity = env.parameters.init.max_angular_velocity * env.parameters.init.max_angular_velocity/(2*2) * env.parameters.reward.angular_velocity;
-        T variance_action = env.parameters.reward.action;
-        T standardization_factor = (variance_position * 3 + variance_orientation * 4 + variance_linear_velocity * 3 + variance_angular_velocity * 3 + variance_action * 4);
-        standardization_factor *= 100;
-        return math::exp(typename DEVICE::SPEC::MATH(), -acc/standardization_factor);
+        return rl::environments::multirotor::reward_function::reward_classic<DEVICE, SPEC, rl::environments::multirotor::reward_function::reward_263_weights<T>>(env, state, action, next_state);
+//        return rl::environments::multirotor::reward_function::reward<DEVICE, SPEC>(env, state, action, next_state);
     }
 
-    template<typename DEVICE, typename SPEC>
+        template<typename DEVICE, typename SPEC>
     static bool terminated(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state){
         return false;
     }
+
+
+
+
+
 }
 #endif
