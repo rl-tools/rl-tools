@@ -217,7 +217,7 @@ namespace layer_in_c {
         Matrix<MatrixSpecification<T, TI, BATCH_SIZE, MODEL_SPEC::STRUCTURE_SPEC::INPUT_DIM>> d_input = {d_input_mem};
         Matrix<MatrixSpecification<T, TI, BATCH_SIZE, MODEL_SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> d_loss_d_output = {d_loss_d_output_mem};
         forward(device, network, input);
-        nn::loss_functions::d_mse_d_x<DEVICE, T, MODEL_SPEC::STRUCTURE_SPEC::OUTPUT_DIM, BATCH_SIZE>(device, network.output_layer.output.data, target.data, d_loss_d_output.data, loss_weight);
+        nn::loss_functions::d_mse_d_x(device, network.output_layer.output, target, d_loss_d_output, loss_weight);
         backward(device, network, input, d_loss_d_output, d_input);
     }
 
@@ -309,7 +309,18 @@ namespace layer_in_c {
         reset_forward_state(device, &n);
     }
 
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC_1>& n1, const nn_models::mlp::NeuralNetwork<SPEC_2>& n2){
+        static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename SPEC_1::STRUCTURE_SPEC, typename SPEC_2::STRUCTURE_SPEC>, "The target and source network must have the same structure");
+        typename SPEC_1::T acc = 0;
 
+        acc += abs_diff(device, n1.input_layer, n2.input_layer);
+        for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC_1::NUM_HIDDEN_LAYERS; layer_i++){
+            acc += abs_diff(device, n1.hidden_layers[layer_i], n2.hidden_layers[layer_i]);
+        }
+        acc += abs_diff(device, n1.output_layer, n2.output_layer);
+        return acc;
+    }
 }
 
 #endif
