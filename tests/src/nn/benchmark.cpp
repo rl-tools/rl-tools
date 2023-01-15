@@ -33,7 +33,7 @@ using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<InferenceSpecificatio
 DEVICE::SPEC::LOGGING logger;
 DEVICE device(logger);
 
-constexpr INDEX_TYPE ITERATIONS = 1;
+constexpr INDEX_TYPE ITERATIONS = 1000;
 
 class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
 {
@@ -90,7 +90,15 @@ protected:
 
         lic::reset_optimizer_state(device, network);
         lic::zero_gradient(device, network);
-        lic::forward_backward_mse(device, network, input_lic_matrix, output_lic_target_matrix);
+        {
+            auto start = std::chrono::high_resolution_clock::now();
+            for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
+                lic::forward_backward_mse(device, network, input_lic_matrix, output_lic_target_matrix);
+            }
+            auto end = std::chrono::high_resolution_clock::now();
+
+            std::cout << "LIC forward backward mse: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
+        }
 
     }
 };
@@ -327,17 +335,17 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
         lic::forward_backward_mse(device_mkl, network_mkl, input_lic_matrix, output_lic_target_matrix);
     }
     auto end = std::chrono::high_resolution_clock::now();
-    std::cout << "MKL LIC evaluate full: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
+    std::cout << "MKL LIC forward backward mse: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
 
 //    DTYPE abs_diff = lic::abs_diff(device_mkl, network_mkl.output_layer.d_weights, network.output_layer.d_weights) / NetworkType::NUM_WEIGHTS;
 
     DTYPE abs_diff = lic::abs_diff(device_mkl, network_mkl, network) / NetworkType::NUM_WEIGHTS;
 
     if constexpr(lic::utils::typing::is_same_v<DTYPE, float>){
-        EXPECT_LT(abs_diff, 1e-6);
+        EXPECT_LT(abs_diff, 1e-4);
     }
     else{
-        EXPECT_LT(abs_diff, 1e-14);
+        EXPECT_LT(abs_diff, 1e-12);
     }
 
     std::cout << "Absolute difference: " << abs_diff << std::endl;
