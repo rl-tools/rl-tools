@@ -16,9 +16,8 @@ namespace layer_in_c{
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
 
-        T alpha, beta;
-        alpha = 1.0; beta = 1.0;
-
+        constexpr T alpha = 1;
+        constexpr T beta = 1;
         constexpr auto m = BATCH_SIZE;
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
         constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
@@ -35,6 +34,40 @@ namespace layer_in_c{
         else{
             cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input.data, k, (double*)layer.weights.data, n, beta, (double*)output.data, n);
         }
+        for(TI i = 0; i < BATCH_SIZE; i++){
+            for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
+                output.data[i * LAYER_SPEC::OUTPUT_DIM + j] = lic::activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[i * LAYER_SPEC::OUTPUT_DIM + j]);
+            }
+        }
+    }
+
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    FUNCTION_PLACEMENT void forward(devices::CPU_MKL<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
+        // Warning do not use the same buffer for input and output!
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
+        using T = typename LAYER_SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        constexpr T alpha = 1;
+        constexpr T beta = 1;
+        constexpr auto m = BATCH_SIZE;
+        constexpr auto k = LAYER_SPEC::INPUT_DIM;
+        constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
+
+        // A m x k
+        // B k x n
+        // C m x n
+
+        lic::set_broadcast(device, output, layer.biases);
+
+        if constexpr(lic::utils::typing::is_same_v<T, float>){
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (float*)input.data, k, (float*)layer.weights.data, n, beta, (float*)output.data, n);
+        }
+        else{
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input.data, k, (double*)layer.weights.data, n, beta, (double*)output.data, n);
+        }
+        memcpy(layer.pre_activations.data, output.data, sizeof(T) * BATCH_SIZE * LAYER_SPEC::OUTPUT_DIM);
         for(TI i = 0; i < BATCH_SIZE; i++){
             for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
                 output.data[i * LAYER_SPEC::OUTPUT_DIM + j] = lic::activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[i * LAYER_SPEC::OUTPUT_DIM + j]);
