@@ -172,7 +172,31 @@ namespace layer_in_c{
             }
         }
     }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    void slice(DEVICE& device, const Matrix<SPEC_1>& target, Matrix<SPEC_2>& source, typename SPEC_1::TI row, typename SPEC_1::TI col){
+        static_assert(SPEC_1::ROWS <= SPEC_2::ROWS);
+        static_assert(SPEC_1::COLS <= SPEC_2::COLS);
+        static_assert(SPEC_1::LAYOUT == RowMajor);
+        static_assert(SPEC_2::LAYOUT == RowMajor);
+        using TI = typename SPEC_1::TI;
+        using T = typename SPEC_1::T;
+        for(TI i = 0; i < SPEC_1::ROWS; i++){
+            for(TI j = 0; j < SPEC_1::COLS; j++){
+                target.data[i * SPEC_1::COLS + j] = source.data[(i + row) * SPEC_2::COLS + col + j];
+            }
+        }
+    }
 
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T sum(DEVICE& device, const Matrix<SPEC>& m){
+        using TI = typename SPEC::TI;
+        using T = typename SPEC::T;
+        T acc = 0;
+        for(TI i = 0; i < SPEC::ROWS * SPEC::COLS; i++){
+            acc += m.data[i];
+        }
+        return acc;
+    }
 
 }
 #endif

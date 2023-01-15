@@ -240,6 +240,51 @@ namespace layer_in_c{
         update(device, actor_critic.actor);
         return actor_value;
     }
+    template <typename DEVICE, typename SPEC, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE>
+    FUNCTION_PLACEMENT typename SPEC::T train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch) {
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
+        constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+        constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> state_action_value;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> d_output;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> d_critic_input;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> d_actor_output;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_actor_input;
+        malloc(device, actions);
+        malloc(device, state_action_value_input);
+        malloc(device, state_action_value);
+        malloc(device, d_output);
+        malloc(device, d_critic_input);
+        malloc(device, d_actor_output);
+        malloc(device, d_actor_input);
+
+        forward(device, actor_critic.actor, batch.observations, actions);
+        hcat(device, batch.observations, actions, state_action_value_input);
+        auto& critic = actor_critic.critic_1;
+        forward(device, critic, state_action_value_input, state_action_value);
+        set(device, d_output, (T)-1/BATCH_SIZE);
+        backward(device, critic, state_action_value_input, d_output, d_critic_input);
+        slice(device, d_actor_output, d_critic_input, 0, OBSERVATION_DIM);
+        backward(device, actor_critic.actor, batch.observations, d_actor_output, d_actor_input);
+        T actor_value = sum(device, state_action_value)/BATCH_SIZE;
+
+        free(device, actions);
+        free(device, state_action_value_input);
+        free(device, state_action_value);
+        free(device, d_output);
+        free(device, d_critic_input);
+        free(device, d_actor_output);
+        free(device, d_actor_input);
+
+        update(device, actor_critic.actor);
+        return actor_value;
+    }
+
     template<typename DEVICE, typename SPEC>
     FUNCTION_PLACEMENT void update_target_layer(DEVICE& device, nn::layers::dense::Layer<SPEC>& target, const nn::layers::dense::Layer<SPEC>& source, typename SPEC::T polyak) {
         utils::polyak::update(device, target.weights, source.weights, polyak);

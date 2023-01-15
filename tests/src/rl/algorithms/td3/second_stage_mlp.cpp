@@ -339,6 +339,15 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             }
 
 
+            {
+                lic::rl::components::replay_buffer::Batch<ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> batch_struct;
+                lic::malloc(device, batch_struct);
+
+                lic::gather_batch<DEVICE, ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, batch_struct, rng);
+
+                lic::train_actor(device, actor_critic, batch_struct);
+                lic::free(device, batch_struct);
+            }
 //            DTYPE actor_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, decltype(replay_buffer)::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
 
             if(true){//(step_i % 100 == 1){
