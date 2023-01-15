@@ -28,19 +28,22 @@ using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI
 
 template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
 using InferenceSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
-using NetworkType = lic::nn_models::mlp::NeuralNetwork<InferenceSpecification<DTYPE, DEVICE::index_t, lic::nn::activation_functions::RELU>>;
+using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<InferenceSpecification<DTYPE, DEVICE::index_t, lic::nn::activation_functions::RELU>>;
 
 DEVICE::SPEC::LOGGING logger;
 DEVICE device(logger);
 
-constexpr INDEX_TYPE ITERATIONS = 1;
+constexpr INDEX_TYPE ITERATIONS = 1000;
 
 class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
 {
 protected:
     DTYPE input_lic[BATCH_SIZE * NetworkType::INPUT_DIM];
     DTYPE output_lic[BATCH_SIZE * HIDDEN_DIM];
+    DTYPE output_lic_full[BATCH_SIZE * NetworkType::OUTPUT_DIM];
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix = {input_lic};
     lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> expected_output = {(DTYPE*)output_lic};
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> expected_output_full = {output_lic_full};
 
     NetworkType network;
 
@@ -66,6 +69,11 @@ protected:
         auto end = std::chrono::high_resolution_clock::now();
 
         std::cout << "LIC: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
+
+        lic::malloc(device, expected_output_full);
+        lic::forward(device, network, input_lic_matrix);
+
+        lic::copy(device, expected_output_full, network.output_layer.output);
 
     }
 };
@@ -256,6 +264,30 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
     std::cout << "MKL LIC evaluate: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
 
     DTYPE abs_diff = lic::abs_diff(device_mkl, network.input_layer.output, expected_output) / NetworkType::NUM_WEIGHTS;
+
+    if constexpr(lic::utils::typing::is_same_v<DTYPE, float>){
+        EXPECT_LT(abs_diff, 1e-6);
+    }
+    else{
+        EXPECT_LT(abs_diff, 1e-14);
+    }
+
+    std::cout << "Absolute difference: " << abs_diff << std::endl;
+}
+
+TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
+    std::cout << "Layer batch size: " << decltype(network.input_layer)::SPEC::BATCH_SIZE << std::endl;
+    using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
+    DEVICE_MKL device_mkl(device.logger);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
+        lic::forward(device_mkl, network, input_lic_matrix);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "MKL LIC evaluate full: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
+
+    DTYPE abs_diff = lic::abs_diff(device_mkl, network.output_layer.output, expected_output_full) / NetworkType::NUM_WEIGHTS;
 
     if constexpr(lic::utils::typing::is_same_v<DTYPE, float>){
         EXPECT_LT(abs_diff, 1e-6);

@@ -18,21 +18,20 @@ namespace layer_in_c{
 
         constexpr T alpha = 1;
         constexpr T beta = 1;
+        // op(A) m x k = input     (B x I)
+        // op(B) k x n = weights^T (I x B)
+        // op(C) m x n = OUTPUT    (B x O)
         constexpr auto m = BATCH_SIZE;
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
         constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
 
-        // A m x k
-        // B k x n
-        // C m x n
-
         lic::set_broadcast(device, output, layer.biases);
 
         if constexpr(lic::utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (float*)input.data, k, (float*)layer.weights.data, n, beta, (float*)output.data, n);
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (float*)input.data, k, (float*)layer.weights.data, k, beta, (float*)output.data, n);
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input.data, k, (double*)layer.weights.data, n, beta, (double*)output.data, n);
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input.data, k, (double*)layer.weights.data, k, beta, (double*)output.data, n);
         }
         for(TI i = 0; i < BATCH_SIZE; i++){
             for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
@@ -51,21 +50,21 @@ namespace layer_in_c{
 
         constexpr T alpha = 1;
         constexpr T beta = 1;
+        // op(A) m x k = input     (B x I)
+        // op(B) k x n = weights^T (I x B)
+        // op(C) m x n = OUTPUT    (B x O)
         constexpr auto m = BATCH_SIZE;
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
         constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
 
-        // A m x k
-        // B k x n
-        // C m x n
 
         lic::set_broadcast(device, output, layer.biases);
 
         if constexpr(lic::utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (float*)input.data, k, (float*)layer.weights.data, n, beta, (float*)output.data, n);
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, ( float*)input.data, k, ( float*)layer.weights.data, k, beta, ( float*)output.data, n);
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input.data, k, (double*)layer.weights.data, n, beta, (double*)output.data, n);
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input.data, k, (double*)layer.weights.data, k, beta, (double*)output.data, n);
         }
         memcpy(layer.pre_activations.data, output.data, sizeof(T) * BATCH_SIZE * LAYER_SPEC::OUTPUT_DIM);
         for(TI i = 0; i < BATCH_SIZE; i++){
