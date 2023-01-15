@@ -131,7 +131,7 @@ namespace layer_in_c{
             constexpr auto k = LAYER_SPEC::OUTPUT_DIM;
             constexpr auto n = LAYER_SPEC::INPUT_DIM;
 
-            if constexpr(lic::utils::typing::is_same_v<T, float>){
+            if constexpr(utils::typing::is_same_v<T, float>){
                 cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, ( float*)d_output.data, k, ( float*)layer.weights.data, n, beta, ( float*)d_input.data, n);
             }
             else{
