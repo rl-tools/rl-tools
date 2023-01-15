@@ -263,6 +263,7 @@ namespace layer_in_c{
         malloc(device, d_actor_output);
         malloc(device, d_actor_input);
 
+        zero_gradient(device, actor_critic.actor);
         forward(device, actor_critic.actor, batch.observations, actions);
         hcat(device, batch.observations, actions, state_action_value_input);
         auto& critic = actor_critic.critic_1;
