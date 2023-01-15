@@ -104,7 +104,7 @@ namespace layer_in_c {
         T layer_output_tock_mem[BATCH_SIZE * MODEL_SPEC::HIDDEN_DIM];
         Matrix<MatrixSpecification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> layer_output_tick = {layer_output_tick_mem};
         Matrix<MatrixSpecification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> layer_output_tock = {layer_output_tock_mem};
-        forward(device, network, input, output, layer_output_tick, layer_output_tock);
+        forward_memless(device, network, input, output, layer_output_tick, layer_output_tock);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC>
     FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input) {
