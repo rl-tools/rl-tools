@@ -46,12 +46,12 @@ namespace layer_in_c {
         for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             typename DEVICE::index_t sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
             typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, sample_index_max, rng);
-            utils::memcpy(&batch.observations.data[sample_index * SPEC::OBSERVATION_DIM], replay_buffer.observations[sample_index], SPEC::OBSERVATION_DIM);
-            utils::memcpy(&batch.actions.data[sample_index * SPEC::ACTION_DIM], replay_buffer.actions[sample_index], SPEC::ACTION_DIM);
-            batch.rewards.data[sample_index] = replay_buffer.rewards[sample_index];
-            utils::memcpy(&batch.next_observations.data[sample_index * SPEC::OBSERVATION_DIM], replay_buffer.next_observations[sample_index], SPEC::OBSERVATION_DIM);
-            batch.terminated.data[sample_index] = replay_buffer.terminated[sample_index];
-            batch.truncated.data[sample_index] = replay_buffer.truncated[sample_index];
+            utils::memcpy(&batch.observations.data[batch_step_i * SPEC::OBSERVATION_DIM], replay_buffer.observations[sample_index], SPEC::OBSERVATION_DIM);
+            utils::memcpy(&batch.actions.data[batch_step_i * SPEC::ACTION_DIM], replay_buffer.actions[sample_index], SPEC::ACTION_DIM);
+            batch.rewards.data[batch_step_i] = replay_buffer.rewards[sample_index];
+            utils::memcpy(&batch.next_observations.data[batch_step_i * SPEC::OBSERVATION_DIM], replay_buffer.next_observations[sample_index], SPEC::OBSERVATION_DIM);
+            batch.terminated.data[batch_step_i] = replay_buffer.terminated[sample_index];
+            batch.truncated.data[batch_step_i] = replay_buffer.truncated[sample_index];
         }
     }
 }

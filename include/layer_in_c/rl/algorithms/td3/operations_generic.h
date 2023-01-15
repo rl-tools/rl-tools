@@ -106,7 +106,7 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE, typename TARGET_NEXT_ACTION_NOISE_SPEC>
     FUNCTION_PLACEMENT typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch, Matrix<TARGET_NEXT_ACTION_NOISE_SPEC>& target_next_action_noise) {
         using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
+        using TI = typename DEVICE::index_t;
         static_assert(TARGET_NEXT_ACTION_NOISE_SPEC::ROWS == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static_assert(TARGET_NEXT_ACTION_NOISE_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
@@ -190,6 +190,21 @@ namespace layer_in_c{
         }
         return train_critic(device, actor_critic, critic, replay_buffer, action_noise, rng);
     }
+    template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC, typename RNG>
+    FUNCTION_PLACEMENT void target_action_noise(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, Matrix<OUTPUT_SPEC> target_action_noise, RNG& rng ) {
+        static_assert(OUTPUT_SPEC::ROWS == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
+        static_assert(OUTPUT_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
+        typedef typename SPEC::T T;
+        for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
+            for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
+                target_action_noise.data[batch_sample_i * SPEC::ENVIRONMENT::ACTION_DIM + action_i] = math::clamp(
+                        random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng),
+                        -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
+                        SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
+                );
+            }
+        }
+    }
     template <typename DEVICE, typename SPEC, auto REPLAY_BUFFER_CAPACITY, typename RNG, bool DETERMINISTIC = false>
     FUNCTION_PLACEMENT typename SPEC::T train_actor(
             DEVICE& device,
@@ -243,7 +258,7 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE>
     FUNCTION_PLACEMENT typename SPEC::T train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch) {
         using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
+        using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
         constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;

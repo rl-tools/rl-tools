@@ -24,8 +24,9 @@ namespace layer_in_c::rl::components::replay_buffer{
     };
 }
 namespace layer_in_c::rl::components {
-    template <typename SPEC>
+    template <typename T_SPEC>
     struct ReplayBuffer {
+        using SPEC = T_SPEC;
         using T = typename SPEC::T;
         static constexpr typename SPEC::TI CAPACITY = SPEC::CAPACITY;
         T observations[SPEC::CAPACITY][SPEC::OBSERVATION_DIM];

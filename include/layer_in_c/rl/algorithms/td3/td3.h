@@ -18,7 +18,6 @@ namespace layer_in_c::rl::algorithms::td3 {
 
     template<
         typename T_T,
-        typename T_TI,
         typename T_ENVIRONMENT,
         typename T_ACTOR_NETWORK_TYPE,
         typename T_ACTOR_TARGET_NETWORK_TYPE,
@@ -28,7 +27,6 @@ namespace layer_in_c::rl::algorithms::td3 {
     >
     struct Specification {
         using T = T_T;
-        using TI = T_TI;
         using ENVIRONMENT = T_ENVIRONMENT;
         using ACTOR_NETWORK_TYPE = T_ACTOR_NETWORK_TYPE;
         using ACTOR_TARGET_NETWORK_TYPE = T_ACTOR_TARGET_NETWORK_TYPE;
@@ -41,7 +39,6 @@ namespace layer_in_c::rl::algorithms::td3 {
     struct ActorCritic {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
 
         typename SPEC::ACTOR_NETWORK_TYPE actor;
         typename SPEC::ACTOR_TARGET_NETWORK_TYPE actor_target;

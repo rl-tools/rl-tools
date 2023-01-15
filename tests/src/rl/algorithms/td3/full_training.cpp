@@ -34,18 +34,20 @@ typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 ENVIRONMENT env;
 
-using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH>;
-using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY>;
-
 struct AC_DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
     using LOGGING = lic::devices::logging::CPU_WANDB;
 };
 using AC_DEVICE = lic::devices::CPU<AC_DEVICE_SPEC>;
-template <typename T>
-struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, AC_DEVICE::index_t>{
+struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE, AC_DEVICE::index_t>{
     constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
+
+using TD3_PARAMETERS = TD3PendulumParameters;
+
+using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
+using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
+
 
 //using NN_DEVICE = lic::devices::DefaultCPU;
 using NN_DEVICE = AC_DEVICE;
@@ -61,7 +63,7 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
-using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
+using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -112,11 +114,31 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             if(step_i % 1000 == 0){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            DTYPE critic_1_loss = lic::train_critic(ac_dev, actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
-            lic::train_critic(ac_dev, actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+
+            for(int critic_i = 0; critic_i < 2; critic_i++){
+                lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> batch_struct;
+                lic::Matrix<lic::MatrixSpecification<DTYPE, AC_DEVICE::index_t, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::ACTION_DIM>> target_next_action_noise;
+                lic::malloc(ac_dev, batch_struct);
+                lic::malloc(ac_dev, target_next_action_noise);
+                lic::target_action_noise(ac_dev, actor_critic, target_next_action_noise, rng);
+                lic::gather_batch(ac_dev, off_policy_runner.replay_buffer, batch_struct, rng);
+                lic::train_critic(ac_dev, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, batch_struct, target_next_action_noise);
+                lic::free(ac_dev, batch_struct);
+                lic::free(ac_dev, target_next_action_noise);
+            }
+
+//            DTYPE critic_1_loss = lic::train_critic(ac_dev, actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
+//            lic::train_critic(ac_dev, actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
 //            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
-                lic::train_actor(ac_dev, actor_critic, off_policy_runner.replay_buffer, rng);
+                {
+                    lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> batch_struct_actor;
+                    lic::malloc(ac_dev, batch_struct_actor);
+                    lic::gather_batch(ac_dev, off_policy_runner.replay_buffer, batch_struct_actor, rng);
+                    lic::train_actor(ac_dev, actor_critic, batch_struct_actor);
+                    lic::free(ac_dev, batch_struct_actor);
+                }
+
                 lic::update_targets(ac_dev, actor_critic);
             }
         }
