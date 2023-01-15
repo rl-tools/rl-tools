@@ -7,8 +7,8 @@ namespace layer_in_c::utils::persist::array_conversion{
     template <typename DEVICE, typename SPEC>
     auto matrix_to_std_vector(DEVICE& device, Matrix<SPEC> M){
         using T = typename SPEC::T;
-        if constexpr(SPEC::COLS == 1){
-            return std::vector<T>(M.data, M.data + SPEC::ROWS);
+        if constexpr(SPEC::ROWS == 1){
+            return std::vector<T>(M.data, M.data + SPEC::COLS);
         }
         else{
             std::vector<std::vector<T>> data(SPEC::ROWS);

@@ -201,7 +201,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, 1>> output_matrix = {output};
         lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, 1>> target_matrix = {target};
         lic::evaluate(device, actor_critic.critic_1, input_matrix, output_matrix);
-        loss += lic::nn::loss_functions::mse<DEVICE, DTYPE, 1, 1>(device, output, target);
+        loss += lic::nn::loss_functions::mse(device, output_matrix, target_matrix);
 
         lic::forward_backward_mse(device, actor_critic.critic_1, input_matrix, target_matrix, DTYPE(1)/32);
         std::cout << "output: " << actor_critic.critic_1.output_layer.output.data[0] << std::endl;

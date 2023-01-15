@@ -330,7 +330,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                     DTYPE desired_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
                     lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> desired_action_matrix = {desired_action};
                     lic::evaluate(device, post_actor, observation_matrix, desired_action_matrix);
-                    diff += lic::nn::loss_functions::mse<DEVICE, DTYPE, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>(device, current_action, desired_action);
+                    diff += lic::nn::loss_functions::mse(device, current_action_matrix, desired_action_matrix, DTYPE(1)/ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
                 }
 //                std::cout << "action mse: " << diff << std::endl;
             }

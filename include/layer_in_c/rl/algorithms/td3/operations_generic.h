@@ -88,7 +88,7 @@ namespace layer_in_c{
             Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, 1>> target_action_value_matrix = {target_action_value};
             forward_backward_mse(device, critic, state_action_value_input_matrix, target_action_value_matrix, 1/((T)SPEC::PARAMETERS::CRITIC_BATCH_SIZE));
             static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
-            T loss_sample = nn::loss_functions::mse<DEVICE, T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(device, critic.output_layer.pre_activations.data, target_action_value);
+            T loss_sample = nn::loss_functions::mse(device, critic.output_layer.pre_activations, target_action_value_matrix, T(1)/((T)SPEC::PARAMETERS::CRITIC_BATCH_SIZE));
             loss += loss_sample;
         }
         update(device, critic);
