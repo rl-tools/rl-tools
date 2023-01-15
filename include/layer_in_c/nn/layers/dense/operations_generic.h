@@ -388,9 +388,7 @@ namespace layer_in_c{
     }
     template <typename DEVICE, typename SPEC>
     void reset_forward_state(DEVICE& device, layer_in_c::nn::layers::dense::LayerBackward<SPEC>* l) {
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++){
-            l->pre_activations.data[i] = 0;
-        }
+        set(device, l->pre_activations, 0);
     }
     template <typename DEVICE, typename SPEC>
     void reset_forward_state(DEVICE& device, layer_in_c::nn::layers::dense::LayerBackward<SPEC>& l) {
@@ -399,9 +397,7 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
     void reset_forward_state(DEVICE& device, layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC>* l) {
         reset_forward_state(device, (layer_in_c::nn::layers::dense::LayerBackward<SPEC>*) l);
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++){
-            l->output.data[i] = 0;
-        }
+        set(device, l->output, 0);
     }
     template <typename DEVICE, typename SPEC>
     void reset_forward_state(DEVICE& device, layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC>& l) {

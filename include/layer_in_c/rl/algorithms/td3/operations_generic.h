@@ -20,6 +20,15 @@ namespace layer_in_c{
         malloc(device, actor_critic.critic_target_1);
         malloc(device, actor_critic.critic_target_2);
     }
+    template <typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
+        free(device, actor_critic.actor);
+        free(device, actor_critic.actor_target);
+        free(device, actor_critic.critic_1);
+        free(device, actor_critic.critic_2);
+        free(device, actor_critic.critic_target_1);
+        free(device, actor_critic.critic_target_2);
+    }
     template <typename DEVICE, typename SPEC, typename RNG>
     FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
@@ -91,6 +100,64 @@ namespace layer_in_c{
             T loss_sample = nn::loss_functions::mse(device, critic.output_layer.pre_activations, target_action_value_matrix, T(1)/((T)SPEC::PARAMETERS::CRITIC_BATCH_SIZE));
             loss += loss_sample;
         }
+        update(device, critic);
+        return loss;
+    }
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE, typename TARGET_NEXT_ACTION_NOISE_SPEC>
+    FUNCTION_PLACEMENT typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch, Matrix<TARGET_NEXT_ACTION_NOISE_SPEC>& target_next_action_noise) {
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static_assert(TARGET_NEXT_ACTION_NOISE_SPEC::ROWS == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
+        static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
+        static_assert(TARGET_NEXT_ACTION_NOISE_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
+        constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+        constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+        zero_gradient(device, critic);
+
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> next_actions;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> next_state_action_value_input;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> target_action_value;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_2;
+        malloc(device, next_actions);
+        malloc(device, next_state_action_value_input);
+        malloc(device, target_action_value);
+        malloc(device, state_action_value_input);
+        malloc(device, next_state_action_value_critic_1);
+        malloc(device, next_state_action_value_critic_2);
+        evaluate(device, actor_critic.actor_target, batch.next_observations, next_actions);
+        for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
+            for(TI action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
+                T noisy_next_action = next_actions.data[batch_step_i * ACTION_DIM + action_i] + target_next_action_noise.data[batch_step_i * ACTION_DIM + action_i];
+                noisy_next_action = math::clamp<T>(noisy_next_action, -1, 1);
+                next_actions.data[batch_step_i * ACTION_DIM + action_i] = noisy_next_action;
+            }
+        }
+        hcat(device, batch.next_observations, next_actions, next_state_action_value_input);
+        evaluate(device, actor_critic.critic_target_1, next_state_action_value_input, next_state_action_value_critic_1);
+        evaluate(device, actor_critic.critic_target_2, next_state_action_value_input, next_state_action_value_critic_2);
+
+        for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
+            utils::memcpy(state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM), batch.observations.data + batch_step_i * OBSERVATION_DIM, OBSERVATION_DIM);
+            utils::memcpy(state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM) + OBSERVATION_DIM, batch.actions.data + batch_step_i * ACTION_DIM, ACTION_DIM);
+            T min_next_state_action_value = math::min(
+                    next_state_action_value_critic_1.data[batch_step_i],
+                    next_state_action_value_critic_2.data[batch_step_i]
+            );
+            target_action_value.data[batch_step_i] = batch.rewards.data[batch_step_i] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!batch.terminated.data[batch_step_i]);
+        }
+
+        forward_backward_mse(device, critic, state_action_value_input, target_action_value);
+        static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
+        T loss = nn::loss_functions::mse(device, critic.output_layer.pre_activations, target_action_value);
+
+        free(device, next_actions);
+        free(device, next_state_action_value_input);
+        free(device, target_action_value);
+        free(device, state_action_value_input);
+        free(device, next_state_action_value_critic_1);
+        free(device, next_state_action_value_critic_2);
         update(device, critic);
         return loss;
     }

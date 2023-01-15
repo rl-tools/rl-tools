@@ -129,6 +129,49 @@ namespace layer_in_c{
             }
         }
     }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3>
+    void hcat(DEVICE& device, const Matrix<SPEC_1>& A, const Matrix<SPEC_2>& B, const Matrix<SPEC_3>& C){
+        static_assert(SPEC_1::ROWS == SPEC_2::ROWS);
+        static_assert(SPEC_3::ROWS == SPEC_1::ROWS);
+        static_assert(SPEC_1::COLS + SPEC_2::COLS == SPEC_3::COLS);
+        static_assert(SPEC_1::LAYOUT == RowMajor);
+        static_assert(SPEC_2::LAYOUT == RowMajor);
+        static_assert(SPEC_3::LAYOUT == RowMajor);
+        // concatenate horizontally
+        using TI = typename SPEC_1::TI;
+        using T = typename SPEC_1::T;
+        for(TI i = 0; i < SPEC_1::ROWS; i++){
+            for(TI j = 0; j < SPEC_1::COLS; j++){
+                C.data[i * SPEC_3::COLS + j] = A.data[i * SPEC_1::COLS + j];
+            }
+            for(TI j = 0; j < SPEC_2::COLS; j++){
+                C.data[i * SPEC_3::COLS + j + SPEC_1::COLS] = B.data[i * SPEC_2::COLS + j];
+            }
+        }
+    }
+    // vcat
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3>
+    void vcat(DEVICE& device, const Matrix<SPEC_1>& A, const Matrix<SPEC_2>& B, const Matrix<SPEC_3>& C){
+        static_assert(SPEC_1::COLS == SPEC_2::COLS);
+        static_assert(SPEC_3::COLS == SPEC_1::COLS);
+        static_assert(SPEC_1::ROWS + SPEC_2::ROWS == SPEC_3::ROWS);
+        static_assert(SPEC_1::LAYOUT == RowMajor);
+        static_assert(SPEC_2::LAYOUT == RowMajor);
+        static_assert(SPEC_3::LAYOUT == RowMajor);
+        // concatenate horizontally
+        using TI = typename SPEC_1::TI;
+        using T = typename SPEC_1::T;
+        for(TI i = 0; i < SPEC_1::ROWS; i++){
+            for(TI j = 0; j < SPEC_1::COLS; j++){
+                C.data[i * SPEC_3::COLS + j] = A.data[i * SPEC_1::COLS + j];
+            }
+        }
+        for(TI i = 0; i < SPEC_2::ROWS; i++){
+            for(TI j = 0; j < SPEC_2::COLS; j++){
+                C.data[(i + SPEC_1::ROWS) * SPEC_3::COLS + j] = B.data[i * SPEC_2::COLS + j];
+            }
+        }
+    }
 
 
 }

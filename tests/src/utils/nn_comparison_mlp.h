@@ -24,9 +24,11 @@ typename SPEC::T abs_diff_grad(DEVICE& device, const layer_in_c::nn_models::mlp:
     GradNetworkType n1g;
     lic::malloc(device, n1g);
     lic::copy(device, n1g, n1);
+    lic::reset_forward_state(device, n1g);
     GradNetworkType n2g;
     lic::malloc(device, n2g);
     lic::copy(device, n2g, n2);
+    lic::reset_forward_state(device, n2g);
     T acc = 0;
     acc += lic::abs_diff(device, n1g.input_layer, n2g.input_layer);
     for(typename DEVICE::index_t layer_i = 0; layer_i < NetworkType::NUM_HIDDEN_LAYERS; layer_i++) {

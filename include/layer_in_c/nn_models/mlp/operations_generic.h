@@ -44,8 +44,8 @@ namespace layer_in_c {
     FUNCTION_PLACEMENT void evaluate_memless(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, Matrix<TEMP_SPEC>& layer_output_tick, Matrix<TEMP_SPEC>& layer_output_tock){
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        static_assert(TEMP_SPEC::ROWS == BATCH_SIZE);
-        static_assert(TEMP_SPEC::COLS == MODEL_SPEC::HIDDEN_DIM);
+        static_assert(TEMP_SPEC::ROWS >= BATCH_SIZE);
+        static_assert(TEMP_SPEC::COLS >= MODEL_SPEC::HIDDEN_DIM);
         evaluate(device, network.input_layer, input, layer_output_tick);
         for (typename DEVICE::index_t layer_i = 0; layer_i < MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             if(layer_i % 2 == 0){
