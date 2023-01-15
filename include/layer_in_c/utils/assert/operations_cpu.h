@@ -1,4 +1,5 @@
-
+#ifndef LAYER_IN_C_OPERATIONS_CPU_H
+#define LAYER_IN_C_OPERATIONS_CPU_H
 
 #include <cstdlib>
 namespace layer_in_c::utils{
@@ -10,3 +11,5 @@ namespace layer_in_c::utils{
         }
     }
 }
+
+#endif

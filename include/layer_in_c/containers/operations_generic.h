@@ -51,6 +51,13 @@ namespace layer_in_c{
         }
     }
 
+    template<typename DEVICE, typename SPEC>
+    void set(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::T value){
+        for(typename SPEC::TI i = 0; i < SPEC::ROWS * SPEC::COLS; i++){
+            m.data[i] = value;
+        }
+    }
+
 
 
 }

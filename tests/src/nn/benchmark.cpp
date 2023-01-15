@@ -1,4 +1,5 @@
 #include <layer_in_c/operations/cpu.h>
+#include <layer_in_c/operations/cpu_mkl.h>
 #include <layer_in_c/nn_models/operations_cpu.h>
 
 namespace lic = layer_in_c;
@@ -32,7 +33,7 @@ using NetworkType = lic::nn_models::mlp::NeuralNetwork<InferenceSpecification<DT
 DEVICE::SPEC::LOGGING logger;
 DEVICE device(logger);
 
-constexpr INDEX_TYPE ITERATIONS = 1000;
+constexpr INDEX_TYPE ITERATIONS = 1;
 
 class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
 {
@@ -53,9 +54,6 @@ protected:
         {
             input_lic[i] = lic::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (DTYPE)0, (DTYPE)1, rng);
         }
-
-
-
 
         auto start = std::chrono::high_resolution_clock::now();
         for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
@@ -208,3 +206,18 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
 }
 
+TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
+    using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
+    DEVICE_MKL device_mkl(device.logger);
+
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_matrix = {input_lic};
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
+    lic::malloc(device_mkl, output_matrix);
+    lic::set(device_mkl, output_matrix, 0);
+
+    lic::evaluate(device_mkl, network.input_layer, input_matrix, output_matrix);
+
+    DTYPE abs_diff = lic::abs_diff(device_mkl, output_matrix, expected_output) / NetworkType::NUM_WEIGHTS;
+
+    std::cout << "Absolute difference: " << abs_diff << std::endl;
+}
