@@ -1,17 +1,19 @@
 #ifndef LAYER_IN_C_UTILS_PERSIST_H
 #define LAYER_IN_C_UTILS_PERSIST_H
 #include <vector>
+#include <cassert>
 
 namespace layer_in_c::utils::persist::array_conversion{
-    template <typename DEVICE, typename T, typename TI, TI ROWS, TI COLS>
-    auto matrix_to_std_vector(DEVICE& device, Matrix<T, TI, ROWS, COLS, RowMajor> M){
-        if constexpr(COLS == 1){
-            return std::vector<T>(M.data, M.data + ROWS);
+    template <typename DEVICE, typename SPEC>
+    auto matrix_to_std_vector(DEVICE& device, Matrix<SPEC> M){
+        using T = typename SPEC::T;
+        if constexpr(SPEC::COLS == 1){
+            return std::vector<T>(M.data, M.data + SPEC::ROWS);
         }
         else{
-            std::vector<std::vector<T>> data(ROWS);
-            for(typename DEVICE::index_t i=0; i < ROWS; i++){
-                data[i] = std::vector<T>(&M.data[i * COLS], &M.data[i * COLS] + COLS);
+            std::vector<std::vector<T>> data(SPEC::ROWS);
+            for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
+                data[i] = std::vector<T>(&M.data[i * SPEC::COLS], &M.data[i * SPEC::COLS] + SPEC::COLS);
             }
             return data;
         }
@@ -22,11 +24,14 @@ namespace layer_in_c::utils::persist::array_conversion{
             target[i] = source[i];
         }
     }
-    template <typename DEVICE, typename T, auto ROWS, auto COLS>
-    void std_vector_to_matrix(Matrix<T, typename DEVICE::index_t, ROWS, COLS, RowMajor> target, std::vector<std::vector<T>> source){
-        for(typename DEVICE::index_t i=0; i < ROWS; i++){
-            for(typename DEVICE::index_t j=0; j < COLS; j++){
-                target->data[i * COLS + j] = source[i][j];
+    template <typename DEVICE, typename SPEC>
+    void std_vector_to_matrix(Matrix<SPEC> target, std::vector<std::vector<typename SPEC::T>> source){
+        assert(source.size() == SPEC::ROWS);
+        assert(!source.empty());
+        assert(source[0].size() == SPEC::COLS);
+        for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
+            for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
+                target->data[i * SPEC::COLS + j] = source[i][j];
             }
         }
     }

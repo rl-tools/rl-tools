@@ -90,19 +90,23 @@ namespace layer_in_c{
         }
     }
 
-    template<typename DEVICE, typename SPEC, typename DEVICE::index_t BATCH_SIZE>
-    FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::dense::Layer<SPEC>& layer, const Matrix<typename SPEC::T, typename DEVICE::index_t, BATCH_SIZE, SPEC::INPUT_DIM, RowMajor>& input, Matrix<typename SPEC::T, typename DEVICE::index_t, BATCH_SIZE, SPEC::OUTPUT_DIM, RowMajor>& output) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         // Warning do not use the same buffer for input and output!
+        static_assert(INPUT_SPEC::COLS == LAYER_SPEC::INPUT_DIM);
+        static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
+        static_assert(OUTPUT_SPEC::COLS == LAYER_SPEC::OUTPUT_DIM);
+        constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-            for(TI output_i = 0; output_i < SPEC::OUTPUT_DIM; output_i++) {
-                TI output_index = batch_i * SPEC::OUTPUT_DIM + output_i;
+            for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
+                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
                 output.data[output_index] = layer.biases.data[output_i];
-                for(TI input_i = 0; input_i < SPEC::INPUT_DIM; input_i++) {
-                    TI input_index = batch_i * SPEC::INPUT_DIM + input_i;
-                    output.data[output_index] += layer.weights.data[output_i * SPEC::INPUT_DIM + input_i] * input.data[input_index];
+                for(TI input_i = 0; input_i < LAYER_SPEC::INPUT_DIM; input_i++) {
+                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_i;
+                    output.data[output_index] += layer.weights.data[output_i * LAYER_SPEC::INPUT_DIM + input_i] * input.data[input_index];
                 }
-                output.data[output_index] = activation<typename DEVICE::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output.data[output_index]);
+                output.data[output_index] = activation<typename DEVICE::SPEC::MATH, typename LAYER_SPEC::T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[output_index]);
             }
         }
     }
@@ -221,11 +225,11 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     FUNCTION_PLACEMENT void update_layer(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer, typename SPEC::T first_order_moment_bias_correction, typename SPEC::T second_order_moment_bias_correction) {
         // todo remove template params (auto inference)
-        utils::polyak::update<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(device, layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
-        utils::polyak::update<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM>                 (device, layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
+        utils::polyak::update(device, layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
+        utils::polyak::update(device, layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
 
-        utils::polyak::update_squared<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>(device, layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
-        utils::polyak::update_squared<DEVICE, typename SPEC::T, SPEC::OUTPUT_DIM>                 (device, layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
+        utils::polyak::update_squared(device, layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
+        utils::polyak::update_squared(device, layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
 
         gradient_descent(device, layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
     }

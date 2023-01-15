@@ -39,7 +39,7 @@ class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
 protected:
     DTYPE input_lic[BATCH_SIZE * NetworkType::INPUT_DIM];
     DTYPE output_lic[BATCH_SIZE * HIDDEN_DIM];
-    lic::Matrix<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM> expected_output = {(DTYPE*)output_lic};
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> expected_output = {(DTYPE*)output_lic};
 
     NetworkType network;
 
@@ -75,10 +75,10 @@ protected:
 
 
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
-    lic::Matrix<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM> input_lic_matrix;
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
     lic::malloc(device, input_lic_matrix);
     memcpy(input_lic_matrix.data, input_lic, sizeof(DTYPE) * BATCH_SIZE * NetworkType::INPUT_DIM);
-    lic::Matrix<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM> output_lic_matrix;
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_lic_matrix;
     lic::malloc(device, output_lic_matrix);
 
 
@@ -102,7 +102,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, EIGEN_ROW_VS_COLUMN_MAJOR) {
     Eigen::Map<Eigen::Matrix<DTYPE, BATCH_SIZE, NetworkType::INPUT_DIM, Eigen::RowMajor>> input(input_lic);
     Eigen::Map<Eigen::Matrix<DTYPE, HIDDEN_DIM, NetworkType::INPUT_DIM, Eigen::RowMajor>> W((DTYPE*)network.input_layer.weights.data);
-    lic::Matrix<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM> output_eigen_matrix;
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_eigen_matrix;
     lic::malloc(device, output_eigen_matrix);
     Eigen::Map<Eigen::Matrix<DTYPE, HIDDEN_DIM, BATCH_SIZE, Eigen::ColMajor>> output(output_eigen_matrix.data);
 
@@ -159,14 +159,14 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
     memcpy(A, network.input_layer.weights.data, m*k*sizeof( DTYPE ));
 
-    lic::Matrix<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM> input_mkl_matrix({B});
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix({B});
 
-    lic::Matrix<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM> input_lic_matrix;
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
     lic::malloc(device, input_lic_matrix);
     memcpy(input_lic_matrix.data, input_lic, sizeof(DTYPE) * BATCH_SIZE * NetworkType::INPUT_DIM);
     DTYPE input_abs_diff = lic::abs_diff(device, input_mkl_matrix, input_lic_matrix);
 
-    lic::Matrix<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE> input_lic_matrix_transpose;
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;
     lic::malloc(device, input_lic_matrix_transpose);
     lic::transpose(device, input_lic_matrix_transpose, input_lic_matrix);
 
@@ -191,10 +191,10 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
         }
     }
 
-    lic::Matrix<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE> output_mkl_matrix_transpose;
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE>> output_mkl_matrix_transpose;
     output_mkl_matrix_transpose.data = C;
 
-    lic::Matrix<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM> output_mkl_matrix;
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_mkl_matrix;
     lic::malloc(device, output_mkl_matrix);
 
     lic::transpose(device, output_mkl_matrix, output_mkl_matrix_transpose);
