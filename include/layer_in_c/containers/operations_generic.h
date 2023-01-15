@@ -26,6 +26,22 @@ namespace layer_in_c{
             }
         }
     }
+    template<typename DEVICE, typename SPEC>
+    Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, SPEC::COLS, SPEC::ROWS>> transpose(DEVICE& device, Matrix<SPEC>& target){
+        static_assert(SPEC::LAYOUT == RowMajor);
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        for(TI i = 0; i < SPEC::ROWS; i++){
+            for(TI j = i + 1; j < SPEC::COLS; j++){
+                T temp = target.data[i * SPEC::COLS + j];
+                target.data[i * SPEC::COLS + j] = target.data[j * SPEC::ROWS + i];
+                target.data[j * SPEC::ROWS + i] = temp;
+            }
+        }
+        auto data = target.data;
+        target.data = nullptr;
+        return {data};
+    }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const Matrix<SPEC_1>& m1, const Matrix<SPEC_2>& m2){
@@ -92,6 +108,27 @@ namespace layer_in_c{
         }
     }
 
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3>
+    void mul(DEVICE& device, const Matrix<SPEC_1>& A, const Matrix<SPEC_2>& B, const Matrix<SPEC_3>& C){
+        static_assert(SPEC_1::COLS == SPEC_2::ROWS);
+        static_assert(SPEC_1::ROWS == SPEC_3::ROWS);
+        static_assert(SPEC_2::COLS == SPEC_3::COLS);
+        static_assert(SPEC_1::LAYOUT == RowMajor);
+        static_assert(SPEC_2::LAYOUT == RowMajor);
+        static_assert(SPEC_3::LAYOUT == RowMajor);
+        using SPEC = SPEC_1;
+        using TI = typename SPEC::TI;
+        using T = typename SPEC::T;
+        for(TI i = 0; i < SPEC::ROWS; i++){
+            for(TI j = 0; j < SPEC::COLS; j++){
+                T acc = 0;
+                for(TI k = 0; k < SPEC::COLS; k++){
+                    acc += A.data[i * SPEC::COLS + k] * B.data[k * SPEC::ROWS + j];
+                }
+                C.data[i * SPEC::COLS + j] = acc;
+            }
+        }
+    }
 
 
 }
