@@ -20,7 +20,7 @@ namespace layer_in_c{
         constexpr T alpha = 1;
         constexpr T beta = 1;
         // op(A) m x k = input     (B x I)
-        // op(B) k x n = weights^T (I x B)
+        // op(B) k x n = weights^T (I x O)
         // op(C) m x n = OUTPUT    (B x O)
         constexpr auto m = BATCH_SIZE;
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
@@ -52,7 +52,7 @@ namespace layer_in_c{
         constexpr T alpha = 1;
         constexpr T beta = 1;
         // op(A) m x k = input     (B x I)
-        // op(B) k x n = weights^T (I x B)
+        // op(B) k x n = weights^T (I x O)
         // op(C) m x n = OUTPUT    (B x O)
         constexpr auto m = BATCH_SIZE;
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
@@ -131,11 +131,11 @@ namespace layer_in_c{
             constexpr auto k = LAYER_SPEC::OUTPUT_DIM;
             constexpr auto n = LAYER_SPEC::INPUT_DIM;
 
-            if constexpr(utils::typing::is_same_v<T, float>){
-                cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, ( float*)d_output.data, k, ( float*)layer.weights.data, k, beta, ( float*)d_input.data, n);
+            if constexpr(lic::utils::typing::is_same_v<T, float>){
+                cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, ( float*)d_output.data, k, ( float*)layer.weights.data, n, beta, ( float*)d_input.data, n);
             }
             else{
-                cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (double*)d_output.data, k, (double*)layer.weights.data, k, beta, (double*)d_input.data, n);
+                cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (double*)d_output.data, k, (double*)layer.weights.data, n, beta, (double*)d_input.data, n);
             }
         }
     }
