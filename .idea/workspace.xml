@@ -77,27 +77,7 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9f030793-4e72-46a6-a556-d88b60910c80" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/examples/td3_pendulum_cuda/CMakeLists.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/examples/td3_pendulum_cuda/main.cu" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/layer_in_c/devices/cuda.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/layer_in_c/logging/operations_cuda.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/layer_in_c/math/operations_cuda.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/layer_in_c/operations/cuda.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/layer_in_c/random/operations_cuda.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/layer_in_c/utils/assert/operations_cuda.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/examples/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/examples/td3_pendulum/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/examples/td3_pendulum/main.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/layer_in_c/devices/devices.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/layer_in_c/devices/devices.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/layer_in_c/nn/activation_functions.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/layer_in_c/nn/activation_functions.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/layer_in_c/nn/layers/dense/operations_generic.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/layer_in_c/nn/layers/dense/operations_generic.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/layer_in_c/nn_models/mlp/operations_generic.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/layer_in_c/nn_models/mlp/operations_generic.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/layer_in_c/random/operations_cpu.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/layer_in_c/random/operations_cpu.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/layer_in_c/rl/algorithms/td3/operations_generic.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/layer_in_c/rl/algorithms/td3/operations_generic.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/layer_in_c/utils/generic/typing.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/layer_in_c/utils/generic/typing.h" afterDir="false" />
-    </list>
+    <list default="true" id="9f030793-4e72-46a6-a556-d88b60910c80" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -124,27 +104,27 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "WebServerToolWindowFactoryState": "false",
-    "cf.advertisement.text.has.clang-format": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "ctest.advertisement.all.test.configuration.is.created": "true",
-    "last_opened_file_path": "/home/jonas/arpl_workspace/src/ARPL_Trajectory_Planning",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "CMakeSettings",
-    "settings.editor.splitter.proportion": "0.2579365",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;cf.advertisement.text.has.clang-format&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;ctest.advertisement.all.test.configuration.is.created&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/jonas/arpl_workspace/src/ARPL_Trajectory_Planning&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;CMakeSettings&quot;,
+    &quot;settings.editor.splitter.proportion&quot;: &quot;0.2579365&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/include/layer_in_c/logging" />
@@ -161,8 +141,25 @@
       <recent name="$PROJECT_DIR$/include/layer_in_c/utils/vector_operations" />
     </key>
   </component>
-  <component name="RunManager" selected="CMake Application.example_td3_pendulum_cuda">
+  <component name="RunManager" selected="CMake Application.example_td3_pendulum">
+    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true">
+      <method v="2">
+        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="test_neural_network" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$PROJECT_DIR$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_neural_network" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_neural_network" TEST_MODE="SUITE_TEST">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+        <option name="BeforeTestRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="test_neural_network_benchmark" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_neural_network_benchmark" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_neural_network_benchmark" TEST_MODE="SUITE_TEST">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+        <option name="BeforeTestRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="test_neural_network_conversions" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_neural_network_conversions" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_neural_network_conversions" TEST_MODE="SUITE_TEST">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
         <option name="BeforeTestRunTask" enabled="true" />
@@ -187,6 +184,12 @@
       </method>
     </configuration>
     <configuration name="test_neural_network_persistence" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$PROJECT_DIR$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_neural_network_persistence" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_neural_network_persistence" TEST_MODE="SUITE_TEST">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+        <option name="BeforeTestRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="test_nn_cuda" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_nn_cuda" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_nn_cuda" TEST_MODE="SUITE_TEST">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
         <option name="BeforeTestRunTask" enabled="true" />
@@ -263,11 +266,6 @@
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
     </configuration>
-    <configuration name="example_td3_pendulum_cuda" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="example_td3_pendulum_cuda" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="example_td3_pendulum_cuda">
-      <method v="2">
-        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
-      </method>
-    </configuration>
     <configuration name="All CTest" type="CTestRunConfiguration" factoryName="CTestRun" PROGRAM_PARAMS="--extra-verbose -j16" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$CMakeCurrentLocalGenerationDir$" PASS_PARENT_ENVS_2="true" CONFIG_NAME="Debug" RUN_PATH="$CTestCurrentExecutableName$" EXPLICIT_BUILD_TARGET_NAME="all" TEST_MODE="PATTERN">
       <envs>
         <env name="LAYER_IN_C_TEST_NN_DATA_FILE" value="$PROJECT_DIR$/../model-learning/data.hdf5" />
@@ -282,8 +280,9 @@
     </configuration>
     <list>
       <item itemvalue="CMake Application.example_td3_pendulum" />
-      <item itemvalue="CMake Application.example_td3_pendulum_cuda" />
       <item itemvalue="CTest Application.All CTest" />
+      <item itemvalue="Google Test.test_neural_network_benchmark" />
+      <item itemvalue="Google Test.test_neural_network_conversions" />
       <item itemvalue="Google Test.test_neural_network" />
       <item itemvalue="Google Test.test_neural_network_full_training" />
       <item itemvalue="Google Test.test_neural_network_full_training_mlp" />
@@ -299,6 +298,7 @@
       <item itemvalue="Google Test.test_rl_algorithms_td3_pendulum_training_stats" />
       <item itemvalue="Google Test.test_rl_algorithms_td3_second_stage" />
       <item itemvalue="Google Test.test_rl_environments_pendulum" />
+      <item itemvalue="Google Test.test_nn_cuda" />
       <item itemvalue="Google Test.test_rl_environments_pendulum_render" />
     </list>
   </component>
