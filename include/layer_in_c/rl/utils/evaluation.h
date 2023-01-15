@@ -26,7 +26,10 @@ namespace layer_in_c {
                 observation = state.state;
             }
             T action[ENVIRONMENT::ACTION_DIM];
-            evaluate(device, policy, observation, action);
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action_matrix = {action};
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_matrix = {observation};
+
+            evaluate(device, policy, observation_matrix, action_matrix);
             T action_clipped[ENVIRONMENT::ACTION_DIM];
             for(typename ENVIRONMENT::DEVICE::index_t action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
                 action_clipped[action_i] = math::clamp<T>(action[action_i], -1, 1);

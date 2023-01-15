@@ -59,14 +59,21 @@ namespace layer_in_c{
             typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t)0, sample_index_max, rng);
             T next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM];
             utils::memcpy(next_state_action_value_input, replay_buffer.next_observations[sample_index], SPEC::ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
-            evaluate(device, actor_critic.actor_target, next_state_action_value_input, &next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM]); // setting the second part with next actions
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM>> next_state_action_value_input_matrix = {next_state_action_value_input};
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM>> next_state_action_value_input_matrix_observation = {next_state_action_value_input};
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, SPEC::ENVIRONMENT::ACTION_DIM>> next_state_action_value_input_matrix_action = {next_state_action_value_input + SPEC::ENVIRONMENT::OBSERVATION_DIM};
+            evaluate(device, actor_critic.actor_target, next_state_action_value_input_matrix_observation, next_state_action_value_input_matrix_action); // setting the second part with next actions
             for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 T noisy_next_action = next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] + target_next_action_noise[batch_step_i][action_i];
                 noisy_next_action = math::clamp<T>(noisy_next_action, -1, 1);
                 next_state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM + action_i] = noisy_next_action;
             }
-            T next_state_action_value_critic_1 = evaluate(device, actor_critic.critic_target_1, next_state_action_value_input);
-            T next_state_action_value_critic_2 = evaluate(device, actor_critic.critic_target_2, next_state_action_value_input);
+            T next_state_action_value_critic_1;
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, 1>> next_state_action_value_critic_1_matrix = {&next_state_action_value_critic_1};
+            evaluate(device, actor_critic.critic_target_1, next_state_action_value_input_matrix, next_state_action_value_critic_1_matrix);
+            T next_state_action_value_critic_2;
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, 1>> next_state_action_value_critic_2_matrix = {&next_state_action_value_critic_2};
+            evaluate(device, actor_critic.critic_target_2, next_state_action_value_input_matrix, next_state_action_value_critic_2_matrix);
 
             T min_next_state_action_value = math::min(
                     next_state_action_value_critic_1,
@@ -77,7 +84,9 @@ namespace layer_in_c{
             utils::memcpy(&state_action_value_input[SPEC::ENVIRONMENT::OBSERVATION_DIM], replay_buffer.actions[sample_index], SPEC::ENVIRONMENT::ACTION_DIM); // setting the first part with the current action
             T target_action_value[1] = {replay_buffer.rewards[sample_index] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!replay_buffer.terminated[sample_index])};
 
-            forward_backward_mse<DEVICE, typename CRITIC_TYPE::SPEC, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(device, critic, state_action_value_input, target_action_value);
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM>> state_action_value_input_matrix = {state_action_value_input};
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, 1>> target_action_value_matrix = {target_action_value};
+            forward_backward_mse(device, critic, state_action_value_input_matrix, target_action_value_matrix, 1/((T)SPEC::PARAMETERS::CRITIC_BATCH_SIZE));
             static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
             T loss_sample = nn::loss_functions::mse<DEVICE, T, 1, SPEC::PARAMETERS::CRITIC_BATCH_SIZE>(device, critic.output_layer.pre_activations.data, target_action_value);
             loss += loss_sample;
@@ -139,16 +148,27 @@ namespace layer_in_c{
             typename DEVICE::index_t sample_index = DETERMINISTIC ? sample_i : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t)0, sample_index_max, rng);
             T state_action_value_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
             utils::memcpy(state_action_value_input, replay_buffer.observations[sample_index], ENVIRONMENT::OBSERVATION_DIM); // setting the first part with next observations
-            forward(device, actor_critic.actor, state_action_value_input, &state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]);
+
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM>> state_action_value_input_matrix = {state_action_value_input};
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> state_action_value_input_matrix_observation = {state_action_value_input};
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> state_action_value_input_matrix_action = {&state_action_value_input[ENVIRONMENT::OBSERVATION_DIM]};
+            forward(device, actor_critic.actor, state_action_value_input_matrix_observation, state_action_value_input_matrix_action);
 
             auto& critic = actor_critic.critic_1;
-            T critic_output = forward_univariate(device, critic, state_action_value_input);
+            forward(device, critic, state_action_value_input_matrix);
+            T critic_output = critic.output_layer.output.data[0];
             actor_value += critic_output/SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
             T d_output[1] = {-(T)1/SPEC::PARAMETERS::ACTOR_BATCH_SIZE}; // we want to maximise the critic output using gradient descent
             T d_critic_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
-            backward(device, critic, state_action_value_input, d_output, d_critic_input);
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, 1>> d_output_matrix = {d_output};
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM>> d_critic_input_matrix = {d_critic_input};
+            backward(device, critic, state_action_value_input_matrix, d_output_matrix, d_critic_input_matrix);
             T d_actor_input[ENVIRONMENT::OBSERVATION_DIM];
-            backward(device, actor_critic.actor, state_action_value_input, &d_critic_input[ENVIRONMENT::OBSERVATION_DIM], d_actor_input);
+
+
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> d_actor_input_matrix = {d_actor_input};
+            Matrix<MatrixSpecification<T, typename DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> d_critic_input_matrix_action = {&d_critic_input[ENVIRONMENT::OBSERVATION_DIM]};
+            backward(device, actor_critic.actor, state_action_value_input_matrix_observation, d_critic_input_matrix_action, d_actor_input_matrix);
         }
         update(device, actor_critic.actor);
         return actor_value;
