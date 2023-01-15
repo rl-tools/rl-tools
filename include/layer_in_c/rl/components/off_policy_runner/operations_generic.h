@@ -12,6 +12,7 @@ namespace layer_in_c{
         static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
         static_assert(POLICY::OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
         typedef typename SPEC::ENVIRONMENT ENVIRONMENT;
         typedef typename SPEC::PARAMETERS PARAMETERS;
@@ -37,7 +38,9 @@ namespace layer_in_c{
 
         typename ENVIRONMENT::State next_state;
         T action[ENVIRONMENT::ACTION_DIM];
-        evaluate(device, policy, observation, action);
+        Matrix<MatrixSpecification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action_m = {action};
+        Matrix<MatrixSpecification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_m = {observation};
+        evaluate(device, policy, observation_m, action_m);
         for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             action[i] += random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, PARAMETERS::EXPLORATION_NOISE, rng);
             action[i] = lic::math::clamp<T>(action[i], -1, 1);

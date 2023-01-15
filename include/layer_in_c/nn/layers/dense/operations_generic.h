@@ -77,25 +77,20 @@ namespace layer_in_c{
             }
         }
     }
-    // evaluating a layer does not change its state (like pre_activations and outputs). Before using backward, to fill the state, use the forward method instead
-    template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::dense::Layer<SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], typename SPEC::T output[SPEC::OUTPUT_DIM]) {
-        // Warning do not use the same buffer for input and output!
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            output[i] = layer.biases.data[i];
-            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                output[i] += layer.weights.data[i * SPEC::INPUT_DIM + j] * input[j];
-            }
-            output[i] = activation<typename DEVICE::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output[i]);
-        }
+
+    namespace nn::layers::dense{
+        template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+        constexpr bool check_input_output =
+                INPUT_SPEC::COLS == LAYER_SPEC::INPUT_DIM &&
+                INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS &&
+                OUTPUT_SPEC::COLS == LAYER_SPEC::OUTPUT_DIM &&
+                (!LAYER_SPEC::ENFORCE_FLOATING_POINT_TYPE || ( utils::typing::is_same_v<typename LAYER_SPEC::T, typename INPUT_SPEC::T> && utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>));
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // Warning do not use the same buffer for input and output!
-        static_assert(INPUT_SPEC::COLS == LAYER_SPEC::INPUT_DIM);
-        static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
-        static_assert(OUTPUT_SPEC::COLS == LAYER_SPEC::OUTPUT_DIM);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
@@ -111,72 +106,94 @@ namespace layer_in_c{
         }
     }
 
-    template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], typename SPEC::T output[SPEC::OUTPUT_DIM]) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         // Warning do not use the same buffer for input and output!
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            layer.pre_activations.data[i] = layer.biases.data[i];
-            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                layer.pre_activations.data[i] += layer.weights.data[i * SPEC::INPUT_DIM + j] * input[j];
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
+        using T = typename LAYER_SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            for(TI i = 0; i < LAYER_SPEC::OUTPUT_DIM; i++) {
+                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + i;
+                layer.pre_activations.data[output_index] = layer.biases.data[i];
+                for(TI j = 0; j < LAYER_SPEC::INPUT_DIM; j++) {
+                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + j;
+                    layer.pre_activations.data[output_index] += layer.weights.data[i * LAYER_SPEC::INPUT_DIM + j] * input.data[input_index];
+                }
+                output.data[output_index] = activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[output_index]);
             }
-            output[i] = activation<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[i]);
         }
     }
 
-    template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM]) {
-        // Warning do not use the same buffer for input and output!
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            layer.pre_activations.data[i] = layer.biases.data[i];
-            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                layer.pre_activations.data[i] += layer.weights.data[i * SPEC::INPUT_DIM + j] * input[j];
-            }
-            layer.output.data[i] = activation<typename DEVICE::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[i]);
-        }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC>
+    FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input) {
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, typename decltype(layer.output)::SPEC>);
+        forward(device, (nn::layers::dense::LayerBackward<LAYER_SPEC>&)layer, input, layer.output);
     }
-    template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], typename SPEC::T output[SPEC::OUTPUT_DIM]) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    FUNCTION_PLACEMENT void forward(DEVICE& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // compile time warning if used
         forward(device, layer, input);
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            output[i] = layer.output.data[i];
-        }
+        copy(output, layer.output);
     }
 
-    template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
+    FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            typename SPEC::T d_pre_activation = d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[i]) * d_output[i];
-            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                if(i == 0){
-                    d_input[j] = 0;
+        using SPEC = LAYER_SPEC;
+        constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
+        using T = typename LAYER_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            for(TI output_i = 0; output_i < SPEC::OUTPUT_DIM; output_i++) {
+                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
+                typename SPEC::T d_pre_activation = d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[output_index]) * d_output[output_index];
+                for(TI input_j = 0; input_j < SPEC::INPUT_DIM; input_j++) {
+                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_j;
+                    if(output_i == 0){
+                        d_input.data[input_index] = 0;
+                    }
+                    d_input[input_index] += layer.weights.data[output_i * SPEC::INPUT_DIM + input_j] * d_pre_activation;
                 }
-                d_input[j] += layer.weights.data[i * SPEC::INPUT_DIM + j] * d_pre_activation;
             }
         }
     }
-    template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
+    FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
         backward(layer, d_output, d_input);
     }
 
-    template<typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, const typename SPEC::T input[SPEC::INPUT_DIM], const typename SPEC::T d_output[SPEC::OUTPUT_DIM], typename SPEC::T d_input[SPEC::INPUT_DIM]) {
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
+    FUNCTION_PLACEMENT void backward(DEVICE& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
-        constexpr auto INPUT_DIM = SPEC::INPUT_DIM;
-        constexpr auto OUTPUT_DIM = SPEC::OUTPUT_DIM;
-        using T = typename SPEC::T;
-        for(typename DEVICE::index_t i = 0; i < OUTPUT_DIM; i++) {
-            T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[i]) * d_output[i];
-            layer.d_biases.data[i] += d_pre_activation;
-            for(typename DEVICE::index_t j = 0; j < INPUT_DIM; j++) {
-                if(i == 0){
-                    d_input[j] = 0;
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
+        constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
+        constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
+        constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
+        using T = typename LAYER_SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
+                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
+                T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[output_index]) * d_output.data[output_index];
+                layer.d_biases.data[output_i] += d_pre_activation;
+                for(TI input_i = 0; input_i < INPUT_DIM; input_i++) {
+                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_i;
+                    if(output_i == 0){
+                        d_input.data[input_index] = 0;
+                    }
+                    d_input.data[input_index] += layer.weights.data[output_i * INPUT_DIM + input_i] * d_pre_activation;
+                    layer.d_weights.data[output_i * INPUT_DIM + input_i] += d_pre_activation * input.data[input_index];
                 }
-                d_input[j] += layer.weights.data[i * SPEC::INPUT_DIM + j] * d_pre_activation;
-                layer.d_weights.data[i * SPEC::INPUT_DIM + j] += d_pre_activation * input[j];
             }
         }
     }

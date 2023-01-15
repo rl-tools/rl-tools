@@ -40,6 +40,17 @@ namespace layer_in_c{
         return acc;
     }
 
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    void copy(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+        static_assert(containers::check_structure<SPEC_1, SPEC_2>);
+        static_assert(SPEC_1::LAYOUT == RowMajor);
+        static_assert(SPEC_2::LAYOUT == RowMajor);
+        using SPEC = SPEC_1;
+        for(typename SPEC::TI i = 0; i < SPEC::ROWS * SPEC::COLS; i++){
+            target.data[i] = source.data[i];
+        }
+    }
+
 
 
 }

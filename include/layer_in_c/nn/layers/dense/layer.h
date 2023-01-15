@@ -5,7 +5,7 @@
 #include <layer_in_c/containers.h>
 
 namespace layer_in_c::nn::layers::dense {
-    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1>
+    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, bool T_ENFORCE_FLOATING_POINT_TYPE=true>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
@@ -15,6 +15,7 @@ namespace layer_in_c::nn::layers::dense {
         static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
         // Summary
         static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
+        static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
