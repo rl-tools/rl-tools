@@ -97,6 +97,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::malloc(nn_dev, actor_critic);
     lic::init(nn_dev, actor_critic, rng);
 
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     for(int step_i = 0; step_i < 15000; step_i++){
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
         if(step_i % 20 == 0){
@@ -113,7 +115,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 
         if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
-                std::cout << "step_i: " << step_i << std::endl;
+                auto current_time = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> elapsed_seconds = current_time - start_time;
+                std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
             }
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
