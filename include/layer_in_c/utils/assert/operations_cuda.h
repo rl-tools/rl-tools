@@ -1,4 +1,5 @@
-
+#ifndef LAYER_IN_C_ASSERT_OPERATIONS_CUDA_H
+#define LAYER_IN_C_ASSERT_OPERATIONS_CUDA_H
 #include <cassert>
 namespace layer_in_c::utils{
     template <typename DEV_SPEC, typename T>
@@ -9,3 +10,5 @@ namespace layer_in_c::utils{
         }
     }
 }
+
+#endif
