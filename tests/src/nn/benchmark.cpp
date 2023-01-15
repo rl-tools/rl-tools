@@ -60,7 +60,9 @@ protected:
         auto start = std::chrono::high_resolution_clock::now();
         for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
             for(INDEX_TYPE batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                lic::evaluate(device, network.input_layer, &input_lic[batch_i * NetworkType::INPUT_DIM], &output_lic[batch_i * HIDDEN_DIM]);
+                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, NetworkType::INPUT_DIM>> input_matrix = {&input_lic[batch_i * NetworkType::INPUT_DIM]};
+                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, HIDDEN_DIM>> output_matrix = {&output_lic[batch_i * HIDDEN_DIM]};
+                lic::evaluate(device, network.input_layer, input_matrix, output_matrix);
             }
         }
         auto end = std::chrono::high_resolution_clock::now();

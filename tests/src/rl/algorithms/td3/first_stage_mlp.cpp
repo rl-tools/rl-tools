@@ -154,11 +154,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
         }
 
         DTYPE output[1];
-        lic::evaluate(device, actor_critic.critic_1, input, output);
+        lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input_matrix = {input};
+        lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, 1>> output_matrix = {output};
+        lic::evaluate(device, actor_critic.critic_1, input_matrix, output_matrix);
         std::cout << "output: " << output[0] << std::endl;
         ASSERT_LT(abs(output[0] - outputs[batch_sample_i][0]), 1e-15);
 
-        lic::evaluate(device, actor_critic.critic_target_1, input, output);
+        lic::evaluate(device, actor_critic.critic_target_1, input_matrix, output_matrix);
         std::cout << "output: " << output[0] << std::endl;
         ASSERT_LT(abs(output[0] - outputs[batch_sample_i][0]), 1e-15);
     }
@@ -195,10 +197,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         }
         DTYPE target[1] = {1};
         DTYPE output[1];
-        lic::evaluate(device, actor_critic.critic_1, input, output);
+        lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input_matrix = {input};
+        lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, 1>> output_matrix = {output};
+        lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, 1>> target_matrix = {target};
+        lic::evaluate(device, actor_critic.critic_1, input_matrix, output_matrix);
         loss += lic::nn::loss_functions::mse<DEVICE, DTYPE, 1, 1>(device, output, target);
 
-        lic::forward_backward_mse<NN_DEVICE, decltype(actor_critic.critic_1)::SPEC, 32>(device, actor_critic.critic_1, input, target);
+        lic::forward_backward_mse(device, actor_critic.critic_1, input_matrix, target_matrix, DTYPE(1)/32);
         std::cout << "output: " << actor_critic.critic_1.output_layer.output.data[0] << std::endl;
     }
 

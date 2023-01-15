@@ -77,7 +77,9 @@ int main(){
         auto start = std::chrono::high_resolution_clock::now();
         for(DEVICE_CPU::index_t i = 0; i < NUM_ITERATIONS; ++i) {
             for(DEVICE_CPU::CPU::index_t batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                lic::forward(device_cpu, network_cpu, input_cpu[batch_i], output_cpu[batch_i]);
+                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE_CPU::index_t, 1, NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM>> input_matrix = {input_cpu[batch_i]};
+                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE_CPU::index_t, 1, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM>> output_matrix = {output_cpu[batch_i]};
+                lic::forward(device_cpu, network_cpu, input_matrix, output_matrix);
                 memcpy(output_first_layer_cpu[batch_i], network_cpu.input_layer.output.data, sizeof(DTYPE) * NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM);
             }
         }
@@ -195,7 +197,11 @@ int main(){
         auto start = std::chrono::high_resolution_clock::now();
         for(DEVICE_CPU::index_t i = 0; i < NUM_ITERATIONS; ++i) {
             for(DEVICE_CPU::CPU::index_t batch_i = 0; batch_i < BATCH_SIZE; batch_i++) {
-                lic::evaluate_memless(*device_cuda_gpu, *network_cuda_device, &input_gpu[batch_i * NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM], &output_full_network_gpu[batch_i * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM], layer_output_tick, layer_output_tock);
+                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE_CUDA::index_t, 1, NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM>> input_matrix = {input_gpu + batch_i * NETWORK_SPEC_CPU::STRUCTURE_SPEC::INPUT_DIM};
+                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE_CUDA::index_t, 1, NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM>> output_matrix = {&output_full_network_gpu[batch_i * NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM]};
+                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE_CUDA::index_t, 1, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>> layer_output_tick_matrix = {layer_output_tick};
+                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE_CUDA::index_t, 1, NETWORK_SPEC_CPU::STRUCTURE_SPEC::HIDDEN_DIM>> layer_output_tock_matrix = {layer_output_tock};
+                lic::evaluate_memless(*device_cuda_gpu, *network_cuda_device, input_matrix, output_matrix, layer_output_tick_matrix, layer_output_tock_matrix);
             }
         }
         cudaDeviceSynchronize();
