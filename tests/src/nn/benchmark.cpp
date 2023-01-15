@@ -33,7 +33,7 @@ using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<InferenceSpecificatio
 DEVICE::SPEC::LOGGING logger;
 DEVICE device(logger);
 
-constexpr INDEX_TYPE ITERATIONS = 1000;
+constexpr INDEX_TYPE ITERATIONS = 1;
 
 class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
 {

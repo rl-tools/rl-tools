@@ -1,5 +1,6 @@
 #include <layer_in_c/logging/operations_cpu_wandb.h>
 #include <layer_in_c/operations/cpu.h>
+#include <layer_in_c/nn/operations_cpu_mkl.h>
 
 #include <layer_in_c/nn/operations_generic.h>
 #include <layer_in_c/rl/environments/operations_generic.h>
@@ -26,7 +27,7 @@
 namespace lic = layer_in_c;
 using DTYPE = float;
 
-using DEVICE = lic::devices::DefaultCPU;
+using DEVICE = lic::devices::DefaultCPU_MKL;
 typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
@@ -37,7 +38,7 @@ ENVIRONMENT env;
 struct AC_DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
     using LOGGING = lic::devices::logging::CPU_WANDB;
 };
-using AC_DEVICE = lic::devices::CPU<AC_DEVICE_SPEC>;
+using AC_DEVICE = lic::devices::CPU_MKL<AC_DEVICE_SPEC>;
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE, AC_DEVICE::index_t>{
     constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;

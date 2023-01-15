@@ -155,6 +155,7 @@ endif()
 gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
 
 # RL Algorithm td3 test full training
+find_package(MKL REQUIRED)
 add_executable(
         test_rl_algorithms_td3_full_training
         src/rl/algorithms/td3/full_training.cpp
@@ -163,6 +164,7 @@ target_link_libraries(
         test_rl_algorithms_td3_full_training
         layer_in_c
         GTest::gtest_main
+        MKL::MKL
 )
 if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
     target_link_libraries(
