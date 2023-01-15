@@ -51,8 +51,42 @@ namespace layer_in_c{
         }
     }
 
-    template<typename DEVICE, typename SPEC>
-    void set(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::T value){
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    void add(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+        static_assert(containers::check_structure<SPEC_1, SPEC_2>);
+        static_assert(SPEC_1::LAYOUT == RowMajor);
+        static_assert(SPEC_2::LAYOUT == RowMajor);
+        using SPEC = SPEC_1;
+        for(typename SPEC::TI i = 0; i < SPEC::ROWS * SPEC::COLS; i++){
+            target.data[i] += source.data[i];
+        }
+    }
+
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    void add_broadcast(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+        static_assert(SPEC_1::COLS == SPEC_2::COLS);
+        static_assert(SPEC_2::ROWS == 1);
+        using SPEC = SPEC_1;
+        for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
+            for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
+                target.data[i * SPEC::COLS + j] += source.data[j];
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    void set_broadcast(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+        static_assert(SPEC_1::COLS == SPEC_2::COLS);
+        static_assert(SPEC_2::ROWS == 1);
+        using SPEC = SPEC_1;
+        for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
+            for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
+                target.data[i * SPEC::COLS + j] = source.data[j];
+            }
+        }
+    }
+
+    template<typename DEVICE, typename SPEC, typename VALUE_T>
+    void set(DEVICE& device, const Matrix<SPEC>& m, VALUE_T value){
         for(typename SPEC::TI i = 0; i < SPEC::ROWS * SPEC::COLS; i++){
             m.data[i] = value;
         }

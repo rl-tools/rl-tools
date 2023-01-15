@@ -36,7 +36,7 @@ namespace layer_in_c::nn::layers::dense {
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
         Matrix<MatrixSpecification<T, TI, OUTPUT_DIM, INPUT_DIM, RowMajor>>  weights;
-        Matrix<MatrixSpecification<T, TI, OUTPUT_DIM, 1>> biases;
+        Matrix<MatrixSpecification<T, TI, 1, OUTPUT_DIM, RowMajor>> biases;
     };
     template<typename SPEC>
     struct LayerBackward : public Layer<SPEC> {
@@ -46,7 +46,7 @@ namespace layer_in_c::nn::layers::dense {
     struct LayerBackwardGradient : public LayerBackward<SPEC> {
         Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM, RowMajor>> output;
         Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM, RowMajor>> d_weights;
-        Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, 1, RowMajor>> d_biases;
+        Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, 1, SPEC::OUTPUT_DIM, RowMajor>> d_biases;
     };
     template<typename T>
     struct DefaultSGDParameters {
@@ -61,8 +61,8 @@ namespace layer_in_c::nn::layers::dense {
     struct LayerBackwardAdam : public LayerBackwardGradient<SPEC> {
         Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM, RowMajor>> d_weights_first_order_moment;
         Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM, RowMajor>> d_weights_second_order_moment;
-        Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, 1, RowMajor>> d_biases_first_order_moment;
-        Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, 1, RowMajor>> d_biases_second_order_moment;
+        Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, 1, SPEC::OUTPUT_DIM, RowMajor>> d_biases_first_order_moment;
+        Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, 1, SPEC::OUTPUT_DIM, RowMajor>> d_biases_second_order_moment;
     };
 }
 

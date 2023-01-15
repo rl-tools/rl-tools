@@ -24,16 +24,16 @@ constexpr DEVICE::index_t BATCH_SIZE = 256;
 constexpr DEVICE::index_t HIDDEN_DIM = 64;
 
 template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
-using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, 5, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::IDENTITY>;
+using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, 5, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::RELU>;
 
 template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
 using InferenceSpecification = lic::nn_models::mlp::InferenceSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>>;
-using NetworkType = lic::nn_models::mlp::NeuralNetwork<InferenceSpecification<DTYPE, DEVICE::index_t, lic::nn::activation_functions::IDENTITY>>;
+using NetworkType = lic::nn_models::mlp::NeuralNetwork<InferenceSpecification<DTYPE, DEVICE::index_t, lic::nn::activation_functions::RELU>>;
 
 DEVICE::SPEC::LOGGING logger;
 DEVICE device(logger);
 
-constexpr INDEX_TYPE ITERATIONS = 1;
+constexpr INDEX_TYPE ITERATIONS = 1000;
 
 class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
 {
@@ -175,10 +175,10 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
         if constexpr(lic::utils::typing::is_same_v<DTYPE, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, A, k, B, n, beta, C, n);
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (float*)A, k, (float*)B, n, beta, (float*)C, n);
         }
         else{
-//            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, A, k, B, n, beta, C, n);
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (double*)A, k, (double*)B, n, beta, (double*)C, n);
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
@@ -206,6 +206,10 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
 }
 
+#include <layer_in_c/nn/operations_cpu_mkl.h>
+#include <layer_in_c/containers/operations_generic.h>
+#include <layer_in_c/utils/generic/typing.h>
+
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl(device.logger);
@@ -215,9 +219,21 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
     lic::malloc(device_mkl, output_matrix);
     lic::set(device_mkl, output_matrix, 0);
 
-    lic::evaluate(device_mkl, network.input_layer, input_matrix, output_matrix);
+    auto start = std::chrono::high_resolution_clock::now();
+    for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
+        lic::evaluate(device_mkl, network.input_layer, input_matrix, output_matrix);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "MKL LIC evaluate: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
 
     DTYPE abs_diff = lic::abs_diff(device_mkl, output_matrix, expected_output) / NetworkType::NUM_WEIGHTS;
+
+    if constexpr(lic::utils::typing::is_same_v<DTYPE, float>){
+        EXPECT_LT(abs_diff, 1e-6);
+    }
+    else{
+        EXPECT_LT(abs_diff, 1e-14);
+    }
 
     std::cout << "Absolute difference: " << abs_diff << std::endl;
 }
