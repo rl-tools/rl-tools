@@ -1,5 +1,20 @@
-#include <layer_in_c/operations/dummy.h>
-#include <layer_in_c/operations/cpu.h>
+// Group 1
+#include <layer_in_c/devices/cpu.h>
+#include <layer_in_c/math/operations_cpu.h>
+#include <layer_in_c/random/operations_cpu.h>
+#include <layer_in_c/logging/operations_cpu.h>
+#include <layer_in_c/devices/dummy.h>
+#include <layer_in_c/math/operations_dummy.h>
+#include <layer_in_c/random/operations_dummy.h>
+#include <layer_in_c/logging/operations_dummy.h>
+
+// Group 2: depends on logging
+#include <layer_in_c/utils/assert/operations_cpu.h>
+#include <layer_in_c/utils/assert/operations_dummy.h>
+// Group 3: dependent on assert
+#include <layer_in_c/containers/operations_cpu.h>
+#include <layer_in_c/containers/operations_dummy.h>
+
 #include <layer_in_c/nn/nn.h>
 #include <layer_in_c/utils/generic/typing.h>
 

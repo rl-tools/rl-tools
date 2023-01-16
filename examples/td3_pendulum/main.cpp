@@ -15,15 +15,17 @@ typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environme
 typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
-using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH>;
-using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY>;
-
 using AC_DEVICE = lic::devices::DefaultCPU;
 template <typename T>
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, AC_DEVICE::index_t>{
     constexpr static size_t CRITIC_BATCH_SIZE = 100;
     constexpr static size_t ACTOR_BATCH_SIZE = 100;
 };
+
+using TD3_PARAMETERS = TD3PendulumParameters<DTYPE>;
+
+using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
+using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
 using NN_DEVICE = lic::devices::DefaultCPU;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
@@ -38,7 +40,7 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
-using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
+using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3PendulumParameters<DTYPE>>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -46,25 +48,27 @@ constexpr size_t REPLAY_BUFFER_CAP = 500000;
 constexpr size_t ENVIRONMENT_STEP_LIMIT = 200;
 AC_DEVICE::SPEC::LOGGING logger;
 AC_DEVICE device(logger);
-NN_DEVICE nn_device(logger);
-lic::rl::components::OffPolicyRunner<
-        lic::rl::components::off_policy_runner::Specification<
-                DTYPE,
-                AC_DEVICE::index_t,
-                ENVIRONMENT,
-                REPLAY_BUFFER_CAP,
-                ENVIRONMENT_STEP_LIMIT,
-                lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
-        >
-> off_policy_runner;
+using OffPolicyRunnerSpec = lic::rl::components::off_policy_runner::Specification< DTYPE, AC_DEVICE::index_t, ENVIRONMENT, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>>;
+
+lic::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> off_policy_runner;
 ActorCriticType actor_critic;
-const DTYPE STATE_TOLERANCE = 0.00001;
+lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
+lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
+lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
+lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
+
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 int main() {
-    std::mt19937 rng(2);
+    std::mt19937 rng(4);
+
     lic::malloc(device, actor_critic);
+    lic::malloc(device, critic_batch);
+    lic::malloc(device, critic_training_buffers);
+    lic::malloc(device, actor_batch);
+    lic::malloc(device, actor_training_buffers);
+
     lic::init(device, actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){
@@ -77,10 +81,14 @@ int main() {
             if(step_i % 1000 == 0){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            DTYPE critic_1_loss = lic::train_critic(device, actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
-            lic::train_critic(device, actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
+            for(int critic_i = 0; critic_i < 2; critic_i++){
+                lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
+                lic::gather_batch(device, off_policy_runner.replay_buffer, critic_batch, rng);
+                lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, critic_training_buffers);
+            }
             if(step_i % 2 == 0){
-                lic::train_actor(device, actor_critic, off_policy_runner.replay_buffer, rng);
+                lic::gather_batch(device, off_policy_runner.replay_buffer, actor_batch, rng);
+                lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
                 lic::update_targets(device, actor_critic);
             }
         }

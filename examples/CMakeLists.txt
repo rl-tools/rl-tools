@@ -1,4 +1,4 @@
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
 
 add_executable(example_td3_pendulum
         td3_pendulum/main.cpp
