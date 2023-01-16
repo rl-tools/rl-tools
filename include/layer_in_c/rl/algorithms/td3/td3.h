@@ -18,6 +18,7 @@ namespace layer_in_c::rl::algorithms::td3 {
 
     template<
         typename T_T,
+        typename T_TI,
         typename T_ENVIRONMENT,
         typename T_ACTOR_NETWORK_TYPE,
         typename T_ACTOR_TARGET_NETWORK_TYPE,
@@ -27,6 +28,7 @@ namespace layer_in_c::rl::algorithms::td3 {
     >
     struct Specification {
         using T = T_T;
+        using TI = T_TI;
         using ENVIRONMENT = T_ENVIRONMENT;
         using ACTOR_NETWORK_TYPE = T_ACTOR_NETWORK_TYPE;
         using ACTOR_TARGET_NETWORK_TYPE = T_ACTOR_TARGET_NETWORK_TYPE;
@@ -36,9 +38,45 @@ namespace layer_in_c::rl::algorithms::td3 {
     };
 
     template<typename T_SPEC>
+    struct ActorTrainingBuffers{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+        static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> state_action_value;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> d_output;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> d_critic_input;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> d_actor_output;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_actor_input;
+    };
+    template<typename T_SPEC>
+    struct CriticTrainingBuffers{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
+        static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+        static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> target_next_action_noise;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> next_actions;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> next_state_action_value_input;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> target_action_value;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_2;
+    };
+
+    template<typename T_SPEC>
     struct ActorCritic {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
 
         typename SPEC::ACTOR_NETWORK_TYPE actor;
         typename SPEC::ACTOR_TARGET_NETWORK_TYPE actor_target;
@@ -47,6 +85,7 @@ namespace layer_in_c::rl::algorithms::td3 {
         typename SPEC::CRITIC_NETWORK_TYPE critic_2;
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_1;
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_2;
+
     };
 }
 

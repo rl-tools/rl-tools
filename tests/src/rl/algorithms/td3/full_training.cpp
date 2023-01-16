@@ -1,5 +1,5 @@
 #include <layer_in_c/logging/operations_cpu_wandb.h>
-#include <layer_in_c/operations/cpu.h>
+#include <layer_in_c/operations/cpu_mkl.h>
 #include <layer_in_c/nn/operations_cpu_mkl.h>
 
 #include <layer_in_c/nn/operations_generic.h>
@@ -64,7 +64,7 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
-using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
+using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -97,6 +97,16 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::malloc(nn_dev, actor_critic);
     lic::init(nn_dev, actor_critic, rng);
 
+    lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
+    lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
+    lic::malloc(ac_dev, critic_batch);
+    lic::malloc(ac_dev, critic_training_buffers);
+
+    lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
+    lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
+    lic::malloc(ac_dev, actor_batch);
+    lic::malloc(ac_dev, actor_training_buffers);
+
     auto start_time = std::chrono::high_resolution_clock::now();
 
     for(int step_i = 0; step_i < 15000; step_i++){
@@ -121,15 +131,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             }
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
-                lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> batch_struct;
-                lic::Matrix<lic::MatrixSpecification<DTYPE, AC_DEVICE::index_t, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, ENVIRONMENT::ACTION_DIM>> target_next_action_noise;
-                lic::malloc(ac_dev, batch_struct);
-                lic::malloc(ac_dev, target_next_action_noise);
-                lic::target_action_noise(ac_dev, actor_critic, target_next_action_noise, rng);
-                lic::gather_batch(ac_dev, off_policy_runner.replay_buffer, batch_struct, rng);
-                lic::train_critic(ac_dev, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, batch_struct, target_next_action_noise);
-                lic::free(ac_dev, batch_struct);
-                lic::free(ac_dev, target_next_action_noise);
+                lic::target_action_noise(ac_dev, actor_critic, critic_training_buffers.target_next_action_noise, rng);
+                lic::gather_batch(ac_dev, off_policy_runner.replay_buffer, critic_batch, rng);
+                lic::train_critic(ac_dev, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, critic_training_buffers);
             }
 
 //            DTYPE critic_1_loss = lic::train_critic(ac_dev, actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
@@ -137,11 +141,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 //            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
                 {
-                    lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> batch_struct_actor;
-                    lic::malloc(ac_dev, batch_struct_actor);
-                    lic::gather_batch(ac_dev, off_policy_runner.replay_buffer, batch_struct_actor, rng);
-                    lic::train_actor(ac_dev, actor_critic, batch_struct_actor);
-                    lic::free(ac_dev, batch_struct_actor);
+                    lic::gather_batch(ac_dev, off_policy_runner.replay_buffer, actor_batch, rng);
+                    lic::train_actor(ac_dev, actor_critic, actor_batch, actor_training_buffers);
                 }
 
                 lic::update_targets(ac_dev, actor_critic);
@@ -169,4 +170,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 #endif
         }
     }
+    lic::free(ac_dev, critic_batch);
+    lic::free(ac_dev, critic_training_buffers);
+    lic::free(ac_dev, actor_batch);
+    lic::free(ac_dev, actor_training_buffers);
 }

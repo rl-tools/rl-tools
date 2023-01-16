@@ -29,6 +29,49 @@ namespace layer_in_c{
         free(device, actor_critic.critic_target_1);
         free(device, actor_critic.critic_target_2);
     }
+    template <typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
+        malloc(device, actor_training_buffers.actions);
+        malloc(device, actor_training_buffers.state_action_value_input);
+        malloc(device, actor_training_buffers.state_action_value);
+        malloc(device, actor_training_buffers.d_output);
+        malloc(device, actor_training_buffers.d_critic_input);
+        malloc(device, actor_training_buffers.d_actor_output);
+        malloc(device, actor_training_buffers.d_actor_input);
+    }
+    template <typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
+        free(device, actor_training_buffers.actions);
+        free(device, actor_training_buffers.state_action_value_input);
+        free(device, actor_training_buffers.state_action_value);
+        free(device, actor_training_buffers.d_output);
+        free(device, actor_training_buffers.d_critic_input);
+        free(device, actor_training_buffers.d_actor_output);
+        free(device, actor_training_buffers.d_actor_input);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
+        malloc(device, critic_training_buffers.target_next_action_noise);
+        malloc(device, critic_training_buffers.next_actions);
+        malloc(device, critic_training_buffers.next_state_action_value_input);
+        malloc(device, critic_training_buffers.target_action_value);
+        malloc(device, critic_training_buffers.state_action_value_input);
+        malloc(device, critic_training_buffers.next_state_action_value_critic_1);
+        malloc(device, critic_training_buffers.next_state_action_value_critic_2);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
+        free(device, critic_training_buffers.target_next_action_noise);
+        free(device, critic_training_buffers.next_actions);
+        free(device, critic_training_buffers.next_state_action_value_input);
+        free(device, critic_training_buffers.target_action_value);
+        free(device, critic_training_buffers.state_action_value_input);
+        free(device, critic_training_buffers.next_state_action_value_critic_1);
+        free(device, critic_training_buffers.next_state_action_value_critic_2);
+    }
+
     template <typename DEVICE, typename SPEC, typename RNG>
     FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
@@ -103,61 +146,42 @@ namespace layer_in_c{
         update(device, critic);
         return loss;
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE, typename TARGET_NEXT_ACTION_NOISE_SPEC>
-    FUNCTION_PLACEMENT typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch, Matrix<TARGET_NEXT_ACTION_NOISE_SPEC>& target_next_action_noise) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE>
+    FUNCTION_PLACEMENT typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
+        // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        static_assert(TARGET_NEXT_ACTION_NOISE_SPEC::ROWS == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
-        static_assert(TARGET_NEXT_ACTION_NOISE_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
         constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         zero_gradient(device, critic);
 
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> next_actions;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> next_state_action_value_input;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> target_action_value;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_2;
-        malloc(device, next_actions);
-        malloc(device, next_state_action_value_input);
-        malloc(device, target_action_value);
-        malloc(device, state_action_value_input);
-        malloc(device, next_state_action_value_critic_1);
-        malloc(device, next_state_action_value_critic_2);
-        evaluate(device, actor_critic.actor_target, batch.next_observations, next_actions);
+        evaluate(device, actor_critic.actor_target, batch.next_observations, training_buffers.next_actions);
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
             for(TI action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                T noisy_next_action = next_actions.data[batch_step_i * ACTION_DIM + action_i] + target_next_action_noise.data[batch_step_i * ACTION_DIM + action_i];
+                T noisy_next_action = training_buffers.next_actions.data[batch_step_i * ACTION_DIM + action_i] + training_buffers.target_next_action_noise.data[batch_step_i * ACTION_DIM + action_i];
                 noisy_next_action = math::clamp<T>(noisy_next_action, -1, 1);
-                next_actions.data[batch_step_i * ACTION_DIM + action_i] = noisy_next_action;
+                training_buffers.next_actions.data[batch_step_i * ACTION_DIM + action_i] = noisy_next_action;
             }
         }
-        hcat(device, batch.next_observations, next_actions, next_state_action_value_input);
-        evaluate(device, actor_critic.critic_target_1, next_state_action_value_input, next_state_action_value_critic_1);
-        evaluate(device, actor_critic.critic_target_2, next_state_action_value_input, next_state_action_value_critic_2);
+        hcat(device, batch.next_observations, training_buffers.next_actions, training_buffers.next_state_action_value_input);
+        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1);
+        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2);
 
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-            utils::memcpy(state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM), batch.observations.data + batch_step_i * OBSERVATION_DIM, OBSERVATION_DIM);
-            utils::memcpy(state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM) + OBSERVATION_DIM, batch.actions.data + batch_step_i * ACTION_DIM, ACTION_DIM);
+            utils::memcpy(training_buffers.state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM), batch.observations.data + batch_step_i * OBSERVATION_DIM, OBSERVATION_DIM);
+            utils::memcpy(training_buffers.state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM) + OBSERVATION_DIM, batch.actions.data + batch_step_i * ACTION_DIM, ACTION_DIM);
             T min_next_state_action_value = math::min(
-                    next_state_action_value_critic_1.data[batch_step_i],
-                    next_state_action_value_critic_2.data[batch_step_i]
+                    training_buffers.next_state_action_value_critic_1.data[batch_step_i],
+                    training_buffers.next_state_action_value_critic_2.data[batch_step_i]
             );
-            target_action_value.data[batch_step_i] = batch.rewards.data[batch_step_i] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!batch.terminated.data[batch_step_i]);
+            training_buffers.target_action_value.data[batch_step_i] = batch.rewards.data[batch_step_i] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!batch.terminated.data[batch_step_i]);
         }
 
-        forward_backward_mse(device, critic, state_action_value_input, target_action_value);
+        forward_backward_mse(device, critic, training_buffers.state_action_value_input, training_buffers.target_action_value);
         static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
-        T loss = nn::loss_functions::mse(device, critic.output_layer.pre_activations, target_action_value);
+        T loss = nn::loss_functions::mse(device, critic.output_layer.pre_activations, training_buffers.target_action_value);
 
-        free(device, next_actions);
-        free(device, next_state_action_value_input);
-        free(device, target_action_value);
-        free(device, state_action_value_input);
-        free(device, next_state_action_value_critic_1);
-        free(device, next_state_action_value_critic_2);
         update(device, critic);
         return loss;
     }
@@ -256,46 +280,23 @@ namespace layer_in_c{
         return actor_value;
     }
     template <typename DEVICE, typename SPEC, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE>
-    FUNCTION_PLACEMENT typename SPEC::T train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch) {
+    FUNCTION_PLACEMENT typename SPEC::T train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
         constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> state_action_value;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> d_output;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> d_critic_input;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> d_actor_output;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_actor_input;
-        malloc(device, actions);
-        malloc(device, state_action_value_input);
-        malloc(device, state_action_value);
-        malloc(device, d_output);
-        malloc(device, d_critic_input);
-        malloc(device, d_actor_output);
-        malloc(device, d_actor_input);
-
         zero_gradient(device, actor_critic.actor);
-        forward(device, actor_critic.actor, batch.observations, actions);
-        hcat(device, batch.observations, actions, state_action_value_input);
+        forward(device, actor_critic.actor, batch.observations, training_buffers.actions);
+        hcat(device, batch.observations, training_buffers.actions, training_buffers.state_action_value_input);
         auto& critic = actor_critic.critic_1;
-        forward(device, critic, state_action_value_input, state_action_value);
-        set(device, d_output, (T)-1/BATCH_SIZE);
-        backward(device, critic, state_action_value_input, d_output, d_critic_input);
-        slice(device, d_actor_output, d_critic_input, 0, OBSERVATION_DIM);
-        backward(device, actor_critic.actor, batch.observations, d_actor_output, d_actor_input);
-        T actor_value = sum(device, state_action_value)/BATCH_SIZE;
-
-        free(device, actions);
-        free(device, state_action_value_input);
-        free(device, state_action_value);
-        free(device, d_output);
-        free(device, d_critic_input);
-        free(device, d_actor_output);
-        free(device, d_actor_input);
+        forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value);
+        set(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
+        backward(device, critic, training_buffers.state_action_value_input, training_buffers.d_output, training_buffers.d_critic_input);
+        slice(device, training_buffers.d_actor_output, training_buffers.d_critic_input, 0, OBSERVATION_DIM);
+        backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output, training_buffers.d_actor_input);
+        T actor_value = sum(device, training_buffers.state_action_value)/BATCH_SIZE;
 
         update(device, actor_critic.actor);
         return actor_value;
