@@ -17,10 +17,11 @@ namespace layer_in_c::rl::environments::pendulum {
         constexpr static T initial_state_min_speed = -1;
         constexpr static T initial_state_max_speed = 1;
     };
-    template <typename T_T, typename T_PARAMETERS>
+    template <typename T_T, typename T_TI, typename T_PARAMETERS>
     struct Specification{
-        typedef T_T T;
-        typedef T_PARAMETERS PARAMETERS;
+        using T = T_T;
+        using TI = T_TI;
+        using PARAMETERS = T_PARAMETERS;
     };
 
     template <typename T>
@@ -32,15 +33,16 @@ namespace layer_in_c::rl::environments::pendulum {
 }
 
 namespace layer_in_c::rl::environments{
-    template <typename T_DEVICE, typename T_SPEC>
+    template <typename T_SPEC>
     struct Pendulum{
-        using DEVICE = T_DEVICE;
         using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         static constexpr bool REQUIRES_OBSERVATION = true;
         using State = pendulum::State<typename SPEC::T>;
         using PARAMETERS = typename SPEC::PARAMETERS;
-        static constexpr typename DEVICE::index_t OBSERVATION_DIM = 3;
-        static constexpr typename DEVICE::index_t ACTION_DIM = 1;
+        static constexpr TI OBSERVATION_DIM = 3;
+        static constexpr TI ACTION_DIM = 1;
     };
 }
 

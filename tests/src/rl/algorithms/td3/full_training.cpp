@@ -28,8 +28,8 @@ namespace lic = layer_in_c;
 using DTYPE = float;
 
 using DEVICE = lic::devices::DefaultCPU_MKL;
-typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif

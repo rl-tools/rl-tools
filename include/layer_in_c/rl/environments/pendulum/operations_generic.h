@@ -19,17 +19,17 @@ namespace layer_in_c::rl::environments::pendulum {
 }
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC, typename RNG>
-    static void sample_initial_state(const rl::environments::Pendulum<DEVICE, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
+    static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
         state.theta     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
         state.theta_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed, rng);
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(const rl::environments::Pendulum<DEVICE, SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state){
+    static void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state){
         state.theta = -math::PI<typename SPEC::T>;
         state.theta_dot = 0;
     }
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T step(const rl::environments::Pendulum<DEVICE, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], rl::environments::pendulum::State<typename SPEC::T>& next_state) {
+    static typename SPEC::T step(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], rl::environments::pendulum::State<typename SPEC::T>& next_state) {
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         typedef typename SPEC::PARAMETERS PARAMS;
@@ -51,7 +51,7 @@ namespace layer_in_c{
         return SPEC::PARAMETERS::dt;
     }
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T reward(const rl::environments::Pendulum<DEVICE, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::pendulum::State<typename SPEC::T>& next_state){
+    static typename SPEC::T reward(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::pendulum::State<typename SPEC::T>& next_state){
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         T angle_norm = angle_normalize(typename DEVICE::SPEC::MATH(), state.theta);
@@ -62,14 +62,14 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC>
-    static void observe(const rl::environments::Pendulum<DEVICE, SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, typename SPEC::T observation[3]){
+    static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, typename SPEC::T observation[3]){
         typedef typename SPEC::T T;
         observation[0] = math::cos(typename DEVICE::SPEC::MATH(), state.theta);
         observation[1] = math::sin(typename DEVICE::SPEC::MATH(), state.theta);
         observation[2] = state.theta_dot;
     }
     template<typename DEVICE, typename SPEC>
-    static bool terminated(const rl::environments::Pendulum<DEVICE, SPEC>& env, const typename rl::environments::pendulum::State<typename SPEC::T> state){
+    static bool terminated(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::pendulum::State<typename SPEC::T> state){
         return false;
     }
 }

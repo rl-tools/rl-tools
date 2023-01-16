@@ -29,7 +29,7 @@ namespace layer_in_c{
         T* observation;
         if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
             observation = observation_mem;
-            observe(runner.env, runner.state, observation);
+            observe(device, runner.env, runner.state, observation);
         }
         else{
             static_assert(sizeof(runner.state.state)/sizeof(runner.state.state[0]) == SPEC::ENVIRONMENT::OBSERVATION_DIM, "The environments state dimension must match the environment's observation dimension.");
@@ -53,7 +53,7 @@ namespace layer_in_c{
         T* next_observation;
         if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
             next_observation = next_observation_mem;
-            observe(runner.env, next_state, next_observation);
+            observe(device, runner.env, next_state, next_observation);
         }
         else{
             next_observation = next_state.state;

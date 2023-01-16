@@ -20,7 +20,7 @@ namespace layer_in_c {
             T* observation;
             if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
                 observation = observation_mem;
-                observe(env, state, observation);
+                observe(device, env, state, observation);
             }
             else{
                 static_assert(sizeof(state.state)/sizeof(state.state[0]) == ENVIRONMENT::OBSERVATION_DIM, "The environments state dimension must match the environment's observation dimension.");
