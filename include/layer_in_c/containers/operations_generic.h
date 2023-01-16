@@ -6,11 +6,14 @@
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, Matrix<SPEC>& matrix){
+        utils::assert(device, matrix.data == nullptr, "Matrix is already allocated");
         matrix.data = new typename SPEC::T[SPEC::ROWS * SPEC::COLS];
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, Matrix<SPEC>& matrix){
+        utils::assert(device, matrix.data != nullptr, "Matrix has not been allocated");
         delete matrix.data;
+        matrix.data = nullptr;
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>

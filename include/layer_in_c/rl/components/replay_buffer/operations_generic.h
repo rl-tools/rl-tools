@@ -2,6 +2,7 @@
 #define LAYER_IN_C_RL_COMPONENTS_REPLAY_BUFFER_OPERATIONS_GENERIC_H
 
 #include "replay_buffer.h"
+#include <layer_in_c/utils/generic/memcpy.h>
 
 namespace layer_in_c {
     template <typename DEVICE, typename SPEC, typename SPEC::TI BATCH_SIZE>
