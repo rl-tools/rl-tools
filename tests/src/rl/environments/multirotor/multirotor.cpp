@@ -25,12 +25,14 @@ namespace lic = layer_in_c;
 #include <stdint.h>
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     using DEVICE = lic::devices::DefaultCPU;
-    using SPEC = lic::rl::environments::multirotor::Specification<DTYPE, lic::rl::environments::multirotor::StaticParameters>;
-    using ENVIRONMENT = lic::rl::environments::Multirotor<DEVICE, SPEC>;
+    using SPEC = lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::multirotor::StaticParameters>;
+    using ENVIRONMENT = lic::rl::environments::Multirotor<SPEC>;
     using PARAMETERS = lic::rl::environments::multirotor::Parameters<DTYPE, DEVICE::index_t(4)>;
 
     std::cout << "sizeof state: " << sizeof(ENVIRONMENT::State) << std::endl;
 
+    typename DEVICE::SPEC::LOGGING logger;
+    DEVICE device(logger);
     PARAMETERS parameters = lic::rl::environments::multirotor::default_parameters<DTYPE, DEVICE::index_t(4)>;
     ENVIRONMENT env({parameters});
     std::mt19937 rng(0);
@@ -43,7 +45,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
 //        }
 //        state[3] = 1;
         ENVIRONMENT::State env_state;
-        lic::sample_initial_state(env, env_state, rng);
+        lic::sample_initial_state(device, env, env_state, rng);
         for(int i = 0; i < STATE_DIM; i++){
             state[i] = env_state.state[i];
         }
@@ -77,7 +79,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
 
 
             // Env based
-            lic::step(env, env_state, env_action, env_next_state);
+            lic::step(device, env, env_state, env_action, env_next_state);
 
             DTYPE acc = 0;
             for(COUNTER_TYPE state_i = 0; state_i < STATE_DIM; state_i++){

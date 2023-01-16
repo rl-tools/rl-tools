@@ -26,8 +26,8 @@ using DEVICE = lic::devices::DefaultDummy;
 using NN_DEVICE = lic::devices::DefaultDummy;
 using AC_DEVICE = lic::devices::DefaultDummy;
 #endif
-typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
 template <typename T>

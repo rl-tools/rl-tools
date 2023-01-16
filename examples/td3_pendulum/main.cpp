@@ -11,8 +11,8 @@ namespace lic = layer_in_c;
 using DTYPE = float;
 
 using DEVICE = lic::devices::DefaultCPU;
-typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
 using AC_DEVICE = lic::devices::DefaultCPU;
