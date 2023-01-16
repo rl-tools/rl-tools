@@ -11,13 +11,15 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
     using DEVICE = lic::devices::DefaultCPU;
-    typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-    typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
+    typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+    typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
     std::string DATA_FILE_PATH = "../multirotor-torch/pendulum.hdf5";
     const char* data_file_path = std::getenv("LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE");
     if (data_file_path != NULL){
         DATA_FILE_PATH = std::string(data_file_path);
     }
+    typename DEVICE::SPEC::LOGGING logger;
+    DEVICE device(logger);
     HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto episodes_group = file.getGroup("episodes");
     for(int episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){
@@ -43,8 +45,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
         for(int step_i = 0; step_i < states.size(); step_i++){
             std::cout << "step i: " << step_i << std::endl;
             ENVIRONMENT::State next_state;
-            lic::step(env, state, actions[step_i].data(), next_state);
-            DTYPE r = lic::reward(env, state, actions[step_i].data(), next_state);
+            lic::step(device, env, state, actions[step_i].data(), next_state);
+            DTYPE r = lic::reward(device, env, state, actions[step_i].data(), next_state);
             EXPECT_NEAR(     states[step_i][0], state.theta, STATE_TOLERANCE);
             EXPECT_NEAR(     states[step_i][1], state.theta_dot, STATE_TOLERANCE);
             EXPECT_NEAR(    rewards[step_i]   , r, STATE_TOLERANCE);

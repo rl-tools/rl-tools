@@ -49,13 +49,10 @@ NN_DEVICE device(logger);
 
 template <typename NetworkType>
 class NeuralNetworkTestLoadWeights : public NeuralNetworkTest {
-public:
-    NeuralNetworkTestLoadWeights() : NeuralNetworkTest(){
-        model_name = "model_1";
-    }
 protected:
-    void SetUp() override {
-        NeuralNetworkTest::SetUp();
+    NeuralNetworkTestLoadWeights(){
+        model_name = "model_1";
+        lic::malloc(device, network);
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet("model_1/gradients/0/input_layer/weight").read(batch_0_input_layer_weights_grad);
         data_file.getDataSet("model_1/gradients/0/input_layer/bias").read(batch_0_input_layer_biases_grad);
@@ -85,7 +82,6 @@ protected:
     }
     void reset(){
 
-        lic::malloc(device, network);
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet(model_name + "/init/input_layer/weight").read(input_layer_weights);
         data_file.getDataSet(model_name + "/init/input_layer/bias").read(input_layer_biases);

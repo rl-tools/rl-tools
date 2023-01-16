@@ -9,7 +9,7 @@ add_library(layer_in_c INTERFACE)
 target_include_directories(layer_in_c INTERFACE include)
 
 if (LAYER_IN_C_BUILD_TESTS)
-#    include(CTest)
+    include(CTest)
     enable_testing()
     add_subdirectory(tests)
 endif()

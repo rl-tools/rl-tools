@@ -23,7 +23,7 @@ class NeuralNetworkTest : public ::testing::Test {
 protected:
     std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
     std::string model_name = "model_1";
-    void SetUp() override {
+    NeuralNetworkTest(){
         const char* data_file_path = std::getenv("LAYER_IN_C_TEST_NN_DATA_FILE");
         if (data_file_path != NULL){
             DATA_FILE_PATH = std::string(data_file_path);

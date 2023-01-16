@@ -35,8 +35,8 @@ std::string get_data_file_path(){
 }
 #define DTYPE double
 using DEVICE = lic::devices::DefaultCPU;
-typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-using ENVIRONMENT = lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC>;
+typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+using ENVIRONMENT = lic::rl::environments::Pendulum<PENDULUM_SPEC>;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
@@ -206,9 +206,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             step_group.getDataSet("critics_batch").read(batch);
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-            DTYPE target_next_action_noise[ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE][ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-            critic_training_buffers.target_next_action_noise.data = (DTYPE*)target_next_action_noise;
-            step_group.getDataSet("target_next_action_noise").read(target_next_action_noise);
+            step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
 
             load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
             if (step_i == 0 && step_group.exist("pre_critic1")){
@@ -229,17 +227,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
             lic::gather_batch<DEVICE, ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, critic_batch, rng);
             lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, critic_training_buffers);
-
-
-//            DTYPE critic_1_loss = lic::train_critic<
-//                    AC_DEVICE,
-//                    decltype(actor_critic)::SPEC,
-//                    decltype(actor_critic.critic_1),
-//                    decltype(replay_buffer)::CAPACITY,
-//                    decltype(rng),
-//                    true
-//            >(device, actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
-
 
 
             lic::reset_forward_state(device, pre_critic_1);
@@ -287,20 +274,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             mean_ratio_critic_adam += diff_ratio_adam;
 
             {
-                critic_training_buffers.target_next_action_noise.data = (DTYPE*)target_next_action_noise;
-                step_group.getDataSet("target_next_action_noise").read(target_next_action_noise);
+                step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
 
                 lic::gather_batch<DEVICE, ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, critic_batch, rng);
                 lic::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, critic_training_buffers);
             }
-//            DTYPE critic_2_loss = lic::train_critic<
-//                AC_DEVICE,
-//                decltype(actor_critic)::SPEC,
-//                decltype(actor_critic.critic_2),
-//                decltype(replay_buffer)::CAPACITY,
-//                decltype(rng),
-//                true
-//            >(device, actor_critic, actor_critic.critic_2, replay_buffer, target_next_action_noise, rng);
             lic::copy(device, pre_critic_1, actor_critic.critic_1);
 
             if(true){//(step_i % 100 == 0){

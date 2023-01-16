@@ -1,6 +1,3 @@
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
-
 option(LAYER_IN_C_DOWNLOAD_GTEST OFF)
 
 option(LAYER_IN_C_TEST_LOCAL "Local dev" OFF)
@@ -19,14 +16,14 @@ option(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY "Visual
 
 set(INSTALL_GTEST OFF CACHE BOOL "")
 set(BUILD_GMOCK OFF CACHE BOOL "")
-add_subdirectory(lib/googletest)
+add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)
 include(GoogleTest)
 
 
 if(NOT APPLE)
-add_subdirectory(lib/matplotlib)
+add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
 endif()
-add_subdirectory(lib/highfive)
+add_subdirectory(lib/highfive EXCLUDE_FROM_ALL)
 
 #set(CMAKE_CXX_STANDARD 17)
 
@@ -245,7 +242,7 @@ gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
 
 
-add_subdirectory(lib/tensorboard)
+add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
 # Multirotor Training test
 add_executable(
         test_rl_environments_multirotor_training_test

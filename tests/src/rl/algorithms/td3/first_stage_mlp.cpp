@@ -24,8 +24,8 @@ std::string get_data_file_path(){
 }
 #define DTYPE double
 using DEVICE = lic::devices::DefaultCPU;
-typedef lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<DEVICE, PENDULUM_SPEC> ENVIRONMENT;
+typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
 
 #define SKIP_FULL_TRAINING
@@ -293,22 +293,12 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         step_group.getDataSet("target_next_action_noise").read(target_next_action_noise_vector);
 
 
-        DTYPE target_next_action_noise[first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE][first_stage_second_stage::ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
         for(int i = 0; i < first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; i++){
             for(int j = 0; j < first_stage_second_stage::ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM; j++){
-                target_next_action_noise[i][j] = target_next_action_noise_vector[i][j];
+                critic_training_buffers.target_next_action_noise.data[i * first_stage_second_stage::ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM + j] = target_next_action_noise_vector[i][j];
             }
         }
-        critic_training_buffers.target_next_action_noise.data = (DTYPE*)target_next_action_noise;
 
-//        DTYPE critic_1_loss = lic::train_critic<
-//                AC_DEVICE,
-//                decltype(actor_critic)::SPEC,
-//                decltype(actor_critic.critic_1),
-//                decltype(replay_buffer)::CAPACITY,
-//                decltype(rng),
-//                true
-//        >(device, actor_critic, actor_critic.critic_1, replay_buffer, target_next_action_noise, rng);
         lic::gather_batch<DEVICE, ReplayBufferSpec, first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, critic_batch, rng);
         lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, critic_training_buffers);
 

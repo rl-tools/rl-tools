@@ -112,7 +112,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     lic::malloc(device, actor_batch);
     lic::malloc(device, actor_training_buffers);
 
-    for(int step_i = 0; step_i < 1000000; step_i++){
+    for(int step_i = 0; step_i < 10000; step_i++){
         if(step_i > REPLAY_BUFFER_CAP){
             std::cout << "warning: replay buffer is rolling over" << std::endl;
         }

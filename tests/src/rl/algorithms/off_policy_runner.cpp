@@ -16,8 +16,8 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 namespace lic = layer_in_c;
 
 using DEVICE = lic::devices::DefaultCPU;
-using ENVIRONMENT_SPEC = lic::rl::environments::pendulum::Specification<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>;
-using ENVIRONMENT = lic::rl::environments::Pendulum<DEVICE, ENVIRONMENT_SPEC>;
+using ENVIRONMENT_SPEC = lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>;
+using ENVIRONMENT = lic::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
 typedef lic::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, 5000, 100, lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
 typedef lic::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
 

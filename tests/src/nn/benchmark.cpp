@@ -1,5 +1,5 @@
 #include <layer_in_c/operations/cpu.h>
-#include <layer_in_c/operations/cpu_mkl.h>
+//#include <layer_in_c/operations/cpu_mkl.h>
 #include <layer_in_c/nn_models/operations_cpu.h>
 
 namespace lic = layer_in_c;
@@ -30,8 +30,6 @@ template <typename T, typename TI, lic::nn::activation_functions::ActivationFunc
 using InferenceSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<InferenceSpecification<DTYPE, DEVICE::index_t, lic::nn::activation_functions::RELU>>;
 
-DEVICE::SPEC::LOGGING logger;
-DEVICE device(logger);
 
 constexpr INDEX_TYPE ITERATIONS = 1;
 
@@ -48,11 +46,13 @@ protected:
     lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> expected_output_full = {output_lic_full};
     lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> output_lic_target_matrix = {output_lic_target};
 
+    DEVICE::SPEC::LOGGING logger;
+    DEVICE device;
+
+
     NetworkType network;
     NetworkType network_mkl;
-
-    virtual void SetUp()
-    {
+    LAYER_IN_C_NN_DENSE_BENCHMARK(): device(this->logger){
         auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
         lic::malloc(device, network);
         network.age = 100000;
@@ -61,12 +61,14 @@ protected:
         lic::copy(device, network_mkl, network);
         assert(network_mkl.age == network.age);
 
-        for (INDEX_TYPE i = 0; i < BATCH_SIZE * NetworkType::INPUT_DIM; ++i)
+        for(INDEX_TYPE i = 0; i < BATCH_SIZE * NetworkType::INPUT_DIM; ++i)
         {
             input_lic[i] = lic::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (DTYPE)0, (DTYPE)1, rng);
         }
 
-        for (INDEX_TYPE i = 0; i < BATCH_SIZE * NetworkType::OUTPUT_DIM; ++i)
+
+
+        for(INDEX_TYPE i = 0; i < BATCH_SIZE * NetworkType::OUTPUT_DIM; ++i)
         {
             output_lic_target[i] = lic::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (DTYPE)0, (DTYPE)1, rng);
         }
@@ -83,7 +85,6 @@ protected:
 
         std::cout << "LIC: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
 
-        lic::malloc(device, expected_output_full);
         lic::forward(device, network, input_lic_matrix);
 
         lic::copy(device, expected_output_full, network.output_layer.output);
@@ -99,7 +100,6 @@ protected:
 
             std::cout << "LIC forward backward mse: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
         }
-
     }
 };
 

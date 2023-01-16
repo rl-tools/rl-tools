@@ -15,7 +15,7 @@ option(LAYER_IN_C_TESTS_NN_CUDA_ENABLE_CUTLASS "Enable CUTLASS" OFF)
 
 if(LAYER_IN_C_TESTS_NN_CUDA_ENABLE_CUTLASS)
     set(CUTLASS_ENABLE_TESTS OFF)
-    add_subdirectory(lib/cutlass)
+    add_subdirectory(lib/cutlass EXCLUDE_FROM_ALL)
 endif()
 
 add_compile_options(-g -G)

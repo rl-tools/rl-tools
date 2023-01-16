@@ -4,8 +4,22 @@ constexpr bool test_first_layer = true;
 //constexpr bool test_first_layer = false;
 #define FUNCTION_PLACEMENT __device__ __host__
 
-#include <layer_in_c/operations/cuda.h>
-#include <layer_in_c/operations/cpu.h>
+// Group 1
+#include <layer_in_c/devices/cpu.h>
+#include <layer_in_c/math/operations_cpu.h>
+#include <layer_in_c/random/operations_cpu.h>
+#include <layer_in_c/logging/operations_cpu.h>
+#include <layer_in_c/devices/cuda.h>
+#include <layer_in_c/math/operations_cuda.h>
+#include <layer_in_c/random/operations_cuda.h>
+#include <layer_in_c/logging/operations_cuda.h>
+
+// Group 2: depends on logging
+#include <layer_in_c/utils/assert/operations_cpu.h>
+#include <layer_in_c/utils/assert/operations_cuda.h>
+// Group 3: dependent on assert
+#include <layer_in_c/containers/operations_cpu.h>
+#include <layer_in_c/containers/operations_generic.h>
 
 #include <layer_in_c/nn/operations_cuda.h>
 #include <layer_in_c/nn_models/operations_cuda.h>
