@@ -2,7 +2,7 @@
 /cmake-build-release
 /cmake-build-debug-cuda
 
-#/.idea
+/.idea
 
 .vscode/settings.json
 
