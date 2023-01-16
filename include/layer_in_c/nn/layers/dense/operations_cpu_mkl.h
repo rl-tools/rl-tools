@@ -1,7 +1,7 @@
 #ifndef LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_CPU_MKL_H
 #define LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_CPU_MKL_H
 
-#include "operations_generic.h"
+#include "operations_cpu.h"
 #include <layer_in_c/utils/generic/memcpy.h>
 #include <layer_in_c/devices/cpu_mkl.h>
 

@@ -40,30 +40,32 @@ namespace layer_in_c::rl::environments::multirotor {
         T dt;
     };
     struct StaticParameters{};
-    template <typename T_T, typename T_STATIC_PARAMETERS>
+    template <typename T_T, typename T_TI, typename T_STATIC_PARAMETERS>
     struct Specification{
         using T = T_T;
+        using TI = T_TI;
         using STATIC_PARAMETERS = T_STATIC_PARAMETERS;
     };
 
-    template <typename DEVICE, typename T, auto STATE_DIM>
+    template <typename T, typename TI, TI STATE_DIM>
     struct State{
-        static constexpr typename DEVICE::index_t DIM = STATE_DIM;
+        static constexpr TI DIM = STATE_DIM;
         T state[DIM];
     };
 
 }
 
 namespace layer_in_c::rl::environments{
-    template <typename T_DEVICE, typename SPEC>
+    template <typename SPEC>
     struct Multirotor{
-        using DEVICE = T_DEVICE;
-        static constexpr typename DEVICE::index_t STATE_DIM = 13;
-        static constexpr typename DEVICE::index_t ACTION_DIM = 4;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI STATE_DIM = 13;
+        static constexpr TI ACTION_DIM = 4;
 
         static constexpr bool REQUIRES_OBSERVATION = false;
-        static constexpr typename DEVICE::index_t OBSERVATION_DIM = STATE_DIM;
-        using State = multirotor::State<DEVICE, typename SPEC::T, STATE_DIM>;
+        static constexpr TI OBSERVATION_DIM = STATE_DIM;
+        using State = multirotor::State<T, TI, STATE_DIM>;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         multirotor::Parameters<typename SPEC::T, ACTION_DIM> parameters;
     };

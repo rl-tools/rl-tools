@@ -257,6 +257,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
         tensorboard_logger
+        MKL::MKL
 )
 target_include_directories(
         test_rl_environments_multirotor_training_test

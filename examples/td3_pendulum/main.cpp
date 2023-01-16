@@ -97,5 +97,10 @@ int main() {
             std::cout << "Mean return: " << mean_return << std::endl;
         }
     }
+    lic::free(device, actor_critic);
+    lic::free(device, critic_batch);
+    lic::free(device, critic_training_buffers);
+    lic::free(device, actor_batch);
+    lic::free(device, actor_training_buffers);
     return 0;
 }

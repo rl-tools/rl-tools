@@ -6,7 +6,7 @@
 #include <random>
 namespace layer_in_c{
     template<typename DEV_SPEC, typename SPEC, typename RNG>
-    static void sample_initial_state(const rl::environments::Multirotor<devices::CPU<DEV_SPEC>, SPEC>& env, typename rl::environments::Multirotor<devices::CPU<DEV_SPEC>, SPEC>::State& state, RNG& rng){
+    static void sample_initial_state(devices::CPU<DEV_SPEC>& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         using index_t = typename devices::CPU<DEV_SPEC>::index_t;
         for(index_t i = 0; i < 3; i++){

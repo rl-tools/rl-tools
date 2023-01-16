@@ -25,9 +25,10 @@ namespace layer_in_c::rl::environments::multirotor {
             static constexpr T action = 1;
         };
         template<typename DEVICE, typename SPEC, typename WEIGHTS>
-        static typename SPEC::T reward_classic(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state) {
+        static typename SPEC::T reward_classic(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state) {
             using T = typename SPEC::T;
-            constexpr typename DEVICE::index_t ACTION_DIM = rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM;
+            using TI = typename DEVICE::index_t;
+            constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
             T quaternion_w = state.state[3];
             T orientation_cost = math::abs(2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
             T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.state);
@@ -42,9 +43,9 @@ namespace layer_in_c::rl::environments::multirotor {
 //            return -weighted_abs_cost;
         }
         template<typename DEVICE, typename SPEC>
-        static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state){
-            constexpr auto STATE_DIM = rl::environments::Multirotor<DEVICE, SPEC>::STATE_DIM;
-            constexpr auto ACTION_DIM = rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM;
+        static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state){
+            constexpr auto STATE_DIM = rl::environments::Multirotor<SPEC>::STATE_DIM;
+            constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
             using T = typename SPEC::T;
             T acc = 0;
             for(typename DEVICE::index_t state_i = 0; state_i < STATE_DIM; state_i++){
@@ -82,6 +83,7 @@ namespace layer_in_c::rl::environments::multirotor {
     }
     template<typename DEVICE, typename T, auto STATE_DIM, auto N>
     FUNCTION_PLACEMENT void multirotor_dynamics(
+            DEVICE& device,
             const Parameters<T, N> &params,
 
             // state
@@ -160,22 +162,22 @@ namespace layer_in_c::rl::environments::multirotor {
 
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
-    static void initial_state(const rl::environments::Multirotor<DEVICE, SPEC>& env, typename rl::environments::Multirotor<DEVICE, SPEC>::State& state){
+    static void initial_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state){
         for(typename DEVICE::index_t i = 0; i < utils::typing::remove_reference<decltype(env)>::type::STATE_DIM; i++){
             state.state[i] = 0;
         }
         state.state[3] = 1;
     }
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T step(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM], typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state) {
-        constexpr auto STATE_DIM = rl::environments::Multirotor<DEVICE, SPEC>::STATE_DIM;
-        constexpr auto ACTION_DIM = rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM;
+    static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], typename rl::environments::Multirotor<SPEC>::State& next_state) {
+        constexpr auto STATE_DIM = rl::environments::Multirotor<SPEC>::STATE_DIM;
+        constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         typename SPEC::T action_scaled[ACTION_DIM];
         for(typename DEVICE::index_t action_i = 0; action_i < ACTION_DIM; action_i++){
             typename SPEC::T half_range = (env.parameters.action_limit.max - env.parameters.action_limit.min) / 2;
             action_scaled[action_i] = action[action_i] * half_range + env.parameters.action_limit.min + half_range;
         }
-        utils::integrators::rk4<DEVICE, typename SPEC::T, typename utils::typing::remove_reference<decltype(env.parameters)>::type, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, STATE_DIM, ACTION_DIM>>(env.parameters, state.state, action_scaled, env.parameters.dt, next_state.state);
+        utils::integrators::rk4<DEVICE, typename SPEC::T, typename utils::typing::remove_reference<decltype(env.parameters)>::type, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, STATE_DIM, ACTION_DIM>>(device, env.parameters, state.state, action_scaled, env.parameters.dt, next_state.state);
         typename SPEC::T quaternion_norm = 0;
         for(typename DEVICE::index_t state_i = 3; state_i < 3+4; state_i++){
             quaternion_norm += next_state.state[state_i] * next_state.state[state_i];
@@ -189,14 +191,14 @@ namespace layer_in_c{
         return env.parameters.dt;
     }
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T reward(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<DEVICE, SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<DEVICE, SPEC>::State& next_state){
+    static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state){
         using T = typename SPEC::T;
-        return rl::environments::multirotor::reward_function::reward_classic<DEVICE, SPEC, rl::environments::multirotor::reward_function::reward_263_weights<T>>(env, state, action, next_state);
+        return rl::environments::multirotor::reward_function::reward_classic<DEVICE, SPEC, rl::environments::multirotor::reward_function::reward_263_weights<T>>(device, env, state, action, next_state);
 //        return rl::environments::multirotor::reward_function::reward<DEVICE, SPEC>(env, state, action, next_state);
     }
 
         template<typename DEVICE, typename SPEC>
-    static bool terminated(const rl::environments::Multirotor<DEVICE, SPEC>& env, const typename rl::environments::Multirotor<DEVICE, SPEC>::State& state){
+    static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state){
         return false;
     }
 

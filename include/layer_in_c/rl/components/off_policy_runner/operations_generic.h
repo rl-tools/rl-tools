@@ -19,7 +19,7 @@ namespace layer_in_c{
         if ((SPEC::STEP_LIMIT > 0 && runner.episode_step == SPEC::STEP_LIMIT) ||
             (runner.replay_buffer.position == 0 && !runner.replay_buffer.full)) {
             // first step
-            sample_initial_state(runner.env, runner.state, rng);
+            sample_initial_state(device, runner.env, runner.state, rng);
             runner.episode_step = 0;
             runner.episode_return = 0;
         }
@@ -45,8 +45,8 @@ namespace layer_in_c{
             action[i] += random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, PARAMETERS::EXPLORATION_NOISE, rng);
             action[i] = lic::math::clamp<T>(action[i], -1, 1);
         }
-        step(runner.env, runner.state, action, next_state);
-        T reward_value = reward(runner.env, runner.state, action, next_state);
+        step(device, runner.env, runner.state, action, next_state);
+        T reward_value = reward(device, runner.env, runner.state, action, next_state);
         runner.state = next_state;
 
         T next_observation_mem[ENVIRONMENT::OBSERVATION_DIM];
@@ -59,7 +59,7 @@ namespace layer_in_c{
             next_observation = next_state.state;
         }
 
-        bool terminated_flag = terminated(runner.env, next_state);
+        bool terminated_flag = terminated(device, runner.env, next_state);
         runner.episode_step += 1;
         runner.episode_return += reward_value;
         bool truncated = runner.episode_step == SPEC::STEP_LIMIT;
