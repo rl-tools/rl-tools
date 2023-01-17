@@ -1,8 +1,7 @@
 #include <layer_in_c/operations/cpu_mkl.h>
 
 #include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/dynamics/mrs.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/default.h>
+#include <layer_in_c/rl/environments/multirotor/parameters/default.h>
 #include <layer_in_c/nn_models/models.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 
@@ -29,11 +28,7 @@ using DEVICE = lic::devices::DefaultCPU_MKL;
 typedef lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::multirotor::StaticParameters> ENVIRONMENT_SPEC;
 typedef lic::rl::environments::Multirotor<ENVIRONMENT_SPEC> ENVIRONMENT;
 
-lic::rl::environments::multirotor::Parameters<DTYPE, DEVICE::index_t(4)> parameters = {
-        lic::rl::environments::multirotor::parameters::dynamics::mrs<DTYPE>,
-        lic::rl::environments::multirotor::Parameters<DTYPE, DEVICE::index_t(4)>,
-        lic::rl::environments::multirotor::parameters::rewards::reward_1<DTYPE, DEVICE::index_t(4)>
-};
+lic::rl::environments::multirotor::Parameters<DTYPE, DEVICE::index_t, 4> parameters = {lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, DEVICE::index_t, 4>};
 
 template <typename T>
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
@@ -105,7 +100,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     std::mt19937 rng(2);
     lic::malloc(device, actor_critic);
     lic::init(device, actor_critic, rng);
-    parameters.init = lic::rl::environments::multirotor::simple_init_parameters<DTYPE, DEVICE::index_t(4)>;
+    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::simple<DTYPE, DEVICE::index_t, 4>;
     ENVIRONMENT env({parameters});
     off_policy_runner.env = env;
 
