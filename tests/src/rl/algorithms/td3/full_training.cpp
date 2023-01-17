@@ -97,6 +97,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::malloc(nn_dev, actor_critic);
     lic::init(nn_dev, actor_critic, rng);
 
+    lic::malloc(ac_dev, off_policy_runner);
+
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
     lic::malloc(ac_dev, critic_batch);
@@ -106,6 +108,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
     lic::malloc(ac_dev, actor_batch);
     lic::malloc(ac_dev, actor_training_buffers);
+
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -174,4 +177,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::free(ac_dev, critic_training_buffers);
     lic::free(ac_dev, actor_batch);
     lic::free(ac_dev, actor_training_buffers);
+    lic::free(ac_dev, off_policy_runner);
+    lic::free(ac_dev, actor_critic);
 }

@@ -25,10 +25,13 @@ namespace lic = layer_in_c;
 using DTYPE = float;
 
 using DEVICE = lic::devices::DefaultCPU_MKL;
-typedef lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::multirotor::StaticParameters> ENVIRONMENT_SPEC;
+
+auto parameters = lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, DEVICE::index_t>;
+using PARAMETERS = decltype(parameters);
+using REWARD_FUNCTION = PARAMETERS::MDP::REWARD_FUNCTION;
+typedef lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters> ENVIRONMENT_SPEC;
 typedef lic::rl::environments::Multirotor<ENVIRONMENT_SPEC> ENVIRONMENT;
 
-lic::rl::environments::multirotor::Parameters<DTYPE, DEVICE::index_t, 4> parameters = {lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, DEVICE::index_t, 4>};
 
 template <typename T>
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
@@ -63,16 +66,14 @@ constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 DEVICE::SPEC::LOGGING logger;
 DEVICE device(logger);
 NN_DEVICE nn_device(logger);
-lic::rl::components::OffPolicyRunner<
-        lic::rl::components::off_policy_runner::Specification<
-                DTYPE,
-                DEVICE::index_t,
-                ENVIRONMENT,
-                REPLAY_BUFFER_CAP,
-                ENVIRONMENT_STEP_LIMIT,
-                lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
-        >
-> off_policy_runner;
+using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
+        DTYPE,
+        DEVICE::index_t,
+        ENVIRONMENT,
+        REPLAY_BUFFER_CAP,
+        ENVIRONMENT_STEP_LIMIT,
+        lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
+>;
 ActorCriticType actor_critic;
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
@@ -100,9 +101,11 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     std::mt19937 rng(2);
     lic::malloc(device, actor_critic);
     lic::init(device, actor_critic, rng);
-    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::simple<DTYPE, DEVICE::index_t, 4>;
+    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::simple<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
     ENVIRONMENT env({parameters});
-    off_policy_runner.env = env;
+    lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner = {env};
+
+    lic::malloc(device, off_policy_runner);
 
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;

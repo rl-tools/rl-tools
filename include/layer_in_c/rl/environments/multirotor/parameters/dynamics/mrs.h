@@ -2,8 +2,8 @@
 #include "../../multirotor.h"
 
 namespace layer_in_c::rl::environments::multirotor::parameters::dynamics{
-    template<typename T, typename TI>
-    typename Parameters <T, TI, TI(4)>::Dynamics mrs = {
+    template<typename T, typename TI, typename REWARD_FUNCTION>
+    typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics mrs = {
             // Rotor positions
             {
                     {

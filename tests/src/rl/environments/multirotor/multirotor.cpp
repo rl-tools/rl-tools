@@ -27,16 +27,18 @@ namespace lic = layer_in_c;
 #include <stdint.h>
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     using DEVICE = lic::devices::DefaultCPU;
-    using SPEC = lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::multirotor::StaticParameters>;
-    using ENVIRONMENT = lic::rl::environments::Multirotor<SPEC>;
-    using PARAMETERS = lic::rl::environments::multirotor::Parameters<DTYPE, DEVICE::index_t, 4>;
 
-    std::cout << "sizeof state: " << sizeof(ENVIRONMENT::State) << std::endl;
 
     typename DEVICE::SPEC::LOGGING logger;
     DEVICE device(logger);
 
-    PARAMETERS parameters = {lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, typename DEVICE::index_t, 4>};
+    const auto parameters = lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, typename DEVICE::index_t>;
+    using PARAMETERS = decltype(parameters);
+    using REWARD_FUNCTION = PARAMETERS::MDP::REWARD_FUNCTION;
+    using SPEC = lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters>;
+    using ENVIRONMENT = lic::rl::environments::Multirotor<SPEC>;
+    std::cout << "sizeof state: " << sizeof(ENVIRONMENT::State) << std::endl;
+
 
     ENVIRONMENT env({parameters});
     std::mt19937 rng(0);

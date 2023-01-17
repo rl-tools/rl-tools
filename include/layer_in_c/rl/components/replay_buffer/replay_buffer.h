@@ -34,12 +34,12 @@ namespace layer_in_c::rl::components {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr typename SPEC::TI CAPACITY = SPEC::CAPACITY;
-        T observations[SPEC::CAPACITY][SPEC::OBSERVATION_DIM];
-        T actions[SPEC::CAPACITY][SPEC::ACTION_DIM];
-        T rewards[SPEC::CAPACITY];
-        T next_observations[SPEC::CAPACITY][SPEC::OBSERVATION_DIM];
-        bool terminated[SPEC::CAPACITY];
-        bool truncated[SPEC::CAPACITY];
+        Matrix<MatrixSpecification<T, TI, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>> observations;
+        Matrix<MatrixSpecification<T, TI, SPEC::CAPACITY, SPEC::ACTION_DIM>> actions;
+        Matrix<MatrixSpecification<T, TI, SPEC::CAPACITY, 1>> rewards;
+        Matrix<MatrixSpecification<T, TI, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>> next_observations;
+        Matrix<MatrixSpecification<bool, TI, SPEC::CAPACITY, 1>> terminated;
+        Matrix<MatrixSpecification<bool, TI, SPEC::CAPACITY, 1>> truncated;
         TI position = 0;
         bool full = false;
     };
