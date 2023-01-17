@@ -84,7 +84,7 @@ namespace layer_in_c::rl::environments::multirotor {
     template<typename DEVICE, typename T, auto STATE_DIM, auto N>
     FUNCTION_PLACEMENT void multirotor_dynamics(
             DEVICE& device,
-            const Parameters<T, N> &params,
+            const Parameters<T, typename DEVICE::index_t, N> &params,
 
             // state
             const T state[STATE_DIM],
@@ -174,10 +174,10 @@ namespace layer_in_c{
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         typename SPEC::T action_scaled[ACTION_DIM];
         for(typename DEVICE::index_t action_i = 0; action_i < ACTION_DIM; action_i++){
-            typename SPEC::T half_range = (env.parameters.action_limit.max - env.parameters.action_limit.min) / 2;
-            action_scaled[action_i] = action[action_i] * half_range + env.parameters.action_limit.min + half_range;
+            typename SPEC::T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
+            action_scaled[action_i] = action[action_i] * half_range + env.parameters.dynamics.action_limit.min + half_range;
         }
-        utils::integrators::rk4<DEVICE, typename SPEC::T, typename utils::typing::remove_reference<decltype(env.parameters)>::type, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, STATE_DIM, ACTION_DIM>>(device, env.parameters, state.state, action_scaled, env.parameters.dt, next_state.state);
+        utils::integrators::rk4<DEVICE, typename SPEC::T, typename utils::typing::remove_reference<decltype(env.parameters)>::type, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, STATE_DIM, ACTION_DIM>>(device, env.parameters, state.state, action_scaled, env.parameters.integration.dt, next_state.state);
         typename SPEC::T quaternion_norm = 0;
         for(typename DEVICE::index_t state_i = 3; state_i < 3+4; state_i++){
             quaternion_norm += next_state.state[state_i] * next_state.state[state_i];
@@ -188,7 +188,7 @@ namespace layer_in_c{
         }
 
 
-        return env.parameters.dt;
+        return env.parameters.integration.dt;
     }
     template<typename DEVICE, typename SPEC>
     static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state){

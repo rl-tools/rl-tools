@@ -12,6 +12,8 @@ constexpr auto ACTION_DIM = dynamics_legacy::ACTION_DIM;
 
 #include <layer_in_c/operations/cpu.h>
 
+#include <layer_in_c/rl/environments/multirotor/parameters/default.h>
+
 #include <layer_in_c/rl/environments/multirotor/multirotor.h>
 
 #include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
@@ -27,13 +29,15 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     using DEVICE = lic::devices::DefaultCPU;
     using SPEC = lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::multirotor::StaticParameters>;
     using ENVIRONMENT = lic::rl::environments::Multirotor<SPEC>;
-    using PARAMETERS = lic::rl::environments::multirotor::Parameters<DTYPE, DEVICE::index_t(4)>;
+    using PARAMETERS = lic::rl::environments::multirotor::Parameters<DTYPE, DEVICE::index_t, 4>;
 
     std::cout << "sizeof state: " << sizeof(ENVIRONMENT::State) << std::endl;
 
     typename DEVICE::SPEC::LOGGING logger;
     DEVICE device(logger);
-    PARAMETERS parameters = lic::rl::environments::multirotor::default_parameters<DTYPE, DEVICE::index_t(4)>;
+
+    PARAMETERS parameters = {lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, typename DEVICE::index_t, 4>};
+
     ENVIRONMENT env({parameters});
     std::mt19937 rng(0);
 
