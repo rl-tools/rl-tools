@@ -11,8 +11,9 @@
 #include <layer_in_c/rl/components/off_policy_runner/operations_generic.h>
 #include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
 
-
 #include <layer_in_c/rl/utils/evaluation.h>
+
+#include "parameters.h"
 
 #include <tensorboard_logger.h>
 #include <gtest/gtest.h>
@@ -26,10 +27,11 @@ using DTYPE = float;
 
 using DEVICE = lic::devices::DefaultCPU_MKL;
 
-auto parameters = lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, DEVICE::index_t>;
+auto parameters = parameters_0::parameters<DTYPE, DEVICE::index_t>;
+//auto parameters = lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, DEVICE::index_t>;
 using PARAMETERS = decltype(parameters);
 using REWARD_FUNCTION = PARAMETERS::MDP::REWARD_FUNCTION;
-typedef lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters> ENVIRONMENT_SPEC;
+typedef lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters, true> ENVIRONMENT_SPEC;
 typedef lic::rl::environments::Multirotor<ENVIRONMENT_SPEC> ENVIRONMENT;
 
 
