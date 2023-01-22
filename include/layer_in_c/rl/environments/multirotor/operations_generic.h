@@ -117,6 +117,21 @@ namespace layer_in_c{
         constexpr auto STATE_DIM = rl::environments::Multirotor<SPEC>::STATE_DIM;
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         typename SPEC::T action_scaled[ACTION_DIM];
+        if constexpr(SPEC::DEBUG){
+            // check state and actions for nan
+            for(typename DEVICE::index_t i = 0; i < STATE_DIM; i++){
+                if(std::isnan(state.state[i])){
+                    std::cout << "state[" << i << "] is nan" << std::endl;
+                    throw std::runtime_error("state is nan");
+                }
+            }
+            for(typename DEVICE::index_t i = 0; i < ACTION_DIM; i++){
+                if(std::isnan(action[i])){
+                    std::cout << "action[" << i << "] is nan" << std::endl;
+                    throw std::runtime_error("action is nan");
+                }
+            }
+        }
         for(typename DEVICE::index_t action_i = 0; action_i < ACTION_DIM; action_i++){
             typename SPEC::T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
             action_scaled[action_i] = action[action_i] * half_range + env.parameters.dynamics.action_limit.min + half_range;

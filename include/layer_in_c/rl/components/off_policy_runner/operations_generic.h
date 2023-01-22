@@ -55,6 +55,9 @@ namespace layer_in_c{
         }
         step(device, runner.env, runner.state, action, next_state);
         T reward_value = reward(device, runner.env, runner.state, action, next_state);
+        if constexpr(SPEC::DEBUG){
+
+        }
         runner.state = next_state;
 
         T next_observation_mem[ENVIRONMENT::OBSERVATION_DIM];
