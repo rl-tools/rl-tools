@@ -40,10 +40,10 @@ namespace layer_in_c::rl::environments::multirotor::parameters::dynamics{
             },
             // Rotor torque directions
             {
-                    {0, 0, -1},
                     {0, 0, 1},
                     {0, 0, -1},
                     {0, 0, 1},
+                    {0, 0, -1},
             },
             // thrust constants
             {
