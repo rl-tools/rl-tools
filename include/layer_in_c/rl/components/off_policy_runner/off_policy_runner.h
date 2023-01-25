@@ -31,6 +31,7 @@ namespace layer_in_c::rl::components{
         typename SPEC::ENVIRONMENT env;
         ReplayBuffer<ReplayBufferSpec> replay_buffer;
         typename SPEC::ENVIRONMENT::State state;
+        bool truncated = true;
         typename SPEC::TI episode_step = 0;
         typename SPEC::T episode_return = 0;
     };

@@ -28,6 +28,7 @@ namespace parameters_0{
             {0.01}, // integration dt
             {
                     layer_in_c::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION<T>>,
+                    typename layer_in_c::rl::environments::multirotor::Parameters<T, TI, 4, REWARD_FUNCTION<T>>::MDP::Termination({true, 2, 50/3.6, 5*2*layer_in_c::math::PI<T>}),
                     reward_function<T>
             }
     };

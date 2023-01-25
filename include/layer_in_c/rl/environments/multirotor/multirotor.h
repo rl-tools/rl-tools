@@ -31,7 +31,14 @@ namespace layer_in_c::rl::environments::multirotor {
                 T max_linear_velocity;
                 T max_angular_velocity;
             };
+            struct Termination{
+                bool enabled = false;
+                T position_threshold;
+                T linear_velocity_threshold;
+                T angular_velocity_threshold;
+            };
             Initialization init;
+            Termination termination;
             REWARD_FUNCTION reward;
         };
         Dynamics dynamics;

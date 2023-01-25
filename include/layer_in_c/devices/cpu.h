@@ -7,6 +7,12 @@
 #include <cstddef>
 namespace layer_in_c::devices{
     namespace cpu{
+        template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
+        struct Specification{
+            using MATH = T_MATH;
+            using RANDOM = T_RANDOM;
+            using LOGGING = T_LOGGING;
+        };
         struct Base{
             static constexpr Device DEVICE = Device::CPU;
             using index_t = size_t;
@@ -26,10 +32,6 @@ namespace layer_in_c::devices{
         struct CPU: cpu::Base{
             static constexpr Domain DOMAIN = Domain::logging;
         };
-        struct CPU_WANDB: cpu::Base{
-            static constexpr Domain DOMAIN = Domain::logging;
-            int counter = 0;
-        };
     }
     template <typename T_SPEC>
     struct CPU: cpu::Base{
@@ -39,11 +41,8 @@ namespace layer_in_c::devices{
         typename SPEC::LOGGING& logger;
         explicit CPU(typename SPEC::LOGGING& logger) : logger(logger) {}
     };
-    struct DefaultCPUSpecification{
-        using MATH = math::CPU;
-        using RANDOM = random::CPU;
-        using LOGGING = logging::CPU;
-    };
+
+    using DefaultCPUSpecification = cpu::Specification<math::CPU, random::CPU, logging::CPU>;
     using DefaultCPU = CPU<DefaultCPUSpecification>;
 }
 

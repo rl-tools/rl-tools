@@ -33,7 +33,6 @@ template<typename T>
         T weighted_abs_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.action * action_cost;
         T r = math::exp(typename DEVICE::SPEC::MATH(), -weighted_abs_cost);
         return r * params.scale;
-//            return -weighted_abs_cost;
     }
 }
 

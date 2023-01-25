@@ -318,11 +318,14 @@ namespace layer_in_c{
     }
 
     template <typename DEVICE, typename SPEC>
-    FUNCTION_PLACEMENT void update_targets(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
-        update_target_network(device, actor_critic.actor_target   , actor_critic.   actor, SPEC::PARAMETERS::ACTOR_POLYAK);
+    FUNCTION_PLACEMENT void update_critic_targets(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
         update_target_network(device, actor_critic.critic_target_1, actor_critic.critic_1, SPEC::PARAMETERS::CRITIC_POLYAK);
         update_target_network(device, actor_critic.critic_target_2, actor_critic.critic_2, SPEC::PARAMETERS::CRITIC_POLYAK);
 
+    }
+    template <typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void update_actor_target(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
+        update_target_network(device, actor_critic.actor_target   , actor_critic.   actor, SPEC::PARAMETERS::ACTOR_POLYAK);
     }
 
 

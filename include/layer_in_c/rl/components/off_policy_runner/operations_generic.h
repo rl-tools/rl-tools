@@ -24,8 +24,7 @@ namespace layer_in_c{
         // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
         typedef typename SPEC::ENVIRONMENT ENVIRONMENT;
         typedef typename SPEC::PARAMETERS PARAMETERS;
-        if ((SPEC::STEP_LIMIT > 0 && runner.episode_step == SPEC::STEP_LIMIT) ||
-            (runner.replay_buffer.position == 0 && !runner.replay_buffer.full)) {
+        if (runner.truncated) {
             // first step
             sample_initial_state(device, runner.env, runner.state, rng);
             runner.episode_step = 0;
@@ -55,9 +54,9 @@ namespace layer_in_c{
         }
         step(device, runner.env, runner.state, action, next_state);
         T reward_value = reward(device, runner.env, runner.state, action, next_state);
-        if constexpr(SPEC::DEBUG){
-
-        }
+//        if constexpr(DEVICE::DEBUG::PRINT_REWARD){
+//            std::cout << "reward: " << reward_value << std::endl;
+//        }
         runner.state = next_state;
 
         T next_observation_mem[ENVIRONMENT::OBSERVATION_DIM];
@@ -73,12 +72,13 @@ namespace layer_in_c{
         bool terminated_flag = terminated(device, runner.env, next_state);
         runner.episode_step += 1;
         runner.episode_return += reward_value;
-        bool truncated = runner.episode_step == SPEC::STEP_LIMIT;
-        if (truncated || terminated_flag) {
-            logging::text(device.logger, "Episode return: ", runner.episode_return);
+        runner.truncated = terminated_flag || runner.episode_step == SPEC::STEP_LIMIT;
+        if (runner.truncated) {
+//            logging::text(device.logger, "Episode return: ", runner.episode_return);
+//            logging::text(device.logger, "Episode steps: ", runner.episode_step);
         }
         // todo: add truncation / termination handling (stemming from the environment)
-        add(device, runner.replay_buffer, observation, action, reward_value, next_observation, terminated_flag, truncated);
+        add(device, runner.replay_buffer, observation, action, reward_value, next_observation, terminated_flag, runner.truncated);
     }
 }
 

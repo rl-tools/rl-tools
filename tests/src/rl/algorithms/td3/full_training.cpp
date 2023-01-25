@@ -36,7 +36,7 @@ typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 ENVIRONMENT env;
 
 struct AC_DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
-    using LOGGING = lic::devices::logging::CPU_WANDB;
+    using LOGGING = lic::devices::logging::CPU;
 };
 using AC_DEVICE = lic::devices::CPU_MKL<AC_DEVICE_SPEC>;
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE, AC_DEVICE::index_t>{

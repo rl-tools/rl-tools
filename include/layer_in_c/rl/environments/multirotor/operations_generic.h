@@ -15,16 +15,6 @@
 
 
 namespace layer_in_c::rl::environments::multirotor {
-    namespace reward_function{
-        template <typename T>
-        struct reward_263_weights {
-            static constexpr T position = 10;
-            static constexpr T orientation = 10;
-            static constexpr T linear_vel = 0;
-            static constexpr T angular_vel = 0;
-            static constexpr T action = 1;
-        };
-    }
     template<typename DEVICE, typename T, auto STATE_DIM, auto N, typename REWARD_FUNCTION>
     FUNCTION_PLACEMENT void multirotor_dynamics(
             DEVICE& device,
@@ -117,21 +107,22 @@ namespace layer_in_c{
         constexpr auto STATE_DIM = rl::environments::Multirotor<SPEC>::STATE_DIM;
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         typename SPEC::T action_scaled[ACTION_DIM];
-        if constexpr(SPEC::DEBUG){
-            // check state and actions for nan
-            for(typename DEVICE::index_t i = 0; i < STATE_DIM; i++){
-                if(std::isnan(state.state[i])){
-                    std::cout << "state[" << i << "] is nan" << std::endl;
-                    throw std::runtime_error("state is nan");
-                }
-            }
-            for(typename DEVICE::index_t i = 0; i < ACTION_DIM; i++){
-                if(std::isnan(action[i])){
-                    std::cout << "action[" << i << "] is nan" << std::endl;
-                    throw std::runtime_error("action is nan");
-                }
+
+        // check state and actions for nan
+
+        for(typename DEVICE::index_t i = 0; i < STATE_DIM; i++){
+            if(std::isnan(state.state[i])){
+                std::cout << "state[" << i << "] is nan" << std::endl;
+                throw std::runtime_error("state is nan");
             }
         }
+        for(typename DEVICE::index_t i = 0; i < ACTION_DIM; i++){
+            if(std::isnan(action[i])){
+                std::cout << "action[" << i << "] is nan" << std::endl;
+                throw std::runtime_error("action is nan");
+            }
+        }
+
         for(typename DEVICE::index_t action_i = 0; action_i < ACTION_DIM; action_i++){
             typename SPEC::T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
             action_scaled[action_i] = action[action_i] * half_range + env.parameters.dynamics.action_limit.min + half_range;
@@ -149,16 +140,30 @@ namespace layer_in_c{
 
         return env.parameters.integration.dt;
     }
-//    template<typename DEVICE, typename SPEC>
-//    static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state){
-//        using T = typename SPEC::T;
-////        return rl::environments::multirotor::reward_function::reward_classic<DEVICE, SPEC, rl::environments::multirotor::reward_function::reward_263_weights<T>>(device, env, state, action, next_state);
-//        return rl::environments::multirotor::reward_function::reward<DEVICE, SPEC>(env, state, action, next_state);
-//    }
 
-        template<typename DEVICE, typename SPEC>
+    template<typename DEVICE, typename SPEC>
     static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state){
-        return false;
+        using T = typename SPEC::T;
+        if(env.parameters.mdp.termination.enabled){
+            for(typename DEVICE::index_t position_i = 0; position_i < 3; position_i++){
+                if(math::abs(state.state[position_i]) > env.parameters.mdp.termination.position_threshold){
+                    return true;
+                }
+            }
+            for(typename DEVICE::index_t linear_velocity_i = 0; linear_velocity_i < 3; linear_velocity_i++){
+                if(math::abs(state.state[3 + 4 + linear_velocity_i]) > env.parameters.mdp.termination.linear_velocity_threshold){
+                    return true;
+                }
+            }
+            for(typename DEVICE::index_t angular_velocity_i = 0; angular_velocity_i < 3; angular_velocity_i++){
+                if(math::abs(state.state[3 + 4 + 3 + angular_velocity_i]) > env.parameters.mdp.termination.angular_velocity_threshold){
+                    return true;
+                }
+            }
+        }
+        else{
+            return false;
+        }
     }
 
 
