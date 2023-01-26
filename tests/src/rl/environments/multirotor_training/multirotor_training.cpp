@@ -55,13 +55,20 @@ typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 
 template <typename T>
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
+    static constexpr typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
     static constexpr typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
     static constexpr typename DEVICE::index_t CRITIC_TRAINING_INTERVAL = 10;
-    static constexpr typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
     static constexpr typename DEVICE::index_t ACTOR_TRAINING_INTERVAL = 20;
-    static constexpr typename DEVICE::index_t CRITIC_TARGET_UPDATE_INTERVAL = 20;
+    static constexpr typename DEVICE::index_t CRITIC_TARGET_UPDATE_INTERVAL = 10;
+    static constexpr typename DEVICE::index_t ACTOR_TARGET_UPDATE_INTERVAL = 20;
     static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.25;
     static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
+    static constexpr bool IGNORE_TERMINATION = true;
+
+};
+
+struct ReplayBufferParameters: lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>{
+    static constexpr DTYPE EXPLORATION_NOISE = 0.2;
 };
 
 using TD3_PARAMETERS = TD3PendulumParameters<DTYPE>;
@@ -85,7 +92,7 @@ using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t,
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
-constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
+constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 5000000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 1000;
 using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
         DTYPE,
@@ -93,11 +100,12 @@ using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specifica
         ENVIRONMENT,
         REPLAY_BUFFER_CAP,
         ENVIRONMENT_STEP_LIMIT,
-        lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
+        ReplayBufferParameters
 >;
 ActorCriticType actor_critic;
 const DTYPE STATE_TOLERANCE = 0.00001;
-constexpr int N_WARMUP_STEPS = 30000;
+constexpr int N_WARMUP_STEPS_CRITIC = 15000;
+constexpr int N_WARMUP_STEPS_ACTOR = 30000;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
@@ -130,6 +138,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     lic::init(device, ui);
 #endif
 
+    DTYPE ui_speed_factor = 1;
+
     std::mt19937 rng(3);
     lic::malloc(device, actor_critic);
     lic::init(device, actor_critic, rng);
@@ -154,40 +164,45 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     lic::malloc(device, actor_batch);
     lic::malloc(device, actor_training_buffers);
 
-    for(int step_i = 0; step_i < 1000000; step_i++){
+    for(int step_i = 0; step_i < 10000000; step_i++){
         device.logger.step = step_i;
-        if(step_i > REPLAY_BUFFER_CAP){
-            std::cout << "warning: replay buffer is rolling over" << std::endl;
-        }
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
 #ifndef USE_PENDULUM
-//        lic::set_state(device, ui, off_policy_runner.state);
-//        std::this_thread::sleep_for(std::chrono::milliseconds((int)(parameters.integration.dt * 1000)));
+        lic::set_state(device, ui, off_policy_runner.state);
+        std::this_thread::sleep_for(std::chrono::milliseconds((int)(parameters.integration.dt * 1000 * 1/ui_speed_factor)));
 #endif
         if(step_i % 1000 == 0){
             std::cout << "step_i: " << step_i << std::endl;
         }
-        if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
-            if(step_i % ActorCriticType::SPEC::PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
-                for(int critic_i = 0; critic_i < 2; critic_i++){
-                    lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
-                    lic::gather_batch(device, off_policy_runner.replay_buffer, critic_batch, rng);
-                    DTYPE critic_loss = lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, critic_training_buffers);
-                    if(critic_i == 0){
-                        lic::logging::add_scalar(device.logger, "critic_1_loss", critic_loss, 100);
+        if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > std::max(TD3_PARAMETERS::ACTOR_BATCH_SIZE, TD3_PARAMETERS::CRITIC_BATCH_SIZE)){
+            if(step_i >= N_WARMUP_STEPS_CRITIC){
+                if(step_i % ActorCriticType::SPEC::PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
+                    for(int critic_i = 0; critic_i < 2; critic_i++){
+                        lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
+                        lic::gather_batch(device, off_policy_runner.replay_buffer, critic_batch, rng);
+                        DTYPE critic_loss = lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, critic_training_buffers);
+                        if(critic_i == 0){
+                            lic::logging::add_scalar(device.logger, "critic_1_loss", critic_loss, 100);
+                        }
                     }
                 }
-                lic::update_critic_targets(device, actor_critic);
+                if(step_i % ActorCriticType::SPEC::PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0) {
+                    lic::update_critic_targets(device, actor_critic);
+                }
             }
-            if(step_i % ActorCriticType::SPEC::PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
-                lic::gather_batch(device, off_policy_runner.replay_buffer, actor_batch, rng);
-                DTYPE actor_value = lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
-                lic::logging::add_scalar(device.logger, "actor_value", actor_value, 100);
-                lic::update_actor_target(device, actor_critic);
+            if(step_i >= N_WARMUP_STEPS_ACTOR){
+                if(step_i % ActorCriticType::SPEC::PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
+                    lic::gather_batch(device, off_policy_runner.replay_buffer, actor_batch, rng);
+                    DTYPE actor_value = lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
+                    lic::logging::add_scalar(device.logger, "actor_value", actor_value, 100);
+                }
+                if(step_i % ActorCriticType::SPEC::PARAMETERS::ACTOR_TARGET_UPDATE_INTERVAL == 0) {
+                    lic::update_actor_target(device, actor_critic);
+                }
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, actor_critic.actor, 1, rng);
+            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, ui, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
         }
     }
