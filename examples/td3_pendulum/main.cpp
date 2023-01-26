@@ -72,9 +72,6 @@ int main() {
     lic::init(device, actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){
-        if(step_i > REPLAY_BUFFER_CAP){
-            std::cout << "warning: replay buffer is rolling over" << std::endl;
-        }
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
 
         if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){

@@ -8,13 +8,19 @@
 #include <layer_in_c/math/operations_generic.h>
 
 namespace layer_in_c {
-    template<typename DEVICE, typename ENVIRONMENT, typename POLICY, auto STEP_LIMIT>
-    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT env, POLICY &policy, const typename ENVIRONMENT::State initial_state) {
+
+    template <typename DEVICE, typename STATE>
+    void set_state(DEVICE& dev, bool ui, const STATE& state){
+        // dummy implementation for the case where no ui should be used
+    }
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename DEVICE::index_t STEP_LIMIT>
+    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         typename ENVIRONMENT::State state;
         state = initial_state;
         T episode_return = 0;
+        set_state(device, ui, state);
         for (TI i = 0; i < STEP_LIMIT; i++) {
             T observation_mem[ENVIRONMENT::OBSERVATION_DIM];
             T* observation;
@@ -37,6 +43,7 @@ namespace layer_in_c {
             }
             typename ENVIRONMENT::State next_state;
             step(device, env, state, action_clipped, next_state);
+            set_state(device, ui, state);
             T r = reward(device, env, state, action_clipped, next_state);
             state = next_state;
             episode_return += r;
@@ -47,8 +54,8 @@ namespace layer_in_c {
         }
         return episode_return;
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename POLICY, typename RNG, auto STEP_LIMIT, bool DETERMINISTIC>
-    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT env, POLICY &policy, typename DEVICE::index_t N, RNG &rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, auto STEP_LIMIT, bool DETERMINISTIC>
+    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, typename DEVICE::index_t N, RNG &rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
@@ -62,7 +69,7 @@ namespace layer_in_c {
             else{
                 sample_initial_state(device, env, initial_state, rng);
             }
-            episode_returns[i] = evaluate<DEVICE, ENVIRONMENT, POLICY, STEP_LIMIT>(device, env, policy, initial_state);
+            episode_returns[i] = evaluate<DEVICE, ENVIRONMENT, UI, POLICY, STEP_LIMIT>(device, env, ui, policy, initial_state);
         }
         T mean = 0;
         for(TI i = 0; i < N; i++) {

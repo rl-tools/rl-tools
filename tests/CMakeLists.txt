@@ -302,3 +302,20 @@ target_link_libraries(
 )
 target_include_directories(test_neural_network_benchmark PRIVATE /usr/include/mkl)
 gtest_discover_tests(test_neural_network_benchmark)
+
+# Multirotor UI test
+add_executable(
+        test_rl_environments_multirotor_ui_test
+        src/rl/environments/multirotor/ui.cpp
+)
+target_link_libraries(
+        test_rl_environments_multirotor_ui_test
+        layer_in_c
+        GTest::gtest_main
+)
+target_include_directories(
+        test_rl_environments_multirotor_ui_test
+        PRIVATE
+        lib/nlohmann/include
+)
+gtest_discover_tests(test_rl_environments_multirotor_ui_test)

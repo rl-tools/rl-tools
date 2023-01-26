@@ -107,6 +107,7 @@ namespace layer_in_c{
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2);
 
+        T mean_target_action_value = 0;
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
             utils::memcpy(training_buffers.state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM), batch.observations.data + batch_step_i * OBSERVATION_DIM, OBSERVATION_DIM);
             utils::memcpy(training_buffers.state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM) + OBSERVATION_DIM, batch.actions.data + batch_step_i * ACTION_DIM, ACTION_DIM);
@@ -114,8 +115,15 @@ namespace layer_in_c{
                     training_buffers.next_state_action_value_critic_1.data[batch_step_i],
                     training_buffers.next_state_action_value_critic_2.data[batch_step_i]
             );
-            training_buffers.target_action_value.data[batch_step_i] = batch.rewards.data[batch_step_i] + SPEC::PARAMETERS::GAMMA * min_next_state_action_value * (!batch.terminated.data[batch_step_i]);
+            T current_target_action_value = batch.rewards.data[batch_step_i] + (SPEC::PARAMETERS::IGNORE_TERMINATION || !batch.terminated.data[batch_step_i] ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0);
+            training_buffers.target_action_value.data[batch_step_i] = current_target_action_value;
+            mean_target_action_value += current_target_action_value;
+            if(batch_step_i == 0){
+                logging::add_scalar(device.logger, "mean_target_action_value_sample", mean_target_action_value, 100);
+            }
         }
+        mean_target_action_value /= BATCH_SIZE;
+        logging::add_scalar(device.logger, "mean_target_action_value", mean_target_action_value, 100);
 
         forward_backward_mse(device, critic, training_buffers.state_action_value_input, training_buffers.target_action_value);
         static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value

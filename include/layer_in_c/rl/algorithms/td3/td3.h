@@ -10,10 +10,15 @@ namespace layer_in_c::rl::algorithms::td3 {
         static constexpr T GAMMA = 0.99;
         static constexpr TI ACTOR_BATCH_SIZE = 32;
         static constexpr TI CRITIC_BATCH_SIZE = 32;
+        static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
+        static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
+        static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
+        static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2;
         static constexpr T ACTOR_POLYAK = 1.0 - 0.005;
         static constexpr T CRITIC_POLYAK = 1.0 - 0.005;
         static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
         static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
+        static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
     };
 
     template<

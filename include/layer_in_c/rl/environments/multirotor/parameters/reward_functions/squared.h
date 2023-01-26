@@ -1,13 +1,13 @@
-#ifndef LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_ABS_EXP_H
-#define LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_ABS_EXP_H
+#ifndef LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_SQUARED_H
+#define LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_SQUARED_H
 
 #include "../../multirotor.h"
 #include <layer_in_c/utils/generic/typing.h>
 #include <layer_in_c/utils/generic/vector_operations.h>
 
 namespace layer_in_c::rl::environments::multirotor::parameters::reward_functions{
-template<typename T>
-    struct AbsExp{
+    template<typename T>
+    struct Squared{
         T scale;
         T position;
         T orientation;
@@ -16,7 +16,7 @@ template<typename T>
         T action_baseline;
         T action;
     };
-    template<typename DEVICE, typename SPEC, typename utils::typing::enable_if_t<utils::typing::is_same_v<typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION, AbsExp<typename SPEC::T>>>* = nullptr>
+    template<typename DEVICE, typename SPEC, typename utils::typing::enable_if_t<utils::typing::is_same_v<typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION, Squared<typename SPEC::T>>>* = nullptr>
     static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -30,8 +30,13 @@ template<typename T>
         T action_diff[ACTION_DIM];
         utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, utils::vector_operations::mean<DEVICE, T, ACTION_DIM>(action), action_diff);
         T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
-        T weighted_abs_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.action * action_cost;
-        T r = math::exp(typename DEVICE::SPEC::MATH(), -weighted_abs_cost);
+        T weighted_abs_cost =
+        params.position * position_cost*position_cost
+        + params.orientation      * orientation_cost*orientation_cost
+        + params.linear_velocity  * linear_vel_cost*linear_vel_cost
+        + params.angular_velocity * angular_vel_cost*angular_vel_cost
+        + params.action           * action_cost*action_cost;
+        T r = -weighted_abs_cost;
         return r * params.scale;
     }
 }
