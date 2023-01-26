@@ -161,9 +161,7 @@ namespace layer_in_c{
                 }
             }
         }
-        else{
-            return false;
-        }
+        return false;
     }
 
 

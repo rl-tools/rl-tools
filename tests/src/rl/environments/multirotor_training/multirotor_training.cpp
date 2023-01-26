@@ -1,4 +1,4 @@
-#define USE_PENDULUM
+//#define USE_PENDULUM
 #include <layer_in_c/operations/cpu_mkl.h>
 #include <layer_in_c/operations/cpu_tensorboard.h>
 
@@ -161,7 +161,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         }
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
 #ifndef USE_PENDULUM
-        lic::set_state(device, ui, off_policy_runner.state);
+//        lic::set_state(device, ui, off_policy_runner.state);
 //        std::this_thread::sleep_for(std::chrono::milliseconds((int)(parameters.integration.dt * 1000)));
 #endif
         if(step_i % 1000 == 0){

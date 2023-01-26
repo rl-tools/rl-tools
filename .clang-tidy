@@ -144,6 +144,5 @@ readability-static-definition-in-anonymous-namespace,
 readability-string-compare,
 readability-uniqueptr-delete-release,
 readability-use-anyofallof,
-modernize-avoid-c-arrays,
 llvm-header-guard
 '
