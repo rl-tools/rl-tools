@@ -260,6 +260,7 @@ target_include_directories(
         test_rl_environments_multirotor_training_test
         PRIVATE
         lib/tensorboard/include
+        lib/nlohmann/include
 )
 gtest_discover_tests(test_rl_environments_multirotor_training_test)
 

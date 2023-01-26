@@ -13,3 +13,6 @@
 [submodule "tests/src/nn/cuda/lib/cutlass"]
 	path = tests/src/nn/cuda/lib/cutlass
 	url = https://github.com/NVIDIA/cutlass.git
+[submodule "tests/lib/nlohmann"]
+	path = tests/lib/nlohmann
+	url = https://github.com/nlohmann/json.git

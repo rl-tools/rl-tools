@@ -8,7 +8,13 @@ namespace layer_in_c::rl::environments::multirotor::parameters::dynamics{
             {
                     {
                             0.028,
-                            0.028,
+                            -0.028,
+                            0
+
+                    },
+                    {
+                            -0.028,
+                            -0.028,
                             0
 
                     },
@@ -19,31 +25,25 @@ namespace layer_in_c::rl::environments::multirotor::parameters::dynamics{
 
                     },
                     {
-                            -0.028,
-                            -0.028,
-                            0
-
-                    },
-                    {
                             0.028,
-                            -0.028,
+                            0.028,
                             0
 
                     },
             },
             // Rotor thrust directions
             {
-                    {0, 0, -1},
-                    {0, 0, -1},
-                    {0, 0, -1},
-                    {0, 0, -1},
+                    {0, 0, 1},
+                    {0, 0, 1},
+                    {0, 0, 1},
+                    {0, 0, 1},
             },
             // Rotor torque directions
             {
-                    {0, 0, 1},
                     {0, 0, -1},
-                    {0, 0, 1},
+                    {0, 0, +1},
                     {0, 0, -1},
+                    {0, 0, +1},
             },
             // thrust constants
             {
@@ -56,7 +56,7 @@ namespace layer_in_c::rl::environments::multirotor::parameters::dynamics{
             // mass vehicle
             0.027,
             // gravity
-            {0, 0, 9.81},
+            {0, 0, -9.81},
             // J
             {
                     {

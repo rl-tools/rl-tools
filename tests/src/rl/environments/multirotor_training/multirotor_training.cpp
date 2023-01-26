@@ -1,3 +1,4 @@
+#define USE_PENDULUM
 #include <layer_in_c/operations/cpu_mkl.h>
 #include <layer_in_c/operations/cpu_tensorboard.h>
 
@@ -9,9 +10,13 @@
 #include <layer_in_c/nn/operations_cpu_mkl.h>
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
+#ifdef USE_PENDULUM
 #include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
+#endif
 #include <layer_in_c/rl/components/off_policy_runner/operations_generic.h>
 #include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+
+#include <layer_in_c/rl/environments/multirotor/ui.h>
 
 #include <layer_in_c/rl/utils/evaluation.h>
 
@@ -23,6 +28,8 @@
 #include <filesystem>
 
 
+
+
 namespace lic = layer_in_c;
 using DTYPE = float;
 
@@ -31,25 +38,30 @@ using DTYPE = float;
 using DEVICE = lic::devices::CPU_MKL<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
 
 
-//auto parameters = parameters_0::parameters<DTYPE, DEVICE::index_t>;
-////auto parameters = lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, DEVICE::index_t>;
-//using PARAMETERS = decltype(parameters);
-//using REWARD_FUNCTION = PARAMETERS::MDP::REWARD_FUNCTION;
-//typedef lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters> ENVIRONMENT_SPEC;
-//typedef lic::rl::environments::Multirotor<ENVIRONMENT_SPEC> ENVIRONMENT;
+#ifndef USE_PENDULUM
+auto parameters = parameters_0::parameters<DTYPE, DEVICE::index_t>;
+using PARAMETERS = decltype(parameters);
+using REWARD_FUNCTION = PARAMETERS::MDP::REWARD_FUNCTION;
+typedef lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters> ENVIRONMENT_SPEC;
+typedef lic::rl::environments::Multirotor<ENVIRONMENT_SPEC> ENVIRONMENT;
+#endif
 
 
+#ifdef USE_PENDULUM
 typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
+#endif
 
 
 template <typename T>
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
-    constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
-    constexpr static typename DEVICE::index_t CRITIC_TRAINING_INTERVAL = 10;
-    constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
-    constexpr static typename DEVICE::index_t ACTOR_TRAINING_INTERVAL = 20;
-    constexpr static typename DEVICE::index_t CRITIC_TARGET_UPDATE_INTERVAL = 20;
+    static constexpr typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
+    static constexpr typename DEVICE::index_t CRITIC_TRAINING_INTERVAL = 10;
+    static constexpr typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
+    static constexpr typename DEVICE::index_t ACTOR_TRAINING_INTERVAL = 20;
+    static constexpr typename DEVICE::index_t CRITIC_TARGET_UPDATE_INTERVAL = 20;
+    static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.25;
+    static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
 };
 
 using TD3_PARAMETERS = TD3PendulumParameters<DTYPE>;
@@ -85,7 +97,7 @@ using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specifica
 >;
 ActorCriticType actor_critic;
 const DTYPE STATE_TOLERANCE = 0.00001;
-constexpr int N_WARMUP_STEPS = 10000;
+constexpr int N_WARMUP_STEPS = 30000;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
@@ -105,17 +117,29 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     }
 
     std::string log_file = log_dir + "/" + std::string("data.tfevents");
+    std::cout << "Logging to " << log_file << std::endl;
     TensorBoardLogger tb_logger(log_file.c_str());
     DEVICE::SPEC::LOGGING logger;
     logger.tb = &tb_logger;
     DEVICE device(logger);
 
-    std::mt19937 rng(2);
+#ifndef USE_PENDULUM
+    lic::rl::environments::multirotor::UI<ENVIRONMENT> ui;
+    ui.host = "localhost";
+    ui.port = "8080";
+    lic::init(device, ui);
+#endif
+
+    std::mt19937 rng(3);
     lic::malloc(device, actor_critic);
     lic::init(device, actor_critic, rng);
+#ifndef USE_PENDULUM
 //    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::simple<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
-//    ENVIRONMENT env({parameters});
+    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::all_around<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
+    ENVIRONMENT env({parameters});
+#else
     ENVIRONMENT env;
+#endif
     lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner = {env};
 
     lic::malloc(device, off_policy_runner);
@@ -131,10 +155,15 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     lic::malloc(device, actor_training_buffers);
 
     for(int step_i = 0; step_i < 1000000; step_i++){
+        device.logger.step = step_i;
         if(step_i > REPLAY_BUFFER_CAP){
             std::cout << "warning: replay buffer is rolling over" << std::endl;
         }
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
+#ifndef USE_PENDULUM
+        lic::set_state(device, ui, off_policy_runner.state);
+//        std::this_thread::sleep_for(std::chrono::milliseconds((int)(parameters.integration.dt * 1000)));
+#endif
         if(step_i % 1000 == 0){
             std::cout << "step_i: " << step_i << std::endl;
         }
@@ -143,16 +172,17 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                 for(int critic_i = 0; critic_i < 2; critic_i++){
                     lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                     lic::gather_batch(device, off_policy_runner.replay_buffer, critic_batch, rng);
-                    DTYPE critic_1_loss = lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, critic_training_buffers);
-//                if(critic_i == 0){
-//                    tb_logger.add_scalar("critic_1_loss", step_i, critic_1_loss);
-//                }
+                    DTYPE critic_loss = lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, critic_training_buffers);
+                    if(critic_i == 0){
+                        lic::logging::add_scalar(device.logger, "critic_1_loss", critic_loss, 100);
+                    }
                 }
                 lic::update_critic_targets(device, actor_critic);
             }
             if(step_i % ActorCriticType::SPEC::PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
                 lic::gather_batch(device, off_policy_runner.replay_buffer, actor_batch, rng);
-                lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
+                DTYPE actor_value = lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
+                lic::logging::add_scalar(device.logger, "actor_value", actor_value, 100);
                 lic::update_actor_target(device, actor_critic);
             }
         }

@@ -74,8 +74,8 @@ namespace layer_in_c{
         runner.episode_return += reward_value;
         runner.truncated = terminated_flag || runner.episode_step == SPEC::STEP_LIMIT;
         if (runner.truncated) {
-//            logging::text(device.logger, "Episode return: ", runner.episode_return);
-//            logging::text(device.logger, "Episode steps: ", runner.episode_step);
+            lic::logging::add_scalar(device.logger, "episode_return", runner.episode_return);
+            lic::logging::add_scalar(device.logger, "episode_steps", (T)runner.episode_step);
         }
         // todo: add truncation / termination handling (stemming from the environment)
         add(device, runner.replay_buffer, observation, action, reward_value, next_observation, terminated_flag, runner.truncated);

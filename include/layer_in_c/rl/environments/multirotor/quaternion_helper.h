@@ -34,6 +34,21 @@ namespace layer_in_c::rl::environments::multirotor{
         scalar_multiply_accumulate<DEVICE, T, 3>(var, q[0], v_out); // 3 flops
         add_accumulate<DEVICE, T, 3>(v, v_out); // 3 flops
     }
+
+    // quaternion to rotation matrix
+    template <typename DEVICE, typename T>
+    FUNCTION_PLACEMENT void quaternion_to_rotation_matrix(const T q[4], T R[3][3]) {
+        // w = q[0], x = q[1], y = q[2], z = q[3]
+        R[0][0] = 1 - 2*q[2]*q[2] - 2*q[3]*q[3];
+        R[0][1] = 2*q[1]*q[2] - 2*q[0]*q[3];
+        R[0][2] = 2*q[1]*q[3] + 2*q[0]*q[2];
+        R[1][0] = 2*q[1]*q[2] + 2*q[0]*q[3];
+        R[1][1] = 1 - 2*q[1]*q[1] - 2*q[3]*q[3];
+        R[1][2] = 2*q[2]*q[3] - 2*q[0]*q[1];
+        R[2][0] = 2*q[1]*q[3] - 2*q[0]*q[2];
+        R[2][1] = 2*q[2]*q[3] + 2*q[0]*q[1];
+        R[2][2] = 1 - 2*q[1]*q[1] - 2*q[2]*q[2];
+    }
 }
 
 #endif
