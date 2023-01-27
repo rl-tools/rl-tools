@@ -24,6 +24,8 @@ if(NOT APPLE)
 add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
 endif()
 add_subdirectory(lib/highfive EXCLUDE_FROM_ALL)
+add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
+add_subdirectory(src/nn/cuda)
 
 #set(CMAKE_CXX_STANDARD 17)
 
@@ -162,6 +164,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         MKL::MKL
+        tensorboard_logger
 )
 if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
     target_link_libraries(
@@ -242,7 +245,6 @@ gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
 
 
-add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
 # Multirotor Training test
 add_executable(
         test_rl_environments_multirotor_training_test
@@ -277,9 +279,8 @@ target_link_libraries(
 gtest_discover_tests(test_neural_network_conversions)
 
 
-# CUDA tests
-add_subdirectory(src/nn/cuda)
 
+# CUDA tests
 
 # Neural Network Benchmark
 find_package(BLAS REQUIRED)

@@ -1,4 +1,4 @@
-#include <layer_in_c/logging/operations_cpu_wandb.h>
+#include <layer_in_c/operations/cpu_tensorboard.h>
 #include <layer_in_c/operations/cpu_mkl.h>
 #include <layer_in_c/nn/operations_cpu_mkl.h>
 
@@ -11,6 +11,7 @@
 #include <layer_in_c/rl/utils/evaluation.h>
 
 #include <gtest/gtest.h>
+#include <filesystem>
 
 
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
@@ -27,7 +28,8 @@
 namespace lic = layer_in_c;
 using DTYPE = float;
 
-using DEVICE = lic::devices::DefaultCPU_MKL;
+using DEVICE = lic::devices::CPU_MKL<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
+
 typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
@@ -38,7 +40,7 @@ ENVIRONMENT env;
 struct AC_DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
     using LOGGING = lic::devices::logging::CPU;
 };
-using AC_DEVICE = lic::devices::CPU_MKL<AC_DEVICE_SPEC>;
+using AC_DEVICE = DEVICE;
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE, AC_DEVICE::index_t>{
     constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
@@ -97,6 +99,27 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::malloc(nn_dev, actor_critic);
     lic::init(nn_dev, actor_critic, rng);
 
+    bool ui = false;
+
+    time_t now;
+    time(&now);
+    char buf[sizeof "2011-10-08T07:07:09Z"];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+
+    std::string logs_dir = "logs";
+    if (!std::filesystem::is_directory(logs_dir.c_str()) || !std::filesystem::exists(logs_dir.c_str())) {
+        std::filesystem::create_directory(logs_dir.c_str());
+    }
+    std::string log_dir = logs_dir + "/" + std::string(buf);
+    if (!std::filesystem::is_directory(log_dir.c_str()) || !std::filesystem::exists(log_dir.c_str())) {
+        std::filesystem::create_directory(log_dir.c_str());
+    }
+
+    std::string log_file = log_dir + "/" + std::string("data.tfevents");
+    std::cout << "Logging to " << log_file << std::endl;
+    TensorBoardLogger tb_logger(log_file.c_str());
+    ac_dev.logger.tb = &tb_logger;
+
     lic::malloc(ac_dev, off_policy_runner);
 
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
@@ -113,6 +136,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     for(int step_i = 0; step_i < 15000; step_i++){
+        ac_dev.logger.step = step_i;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
         if(step_i % 20 == 0){
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, decltype(actor_critic.actor), decltype(actor_critic.critic_1)>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
@@ -145,11 +169,12 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
                     lic::train_actor(ac_dev, actor_critic, actor_batch, actor_training_buffers);
                 }
 
-                lic::update_targets(ac_dev, actor_critic);
+                lic::update_critic_targets(ac_dev, actor_critic);
+                lic::update_actor_target(ac_dev, actor_critic);
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<AC_DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(ac_dev, env, actor_critic.actor, 1, rng);
+            DTYPE mean_return = lic::evaluate<AC_DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(ac_dev, env, ui, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
 //            if(step_i >= 6000){
 //                ASSERT_GT(mean_return, -1000);

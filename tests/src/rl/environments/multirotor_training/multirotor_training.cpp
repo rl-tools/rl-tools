@@ -63,7 +63,7 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, DEV
     static constexpr typename DEVICE::index_t ACTOR_TARGET_UPDATE_INTERVAL = 20;
     static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.25;
     static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-    static constexpr bool IGNORE_TERMINATION = true;
+    static constexpr bool IGNORE_TERMINATION = false;
 
 };
 
@@ -103,7 +103,6 @@ using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specifica
         ReplayBufferParameters
 >;
 ActorCriticType actor_critic;
-const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS_CRITIC = 15000;
 constexpr int N_WARMUP_STEPS_ACTOR = 30000;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -131,13 +130,6 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     logger.tb = &tb_logger;
     DEVICE device(logger);
 
-#ifndef USE_PENDULUM
-    lic::rl::environments::multirotor::UI<ENVIRONMENT> ui;
-    ui.host = "localhost";
-    ui.port = "8080";
-    lic::init(device, ui);
-#endif
-
     DTYPE ui_speed_factor = 1;
 
     std::mt19937 rng(3);
@@ -150,6 +142,16 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 #else
     ENVIRONMENT env;
 #endif
+
+#ifndef USE_PENDULUM
+    lic::rl::environments::multirotor::UI<ENVIRONMENT> ui;
+    ui.host = "localhost";
+    ui.port = "8080";
+    lic::init(device, env, ui);
+#else
+    bool ui = false;
+#endif
+
     lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner = {env};
 
     lic::malloc(device, off_policy_runner);
@@ -168,8 +170,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         device.logger.step = step_i;
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
 #ifndef USE_PENDULUM
-        lic::set_state(device, ui, off_policy_runner.state);
-        std::this_thread::sleep_for(std::chrono::milliseconds((int)(parameters.integration.dt * 1000 * 1/ui_speed_factor)));
+//        lic::set_state(device, ui, off_policy_runner.state);
+//        std::this_thread::sleep_for(std::chrono::milliseconds((int)(parameters.integration.dt * 1000 * 1/ui_speed_factor)));
 #endif
         if(step_i % 1000 == 0){
             std::cout << "step_i: " << step_i << std::endl;
@@ -201,7 +203,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                 }
             }
         }
-        if(step_i % 1000 == 0){
+        if(step_i % 10000 == 0){
             DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, ui, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
         }

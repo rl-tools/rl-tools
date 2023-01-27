@@ -24,13 +24,25 @@ template<typename T>
         auto params = env.parameters.mdp.reward;
         T quaternion_w = state.state[3];
         T orientation_cost = math::abs(2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
+        logging::add_scalar(device.logger, "reward/orientation_cost", orientation_cost, 100);
+        logging::add_scalar(device.logger, "reward_weighted/orientation_cost", params.orientation * orientation_cost, 100);
         T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.state);
+        logging::add_scalar(device.logger, "reward/position_cost", position_cost, 100);
+        logging::add_scalar(device.logger, "reward_weighted/position_cost", params.position * position_cost, 100);
         T linear_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4]);
+        logging::add_scalar(device.logger, "reward/linear_vel_cost", linear_vel_cost, 100);
+        logging::add_scalar(device.logger, "reward_weighted/linear_vel_cost", params.linear_velocity * linear_vel_cost, 100);
         T angular_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4+3]);
+        logging::add_scalar(device.logger, "reward/angular_vel_cost", angular_vel_cost, 100);
+        logging::add_scalar(device.logger, "reward_weighted/angular_vel_cost", params.angular_velocity * angular_vel_cost, 100);
         T action_diff[ACTION_DIM];
-        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, utils::vector_operations::mean<DEVICE, T, ACTION_DIM>(action), action_diff);
+//        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, utils::vector_operations::mean<DEVICE, T, ACTION_DIM>(action), action_diff);
+        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, params.action_baseline, action_diff);
         T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
+        logging::add_scalar(device.logger, "reward/action_cost", action_cost, 100);
+        logging::add_scalar(device.logger, "reward_weighted/action_cost", params.action * action_cost, 100);
         T weighted_abs_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.action * action_cost;
+        logging::add_scalar(device.logger, "reward/pre_exp", -weighted_abs_cost, 100);
         T r = math::exp(typename DEVICE::SPEC::MATH(), -weighted_abs_cost);
         return r * params.scale;
     }

@@ -6,7 +6,7 @@
 namespace layer_in_c::rl::environments::multirotor::parameters {
     namespace default_internal{
         template <typename T>
-        const auto reward_function = rl::environments::multirotor::parameters::reward_functions::reward_1<T>;
+        const auto reward_function = rl::environments::multirotor::parameters::reward_functions::reward_dr<T>;
         template <typename T>
         using REWARD_FUNCTION = decltype(reward_function<T>);
     }

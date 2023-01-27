@@ -27,6 +27,7 @@ namespace layer_in_c::rl::environments::multirotor {
         struct MDP{
             using REWARD_FUNCTION = T_REWARD_FUNCTION;
             struct Initialization{
+                T guidance;
                 T max_position;
                 T max_angle;
                 T max_linear_velocity;

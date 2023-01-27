@@ -58,8 +58,7 @@ namespace layer_in_c::rl::environments::multirotor {
             utils::vector_operations::scalar_multiply<DEVICE, T, 3>(params.dynamics.rotor_thrust_directions[i_rotor], thrust_magnitude, rotor_thrust);
             utils::vector_operations::add_accumulate<DEVICE, T, 3>(rotor_thrust, thrust);
 
-            utils::vector_operations::scalar_multiply_accumulate<DEVICE, T, 3>(params.dynamics.rotor_torque_directions[i_rotor],
-                                             thrust_magnitude * params.dynamics.torque_constant, torque);
+            utils::vector_operations::scalar_multiply_accumulate<DEVICE, T, 3>(params.dynamics.rotor_torque_directions[i_rotor], thrust_magnitude * params.dynamics.torque_constant, torque);
             utils::vector_operations::cross_product_accumulate<DEVICE, T>(params.dynamics.rotor_positions[i_rotor], rotor_thrust, torque);
         }
 
@@ -121,7 +120,6 @@ namespace layer_in_c{
         for(typename DEVICE::index_t state_i = 3; state_i < 3+4; state_i++){
             next_state.state[state_i] /= quaternion_norm;
         }
-
 
         return env.parameters.integration.dt;
     }

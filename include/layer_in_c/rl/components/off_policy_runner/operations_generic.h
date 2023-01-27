@@ -49,15 +49,23 @@ namespace layer_in_c{
         Matrix<MatrixSpecification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_m = {observation};
         evaluate(device, policy, observation_m, action_m);
         for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
+            auto name = "action/" + std::to_string(i);
+            logging::add_scalar(device.logger, name.c_str(), action[i]);
+        }
+        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             action[i] += random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, PARAMETERS::EXPLORATION_NOISE, rng);
             action[i] = lic::math::clamp<T>(action[i], -1, 1);
         }
+        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
+            auto name = "action_exploration/" + std::to_string(i);
+            logging::add_scalar(device.logger, name.c_str(), action[i]);
+        }
         step(device, runner.env, runner.state, action, next_state);
+
         T reward_value = reward(device, runner.env, runner.state, action, next_state);
 //        if constexpr(DEVICE::DEBUG::PRINT_REWARD){
 //            std::cout << "reward: " << reward_value << std::endl;
 //        }
-        runner.state = next_state;
 
         T next_observation_mem[ENVIRONMENT::OBSERVATION_DIM];
         T* next_observation;
@@ -79,6 +87,9 @@ namespace layer_in_c{
         }
         // todo: add truncation / termination handling (stemming from the environment)
         add(device, runner.replay_buffer, observation, action, reward_value, next_observation, terminated_flag, runner.truncated);
+
+        // state progression needs to come after the addition to the replay buffer because "observation" can point to the memory of runner.state (in the case of REQUIRES_OBSERVATION=false)
+        runner.state = next_state;
     }
 }
 

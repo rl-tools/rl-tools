@@ -13,7 +13,7 @@ namespace layer_in_c{
             state.state[i] = std::uniform_real_distribution<T>(-env.parameters.mdp.init.max_position, env.parameters.mdp.init.max_position)(rng);
         }
         // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
-        if(env.parameters.mdp.init.max_angle > 0){
+        if(env.parameters.mdp.init.max_angle > 0 && std::uniform_real_distribution<T>(0, 1)(rng) > env.parameters.mdp.init.guidance){
             T u[3];
             for(typename devices::CPU<DEV_SPEC>::index_t i = 0; i < 3; i++){
                 u[i] = std::uniform_real_distribution<T>(0, 1)(rng);
