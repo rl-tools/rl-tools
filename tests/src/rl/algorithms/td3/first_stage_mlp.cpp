@@ -48,19 +48,19 @@ struct Dataset{
 
 template <typename RB>
 void load_dataset(HighFive::Group g, RB& rb){
-    g.getDataSet("states").read(rb.observations);
-    g.getDataSet("actions").read(rb.actions);
-    g.getDataSet("next_states").read(rb.next_observations);
-    g.getDataSet("rewards").read(rb.rewards);
+    g.getDataSet("states").read(rb.observations.data);
+    g.getDataSet("actions").read(rb.actions.data);
+    g.getDataSet("next_states").read(rb.next_observations.data);
+    g.getDataSet("rewards").read(rb.rewards.data);
     std::vector<typename RB::T> terminated;
     g.getDataSet("terminated").read(terminated);
     for(int i = 0; i < terminated.size(); i++){
-        rb.terminated[i] = terminated[i] == 1;
+        rb.terminated.data[i] = terminated[i] == 1;
     }
     std::vector<typename RB::T> truncated;
     g.getDataSet("truncated").read(truncated);
     for(int i = 0; i < truncated.size(); i++){
-        rb.truncated[i] = truncated[i] == 1;
+        rb.truncated.data[i] = truncated[i] == 1;
     }
     rb.position = terminated.size();
 }
@@ -265,6 +265,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 100>;
     using ReplayBufferType = lic::rl::components::ReplayBuffer<ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
+    lic::malloc(device, replay_buffer);
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     static_assert(first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE == first_stage_second_stage::TD3_PARAMETERS::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
     replay_buffer.position = first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE;
@@ -350,6 +351,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     ASSERT_GT(mean_ratio, 1e14);
     ASSERT_GT(mean_ratio_grad, 1e14);
     ASSERT_GT(mean_ratio_adam, 1e14);
+    lic::free(device, replay_buffer);
 }
 
 
@@ -378,6 +380,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 100>;
     using ReplayBufferType = lic::rl::components::ReplayBuffer<ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
+    lic::malloc(device, replay_buffer);
     load_dataset(data_file.getGroup("batch"), replay_buffer);
     static_assert(first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE == first_stage_second_stage::TD3_PARAMETERS::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
     replay_buffer.position = first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE;
@@ -455,4 +458,5 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     ASSERT_GT(mean_ratio, 1e-15); // TANH introduces a lot of inaccuracy
     ASSERT_GT(mean_ratio_grad, 1e-15);
     ASSERT_GT(mean_ratio_adam, 1e-15);
+    lic::free(device, replay_buffer);
 }

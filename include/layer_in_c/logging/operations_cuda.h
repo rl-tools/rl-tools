@@ -14,5 +14,8 @@ namespace layer_in_c::logging{
     template <typename A, typename B, typename C, typename D>
     void text(devices::logging::CUDA& dev, const A a, const B b, const C c, const D d){
     }
+    void add_scalar(devices::logging::CUDA& dev, const char* key, const float value, const typename devices::logging::CUDA::index_t cadence = 1){
+        //noop
+    }
 }
 #endif

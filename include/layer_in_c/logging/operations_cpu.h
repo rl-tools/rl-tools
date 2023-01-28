@@ -18,5 +18,8 @@ namespace layer_in_c::logging{
     void text(devices::logging::CPU& dev, const A a, const B b, const C c, const D d){
         std::cout << a << b << c << d << std::endl;
     }
+    void add_scalar(devices::logging::CPU& dev, const char* key, const float value, const typename devices::logging::CPU::index_t cadence = 1){
+        //noop
+    }
 }
 #endif

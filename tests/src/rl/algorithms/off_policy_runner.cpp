@@ -32,9 +32,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     std::mt19937 rng(0);
     lic::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner;
+    lic::malloc(device, off_policy_runner);
     for(int step_i = 0; step_i < 10000; step_i++){
         lic::step(device, off_policy_runner, policy, rng);
     }
-    std::cout << "hello" << std::endl;
+    lic::free(device, off_policy_runner);
 }
 

@@ -83,6 +83,8 @@ int main() {
     auto rng = lic::random::default_engine(decltype(device)::SPEC::RANDOM());
     lic::init(device, actor_critic, rng);
 
+    bool ui = false;
+
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
     lic::malloc(device, critic_batch);
@@ -108,11 +110,12 @@ int main() {
             if(step_i % 2 == 0){
                 lic::gather_batch(device, off_policy_runner.replay_buffer, actor_batch, rng);
                 lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
-                lic::update_targets(device, actor_critic);
+                lic::update_critic_targets(device, actor_critic);
+                lic::update_actor_target(device, actor_critic);
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<AC_DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, actor_critic.actor, 1, rng);
+            DTYPE mean_return = lic::evaluate<AC_DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, ui, actor_critic.actor, 1, rng);
             lic::logging::text(logger, "Mean return: ", mean_return);
             if(mean_return > -200000){
                 return 0;

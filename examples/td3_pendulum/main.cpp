@@ -69,6 +69,8 @@ int main() {
     lic::malloc(device, actor_batch);
     lic::malloc(device, actor_training_buffers);
 
+    bool ui = false;
+
     lic::init(device, actor_critic, rng);
 
     for(int step_i = 0; step_i < 15000; step_i++){
@@ -86,11 +88,12 @@ int main() {
             if(step_i % 2 == 0){
                 lic::gather_batch(device, off_policy_runner.replay_buffer, actor_batch, rng);
                 lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
-                lic::update_targets(device, actor_critic);
+                lic::update_critic_targets(device, actor_critic);
+                lic::update_actor_target(device, actor_critic);
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, actor_critic.actor, 1, rng);
+            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, ui, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
         }
     }
