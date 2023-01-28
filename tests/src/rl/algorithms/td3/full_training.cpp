@@ -1,6 +1,10 @@
 #include <layer_in_c/operations/cpu_tensorboard.h>
+
+#include <layer_in_c/operations/cpu.h>
+#ifdef LAYER_IN_C_TEST_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl.h>
 #include <layer_in_c/nn/operations_cpu_mkl.h>
+#endif
 
 #include <layer_in_c/nn/operations_generic.h>
 #include <layer_in_c/rl/environments/operations_generic.h>
@@ -28,7 +32,11 @@
 namespace lic = layer_in_c;
 using DTYPE = float;
 
+#ifdef LAYER_IN_C_TEST_ENABLE_MKL
 using DEVICE = lic::devices::CPU_MKL<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
+#else
+using DEVICE = lic::devices::CPU<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
+#endif
 
 typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;

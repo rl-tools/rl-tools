@@ -11,7 +11,7 @@ namespace layer_in_c {
             CPU,
             CUDA
         };
-        enum class Domain {
+        enum class Type {
             math,
             random,
             logging

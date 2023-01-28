@@ -2,6 +2,10 @@ option(LAYER_IN_C_DOWNLOAD_GTEST OFF)
 
 option(LAYER_IN_C_TEST_LOCAL "Local dev" OFF)
 
+# To obtain MKL: sudo apt install intel-oneapi-mkl-devel
+option(LAYER_IN_C_TEST_ENABLE_MKL "Enable the MKL gemm library, only available on Intel CPUs" OFF)
+option(LAYER_IN_C_TEST_ENABLE_CUDA "Enable Nvidia CUDA" OFF)
+
 #option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" ${LAYER_IN_C_TEST_LOCAL})
 option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" OFF)
 
@@ -21,11 +25,18 @@ include(GoogleTest)
 
 
 if(NOT APPLE)
-add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
+    add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
 endif()
 add_subdirectory(lib/highfive EXCLUDE_FROM_ALL)
 add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
-add_subdirectory(src/nn/cuda)
+
+if(LAYER_IN_C_TEST_ENABLE_CUDA)
+    add_subdirectory(src/nn/cuda)
+endif()
+
+if(LAYER_IN_C_TEST_ENABLE_MKL)
+    find_package(MKL REQUIRED)
+endif()
 
 #set(CMAKE_CXX_STANDARD 17)
 
@@ -154,7 +165,6 @@ endif()
 gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
 
 # RL Algorithm td3 test full training
-find_package(MKL REQUIRED)
 add_executable(
         test_rl_algorithms_td3_full_training
         src/rl/algorithms/td3/full_training.cpp
@@ -163,9 +173,16 @@ target_link_libraries(
         test_rl_algorithms_td3_full_training
         layer_in_c
         GTest::gtest_main
-        MKL::MKL
         tensorboard_logger
 )
+
+if(LAYER_IN_C_TEST_ENABLE_MKL)
+    target_link_libraries(
+        test_rl_algorithms_td3_full_training
+        MKL::MKL
+    )
+    target_compile_definitions(test_rl_algorithms_td3_full_training PRIVATE LAYER_IN_C_TEST_ENABLE_MKL)
+endif()
 if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
     target_link_libraries(
             test_rl_algorithms_td3_full_training
@@ -256,7 +273,6 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
         tensorboard_logger
-        MKL::MKL
 )
 target_include_directories(
         test_rl_environments_multirotor_training_test
@@ -280,15 +296,12 @@ gtest_discover_tests(test_neural_network_conversions)
 
 
 
-# CUDA tests
 
 # Neural Network Benchmark
-find_package(BLAS REQUIRED)
-find_package(Eigen3 REQUIRED)
-find_package(OpenMP REQUIRED)
+#find_package(BLAS REQUIRED)
+#find_package(Eigen3 REQUIRED)
+#find_package(OpenMP REQUIRED)
 
-# To obtain MKL: sudo apt install intel-oneapi-mkl-devel
-find_package(MKL REQUIRED)
 add_executable(
         test_neural_network_benchmark
         src/nn/benchmark.cpp
@@ -297,9 +310,6 @@ target_link_libraries(
         test_neural_network_benchmark
         layer_in_c
         GTest::gtest_main
-        Eigen3::Eigen
-#        OpenMP::OpenMP_CXX
-        MKL::MKL
 )
 target_include_directories(test_neural_network_benchmark PRIVATE /usr/include/mkl)
 gtest_discover_tests(test_neural_network_benchmark)

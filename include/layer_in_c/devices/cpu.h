@@ -20,17 +20,17 @@ namespace layer_in_c::devices{
     }
     namespace math{
         struct CPU: cpu::Base{
-            static constexpr Domain DOMAIN = Domain::math;
+            static constexpr Type TYPE = Type::math;
         };
     }
     namespace random{
         struct CPU: cpu::Base{
-            static constexpr Domain DOMAIN = Domain::random;
+            static constexpr Type TYPE = Type::random;
         };
     }
     namespace logging{
         struct CPU: cpu::Base{
-            static constexpr Domain DOMAIN = Domain::logging;
+            static constexpr Type TYPE = Type::logging;
         };
     }
     template <typename T_SPEC>
