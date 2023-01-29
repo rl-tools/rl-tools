@@ -1,12 +1,16 @@
 #include <layer_in_c/operations/cpu_tensorboard.h>
 
-#include <layer_in_c/operations/cpu.h>
-#ifdef LAYER_IN_C_TEST_ENABLE_MKL
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl.h>
-#include <layer_in_c/nn/operations_cpu_mkl.h>
+#include <layer_in_c/nn/operations_cpu_blas.h>
+#elifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate.h>
+#include <layer_in_c/nn/operations_cpu_blas.h>
+#else
+#include <layer_in_c/operations/cpu.h>
+#include <layer_in_c/nn/operations_generic.h>
 #endif
 
-#include <layer_in_c/nn/operations_generic.h>
 #include <layer_in_c/rl/environments/operations_generic.h>
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/operations_generic.h>
@@ -32,11 +36,14 @@
 namespace lic = layer_in_c;
 using DTYPE = float;
 
-#ifdef LAYER_IN_C_TEST_ENABLE_MKL
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 using DEVICE = lic::devices::CPU_MKL<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
+#elifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+using DEVICE = lic::devices::CPU_ACCELERATE<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
 #else
 using DEVICE = lic::devices::CPU<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
 #endif
+
 
 typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
@@ -45,11 +52,10 @@ typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 ENVIRONMENT env;
 
-struct AC_DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
+struct DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
     using LOGGING = lic::devices::logging::CPU;
 };
-using AC_DEVICE = DEVICE;
-struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE, AC_DEVICE::index_t>{
+struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE, DEVICE::index_t>{
     constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
@@ -60,8 +66,6 @@ using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DE
 using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
 
-//using NN_DEVICE = lic::devices::DefaultCPU;
-using NN_DEVICE = AC_DEVICE;
 using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
@@ -74,20 +78,20 @@ using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
-using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
+using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
-AC_DEVICE::SPEC::LOGGING logger;
-AC_DEVICE ac_dev(logger);
-//NN_DEVICE::SPEC::LOGGING nn_logger;
-NN_DEVICE nn_dev(logger);
+DEVICE::SPEC::LOGGING logger;
+DEVICE ac_dev(logger);
+//DEVICE::SPEC::LOGGING nn_logger;
+DEVICE nn_dev(logger);
 lic::rl::components::OffPolicyRunner<
     lic::rl::components::off_policy_runner::Specification<
         DTYPE,
-        AC_DEVICE::index_t,
+        DEVICE::index_t,
         ENVIRONMENT,
         REPLAY_BUFFER_CAP,
         ENVIRONMENT_STEP_LIMIT,
@@ -182,7 +186,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<AC_DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(ac_dev, env, ui, actor_critic.actor, 1, rng);
+            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(ac_dev, env, ui, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
 //            if(step_i >= 6000){
 //                ASSERT_GT(mean_return, -1000);

@@ -4,12 +4,12 @@
 #include <layer_in_c/utils/generic/typing.h>
 #include "devices.h"
 
-#include "cpu.h"
+#include "cpu_blas.h"
 
 namespace layer_in_c::devices{
     template <typename T_SPEC>
-    struct CPU_MKL: CPU<T_SPEC>{
-        explicit CPU_MKL(typename T_SPEC::LOGGING& logger) : CPU<T_SPEC>(logger) {}
+    struct CPU_MKL: CPU_BLAS<T_SPEC>{
+        explicit CPU_MKL(typename T_SPEC::LOGGING& logger) : CPU_BLAS<T_SPEC>(logger) {}
     };
     using DefaultCPU_MKL = CPU_MKL<DefaultCPUSpecification>;
 }

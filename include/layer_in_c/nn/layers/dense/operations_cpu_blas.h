@@ -1,19 +1,17 @@
-#ifndef LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_CPU_MKL_H
-#define LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_CPU_MKL_H
+#ifndef LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_CPU_BLAS_H
+#define LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_CPU_BLAS_H
 
 #include "operations_cpu.h"
 #include <layer_in_c/utils/generic/memcpy.h>
-#include <layer_in_c/devices/cpu_mkl.h>
-
-#include "mkl.h"
+#include <layer_in_c/devices/cpu_blas.h>
 
 namespace layer_in_c{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    FUNCTION_PLACEMENT void evaluate(devices::CPU_MKL<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
+    FUNCTION_PLACEMENT void evaluate(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // Warning do not use the same buffer for input and output!
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        using DEVICE = devices::CPU_MKL<DEV_SPEC>;
+        using DEVICE = devices::CPU_BLAS<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
 
@@ -42,12 +40,12 @@ namespace layer_in_c{
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    FUNCTION_PLACEMENT void forward(devices::CPU_MKL<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
+    FUNCTION_PLACEMENT void forward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         // Warning do not use the same buffer for input and output!
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
-        using TI = typename devices::CPU_MKL<DEV_SPEC>::index_t;
+        using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
 
         constexpr T alpha = 1;
         constexpr T beta = 1;
@@ -76,7 +74,7 @@ namespace layer_in_c{
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    FUNCTION_PLACEMENT void backward(devices::CPU_MKL<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
+    FUNCTION_PLACEMENT void backward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
         // Warning do not reuse d_output as d_output is used as a temporary buffer
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
@@ -86,7 +84,7 @@ namespace layer_in_c{
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
-        using TI = typename devices::CPU_MKL<DEV_SPEC>::index_t;
+        using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
 
         {
             // d_weights
@@ -107,9 +105,6 @@ namespace layer_in_c{
                     T d_pre_activation = d_activation_d_x<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[output_index]) * d_output.data[output_index];
                     layer.d_biases.data[output_i] += d_pre_activation;
                     d_output.data[output_index] = d_pre_activation;
-                    if(std::isnan(d_pre_activation)){
-                        std::cout << "d_pre_activation is nan" << std::endl;
-                    }
                 }
             }
             if constexpr(utils::typing::is_same_v<T, float>){
