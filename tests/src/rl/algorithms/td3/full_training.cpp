@@ -5,7 +5,7 @@
 #include <layer_in_c/nn/operations_cpu_blas.h>
 #elifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
 #include <layer_in_c/operations/cpu_accelerate.h>
-#include <layer_in_c/nn/operations_cpu_blas.h>
+#include <layer_in_c/nn/operations_cpu_accelerate.h>
 #else
 #include <layer_in_c/operations/cpu.h>
 #include <layer_in_c/nn/operations_generic.h>
