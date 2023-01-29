@@ -2,9 +2,6 @@ option(LAYER_IN_C_DOWNLOAD_GTEST OFF)
 
 option(LAYER_IN_C_TEST_LOCAL "Local dev" OFF)
 
-# To obtain MKL: sudo apt install intel-oneapi-mkl-devel
-option(LAYER_IN_C_TEST_ENABLE_MKL "Enable the MKL gemm library, only available on Intel CPUs" OFF)
-option(LAYER_IN_C_TEST_ENABLE_CUDA "Enable Nvidia CUDA" OFF)
 
 #option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" ${LAYER_IN_C_TEST_LOCAL})
 option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" OFF)
@@ -23,6 +20,16 @@ set(BUILD_GMOCK OFF CACHE BOOL "")
 add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)
 include(GoogleTest)
 
+if(LAYER_IN_C_BACKEND_ENABLE_MKL)
+    find_package(MKL REQUIRED)
+    add_compile_definitions(LAYER_IN_C_BACKEND_ENABLE_MKL)
+endif()
+
+if(LAYER_IN_C_BACKEND_ENABLE_ACCELERATE)
+    find_package(BLAS REQUIRED)
+    add_compile_definitions(LAYER_IN_C_BACKEND_ENABLE_ACCELERATE)
+endif()
+
 
 if(NOT APPLE)
     add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
@@ -30,16 +37,11 @@ endif()
 add_subdirectory(lib/highfive EXCLUDE_FROM_ALL)
 add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
 
-if(LAYER_IN_C_TEST_ENABLE_CUDA)
+if(LAYER_IN_C_ENABLE_CUDA)
     add_subdirectory(src/nn/cuda)
 endif()
 
-if(LAYER_IN_C_TEST_ENABLE_MKL)
-    find_package(MKL REQUIRED)
-endif()
 
-# Neural Network Benchmark
-#find_package(BLAS REQUIRED)
 find_package(Eigen3 REQUIRED)
 #find_package(OpenMP REQUIRED)
 find_package(Boost REQUIRED)
@@ -320,6 +322,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         Eigen3::Eigen
+        BLAS
 )
 target_include_directories(test_neural_network_benchmark PRIVATE /usr/include/mkl)
 gtest_discover_tests(test_neural_network_benchmark)
