@@ -12,18 +12,18 @@ namespace layer_in_c::devices{
     }
     namespace math{
         struct Dummy: dummy::Base{
-            static constexpr Domain DOMAIN = Domain::math;
+            static constexpr Type TYPE = Type::math;
         };
     }
     namespace random{
         struct Dummy: dummy::Base{
-            static constexpr Domain DOMAIN = Domain::random;
+            static constexpr Type TYPE = Type::random;
             using State = unsigned;
         };
     }
     namespace logging{
         struct Dummy: dummy::Base{
-            static constexpr Domain DOMAIN = Domain::logging;
+            static constexpr Type TYPE = Type::logging;
         };
     }
     template <typename T_SPEC>

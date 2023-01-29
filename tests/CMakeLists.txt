@@ -38,6 +38,12 @@ if(LAYER_IN_C_TEST_ENABLE_MKL)
     find_package(MKL REQUIRED)
 endif()
 
+# Neural Network Benchmark
+#find_package(BLAS REQUIRED)
+find_package(Eigen3 REQUIRED)
+#find_package(OpenMP REQUIRED)
+find_package(Boost REQUIRED)
+
 #set(CMAKE_CXX_STANDARD 17)
 
 # Neural Network Test MLP
@@ -258,6 +264,13 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
+if(LAYER_IN_C_TEST_ENABLE_MKL)
+    target_link_libraries(
+            test_rl_environments_multirotor_multirotor
+            MKL::MKL
+    )
+    target_compile_definitions(test_rl_environments_multirotor_multirotor PRIVATE LAYER_IN_C_TEST_ENABLE_MKL)
+endif()
 gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
 
@@ -273,6 +286,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
         tensorboard_logger
+        Boost::headers
 )
 target_include_directories(
         test_rl_environments_multirotor_training_test
@@ -297,11 +311,6 @@ gtest_discover_tests(test_neural_network_conversions)
 
 
 
-# Neural Network Benchmark
-#find_package(BLAS REQUIRED)
-#find_package(Eigen3 REQUIRED)
-#find_package(OpenMP REQUIRED)
-
 add_executable(
         test_neural_network_benchmark
         src/nn/benchmark.cpp
@@ -310,6 +319,7 @@ target_link_libraries(
         test_neural_network_benchmark
         layer_in_c
         GTest::gtest_main
+        Eigen3::Eigen
 )
 target_include_directories(test_neural_network_benchmark PRIVATE /usr/include/mkl)
 gtest_discover_tests(test_neural_network_benchmark)
@@ -323,6 +333,7 @@ target_link_libraries(
         test_rl_environments_multirotor_ui_test
         layer_in_c
         GTest::gtest_main
+        Boost::headers
 )
 target_include_directories(
         test_rl_environments_multirotor_ui_test

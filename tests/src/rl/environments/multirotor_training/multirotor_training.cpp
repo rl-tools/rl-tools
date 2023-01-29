@@ -1,5 +1,9 @@
 //#define USE_PENDULUM
+
+#include <layer_in_c/operations/cpu.h>
+#ifdef LAYER_IN_C_TEST_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl.h>
+#endif
 #include <layer_in_c/operations/cpu_tensorboard.h>
 
 #include <layer_in_c/rl/environments/environments.h>
@@ -7,7 +11,9 @@
 #include <layer_in_c/nn_models/models.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 
+#ifdef LAYER_IN_C_TEST_ENABLE_MKL
 #include <layer_in_c/nn/operations_cpu_mkl.h>
+#endif
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
 #ifdef USE_PENDULUM
@@ -35,7 +41,11 @@ using DTYPE = float;
 
 
 //using DEVICE = lic::devices::DefaultCPU_MKL;
+#ifdef LAYER_IN_C_TEST_ENABLE_MKL
 using DEVICE = lic::devices::CPU_MKL<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
+#else
+using DEVICE = lic::devices::CPU<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
+#endif
 
 
 #ifndef USE_PENDULUM

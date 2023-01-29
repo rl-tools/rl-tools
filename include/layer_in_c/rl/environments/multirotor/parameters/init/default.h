@@ -1,3 +1,5 @@
+#ifndef LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_DEFAULT_H
+#define LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_DEFAULT_H
 
 #include "../../multirotor.h"
 
@@ -19,3 +21,5 @@ namespace layer_in_c::rl::environments::multirotor::parameters::init{
             0    // angular velocity
     };
 }
+
+#endif

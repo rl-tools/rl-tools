@@ -9,8 +9,8 @@ namespace lic = layer_in_c;
 
 #include <gtest/gtest.h>
 
-#define EIGEN_USE_BLAS
-#define EIGEN_USE_MKL_ALL
+//#define EIGEN_USE_BLAS
+//#define EIGEN_USE_MKL_ALL
 #include <Eigen/Eigen>
 #include <chrono>
 
@@ -161,7 +161,9 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, EIGEN_ROW_VS_COLUMN_MAJOR) {
     EXPECT_LT(abs_diff, 1e-6);
 }
 
+#ifdef LAYER_IN_C_TEST_ENABLE_MKL
 #include "mkl.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -169,6 +171,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, EIGEN_ROW_VS_COLUMN_MAJOR) {
 
 #define min(x,y) (((x) < (y)) ? (x) : (y))
 
+#ifdef LAYER_IN_C_TEST_ENABLE_MKL
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
     DTYPE *A, *B, *C;
     int m, n, k;
@@ -350,3 +353,4 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
 
     std::cout << "Absolute difference: " << abs_diff << std::endl;
 }
+#endif
