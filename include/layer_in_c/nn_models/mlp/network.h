@@ -3,6 +3,7 @@
 
 #include <layer_in_c/nn/nn.h>
 #include <layer_in_c/utils/generic/typing.h>
+#include <layer_in_c/containers.h>
 
 namespace layer_in_c::nn_models::mlp {
     template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, bool T_ENFORCE_FLOATING_POINT_TYPE=true>
@@ -88,11 +89,23 @@ namespace layer_in_c::nn_models::mlp {
         using OUTPUT_LAYER = nn::layers::dense::LayerBackwardAdam<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC, T_ADAM_PARAMETERS>;
     };
 
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE = T_SPEC::BATCH_SIZE>
+    struct NeuralNetworkBuffers{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tick;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tock;
+    };
+
     template<typename T_SPEC>
     struct NeuralNetwork{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE>
+        using Buffers = NeuralNetworkBuffers<SPEC, BUFFER_BATCH_SIZE>;
 
         // Convenience
         static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required

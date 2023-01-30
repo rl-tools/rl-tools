@@ -14,12 +14,22 @@ namespace layer_in_c {
         malloc(device, network.output_layer);
     }
     template<typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<SPEC>& buffers) {
+        malloc(device, buffers.tick);
+        malloc(device, buffers.tock);
+    }
+    template<typename DEVICE, typename SPEC>
     FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
         free(device, network.input_layer);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             free(device, network.hidden_layers[layer_i]);
         }
         free(device, network.output_layer);
+    }
+    template<typename DEVICE, typename SPEC>
+    FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<SPEC>& buffers) {
+        free(device, buffers.tick);
+        free(device, buffers.tock);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, RNG& rng) {
@@ -60,6 +70,10 @@ namespace layer_in_c {
             evaluate(device, network.output_layer, layer_output_tock, output);
         }
     }
+    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC>
+    FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers){
+        evaluate_memless(device, network, input, output, buffers.tick, buffers.tock);
+    }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
@@ -94,6 +108,10 @@ namespace layer_in_c {
         } else {
             forward(network.output_layer, layer_output_tock, output);
         }
+    }
+    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC>
+    FUNCTION_PLACEMENT void forward(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers){
+        forward_memless(device, network, input, output, buffers.tick, buffers.tock);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     FUNCTION_PLACEMENT void forward(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
@@ -154,7 +172,11 @@ namespace layer_in_c {
             backward(network.input_layer, d_layer_input_tock, d_input);
         }
     }
-    template<typename DEVICE, typename MODEL_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename TEMP_SPEC>
+    template<typename DEVICE, typename MODEL_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC>
+    FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers) {
+        backward_memless(device, network, d_output, d_input, buffers.tick, buffers.tock);
+    }
+    template<typename DEVICE, typename MODEL_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
     FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
@@ -191,6 +213,10 @@ namespace layer_in_c {
             backward(device, network.input_layer, input, d_layer_input_tock, d_input);
         }
     }
+    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC>
+    FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers) {
+        backward_memless(device, network, input, d_output, d_input, buffers.tick, buffers.tock);
+    }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
     FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
@@ -203,6 +229,20 @@ namespace layer_in_c {
         Matrix<MatrixSpecification<T, TI, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> d_layer_input_tick = {d_layer_input_tick_mem};
         Matrix<MatrixSpecification<T, TI, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> d_layer_input_tock = {d_layer_input_tock_mem};
         backward_memless(device, network, input, d_output, d_input, d_layer_input_tick, d_layer_input_tock);
+    }
+    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename TARGET_SPEC, typename BUFFER_MODEL_SPEC>
+    FUNCTION_PLACEMENT void forward_backward_mse(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, const Matrix<TARGET_SPEC>& target, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers, typename MODEL_SPEC::T loss_weight = 1) {
+        static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, TARGET_SPEC>);
+        constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
+        using T = typename MODEL_SPEC::T;
+        using TI = typename MODEL_SPEC::TI;
+        T d_input_mem[BATCH_SIZE * MODEL_SPEC::STRUCTURE_SPEC::INPUT_DIM];
+        T d_loss_d_output_mem[BATCH_SIZE * MODEL_SPEC::STRUCTURE_SPEC::OUTPUT_DIM];
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, MODEL_SPEC::STRUCTURE_SPEC::INPUT_DIM>> d_input = {d_input_mem};
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, MODEL_SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> d_loss_d_output = {d_loss_d_output_mem};
+        forward(device, network, input);
+        nn::loss_functions::d_mse_d_x(device, network.output_layer.output, target, d_loss_d_output, loss_weight);
+        backward(device, network, input, d_loss_d_output, d_input, buffers);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename TARGET_SPEC>
     FUNCTION_PLACEMENT void forward_backward_mse(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, const Matrix<TARGET_SPEC>& target, typename MODEL_SPEC::T loss_weight = 1) {

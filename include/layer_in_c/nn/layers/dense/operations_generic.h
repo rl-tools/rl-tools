@@ -83,6 +83,7 @@ namespace layer_in_c{
         constexpr bool check_input_output =
                 INPUT_SPEC::COLS == LAYER_SPEC::INPUT_DIM &&
                 INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS &&
+//                INPUT_SPEC::ROWS <= OUTPUT_SPEC::ROWS && // todo: could be relaxed to not fill the full output
                 OUTPUT_SPEC::COLS == LAYER_SPEC::OUTPUT_DIM &&
                 (!LAYER_SPEC::ENFORCE_FLOATING_POINT_TYPE || ( utils::typing::is_same_v<typename LAYER_SPEC::T, typename INPUT_SPEC::T> && utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>));
     }
