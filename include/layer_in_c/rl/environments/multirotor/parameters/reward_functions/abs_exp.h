@@ -6,7 +6,7 @@
 #include <layer_in_c/utils/generic/vector_operations.h>
 
 namespace layer_in_c::rl::environments::multirotor::parameters::reward_functions{
-template<typename T>
+    template<typename T>
     struct AbsExp{
         T scale;
         T position;
@@ -16,12 +16,10 @@ template<typename T>
         T action_baseline;
         T action;
     };
-    template<typename DEVICE, typename SPEC, typename utils::typing::enable_if_t<utils::typing::is_same_v<typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION, AbsExp<typename SPEC::T>>>* = nullptr>
-    static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state) {
-        using T = typename SPEC::T;
+    template<typename DEVICE, typename SPEC, typename T>
+    static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::AbsExp<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state) {
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
-        auto params = env.parameters.mdp.reward;
         T quaternion_w = state.state[3];
         T orientation_cost = math::abs(2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
         T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.state);

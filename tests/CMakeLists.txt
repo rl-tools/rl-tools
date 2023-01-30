@@ -339,6 +339,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         Boost::headers
+        HighFive
 )
 target_include_directories(
         test_rl_environments_multirotor_ui_test

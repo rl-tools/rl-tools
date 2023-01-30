@@ -7,52 +7,66 @@
 #include <layer_in_c/rl/environments/environments.h>
 #include <layer_in_c/math/operations_generic.h>
 
+namespace layer_in_c::rl::utils::evaluation{
+    template <typename T, typename ENV_STATE>
+    struct State{
+        T episode_return = 0;
+        ENV_STATE state;
+    };
+}
+
 namespace layer_in_c {
 
     template <typename DEVICE, typename STATE>
     void set_state(DEVICE& dev, bool ui, const STATE& state){
         // dummy implementation for the case where no ui should be used
     }
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE>
+    bool evaluate_step(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state) {
+        using T = typename POLICY::T;
+        using TI = typename DEVICE::index_t;
+        typename ENVIRONMENT::State state = eval_state.state;
+
+        T observation_mem[ENVIRONMENT::OBSERVATION_DIM];
+        T* observation;
+        if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
+            observation = observation_mem;
+            observe(device, env, state, observation);
+        }
+        else{
+            static_assert(sizeof(state.state)/sizeof(state.state[0]) == ENVIRONMENT::OBSERVATION_DIM, "The environments state dimension must match the environment's observation dimension.");
+            observation = state.state;
+        }
+        T action[ENVIRONMENT::ACTION_DIM];
+        Matrix<MatrixSpecification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action_matrix = {action};
+        Matrix<MatrixSpecification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_matrix = {observation};
+
+        evaluate(device, policy, observation_matrix, action_matrix);
+        T action_clipped[ENVIRONMENT::ACTION_DIM];
+        for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
+            action_clipped[action_i] = math::clamp<T>(action[action_i], -1, 1);
+        }
+        typename ENVIRONMENT::State next_state;
+        T dt = step(device, env, state, action_clipped, next_state);
+        set_state(device, ui, state);
+        T r = reward(device, env, state, action_clipped, next_state);
+        state = next_state;
+        eval_state.episode_return += r;
+        eval_state.state = state;
+        return terminated(device, env, state);
+    }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename DEVICE::index_t STEP_LIMIT>
     typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
-        typename ENVIRONMENT::State state;
-        state = initial_state;
-        T episode_return = 0;
-        set_state(device, ui, state);
+        rl::utils::evaluation::State<T, typename ENVIRONMENT::State> state;
+        state.state = initial_state;
         for (TI i = 0; i < STEP_LIMIT; i++) {
-            T observation_mem[ENVIRONMENT::OBSERVATION_DIM];
-            T* observation;
-            if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
-                observation = observation_mem;
-                observe(device, env, state, observation);
-            }
-            else{
-                static_assert(sizeof(state.state)/sizeof(state.state[0]) == ENVIRONMENT::OBSERVATION_DIM, "The environments state dimension must match the environment's observation dimension.");
-                observation = state.state;
-            }
-            T action[ENVIRONMENT::ACTION_DIM];
-            Matrix<MatrixSpecification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action_matrix = {action};
-            Matrix<MatrixSpecification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_matrix = {observation};
-
-            evaluate(device, policy, observation_matrix, action_matrix);
-            T action_clipped[ENVIRONMENT::ACTION_DIM];
-            for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
-                action_clipped[action_i] = math::clamp<T>(action[action_i], -1, 1);
-            }
-            typename ENVIRONMENT::State next_state;
-            step(device, env, state, action_clipped, next_state);
-            set_state(device, ui, state);
-            T r = reward(device, env, state, action_clipped, next_state);
-            state = next_state;
-            episode_return += r;
-            bool terminated_flag = terminated(device, env, state);
-            if (terminated_flag) {
+            if(evaluate_step(device, env, ui, policy, state)){
                 break;
             }
         }
-        return episode_return;
+        return state.episode_return;
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, auto STEP_LIMIT, bool DETERMINISTIC>
     typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, typename DEVICE::index_t N, RNG &rng) {

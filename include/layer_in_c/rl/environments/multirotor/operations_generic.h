@@ -2,6 +2,7 @@
 #define LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_OPERATIONS_GENERIC_H
 
 #include "multirotor.h"
+#include "parameters/reward_functions/reward_functions.h"
 
 #include <layer_in_c/utils/generic/vector_operations.h>
 #include "quaternion_helper.h"
@@ -122,6 +123,10 @@ namespace layer_in_c{
         }
 
         return env.parameters.integration.dt;
+    }
+    template<typename DEVICE, typename SPEC>
+    static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state) {
+        return rl::environments::multirotor::parameters::reward_functions::reward(device, env, env.parameters.mdp.reward, state, action, next_state);
     }
 
     template<typename DEVICE, typename SPEC>
