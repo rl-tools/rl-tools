@@ -5,6 +5,7 @@
 #include "cpu.h"
 
 #include <tensorboard_logger.h>
+#include <mutex>
 
 namespace layer_in_c::devices{
     namespace logging{
@@ -12,6 +13,7 @@ namespace layer_in_c::devices{
             static constexpr Type TYPE = Type::logging;
             index_t step = 0;
             TensorBoardLogger* tb = nullptr;
+            std::mutex mutex;
         };
     }
 }

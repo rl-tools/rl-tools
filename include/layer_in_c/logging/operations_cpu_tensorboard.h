@@ -26,6 +26,7 @@ namespace layer_in_c{
         delete dev.tb;
     }
     void add_scalar(devices::logging::CPU_TENSORBOARD& dev, const char* key, const float value, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
+        std::lock_guard<std::mutex> lock(dev.mutex);
         if(dev.step % cadence == 0){
             dev.tb->add_scalar(key, dev.step, value);
         }
