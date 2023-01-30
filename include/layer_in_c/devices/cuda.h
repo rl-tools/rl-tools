@@ -14,20 +14,20 @@ namespace layer_in_c::devices{
     }
     namespace math{
         struct CUDA: cuda::Base{
-            static constexpr Domain DOMAIN = Domain::math;
+            static constexpr Type DOMAIN = Type::math;
         };
         struct CUDA_FAST: cuda::Base{
-            static constexpr Domain DOMAIN = Domain::math;
+            static constexpr Type DOMAIN = Type::math;
         };
     }
     namespace random{
         struct CUDA: cuda::Base{
-            static constexpr Domain DOMAIN = Domain::random;
+            static constexpr Type DOMAIN = Type::random;
         };
     }
     namespace logging{
         struct CUDA: cuda::Base{
-            static constexpr Domain DOMAIN = Domain::logging;
+            static constexpr Type DOMAIN = Type::logging;
         };
     }
     template <typename T_SPEC>

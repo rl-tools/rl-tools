@@ -32,6 +32,14 @@ if(LAYER_IN_C_BACKEND_ENABLE_ACCELERATE)
     endfunction()
 endif()
 
+if(LAYER_IN_C_BACKEND_ENABLE_CUBLAS)
+    add_compile_definitions(LAYER_IN_C_BACKEND_ENABLE_CUBLAS)
+endif()
+
+if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
+    add_compile_definitions(LAYER_IN_C_BACKEND_ENABLE_CUDA)
+endif()
+
 if (LAYER_IN_C_ENABLE_TESTS)
     include(CTest)
     enable_testing()

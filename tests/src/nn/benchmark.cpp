@@ -160,7 +160,9 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, EIGEN_ROW_VS_COLUMN_MAJOR) {
 
 #define min(x,y) (((x) < (y)) ? (x) : (y))
 
-#ifdef LAYER_IN_C_TEST_ENABLE_MKL
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#include <layer_in_c/devices/cpu_mkl.h>
+#include <layer_in_c/containers/operations_cpu_mkl.h>
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
     DTYPE *A, *B, *C;
     int m, n, k;
@@ -188,8 +190,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
     lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
     lic::malloc(device, input_lic_matrix);
-    memcpy(input_lic_matrix.data, input_lic, sizeof(DTYPE) * BATCH_SIZE * NetworkType::INPUT_DIM);
-    DTYPE input_abs_diff = lic::abs_diff(device, input_mkl_matrix, input_lic_matrix);
+    memcpy(input_lic_matrix.data, input.data, sizeof(DTYPE) * BATCH_SIZE * NetworkType::INPUT_DIM);
 
     lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;
     lic::malloc(device, input_lic_matrix_transpose);
@@ -224,7 +225,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
     lic::transpose(device, output_mkl_matrix, output_mkl_matrix_transpose);
 
-    DTYPE abs_diff = lic::abs_diff(device, output_mkl_matrix, expected_output) / NetworkType::NUM_WEIGHTS;
+    DTYPE abs_diff = lic::abs_diff(device, output_mkl_matrix, expected_output_input_layer) / NetworkType::NUM_WEIGHTS;
 
     std::cout << "Absolute difference: " << abs_diff << std::endl;
     EXPECT_LT(abs_diff, 1e-6);
@@ -239,19 +240,18 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl(device.logger);
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_matrix = {input_lic};
     lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     lic::malloc(device_mkl, output_matrix);
     lic::set(device_mkl, output_matrix, 0);
 
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
-        lic::evaluate(device_mkl, network_mkl.input_layer, input_matrix, output_matrix);
+        lic::evaluate(device_mkl, network_mkl.input_layer, input, output_matrix);
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "MKL LIC evaluate: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
 
-    DTYPE abs_diff = lic::abs_diff(device_mkl, output_matrix, expected_output) / NetworkType::NUM_WEIGHTS;
+    DTYPE abs_diff = lic::abs_diff(device_mkl, output_matrix, expected_output_input_layer) / NetworkType::NUM_WEIGHTS;
 
     if constexpr(lic::utils::typing::is_same_v<DTYPE, float>){
         EXPECT_LT(abs_diff, 1e-6);
@@ -268,19 +268,18 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl(device.logger);
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_matrix = {input_lic};
     lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     lic::malloc(device_mkl, output_matrix);
     lic::set(device_mkl, output_matrix, 0);
 
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
-        lic::forward(device_mkl, network_mkl.input_layer, input_matrix);
+        lic::forward(device_mkl, network_mkl.input_layer, input);
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "MKL LIC evaluate: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
 
-    DTYPE abs_diff = lic::abs_diff(device_mkl, network_mkl.input_layer.output, expected_output) / NetworkType::NUM_WEIGHTS;
+    DTYPE abs_diff = lic::abs_diff(device_mkl, network_mkl.input_layer.output, expected_output_input_layer) / NetworkType::NUM_WEIGHTS;
 
     if constexpr(lic::utils::typing::is_same_v<DTYPE, float>){
         EXPECT_LT(abs_diff, 1e-6);
@@ -299,12 +298,12 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
 
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
-        lic::forward(device_mkl, network_mkl, input_lic_matrix);
+        lic::forward(device_mkl, network_mkl, input);
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "MKL LIC evaluate full: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
 
-    DTYPE abs_diff = lic::abs_diff(device_mkl, network_mkl.output_layer.output, expected_output_full) / NetworkType::NUM_WEIGHTS;
+    DTYPE abs_diff = lic::abs_diff(device_mkl, network_mkl.output_layer.output, expected_output_output_layer) / NetworkType::NUM_WEIGHTS;
 
     if constexpr(lic::utils::typing::is_same_v<DTYPE, float>){
         EXPECT_LT(abs_diff, 1e-6);
@@ -324,7 +323,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
     lic::zero_gradient(device_mkl, network_mkl);
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
-        lic::forward_backward_mse(device_mkl, network_mkl, input_lic_matrix, output_lic_target_matrix);
+        lic::forward_backward_mse(device_mkl, network_mkl, input, output_target);
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << "MKL LIC forward backward mse: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
@@ -414,5 +413,11 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, ACCELERATE) {
     std::cout << "Absolute difference: " << abs_diff << std::endl;
     EXPECT_LT(abs_diff, 1e-6);
 
+}
+#endif
+#ifdef LAYER_IN_C_BACKEND_ENABLE_CUBLAS
+
+TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, CUBLAS) {
+    std::cout << "hello world from cuda" << std::endl;
 }
 #endif
