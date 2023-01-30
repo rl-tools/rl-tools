@@ -211,6 +211,16 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 #endif
         }
     }
+    {
+        auto current_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_seconds = current_time - start_time;
+        std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
+        if(std::getenv("LAYER_IN_C_TEST_ENABLE_TIMING") != nullptr){
+#ifdef LAYER_IN_C_TEST_MACHINE_LENOVO_P1
+            ASSERT_LT(elapsed_seconds.count(), 6); // should be 5.5s when run in isolation
+#endif
+        }
+    }
     lic::free(ac_dev, critic_batch);
     lic::free(ac_dev, critic_training_buffers);
     lic::free(ac_dev, actor_batch);

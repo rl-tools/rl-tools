@@ -2,6 +2,11 @@ option(LAYER_IN_C_DOWNLOAD_GTEST OFF)
 
 option(LAYER_IN_C_TEST_LOCAL "Local dev" OFF)
 
+option(LAYER_IN_C_TEST_MACHINE_LENOVO_P1 "Flag to enable performance/timing tests" OFF)
+if(LAYER_IN_C_TEST_MACHINE_LENOVO_P1)
+    add_compile_definitions(LAYER_IN_C_TEST_MACHINE_LENOVO_P1)
+endif()
+
 
 #option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" ${LAYER_IN_C_TEST_LOCAL})
 option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" OFF)
@@ -19,17 +24,6 @@ set(INSTALL_GTEST OFF CACHE BOOL "")
 set(BUILD_GMOCK OFF CACHE BOOL "")
 add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)
 include(GoogleTest)
-
-if(LAYER_IN_C_BACKEND_ENABLE_MKL)
-    find_package(MKL REQUIRED)
-    add_compile_definitions(LAYER_IN_C_BACKEND_ENABLE_MKL)
-endif()
-
-if(LAYER_IN_C_BACKEND_ENABLE_ACCELERATE)
-    find_package(BLAS REQUIRED)
-    add_compile_definitions(LAYER_IN_C_BACKEND_ENABLE_ACCELERATE)
-endif()
-
 
 if(NOT APPLE)
     add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
