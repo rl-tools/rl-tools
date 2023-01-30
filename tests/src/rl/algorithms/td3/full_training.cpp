@@ -219,6 +219,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 #ifdef LAYER_IN_C_TEST_MACHINE_LENOVO_P1
             ASSERT_LT(elapsed_seconds.count(), 6); // should be 5.5s when run in isolation
 #endif
+#ifdef LAYER_IN_C_TEST_MACHINE_MACBOOK_M1
+            ASSERT_LT(elapsed_seconds.count(), 3); // should be 2.5s when run in isolation
+#endif
         }
     }
     lic::free(ac_dev, critic_batch);

@@ -7,6 +7,11 @@ if(LAYER_IN_C_TEST_MACHINE_LENOVO_P1)
     add_compile_definitions(LAYER_IN_C_TEST_MACHINE_LENOVO_P1)
 endif()
 
+option(LAYER_IN_C_TEST_MACHINE_MACBOOK_M1 "Flag to enable performance/timing tests" OFF)
+if(LAYER_IN_C_TEST_MACHINE_MACBOOK_M1)
+    add_compile_definitions(LAYER_IN_C_TEST_MACHINE_MACBOOK_M1)
+endif()
+
 
 #option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" ${LAYER_IN_C_TEST_LOCAL})
 option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" OFF)
