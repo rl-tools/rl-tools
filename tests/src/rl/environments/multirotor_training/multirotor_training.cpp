@@ -1,26 +1,35 @@
+// Discerning device
+#include <layer_in_c/devices/cpu.h>
+#include <layer_in_c/devices/cpu_tensorboard.h>
+namespace lic = layer_in_c;
+using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
+
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl.h>
 #include <layer_in_c/nn/operations_cpu_mkl.h>
+using DEVICE = lic::devices::CPU_MKL<DEV_SPEC>;
 #else
 #ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
 #include <layer_in_c/operations/cpu_accelerate.h>
 #include <layer_in_c/nn/operations_cpu_accelerate.h>
+using DEVICE = lic::devices::CPU_ACCELERATE<DEV_SPEC>;
 #else
 #include <layer_in_c/operations/cpu.h>
 #include <layer_in_c/nn/operations_generic.h>
+using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #endif
 #endif
 
+// importing logging operations (required by many parts of the library)
 #include <layer_in_c/operations/cpu_tensorboard.h>
 
-#include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
-
+// generic nn_model operations use the specialized layer operations depending on the backend device
 #include <layer_in_c/nn_models/operations_generic.h>
+// simulation is run on the cpu and the environments functions are required in the off_policy_runner operations included afterwards
 #include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
-#include <layer_in_c/rl/components/off_policy_runner/operations_generic.h>
 #include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
 
+// additional includes for the ui and persisting
 #include <layer_in_c/rl/environments/multirotor/ui.h>
 #include <layer_in_c/nn_models/persist.h>
 
@@ -29,28 +38,11 @@
 #include "parameters.h"
 
 #include <gtest/gtest.h>
-#include <ctime>
 #include <iostream>
-
 #include <highfive/H5File.hpp>
 
-
-
-
-namespace lic = layer_in_c;
 using DTYPE = float;
 
-
-using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-using DEVICE = lic::devices::CPU_MKL<DEV_SPEC>;
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-using DEVICE = lic::devices::CPU_ACCELERATE<DEV_SPEC>;
-#else
-using DEVICE = lic::devices::CPU<DEV_SPEC>;
-#endif
-#endif
 
 namespace parameter_set = parameters_0;
 
@@ -59,24 +51,19 @@ using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
 
 using parameters_rl = parameter_set::rl<DEVICE, DTYPE, ENVIRONMENT>;
 static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
-    parameters_rl::ActorCriticType actor_critic;
+TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
+    std::mt19937 rng(4);
+
+    // device
     typename DEVICE::SPEC::LOGGING logger;
     lic::construct(logger);
     DEVICE device(logger);
 
-    auto parameters = parameters_environment::parameters;
-
+    // environment
     DTYPE ui_speed_factor = 1;
-
-    std::mt19937 rng(4);
-    lic::malloc(device, actor_critic);
-    lic::init(device, actor_critic, rng);
-//    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::simple<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
-    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::all_around<DTYPE, DEVICE::index_t, 4, parameters_environment::REWARD_FUNCTION>;
+    auto parameters = parameters_environment::parameters;
     ENVIRONMENT env({parameters});
-
 #if LAYER_IN_C_ENABLE_MULTIROTOR_UI
     lic::rl::environments::multirotor::UI<ENVIRONMENT> ui;
     ui.host = "localhost";
@@ -86,8 +73,12 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     bool ui = false;
 #endif
 
-    lic::rl::components::OffPolicyRunner<parameters_rl::OFF_POLICY_RUNNER_SPEC> off_policy_runner = {env};
+    // rl
+    parameters_rl::ActorCriticType actor_critic;
+    lic::malloc(device, actor_critic);
+    lic::init(device, actor_critic, rng);
 
+    lic::rl::components::OffPolicyRunner<parameters_rl::OFF_POLICY_RUNNER_SPEC> off_policy_runner = {env};
     lic::malloc(device, off_policy_runner);
 
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
@@ -100,6 +91,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     lic::malloc(device, actor_batch);
     lic::malloc(device, actor_training_buffers);
 
+    // training
     for(int step_i = 0; step_i < 500000; step_i++){
         device.logger.step = step_i;
         lic::step(device, off_policy_runner, actor_critic.actor, rng);

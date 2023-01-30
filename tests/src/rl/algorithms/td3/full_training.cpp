@@ -117,24 +117,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 
     bool ui = false;
 
-    time_t now;
-    time(&now);
-    char buf[sizeof "2011-10-08T07:07:09Z"];
-    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
-
-    std::string logs_dir = "logs";
-    if (!std::filesystem::is_directory(logs_dir.c_str()) || !std::filesystem::exists(logs_dir.c_str())) {
-        std::filesystem::create_directory(logs_dir.c_str());
-    }
-    std::string log_dir = logs_dir + "/" + std::string(buf);
-    if (!std::filesystem::is_directory(log_dir.c_str()) || !std::filesystem::exists(log_dir.c_str())) {
-        std::filesystem::create_directory(log_dir.c_str());
-    }
-
-    std::string log_file = log_dir + "/" + std::string("data.tfevents");
-    std::cout << "Logging to " << log_file << std::endl;
-    TensorBoardLogger tb_logger(log_file.c_str());
-    ac_dev.logger.tb = &tb_logger;
+    lic::construct(ac_dev.logger);
 
     lic::malloc(ac_dev, off_policy_runner);
 
