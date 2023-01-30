@@ -1,19 +1,22 @@
 //#define USE_PENDULUM
 
-#include <layer_in_c/operations/cpu.h>
-#ifdef LAYER_IN_C_TEST_ENABLE_MKL
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl.h>
+#include <layer_in_c/nn/operations_cpu_blas.h>
+#elifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate.h>
+#include <layer_in_c/nn/operations_cpu_accelerate.h>
+#else
+#include <layer_in_c/operations/cpu.h>
+#include <layer_in_c/nn/operations_generic.h>
 #endif
+
 #include <layer_in_c/operations/cpu_tensorboard.h>
 
 #include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/default.h>
 #include <layer_in_c/nn_models/models.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 
-#ifdef LAYER_IN_C_TEST_ENABLE_MKL
-#include <layer_in_c/nn/operations_cpu_mkl.h>
-#endif
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
 #ifdef USE_PENDULUM
@@ -40,17 +43,17 @@ namespace lic = layer_in_c;
 using DTYPE = float;
 
 
-//using DEVICE = lic::devices::DefaultCPU_MKL;
-#ifdef LAYER_IN_C_TEST_ENABLE_MKL
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 using DEVICE = lic::devices::CPU_MKL<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
+#elifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+using DEVICE = lic::devices::CPU_ACCELERATE<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
 #else
 using DEVICE = lic::devices::CPU<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
 #endif
 
 
 #ifndef USE_PENDULUM
-auto parameters = parameters_0::parameters<DTYPE, DEVICE::index_t>;
-using PARAMETERS = decltype(parameters);
+using PARAMETERS = decltype(parameters_0::parameters<DTYPE, DEVICE::index_t>);
 using REWARD_FUNCTION = PARAMETERS::MDP::REWARD_FUNCTION;
 typedef lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters> ENVIRONMENT_SPEC;
 typedef lic::rl::environments::Multirotor<ENVIRONMENT_SPEC> ENVIRONMENT;
@@ -140,9 +143,12 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     logger.tb = &tb_logger;
     DEVICE device(logger);
 
+    auto parameters = parameters_0::parameters<DTYPE, DEVICE::index_t>;
+    parameters.mdp.reward = parameters_0::reward_function<DTYPE>;
+
     DTYPE ui_speed_factor = 1;
 
-    std::mt19937 rng(3);
+    std::mt19937 rng(4);
     lic::malloc(device, actor_critic);
     lic::init(device, actor_critic, rng);
 #ifndef USE_PENDULUM
@@ -153,7 +159,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     ENVIRONMENT env;
 #endif
 
-#ifndef USE_PENDULUM
+#if !defined(USE_PENDULUM) && LAYER_IN_C_ENABLE_MULTIROTOR_UI
     lic::rl::environments::multirotor::UI<ENVIRONMENT> ui;
     ui.host = "localhost";
     ui.port = "8080";

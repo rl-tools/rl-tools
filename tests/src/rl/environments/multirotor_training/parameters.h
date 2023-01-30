@@ -2,6 +2,7 @@
 
 #include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/abs_exp.h>
 #include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/squared.h>
+#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/default.h>
 #include <layer_in_c/rl/environments/multirotor/parameters/dynamics/crazy_flie.h>
 #include <layer_in_c/rl/environments/multirotor/parameters/init/default.h>
 #include <layer_in_c/rl/environments/multirotor/parameters/termination/default.h>

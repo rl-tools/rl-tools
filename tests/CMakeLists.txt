@@ -180,9 +180,9 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_td3_full_training
         layer_in_c
-        BLAS
         GTest::gtest_main
         tensorboard_logger
+        BLAS
 )
 
 if(LAYER_IN_C_TEST_ENABLE_MKL)
@@ -290,6 +290,7 @@ target_link_libraries(
         HighFive
         tensorboard_logger
         Boost::headers
+        BLAS
 )
 target_include_directories(
         test_rl_environments_multirotor_training_test

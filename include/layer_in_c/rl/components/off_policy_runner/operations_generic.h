@@ -52,10 +52,10 @@ namespace layer_in_c{
 //            auto name = "action/" + std::to_string(i);
 //            logging::add_scalar(device.logger, name.c_str(), action[i]);
 //        }
-//        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
-//            action[i] += random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, PARAMETERS::EXPLORATION_NOISE, rng);
-//            action[i] = lic::math::clamp<T>(action[i], -1, 1);
-//        }
+        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
+            action[i] += random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, PARAMETERS::EXPLORATION_NOISE, rng);
+            action[i] = lic::math::clamp<T>(action[i], -1, 1);
+        }
 //        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
 //            auto name = "action_exploration/" + std::to_string(i);
 //            logging::add_scalar(device.logger, name.c_str(), action[i]);
