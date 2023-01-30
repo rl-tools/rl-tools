@@ -2,13 +2,15 @@
 
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl.h>
-#include <layer_in_c/nn/operations_cpu_blas.h>
-#elifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/nn/operations_cpu_mkl.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
 #include <layer_in_c/operations/cpu_accelerate.h>
 #include <layer_in_c/nn/operations_cpu_accelerate.h>
 #else
 #include <layer_in_c/operations/cpu.h>
 #include <layer_in_c/nn/operations_generic.h>
+#endif
 #endif
 
 #include <layer_in_c/rl/environments/operations_generic.h>
@@ -38,10 +40,12 @@ using DTYPE = float;
 
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 using DEVICE = lic::devices::CPU_MKL<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
-#elifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
 using DEVICE = lic::devices::CPU_ACCELERATE<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
 #else
 using DEVICE = lic::devices::CPU<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
+#endif
 #endif
 
 

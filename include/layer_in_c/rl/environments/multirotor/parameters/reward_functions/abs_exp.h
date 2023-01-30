@@ -32,17 +32,17 @@ namespace layer_in_c::rl::environments::multirotor::parameters::reward_functions
         T weighted_abs_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.action * action_cost;
         T r = math::exp(typename DEVICE::SPEC::MATH(), -weighted_abs_cost);
 //        {
-//            logging::add_scalar(device.logger, "reward/orientation_cost", orientation_cost, 100);
-//            logging::add_scalar(device.logger, "reward_weighted/orientation_cost", params.orientation * orientation_cost, 100);
-//            logging::add_scalar(device.logger, "reward/position_cost", position_cost, 100);
-//            logging::add_scalar(device.logger, "reward_weighted/position_cost", params.position * position_cost, 100);
-//            logging::add_scalar(device.logger, "reward/linear_vel_cost", linear_vel_cost, 100);
-//            logging::add_scalar(device.logger, "reward_weighted/linear_vel_cost", params.linear_velocity * linear_vel_cost, 100);
-//            logging::add_scalar(device.logger, "reward/angular_vel_cost", angular_vel_cost, 100);
-//            logging::add_scalar(device.logger, "reward_weighted/angular_vel_cost", params.angular_velocity * angular_vel_cost, 100);
-//            logging::add_scalar(device.logger, "reward/action_cost", action_cost, 100);
-//            logging::add_scalar(device.logger, "reward_weighted/action_cost", params.action * action_cost, 100);
-//            logging::add_scalar(device.logger, "reward/pre_exp", -weighted_abs_cost, 100);
+//            add_scalar(device.logger, "reward/orientation_cost", orientation_cost, 100);
+//            add_scalar(device.logger, "reward_weighted/orientation_cost", params.orientation * orientation_cost, 100);
+//            add_scalar(device.logger, "reward/position_cost", position_cost, 100);
+//            add_scalar(device.logger, "reward_weighted/position_cost", params.position * position_cost, 100);
+//            add_scalar(device.logger, "reward/linear_vel_cost", linear_vel_cost, 100);
+//            add_scalar(device.logger, "reward_weighted/linear_vel_cost", params.linear_velocity * linear_vel_cost, 100);
+//            add_scalar(device.logger, "reward/angular_vel_cost", angular_vel_cost, 100);
+//            add_scalar(device.logger, "reward_weighted/angular_vel_cost", params.angular_velocity * angular_vel_cost, 100);
+//            add_scalar(device.logger, "reward/action_cost", action_cost, 100);
+//            add_scalar(device.logger, "reward_weighted/action_cost", params.action * action_cost, 100);
+//            add_scalar(device.logger, "reward/pre_exp", -weighted_abs_cost, 100);
 //        }
         return r * params.scale;
     }

@@ -37,7 +37,7 @@ namespace parameters_0{
     template<typename DEVICE, typename T, typename ENVIRONMENT>
     struct rl{
         using TI = typename DEVICE::index_t;
-        struct TD3_PARAMETERS: lic::rl::algorithms::td3::DefaultParameters<T, typename DEVICE::index_t>{
+        struct ACTOR_CRITIC_PARAMETERS: lic::rl::algorithms::td3::DefaultParameters<T, typename DEVICE::index_t>{
             static constexpr typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
             static constexpr typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
             static constexpr typename DEVICE::index_t CRITIC_TRAINING_INTERVAL = 10;
@@ -47,15 +47,14 @@ namespace parameters_0{
             static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.25;
             static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
             static constexpr bool IGNORE_TERMINATION = false;
-
         };
 
         struct ReplayBufferParameters: lic::rl::components::off_policy_runner::DefaultParameters<T>{
             static constexpr T EXPLORATION_NOISE = 0.2;
         };
 
-        using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-        using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 256, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
+        using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
+        using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 256, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
 
         using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
         using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
@@ -69,8 +68,8 @@ namespace parameters_0{
         using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
         using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
-        using TD3_SPEC = lic::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
-        using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
+        using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, ACTOR_CRITIC_PARAMETERS>;
+        using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr TI REPLAY_BUFFER_CAP = 5000000;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;

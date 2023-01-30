@@ -58,7 +58,7 @@ namespace layer_in_c {
         if(buffer.position == 0 && !buffer.full) {
             buffer.full = true;
         }
-        logging::add_scalar(device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
+        add_scalar(device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
     }
     template <typename DEVICE, typename SPEC, typename SPEC::TI BATCH_SIZE, typename RNG, bool DETERMINISTIC=false>
     void gather_batch(DEVICE& device, rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::replay_buffer::Batch<SPEC, BATCH_SIZE>& batch, RNG& rng) {

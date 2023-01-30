@@ -179,19 +179,13 @@ add_executable(
 )
 target_link_libraries(
         test_rl_algorithms_td3_full_training
+        PRIVATE
         layer_in_c
         GTest::gtest_main
         tensorboard_logger
-        BLAS
 )
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training)
 
-if(LAYER_IN_C_TEST_ENABLE_MKL)
-    target_link_libraries(
-        test_rl_algorithms_td3_full_training
-        MKL::MKL
-    )
-    target_compile_definitions(test_rl_algorithms_td3_full_training PRIVATE LAYER_IN_C_TEST_ENABLE_MKL)
-endif()
 if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
     target_link_libraries(
             test_rl_algorithms_td3_full_training
@@ -285,13 +279,14 @@ add_executable(
 )
 target_link_libraries(
         test_rl_environments_multirotor_training_test
+        PRIVATE
         layer_in_c
         GTest::gtest_main
         HighFive
         tensorboard_logger
         Boost::headers
-        BLAS
 )
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_multirotor_training_test)
 target_include_directories(
         test_rl_environments_multirotor_training_test
         PRIVATE
