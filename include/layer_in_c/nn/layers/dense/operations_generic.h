@@ -138,7 +138,7 @@ namespace layer_in_c{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // compile time warning if used
         forward(device, layer, input);
-        copy(output, layer.output);
+        copy(device, device, output, layer.output);
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
@@ -252,8 +252,8 @@ namespace layer_in_c{
         gradient_descent(device, layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
     }
 
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn::layers::dense::Layer<TARGET_SPEC>* target, const nn::layers::dense::Layer<SOURCE_SPEC>* source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::Layer<TARGET_SPEC>* target, const nn::layers::dense::Layer<SOURCE_SPEC>* source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
         for(typename TARGET_SPEC::TI i = 0; i < TARGET_SPEC::OUTPUT_DIM; i++) {
             target->biases.data[i] = source->biases.data[i];
@@ -262,28 +262,28 @@ namespace layer_in_c{
             }
         }
     }
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn::layers::dense::Layer<TARGET_SPEC>& target, const nn::layers::dense::Layer<SOURCE_SPEC>& source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::Layer<TARGET_SPEC>& target, const nn::layers::dense::Layer<SOURCE_SPEC>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(device, &target, &source);
+        copy(target_device, source_device, &target, &source);
     }
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn::layers::dense::LayerBackward<TARGET_SPEC>* target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>* source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackward<TARGET_SPEC>* target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>* source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(device, (nn::layers::dense::Layer<TARGET_SPEC>*) target, (nn::layers::dense::Layer<TARGET_SPEC>*) source);
+        copy(target_device, source_device, (nn::layers::dense::Layer<TARGET_SPEC>*) target, (nn::layers::dense::Layer<TARGET_SPEC>*) source);
         for(typename TARGET_SPEC::TI i = 0; i < TARGET_SPEC::OUTPUT_DIM; i++) {
             target->pre_activations.data[i] = source->pre_activations.data[i];
         }
     }
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn::layers::dense::LayerBackward<TARGET_SPEC>& target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>& source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackward<TARGET_SPEC>& target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(device, &target, &source);
+        copy(target_device, source_device, &target, &source);
     }
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>* target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>* source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>* target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>* source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(device, (nn::layers::dense::LayerBackward<TARGET_SPEC>*)target, (nn::layers::dense::LayerBackward<SOURCE_SPEC>*)source);
+        copy(target_device, source_device, (nn::layers::dense::LayerBackward<TARGET_SPEC>*)target, (nn::layers::dense::LayerBackward<SOURCE_SPEC>*)source);
         for(typename TARGET_SPEC::TI i = 0; i < TARGET_SPEC::OUTPUT_DIM; i++) {
             target->d_biases.data[i] = source->d_biases.data[i];
             target->output.data[i] = source->output.data[i];
@@ -292,16 +292,16 @@ namespace layer_in_c{
             }
         }
     }
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>& target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>& source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>& target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(device, &target, &source);
+        copy(target_device, source_device, &target, &source);
     }
 
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC, typename TARGET_PARAMETERS, typename SOURCE_PARAMETERS>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn::layers::dense::LayerBackwardAdam<TARGET_SPEC, TARGET_PARAMETERS>* target, const nn::layers::dense::LayerBackwardAdam<SOURCE_SPEC, SOURCE_PARAMETERS>* source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC, typename TARGET_PARAMETERS, typename SOURCE_PARAMETERS>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardAdam<TARGET_SPEC, TARGET_PARAMETERS>* target, const nn::layers::dense::LayerBackwardAdam<SOURCE_SPEC, SOURCE_PARAMETERS>* source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(device, (nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>*)target, (nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>*)source);
+        copy(target_device, source_device, (nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>*)target, (nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>*)source);
         for(typename TARGET_SPEC::TI i = 0; i < TARGET_SPEC::OUTPUT_DIM; i++) {
             target->d_biases_first_order_moment.data[i] = source->d_biases_first_order_moment.data[i];
             target->d_biases_second_order_moment.data[i] = source->d_biases_second_order_moment.data[i];
@@ -311,10 +311,10 @@ namespace layer_in_c{
             }
         }
     }
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC, typename TARGET_PARAMETERS, typename SOURCE_PARAMETERS>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn::layers::dense::LayerBackwardAdam<TARGET_SPEC, TARGET_PARAMETERS>& target, const nn::layers::dense::LayerBackwardAdam<SOURCE_SPEC, SOURCE_PARAMETERS>& source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC, typename TARGET_PARAMETERS, typename SOURCE_PARAMETERS>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardAdam<TARGET_SPEC, TARGET_PARAMETERS>& target, const nn::layers::dense::LayerBackwardAdam<SOURCE_SPEC, SOURCE_PARAMETERS>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(device, &target, &source);
+        copy(target_device, source_device, &target, &source);
     }
 
 //    namespace nn::layers::dense::helper{

@@ -65,7 +65,7 @@ namespace layer_in_c{
         else{
             cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input.data, k, (double*)layer.weights.data, k, beta, (double*)output.data, n);
         }
-        copy(device, layer.pre_activations, output);
+        copy(device, device, layer.pre_activations, output);
         for(TI i = 0; i < BATCH_SIZE; i++){
             for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
                 output.data[i * LAYER_SPEC::OUTPUT_DIM + j] = activation<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[i * LAYER_SPEC::OUTPUT_DIM + j]);

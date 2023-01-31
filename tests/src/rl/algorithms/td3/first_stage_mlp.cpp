@@ -275,6 +275,14 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     lic::malloc(device, critic_batch);
     lic::malloc(device, critic_training_buffers);
 
+    first_stage_second_stage::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    lic::malloc(device, critic_buffers[0]);
+    lic::malloc(device, critic_buffers[1]);
+
+    first_stage_second_stage::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
+    lic::malloc(device, actor_buffers[0]);
+    lic::malloc(device, actor_buffers[1]);
+
     decltype(actor_critic.critic_1) pre_critic_1;
     lic::malloc(device, pre_critic_1);
     lic::reset_optimizer_state(device, actor_critic.critic_1);
@@ -301,7 +309,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         }
 
         lic::gather_batch<DEVICE, ReplayBufferSpec, first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, critic_batch, rng);
-        lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, critic_training_buffers);
+        lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_buffers[0], critic_buffers[0], critic_training_buffers);
 
         lic::reset_forward_state(device, pre_critic_1);
         lic::reset_forward_state(device, post_critic_1);
@@ -390,10 +398,18 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     lic::malloc(device, actor_batch);
     lic::malloc(device, actor_training_buffers);
 
+    first_stage_second_stage::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    lic::malloc(device, critic_buffers[0]);
+    lic::malloc(device, critic_buffers[1]);
+
+    first_stage_second_stage::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
+    lic::malloc(device, actor_buffers[0]);
+    lic::malloc(device, actor_buffers[1]);
+
 
     decltype(actor_critic.actor) pre_actor;
     lic::malloc(device, pre_actor);
-    lic::copy(device, pre_actor, actor_critic.actor);
+    lic::copy(device, device, pre_actor, actor_critic.actor);
     lic::reset_optimizer_state(device, actor_critic.actor);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
@@ -408,7 +424,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 
 //        DTYPE actor_1_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, ReplayBufferType::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
         lic::gather_batch<DEVICE, ReplayBufferSpec, first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, actor_batch, rng);
-        DTYPE actor_1_loss = lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
+        DTYPE actor_1_loss = lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
 
         lic::reset_forward_state(device, pre_actor);
         lic::reset_forward_state(device, post_actor);

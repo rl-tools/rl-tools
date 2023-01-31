@@ -81,9 +81,9 @@ namespace layer_in_c{
         reset_optimizer_state(device, actor_critic.critic_1);
         reset_optimizer_state(device, actor_critic.critic_2);
 
-        copy(device, actor_critic.actor_target, actor_critic.actor);
-        copy(device, actor_critic.critic_target_1, actor_critic.critic_1);
-        copy(device, actor_critic.critic_target_2, actor_critic.critic_2);
+        copy(device, device, actor_critic.actor_target, actor_critic.actor);
+        copy(device, device, actor_critic.critic_target_1, actor_critic.critic_1);
+        copy(device, device, actor_critic.critic_target_2, actor_critic.critic_2);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE>
     FUNCTION_PLACEMENT typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename CRITIC_TYPE::template Buffers<BATCH_SIZE> critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {

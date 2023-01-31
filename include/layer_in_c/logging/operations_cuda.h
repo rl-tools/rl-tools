@@ -4,7 +4,7 @@
 
 #include <layer_in_c/devices/cuda.h>
 
-namespace layer_in_c::logging{
+namespace layer_in_c{
     template <typename A>
     void text(devices::logging::CUDA& dev, const A a){
     }

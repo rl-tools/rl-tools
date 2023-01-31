@@ -87,13 +87,19 @@ int main() {
 
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
+    CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
     lic::malloc(device, critic_batch);
     lic::malloc(device, critic_training_buffers);
+    lic::malloc(device, critic_buffers[0]);
+    lic::malloc(device, critic_buffers[1]);
 
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
     lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
+    ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
     lic::malloc(device, actor_batch);
     lic::malloc(device, actor_training_buffers);
+    lic::malloc(device, actor_buffers[0]);
+    lic::malloc(device, actor_buffers[1]);
 
     for(int step_i = 0; step_i < 15000; step_i++){
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
@@ -105,11 +111,11 @@ int main() {
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 lic::gather_batch(device, off_policy_runner.replay_buffer, critic_batch, rng);
-                lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, critic_training_buffers);
+                lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
             }
             if(step_i % 2 == 0){
                 lic::gather_batch(device, off_policy_runner.replay_buffer, actor_batch, rng);
-                lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
+                lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
                 lic::update_critic_targets(device, actor_critic);
                 lic::update_actor_target(device, actor_critic);
             }

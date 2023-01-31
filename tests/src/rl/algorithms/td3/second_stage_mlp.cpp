@@ -184,23 +184,29 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     int num_steps = std::min(steps_group.getNumberObjects(), (typename DEVICE::index_t)1000);
     decltype(actor_critic.critic_1) pre_critic_1;
     lic::malloc(device, pre_critic_1);
-    lic::copy(device, pre_critic_1, actor_critic.critic_1);
+    lic::copy(device, device, pre_critic_1, actor_critic.critic_1);
     decltype(actor_critic.actor) pre_actor;
     lic::malloc(device, pre_actor);
-    lic::copy(device, pre_actor, actor_critic.actor);
+    lic::copy(device, device, pre_actor, actor_critic.actor);
     decltype(actor_critic.critic_target_1) pre_critic_1_target;
     lic::malloc(device, pre_critic_1_target);
-    lic::copy(device, pre_critic_1_target, actor_critic.critic_target_1);
+    lic::copy(device, device, pre_critic_1_target, actor_critic.critic_target_1);
 
     lic::rl::components::replay_buffer::Batch<ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
+    CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
     lic::malloc(device, critic_batch);
     lic::malloc(device, critic_training_buffers);
+    lic::malloc(device, critic_buffers[0]);
+    lic::malloc(device, critic_buffers[1]);
 
     lic::rl::components::replay_buffer::Batch<ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
     lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
+    ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
     lic::malloc(device, actor_batch);
     lic::malloc(device, actor_training_buffers);
+    lic::malloc(device, actor_buffers[0]);
+    lic::malloc(device, actor_buffers[1]);
 
     for(int step_i = 0; step_i < num_steps; step_i++){
         if(verbose){
@@ -232,7 +238,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 
             lic::gather_batch<DEVICE, ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, critic_batch, rng);
-            lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, critic_training_buffers);
+            lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_buffers[0], critic_buffers[0], critic_training_buffers);
 
 
             lic::reset_forward_state(device, pre_critic_1);
@@ -283,9 +289,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
 
                 lic::gather_batch<DEVICE, ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, critic_batch, rng);
-                lic::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, critic_training_buffers);
+                lic::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, actor_buffers[0], critic_buffers[0], critic_training_buffers);
             }
-            lic::copy(device, pre_critic_1, actor_critic.critic_1);
+            lic::copy(device, device, pre_critic_1, actor_critic.critic_1);
 
             if(true){//(step_i % 100 == 0){
                 DTYPE diff = 0;
@@ -330,7 +336,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
             {
                 lic::gather_batch<DEVICE, ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, actor_batch, rng);
-                lic::train_actor(device, actor_critic, actor_batch, actor_training_buffers);
+                lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
             }
 //            DTYPE actor_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, decltype(replay_buffer)::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
 
@@ -393,7 +399,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             mean_ratio_actor_grad += diff_ratio_grad;
             mean_ratio_actor_adam += diff_ratio_adam;
 
-            lic::copy(device, pre_actor, actor_critic.actor);
+            lic::copy(device, device, pre_actor, actor_critic.actor);
             lic::free(device, post_actor);
             lic::free(device, pre_actor_loaded);
         }
@@ -439,7 +445,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
                     mean_ratio_critic_target += diff_ratio;
 
-                    lic::copy(device, pre_critic_1_target, actor_critic.critic_target_1);
+                    lic::copy(device, device, pre_critic_1_target, actor_critic.critic_target_1);
 
                     if(true){//(step_i % 100 == 0){
                         DTYPE diff = 0;

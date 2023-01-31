@@ -139,7 +139,7 @@ namespace layer_in_c {
     FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         forward(device, network, input);
-        copy(device, output, network.output_layer.output);
+        copy(device, device, output, network.output_layer.output);
     }
 
     template<typename DEVICE, typename SPEC>
@@ -297,31 +297,31 @@ namespace layer_in_c {
     }
 
     // The following copy operators are more powerful than the default copy assignment operator in that they can e.g. copy between networks with different activation functions
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>* target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>* source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>* target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>* source){
         static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
-        copy(device, target->input_layer, source->input_layer);
+        copy(target_device, source_device, target->input_layer, source->input_layer);
         for(typename TARGET_SPEC::TI layer_i = 0; layer_i <  TARGET_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
-            copy(device, target->hidden_layers[layer_i], source->hidden_layers[layer_i]);
+            copy(target_device, source_device, target->hidden_layers[layer_i], source->hidden_layers[layer_i]);
         }
-        copy(device, target->output_layer, source->output_layer);
+        copy(target_device, source_device, target->output_layer, source->output_layer);
     }
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source){
         static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
-        copy(device, &target, &source);
+        copy(target_device, source_device, &target, &source);
     }
 
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>* target, const nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>* source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>* target, const nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>* source){
         static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
-        copy(device, (nn_models::mlp::NeuralNetwork<TARGET_SPEC>*)target, (nn_models::mlp::NeuralNetwork<SOURCE_SPEC>*)source);
+        copy(target_device, source_device, (nn_models::mlp::NeuralNetwork<TARGET_SPEC>*)target, (nn_models::mlp::NeuralNetwork<SOURCE_SPEC>*)source);
         target->age = source->age;
     }
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    FUNCTION_PLACEMENT void copy(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>& source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>& source){
         static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
-        copy(device, &target, &source);
+        copy(target_device, source_device, &target, &source);
     }
 
     template<typename DEVICE, typename SPEC>

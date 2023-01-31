@@ -59,8 +59,8 @@ namespace layer_in_c{
         return acc;
     }
 
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    void copy(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename SPEC_1, typename SPEC_2>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         static_assert(SPEC_1::LAYOUT == RowMajor);
         static_assert(SPEC_2::LAYOUT == RowMajor);

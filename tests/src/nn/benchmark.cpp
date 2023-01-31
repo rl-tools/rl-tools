@@ -54,7 +54,7 @@ protected:
         network.age = 100000;
         lic::malloc(device, network_mkl);
         lic::init_weights(device, network, rng);
-        lic::copy(device, network_mkl, network);
+        lic::copy(device, device, network_mkl, network);
         assert(network_mkl.age == network.age);
 
         for(INDEX_TYPE i = 0; i < BATCH_SIZE * NetworkType::INPUT_DIM; ++i)
@@ -81,7 +81,7 @@ protected:
 
         lic::forward(device, network, input);
 
-        lic::copy(device, expected_output_output_layer, network.output_layer.output);
+        lic::copy(device, device, expected_output_output_layer, network.output_layer.output);
 
         lic::reset_optimizer_state(device, network);
         lic::zero_gradient(device, network);
@@ -417,7 +417,34 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, ACCELERATE) {
 #endif
 #ifdef LAYER_IN_C_BACKEND_ENABLE_CUBLAS
 
+#include <layer_in_c/devices/cublas.h>
+#include <layer_in_c/containers/operations_cublas.h>
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, CUBLAS) {
-    std::cout << "hello world from cuda" << std::endl;
+    using DEVICE_CUBLAS = lic::devices::CUBLAS<DEVICE::SPEC>;
+    DEVICE_CUBLAS device_cublas(device.logger);
+    NetworkType network_cublas;
+    lic::malloc(device_cublas, network_cublas);
+
+    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
+    lic::malloc(device_cublas, output_matrix);
+    lic::set(device_cublas, output_matrix, 0);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
+        lic::evaluate(device_cublas, network_mkl.input_layer, input, output_matrix);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "MKL LIC evaluate: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
+
+    DTYPE abs_diff = lic::abs_diff(device_cublas, output_matrix, expected_output_input_layer) / NetworkType::NUM_WEIGHTS;
+
+    if constexpr(lic::utils::typing::is_same_v<DTYPE, float>){
+        EXPECT_LT(abs_diff, 1e-6);
+    }
+    else{
+        EXPECT_LT(abs_diff, 1e-14);
+    }
+
+    std::cout << "Absolute difference: " << abs_diff << std::endl;
 }
 #endif

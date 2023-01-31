@@ -80,16 +80,16 @@ TEST(LAYER_IN_C_NN_MLP_CONVERSIONS, CONVERSIONS) {
 
     ASSERT_GT(lic::abs_diff(device2, layer2, layer22), 0);
 
-    lic::copy(device2, layer22, layer222);
+    lic::copy(device2, device2, layer22, layer222);
 
     ASSERT_GT(lic::abs_diff(device2, layer2, layer22), 0);
     ASSERT_EQ(lic::abs_diff(device2, layer22, layer222), 0);
 
-    lic::copy(device2, layer2, layer22);
+    lic::copy(device2, device2, layer2, layer22);
 
     ASSERT_EQ(lic::abs_diff(device2, layer2, layer222), 0);
 
-    lic::copy(device1, layer1, layer2);
+    lic::copy(device1, device1, layer1, layer2);
 
     ASSERT_EQ(lic::abs_diff(device1, layer1, layer222), 0);
 
