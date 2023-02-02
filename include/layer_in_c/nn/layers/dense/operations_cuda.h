@@ -16,16 +16,15 @@ namespace layer_in_c{
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
 
             TI thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-            if(thread_id == 0){
-                for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                    for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++){
-                        auto batch_output_i = batch_i * OUTPUT_DIM + output_i;
-                        output[batch_output_i] = layer.biases.data[output_i];
-                        for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
-                            output[batch_output_i] += layer.weights.data[output_i * INPUT_DIM + input_i] * input[batch_i * INPUT_DIM + input_i];
-                        }
-                        output[batch_output_i] = activation<typename devices::CUDA<DEV_SPEC>::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output[batch_output_i]);
+            if(thread_id < BATCH_SIZE){
+                for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++){
+                    TI batch_i = thread_id;
+                    auto batch_output_i = batch_i * OUTPUT_DIM + output_i;
+                    output[batch_output_i] = layer.biases.data[output_i];
+                    for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
+                        output[batch_output_i] += layer.weights.data[output_i * INPUT_DIM + input_i] * input[batch_i * INPUT_DIM + input_i];
                     }
+                    output[batch_output_i] = activation<typename devices::CUDA<DEV_SPEC>::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output[batch_output_i]);
                 }
             }
         }
@@ -43,15 +42,14 @@ namespace layer_in_c{
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS = BATCH_SIZE / BLOCKSIZE + (BATCH_SIZE % BLOCKSIZE == 0 ? 0 : 1);
         dim3 grid(N_BLOCKS);
         dim3 block(BLOCKSIZE);
-        std::cout << "CUDA: " << BLOCKSIZE << " " << N_BLOCKS << std::endl;
         nn::dense::cuda::evaluate_batch_kernel<DEV_SPEC, LAYER_SPEC, BATCH_SIZE><<<grid, block>>>(device, layer, input.data, output.data);
         // handle cuda error
-        cudaDeviceSynchronize();
-        auto err = cudaGetLastError();
-        if(err != cudaSuccess){
-            std::cout << "CUDA error: " << cudaGetErrorString(err) << std::endl;
-
-        }
+//        cudaDeviceSynchronize();
+//        auto err = cudaGetLastError();
+//        if(err != cudaSuccess){
+//            std::cout << "CUDA error: " << cudaGetErrorString(err) << std::endl;
+//
+//        }
     }
 }
 #endif
