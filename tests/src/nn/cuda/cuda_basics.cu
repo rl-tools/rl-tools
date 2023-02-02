@@ -161,5 +161,5 @@ TEST(LAYER_IN_C_NN_CUDA, GEMM) {
     GEMM<double, unsigned int, 256, 1>();
     GEMM<double, unsigned int, 200, 1>();
     GEMM<float, unsigned int, 200, 1>();
-    GEMM<float, unsigned int, 256, 1000>();
+    GEMM<float, unsigned int, 256, 10000>();
 }
