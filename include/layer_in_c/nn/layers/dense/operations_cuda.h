@@ -21,11 +21,11 @@ namespace layer_in_c{
                 TI batch_i = thread_id_batch;
                 TI output_i = thread_id_output;
                 auto batch_output_i = batch_i * OUTPUT_DIM + output_i;
-                output[batch_output_i] = layer.biases.data[output_i];
+                T acc = layer.biases.data[output_i];
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
-                    output[batch_output_i] += layer.weights.data[output_i * INPUT_DIM + input_i] * input[batch_i * INPUT_DIM + input_i];
+                    acc += layer.weights.data[output_i * INPUT_DIM + input_i] * input[batch_i * INPUT_DIM + input_i];
                 }
-                output[batch_output_i] = activation<typename devices::CUDA<DEV_SPEC>::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(output[batch_output_i]);
+                output[batch_output_i] = activation<typename devices::CUDA<DEV_SPEC>::SPEC::MATH, typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(acc);
             }
         }
     }
