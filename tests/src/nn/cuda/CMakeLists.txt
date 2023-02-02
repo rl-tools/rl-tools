@@ -9,14 +9,24 @@ set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD  17)
 
 add_executable(
-        test_nn_cuda_benchmark
-        ../benchmark.cpp
+        test_nn_cuda_basics
+        cuda_basics.cu
 )
 target_link_libraries(
-        test_nn_cuda_benchmark
+        test_nn_cuda_basics
         PRIVATE
         layer_in_c
         GTest::gtest_main
-        Eigen3::Eigen
 )
-gtest_discover_tests(test_nn_cuda_benchmark)
+gtest_discover_tests(test_nn_cuda_basics)
+
+
+add_executable(
+        test_nn_cuda_cutlass
+        cutlass_test.cu
+)
+target_link_libraries(
+        test_nn_cuda_cutlass
+        PRIVATE
+        CUTLASS
+)

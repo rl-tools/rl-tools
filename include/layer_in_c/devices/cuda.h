@@ -4,7 +4,6 @@
 #include <layer_in_c/utils/generic/typing.h>
 #include "devices.h"
 
-#include <cstddef>
 namespace layer_in_c::devices{
     namespace cuda{
         struct Base{
@@ -14,20 +13,20 @@ namespace layer_in_c::devices{
     }
     namespace math{
         struct CUDA: cuda::Base{
-            static constexpr Type DOMAIN = Type::math;
+            static constexpr Type TYPE = Type::math;
         };
         struct CUDA_FAST: cuda::Base{
-            static constexpr Type DOMAIN = Type::math;
+            static constexpr Type TYPE = Type::math;
         };
     }
     namespace random{
         struct CUDA: cuda::Base{
-            static constexpr Type DOMAIN = Type::random;
+            static constexpr Type TYPE = Type::random;
         };
     }
     namespace logging{
         struct CUDA: cuda::Base{
-            static constexpr Type DOMAIN = Type::logging;
+            static constexpr Type TYPE = Type::logging;
         };
     }
     template <typename T_SPEC>

@@ -10,14 +10,14 @@
 #include <layer_in_c/utils/generic/integrators.h>
 #include <layer_in_c/utils/generic/typing.h>
 
-#ifndef FUNCTION_PLACEMENT
-#define FUNCTION_PLACEMENT
+#ifndef LAYER_IN_C_FUNCTION_PLACEMENT
+#define LAYER_IN_C_FUNCTION_PLACEMENT
 #endif
 
 
 namespace layer_in_c::rl::environments::multirotor {
     template<typename DEVICE, typename T, auto STATE_DIM, auto N, typename REWARD_FUNCTION>
-    FUNCTION_PLACEMENT void multirotor_dynamics(
+    LAYER_IN_C_FUNCTION_PLACEMENT void multirotor_dynamics(
             DEVICE& device,
             const Parameters<T, typename DEVICE::index_t, N, REWARD_FUNCTION> &params,
 

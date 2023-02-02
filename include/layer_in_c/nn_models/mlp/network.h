@@ -98,6 +98,15 @@ namespace layer_in_c::nn_models::mlp {
         Matrix<MatrixSpecification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tick;
         Matrix<MatrixSpecification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tock;
     };
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE = T_SPEC::BATCH_SIZE>
+    struct NeuralNetworkBuffersForwardBackward: NeuralNetworkBuffers<T_SPEC, T_BATCH_SIZE>{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM>> d_input;
+        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM>> d_output;
+    };
 
     template<typename T_SPEC>
     struct NeuralNetwork{
@@ -106,6 +115,8 @@ namespace layer_in_c::nn_models::mlp {
         using TI = typename SPEC::TI;
         template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE>
         using Buffers = NeuralNetworkBuffers<SPEC, BUFFER_BATCH_SIZE>;
+        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE>
+        using BuffersForwardBackward = NeuralNetworkBuffersForwardBackward<SPEC, BUFFER_BATCH_SIZE>;
 
         // Convenience
         static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required

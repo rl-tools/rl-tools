@@ -2,7 +2,7 @@ constexpr bool test_full_network = true;
 //constexpr bool test_full_network = false;
 constexpr bool test_first_layer = true;
 //constexpr bool test_first_layer = false;
-#define FUNCTION_PLACEMENT __device__ __host__
+#define LAYER_IN_C_FUNCTION_PLACEMENT __device__ __host__
 
 // Group 1
 #include <layer_in_c/devices/cpu.h>

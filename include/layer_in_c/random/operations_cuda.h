@@ -12,7 +12,7 @@ namespace layer_in_c::random{
     };
 
     template<typename T, typename RNG>
-    FUNCTION_PLACEMENT T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
+    LAYER_IN_C_FUNCTION_PLACEMENT T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
         if constexpr(utils::typing::is_same_v<T, float>){
             return curand_uniform(&rng) * (high - low) + low;
         }
@@ -27,12 +27,12 @@ namespace layer_in_c::random{
         return 0;
     }
     template<typename T, typename RNG>
-    FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
+    LAYER_IN_C_FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
         auto r = uniform_real_distribution(dev, low, high, rng);
         return (T)r;
     }
     template<typename T, typename RNG>
-    FUNCTION_PLACEMENT T normal_distribution(const devices::random::CUDA& dev, T mean, T std, RNG& rng){
+    LAYER_IN_C_FUNCTION_PLACEMENT T normal_distribution(const devices::random::CUDA& dev, T mean, T std, RNG& rng){
         if constexpr(utils::typing::is_same_v<T, float>){
             return curand_normal(&rng) * std + mean;
         }

@@ -6,8 +6,8 @@
 
 constexpr COUNTER_TYPE STATE_DIM = 13;
 constexpr COUNTER_TYPE ACTION_DIM = 4;
-#ifndef FUNCTION_PLACEMENT
-#define FUNCTION_PLACEMENT
+#ifndef LAYER_IN_C_FUNCTION_PLACEMENT
+#define LAYER_IN_C_FUNCTION_PLACEMENT
 #endif
 
 template <typename T, int N>
@@ -26,7 +26,7 @@ public:
 };
 
 template <typename T, int N>
-FUNCTION_PLACEMENT void multirotor_dynamics(
+LAYER_IN_C_FUNCTION_PLACEMENT void multirotor_dynamics(
         const Parameters<T, N>& params,
 
         // state
@@ -96,14 +96,14 @@ FUNCTION_PLACEMENT void multirotor_dynamics(
 }
 
 template <typename T, int N>
-FUNCTION_PLACEMENT void next_state_euler(const Parameters<T, N>& params, T state[STATE_DIM], T action[N], T dt, T next_state[STATE_DIM]){
+LAYER_IN_C_FUNCTION_PLACEMENT void next_state_euler(const Parameters<T, N>& params, T state[STATE_DIM], T action[N], T dt, T next_state[STATE_DIM]){
     T dfdt[STATE_DIM];
     multirotor_dynamics<N>(params, state, action, dfdt);
     scalar_multiply<STATE_DIM>(dfdt, dt, next_state);
     vector_add_accumulate<STATE_DIM>(state, next_state);
 }
 template <typename T, int N>
-FUNCTION_PLACEMENT void next_state_rk4(const Parameters<T, N>& params, const T state[STATE_DIM], const T action[N], const T dt, T next_state[STATE_DIM]) {
+LAYER_IN_C_FUNCTION_PLACEMENT void next_state_rk4(const Parameters<T, N>& params, const T state[STATE_DIM], const T action[N], const T dt, T next_state[STATE_DIM]) {
     T* k1 = next_state; //[STATE_DIM];
 
     // flops: 157

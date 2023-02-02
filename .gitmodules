@@ -13,3 +13,6 @@
 [submodule "tests/lib/nlohmann"]
 	path = tests/lib/nlohmann
 	url = https://github.com/nlohmann/json.git
+[submodule "tests/lib/cutlass"]
+	path = tests/lib/cutlass
+	url = https://github.com/NVIDIA/cutlass.git

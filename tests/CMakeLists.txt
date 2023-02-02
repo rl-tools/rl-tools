@@ -40,7 +40,11 @@ find_package(Eigen3 REQUIRED)
 #find_package(OpenMP REQUIRED)
 find_package(Boost REQUIRED)
 
+#find_package(CUDAToolkit REQUIRED)
+
 if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
+    set(CUTLASS_ENABLE_CUBLAS ON)
+    add_subdirectory(lib/cutlass EXCLUDE_FROM_ALL)
     add_subdirectory(src/nn/cuda)
 endif()
 
@@ -309,6 +313,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         Eigen3::Eigen
+#        CUDA::cudart
 )
 LAYER_IN_C_TARGET_LINK_BLAS(test_neural_network_benchmark)
 gtest_discover_tests(test_neural_network_benchmark)
