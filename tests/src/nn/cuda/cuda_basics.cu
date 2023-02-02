@@ -83,7 +83,7 @@ TEST(LAYER_IN_C_NN_CUDA, COPY) {
     lic::free(device_cuda, network_cuda);
 }
 
-template <typename T, typename TI, TI BATCH_SIZE>
+template <typename T, typename TI, TI BATCH_SIZE, TI ITERATIONS>
 void GEMM() {
     using DEVICE_CPU = lic::devices::DefaultCPU;
     using DEVICE_CUDA = lic::devices::DefaultCUDA;
@@ -95,8 +95,6 @@ void GEMM() {
 
     using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
 
-    constexpr DEVICE_CPU::index_t ITERATIONS = 10;
-    constexpr DEVICE_CPU::index_t NAIVE_ITERATIONS = 1;
     std::cout << "GEMM<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
     using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
     using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
@@ -160,8 +158,8 @@ void GEMM() {
     }
 }
 TEST(LAYER_IN_C_NN_CUDA, GEMM) {
-    GEMM<double, unsigned int, 256>();
-    GEMM<double, unsigned int, 200>();
-    GEMM<float, unsigned int, 200>();
-    GEMM<float, unsigned int, 256>();
+    GEMM<double, unsigned int, 256, 1>();
+    GEMM<double, unsigned int, 200, 1>();
+    GEMM<float, unsigned int, 200, 1>();
+    GEMM<float, unsigned int, 256, 1000>();
 }

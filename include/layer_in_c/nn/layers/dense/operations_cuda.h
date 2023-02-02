@@ -38,7 +38,7 @@ namespace layer_in_c{
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE = 128;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS = BATCH_SIZE / BLOCKSIZE + (BATCH_SIZE % BLOCKSIZE == 0 ? 0 : 1);
         dim3 grid(N_BLOCKS);
         dim3 block(BLOCKSIZE);
