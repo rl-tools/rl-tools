@@ -125,9 +125,5 @@ TEST(LAYER_IN_C_NN_CUDA, GEMM) {
     lic::copy(device_cpu, device_cuda, output_first_layer_cuda_cpu, output_first_layer_cuda);
     auto evaluation_diff = lic::abs_diff(device_cpu, output_first_layer_cuda_cpu, output_first_layer_cpu);
 
-    for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++i){
-        std::cout << "CPU: " << output_first_layer_cpu.data[i] << " CUDA: " << output_first_layer_cuda_cpu.data[i] << std::endl;
-    }
-
     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
 }
