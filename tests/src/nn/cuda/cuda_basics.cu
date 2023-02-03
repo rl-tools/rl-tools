@@ -90,7 +90,7 @@ void GEMM() {
 
     constexpr DEVICE_CPU::index_t HIDDEN_DIM = BATCH_SIZE;
 
-    constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::RELU;
+    constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
     using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::RELU, BATCH_SIZE>;
 
     using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
@@ -127,6 +127,37 @@ void GEMM() {
     {
         input_cpu.data[i] = lic::random::uniform_real_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng);
     }
+    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
+        std::cout << "Input:" << std::endl;
+        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
+        {
+            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::INPUT_DIM; ++j)
+            {
+                std::cout << input_cpu.data[i * NetworkTypeCPU::INPUT_DIM + j] << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
+        std::cout << "Weights:" << std::endl;
+        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++i)
+        {
+            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::INPUT_DIM; ++j)
+            {
+                std::cout << network_cpu.input_layer.weights.data[i * NetworkTypeCPU::INPUT_DIM + j] << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
+        std::cout << "Biases:" << std::endl;
+        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++i)
+        {
+            std::cout << network_cpu.input_layer.biases.data[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+
 
     lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
     lic::malloc(device_cuda, input_cuda);
@@ -142,8 +173,47 @@ void GEMM() {
     lic::copy(device_cpu, device_cuda, output_first_layer_cuda_cpu, output_first_layer_cuda);
     auto evaluation_diff = lic::abs_diff(device_cpu, output_first_layer_cuda_cpu, output_first_layer_cpu)/(BATCH_SIZE * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM);
 
+    if(BATCH_SIZE <= 10 && NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM <= 10){
+        std::cout << "cpu output:" << std::endl;
+        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
+        {
+            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++j)
+            {
+                std::cout << output_first_layer_cpu.data[i * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM + j] << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+
+    if(BATCH_SIZE <= 10 && NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM <= 10){
+        std::cout << "cuda output:" << std::endl;
+        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i){
+            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++j){
+                std::cout << output_first_layer_cuda_cpu.data[i * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM + j] << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+
+    if(BATCH_SIZE <= 10 && NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM <= 10){
+        std::cout << "cuda diff:" << std::endl;
+        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
+        {
+            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++j)
+            {
+                T diff = output_first_layer_cpu.data[i * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM + j] - output_first_layer_cuda_cpu.data[i * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM + j];
+                diff = std::abs(diff) > 1e-7 ? diff : 0;
+                std::cout << diff << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+
     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
-    ASSERT_LT(evaluation_diff, (lic::utils::typing::is_same_v<T, float> ? 1e-7 : 1e-15));
+    auto threshold = (lic::utils::typing::is_same_v<T, float> ? 1e-7 : 1e-15);
+    if(evaluation_diff > threshold){
+        ASSERT_LT(evaluation_diff, threshold);
+    }
 
     {
         cudaDeviceSynchronize();
@@ -158,7 +228,8 @@ void GEMM() {
     }
 }
 TEST(LAYER_IN_C_NN_CUDA, GEMM) {
-    GEMM<double, unsigned int, 256, 1>();
+    GEMM<float, unsigned int, 10, 1>();
+    GEMM<float, unsigned int, 9, 1>();
     GEMM<double, unsigned int, 200, 1>();
     GEMM<float, unsigned int, 200, 1>();
     GEMM<float, unsigned int, 256, 10000>();
