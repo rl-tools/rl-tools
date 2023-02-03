@@ -27,7 +27,7 @@ namespace copy{
     constexpr DEVICE_CPU::index_t HIDDEN_DIM = BATCH_SIZE;
 
     template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
-    using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::RELU, BATCH_SIZE>;
+    using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
     template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
     using InferenceSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
@@ -102,6 +102,7 @@ void GEMM() {
     DEVICE_CUDA::SPEC::LOGGING cuda_logger;
     DEVICE_CPU device_cpu(cpu_logger);
     DEVICE_CUDA device_cuda(cuda_logger);
+    lic::init(device_cuda);
     NetworkTypeCPU network_cpu;
     typename NetworkTypeCPU::template Buffers<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
@@ -114,6 +115,7 @@ void GEMM() {
     auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
     lic::init_weights(device_cpu, network_cpu, rng);
+    lic::set(device_cpu, network_cpu.input_layer.biases, 0);
     lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
     lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;

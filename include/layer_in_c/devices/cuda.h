@@ -4,6 +4,7 @@
 #include <layer_in_c/utils/generic/typing.h>
 #include "devices.h"
 
+#include <cublas_v2.h>
 namespace layer_in_c::devices{
     namespace cuda{
         struct Base{
@@ -35,6 +36,7 @@ namespace layer_in_c::devices{
         static constexpr bool compatible = utils::typing::is_same_v<OTHER_DEVICE, CUDA<T_SPEC>>;
         using SPEC = T_SPEC;
         typename SPEC::LOGGING& logger;
+        cublasHandle_t handle;
         explicit CUDA(typename SPEC::LOGGING& logger) : logger(logger) {}
     };
     template <typename T_SPEC>
@@ -52,6 +54,18 @@ namespace layer_in_c::devices{
     };
     using DefaultCUDA = CUDA<DefaultCUDASpecification>;
     using DefaultCUDAGeneric = CUDA_GENERIC<DefaultCUDASpecification>;
+}
+
+namespace layer_in_c {
+    template <typename SPEC>
+    void init(devices::CUDA<SPEC>& device){
+        cublasStatus_t stat;
+        stat = cublasCreate(&device.handle);
+        if (stat != CUBLAS_STATUS_SUCCESS) {
+//            logging::text(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
+            std::cout << "CUBLAS initialization failed " << cublasGetStatusString(stat) << std::endl;
+        }
+    }
 }
 
 #endif

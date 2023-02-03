@@ -17,7 +17,9 @@ target_link_libraries(
         PRIVATE
         layer_in_c
         GTest::gtest_main
+        cublas
 )
+
 gtest_discover_tests(test_nn_cuda_basics)
 
 

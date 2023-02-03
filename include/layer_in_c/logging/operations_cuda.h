@@ -7,6 +7,10 @@
 namespace layer_in_c{
     namespace logging{
         template <typename A>
+        void text(devices::logging::CUDA& dev, const char * a, const char * b){
+            std::cout << a << b << std::endl;
+        }
+        template <typename A>
         void text(devices::logging::CUDA& dev, const A a){
         }
         template <typename A, typename B>
