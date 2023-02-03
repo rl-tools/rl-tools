@@ -115,7 +115,6 @@ void GEMM() {
     auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
     lic::init_weights(device_cpu, network_cpu, rng);
-    lic::set(device_cpu, network_cpu.input_layer.biases, 0);
     lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
     lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
@@ -234,5 +233,6 @@ TEST(LAYER_IN_C_NN_CUDA, GEMM) {
     GEMM<float, unsigned int, 9, 1>();
     GEMM<double, unsigned int, 200, 1>();
     GEMM<float, unsigned int, 200, 1>();
-    GEMM<float, unsigned int, 256, 10000>();
+    GEMM<float, unsigned int, 64, 10000>();
+    GEMM<float, unsigned int, 256, 100000>();
 }
