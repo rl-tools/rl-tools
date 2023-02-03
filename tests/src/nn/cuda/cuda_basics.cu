@@ -229,6 +229,10 @@ void GEMM() {
     }
 }
 TEST(LAYER_IN_C_NN_CUDA, GEMM) {
+    GEMM<float, unsigned int, 1, 1>();
+    GEMM<float, unsigned int, 2, 1>();
+    GEMM<float, unsigned int, 32, 1>();
+    GEMM<float, unsigned int, 1024, 1>();
     GEMM<float, unsigned int, 10, 1>();
     GEMM<float, unsigned int, 9, 1>();
     GEMM<double, unsigned int, 200, 1>();
