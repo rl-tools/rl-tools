@@ -277,9 +277,9 @@ void FORWARD() {
 
     lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     lic::malloc(device_cpu, input_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_cpu;
+    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
     lic::malloc(device_cpu, output_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_cuda_cpu;
+    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
     lic::malloc(device_cpu, output_cuda_cpu);
 
     for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::INPUT_DIM; ++i)
@@ -299,7 +299,7 @@ void FORWARD() {
 //    }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
 //        std::cout << "Weights:" << std::endl;
-//        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++i)
+//        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::OUTPUT_DIM; ++i)
 //        {
 //            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::INPUT_DIM; ++j)
 //            {
@@ -310,7 +310,7 @@ void FORWARD() {
 //    }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
 //        std::cout << "Biases:" << std::endl;
-//        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++i)
+//        for(typename NetworkTypeCPU::TI i = 0; i < NetworkTypeCPU::OUTPUT_DIM; ++i)
 //        {
 //            std::cout << network_cpu.input_layer.biases.data[i] << " ";
 //        }
@@ -320,53 +320,53 @@ void FORWARD() {
 
     lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
     lic::malloc(device_cuda, input_cuda);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_cuda;
+    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
     lic::malloc(device_cuda, output_cuda);
 
     lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);
 
-    lic::forward(device_cpu, network_cpu.input_layer, input_cpu, output_cpu);
-    lic::forward(device_cuda, network_cuda.input_layer, input_cuda, output_cuda);
+    lic::forward(device_cpu, network_cpu, input_cpu, output_cpu);
+    lic::forward(device_cuda, network_cuda, input_cuda, output_cuda);
     cudaDeviceSynchronize();
 
     lic::copy(device_cpu, device_cuda, output_cuda_cpu, output_cuda);
-    auto evaluation_diff = lic::abs_diff(device_cpu, output_cuda_cpu, output_cpu)/(BATCH_SIZE * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM);
+    auto evaluation_diff = lic::abs_diff(device_cpu, output_cuda_cpu, output_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
-//    if(BATCH_SIZE <= 10 && NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM <= 10){
-//        std::cout << "cpu output:" << std::endl;
-//        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
-//        {
-//            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++j)
-//            {
-//                std::cout << output_cpu.data[i * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM + j] << " ";
-//            }
-//            std::cout << std::endl;
-//        }
-//    }
-//
-//    if(BATCH_SIZE <= 10 && NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM <= 10){
-//        std::cout << "cuda output:" << std::endl;
-//        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i){
-//            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++j){
-//                std::cout << output_cuda_cpu.data[i * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM + j] << " ";
-//            }
-//            std::cout << std::endl;
-//        }
-//    }
-//
-//    if(BATCH_SIZE <= 10 && NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM <= 10){
-//        std::cout << "cuda diff:" << std::endl;
-//        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
-//        {
-//            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM; ++j)
-//            {
-//                T diff = output_cpu.data[i * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM + j] - output_cuda_cpu.data[i * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM + j];
-//                diff = std::abs(diff) > 1e-7 ? diff : 0;
-//                std::cout << diff << " ";
-//            }
-//            std::cout << std::endl;
-//        }
-//    }
+    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
+        std::cout << "cpu output:" << std::endl;
+        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
+        {
+            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::OUTPUT_DIM; ++j)
+            {
+                std::cout << output_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j] << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+
+    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
+        std::cout << "cuda output:" << std::endl;
+        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i){
+            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::OUTPUT_DIM; ++j){
+                std::cout << output_cuda_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j] << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
+
+    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
+        std::cout << "cuda diff:" << std::endl;
+        for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE; ++i)
+        {
+            for(typename NetworkTypeCPU::TI j = 0; j < NetworkTypeCPU::OUTPUT_DIM; ++j)
+            {
+                T diff = output_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j] - output_cuda_cpu.data[i * NetworkTypeCPU::OUTPUT_DIM + j];
+                diff = std::abs(diff) > 1e-7 ? diff : 0;
+                std::cout << diff << " ";
+            }
+            std::cout << std::endl;
+        }
+    }
 
     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
     auto threshold = (lic::utils::typing::is_same_v<T, float> ? 1e-7 : 1e-15);
