@@ -5,16 +5,41 @@ namespace lic = layer_in_c;
 using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
 
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl.h>
+#include <layer_in_c/operations/cpu_mkl/group_1.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate/group_1.h>
+#else
+#include <layer_in_c/operations/cpu/group_1.h>
+#endif
+#endif
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#include <layer_in_c/operations/cpu_mkl/group_2.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate/group_2.h>
+#else
+#include <layer_in_c/operations/cpu/group_2.h>
+#endif
+#endif
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#include <layer_in_c/operations/cpu_mkl/group_3.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate/group_3.h>
+#else
+#include <layer_in_c/operations/cpu/group_3.h>
+#endif
+#endif
+
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/nn/operations_cpu_mkl.h>
 using DEVICE = lic::devices::CPU_MKL<DEV_SPEC>;
 #else
 #ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate.h>
 #include <layer_in_c/nn/operations_cpu_accelerate.h>
 using DEVICE = lic::devices::CPU_ACCELERATE<DEV_SPEC>;
 #else
-#include <layer_in_c/operations/cpu.h>
 #include <layer_in_c/nn/operations_generic.h>
 using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #endif
@@ -87,7 +112,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batches[2];
     lic::rl::algorithms::td3::CriticTrainingBuffers<parameters_rl::ActorCriticType::SPEC> critic_training_buffers[2];
-    parameters_rl::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    parameters_rl::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
     lic::malloc(device, critic_batches[0]);
     lic::malloc(device, critic_batches[1]);
     lic::malloc(device, critic_training_buffers[0]);

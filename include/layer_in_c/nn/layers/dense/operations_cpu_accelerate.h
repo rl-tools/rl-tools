@@ -1,6 +1,7 @@
 #ifndef LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_CPU_ACCELERATE_H
 #define LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_CPU_ACCELERATE_H
 
+#include <Accelerate/Accelerate.h>
 #include "operations_cpu_blas.h"
 #include <layer_in_c/devices/cpu_accelerate.h>
 
