@@ -9,6 +9,7 @@
  */
 
 #include "layers/operations_generic.h"
+#include "loss_functions/operations_generic.h"
 
 
 #endif
