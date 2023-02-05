@@ -64,25 +64,25 @@ namespace layer_in_c{
         d_activation_kernel(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::Layer<SPEC> layer, typename SPEC::T* pre_activations, typename SPEC::T* d_output, typename SPEC::T* d_biases, typename SPEC::T* d_pre_activations) {
             using T = typename SPEC::T;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
-            constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
 
-            TI output_pos_x = blockIdx.x * blockDim.x + threadIdx.x;
-            TI output_pos_y = blockIdx.y * blockDim.y + threadIdx.y;
-            if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
-                T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(pre_activations[output_pos_y * OUTPUT_DIM + output_pos_x]) * d_output[output_pos_y * OUTPUT_DIM + output_pos_x];
-                d_pre_activations[output_pos_y * OUTPUT_DIM + output_pos_x] = d_pre_activation_temp;
-                atomicAdd(&d_biases[output_pos_x], (double)d_pre_activation_temp);
+            TI output_i = blockIdx.x * blockDim.x + threadIdx.x;
+            if(output_i < OUTPUT_DIM){
+                T acc = 0;
+                for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+                    T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(pre_activations[batch_i * OUTPUT_DIM + output_i]) * d_output[batch_i * OUTPUT_DIM + output_i];
+                    d_pre_activations[batch_i * OUTPUT_DIM + output_i] = d_pre_activation_temp;
+                    acc += d_pre_activation_temp;
+                }
+                d_biases[output_i] += acc;
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename devices::CUDA<DEV_SPEC>::index_t BATCH_SIZE>
         void d_activation(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::Layer<SPEC> layer, typename SPEC::T* pre_activations, typename SPEC::T* d_output, typename SPEC::T* d_biases, typename SPEC::T* d_pre_activations) {
-            constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_BATCH = 32;
             constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
-            constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_BATCH = LAYER_IN_C_CEIL(BATCH_SIZE, BLOCKSIZE_ACTIVATION_BATCH);
             constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = LAYER_IN_C_CEIL(SPEC::OUTPUT_DIM, BLOCKSIZE_ACTIVATION_OUTPUT);
-            dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT, N_BLOCKS_ACTIVATION_BATCH);
-            dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT, BLOCKSIZE_ACTIVATION_BATCH);
+            dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT);
+            dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT);
             nn::dense::cuda::d_activation_kernel<DEV_SPEC, SPEC, BATCH_SIZE><<<activation_grid, activation_block>>>(device, layer, pre_activations, d_output, d_biases, d_pre_activations);
         }
     }
