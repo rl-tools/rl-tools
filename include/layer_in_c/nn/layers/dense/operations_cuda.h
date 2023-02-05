@@ -128,21 +128,21 @@ namespace layer_in_c{
 
         constexpr T alpha = 1;
         constexpr T beta = 1;
-        // op(A) m x k = input     (B x I)
-        // op(B) k x n = weights^T (I x O)
-        // op(C) m x n = OUTPUT    (B x O)
-        constexpr auto m = BATCH_SIZE;
+        // op(A) m x k = weights^T^T (O x I)
+        // op(B) k x n = input^T     (I x B)
+        // op(C) m x n = output^T    (O x B)
+        constexpr auto m = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
-        constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
+        constexpr auto n = BATCH_SIZE;
 
         nn::dense::cuda::set_biases<DEV_SPEC, LAYER_SPEC, BATCH_SIZE>(device, layer, output.data);
 
         cublasStatus_t stat;
         if constexpr(utils::typing::is_same_v<T, float>){
-            stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (float*)layer.weights.data, k, (float*)input.data, k, &beta, (float*)output.data, n);
+            stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.data, LAYER_SPEC::INPUT_DIM, (T*)input.data, LAYER_SPEC::INPUT_DIM, &beta, (T*)output.data, LAYER_SPEC::OUTPUT_DIM);
         }
         else{
-            stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (double*)layer.weights.data, k, (double*)input.data, k, &beta, (double*)output.data, n);
+            stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.data, LAYER_SPEC::INPUT_DIM, (T*)input.data, LAYER_SPEC::INPUT_DIM, &beta, (T*)output.data, LAYER_SPEC::OUTPUT_DIM);
         }
 
         copy(device, device, layer.pre_activations, output);
@@ -151,7 +151,7 @@ namespace layer_in_c{
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void backward(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
+    void backward(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
         // Warning do not reuse d_output as d_output is used as a temporary buffer
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
@@ -167,49 +167,40 @@ namespace layer_in_c{
             // d_weights
             constexpr T alpha = 1;
             constexpr T beta = 1;
-            // op(A) m x k = d_output^T (O x B)
-            // op(B) k x n = input      (B x I)
-            // op(C) m x n = d_weights  (O x I)
+            // op(A) m x k = input^T       (I x B)
+            // op(B) k x n = d_output^T^T  (B x O)
+            // op(C) m x n = d_weights^T   (I x O)
 
-            constexpr auto m = LAYER_SPEC::OUTPUT_DIM;
+            constexpr auto m = LAYER_SPEC::INPUT_DIM;
+            constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
             constexpr auto k = BATCH_SIZE;
-            constexpr auto n = LAYER_SPEC::INPUT_DIM;
 
-            // calculating pre-activation
-//            for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-//                for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
-//                    TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
-//                    T d_pre_activation = d_activation_d_x<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[output_index]) * d_output.data[output_index];
-//                    layer.d_biases.data[output_i] += d_pre_activation;
-//                    d_output.data[output_index] = d_pre_activation;
-//                }
-//            }
             nn::dense::cuda::d_activation<DEV_SPEC, LAYER_SPEC, BATCH_SIZE>(device, layer, layer.pre_activations.data, d_output.data, layer.d_biases.data, d_output.data);
 
             if constexpr(utils::typing::is_same_v<T, float>){
-                cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (float*)input.data, n, (float*)d_output.data, m, &beta, (float*)layer.d_weights.data, n);
+                cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input.data, LAYER_SPEC::INPUT_DIM, (T*)d_output.data, LAYER_SPEC::OUTPUT_DIM, &beta, (T*)layer.d_weights.data, LAYER_SPEC::INPUT_DIM);
             }
             else{
-                cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (double*)input.data, n, (double*)d_output.data, m, &beta, (double*)layer.d_weights.data, n);
+                cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input.data, LAYER_SPEC::INPUT_DIM, (T*)d_output.data, LAYER_SPEC::OUTPUT_DIM, &beta, (T*)layer.d_weights.data, LAYER_SPEC::INPUT_DIM);
             }
         }
         {
             // d_input
             constexpr T alpha = 1;
             constexpr T beta = 0;
-            // op(A) m x k = d_output   (B x O)
-            // op(B) k x n = weights    (O x I)
-            // op(C) m x n = d_input    (B x I)
+            // op(A) m x k = weights^T  (I x O)
+            // op(B) k x n = d_output^T (O x B)
+            // op(C) m x n = d_input^T  (I x B)
 
-            constexpr auto m = BATCH_SIZE;
+            constexpr auto m = LAYER_SPEC::INPUT_DIM;
+            constexpr auto n = BATCH_SIZE;
             constexpr auto k = LAYER_SPEC::OUTPUT_DIM;
-            constexpr auto n = LAYER_SPEC::INPUT_DIM;
 
             if constexpr(utils::typing::is_same_v<T, float>){
-                cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, ( float*)layer.weights.data, n, ( float*)d_output.data, k, &beta, ( float*)d_input.data, n);
+                cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.data, LAYER_SPEC::INPUT_DIM, (T*)d_output.data, LAYER_SPEC::OUTPUT_DIM, &beta, (T*)d_input.data, LAYER_SPEC::INPUT_DIM);
             }
             else{
-                cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, ( double*)layer.weights.data, n, ( double*)d_output.data, k, &beta, ( double*)d_input.data, n);
+                cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.data, LAYER_SPEC::INPUT_DIM, (T*)d_output.data, LAYER_SPEC::OUTPUT_DIM, &beta, (T*)d_input.data, LAYER_SPEC::INPUT_DIM);
             }
         }
     }

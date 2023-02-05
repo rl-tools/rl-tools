@@ -229,19 +229,19 @@ void GEMM() {
         std::cout << "CUDA evaluation time: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((T)ITERATIONS) << "us" << std::endl;
     }
 }
-//TEST(LAYER_IN_C_NN_CUDA, GEMM) {
-//    using DEFAULT_DTYPE = float;
-//    GEMM<DEFAULT_DTYPE, unsigned int, 1, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 2, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 32, 1>();
-////    GEMM<DEFAULT_DTYPE, unsigned int, 1024, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 10, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 9, 1>();
-//    GEMM<double, unsigned int, 200, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 200, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 64, 1000>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 256, 1000>();
-//}
+TEST(LAYER_IN_C_NN_CUDA, GEMM) {
+    using DEFAULT_DTYPE = float;
+    GEMM<DEFAULT_DTYPE, unsigned int, 1, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 2, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 32, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 1024, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 10, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 9, 1>();
+    GEMM<double, unsigned int, 200, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 200, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 64, 1000>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 256, 1000>();
+}
 
 template <typename T, typename TI, TI BATCH_SIZE, TI ITERATIONS>
 void FORWARD() {
@@ -255,7 +255,7 @@ void FORWARD() {
 
     using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
 
-    std::cout << "GEMM<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
+    std::cout << "FORWARD<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
     using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
     using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
     DEVICE_CPU::SPEC::LOGGING cpu_logger;
@@ -389,32 +389,30 @@ void FORWARD() {
     }
 }
 
-//TEST(LAYER_IN_C_NN_CUDA, FORWARD) {
-//    FORWARD<float, unsigned int, 1, 1>();
-//    FORWARD<float, unsigned int, 2, 1>();
-//    FORWARD<float, unsigned int, 32, 1>();
-////    FORWARD<float, unsigned int, 1024, 1>();
-//    FORWARD<float, unsigned int, 10, 1>();
-//    FORWARD<float, unsigned int, 9, 1>();
-//    FORWARD<double, unsigned int, 200, 1>();
-//    FORWARD<float, unsigned int, 200, 1>();
-//    FORWARD<float, unsigned int, 64, 10000>();
-//    FORWARD<float, unsigned int, 256, 100000>();
-//}
+TEST(LAYER_IN_C_NN_CUDA, FORWARD) {
+    FORWARD<float, unsigned int, 1, 1>();
+    FORWARD<float, unsigned int, 2, 1>();
+    FORWARD<float, unsigned int, 32, 1>();
+    FORWARD<float, unsigned int, 1024, 1>();
+    FORWARD<float, unsigned int, 10, 1>();
+    FORWARD<float, unsigned int, 9, 1>();
+    FORWARD<double, unsigned int, 200, 1>();
+    FORWARD<float, unsigned int, 200, 1>();
+    FORWARD<float, unsigned int, 64, 10000>();
+    FORWARD<float, unsigned int, 256, 100000>();
+}
 
-template <typename T, typename TI, TI BATCH_SIZE, TI ITERATIONS>
+template <typename T, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
 void BACKWARD() {
     using DEVICE_CPU = lic::devices::DefaultCPU;
     using DEVICE_CUDA = lic::devices::DefaultCUDA;
 
-    constexpr DEVICE_CPU::index_t HIDDEN_DIM = BATCH_SIZE;
-
     constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
-    using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::RELU, BATCH_SIZE>;
+    using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, lic::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
     using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
 
-    std::cout << "GEMM<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
+    std::cout << "BACKWARD<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
     using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
     using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
     DEVICE_CPU::SPEC::LOGGING cpu_logger;
@@ -561,7 +559,7 @@ void BACKWARD() {
         auto start = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < ITERATIONS; ++i)
         {
-            lic::evaluate(device_cuda, network_cuda.input_layer, input_cuda, output_cuda);
+            lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
             cudaDeviceSynchronize();
         }
         auto end = std::chrono::high_resolution_clock::now();
@@ -571,14 +569,14 @@ void BACKWARD() {
 
 TEST(LAYER_IN_C_NN_CUDA, BACKWARD) {
     using DEFAULT_DTYPE = float;
-    BACKWARD<DEFAULT_DTYPE, unsigned int, 1, 1>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int, 2, 1>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int, 32, 1>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int, 1024, 1>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int, 10, 1>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int, 9, 1>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int, 200, 1>();
-    BACKWARD<double, unsigned int, 200, 1>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int, 64, 10000>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int, 256, 100000>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,    1, 256,  10, 100, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,    2, 256,  10, 100, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,   32, 256,  10, 100, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 1024, 256,  10, 100, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,   10, 256, 200, 100, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,    9, 256,  60, 100, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,  200, 256,  11, 100, 1>();
+    BACKWARD<double       , unsigned int,  200, 256,  12, 101, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,   64, 256,  50, 101, 10000>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 10000>();
 }
