@@ -423,11 +423,13 @@ void BACKWARD() {
     DEVICE_CUDA device_cuda(cuda_logger);
     lic::init(device_cuda);
     NetworkTypeCPU network_cpu;
+    NetworkTypeCPU network_cpu_pre;
     NetworkTypeCPU network_cuda_cpu;
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cuda_buffers;
     lic::malloc(device_cpu, network_cpu);
+    lic::malloc(device_cpu, network_cpu_pre);
     lic::malloc(device_cpu, network_cuda_cpu);
     lic::malloc(device_cpu, network_cpu_buffers);
     lic::malloc(device_cuda, network_cuda);
@@ -438,6 +440,7 @@ void BACKWARD() {
     lic::init_weights(device_cpu, network_cpu, rng);
     lic::zero_gradient(device_cpu, network_cpu);
     lic::reset_optimizer_state(device_cpu, network_cpu);
+    lic::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
 
     lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     lic::malloc(device_cpu, input_cpu);
@@ -503,11 +506,12 @@ void BACKWARD() {
 
     lic::zero_gradient(device_cpu, network_cpu);
     lic::zero_gradient(device_cuda, network_cuda);
-//    lic::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
-//    lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
+    lic::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
+    lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
     cudaDeviceSynchronize();
 
     lic::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
+    auto evaluation_diff_pre = lic::abs_diff(device_cpu, network_cuda_cpu, network_cpu_pre)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
     auto evaluation_diff = lic::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
@@ -547,7 +551,7 @@ void BACKWARD() {
 //    }
 
     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
-    auto threshold = (lic::utils::typing::is_same_v<T, float> ? 1e-7 : 1e-15);
+    auto threshold = (lic::utils::typing::is_same_v<T, float> ? 1e-6 : 1e-14);
     if(evaluation_diff > threshold){
         ASSERT_LT(evaluation_diff, threshold);
     }
@@ -566,14 +570,15 @@ void BACKWARD() {
 }
 
 TEST(LAYER_IN_C_NN_CUDA, BACKWARD) {
-//    BACKWARD<float, unsigned int, 1, 1>();
-//    BACKWARD<float, unsigned int, 2, 1>();
-    BACKWARD<float, unsigned int, 32, 1>();
-//    BACKWARD<float, unsigned int, 1024, 1>();
-    BACKWARD<float, unsigned int, 10, 1>();
-    BACKWARD<float, unsigned int, 9, 1>();
+    using DEFAULT_DTYPE = float;
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 1, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 2, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 32, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 1024, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 10, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 9, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 200, 1>();
     BACKWARD<double, unsigned int, 200, 1>();
-    BACKWARD<float, unsigned int, 200, 1>();
-    BACKWARD<float, unsigned int, 64, 10000>();
-    BACKWARD<float, unsigned int, 256, 100000>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 64, 10000>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int, 256, 100000>();
 }

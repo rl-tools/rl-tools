@@ -72,7 +72,7 @@ namespace layer_in_c{
             if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
                 T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(pre_activations[output_pos_y * OUTPUT_DIM + output_pos_x]) * d_output[output_pos_y * OUTPUT_DIM + output_pos_x];
                 d_pre_activations[output_pos_y * OUTPUT_DIM + output_pos_x] = d_pre_activation_temp;
-                d_biases[output_pos_x] += d_pre_activation_temp;
+                atomicAdd(&d_biases[output_pos_x], (double)d_pre_activation_temp);
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename devices::CUDA<DEV_SPEC>::index_t BATCH_SIZE>
@@ -190,7 +190,7 @@ namespace layer_in_c{
                 cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (float*)input.data, n, (float*)d_output.data, m, &beta, (float*)layer.d_weights.data, n);
             }
             else{
-//                cblas_dgemm(CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, alpha, (double*)d_output.data, m, (double*)input.data, n, beta, (double*)layer.d_weights.data, n);
+                cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (double*)input.data, n, (double*)d_output.data, m, &beta, (double*)layer.d_weights.data, n);
             }
         }
         {
@@ -209,7 +209,7 @@ namespace layer_in_c{
                 cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, ( float*)layer.weights.data, n, ( float*)d_output.data, k, &beta, ( float*)d_input.data, n);
             }
             else{
-//                cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (double*)d_output.data, k, (double*)layer.weights.data, n, beta, (double*)d_input.data, n);
+                cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, ( double*)layer.weights.data, n, ( double*)d_output.data, k, &beta, ( double*)d_input.data, n);
             }
         }
     }
