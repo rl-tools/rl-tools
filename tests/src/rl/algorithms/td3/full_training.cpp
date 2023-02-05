@@ -1,15 +1,50 @@
-#include <layer_in_c/operations/cpu_tensorboard.h>
-
+// ------------ Groups 1 ------------
+#include <layer_in_c/operations/cpu_tensorboard/group_1.h>
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl.h>
-#include <layer_in_c/nn/operations_cpu_mkl.h>
+#include <layer_in_c/operations/cpu_mkl/group_1.h>
 #else
 #ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate.h>
-#include <layer_in_c/nn/operations_cpu_accelerate.h>
+#include <layer_in_c/operations/cpu_accelerate/group_1.h>
 #else
-#include <layer_in_c/operations/cpu.h>
+#include <layer_in_c/operations/cpu/group_1.h>
+#endif
+#endif
+// ------------ Groups 2 ------------
+#include <layer_in_c/operations/cpu_tensorboard/group_2.h>
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#include <layer_in_c/operations/cpu_mkl/group_2.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate/group_2.h>
+#else
+#include <layer_in_c/operations/cpu/group_2.h>
+#endif
+#endif
+// ------------ Groups 3 ------------
+#include <layer_in_c/operations/cpu_tensorboard/group_3.h>
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#include <layer_in_c/operations/cpu_mkl/group_3.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate/group_3.h>
+#else
+#include <layer_in_c/operations/cpu/group_3.h>
+#endif
+#endif
+
+namespace lic = layer_in_c;
+using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
+
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#include <layer_in_c/nn/operations_cpu_mkl.h>
+using DEVICE = lic::devices::CPU_MKL<DEV_SPEC>;
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/nn/operations_cpu_accelerate.h>
+using DEVICE = lic::devices::CPU_ACCELERATE<DEV_SPEC>;
+#else
 #include <layer_in_c/nn/operations_generic.h>
+using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #endif
 #endif
 
@@ -35,19 +70,7 @@
 #endif
 
 
-namespace lic = layer_in_c;
 using DTYPE = float;
-
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-using DEVICE = lic::devices::CPU_MKL<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-using DEVICE = lic::devices::CPU_ACCELERATE<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
-#else
-using DEVICE = lic::devices::CPU<lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>>;
-#endif
-#endif
-
 
 typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
@@ -123,7 +146,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-    CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
     lic::malloc(ac_dev, critic_batch);
     lic::malloc(ac_dev, critic_training_buffers);
     lic::malloc(ac_dev, critic_buffers[0]);

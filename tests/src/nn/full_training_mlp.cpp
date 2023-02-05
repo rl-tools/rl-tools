@@ -34,7 +34,8 @@ using DEVICE = lic::devices::DefaultCPU;
 //    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
 //};
 
-using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
+constexpr int batch_size = 32;
+using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY, 1>;
 
 
 using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
@@ -73,7 +74,9 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     DEVICE::SPEC::LOGGING logger;
     DEVICE device(logger);
     NetworkType network;
+    typename NetworkType::Buffers<1> buffers;
     lic::malloc(device, network);
+    lic::malloc(device, buffers);
     std::vector<T> losses;
     std::vector<T> val_losses;
     std::vector<T> epoch_durations;
@@ -84,7 +87,6 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     std::mt19937 rng(2);
     lic::init_weights(device, network, rng);
 
-    constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;
 
     for(int epoch_i=0; epoch_i < n_epochs; epoch_i++){
@@ -108,7 +110,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
 
                 T d_input[INPUT_DIM];
                 lic::Matrix<lic::MatrixSpecification<T, DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
-                lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix);
+                lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, buffers);
             }
             loss /= batch_size;
             epoch_loss += loss;

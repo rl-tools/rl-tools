@@ -79,6 +79,7 @@ constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SI
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 int main() {
+    lic::malloc(device, off_policy_runner);
     lic::malloc(device, actor_critic);
     auto rng = lic::random::default_engine(decltype(device)::SPEC::RANDOM());
     lic::init(device, actor_critic, rng);
@@ -87,7 +88,7 @@ int main() {
 
     lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-    CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
     lic::malloc(device, critic_batch);
     lic::malloc(device, critic_training_buffers);
     lic::malloc(device, critic_buffers[0]);

@@ -97,8 +97,8 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, AC_
 namespace first_stage_first_stage{
     using TD3_PARAMETERS = TD3PendulumParameters<DTYPE>;
 
-    using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH>;
-    using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY>;
+    using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, 1>;
+    using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, 1>;
 
     using NN_DEVICE = lic::devices::DefaultCPU;
     using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
@@ -173,7 +173,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     AC_DEVICE device(logger);
     first_stage_first_stage::NN_DEVICE nn_device(logger);
     first_stage_first_stage::ActorCriticType actor_critic;
+    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers;
+    typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers;
+
     lic::malloc(device, actor_critic);
+    lic::malloc(device, critic_buffers);
+    lic::malloc(device, actor_buffers);
+
 
     std::mt19937 rng(0);
     lic::init(device, actor_critic, rng);
@@ -203,7 +209,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         lic::evaluate(device, actor_critic.critic_1, input_matrix, output_matrix);
         loss += lic::nn::loss_functions::mse(device, output_matrix, target_matrix);
 
-        lic::forward_backward_mse(device, actor_critic.critic_1, input_matrix, target_matrix, DTYPE(1)/32);
+        lic::forward_backward_mse(device, actor_critic.critic_1, input_matrix, target_matrix, critic_buffers, DTYPE(1)/32);
         std::cout << "output: " << actor_critic.critic_1.output_layer.output.data[0] << std::endl;
     }
 
@@ -275,7 +281,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     lic::malloc(device, critic_batch);
     lic::malloc(device, critic_training_buffers);
 
-    first_stage_second_stage::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    first_stage_second_stage::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
     lic::malloc(device, critic_buffers[0]);
     lic::malloc(device, critic_buffers[1]);
 

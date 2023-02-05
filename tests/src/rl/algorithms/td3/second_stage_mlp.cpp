@@ -194,7 +194,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
     lic::rl::components::replay_buffer::Batch<ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-    CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
     lic::malloc(device, critic_batch);
     lic::malloc(device, critic_training_buffers);
     lic::malloc(device, critic_buffers[0]);

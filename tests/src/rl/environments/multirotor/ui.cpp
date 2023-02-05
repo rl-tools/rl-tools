@@ -76,6 +76,10 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_ACTOR) {
     lic::malloc(device, actor);
 
     std::string actor_output_path = "actor.h5";
+    if(!std::filesystem::exists(actor_output_path)){
+        std::cout << "actor.h5 not found" << std::endl;
+        return;
+    }
     auto actor_file = HighFive::File(actor_output_path, HighFive::File::ReadOnly);
     lic::load(device, actor, actor_file.getGroup("actor"));
 

@@ -53,6 +53,7 @@ protected:
     NeuralNetworkTestLoadWeights(){
         model_name = "model_1";
         lic::malloc(device, network);
+        lic::malloc(device, network_buffers);
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet("model_1/gradients/0/input_layer/weight").read(batch_0_input_layer_weights_grad);
         data_file.getDataSet("model_1/gradients/0/input_layer/bias").read(batch_0_input_layer_biases_grad);
@@ -77,7 +78,7 @@ protected:
         lic::zero_gradient(device, network);
 //        lic::Matrix<lic::MatrixSpecification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix = {d_loss_d_output};
         lic::Matrix<lic::MatrixSpecification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
-        lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix);
+        lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);
 //        lic::backward(device, network, input, d_loss_d_output, d_input);
     }
     void reset(){
@@ -98,6 +99,7 @@ protected:
     }
 
     NetworkType network;
+    typename NetworkType::template Buffers<> network_buffers;
     std::vector<std::vector<DTYPE>> input_layer_weights;
     std::vector<DTYPE> input_layer_biases;
     std::vector<std::vector<DTYPE>> hidden_layer_0_weights;
@@ -227,7 +229,7 @@ TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     DTYPE d_input[INPUT_DIM];
     lic::zero_gradient(device, network);
     lic::Matrix<lic::MatrixSpecification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
-    lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix);
+    lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);
     lic::reset_optimizer_state(device, network);
     lic::update(device, network);
 
@@ -322,7 +324,7 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 
             DTYPE d_input[INPUT_DIM];
             lic::Matrix<lic::MatrixSpecification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
-            lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix);
+            lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);
         }
         loss /= batch_size;
 
@@ -376,7 +378,7 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
 
                 DTYPE d_input[INPUT_DIM];
                 lic::Matrix<lic::MatrixSpecification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
-                lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix);
+                lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);
 //                lic::backward(device, network, input, d_loss_d_output, d_input);
             }
             loss /= batch_size;
@@ -476,7 +478,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
 
                 DTYPE d_input[INPUT_DIM];
                 lic::Matrix<lic::MatrixSpecification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
-                lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix);
+                lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);
 //                lic::backward(device, network, input, d_loss_d_output, d_input);
             }
             loss /= batch_size;
@@ -570,7 +572,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
 
                 DTYPE d_input[INPUT_DIM];
                 lic::Matrix<lic::MatrixSpecification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
-                lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix);
+                lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);
 //                lic::backward(device, network, input, d_loss_d_output, d_input);
             }
             loss /= batch_size;

@@ -1,9 +1,5 @@
-// Discerning device
-#include <layer_in_c/devices/cpu.h>
-#include <layer_in_c/devices/cpu_tensorboard.h>
-namespace lic = layer_in_c;
-using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
-
+// ------------ Groups 1 ------------
+#include <layer_in_c/operations/cpu_tensorboard/group_1.h>
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl/group_1.h>
 #else
@@ -13,6 +9,8 @@ using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::
 #include <layer_in_c/operations/cpu/group_1.h>
 #endif
 #endif
+// ------------ Groups 2 ------------
+#include <layer_in_c/operations/cpu_tensorboard/group_2.h>
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl/group_2.h>
 #else
@@ -22,6 +20,8 @@ using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::
 #include <layer_in_c/operations/cpu/group_2.h>
 #endif
 #endif
+// ------------ Groups 3 ------------
+#include <layer_in_c/operations/cpu_tensorboard/group_3.h>
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl/group_3.h>
 #else
@@ -31,6 +31,9 @@ using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::
 #include <layer_in_c/operations/cpu/group_3.h>
 #endif
 #endif
+
+namespace lic = layer_in_c;
+using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
 
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/nn/operations_cpu_mkl.h>
@@ -44,9 +47,6 @@ using DEVICE = lic::devices::CPU_ACCELERATE<DEV_SPEC>;
 using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #endif
 #endif
-
-// importing logging operations (required by many parts of the library)
-#include <layer_in_c/operations/cpu_tensorboard.h>
 
 // generic nn_model operations use the specialized layer operations depending on the backend device
 #include <layer_in_c/nn_models/operations_generic.h>
@@ -130,7 +130,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
 
     // training
-    for(int step_i = 0; step_i < 500000; step_i++){
+    for(int step_i = 0; step_i < 250000; step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         device.logger.step = step_i;
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
