@@ -278,7 +278,7 @@ namespace layer_in_c {
 
 
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void update(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network) {
+    void update(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network) {
         typename SPEC::T  first_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), SPEC::ADAM_PARAMETERS::BETA_1, network.age));
         typename SPEC::T second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), SPEC::ADAM_PARAMETERS::BETA_2, network.age));
 

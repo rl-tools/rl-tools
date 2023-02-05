@@ -10,7 +10,11 @@
 namespace layer_in_c{
     template<typename DEV_SPEC, typename SPEC>
     void malloc(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){
-        cudaMalloc(&matrix.data, SPEC::ROWS * SPEC::COLS *sizeof(typename SPEC::T));
+        auto result = cudaMalloc(&matrix.data, SPEC::ROWS * SPEC::COLS *sizeof(typename SPEC::T));
+
+        if (result != cudaSuccess) {
+            std::cerr << "Failed to allocate container: " << cudaGetErrorString(result) << std::endl;
+        }
     }
     template<typename DEV_SPEC, typename SPEC>
     void free(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){

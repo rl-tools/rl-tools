@@ -242,7 +242,6 @@ namespace layer_in_c{
 
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     LAYER_IN_C_FUNCTION_PLACEMENT void update_layer(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer, typename SPEC::T first_order_moment_bias_correction, typename SPEC::T second_order_moment_bias_correction) {
-        // todo remove template params (auto inference)
         utils::polyak::update(device, layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
         utils::polyak::update(device, layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
 

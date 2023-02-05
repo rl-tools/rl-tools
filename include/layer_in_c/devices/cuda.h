@@ -3,7 +3,7 @@
 
 #include <layer_in_c/utils/generic/typing.h>
 #include "devices.h"
-
+#include "cpu.h"
 #include <cublas_v2.h>
 namespace layer_in_c::devices{
     namespace cuda{
@@ -48,7 +48,9 @@ namespace layer_in_c::devices{
         explicit CUDA_GENERIC(typename SPEC::LOGGING& logger) : logger(logger) {}
     };
     struct DefaultCUDASpecification{
-        using MATH = math::CUDA_FAST;
+        using MATH = devices::math::CPU;
+        using MATH_DEVICE = math::CUDA_FAST;
+        using MATH_DEVICE_ACCURATE = math::CUDA;
         using RANDOM = random::CUDA;
         using LOGGING = logging::CUDA;
     };

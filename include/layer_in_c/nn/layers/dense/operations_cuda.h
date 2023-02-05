@@ -46,7 +46,7 @@ namespace layer_in_c{
             TI output_pos_x = blockIdx.x * blockDim.x + threadIdx.x;
             TI output_pos_y = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
-                output[output_pos_y * OUTPUT_DIM + output_pos_x] = activation<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(pre_activations[output_pos_y * OUTPUT_DIM + output_pos_x]);
+                output[output_pos_y * OUTPUT_DIM + output_pos_x] = activation<typename DEV_SPEC::MATH_DEVICE, T, SPEC::ACTIVATION_FUNCTION>(pre_activations[output_pos_y * OUTPUT_DIM + output_pos_x]);
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename devices::CUDA<DEV_SPEC>::index_t BATCH_SIZE>
@@ -70,7 +70,7 @@ namespace layer_in_c{
             if(output_i < OUTPUT_DIM){
                 T acc = 0;
                 for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                    T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(pre_activations[batch_i * OUTPUT_DIM + output_i]) * d_output[batch_i * OUTPUT_DIM + output_i];
+                    T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH_DEVICE, T, SPEC::ACTIVATION_FUNCTION>(pre_activations[batch_i * OUTPUT_DIM + output_i]) * d_output[batch_i * OUTPUT_DIM + output_i];
                     d_pre_activations[batch_i * OUTPUT_DIM + output_i] = d_pre_activation_temp;
                     acc += d_pre_activation_temp;
                 }
@@ -84,6 +84,37 @@ namespace layer_in_c{
             dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT);
             dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT);
             nn::dense::cuda::d_activation_kernel<DEV_SPEC, SPEC, BATCH_SIZE><<<activation_grid, activation_block>>>(device, layer, pre_activations, d_output, d_biases, d_pre_activations);
+        }
+        template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
+        __global__
+        void update_layer_kernel(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS> layer, typename SPEC::T first_order_moment_bias_correction, typename SPEC::T second_order_moment_bias_correction) {
+            // fully fused adam update
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
+            constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
+
+            TI input_i = blockIdx.x * blockDim.x + threadIdx.x;
+            TI output_i = blockIdx.y * blockDim.y + threadIdx.y;
+            if(input_i < INPUT_DIM && output_i < OUTPUT_DIM){
+                if(input_i == 0){
+                    T d_bias = layer.d_biases.data[output_i];
+                    T d_bias_first_order_moment = PARAMETERS::BETA_1 * layer.d_biases_first_order_moment.data[output_i] + (1 - PARAMETERS::BETA_1) * d_bias;
+                    layer.d_biases_first_order_moment.data[output_i] = d_bias_first_order_moment;
+                    T d_bias_second_order_moment = PARAMETERS::BETA_2 * layer.d_biases_second_order_moment.data[output_i] + (1 - PARAMETERS::BETA_2) * d_bias * d_bias;
+                    layer.d_biases_second_order_moment.data[output_i] = d_bias_second_order_moment;
+                    T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_bias_second_order_moment * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                    layer.biases.data[output_i] -= bias_update;
+                }
+                T d_weight = layer.d_weights.data[output_i * INPUT_DIM + input_i];
+                T d_weight_first_order_moment = PARAMETERS::BETA_1 * layer.d_weights_first_order_moment.data[output_i * INPUT_DIM + input_i] + (1 - PARAMETERS::BETA_1) * d_weight;
+                layer.d_weights_first_order_moment.data[output_i * INPUT_DIM + input_i] = d_weight_first_order_moment;
+                T d_weight_second_order_moment = PARAMETERS::BETA_2 * layer.d_weights_second_order_moment.data[output_i * INPUT_DIM + input_i] + (1 - PARAMETERS::BETA_2) * d_weight * d_weight;
+                layer.d_weights_second_order_moment.data[output_i * INPUT_DIM + input_i] = d_weight_second_order_moment;
+                T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                layer.weights.data[output_i * INPUT_DIM + input_i] -= weight_update;
+            }
         }
     }
 
@@ -119,7 +150,7 @@ namespace layer_in_c{
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
+    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         // Warning do not use the same buffer for input and output!
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
@@ -208,6 +239,24 @@ namespace layer_in_c{
     LAYER_IN_C_FUNCTION_PLACEMENT void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
         cudaMemset(layer.d_weights.data, 0, SPEC::INPUT_DIM * SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
         cudaMemset(layer.d_biases.data, 0, SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
+    }
+    template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
+    LAYER_IN_C_FUNCTION_PLACEMENT void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
+        cudaMemset(layer.d_weights_first_order_moment.data, 0, SPEC::INPUT_DIM * SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
+        cudaMemset(layer.d_weights_second_order_moment.data, 0, SPEC::INPUT_DIM * SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
+        cudaMemset(layer.d_biases_first_order_moment.data, 0, SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
+        cudaMemset(layer.d_biases_second_order_moment.data, 0, SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
+    }
+
+    template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
+    void update_layer(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer, typename SPEC::T first_order_moment_bias_correction, typename SPEC::T second_order_moment_bias_correction) {
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_INPUT = 32;
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = LAYER_IN_C_CEIL(SPEC::OUTPUT_DIM, BLOCKSIZE_ACTIVATION_OUTPUT);
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_INPUT = LAYER_IN_C_CEIL(SPEC::INPUT_DIM, BLOCKSIZE_ACTIVATION_INPUT);
+        dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
+        dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
+        nn::dense::cuda::update_layer_kernel<DEV_SPEC, SPEC><<<activation_grid, activation_block>>>(device, layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
     }
 }
 #endif
