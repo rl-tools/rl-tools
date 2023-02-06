@@ -18,12 +18,12 @@ namespace layer_in_c::rl::components::replay_buffer{
         static constexpr TI OBSERVATION_DIM = SPEC::OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ACTION_DIM;
 
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> observations;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> rewards;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> next_observations;
-        Matrix<MatrixSpecification<bool, TI, BATCH_SIZE, 1>> terminated;
-        Matrix<MatrixSpecification<bool, TI, BATCH_SIZE, 1>> truncated;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> observations;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> rewards;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> next_observations;
+        Matrix<matrix::Specification<bool, TI, BATCH_SIZE, 1>> terminated;
+        Matrix<matrix::Specification<bool, TI, BATCH_SIZE, 1>> truncated;
     };
 
 }
@@ -34,12 +34,12 @@ namespace layer_in_c::rl::components {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr typename SPEC::TI CAPACITY = SPEC::CAPACITY;
-        Matrix<MatrixSpecification<T, TI, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>> observations;
-        Matrix<MatrixSpecification<T, TI, SPEC::CAPACITY, SPEC::ACTION_DIM>> actions;
-        Matrix<MatrixSpecification<T, TI, SPEC::CAPACITY, 1>> rewards;
-        Matrix<MatrixSpecification<T, TI, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>> next_observations;
-        Matrix<MatrixSpecification<bool, TI, SPEC::CAPACITY, 1>> terminated;
-        Matrix<MatrixSpecification<bool, TI, SPEC::CAPACITY, 1>> truncated;
+        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>> observations;
+        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, SPEC::ACTION_DIM>> actions;
+        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, 1>> rewards;
+        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>> next_observations;
+        Matrix<matrix::Specification<bool, TI, SPEC::CAPACITY, 1>> terminated;
+        Matrix<matrix::Specification<bool, TI, SPEC::CAPACITY, 1>> truncated;
         TI position = 0;
         bool full = false;
     };

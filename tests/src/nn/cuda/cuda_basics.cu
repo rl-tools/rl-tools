@@ -118,11 +118,11 @@ void GEMM() {
     lic::init_weights(device_cpu, network_cpu, rng);
     lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     lic::malloc(device_cpu, input_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cpu;
     lic::malloc(device_cpu, output_first_layer_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda_cpu;
     lic::malloc(device_cpu, output_first_layer_cuda_cpu);
 
     for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::INPUT_DIM; ++i)
@@ -161,9 +161,9 @@ void GEMM() {
 //    }
 
 
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
     lic::malloc(device_cuda, input_cuda);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda;
     lic::malloc(device_cuda, output_first_layer_cuda);
 
     lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);
@@ -277,11 +277,11 @@ void FORWARD() {
     lic::init_weights(device_cpu, network_cpu, rng);
     lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     lic::malloc(device_cpu, input_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
     lic::malloc(device_cpu, output_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
     lic::malloc(device_cpu, output_cuda_cpu);
 
     for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::INPUT_DIM; ++i)
@@ -320,9 +320,9 @@ void FORWARD() {
 //    }
 
 
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
     lic::malloc(device_cuda, input_cuda);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
     lic::malloc(device_cuda, output_cuda);
 
     lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);
@@ -440,13 +440,13 @@ void BACKWARD() {
     lic::reset_optimizer_state(device_cpu, network_cpu);
     lic::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
 
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     lic::malloc(device_cpu, input_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
     lic::malloc(device_cpu, output_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cpu;
     lic::malloc(device_cpu, output_target_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
     lic::malloc(device_cpu, output_cuda_cpu);
 
     for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::INPUT_DIM; ++i)
@@ -492,11 +492,11 @@ void BACKWARD() {
     lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
 
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
     lic::malloc(device_cuda, input_cuda);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
     lic::malloc(device_cuda, output_cuda);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
     lic::malloc(device_cuda, output_target_cuda);
 
     lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);
@@ -619,13 +619,13 @@ void ADAM_UPDATE() {
     lic::reset_optimizer_state(device_cpu, network_cpu);
     lic::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
 
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     lic::malloc(device_cpu, input_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
     lic::malloc(device_cpu, output_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cpu;
     lic::malloc(device_cpu, output_target_cpu);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
     lic::malloc(device_cpu, output_cuda_cpu);
 
     for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::INPUT_DIM; ++i)
@@ -671,11 +671,11 @@ void ADAM_UPDATE() {
     lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
 
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
     lic::malloc(device_cuda, input_cuda);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
     lic::malloc(device_cuda, output_cuda);
-    lic::Matrix<lic::MatrixSpecification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
+    lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
     lic::malloc(device_cuda, output_target_cuda);
 
     lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);

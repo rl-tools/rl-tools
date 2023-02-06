@@ -51,13 +51,13 @@ namespace layer_in_c::rl::algorithms::td3 {
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> state_action_value;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> d_output;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> d_critic_input;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> d_actor_output;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_actor_input;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> state_action_value;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> d_output;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> d_critic_input;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_actor_output;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_actor_input;
     };
     template<typename T_SPEC>
     struct CriticTrainingBuffers{
@@ -68,13 +68,13 @@ namespace layer_in_c::rl::algorithms::td3 {
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> target_next_action_noise;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, ACTION_DIM>> next_actions;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> next_state_action_value_input;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> target_action_value;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;
-        Matrix<MatrixSpecification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_2;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> target_next_action_noise;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> next_actions;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> next_state_action_value_input;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_action_value;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_2;
     };
 
     template<typename T_SPEC>

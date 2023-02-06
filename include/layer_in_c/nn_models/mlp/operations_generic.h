@@ -93,8 +93,8 @@ namespace layer_in_c {
         using T = typename MODEL_SPEC::T;
         T layer_output_tick_mem[BATCH_SIZE * MODEL_SPEC::HIDDEN_DIM];
         T layer_output_tock_mem[BATCH_SIZE * MODEL_SPEC::HIDDEN_DIM];
-        Matrix<MatrixSpecification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> layer_output_tick = {layer_output_tick_mem};
-        Matrix<MatrixSpecification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> layer_output_tock = {layer_output_tock_mem};
+        Matrix<matrix::Specification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> layer_output_tick = {layer_output_tick_mem};
+        Matrix<matrix::Specification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> layer_output_tock = {layer_output_tock_mem};
         evaluate_memless(device, network, input, output, layer_output_tick, layer_output_tock);
     }
 

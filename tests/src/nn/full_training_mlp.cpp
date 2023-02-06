@@ -100,16 +100,16 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
                 T output[OUTPUT_DIM];
                 standardise<T,  INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
                 standardise<T, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
-                lic::Matrix<lic::MatrixSpecification<T, DEVICE::index_t, 1, INPUT_DIM>> input_matrix = {input};
-                lic::Matrix<lic::MatrixSpecification<T, DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix = {output};
+                lic::Matrix<lic::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM>> input_matrix = {input};
+                lic::Matrix<lic::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix = {output};
                 lic::forward(device, network, input_matrix);
                 T d_loss_d_output[OUTPUT_DIM];
-                lic::Matrix<lic::MatrixSpecification<T, DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix = {d_loss_d_output};
+                lic::Matrix<lic::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix = {d_loss_d_output};
                 lic::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
                 loss += lic::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
 
                 T d_input[INPUT_DIM];
-                lic::Matrix<lic::MatrixSpecification<T, DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
+                lic::Matrix<lic::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
                 lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, buffers);
             }
             loss /= batch_size;
@@ -137,8 +137,8 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
         standardise<T,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
         standardise<T, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
 
-        lic::Matrix<lic::MatrixSpecification<T, DEVICE::index_t, 1, INPUT_DIM>> input_matrix = {input};
-        lic::Matrix<lic::MatrixSpecification<T, DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix = {output};
+        lic::Matrix<lic::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM>> input_matrix = {input};
+        lic::Matrix<lic::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix = {output};
         lic::forward(device, network, input_matrix);
         val_loss += lic::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, T(1)/batch_size);
         }

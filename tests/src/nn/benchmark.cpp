@@ -58,10 +58,10 @@ constexpr INDEX_TYPE NAIVE_ITERATIONS = 1;
 class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
 {
 protected:
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input;
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> expected_output_input_layer;
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> expected_output_output_layer;
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> output_target;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> expected_output_input_layer;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> expected_output_output_layer;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> output_target;
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
@@ -99,8 +99,8 @@ protected:
         auto start = std::chrono::high_resolution_clock::now();
         for(INDEX_TYPE iteration_i = 0; iteration_i < NAIVE_ITERATIONS; iteration_i++) {
             for(INDEX_TYPE batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, NetworkType::INPUT_DIM>> input_sample = {&input.data[batch_i * NetworkType::INPUT_DIM]};
-                lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, 1, HIDDEN_DIM>> output_sample = {&expected_output_input_layer.data[batch_i * HIDDEN_DIM]};
+                lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, NetworkType::INPUT_DIM>> input_sample = {&input.data[batch_i * NetworkType::INPUT_DIM]};
+                lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, HIDDEN_DIM>> output_sample = {&expected_output_input_layer.data[batch_i * HIDDEN_DIM]};
                 lic::evaluate(device, network.input_layer, input_sample, output_sample);
             }
         }
@@ -133,7 +133,7 @@ protected:
 
 
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_batch;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_batch;
     lic::malloc(device, output_batch);
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < NAIVE_ITERATIONS; iteration_i++) {
@@ -181,13 +181,13 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
     memcpy(A, network_mkl.input_layer.weights.data, m*k*sizeof( DTYPE ));
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix({B});
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix({B});
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
     lic::malloc(device, input_lic_matrix);
     memcpy(input_lic_matrix.data, input.data, sizeof(DTYPE) * BATCH_SIZE * NetworkType::INPUT_DIM);
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;
     lic::malloc(device, input_lic_matrix_transpose);
     lic::transpose(device, input_lic_matrix_transpose, input_lic_matrix);
 
@@ -212,10 +212,10 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
         }
     }
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE>> output_mkl_matrix_transpose;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE>> output_mkl_matrix_transpose;
     output_mkl_matrix_transpose.data = C;
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_mkl_matrix;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_mkl_matrix;
     lic::malloc(device, output_mkl_matrix);
 
     lic::transpose(device, output_mkl_matrix, output_mkl_matrix_transpose);
@@ -235,7 +235,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl(device.logger);
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     lic::malloc(device_mkl, output_matrix);
     lic::set(device_mkl, output_matrix, 0);
 
@@ -263,7 +263,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl(device.logger);
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     lic::malloc(device_mkl, output_matrix);
     lic::set(device_mkl, output_matrix, 0);
 
@@ -365,14 +365,14 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, ACCELERATE) {
 
     memcpy(A, network_mkl.input_layer.weights.data, m*k*sizeof( DTYPE ));
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix({B});
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix({B});
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
     lic::malloc(device, input_lic_matrix);
     memcpy(input_lic_matrix.data, input.data, sizeof(DTYPE) * BATCH_SIZE * NetworkType::INPUT_DIM);
     DTYPE input_abs_diff = lic::abs_diff(device, input_mkl_matrix, input_lic_matrix);
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;
     lic::malloc(device, input_lic_matrix_transpose);
     lic::transpose(device, input_lic_matrix_transpose, input_lic_matrix);
 
@@ -397,10 +397,10 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, ACCELERATE) {
         }
     }
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE>> output_mkl_matrix_transpose;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE>> output_mkl_matrix_transpose;
     output_mkl_matrix_transpose.data = C;
 
-    lic::Matrix<lic::MatrixSpecification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_mkl_matrix;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_mkl_matrix;
     lic::malloc(device, output_mkl_matrix);
 
     lic::transpose(device, output_mkl_matrix, output_mkl_matrix_transpose);

@@ -7,12 +7,12 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, Matrix<SPEC>& matrix){
         utils::assert_exit(device, matrix.data == nullptr, "Matrix is already allocated");
-        matrix.data = (typename SPEC::T*)std::malloc(SPEC::SIZE_BYTES);
+        matrix.data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, Matrix<SPEC>& matrix){
         utils::assert_exit(device, matrix.data != nullptr, "Matrix has not been allocated");
-        std::free(matrix.data);
+        delete matrix.data;
         matrix.data = nullptr;
     }
 
@@ -51,7 +51,7 @@ namespace layer_in_c{
         }
     }
     template<typename DEVICE, typename SPEC>
-    Matrix<MatrixSpecification<typename SPEC::T, typename SPEC::TI, SPEC::COLS, SPEC::ROWS>> transpose(DEVICE& device, Matrix<SPEC>& target){
+    Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::COLS, SPEC::ROWS>> transpose(DEVICE& device, Matrix<SPEC>& target){
         static_assert(SPEC::ROWS == SPEC::COLS);
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

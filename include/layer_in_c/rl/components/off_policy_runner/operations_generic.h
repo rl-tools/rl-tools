@@ -45,8 +45,8 @@ namespace layer_in_c{
 
         typename ENVIRONMENT::State next_state;
         T action[ENVIRONMENT::ACTION_DIM];
-        Matrix<MatrixSpecification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action_m = {action};
-        Matrix<MatrixSpecification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_m = {observation};
+        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action_m = {action};
+        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_m = {observation};
         evaluate(device, policy, observation_m, action_m);
 //        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
 //            auto name = "action/" + std::to_string(i);
