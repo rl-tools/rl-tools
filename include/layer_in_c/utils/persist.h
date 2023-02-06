@@ -8,7 +8,11 @@ namespace layer_in_c::utils::persist::array_conversion{
     auto matrix_to_std_vector(DEVICE& device, Matrix<SPEC> M){
         using T = typename SPEC::T;
         if constexpr(SPEC::ROWS == 1){
-            return std::vector<T>(M.data, M.data + SPEC::COLS);
+            std::vector<T> data(SPEC::COLS);
+            for(typename DEVICE::index_t i=0; i < SPEC::COLS; i++){
+                data[i] = M.data[index(M, 0, i)];
+            }
+            return data;
         }
         else{
             std::vector<std::vector<T>> data(SPEC::ROWS);
@@ -34,7 +38,7 @@ namespace layer_in_c::utils::persist::array_conversion{
         assert(source[0].size() == SPEC::COLS);
         for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
             for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
-                target->data[i * SPEC::COLS + j] = source[i][j];
+                target.data[index(target, i, j)] = source[i][j];
             }
         }
     }

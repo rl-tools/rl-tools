@@ -17,16 +17,16 @@ namespace layer_in_c{
     }
 
     template<typename SPEC>
-    inline typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
+    typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
         return SPEC::ROW_PITCH;
     }
     template<typename SPEC>
-    inline typename SPEC::TI col_pitch(const Matrix<SPEC>& m){
+    typename SPEC::TI col_pitch(const Matrix<SPEC>& m){
         return SPEC::COL_PITCH;
     }
 
     template<typename SPEC>
-    inline typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+    typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         return SPEC::ROW_PITCH * row + SPEC::COL_PITCH * col;
     }
 

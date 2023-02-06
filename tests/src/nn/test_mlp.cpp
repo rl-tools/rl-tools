@@ -31,7 +31,7 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
     g.getDataSet("input_layer/weight").read(weights);
-    acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights.data, weights);
+    acc += abs_diff_matrix(network.input_layer.weights, weights);
     return acc;
 }
 
@@ -90,11 +90,11 @@ protected:
         data_file.getDataSet(model_name + "/init/hidden_layer_0/bias").read(hidden_layer_0_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        assign<DTYPE, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights.data     , input_layer_weights);
+        assign(network.input_layer.weights     , input_layer_weights);
         lic::utils::memcpy(network.input_layer.biases.data, input_layer_biases.data(), LAYER_1_DIM);
-        assign<DTYPE, LAYER_2_DIM, LAYER_1_DIM>(network.hidden_layers[0].weights.data     , hidden_layer_0_weights);
+        assign(network.hidden_layers[0].weights     , hidden_layer_0_weights);
         lic::utils::memcpy(network.hidden_layers[0].biases.data, hidden_layer_0_biases.data(), LAYER_2_DIM);
-        assign<DTYPE, OUTPUT_DIM, LAYER_2_DIM>(network.output_layer.weights.data, output_layer_weights);
+        assign(network.output_layer.weights, output_layer_weights);
         lic::utils::memcpy(network.output_layer.biases.data, output_layer_biases.data(), OUTPUT_DIM);
     }
 
@@ -119,10 +119,8 @@ constexpr DTYPE BACKWARD_PASS_GRADIENT_TOLERANCE (1e-8);
 using LAYER_IN_C_NN_MLP_BACKWARD_PASS = NeuralNetworkTestLoadWeights<NetworkType_1>;
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_weights) {
-    DTYPE out = abs_diff_matrix<
-            DTYPE, LAYER_1_DIM, INPUT_DIM
-    >(
-            network.input_layer.d_weights.data,
+    DTYPE out = abs_diff_matrix(
+            network.input_layer.d_weights,
             batch_0_input_layer_weights_grad
     );
     std::cout << "input_layer_weights diff: " << out << std::endl;
@@ -145,10 +143,8 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_biases) {
 
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
-    DTYPE out = abs_diff_matrix<
-            DTYPE, LAYER_2_DIM, LAYER_1_DIM
-    >(
-            network.hidden_layers[0].d_weights.data,
+    DTYPE out = abs_diff_matrix(
+            network.hidden_layers[0].d_weights,
             batch_0_hidden_layer_0_weights_grad
     );
     std::cout << "hidden_layer_0_weights diff: " << out << std::endl;
@@ -171,10 +167,8 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
 
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_weights) {
-    DTYPE out = abs_diff_matrix<
-            DTYPE, OUTPUT_DIM, LAYER_2_DIM
-    >(
-            network.output_layer.d_weights.data,
+    DTYPE out = abs_diff_matrix(
+            network.output_layer.d_weights,
             batch_0_output_layer_weights_grad
     );
     std::cout << "output_layer_weights diff: " << out << std::endl;
@@ -233,12 +227,8 @@ TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     lic::reset_optimizer_state(device, network);
     lic::update(device, network);
 
-    DTYPE out = abs_diff_matrix<
-            DTYPE,
-            LAYER_1_DIM,
-            INPUT_DIM
-    >(
-            network.input_layer.weights.data,
+    DTYPE out = abs_diff_matrix(
+            network.input_layer.weights,
             batch_0_input_layer_weights
     );
     ASSERT_LT(out, 1.5e-7);

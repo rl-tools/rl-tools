@@ -17,23 +17,25 @@ T abs_diff(const T A[DIM], const T B[DIM]){
     return acc;
 }
 
-template <typename T, int N_ROWS, int N_COLS>
-T abs_diff_matrix(const T* A, const std::vector<std::vector<T>>& B) {
+template <typename T, typename SPEC>
+T abs_diff_matrix(const layer_in_c::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
     T acc = 0;
-    for (int i = 0; i < N_ROWS; i++){
-        for (int j = 0; j < N_COLS; j++){
-            acc += std::abs(A[i * N_COLS + j] - B[i][j]);
+    for (int i = 0; i < SPEC::ROWS; i++){
+        for (int j = 0; j < SPEC::COLS; j++){
+            auto index = layer_in_c::index(A, i, j);
+            std::cout << "row pitch: " << row_pitch(A) << std::endl;
+            acc += std::abs(A.data[index] - B[i][j]);
         }
     }
     return acc;
 }
 
-template <typename T, int N_ROWS, int N_COLS>
-T abs_diff_matrix(const T* A, const T* B) {
+template <typename T, typename SPEC>
+T abs_diff_matrix(layer_in_c::Matrix<SPEC> A, const T* B) {
     T acc = 0;
-    for (int i = 0; i < N_ROWS; i++){
-        for (int j = 0; j < N_COLS; j++){
-            acc += std::abs(A[i * N_COLS + j] - B[i * N_COLS + j]);
+    for (int i = 0; i < SPEC::ROWS; i++){
+        for (int j = 0; j < SPEC::COLS; j++){
+            acc += std::abs(A[index(A, i, j)] - B[index(B, i, j)]);
         }
     }
     return acc;
@@ -48,11 +50,11 @@ T abs_diff_vector(const T A[N_ROWS], const T B[N_ROWS]) {
     return acc;
 }
 
-template <typename T, int N_ROWS, int N_COLS>
-void assign(T* A, const std::vector<std::vector<T>>& B) {
-    for (int i = 0; i < N_ROWS; i++){
-        for (int j = 0; j < N_COLS; j++){
-            A[i * N_COLS + j] = B[i][j];
+template <typename T, typename SPEC>
+void assign(layer_in_c::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
+    for (int i = 0; i < SPEC::ROWS; i++){
+        for (int j = 0; j < SPEC::COLS; j++){
+            A.data[index(A, i, j)] = B[i][j];
         }
     }
 }

@@ -9,6 +9,7 @@
 #include <layer_in_c/nn_models/operations_cpu.h>
 
 
+namespace lic = layer_in_c;
 #include "../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -17,7 +18,6 @@
 #include <chrono>
 #include <highfive/H5File.hpp>
 
-namespace lic = layer_in_c;
 
 typedef double T;
 
