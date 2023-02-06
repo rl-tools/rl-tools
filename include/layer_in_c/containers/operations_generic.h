@@ -7,7 +7,7 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, Matrix<SPEC>& matrix){
         utils::assert_exit(device, matrix.data == nullptr, "Matrix is already allocated");
-        matrix.data = std::malloc(SPEC::SIZE_BYTES);
+        matrix.data = (typename SPEC::T*)std::malloc(SPEC::SIZE_BYTES);
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, Matrix<SPEC>& matrix){
@@ -17,16 +17,16 @@ namespace layer_in_c{
     }
 
     template<typename SPEC>
-    inline typename SPEC::TI row_pitch(Matrix<SPEC>& m){
+    inline typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
         return SPEC::ROW_PITCH;
     }
     template<typename SPEC>
-    inline typename SPEC::TI col_pitch(Matrix<SPEC>& m){
+    inline typename SPEC::TI col_pitch(const Matrix<SPEC>& m){
         return SPEC::COL_PITCH;
     }
 
-    template<typename SPEC, typename TI>
-    inline typename SPEC::TI index(Matrix<SPEC>& m, TI row, TI col){
+    template<typename SPEC>
+    inline typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         return SPEC::ROW_PITCH * row + SPEC::COL_PITCH * col;
     }
 
@@ -201,7 +201,7 @@ namespace layer_in_c{
         using T = typename SPEC_1::T;
         for(TI i = 0; i < SPEC_1::ROWS; i++){
             for(TI j = 0; j < SPEC_1::COLS; j++){
-                target.data[index(target, i, j)] = source.data[index(i + row, col + j)];
+                target.data[index(target, i, j)] = source.data[index(source, i + row, col + j)];
             }
         }
     }
@@ -213,7 +213,7 @@ namespace layer_in_c{
         T acc = 0;
         for(TI i = 0; i < SPEC::ROWS; i++){
             for(TI j = 0; j < SPEC::COLS; j++){
-                acc += m.data[index(i, j)];
+                acc += m.data[index(m, i, j)];
             }
         }
         return acc;
