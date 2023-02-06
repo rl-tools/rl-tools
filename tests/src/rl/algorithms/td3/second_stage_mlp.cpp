@@ -98,12 +98,12 @@ constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION
 template <typename T, typename REPLAY_BUFFER_TYPE>
 void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
     for(int i = 0; i < batch.size(); i++){
-        lic::utils::memcpy(&rb.     observations.data[i*ENVIRONMENT::OBSERVATION_DIM], &batch[i][0], ENVIRONMENT::OBSERVATION_DIM);
-        lic::utils::memcpy(&rb.          actions.data[i*ENVIRONMENT::ACTION_DIM], &batch[i][ENVIRONMENT::OBSERVATION_DIM], ENVIRONMENT::ACTION_DIM);
-        lic::utils::memcpy(&rb.next_observations.data[i*ENVIRONMENT::OBSERVATION_DIM], &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], ENVIRONMENT::OBSERVATION_DIM);
-        rb.   rewards.data[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM    ];
-        rb.terminated.data[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1;
-        rb. truncated.data[i] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1;
+        lic::utils::memcpy(&rb.     observations.data[index(rb.observations, i, 0)], &batch[i][0], ENVIRONMENT::OBSERVATION_DIM);
+        lic::utils::memcpy(&rb.          actions.data[index(rb.actions, i, 0)], &batch[i][ENVIRONMENT::OBSERVATION_DIM], ENVIRONMENT::ACTION_DIM);
+        lic::utils::memcpy(&rb.next_observations.data[index(rb.next_observations, i, 0)], &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], ENVIRONMENT::OBSERVATION_DIM);
+        rb.   rewards.data[index(rb.rewards, 0, i)] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM    ];
+        rb.terminated.data[index(rb.terminated, 0, i)] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1;
+        rb. truncated.data[index(rb.truncated, 0, i)] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1;
     }
     rb.position = batch.size();
 }
@@ -218,19 +218,20 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             step_group.getDataSet("critics_batch").read(batch);
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-            step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
+//            step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
+            lic::load(device, critic_training_buffers.target_next_action_noise, step_group, "target_next_action_noise");
 
             load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
-            if (step_i == 0 && step_group.exist("pre_critic1")){
-                decltype(actor_critic.critic_1) pre_critic_1_step;
-                lic::malloc(device, pre_critic_1_step);
-                lic::load(device, pre_critic_1_step, step_group.getGroup("pre_critic1"));
-                lic::reset_forward_state(device, pre_critic_1_step);
-                lic::reset_forward_state(device, actor_critic.critic_1);
-                DTYPE pre_current_diff = abs_diff(device, pre_critic_1_step, actor_critic.critic_1);
-                ASSERT_EQ(pre_current_diff, 0);
-                lic::free(device, pre_critic_1_step);
-            }
+//            if (step_i == 0 && step_group.exist("pre_critic1")){
+//                decltype(actor_critic.critic_1) pre_critic_1_step;
+//                lic::malloc(device, pre_critic_1_step);
+//                lic::load(device, pre_critic_1_step, step_group.getGroup("pre_critic1"));
+//                lic::reset_forward_state(device, pre_critic_1_step);
+//                lic::reset_forward_state(device, actor_critic.critic_1);
+//                DTYPE pre_current_diff = abs_diff(device, pre_critic_1_step, actor_critic.critic_1);
+//                ASSERT_EQ(pre_current_diff, 0);
+//                lic::free(device, pre_critic_1_step);
+//            }
 
             decltype(actor_critic.critic_1) post_critic_1;// = actor_critic.critic_1;
             lic::malloc(device, post_critic_1);
@@ -286,30 +287,33 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             mean_ratio_critic_adam += diff_ratio_adam;
 
             {
-                step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
+//                step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
+                lic::load(device, critic_training_buffers.target_next_action_noise, step_group, "target_next_action_noise");
 
                 lic::gather_batch<DEVICE, ReplayBufferSpecCopyTraining, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, critic_batch, rng);
                 lic::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, actor_buffers[0], critic_buffers[0], critic_training_buffers);
             }
             lic::copy(device, device, pre_critic_1, actor_critic.critic_1);
 
-            if(true){//(step_i % 100 == 0){
-                DTYPE diff = 0;
-                for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
-                    DTYPE input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-                    lic::utils::memcpy(input, &replay_buffer.observations.data[batch_sample_i*ENVIRONMENT::OBSERVATION_DIM], ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
-                    lic::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &replay_buffer.actions.data[batch_sample_i*ENVIRONMENT::ACTION_DIM], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
-                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> input_matrix = {input};
-                    DTYPE current_value;
-                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> current_value_matrix = {&current_value};
-                    lic::evaluate(device, actor_critic.critic_1, input_matrix, current_value_matrix);
-                    DTYPE desired_value;
-                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
-                    lic::evaluate(device, post_critic_1, input_matrix, desired_value_matrix);
-                    diff += (current_value - desired_value) * (current_value - desired_value) / ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
-                }
-//                std::cout << "value mse: " << diff << std::endl;
-            }
+//            if(false){//(step_i % 100 == 0){
+//                DTYPE diff = 0;
+//                for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
+//                    DTYPE input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
+//                    lic::utils::memcpy(input, &replay_buffer.observations.data[index(replay_buffer.observations, batch_sample_i, 0)], ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
+//                    lic::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &replay_buffer.actions.data[index(replay_buffer.actions, batch_sample_i, 0)], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
+//                    using input_layout = lic::matrix::layouts::RowMajorAlignment<DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, 1>;
+//                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, layout>> input_matrix = {input};
+//                    DTYPE current_value;
+//                    using current_value_layout = lic::matrix::layouts::RowMajorAlignment<DEVICE::index_t, 1, 1, 1>;
+//                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1, current_value_layout>> current_value_matrix = {&current_value};
+//                    lic::evaluate(device, actor_critic.critic_1, input_matrix, current_value_matrix);
+////                    DTYPE desired_value;
+////                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
+////                    lic::evaluate(device, post_critic_1, input_matrix, desired_value_matrix);
+////                    diff += (current_value - desired_value) * (current_value - desired_value) / ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
+//                }
+////                std::cout << "value mse: " << diff << std::endl;
+//            }
             lic::free(device, post_critic_1);
         }
 
@@ -340,20 +344,20 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             }
 //            DTYPE actor_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, decltype(replay_buffer)::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
 
-            if(true){//(step_i % 100 == 1){
-                DTYPE diff = 0;
-                for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE; batch_sample_i++){
-                    DTYPE current_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> current_action_matrix = {current_action};
-                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM>> observation_matrix = {&replay_buffer.observations.data[batch_sample_i]};
-                    lic::evaluate(device, actor_critic.actor, observation_matrix, current_action_matrix);
-                    DTYPE desired_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> desired_action_matrix = {desired_action};
-                    lic::evaluate(device, post_actor, observation_matrix, desired_action_matrix);
-                    diff += lic::nn::loss_functions::mse(device, current_action_matrix, desired_action_matrix, DTYPE(1)/ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
-                }
-//                std::cout << "action mse: " << diff << std::endl;
-            }
+//            if(true){//(step_i % 100 == 1){
+//                DTYPE diff = 0;
+//                for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE; batch_sample_i++){
+//                    DTYPE current_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
+//                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> current_action_matrix = {current_action};
+//                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM>> observation_matrix = {&replay_buffer.observations.data[batch_sample_i]};
+//                    lic::evaluate(device, actor_critic.actor, observation_matrix, current_action_matrix);
+//                    DTYPE desired_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
+//                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> desired_action_matrix = {desired_action};
+//                    lic::evaluate(device, post_actor, observation_matrix, desired_action_matrix);
+//                    diff += lic::nn::loss_functions::mse(device, current_action_matrix, desired_action_matrix, DTYPE(1)/ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
+//                }
+////                std::cout << "action mse: " << diff << std::endl;
+//            }
 
             lic::reset_forward_state(device, pre_actor);
             lic::reset_forward_state(device, post_actor);
@@ -447,23 +451,23 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
                     lic::copy(device, device, pre_critic_1_target, actor_critic.critic_target_1);
 
-                    if(true){//(step_i % 100 == 0){
-                        DTYPE diff = 0;
-                        for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
-                            DTYPE input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-                            lic::utils::memcpy(input, &replay_buffer.observations.data[batch_sample_i*ENVIRONMENT::OBSERVATION_DIM], ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
-                            lic::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &replay_buffer.actions.data[batch_sample_i*ENVIRONMENT::ACTION_DIM], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
-                            lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> input_matrix = {input};
-                            DTYPE current_value;
-                            lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> current_value_matrix = {&current_value};
-                            lic::evaluate(device, actor_critic.critic_target_1, input_matrix, current_value_matrix);
-                            DTYPE desired_value;
-                            lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
-                            lic::evaluate(device, post_critic_1_target, input_matrix, desired_value_matrix);
-                            diff += (current_value - desired_value) * (current_value - desired_value) / ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
-                        }
-//                        std::cout << "value mse: " << diff << std::endl;
-                    }
+//                    if(true){//(step_i % 100 == 0){
+//                        DTYPE diff = 0;
+//                        for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
+//                            DTYPE input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
+//                            lic::utils::memcpy(input, &replay_buffer.observations.data[batch_sample_i*ENVIRONMENT::OBSERVATION_DIM], ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
+//                            lic::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &replay_buffer.actions.data[batch_sample_i*ENVIRONMENT::ACTION_DIM], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
+//                            lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> input_matrix = {input};
+//                            DTYPE current_value;
+//                            lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> current_value_matrix = {&current_value};
+//                            lic::evaluate(device, actor_critic.critic_target_1, input_matrix, current_value_matrix);
+//                            DTYPE desired_value;
+//                            lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> desired_value_matrix = {&desired_value};
+//                            lic::evaluate(device, post_critic_1_target, input_matrix, desired_value_matrix);
+//                            diff += (current_value - desired_value) * (current_value - desired_value) / ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
+//                        }
+////                        std::cout << "value mse: " << diff << std::endl;
+//                    }
                     lic::free(device, post_critic_1_target);
                 }
             }

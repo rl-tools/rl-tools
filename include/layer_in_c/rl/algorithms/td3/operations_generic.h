@@ -109,14 +109,16 @@ namespace layer_in_c{
 
         T mean_target_action_value = 0;
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-            utils::memcpy(training_buffers.state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM), batch.observations.data + batch_step_i * OBSERVATION_DIM, OBSERVATION_DIM);
-            utils::memcpy(training_buffers.state_action_value_input.data + batch_step_i * (OBSERVATION_DIM + ACTION_DIM) + OBSERVATION_DIM, batch.actions.data + batch_step_i * ACTION_DIM, ACTION_DIM);
+            utils::memcpy(&training_buffers.state_action_value_input.data[index(training_buffers.state_action_value_input, batch_step_i, 0)], &batch.observations.data[index(batch.observations, batch_step_i, 0)], OBSERVATION_DIM);
+            utils::memcpy(&training_buffers.state_action_value_input.data[index(training_buffers.state_action_value_input, batch_step_i, OBSERVATION_DIM)], &batch.actions.data[index(batch.actions, batch_step_i, 0)], ACTION_DIM);
             T min_next_state_action_value = math::min(
-                    training_buffers.next_state_action_value_critic_1.data[index(training_buffers.next_state_action_value_critic_1, 0, batch_step_i)],
-                    training_buffers.next_state_action_value_critic_2.data[index(training_buffers.next_state_action_value_critic_2, 0, batch_step_i)]
+                    training_buffers.next_state_action_value_critic_1.data[index(training_buffers.next_state_action_value_critic_1, batch_step_i, 0)],
+                    training_buffers.next_state_action_value_critic_2.data[index(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)]
             );
-            T current_target_action_value = batch.rewards.data[index(batch.rewards, 0, batch_step_i)] + (SPEC::PARAMETERS::IGNORE_TERMINATION || !batch.terminated.data[index(batch.terminated, 0, batch_step_i)] ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0);
-            training_buffers.target_action_value.data[index(training_buffers.target_action_value, 0, batch_step_i)] = current_target_action_value;
+            T reward = batch.rewards.data[index(batch.rewards, 0, batch_step_i)];
+            T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !batch.terminated.data[index(batch.terminated, 0, batch_step_i)] ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
+            T current_target_action_value = reward + future_value;
+            training_buffers.target_action_value.data[index(training_buffers.target_action_value, batch_step_i, 0)] = current_target_action_value; // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
             mean_target_action_value += current_target_action_value;
             if(batch_step_i == 0){
                 add_scalar(device.logger, "mean_target_action_value_sample", mean_target_action_value, 100);

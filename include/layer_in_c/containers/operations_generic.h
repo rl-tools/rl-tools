@@ -27,7 +27,8 @@ namespace layer_in_c{
 
     template<typename SPEC>
     typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
-        return SPEC::ROW_PITCH * row + SPEC::COL_PITCH * col;
+        typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
+        return index;
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>

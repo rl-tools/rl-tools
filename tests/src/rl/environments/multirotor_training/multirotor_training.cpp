@@ -130,7 +130,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
 
     // training
-    for(int step_i = 0; step_i < 250000; step_i++){
+    for(int step_i = 0; step_i < 500000; step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         device.logger.step = step_i;
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
