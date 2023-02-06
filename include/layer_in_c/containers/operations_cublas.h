@@ -10,7 +10,7 @@
 namespace layer_in_c{
     template<typename DEV_SPEC, typename SPEC>
     void malloc(devices::CUBLAS<DEV_SPEC>& device, Matrix<SPEC>& matrix){
-        cudaMalloc(&matrix.data, SPEC::ROWS * SPEC::COLS *sizeof(typename SPEC::T));
+        cudaMalloc(&matrix.data, SPEC::SIZE_BYTES);
     }
     template<typename DEV_SPEC, typename SPEC>
     void free(devices::CUBLAS<DEV_SPEC>& device, Matrix<SPEC>& matrix){

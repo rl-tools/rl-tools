@@ -11,15 +11,17 @@ namespace layer_in_c{
         RowMajor,
         ColMajor,
     };
-    constexpr auto RowMajor = Majority::RowMajor;
-    constexpr auto ColMajor = Majority::ColMajor;
-    template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, Majority T_LAYOUT = RowMajor>
+    template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, T_TI T_ROW_PITCH=T_COLS, T_TI T_COL_PITCH=1> // row-major by default
     struct MatrixSpecification{
         using T = T_T;
         using TI = T_TI;
+        static_assert(T_COL_PITCH * T_COLS <= T_ROW_PITCH || T_ROW_PITCH * T_ROWS <= T_COL_PITCH, "Pitches of the matrix dimensions are not compatible");
+        static constexpr TI SIZE = std::max(T_COL_PITCH * T_COLS, T_ROW_PITCH * T_ROWS);
+        static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
         static constexpr TI ROWS = T_ROWS;
         static constexpr TI COLS = T_COLS;
-        static constexpr Majority LAYOUT = T_LAYOUT;
+        static constexpr TI ROW_PITCH = T_ROW_PITCH;
+        static constexpr TI COL_PITCH = T_COL_PITCH;
     };
     template<typename T_SPEC>
     struct Matrix{
@@ -28,7 +30,8 @@ namespace layer_in_c{
         using TI = typename SPEC::TI;
         static constexpr TI ROWS = SPEC::ROWS;
         static constexpr TI COLS = SPEC::COLS;
-        static constexpr Majority LAYOUT = SPEC::LAYOUT;
+        static constexpr TI ROW_PITCH = SPEC::ROW_PITCH;
+        static constexpr TI COL_PITCH = SPEC::COL_PITCH;
 
         T* data = nullptr;
     };
