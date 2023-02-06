@@ -71,9 +71,9 @@ namespace layer_in_c{
         T weight_bound = math::sqrt(typename DEVICE::SPEC::MATH(), (T)3.0) * std;
         T bias_bound = 1/math::sqrt(typename DEVICE::SPEC::MATH(), (T)SPEC::INPUT_DIM);
         for(TI i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            layer.biases.data[i] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng);
+            layer.biases.data[index(layer.biases, 0, i)] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng);
             for(TI j = 0; j < SPEC::INPUT_DIM; j++) {
-                layer.weights.data[i * SPEC::INPUT_DIM + j] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng);
+                layer.weights.data[index(layer.weights, i, j)] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng);
             }
         }
     }
@@ -96,13 +96,12 @@ namespace layer_in_c{
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
-                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
-                output.data[output_index] = layer.biases.data[output_i];
+//                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
+                output.data[index(output, batch_i, output_i)] = layer.biases.data[index(layer.biases, 0, output_i)];
                 for(TI input_i = 0; input_i < LAYER_SPEC::INPUT_DIM; input_i++) {
-                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_i;
-                    output.data[output_index] += layer.weights.data[output_i * LAYER_SPEC::INPUT_DIM + input_i] * input.data[input_index];
+                    output.data[index(output, batch_i, output_i)] += layer.weights.data[index(layer.weights, output_i, input_i)] * input.data[index(input, batch_i, input_i)];
                 }
-                output.data[output_index] = activation<typename DEVICE::SPEC::MATH, typename LAYER_SPEC::T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[output_index]);
+                output.data[index(output, batch_i, output_i)] = activation<typename DEVICE::SPEC::MATH, typename LAYER_SPEC::T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[index(output, batch_i, output_i)]);
             }
         }
     }
@@ -117,13 +116,13 @@ namespace layer_in_c{
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI i = 0; i < LAYER_SPEC::OUTPUT_DIM; i++) {
-                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + i;
-                layer.pre_activations.data[output_index] = layer.biases.data[i];
+//                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + i;
+                layer.pre_activations.data[index(layer.pre_activations, batch_i, i)] = layer.biases.data[index(layer.biases, 0, i)];
                 for(TI j = 0; j < LAYER_SPEC::INPUT_DIM; j++) {
-                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + j;
-                    layer.pre_activations.data[output_index] += layer.weights.data[i * LAYER_SPEC::INPUT_DIM + j] * input.data[input_index];
+//                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + j;
+                    layer.pre_activations.data[index(layer.pre_activations, batch_i, i)] += layer.weights.data[index(layer.weights, i, j)] * input.data[index(input, batch_i, j)];
                 }
-                output.data[output_index] = activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[output_index]);
+                output.data[index(output, batch_i, i)] = activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[index(layer.pre_activations, batch_i, i)]);
             }
         }
     }
@@ -151,14 +150,14 @@ namespace layer_in_c{
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < SPEC::OUTPUT_DIM; output_i++) {
-                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
-                typename SPEC::T d_pre_activation = d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[output_index]) * d_output[output_index];
+//                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
+                typename SPEC::T d_pre_activation = d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[index(layer.pre_activations, batch_i, output_i)]) * d_output[index(d_output, batch_i, output_i)];
                 for(TI input_j = 0; input_j < SPEC::INPUT_DIM; input_j++) {
-                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_j;
+//                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_j;
                     if(output_i == 0){
-                        d_input.data[input_index] = 0;
+                        d_input.data[index(d_input, batch_i, input_j)] = 0;
                     }
-                    d_input[input_index] += layer.weights.data[output_i * SPEC::INPUT_DIM + input_j] * d_pre_activation;
+                    d_input[index(d_input, batch_i, input_j)] += layer.weights.data[index(layer.weights, output_i, input_j)] * d_pre_activation;
                 }
             }
         }
@@ -184,16 +183,16 @@ namespace layer_in_c{
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
-                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
-                T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[output_index]) * d_output.data[output_index];
+//                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
+                T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[index(layer.pre_activations, batch_i, output_i)]) * d_output.data[index(d_output, batch_i, output_i)];
                 layer.d_biases.data[output_i] += d_pre_activation;
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++) {
-                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_i;
+//                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_i;
                     if(output_i == 0){
-                        d_input.data[input_index] = 0;
+                        d_input.data[index(d_input, batch_i, input_i)] = 0;
                     }
-                    d_input.data[input_index] += layer.weights.data[output_i * INPUT_DIM + input_i] * d_pre_activation;
-                    layer.d_weights.data[output_i * INPUT_DIM + input_i] += d_pre_activation * input.data[input_index];
+                    d_input.data[index(d_input, batch_i, input_i)] += layer.weights.data[index(layer.weights, output_i, input_i)] * d_pre_activation;
+                    layer.d_weights.data[index(layer.d_weights, output_i, input_i)] += d_pre_activation * input.data[index(input, batch_i, input_i)];
                 }
             }
         }
@@ -201,18 +200,18 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     LAYER_IN_C_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
         for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            layer.d_biases.data[i] = 0;
+            layer.d_biases.data[index(layer.d_biases, 0, i)] = 0;
             for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                layer.d_weights.data[i * SPEC::INPUT_DIM + j] = 0;
+                layer.d_weights.data[index(layer.d_weights, i, j)] = 0;
             }
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     LAYER_IN_C_FUNCTION_PLACEMENT void update_layer(DEVICE& device, nn::layers::dense::LayerBackwardSGD<SPEC, PARAMETERS>& layer){
         for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            layer.biases.data[i] -= PARAMETERS::ALPHA * layer.d_biases.data[i];
+            layer.biases.data[index(layer.biases, 0, i)] -= PARAMETERS::ALPHA * layer.d_biases.data[index(layer.d_biases, 0, i)];
             for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                layer.weights.data[i * SPEC::INPUT_DIM + j] -= PARAMETERS::ALPHA * layer.d_weights.data[i * SPEC::INPUT_DIM + j];
+                layer.weights.data[index(layer.weights, i, j)] -= PARAMETERS::ALPHA * layer.d_weights.data[index(layer.d_weights, i, j)];
             }
         }
     }
@@ -220,22 +219,22 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     LAYER_IN_C_FUNCTION_PLACEMENT void reset_optimizer_state(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
         for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            layer.d_biases_first_order_moment.data [i] = 0;
-            layer.d_biases_second_order_moment.data[i] = 0;
+            layer.d_biases_first_order_moment.data [index(layer.d_biases_first_order_moment, 0, i)] = 0;
+            layer.d_biases_second_order_moment.data[index(layer.d_biases_second_order_moment, 0, i)] = 0;
             for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                layer.d_weights_first_order_moment.data [i * SPEC::INPUT_DIM + j] = 0;
-                layer.d_weights_second_order_moment.data[i * SPEC::INPUT_DIM + j] = 0;
+                layer.d_weights_first_order_moment.data [index(layer.d_weights_first_order_moment, i, j)] = 0;
+                layer.d_weights_second_order_moment.data[index(layer.d_weights_second_order_moment, i, j)] = 0;
             }
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     LAYER_IN_C_FUNCTION_PLACEMENT void gradient_descent(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer, typename SPEC::T first_order_moment_bias_correction, typename SPEC::T second_order_moment_bias_correction){
         for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            typename SPEC::T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_biases_first_order_moment.data[i] / (math::sqrt(typename DEVICE::SPEC::MATH(), layer.d_biases_second_order_moment.data[i] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-            layer.biases.data[i] -= bias_update;
+            typename SPEC::T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_biases_first_order_moment.data[index(layer.d_biases_first_order_moment, 0, i)] / (math::sqrt(typename DEVICE::SPEC::MATH(), layer.d_biases_second_order_moment.data[index(layer.d_biases_second_order_moment, 0, i)] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+            layer.biases.data[index(layer.biases, 0, i)] -= bias_update;
             for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                typename SPEC::T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_weights_first_order_moment.data[i * SPEC::INPUT_DIM + j] / (math::sqrt(typename DEVICE::SPEC::MATH(), layer.d_weights_second_order_moment.data[i * SPEC::INPUT_DIM + j] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-                layer.weights.data[i * SPEC::INPUT_DIM + j] -= weight_update;
+                typename SPEC::T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * layer.d_weights_first_order_moment.data[index(layer.d_weights_first_order_moment, i, j)] / (math::sqrt(typename DEVICE::SPEC::MATH(), layer.d_weights_second_order_moment.data[index(layer.d_weights_second_order_moment, i, j)] * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                layer.weights.data[index(layer.weights, i, j)] -= weight_update;
             }
         }
     }

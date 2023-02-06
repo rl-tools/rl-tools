@@ -8,7 +8,13 @@
 namespace layer_in_c{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     LAYER_IN_C_FUNCTION_PLACEMENT void evaluate(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
+        using WEIGHT_SPEC = typename decltype(layer.weights)::SPEC;
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        // expecting row-major
+        static_assert(INPUT_SPEC::COL_PITCH == 1);
+        static_assert(WEIGHT_SPEC::COL_PITCH == 1);
+        static_assert(OUTPUT_SPEC::COL_PITCH == 1);
+
         // Warning do not use the same buffer for input and output!
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using DEVICE = devices::CPU_BLAS<DEV_SPEC>;
@@ -27,14 +33,14 @@ namespace layer_in_c{
         set_broadcast(device, output, layer.biases);
 
         if constexpr(utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (float*)input.data, k, (float*)layer.weights.data, k, beta, (float*)output.data, n);
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input.data, row_pitch(input), (T*)layer.weights.data, row_pitch(layer.weights), beta, (T*)output.data, row_pitch(output));
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input.data, k, (double*)layer.weights.data, k, beta, (double*)output.data, n);
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input.data, row_pitch(input), (T*)layer.weights.data, row_pitch(layer.weights), beta, (T*)output.data, row_pitch(output));
         }
         for(TI i = 0; i < BATCH_SIZE; i++){
             for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
-                output.data[i * LAYER_SPEC::OUTPUT_DIM + j] = activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[i * LAYER_SPEC::OUTPUT_DIM + j]);
+                output.data[index(output, i, j)] = activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[index(output, i, j)]);
             }
         }
     }
@@ -42,7 +48,12 @@ namespace layer_in_c{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     LAYER_IN_C_FUNCTION_PLACEMENT void forward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         // Warning do not use the same buffer for input and output!
+        using WEIGHT_SPEC = typename decltype(layer.weights)::SPEC;
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        // expecting row-major
+        static_assert(INPUT_SPEC::COL_PITCH == 1);
+        static_assert(WEIGHT_SPEC::COL_PITCH == 1);
+        static_assert(OUTPUT_SPEC::COL_PITCH == 1);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
         using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
@@ -60,15 +71,15 @@ namespace layer_in_c{
         set_broadcast(device, output, layer.biases);
 
         if constexpr(utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, ( float*)input.data, k, ( float*)layer.weights.data, k, beta, ( float*)output.data, n);
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input.data, row_pitch(input), (T*)layer.weights.data, row_pitch(layer.weights), beta, (T*)output.data, row_pitch(output));
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input.data, k, (double*)layer.weights.data, k, beta, (double*)output.data, n);
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input.data, row_pitch(input), (T*)layer.weights.data, row_pitch(layer.weights), beta, (T*)output.data, row_pitch(output));
         }
         copy(device, device, layer.pre_activations, output);
         for(TI i = 0; i < BATCH_SIZE; i++){
             for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
-                output.data[i * LAYER_SPEC::OUTPUT_DIM + j] = activation<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[i * LAYER_SPEC::OUTPUT_DIM + j]);
+                output.data[index(output, i, j)] = activation<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(output.data[index(output, i, j)]);
             }
         }
     }
@@ -78,8 +89,14 @@ namespace layer_in_c{
         // Warning do not reuse d_output as d_output is used as a temporary buffer
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
+        using WEIGHT_SPEC = typename decltype(layer.weights)::SPEC;
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
+        // expecting row-major
+        static_assert(INPUT_SPEC::COL_PITCH == 1);
+        static_assert(WEIGHT_SPEC::COL_PITCH == 1);
+        static_assert(D_OUTPUT_SPEC::COL_PITCH == 1);
+        static_assert(D_INPUT_SPEC::COL_PITCH == 1);
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
@@ -101,17 +118,16 @@ namespace layer_in_c{
             // calculating pre-activation
             for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
                 for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
-                    TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
-                    T d_pre_activation = d_activation_d_x<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[output_index]) * d_output.data[output_index];
-                    layer.d_biases.data[output_i] += d_pre_activation;
-                    d_output.data[output_index] = d_pre_activation;
+                    T d_pre_activation = d_activation_d_x<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[index(layer.pre_activations, batch_i, output_i)]) * d_output.data[index(d_output, batch_i, output_i)];
+                    layer.d_biases.data[index(layer.d_biases, 0, output_i)] += d_pre_activation;
+                    d_output.data[index(d_output, batch_i, output_i)] = d_pre_activation;
                 }
             }
             if constexpr(utils::typing::is_same_v<T, float>){
-                cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, ( float*)d_output.data, m, ( float*)input.data, n, beta, ( float*)layer.d_weights.data, n);
+                cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output.data, row_pitch(d_output), (T*)input.data, row_pitch(input), beta, (T*)layer.d_weights.data, row_pitch(layer.d_weights));
             }
             else{
-                cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, (double*)d_output.data, m, (double*)input.data, n, beta, (double*)layer.d_weights.data, n);
+                cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output.data, row_pitch(d_output), (T*)input.data, row_pitch(input), beta, (T*)layer.d_weights.data, row_pitch(layer.d_weights));
             }
         }
         {
@@ -127,10 +143,10 @@ namespace layer_in_c{
             constexpr auto n = LAYER_SPEC::INPUT_DIM;
 
             if constexpr(utils::typing::is_same_v<T, float>){
-                cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, ( float*)d_output.data, k, ( float*)layer.weights.data, n, beta, ( float*)d_input.data, n);
+                cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output.data, row_pitch(d_output), (T*)layer.weights.data, row_pitch(layer.weights), beta, (T*)d_input.data, row_pitch(d_input));
             }
             else{
-                cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (double*)d_output.data, k, (double*)layer.weights.data, n, beta, (double*)d_input.data, n);
+                cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output.data, row_pitch(d_output), (T*)layer.weights.data, row_pitch(layer.weights), beta, (T*)d_input.data, row_pitch(d_input));
             }
         }
     }

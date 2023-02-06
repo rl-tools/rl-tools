@@ -34,7 +34,7 @@ evaluate_batch_kernel(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::
             shared_input[thread_block_index] = 0;
         }
         if(thread_input_pos < INPUT_DIM && thread_output_pos < OUTPUT_DIM){
-            shared_weights[thread_block_index] = layer.weights.data[thread_output_pos * INPUT_DIM + thread_input_pos];
+            shared_weights[thread_block_index] = layer.weights.data[index(layer.weights, thread_output_pos, thread_input_pos)];
         }
         else{
             shared_weights[thread_block_index] = 0;
@@ -69,7 +69,7 @@ evaluate_batch_kernel(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::
 //            if(blockIdx.x == print_block_idx && blockIdx.y == print_block_idy && threadIdx.x == print_thread_idx && threadIdx.y == print_thread_idy){
 //                printf("result: %f\n",  acc);
 //            }
-    T b = layer.biases.data[blockIdx.x * BLOCK_SIZE + threadIdx.x];
+    T b = layer.biases.data[index(layer.biases, 0, blockIdx.x * BLOCK_SIZE + threadIdx.x)];
     acc += b;
 //            if(blockIdx.x == print_block_idx && blockIdx.y == print_block_idy && threadIdx.x == print_thread_idx && threadIdx.y == print_thread_idy){
 //                printf("bias: %f\n",  b);

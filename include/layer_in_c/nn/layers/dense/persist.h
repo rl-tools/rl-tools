@@ -110,11 +110,11 @@ namespace layer_in_c {
             std::cout << "Warning: Adam state not found. Initializing with zeros." << std::endl;
             for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
                 for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                    layer.d_weights_first_order_moment.data[i * SPEC::INPUT_DIM + j] = 0;
-                    layer.d_weights_second_order_moment.data[i * SPEC::INPUT_DIM + j] = 0;
+                    layer.d_weights_first_order_moment.data[index(layer.d_weights_first_order_moment, i, j)] = 0;
+                    layer.d_weights_second_order_moment.data[index(layer.d_weights_second_order_moment, i, j)] = 0;
                 }
-                layer.d_biases_first_order_moment.data[i] = 0;
-                layer.d_biases_second_order_moment.data[i] = 0;
+                layer.d_biases_first_order_moment.data[index(layer.d_biases_first_order_moment, 0, i)] = 0;
+                layer.d_biases_second_order_moment.data[index(layer.d_biases_second_order_moment, 0, i)] = 0;
             }
         }
     }

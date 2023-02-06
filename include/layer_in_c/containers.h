@@ -4,7 +4,7 @@
 namespace layer_in_c{
     namespace matrix{
         namespace layouts{
-            template <typename TI, TI ROWS, TI COLS, TI ALIGNMENT = 1>
+            template <typename TI, TI ROWS, TI COLS, TI ALIGNMENT = 4>
             struct RowMajorAlignment{
                 static constexpr TI ROW_PITCH = (COLS + ALIGNMENT - 1) / ALIGNMENT * ALIGNMENT;
                 static constexpr TI COL_PITCH = 1;

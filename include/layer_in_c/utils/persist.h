@@ -13,7 +13,10 @@ namespace layer_in_c::utils::persist::array_conversion{
         else{
             std::vector<std::vector<T>> data(SPEC::ROWS);
             for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
-                data[i] = std::vector<T>(&M.data[i * SPEC::COLS], &M.data[i * SPEC::COLS] + SPEC::COLS);
+                data[i] = std::vector<T>(SPEC::COLS);
+                for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
+                    data[i][j] = M.data[index(M, i, j)];
+                }
             }
             return data;
         }

@@ -45,15 +45,15 @@ namespace layer_in_c {
     void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const typename SPEC::T observation[SPEC::OBSERVATION_DIM], const typename SPEC::T action[SPEC::ACTION_DIM], const typename SPEC::T reward, const typename SPEC::T next_observation[SPEC::OBSERVATION_DIM], const bool terminated, const bool truncated) {
         // todo: change to memcpy?
         for(typename DEVICE::index_t i = 0; i < SPEC::OBSERVATION_DIM; i++) {
-            buffer.observations.data[buffer.position * SPEC::OBSERVATION_DIM + i] = observation[i];
-            buffer.next_observations.data[buffer.position * SPEC::OBSERVATION_DIM + i] = next_observation[i];
+            buffer.observations.data[index(buffer.observations, buffer.position, i)] = observation[i];
+            buffer.next_observations.data[index(buffer.next_observations, buffer.position, i)] = next_observation[i];
         }
         for(typename DEVICE::index_t i = 0; i < SPEC::ACTION_DIM; i++) {
-            buffer.actions.data[buffer.position * SPEC::ACTION_DIM + i] = action[i];
+            buffer.actions.data[index(buffer.actions, buffer.position, i)] = action[i];
         }
-        buffer.rewards.data[buffer.position] = reward;
-        buffer.terminated.data[buffer.position] = terminated;
-        buffer.truncated.data[buffer.position] = truncated;
+        buffer.rewards.data[index(buffer.rewards, 0, buffer.position)] = reward;
+        buffer.terminated.data[index(buffer.terminated, 0, buffer.position)] = terminated;
+        buffer.truncated.data[index(buffer.truncated, 0, buffer.position)] = truncated;
         buffer.position = (buffer.position + 1) % SPEC::CAPACITY;
         if(buffer.position == 0 && !buffer.full) {
             buffer.full = true;
@@ -66,12 +66,12 @@ namespace layer_in_c {
         for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             typename DEVICE::index_t sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
             typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, sample_index_max, rng);
-            utils::memcpy(&batch.observations.data[batch_step_i * SPEC::OBSERVATION_DIM], &replay_buffer.observations.data[sample_index * SPEC::OBSERVATION_DIM], SPEC::OBSERVATION_DIM);
-            utils::memcpy(&batch.actions.data[batch_step_i * SPEC::ACTION_DIM], &replay_buffer.actions.data[sample_index * SPEC::ACTION_DIM], SPEC::ACTION_DIM);
-            batch.rewards.data[batch_step_i] = replay_buffer.rewards.data[sample_index];
-            utils::memcpy(&batch.next_observations.data[batch_step_i * SPEC::OBSERVATION_DIM], &replay_buffer.next_observations.data[sample_index * SPEC::OBSERVATION_DIM], SPEC::OBSERVATION_DIM);
-            batch.terminated.data[batch_step_i] = replay_buffer.terminated.data[sample_index];
-            batch.truncated.data[batch_step_i] = replay_buffer.truncated.data[sample_index];
+            utils::memcpy(&batch.observations.data[index(batch.observations, batch_step_i, 0)], &replay_buffer.observations.data[index(replay_buffer.observations, sample_index, 0)], SPEC::OBSERVATION_DIM);
+            utils::memcpy(&batch.actions.data[index(batch.actions, batch_step_i, 0)], &replay_buffer.actions.data[index(replay_buffer.actions, sample_index, 0)], SPEC::ACTION_DIM);
+            batch.rewards.data[index(batch.rewards, 0, batch_step_i)] = replay_buffer.rewards.data[index(replay_buffer.rewards, 0, sample_index)];
+            utils::memcpy(&batch.next_observations.data[index(batch.next_observations, batch_step_i, 0)], &replay_buffer.next_observations.data[index(replay_buffer.next_observations, sample_index, 0)], SPEC::OBSERVATION_DIM);
+            batch.terminated.data[index(batch.terminated, 0, batch_step_i)] = replay_buffer.terminated.data[index(replay_buffer.terminated, 0, sample_index)];
+            batch.truncated.data[index(batch.truncated, 0, batch_step_i)] = replay_buffer.truncated.data[index(replay_buffer.truncated, 0, sample_index)];
         }
     }
 }

@@ -18,9 +18,9 @@ namespace layer_in_c::nn::loss_functions {
             TI output_pos_x = blockIdx.x * blockDim.x + threadIdx.x;
             TI output_pos_y = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
-                TI index = output_pos_y * OUTPUT_DIM + output_pos_x;
-                T diff = a.data[index] - b.data[index];
-                d_a.data[index] = 2*diff/(SPEC_A::ROWS * SPEC_A::COLS) * loss_weight;
+//                TI index = output_pos_y * OUTPUT_DIM + output_pos_x;
+                T diff = a.data[index(a, output_pos_y, output_pos_x)] - b.data[index(b, output_pos_y, output_pos_x)];
+                d_a.data[index(d_a, output_pos_y, output_pos_x)] = 2*diff/(SPEC_A::ROWS * SPEC_A::COLS) * loss_weight;
             }
         }
     }
@@ -32,8 +32,8 @@ namespace layer_in_c::nn::loss_functions {
         T acc = 0;
         for(TI row_i = 0; row_i < SPEC_A::ROWS; row_i++) {
             for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++) {
-                TI index = row_i * SPEC_A::COLS + col_i;
-                T diff = a.data[index] - b.data[index];
+//                TI index = row_i * SPEC_A::COLS + col_i;
+                T diff = a.data[index(a, row_i, col_i)] - b.data[index(b, row_i, col_i)];
                 acc += diff * diff;
             }
         }
