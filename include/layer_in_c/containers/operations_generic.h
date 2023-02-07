@@ -8,6 +8,9 @@ namespace layer_in_c{
     void malloc(DEVICE& device, Matrix<SPEC>& matrix){
         utils::assert_exit(device, matrix.data == nullptr, "Matrix is already allocated");
         matrix.data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
+        for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
+            matrix.data[i] = 0;
+        }
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, Matrix<SPEC>& matrix){
@@ -29,7 +32,7 @@ namespace layer_in_c{
     typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
         if(row >= SPEC::ROWS || col >= SPEC::COLS){
-            std::cout << "index: " << row << "(" << SPEC::ROWS << "):" << col << "(" << SPEC::COLS << ") out of bounds" << std::endl;
+//            std::cout << "index: " << row << "(" << SPEC::ROWS << "):" << col << "(" << SPEC::COLS << ") out of bounds" << std::endl;
         }
         return index;
     }
