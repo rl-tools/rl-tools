@@ -12,7 +12,7 @@ namespace layer_in_c{
                 static constexpr TI COL_PITCH = 1;
             };
 
-            template <typename TI, TI ALIGNMENT = 4>
+            template <typename TI, TI ALIGNMENT = 1>
             using RowMajorAlignmentOptimized = RowMajorAlignment<TI, ALIGNMENT>;
         }
         template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename T_LAYOUT = layouts::RowMajorAlignmentOptimized<T_TI>> // row-major by default

@@ -52,11 +52,17 @@ void load_dataset(DEVICE& device, HighFive::Group g, RB& rb){
     lic::load(device, rb.actions, g, "actions");
     lic::load(device, rb.next_observations, g, "next_states");
     lic::load(device, rb.rewards, g, "rewards");
-    std::vector<typename RB::T> terminated;
+    std::vector<std::vector<typename RB::T>> terminated_matrix;
+    g.getDataSet("terminated").read(terminated_matrix);
+    assert(terminated_matrix.size() == 1);
+    auto terminated = terminated_matrix[0];
     for(int i = 0; i < terminated.size(); i++){
         lic::set(rb.terminated, 0, i, terminated[i] == 1);
     }
-    std::vector<typename RB::T> truncated;
+    std::vector<std::vector<typename RB::T>> truncated_matrix;
+    g.getDataSet("truncated").read(truncated_matrix);
+    assert(truncated_matrix.size() == 1);
+    auto truncated = truncated_matrix[0];
     for(int i = 0; i < truncated.size(); i++){
         lic::set(rb.truncated, 0, i, truncated[i] == 1);
     }
@@ -282,13 +288,18 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     ReplayBufferType replay_buffer;
     lic::malloc(device, replay_buffer);
     load_dataset(device, data_file.getGroup("batch"), replay_buffer);
+    if(lic::is_nan(device, replay_buffer.observations) ||lic::is_nan(device, replay_buffer.actions) ||lic::is_nan(device, replay_buffer.next_observations) ||lic::is_nan(device, replay_buffer.rewards)){
+        assert(false);
+    }
     static_assert(first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE == first_stage_second_stage::TD3_PARAMETERS::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
     replay_buffer.position = first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE;
 
     lic::rl::components::replay_buffer::Batch<ReplayBufferSpec, first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<first_stage_second_stage::ActorCriticType::SPEC> critic_training_buffers;
+    lic::rl::algorithms::td3::CriticTrainingBuffers<first_stage_second_stage::ActorCriticType::SPEC> critic_training_buffers_target;
     lic::malloc(device, critic_batch);
     lic::malloc(device, critic_training_buffers);
+    lic::malloc(device, critic_training_buffers_target);
 
     first_stage_second_stage::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
     lic::malloc(device, critic_buffers[0]);
@@ -300,8 +311,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 
     decltype(actor_critic.critic_1) pre_critic_1;
     lic::malloc(device, pre_critic_1);
-    lic::copy(device, device, pre_critic_1, actor_critic.critic_1);
     lic::reset_optimizer_state(device, actor_critic.critic_1);
+    lic::copy(device, device, pre_critic_1, actor_critic.critic_1);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
     DTYPE mean_ratio_adam = 0;
@@ -309,6 +320,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     int num_updates = critic_training_group.getNumberObjects();
     for(int training_step_i = 0; training_step_i < num_updates; training_step_i++){
         auto step_group = critic_training_group.getGroup(std::to_string(training_step_i));
+        lic::load(device, critic_training_buffers_target.next_actions, step_group.getGroup("train_critics"), "target_next_actions_clipped");
+        lic::load(device, critic_training_buffers_target.next_state_action_value_input, step_group.getGroup("train_critics"), "next_state_action_value_input");
+        lic::load(device, critic_training_buffers_target.next_state_action_value_critic_1, step_group.getGroup("train_critics"), "next_state_action_values_critic_1");
+        lic::load(device, critic_training_buffers_target.next_state_action_value_critic_2, step_group.getGroup("train_critics"), "next_state_action_values_critic_2");
+        lic::load(device, critic_training_buffers_target.target_action_value, step_group.getGroup("train_critics"), "target_action_values");
 
         first_stage_second_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE post_critic_1;
         lic::malloc(device, post_critic_1);
@@ -325,7 +341,23 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         }
 
         lic::gather_batch<DEVICE, ReplayBufferSpec, first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, replay_buffer, critic_batch, rng);
+        if(
+            lic::is_nan(device, critic_batch.observations) ||
+            lic::is_nan(device, critic_batch.actions) ||
+            lic::is_nan(device, critic_batch.next_observations) ||
+            lic::is_nan(device, critic_batch.rewards)
+        ){
+            assert(false);
+        }
+//        assert(!lic::is_nan(device, actor_critic));
+
         lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_buffers[0], critic_buffers[0], critic_training_buffers);
+
+        auto target_next_action_diff = lic::abs_diff(device, critic_training_buffers_target.next_actions, critic_training_buffers.next_actions);
+        auto next_state_action_value_input_diff = lic::abs_diff(device, critic_training_buffers_target.next_state_action_value_input, critic_training_buffers.next_state_action_value_input);
+        auto next_state_action_value_critic_1_diff = lic::abs_diff(device, critic_training_buffers_target.next_state_action_value_critic_1, critic_training_buffers.next_state_action_value_critic_1);
+        auto next_state_action_value_critic_2_diff = lic::abs_diff(device, critic_training_buffers_target.next_state_action_value_critic_2, critic_training_buffers.next_state_action_value_critic_2);
+        auto target_action_value_diff = lic::abs_diff(device, critic_training_buffers_target.target_action_value, critic_training_buffers.target_action_value);
 
         lic::reset_forward_state(device, pre_critic_1);
         lic::reset_forward_state(device, post_critic_1);

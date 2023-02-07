@@ -50,6 +50,10 @@ namespace layer_in_c::math {
     LAYER_IN_C_FUNCTION_PLACEMENT auto floor(const devices::math::CUDA&, const T x) {
         return std::floor(x);
     }
+    template<typename T>
+    LAYER_IN_C_FUNCTION_PLACEMENT bool is_nan(const devices::math::CUDA&, const T x) {
+        return std::isnan(x);
+    }
 
 
 

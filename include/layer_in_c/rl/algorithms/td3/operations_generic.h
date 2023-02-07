@@ -118,7 +118,8 @@ namespace layer_in_c{
                     get(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)
             );
             T reward = get(batch.rewards, 0, batch_step_i);
-            T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !get(batch.terminated, 0, batch_step_i) ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
+            bool terminated = get(batch.terminated, 0, batch_step_i);
+            T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
             T current_target_action_value = reward + future_value;
             set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
             mean_target_action_value += current_target_action_value;
@@ -200,7 +201,17 @@ namespace layer_in_c{
         update_target_network(device, actor_critic.actor_target   , actor_critic.   actor, SPEC::PARAMETERS::ACTOR_POLYAK);
     }
 
-
+    template <typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& ac) {
+        bool found_nan = false;
+        found_nan = found_nan || is_nan(device, ac.actor);
+        found_nan = found_nan || is_nan(device, ac.critic_1);
+        found_nan = found_nan || is_nan(device, ac.critic_2);
+        found_nan = found_nan || is_nan(device, ac.actor_target);
+        found_nan = found_nan || is_nan(device, ac.critic_target_1);
+        found_nan = found_nan || is_nan(device, ac.critic_target_2);
+        return found_nan;
+    }
 }
 
 #endif

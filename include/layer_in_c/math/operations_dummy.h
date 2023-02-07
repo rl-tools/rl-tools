@@ -43,5 +43,9 @@ namespace layer_in_c::math {
     auto floor(const devices::math::Dummy&, const T x) {
         return (int)x;
     }
+    template<typename T>
+    auto is_nan(const devices::math::Dummy&, const T x) {
+        return false;
+    }
 }
 #endif

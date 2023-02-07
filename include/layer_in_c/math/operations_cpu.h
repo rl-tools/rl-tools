@@ -45,5 +45,9 @@ namespace layer_in_c::math {
     auto floor(const devices::math::CPU&, const T x) {
         return std::floor(x);
     }
+    template<typename T>
+    auto is_nan(const devices::math::CPU&, const T x) {
+        return std::isnan(x);
+    }
 }
 #endif

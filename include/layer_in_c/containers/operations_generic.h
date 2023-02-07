@@ -8,9 +8,10 @@ namespace layer_in_c{
     void malloc(DEVICE& device, Matrix<SPEC>& matrix){
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
         matrix._data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
-        for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
-            matrix._data[i] = 10;
-        }
+        // for debugging, initializing to NaN
+//        for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
+//            matrix._data[i] = 0.0/0.0;
+//        }
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, Matrix<SPEC>& matrix){
@@ -31,9 +32,10 @@ namespace layer_in_c{
     template<typename SPEC>
     typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
-        if(row >= SPEC::ROWS || col >= SPEC::COLS){
+        // bounds checking for debugging
+//        if(row >= SPEC::ROWS || col >= SPEC::COLS){
 //            std::cout << "index: " << row << "(" << SPEC::ROWS << "):" << col << "(" << SPEC::COLS << ") out of bounds" << std::endl;
-        }
+//        }
         return index;
     }
     template<typename SPEC>
@@ -61,7 +63,7 @@ namespace layer_in_c{
     }
     namespace containers::vectorization::operators{
         template<typename T>
-        T copy(T a, T b){
+        T copy(T b){
             return b;
         }
         template<typename T>
@@ -109,13 +111,23 @@ namespace layer_in_c{
             }
         }
     }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto UNARY_OPERATOR>
+    void vectorize_unary(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+        static_assert(containers::check_structure<SPEC_1, SPEC_2>);
+        using SPEC = SPEC_1;
+        for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
+            for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
+                set(target, i, j, UNARY_OPERATOR(get(source, i, j)));
+            }
+        }
+    }
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename SPEC_1, typename SPEC_2>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
 //        static_assert(utils::typing::is_same<TARGET_DEVICE, SOURCE_DEVICE>); // todo: implement
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
-        vectorize_binary<TARGET_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename SPEC::T>>(target_device, target, source);
+        vectorize_unary<TARGET_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename SPEC::T>>(target_device, target, source);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
@@ -240,6 +252,19 @@ namespace layer_in_c{
             }
         }
         return acc;
+    }
+    template<typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const Matrix<SPEC>& m){
+        using TI = typename SPEC::TI;
+        using T = typename SPEC::T;
+        for(TI i = 0; i < SPEC::ROWS; i++){
+            for(TI j = 0; j < SPEC::COLS; j++){
+                if(math::is_nan(typename DEVICE::SPEC::MATH(), get(m, i, j))){
+                    return true;
+                }
+            }
+        }
+        return false;
     }
     template<typename TARGET_DEVICE, typename SPEC, typename T>
     void assign(TARGET_DEVICE& target_device, Matrix<SPEC>& target, const T* source, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){

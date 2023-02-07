@@ -318,6 +318,16 @@ namespace layer_in_c {
         acc += abs_diff(device, n1.output_layer, n2.output_layer);
         return acc;
     }
+    template <typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const layer_in_c::nn_models::mlp::NeuralNetwork<SPEC>& n) {
+        bool found_nan = false;
+        found_nan = found_nan || is_nan(device, n.input_layer);
+        for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
+            found_nan = found_nan || is_nan(device, n.hidden_layers[layer_i]);
+        }
+        found_nan = found_nan || is_nan(device, n.output_layer);
+        return found_nan;
+    }
 }
 
 #endif

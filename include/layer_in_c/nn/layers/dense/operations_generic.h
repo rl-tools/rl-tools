@@ -385,6 +385,33 @@ namespace layer_in_c{
     void reset_forward_state(DEVICE& device, layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC>& l) {
         reset_forward_state(device, &l);
     }
+    template <typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const layer_in_c::nn::layers::dense::Layer<SPEC>& l) {
+        return is_nan(device, l.weights) || is_nan(device, l.biases);
+    }
+    template <typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const layer_in_c::nn::layers::dense::LayerBackward<SPEC>& l) {
+        return
+                is_nan(device, (layer_in_c::nn::layers::dense::Layer<SPEC>&) l) ||
+                is_nan(device, l.pre_activations);
+    }
+    template <typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC>& l) {
+        return
+            is_nan(device, (layer_in_c::nn::layers::dense::LayerBackward<SPEC>&) l) ||
+            is_nan(device, l.output) ||
+            is_nan(device, l.d_weights) ||
+            is_nan(device, l.d_biases);
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS>
+    bool is_nan(DEVICE& device, const layer_in_c::nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& l) {
+        return
+            is_nan(device, (layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC>&) l) ||
+            is_nan(device, l.d_weights_first_order_moment) ||
+            is_nan(device, l.d_weights_second_order_moment) ||
+            is_nan(device, l.d_biases_first_order_moment) ||
+            is_nan(device, l.d_biases_second_order_moment);
+    }
 }
 
 #endif
