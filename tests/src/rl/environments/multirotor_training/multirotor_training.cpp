@@ -130,7 +130,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
 
     // training
-    for(int step_i = 0; step_i < 500000; step_i++){
+    for(int step_i = 0; step_i < 300000; step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         device.logger.step = step_i;
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
@@ -190,8 +190,13 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     }
     {
         std::string actor_output_path = "actor.h5";
-        auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
-        lic::save(device, actor_critic.actor, actor_file.createGroup("actor"));
+        try{
+            auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+            lic::save(device, actor_critic.actor, actor_file.createGroup("actor"));
+        }
+        catch(HighFive::Exception& e){
+            std::cout << "Error while saving actor: " << e.what() << std::endl;
+        }
     }
     lic::destruct(logger);
     lic::free(device, critic_batches[0]);

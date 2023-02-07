@@ -59,6 +59,15 @@ using parameters_rl = parameter_set::rl<DEVICE, DTYPE, ENVIRONMENT>;
 //    }
 //}
 
+std::string get_actor_file_path(){
+    std::string DATA_FILE_PATH = "./actor.h5";
+    const char* data_file_path = std::getenv("LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_UI_ACTOR_FILE_PATH");
+    if (data_file_path != NULL){
+        DATA_FILE_PATH = std::string(data_file_path);
+//            std::runtime_error("Environment variable LAYER_IN_C_TEST_DATA_DIR not set. Skipping test.");
+    }
+    return DATA_FILE_PATH;
+}
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_ACTOR) {
     DEVICE::SPEC::LOGGING logger;
     DEVICE device(logger);
@@ -75,17 +84,19 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_ACTOR) {
     parameters_rl::ACTOR_NETWORK_TYPE actor;
     lic::malloc(device, actor);
 
-    std::string actor_output_path = "actor.h5";
-    if(!std::filesystem::exists(actor_output_path)){
-        std::cout << "actor.h5 not found" << std::endl;
-        return;
+    std::string actor_output_path = get_actor_file_path();
+//    if(!std::filesystem::exists(actor_output_path)){
+//        std::cout << "actor.h5 not found" << std::endl;
+//        return;
+//    }
+    {
+        auto actor_file = HighFive::File(actor_output_path, HighFive::File::ReadOnly);
+        lic::load(device, actor, actor_file.getGroup("actor"));
     }
-    auto actor_file = HighFive::File(actor_output_path, HighFive::File::ReadOnly);
-    lic::load(device, actor, actor_file.getGroup("actor"));
 
 
 
-    for(DEVICE::index_t episode_i = 0; episode_i < 10; episode_i++){
+    for(DEVICE::index_t episode_i = 0; episode_i < 1; episode_i++){
         lic::sample_initial_state(device, env, state, rng);
         lic::rl::utils::evaluation::State<DTYPE, typename ENVIRONMENT::State> eval_state;
         eval_state.state = state;

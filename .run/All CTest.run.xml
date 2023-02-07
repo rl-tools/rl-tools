@@ -4,6 +4,7 @@
       <env name="LAYER_IN_C_TEST_NN_DATA_FILE" value="$PROJECT_DIR$/../model-learning/data.hdf5" />
       <env name="LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FIRST_STAGE_DATA_FILE" value="$PROJECT_DIR$/../multirotor-torch/model_first_stage.hdf5" />
       <env name="LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_DATA_FILE" value="$PROJECT_DIR$/../multirotor-torch/model_second_stage.hdf5" />
+      <env name="LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_UI_ACTOR_FILE_PATH" value="$PROJECT_DIR$/actor.h5" />
       <env name="LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE" value="$PROJECT_DIR$/../multirotor-torch/pendulum.hdf5" />
     </envs>
     <method v="2">
