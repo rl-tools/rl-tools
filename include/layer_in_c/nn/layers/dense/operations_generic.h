@@ -185,7 +185,7 @@ namespace layer_in_c{
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
 //                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
                 T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(layer.pre_activations.data[index(layer.pre_activations, batch_i, output_i)]) * d_output.data[index(d_output, batch_i, output_i)];
-                layer.d_biases.data[output_i] += d_pre_activation;
+                layer.d_biases.data[index(layer.d_biases, 0, output_i)] += d_pre_activation;
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++) {
 //                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_i;
                     if(output_i == 0){
