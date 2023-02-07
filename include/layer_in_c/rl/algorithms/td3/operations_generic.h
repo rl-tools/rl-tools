@@ -98,9 +98,9 @@ namespace layer_in_c{
         evaluate(device, actor_critic.actor_target, batch.next_observations, training_buffers.next_actions, actor_buffers);
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
             for(TI action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                T noisy_next_action = training_buffers.next_actions.data[index(training_buffers.next_actions, batch_step_i, action_i)] + training_buffers.target_next_action_noise.data[index(training_buffers.target_next_action_noise, batch_step_i, action_i)];
+                T noisy_next_action = get(training_buffers.next_actions, batch_step_i, action_i) + get(training_buffers.target_next_action_noise, batch_step_i, action_i);
                 noisy_next_action = math::clamp<T>(noisy_next_action, -1, 1);
-                training_buffers.next_actions.data[index(training_buffers.next_actions, batch_step_i, action_i)] = noisy_next_action;
+                set(training_buffers.next_actions, batch_step_i, action_i, noisy_next_action);
             }
         }
         hcat(device, batch.next_observations, training_buffers.next_actions, training_buffers.next_state_action_value_input);
@@ -109,16 +109,18 @@ namespace layer_in_c{
 
         T mean_target_action_value = 0;
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-            utils::memcpy(&training_buffers.state_action_value_input.data[index(training_buffers.state_action_value_input, batch_step_i, 0)], &batch.observations.data[index(batch.observations, batch_step_i, 0)], OBSERVATION_DIM);
-            utils::memcpy(&training_buffers.state_action_value_input.data[index(training_buffers.state_action_value_input, batch_step_i, OBSERVATION_DIM)], &batch.actions.data[index(batch.actions, batch_step_i, 0)], ACTION_DIM);
+//            utils::memcpy(&get(training_buffers.state_action_value_input, batch_step_i, 0), &get(batch.observations, batch_step_i, 0), OBSERVATION_DIM);
+            slice(device, training_buffers.state_action_value_input, batch.observations, batch_step_i, 0, 1, OBSERVATION_DIM, batch_step_i, 0);
+//            utils::memcpy(&get(training_buffers.state_action_value_input, batch_step_i, OBSERVATION_DIM), &get(batch.actions, batch_step_i, 0), ACTION_DIM);
+            slice(device, training_buffers.state_action_value_input, batch.actions, batch_step_i, 0, 1, ACTION_DIM, batch_step_i, OBSERVATION_DIM);
             T min_next_state_action_value = math::min(
-                    training_buffers.next_state_action_value_critic_1.data[index(training_buffers.next_state_action_value_critic_1, batch_step_i, 0)],
-                    training_buffers.next_state_action_value_critic_2.data[index(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)]
+                    get(training_buffers.next_state_action_value_critic_1, batch_step_i, 0),
+                    get(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)
             );
-            T reward = batch.rewards.data[index(batch.rewards, 0, batch_step_i)];
-            T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !batch.terminated.data[index(batch.terminated, 0, batch_step_i)] ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
+            T reward = get(batch.rewards, 0, batch_step_i);
+            T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !get(batch.terminated, 0, batch_step_i) ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
             T current_target_action_value = reward + future_value;
-            training_buffers.target_action_value.data[index(training_buffers.target_action_value, batch_step_i, 0)] = current_target_action_value; // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
+            set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
             mean_target_action_value += current_target_action_value;
             if(batch_step_i == 0){
                 add_scalar(device.logger, "mean_target_action_value_sample", mean_target_action_value, 100);
@@ -141,11 +143,11 @@ namespace layer_in_c{
         typedef typename SPEC::T T;
         for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
             for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                target_action_noise.data[index(target_action_noise, batch_sample_i, action_i)] = math::clamp(
+                set(target_action_noise, batch_sample_i, action_i, math::clamp(
                         random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng),
                         -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
                         SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
-                );
+                ));
             }
         }
     }
@@ -162,7 +164,7 @@ namespace layer_in_c{
         hcat(device, batch.observations, training_buffers.actions, training_buffers.state_action_value_input);
         auto& critic = actor_critic.critic_1;
         forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value);
-        set(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
+        set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward(device, critic, training_buffers.state_action_value_input, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
         slice(device, training_buffers.d_actor_output, training_buffers.d_critic_input, 0, OBSERVATION_DIM);
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output, training_buffers.d_actor_input, actor_buffers);

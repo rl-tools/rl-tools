@@ -14,6 +14,7 @@ namespace lic = layer_in_c;
 #include <highfive/H5File.hpp>
 
 #include "default_network_mlp.h"
+#include <layer_in_c/nn_models/persist.h>
 //#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS
@@ -66,18 +67,18 @@ protected:
         DTYPE output[OUTPUT_DIM];
         standardise<DTYPE, INPUT_DIM>(X_train[0].data(), X_mean.data(), X_std.data(), input);
         standardise<DTYPE, OUTPUT_DIM>(Y_train[0].data(), Y_mean.data(), Y_std.data(), output);
-        lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> input_matrix = {input};
-        lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix = {output};
+        lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM, lic::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t>>> input_matrix = {input};
+        lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, lic::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t>>> output_matrix = {output};
         lic::forward(device, network, input_matrix);
 //        lic::forward(device, network, input);
         DTYPE d_loss_d_output[OUTPUT_DIM];
-        lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix = {d_loss_d_output};
+        lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, lic::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t>>> d_loss_d_output_matrix = {d_loss_d_output};
         lic::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix);
 //        lic::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output.data, output, d_loss_d_output);
         DTYPE d_input[INPUT_DIM];
         lic::zero_gradient(device, network);
 //        lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix = {d_loss_d_output};
-        lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix = {d_input};
+        lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM, lic::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t>>> d_input_matrix = {d_input};
         lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);
 //        lic::backward(device, network, input, d_loss_d_output, d_input);
     }
@@ -90,12 +91,12 @@ protected:
         data_file.getDataSet(model_name + "/init/hidden_layer_0/bias").read(hidden_layer_0_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        assign(network.input_layer.weights     , input_layer_weights);
-        lic::utils::memcpy(network.input_layer.biases.data, input_layer_biases.data(), LAYER_1_DIM);
-        assign(network.hidden_layers[0].weights     , hidden_layer_0_weights);
-        lic::utils::memcpy(network.hidden_layers[0].biases.data, hidden_layer_0_biases.data(), LAYER_2_DIM);
-        assign(network.output_layer.weights, output_layer_weights);
-        lic::utils::memcpy(network.output_layer.biases.data, output_layer_biases.data(), OUTPUT_DIM);
+        lic::load(device, network.input_layer.weights, input_layer_weights);
+        lic::assign(device, network.input_layer.biases, input_layer_biases.data());
+        lic::load(device, network.hidden_layers[0].weights, hidden_layer_0_weights);
+        lic::assign(device, network.hidden_layers[0].biases, hidden_layer_0_biases.data());
+        lic::load(device, network.output_layer.weights, output_layer_weights);
+        lic::assign(device, network.output_layer.biases, output_layer_biases.data());
     }
 
     NetworkType network;
@@ -130,10 +131,8 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_weights) {
 
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_biases) {
-    DTYPE out = abs_diff<
-            DTYPE, LAYER_1_DIM
-    >(
-            network.input_layer.d_biases.data,
+    DTYPE out = abs_diff_matrix(
+            network.input_layer.d_biases,
             batch_0_input_layer_biases_grad.data()
     );
     std::cout << "input_layer_biases diff: " << out << std::endl;
@@ -154,10 +153,8 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
 
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
-    DTYPE out = abs_diff<
-            DTYPE, LAYER_2_DIM
-    >(
-            network.hidden_layers[0].d_biases.data,
+    DTYPE out = abs_diff_matrix(
+            network.hidden_layers[0].d_biases,
             batch_0_hidden_layer_0_biases_grad.data()
     );
     std::cout << "hidden_layer_0_biases diff: " << out << std::endl;
@@ -178,10 +175,8 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_weights) {
 
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_biases) {
-    DTYPE out = abs_diff<
-            DTYPE, OUTPUT_DIM
-    >(
-            network.output_layer.d_biases.data,
+    DTYPE out = abs_diff_matrix(
+            network.output_layer.d_biases,
             batch_0_output_layer_biases_grad.data()
     );
     std::cout << "output_layer_biases diff: " << out << std::endl;

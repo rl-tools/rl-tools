@@ -8,7 +8,7 @@ namespace layer_in_c {
         for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
             data[i] = std::vector<T>(SPEC::COLS);
             for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
-                data[i][j] = m.data[index(m, i, j)];
+                data[i][j] = get(m, i, j);
             }
         }
         group.createDataSet(dataset_name, data);
@@ -25,7 +25,17 @@ namespace layer_in_c {
         dataset.read(data);
         for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
             for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
-                m.data[index(m, i, j)] = data[i][j];
+                set(m, i, j, data[i][j]);
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename T>
+    void load(DEVICE& device, Matrix<SPEC>& m, std::vector<std::vector<T>> data) {
+        assert(data.size() == SPEC::ROWS);
+        assert(data[0].size() == SPEC::COLS);
+        for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
+            for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
+                set(m, i, j, data[i][j]);
             }
         }
     }

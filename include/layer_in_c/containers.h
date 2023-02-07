@@ -4,24 +4,30 @@
 namespace layer_in_c{
     namespace matrix{
         namespace layouts{
-            template <typename TI, TI ROWS, TI COLS, TI ALIGNMENT = 4>
+            template <typename TI, TI ALIGNMENT = 1>
             struct RowMajorAlignment{
+                template <TI ROWS, TI COLS>
                 static constexpr TI ROW_PITCH = ((COLS + ALIGNMENT - 1) / ALIGNMENT) * ALIGNMENT;
+                template <TI ROWS, TI COLS>
                 static constexpr TI COL_PITCH = 1;
             };
+
+            template <typename TI, TI ALIGNMENT = 4>
+            using RowMajorAlignmentOptimized = RowMajorAlignment<TI, ALIGNMENT>;
         }
-        template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename T_LAYOUT = layouts::RowMajorAlignment<T_TI, T_ROWS, T_COLS>> // row-major by default
+        template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename T_LAYOUT = layouts::RowMajorAlignmentOptimized<T_TI>> // row-major by default
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             using LAYOUT = T_LAYOUT;
-            static constexpr TI ROW_PITCH = LAYOUT::ROW_PITCH;
-            static constexpr TI COL_PITCH = LAYOUT::COL_PITCH;
-            static_assert(COL_PITCH * T_COLS <= ROW_PITCH || ROW_PITCH * T_ROWS <= COL_PITCH, "Pitches of the matrix dimensions are not compatible");
-            static constexpr TI SIZE = COL_PITCH * T_COLS > ROW_PITCH * T_ROWS ? COL_PITCH * T_COLS : ROW_PITCH * T_ROWS;
-            static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
             static constexpr TI ROWS = T_ROWS;
             static constexpr TI COLS = T_COLS;
+            static constexpr TI ROW_PITCH = LAYOUT::template ROW_PITCH<ROWS, COLS>;
+            static constexpr TI COL_PITCH = LAYOUT::template COL_PITCH<ROWS, COLS>;
+            static_assert(COL_PITCH * T_COLS <= ROW_PITCH || ROW_PITCH * T_ROWS <= COL_PITCH, "Pitches of the matrix dimensions are not compatible");
+            static constexpr bool ROW_MAJOR = ROWS * ROW_PITCH >= COL_PITCH * COLS;
+            static constexpr TI SIZE = ROW_MAJOR ? ROWS * ROW_PITCH : COLS * COL_PITCH;
+            static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
         };
     }
     template<typename T_SPEC>
@@ -34,7 +40,8 @@ namespace layer_in_c{
         static constexpr TI ROW_PITCH = SPEC::ROW_PITCH;
         static constexpr TI COL_PITCH = SPEC::COL_PITCH;
 
-        T* data = nullptr;
+        T* _data = nullptr;
+        //[SPEC::ROW_MAJOR ? ROWS : COLS][SPEC::ROW_MAJOR ? ROW_PITCH : COL_PITCH]
     };
     namespace containers{
         template<typename SPEC_1, typename SPEC_2>

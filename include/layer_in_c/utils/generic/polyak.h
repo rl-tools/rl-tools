@@ -10,7 +10,7 @@ namespace layer_in_c::utils::polyak {
         using SPEC = TARGET_SPEC;
         for(typename DEVICE::index_t i = 0; i < SPEC::ROWS; i++) {
             for(typename DEVICE::index_t j = 0; j < SPEC::COLS; j++) {
-                target.data[index(target, i, j)] = polyak * target.data[index(target, i, j)] + (1 - polyak) * source.data[index(source, i, j)];
+                set(target, i, j, polyak * get(target, i, j) + (1 - polyak) * get(source, i, j));
             }
         }
     }
@@ -21,8 +21,8 @@ namespace layer_in_c::utils::polyak {
         using SPEC = TARGET_SPEC;
         for(typename DEVICE::index_t i = 0; i < SPEC::ROWS; i++) {
             for(typename DEVICE::index_t j = 0; j < SPEC::COLS; j++) {
-                typename SPEC::T s = source.data[index(source, i, j)];
-                target.data[index(target, i, j)] = polyak * target.data[index(target, i, j)] + (1 - polyak) * s * s;
+                typename SPEC::T s = get(source, i, j);
+                set(target, i, j, polyak * get(target, i, j) + (1 - polyak) * s * s);
             }
         }
     }

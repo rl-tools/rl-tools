@@ -70,7 +70,7 @@ namespace layer_in_c {
 //        auto biases_dataset = group.getDataSet("biases");
 //        auto biases_dims = biases_dataset.getDimensions();
 //        assert(biases_dims[0] == SPEC::OUTPUT_DIM);
-//        biases_dataset.read(&layer.biases.data[index(layer.biases, 0, 0)]);
+//        biases_dataset.read(&get(layer.biases, 0, 0));
         load(device, layer.biases, group, "biases");
     }
     template<typename DEVICE, typename SPEC>
@@ -131,11 +131,11 @@ namespace layer_in_c {
             std::cout << "Warning: Adam state not found. Initializing with zeros." << std::endl;
             for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
                 for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                    layer.d_weights_first_order_moment.data[index(layer.d_weights_first_order_moment, i, j)] = 0;
-                    layer.d_weights_second_order_moment.data[index(layer.d_weights_second_order_moment, i, j)] = 0;
+                    set(layer.d_weights_first_order_moment, i, j, 0);
+                    set(layer.d_weights_second_order_moment, i, j, 0);
                 }
-                layer.d_biases_first_order_moment.data[index(layer.d_biases_first_order_moment, 0, i)] = 0;
-                layer.d_biases_second_order_moment.data[index(layer.d_biases_second_order_moment, 0, i)] = 0;
+                set(layer.d_biases_first_order_moment, 0, i, 0);
+                set(layer.d_biases_second_order_moment, 0, i, 0);
             }
         }
     }

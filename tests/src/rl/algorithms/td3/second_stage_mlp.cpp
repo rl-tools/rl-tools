@@ -95,15 +95,18 @@ using ReplayBufferSpecCopyTraining = lic::rl::components::replay_buffer::Specifi
 using DEVICE = lic::devices::DefaultCPU;
 typedef lic::rl::components::ReplayBuffer<ReplayBufferSpecCopyTraining> ReplayBufferTypeCopyTraining;
 constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
-template <typename T, typename REPLAY_BUFFER_TYPE>
-void load(ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
+template <typename DEVICE, typename T>
+void load(DEVICE& device, ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
     for(int i = 0; i < batch.size(); i++){
-        lic::utils::memcpy(&rb.     observations.data[index(rb.observations, i, 0)], &batch[i][0], ENVIRONMENT::OBSERVATION_DIM);
-        lic::utils::memcpy(&rb.          actions.data[index(rb.actions, i, 0)], &batch[i][ENVIRONMENT::OBSERVATION_DIM], ENVIRONMENT::ACTION_DIM);
-        lic::utils::memcpy(&rb.next_observations.data[index(rb.next_observations, i, 0)], &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], ENVIRONMENT::OBSERVATION_DIM);
-        rb.   rewards.data[index(rb.rewards, 0, i)] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM    ];
-        rb.terminated.data[index(rb.terminated, 0, i)] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1;
-        rb. truncated.data[index(rb.truncated, 0, i)] = batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1;
+//        lic::utils::memcpy(&rb.     lic::get(observations, i, 0), &batch[i][0], ENVIRONMENT::OBSERVATION_DIM);
+        lic::assign(device, rb.observations, &batch[i][0], i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
+//        lic::utils::memcpy(&rb.          lic::get(actions, i, 0), &batch[i][ENVIRONMENT::OBSERVATION_DIM], ENVIRONMENT::ACTION_DIM);
+        lic::assign(device, rb.actions, &batch[i][ENVIRONMENT::OBSERVATION_DIM], i, 0, 1, ENVIRONMENT::ACTION_DIM);
+//        lic::utils::memcpy(&lic::get(rb.next_observations, i, 0), &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], ENVIRONMENT::OBSERVATION_DIM);
+        lic::assign(device, rb.next_observations, &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
+        lic::set(rb.rewards, 0, i, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM]);
+        lic::set(rb.terminated, 0, i, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1);
+        lic::set(rb.truncated, 0, i, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1);
     }
     rb.position = batch.size();
 }
@@ -221,7 +224,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //            step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
             lic::load(device, critic_training_buffers.target_next_action_noise, step_group, "target_next_action_noise");
 
-            load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
+            load(device, replay_buffer, batch);
 //            if (step_i == 0 && step_group.exist("pre_critic1")){
 //                decltype(actor_critic.critic_1) pre_critic_1_step;
 //                lic::malloc(device, pre_critic_1_step);
@@ -299,8 +302,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                DTYPE diff = 0;
 //                for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
 //                    DTYPE input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-//                    lic::utils::memcpy(input, &replay_buffer.observations.data[index(replay_buffer.observations, batch_sample_i, 0)], ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
-//                    lic::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &replay_buffer.actions.data[index(replay_buffer.actions, batch_sample_i, 0)], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
+//                    lic::utils::memcpy(input, &lic::get(replay_buffer.observations, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
+//                    lic::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &lic::get(replay_buffer.actions, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
 //                    using input_layout = lic::matrix::layouts::RowMajorAlignment<DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, 1>;
 //                    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, layout>> input_matrix = {input};
 //                    DTYPE current_value;
@@ -321,7 +324,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             std::vector<std::vector<DTYPE>> batch;
             step_group.getDataSet("actor_batch").read(batch);
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
-            load<DTYPE, ReplayBufferTypeCopyTraining>(replay_buffer, batch);
+            load(device, replay_buffer, batch);
 
             decltype(actor_critic.actor) post_actor;
             lic::malloc(device, post_actor);

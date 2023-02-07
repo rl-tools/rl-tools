@@ -22,9 +22,9 @@ namespace layer_in_c{
 
             TI output_pos = blockIdx.x * blockDim.x + threadIdx.x;
             if(output_pos < OUTPUT_DIM){
-                T bias = layer.biases.data[index(layer.biases, 0, output_pos)];
+                T bias = get(layer.biases, 0, output_pos);
                 for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                    output.data[index(output, batch_i, output_pos)] = bias;
+                    get(output, batch_i, output_pos) = bias;
                 }
             }
         }
@@ -49,7 +49,7 @@ namespace layer_in_c{
             TI output_pos_x = blockIdx.x * blockDim.x + threadIdx.x;
             TI output_pos_y = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
-                output.data[index(output, output_pos_y, output_pos_x)] = activation<typename DEV_SPEC::MATH_DEVICE, T, SPEC::ACTIVATION_FUNCTION>(pre_activations.data[index(pre_activations, output_pos_y, output_pos_x)]);
+                get(output, output_pos_y, output_pos_x) = activation<typename DEV_SPEC::MATH_DEVICE, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, output_pos_y, output_pos_x));
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename OUTPUT_SPEC>
@@ -80,11 +80,11 @@ namespace layer_in_c{
             if(output_i < OUTPUT_DIM){
                 T acc = 0;
                 for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                    T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH_DEVICE, T, SPEC::ACTIVATION_FUNCTION>(pre_activations.data[index(pre_activations, batch_i, output_i)]) * d_output.data[index(d_output, batch_i, output_i)];
-                    d_pre_activations.data[index(d_pre_activations, batch_i, output_i)] = d_pre_activation_temp;
+                    T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH_DEVICE, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                    get(d_pre_activations, batch_i, output_i) = d_pre_activation_temp;
                     acc += d_pre_activation_temp;
                 }
-                d_biases.data[index(d_biases, 0, output_i)] += acc;
+                get(d_biases, 0, output_i) += acc;
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
@@ -109,21 +109,21 @@ namespace layer_in_c{
             TI output_i = blockIdx.y * blockDim.y + threadIdx.y;
             if(input_i < INPUT_DIM && output_i < OUTPUT_DIM){
                 if(input_i == 0){
-                    T d_bias = layer.d_biases.data[index(layer.d_biases, 0, output_i)];
-                    T d_bias_first_order_moment = PARAMETERS::BETA_1 * layer.d_biases_first_order_moment.data[index(layer.d_biases_first_order_moment, 0, output_i)] + (1 - PARAMETERS::BETA_1) * d_bias;
-                    layer.d_biases_first_order_moment.data[index(layer.d_biases_first_order_moment, 0, output_i)] = d_bias_first_order_moment;
-                    T d_bias_second_order_moment = PARAMETERS::BETA_2 * layer.d_biases_second_order_moment.data[index(layer.d_biases_second_order_moement, 0, output_i)] + (1 - PARAMETERS::BETA_2) * d_bias * d_bias;
-                    layer.d_biases_second_order_moment.data[index(layer.d_biases_second_order_moment, 0, output_i)] = d_bias_second_order_moment;
+                    T d_bias = get(layer.d_biases, 0, output_i);
+                    T d_bias_first_order_moment = PARAMETERS::BETA_1 * get(layer.d_biases_first_order_moment, 0, output_i) + (1 - PARAMETERS::BETA_1) * d_bias;
+                    get(layer.d_biases_first_order_moment, 0, output_i) = d_bias_first_order_moment;
+                    T d_bias_second_order_moment = PARAMETERS::BETA_2 * get(layer.d_biases_second_order_moment, 0, output_i) + (1 - PARAMETERS::BETA_2) * d_bias * d_bias;
+                    get(layer.d_biases_second_order_moment, 0, output_i) = d_bias_second_order_moment;
                     T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_bias_second_order_moment * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-                    layer.biases.data[index(layer.biases, 0, output_i)] -= bias_update;
+                    get(layer.biases, 0, output_i) -= bias_update;
                 }
-                T d_weight = layer.d_weights.data[index(layer.d_weights, output_i, input_i)];
-                T d_weight_first_order_moment = PARAMETERS::BETA_1 * layer.d_weights_first_order_moment.data[index(layer.d_weights_first_order_moment, output_i, input_i)] + (1 - PARAMETERS::BETA_1) * d_weight;
-                layer.d_weights_first_order_moment.data[index(layer.d_weights_first_order_moment, output_i, input_i)] = d_weight_first_order_moment;
-                T d_weight_second_order_moment = PARAMETERS::BETA_2 * layer.d_weights_second_order_moment.data[index(layer.d_weights_second_order_moment, output_i, input_i)] + (1 - PARAMETERS::BETA_2) * d_weight * d_weight;
-                layer.d_weights_second_order_moment.data[index(layer.d_weights_second_order_moment, output_i, input_i)] = d_weight_second_order_moment;
+                T d_weight = get(layer.d_weights, output_i, input_i);
+                T d_weight_first_order_moment = PARAMETERS::BETA_1 * get(layer.d_weights_first_order_moment, output_i, input_i) + (1 - PARAMETERS::BETA_1) * d_weight;
+                get(layer.d_weights_first_order_moment, output_i, input_i) = d_weight_first_order_moment;
+                T d_weight_second_order_moment = PARAMETERS::BETA_2 * get(layer.d_weights_second_order_moment, output_i, input_i) + (1 - PARAMETERS::BETA_2) * d_weight * d_weight;
+                get(layer.d_weights_second_order_moment, output_i, input_i) = d_weight_second_order_moment;
                 T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-                layer.weights.data[index(layer.weights, output_i, input_i)] -= weight_update;
+                get(layer.weights, output_i, input_i) -= weight_update;
             }
         }
     }

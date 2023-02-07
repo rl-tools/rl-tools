@@ -6,17 +6,17 @@
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, Matrix<SPEC>& matrix){
-        utils::assert_exit(device, matrix.data == nullptr, "Matrix is already allocated");
-        matrix.data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
+        utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
+        matrix._data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
         for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
-            matrix.data[i] = 0;
+            matrix._data[i] = 10;
         }
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, Matrix<SPEC>& matrix){
-        utils::assert_exit(device, matrix.data != nullptr, "Matrix has not been allocated");
-        delete matrix.data;
-        matrix.data = nullptr;
+        utils::assert_exit(device, matrix._data != nullptr, "Matrix has not been allocated");
+        delete matrix._data;
+        matrix._data = nullptr;
     }
 
     template<typename SPEC>
@@ -36,6 +36,18 @@ namespace layer_in_c{
         }
         return index;
     }
+    template<typename SPEC>
+    typename SPEC::T get(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+        return m._data[index(m, row, col)];
+    }
+    template<typename SPEC, typename T>
+    void set(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
+        m._data[index(m, row, col)] = value;
+    }
+    template<typename SPEC, typename T>
+    void increment(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
+        m._data[index(m, row, col)] += value;
+    }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     void transpose(DEVICE& device, Matrix<SPEC_1>& target, Matrix<SPEC_2>& source){
@@ -43,7 +55,7 @@ namespace layer_in_c{
         static_assert(SPEC_1::COLS == SPEC_2::ROWS);
         for(typename SPEC_1::TI i = 0; i < SPEC_1::ROWS; i++){
             for(typename SPEC_1::TI j = 0; j < SPEC_1::COLS; j++){
-                target.data[index(target, i, j)] = source.data[index(source, j, i)];
+                get(target,  i,  j) = get(source,  j,  i);
             }
         }
     }
@@ -64,9 +76,9 @@ namespace layer_in_c{
         using TI = typename SPEC::TI;
         for(TI i = 0; i < SPEC::ROWS; i++){
             for(TI j = i + 1; j < SPEC::COLS; j++){
-                T temp = target.data[index(target, i, j)];
-                target.data[index(target, i, j)] = target.data[index(target, j, i)];
-                target.data[index(target, j, i)] = temp;
+                T temp = get(target, i,  j);
+                get(target,  i,  j) = get(target,  j,  i);
+                get(target,  j,  i) = temp;
             }
         }
         auto data = target.data;
@@ -81,25 +93,25 @@ namespace layer_in_c{
         typename SPEC::T acc = 0;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                acc += math::abs(m1.data[index(m1, i, j)] - m2.data[index(m2, i, j)]);
+                acc += math::abs(get(m1, i, j) - get(m2, i, j));
             }
         }
         return acc;
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto BINARY_OPERATOR>
-    void vectorize_binary(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    void vectorize_binary(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                target.data[index(target, i, j)] = BINARY_OPERATOR(target.data[index(target, i, j)], source.data[index(source, i, j)]);
+                set(target, i, j, BINARY_OPERATOR(get(target, i, j), get(source, i, j)));
             }
         }
     }
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename SPEC_1, typename SPEC_2>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
 //        static_assert(utils::typing::is_same<TARGET_DEVICE, SOURCE_DEVICE>); // todo: implement
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
@@ -120,27 +132,27 @@ namespace layer_in_c{
         using SPEC = SPEC_1;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                target.data[index(target, i, j)] += source.data[index(source, 0, j)];
+                get(target, i, j) += get(source, 0, j);
             }
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    void set_broadcast(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    void set_broadcast(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         static_assert(SPEC_1::COLS == SPEC_2::COLS);
         static_assert(SPEC_2::ROWS == 1);
         using SPEC = SPEC_1;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                target.data[index(target, i, j)] = source.data[index(source, 0, j)];
+                set(target, i, j, get(source, 0, j));
             }
         }
     }
 
     template<typename DEVICE, typename SPEC, typename VALUE_T>
-    void set(DEVICE& device, const Matrix<SPEC>& m, VALUE_T value){
+    void set_all(DEVICE& device, Matrix<SPEC>& m, VALUE_T value){
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                m.data[index(m, i, j)] = value;
+                set(m, i, j, value);
             }
         }
     }
@@ -157,14 +169,14 @@ namespace layer_in_c{
             for(TI j = 0; j < SPEC::COLS; j++){
                 T acc = 0;
                 for(TI k = 0; k < SPEC::COLS; k++){
-                    acc += A.data[index(A, i, k)] * B.data[index(B, k, j)];
+                    acc += get(A, i, k) * get(B, k, j);
                 }
-                C.data[index(C, i, j)] = acc;
+                get(C, i, j) = acc;
             }
         }
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_C>
-    void hcat(DEVICE& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, const Matrix<SPEC_C>& C){
+    void hcat(DEVICE& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, Matrix<SPEC_C>& C){
         static_assert(SPEC_A::ROWS == SPEC_B::ROWS);
         static_assert(SPEC_C::ROWS == SPEC_A::ROWS);
         static_assert(SPEC_A::COLS + SPEC_B::COLS == SPEC_C::COLS);
@@ -173,10 +185,10 @@ namespace layer_in_c{
         using T = typename SPEC_A::T;
         for(TI i = 0; i < SPEC_A::ROWS; i++){
             for(TI j = 0; j < SPEC_A::COLS; j++){
-                C.data[index(C, i, j)] = A.data[index(A, i, j)];
+                set(C, i, j, get(A, i, j));
             }
             for(TI j = 0; j < SPEC_B::COLS; j++){
-                C.data[index(C, i, (j + SPEC_A::COLS))] = B.data[index(B, i, j)];
+                set(C, i, (j + SPEC_A::COLS), get(B, i, j));
             }
         }
     }
@@ -191,24 +203,28 @@ namespace layer_in_c{
         using T = typename SPEC_A::T;
         for(TI i = 0; i < SPEC_A::ROWS; i++){
             for(TI j = 0; j < SPEC_A::COLS; j++){
-                C.data[index(C, i, j)] = A.data[index(A, i, j)];
+                set(C, i, j, get(A, i, j));
             }
         }
         for(TI i = 0; i < SPEC_B::ROWS; i++){
             for(TI j = 0; j < SPEC_B::COLS; j++){
-                C.data[index(C, i + SPEC_A::ROWS, j)] = B.data[index(B, i, j)];
+                set(C, i + SPEC_A::ROWS, j, get(B, i, j));
             }
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    void slice(DEVICE& device, const Matrix<SPEC_1>& target, Matrix<SPEC_2>& source, typename SPEC_1::TI row, typename SPEC_1::TI col){
-        static_assert(SPEC_1::ROWS <= SPEC_2::ROWS);
-        static_assert(SPEC_1::COLS <= SPEC_2::COLS);
+    void slice(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source, typename SPEC_1::TI row, typename SPEC_1::TI col, typename SPEC_1::TI rows = SPEC_1::ROWS, typename SPEC_1::TI cols = SPEC_1::COLS, typename SPEC_1::TI target_row=0, typename SPEC_1::TI target_col=0){
+//        static_assert(SPEC_1::ROWS <= SPEC_2::ROWS);
+//        static_assert(SPEC_1::COLS <= SPEC_2::COLS);
         using TI = typename SPEC_1::TI;
         using T = typename SPEC_1::T;
-        for(TI i = 0; i < SPEC_1::ROWS; i++){
-            for(TI j = 0; j < SPEC_1::COLS; j++){
-                target.data[index(target, i, j)] = source.data[index(source, i + row, col + j)];
+        utils::assert_exit(device, row + rows <= SPEC_2::ROWS, "row + rows <= SPEC_2::ROWS");
+        utils::assert_exit(device, col + cols <= SPEC_2::COLS, "col + cols <= SPEC_2::COLS");
+        utils::assert_exit(device, target_row + rows <= SPEC_1::ROWS, "target_row + rows <= SPEC_1::ROWS");
+        utils::assert_exit(device, target_col + cols <= SPEC_1::COLS, "target_col + cols <= SPEC_1::COLS");
+        for(TI i = 0; i < rows; i++){
+            for(TI j = 0; j < cols; j++){
+                set(target, target_row + i, target_col + j, get(source, row + i, col + j));
             }
         }
     }
@@ -220,10 +236,21 @@ namespace layer_in_c{
         T acc = 0;
         for(TI i = 0; i < SPEC::ROWS; i++){
             for(TI j = 0; j < SPEC::COLS; j++){
-                acc += m.data[index(m, i, j)];
+                acc += get(m, i, j);
             }
         }
         return acc;
+    }
+    template<typename TARGET_DEVICE, typename SPEC, typename T>
+    void assign(TARGET_DEVICE& target_device, Matrix<SPEC>& target, const T* source, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
+        using TI = typename SPEC::TI;
+        utils::assert_exit(target_device, row + rows <= SPEC::ROWS, "row + rows <= SPEC::ROWS");
+        utils::assert_exit(target_device, col + cols <= SPEC::COLS, "col + cols <= SPEC::COLS");
+        for(TI i = 0; i < rows; i++){
+            for(TI j = 0; j < cols; j++){
+                set(target, row + i, col+j, source[i * row_pitch + j * col_pitch]);
+            }
+        }
     }
 
 }

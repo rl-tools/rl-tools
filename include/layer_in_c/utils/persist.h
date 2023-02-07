@@ -10,7 +10,7 @@ namespace layer_in_c::utils::persist::array_conversion{
         if constexpr(SPEC::ROWS == 1){
             std::vector<T> data(SPEC::COLS);
             for(typename DEVICE::index_t i=0; i < SPEC::COLS; i++){
-                data[i] = M.data[index(M, 0, i)];
+                data[i] = get(M, 0, i);
             }
             return data;
         }
@@ -19,7 +19,7 @@ namespace layer_in_c::utils::persist::array_conversion{
             for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
                 data[i] = std::vector<T>(SPEC::COLS);
                 for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
-                    data[i][j] = M.data[index(M, i, j)];
+                    data[i][j] = get(M, i, j);
                 }
             }
             return data;
@@ -38,7 +38,7 @@ namespace layer_in_c::utils::persist::array_conversion{
         assert(source[0].size() == SPEC::COLS);
         for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
             for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
-                target.data[index(target, i, j)] = source[i][j];
+                get(target, i, j) = source[i][j];
             }
         }
     }
