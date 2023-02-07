@@ -8,12 +8,7 @@
 namespace layer_in_c{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     LAYER_IN_C_FUNCTION_PLACEMENT void evaluate(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
-        using WEIGHT_SPEC = typename decltype(layer.weights)::SPEC;
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
-        // expecting row-major
-        static_assert(INPUT_SPEC::COL_PITCH == 1);
-        static_assert(WEIGHT_SPEC::COL_PITCH == 1);
-        static_assert(OUTPUT_SPEC::COL_PITCH == 1);
 
         // Warning do not use the same buffer for input and output!
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
@@ -48,12 +43,7 @@ namespace layer_in_c{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     LAYER_IN_C_FUNCTION_PLACEMENT void forward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         // Warning do not use the same buffer for input and output!
-        using WEIGHT_SPEC = typename decltype(layer.weights)::SPEC;
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
-        // expecting row-major
-        static_assert(INPUT_SPEC::COL_PITCH == 1);
-        static_assert(WEIGHT_SPEC::COL_PITCH == 1);
-        static_assert(OUTPUT_SPEC::COL_PITCH == 1);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
         using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
@@ -89,14 +79,8 @@ namespace layer_in_c{
         // Warning do not reuse d_output as d_output is used as a temporary buffer
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
-        using WEIGHT_SPEC = typename decltype(layer.weights)::SPEC;
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
-        // expecting row-major
-        static_assert(INPUT_SPEC::COL_PITCH == 1);
-        static_assert(WEIGHT_SPEC::COL_PITCH == 1);
-        static_assert(D_OUTPUT_SPEC::COL_PITCH == 1);
-        static_assert(D_INPUT_SPEC::COL_PITCH == 1);
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
