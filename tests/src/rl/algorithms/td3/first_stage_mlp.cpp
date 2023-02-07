@@ -46,23 +46,27 @@ struct Dataset{
     std::vector<std::vector<DTYPE>> terminated;
 };
 
-template <typename RB>
-void load_dataset(HighFive::Group g, RB& rb){
-    g.getDataSet("states").read(rb.observations.data);
-    g.getDataSet("actions").read(rb.actions.data);
-    g.getDataSet("next_states").read(rb.next_observations.data);
-    g.getDataSet("rewards").read(rb.rewards.data);
+template <typename DEVICE, typename RB>
+void load_dataset(DEVICE& device, HighFive::Group g, RB& rb){
+    lic::load(device, rb.observations, g, "states");
+    lic::load(device, rb.actions, g, "actions");
+    lic::load(device, rb.next_observations, g, "next_states");
+    lic::load(device, rb.rewards, g, "rewards");
     std::vector<typename RB::T> terminated;
-    g.getDataSet("terminated").read(terminated);
     for(int i = 0; i < terminated.size(); i++){
-        rb.terminated.data[i] = terminated[i] == 1;
+        rb.terminated.data[index(rb.terminated, 0, i)] = terminated[i] == 1;
     }
     std::vector<typename RB::T> truncated;
-    g.getDataSet("truncated").read(truncated);
     for(int i = 0; i < truncated.size(); i++){
-        rb.truncated.data[i] = truncated[i] == 1;
+        rb.truncated.data[index(rb.truncated, 0, i)] = truncated[i] == 1;
     }
     rb.position = terminated.size();
+//    g.getDataSet("states").read(rb.observations.data);
+//    g.getDataSet("actions").read(rb.actions.data);
+//    g.getDataSet("next_states").read(rb.next_observations.data);
+//    g.getDataSet("rewards").read(rb.rewards.data);
+//    g.getDataSet("terminated").read(terminated);
+//    g.getDataSet("truncated").read(truncated);
 }
 
 
@@ -145,24 +149,26 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     data_file.getDataSet("batch_output").read(outputs);
 
     for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
-        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM];
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input;
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
+        lic::malloc(device, input);
+        lic::malloc(device, output);
         for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
-            input[i] = batch.states[batch_sample_i][i];
+            input.data[index(input, 0, i)] = batch.states[batch_sample_i][i];
         }
         for (int i = 0; i < batch.actions[batch_sample_i].size(); i++) {
-            input[batch.states[batch_sample_i].size() + i] = batch.actions[batch_sample_i][i];
+            input.data[index(input, 0, batch.states[batch_sample_i].size() + i)] = batch.actions[batch_sample_i][i];
         }
 
-        DTYPE output[1];
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input_matrix = {input};
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output_matrix = {output};
-        lic::evaluate(device, actor_critic.critic_1, input_matrix, output_matrix);
-        std::cout << "output: " << output[0] << std::endl;
-        ASSERT_LT(abs(output[0] - outputs[batch_sample_i][0]), 1e-15);
+        lic::evaluate(device, actor_critic.critic_1, input, output);
+        std::cout << "output: " << output.data[index(output, 0, 0)] << std::endl;
+        ASSERT_LT(abs(output.data[index(output, 0, 0)] - outputs[batch_sample_i][0]), 1e-15);
 
-        lic::evaluate(device, actor_critic.critic_target_1, input_matrix, output_matrix);
-        std::cout << "output: " << output[0] << std::endl;
-        ASSERT_LT(abs(output[0] - outputs[batch_sample_i][0]), 1e-15);
+        lic::evaluate(device, actor_critic.critic_target_1, input, output);
+        std::cout << "output: " << output.data[index(output, 0, 0)] << std::endl;
+        ASSERT_LT(abs(output.data[index(output, 0, 0)] - outputs[batch_sample_i][0]), 1e-15);
+        lic::free(device, input);
+        lic::free(device, output);
     }
 
 }
@@ -194,23 +200,28 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     DTYPE loss = 0;
     lic::zero_gradient(device, actor_critic.critic_1);
     for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
-        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM];
+//        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM];
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input;
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> target;
+        lic::malloc(device, input);
+        lic::malloc(device, output);
+        lic::malloc(device, target);
         for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
-            input[i] = batch.states[batch_sample_i][i];
+            input.data[index(input, 0, i)] = batch.states[batch_sample_i][i];
         }
         for (int i = 0; i < batch.actions[batch_sample_i].size(); i++) {
-            input[batch.states[batch_sample_i].size() + i] = batch.actions[batch_sample_i][i];
+            input.data[index(input, 0, batch.states[batch_sample_i].size() + i)] = batch.actions[batch_sample_i][i];
         }
-        DTYPE target[1] = {1};
-        DTYPE output[1];
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input_matrix = {input};
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output_matrix = {output};
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> target_matrix = {target};
-        lic::evaluate(device, actor_critic.critic_1, input_matrix, output_matrix);
-        loss += lic::nn::loss_functions::mse(device, output_matrix, target_matrix);
+        target.data[index(target, 0, 0)] = 1;
+        lic::evaluate(device, actor_critic.critic_1, input, output);
+        loss += lic::nn::loss_functions::mse(device, output, target);
 
-        lic::forward_backward_mse(device, actor_critic.critic_1, input_matrix, target_matrix, critic_buffers, DTYPE(1)/32);
-        std::cout << "output: " << actor_critic.critic_1.output_layer.output.data[0] << std::endl;
+        lic::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
+        std::cout << "output: " << actor_critic.critic_1.output_layer.output.data[index(actor_critic.critic_1.output_layer.output, 0, 0)] << std::endl;
+        lic::free(device, input);
+        lic::free(device, output);
+        lic::free(device, target);
     }
 
     decltype(actor_critic.critic_1) critic_1_after_backward;
@@ -268,11 +279,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     lic::load(device, actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
     using DEVICE = lic::devices::DefaultCPU;
-    using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 100>;
+    using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 32>;
     using ReplayBufferType = lic::rl::components::ReplayBuffer<ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     lic::malloc(device, replay_buffer);
-    load_dataset(data_file.getGroup("batch"), replay_buffer);
+    load_dataset(device, data_file.getGroup("batch"), replay_buffer);
     static_assert(first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE == first_stage_second_stage::TD3_PARAMETERS::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
     replay_buffer.position = first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE;
 
@@ -291,6 +302,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 
     decltype(actor_critic.critic_1) pre_critic_1;
     lic::malloc(device, pre_critic_1);
+    lic::copy(device, device, pre_critic_1, actor_critic.critic_1);
     lic::reset_optimizer_state(device, actor_critic.critic_1);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
@@ -310,7 +322,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 
         for(int i = 0; i < first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; i++){
             for(int j = 0; j < first_stage_second_stage::ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM; j++){
-                critic_training_buffers.target_next_action_noise.data[i * first_stage_second_stage::ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM + j] = target_next_action_noise_vector[i][j];
+                critic_training_buffers.target_next_action_noise.data[index(critic_training_buffers.target_next_action_noise, i, j)] = target_next_action_noise_vector[i][j];
             }
         }
 
@@ -391,11 +403,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     lic::load(device, actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
     using DEVICE = lic::devices::DefaultCPU;
-    using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 100>;
+    using ReplayBufferSpec = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 32>;
     using ReplayBufferType = lic::rl::components::ReplayBuffer<ReplayBufferSpec>;
     ReplayBufferType replay_buffer;
     lic::malloc(device, replay_buffer);
-    load_dataset(data_file.getGroup("batch"), replay_buffer);
+    load_dataset(device, data_file.getGroup("batch"), replay_buffer);
     static_assert(first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE == first_stage_second_stage::TD3_PARAMETERS::CRITIC_BATCH_SIZE, "ACTOR_BATCH_SIZE must be CRITIC_BATCH_SIZE");
     replay_buffer.position = first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE;
 

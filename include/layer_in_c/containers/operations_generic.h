@@ -28,6 +28,9 @@ namespace layer_in_c{
     template<typename SPEC>
     typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
+        if(row >= SPEC::ROWS || col >= SPEC::COLS){
+            std::cout << "index: " << row << "(" << SPEC::ROWS << "):" << col << "(" << SPEC::COLS << ") out of bounds" << std::endl;
+        }
         return index;
     }
 
