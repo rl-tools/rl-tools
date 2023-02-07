@@ -54,11 +54,11 @@ void load_dataset(DEVICE& device, HighFive::Group g, RB& rb){
     lic::load(device, rb.rewards, g, "rewards");
     std::vector<typename RB::T> terminated;
     for(int i = 0; i < terminated.size(); i++){
-        rb.terminated.data[index(rb.terminated, 0, i)] = terminated[i] == 1;
+        rb.terminated.data[lic::index(rb.terminated, 0, i)] = terminated[i] == 1;
     }
     std::vector<typename RB::T> truncated;
     for(int i = 0; i < truncated.size(); i++){
-        rb.truncated.data[index(rb.truncated, 0, i)] = truncated[i] == 1;
+        rb.truncated.data[lic::index(rb.truncated, 0, i)] = truncated[i] == 1;
     }
     rb.position = terminated.size();
 //    g.getDataSet("states").read(rb.observations.data);
@@ -68,8 +68,6 @@ void load_dataset(DEVICE& device, HighFive::Group g, RB& rb){
 //    g.getDataSet("terminated").read(terminated);
 //    g.getDataSet("truncated").read(truncated);
 }
-
-
 
 template <typename SPEC>
 typename SPEC::T assign(lic::nn::layers::dense::Layer<SPEC>& layer, const HighFive::Group g){
@@ -154,19 +152,19 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
         lic::malloc(device, input);
         lic::malloc(device, output);
         for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
-            input.data[index(input, 0, i)] = batch.states[batch_sample_i][i];
+            input.data[lic::index(input, 0, i)] = batch.states[batch_sample_i][i];
         }
         for (int i = 0; i < batch.actions[batch_sample_i].size(); i++) {
-            input.data[index(input, 0, batch.states[batch_sample_i].size() + i)] = batch.actions[batch_sample_i][i];
+            input.data[lic::index(input, 0, batch.states[batch_sample_i].size() + i)] = batch.actions[batch_sample_i][i];
         }
 
         lic::evaluate(device, actor_critic.critic_1, input, output);
-        std::cout << "output: " << output.data[index(output, 0, 0)] << std::endl;
-        ASSERT_LT(abs(output.data[index(output, 0, 0)] - outputs[batch_sample_i][0]), 1e-15);
+        std::cout << "output: " << output.data[lic::index(output, 0, 0)] << std::endl;
+        ASSERT_LT(abs(output.data[lic::index(output, 0, 0)] - outputs[batch_sample_i][0]), 1e-15);
 
         lic::evaluate(device, actor_critic.critic_target_1, input, output);
-        std::cout << "output: " << output.data[index(output, 0, 0)] << std::endl;
-        ASSERT_LT(abs(output.data[index(output, 0, 0)] - outputs[batch_sample_i][0]), 1e-15);
+        std::cout << "output: " << output.data[lic::index(output, 0, 0)] << std::endl;
+        ASSERT_LT(abs(output.data[lic::index(output, 0, 0)] - outputs[batch_sample_i][0]), 1e-15);
         lic::free(device, input);
         lic::free(device, output);
     }
@@ -208,17 +206,17 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         lic::malloc(device, output);
         lic::malloc(device, target);
         for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
-            input.data[index(input, 0, i)] = batch.states[batch_sample_i][i];
+            input.data[lic::index(input, 0, i)] = batch.states[batch_sample_i][i];
         }
         for (int i = 0; i < batch.actions[batch_sample_i].size(); i++) {
-            input.data[index(input, 0, batch.states[batch_sample_i].size() + i)] = batch.actions[batch_sample_i][i];
+            input.data[lic::index(input, 0, batch.states[batch_sample_i].size() + i)] = batch.actions[batch_sample_i][i];
         }
-        target.data[index(target, 0, 0)] = 1;
+        target.data[lic::index(target, 0, 0)] = 1;
         lic::evaluate(device, actor_critic.critic_1, input, output);
         loss += lic::nn::loss_functions::mse(device, output, target);
 
         lic::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
-        std::cout << "output: " << actor_critic.critic_1.output_layer.output.data[index(actor_critic.critic_1.output_layer.output, 0, 0)] << std::endl;
+        std::cout << "output: " << actor_critic.critic_1.output_layer.output.data[lic::index(actor_critic.critic_1.output_layer.output, 0, 0)] << std::endl;
         lic::free(device, input);
         lic::free(device, output);
         lic::free(device, target);
@@ -322,7 +320,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 
         for(int i = 0; i < first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; i++){
             for(int j = 0; j < first_stage_second_stage::ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM; j++){
-                critic_training_buffers.target_next_action_noise.data[index(critic_training_buffers.target_next_action_noise, i, j)] = target_next_action_noise_vector[i][j];
+                critic_training_buffers.target_next_action_noise.data[lic::index(critic_training_buffers.target_next_action_noise, i, j)] = target_next_action_noise_vector[i][j];
             }
         }
 
