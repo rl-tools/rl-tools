@@ -20,6 +20,8 @@ namespace layer_in_c::rl::environments::multirotor {
     template <typename T_ENVIRONMENT>
     struct UI{
         using ENVIRONMENT = T_ENVIRONMENT;
+        std::string id = "default";
+        typename ENVIRONMENT::T origin[3];
         std::string host;
         std::string port;
         net::io_context ioc;
@@ -29,7 +31,7 @@ namespace layer_in_c::rl::environments::multirotor {
     nlohmann::json state_message(DEVICE& dev, rl::environments::multirotor::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
         nlohmann::json message;
         message["channel"] = "setDroneState";
-        message["data"]["id"] = "default";
+        message["data"]["id"] = ui.id;
         message["data"]["data"]["pose"]["position"] = {state.state[0], state.state[1], state.state[2]};
         typename ENVIRONMENT::T orientation[3][3];
         quaternion_to_rotation_matrix<DEVICE, typename ENVIRONMENT::T>(&state.state[3], orientation);
@@ -47,10 +49,11 @@ namespace layer_in_c::rl::environments::multirotor {
         return message;
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    nlohmann::json model_message(DEVICE& dev, ENVIRONMENT& env){
+    nlohmann::json model_message(DEVICE& dev, ENVIRONMENT& env, rl::environments::multirotor::UI<ENVIRONMENT>& ui){
         nlohmann::json message;
         message["channel"] = "addDrone";
-        message["data"]["id"] = "default";
+        message["data"]["id"] = ui.id;
+        message["data"]["origin"] = {ui.origin[0], ui.origin[1], ui.origin[2]};
         message["data"]["data"]["mass"] = env.parameters.dynamics.mass;
         message["data"]["data"]["rotors"] = std::vector<nlohmann::json>();
         for(typename DEVICE::index_t i = 0; i < 4; i++){
@@ -86,7 +89,7 @@ namespace layer_in_c::rl::environments::multirotor {
 
 namespace layer_in_c{
     template <typename DEVICE, typename ENVIRONMENT>
-    void init(DEVICE& dev, const ENVIRONMENT& env, rl::environments::multirotor::UI<ENVIRONMENT>& ui){
+    void init(DEVICE& dev, ENVIRONMENT& env, rl::environments::multirotor::UI<ENVIRONMENT>& ui){
         using namespace rl::environments::multirotor;
         namespace beast = boost::beast;         // from <boost/beast.hpp>
         namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -101,7 +104,7 @@ namespace layer_in_c{
             net::connect(ui.ws.next_layer(), results.begin(), results.end());
             ui.ws.handshake(ui.host, "/");
 
-            ui.ws.write(net::buffer(model_message(dev, env).dump()));
+            ui.ws.write(net::buffer(model_message(dev, env, ui).dump()));
         }
         catch(std::exception const& e)
         {

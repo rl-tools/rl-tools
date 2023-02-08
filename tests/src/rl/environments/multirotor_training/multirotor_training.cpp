@@ -57,6 +57,7 @@ using DEVICE = lic::devices::CPU<DEV_SPEC>;
 // additional includes for the ui and persisting
 #include <layer_in_c/rl/environments/multirotor/ui.h>
 #include <layer_in_c/nn_models/persist.h>
+#include <layer_in_c/rl/components/replay_buffer/persist.h>
 
 #include <layer_in_c/rl/utils/evaluation.h>
 
@@ -130,7 +131,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
 
     // training
-    for(int step_i = 0; step_i < 300000; step_i++){
+    for(int step_i = 0; step_i < 500000; step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         device.logger.step = step_i;
         lic::step(device, off_policy_runner, actor_critic.actor, rng);
@@ -193,6 +194,16 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         try{
             auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
             lic::save(device, actor_critic.actor, actor_file.createGroup("actor"));
+        }
+        catch(HighFive::Exception& e){
+            std::cout << "Error while saving actor: " << e.what() << std::endl;
+        }
+    }
+    {
+        std::string rb_output_path = "replay_buffer.h5";
+        try{
+            auto actor_file = HighFive::File(rb_output_path, HighFive::File::Overwrite);
+            lic::save(device, off_policy_runner.replay_buffer, actor_file.createGroup("replay_buffer"));
         }
         catch(HighFive::Exception& e){
             std::cout << "Error while saving actor: " << e.what() << std::endl;
