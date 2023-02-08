@@ -33,7 +33,7 @@ namespace layer_in_c{
     }
 
     template<typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+    LAYER_IN_C_FUNCTION_PLACEMENT inline typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
         // bounds checking for debugging
 //        if(row >= SPEC::ROWS || col >= SPEC::COLS){
@@ -42,15 +42,15 @@ namespace layer_in_c{
         return index;
     }
     template<typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::T get(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+    LAYER_IN_C_FUNCTION_PLACEMENT inline typename SPEC::T get(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         return m._data[index(m, row, col)];
     }
     template<typename SPEC, typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT void set(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
+    LAYER_IN_C_FUNCTION_PLACEMENT inline void set(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
         m._data[index(m, row, col)] = value;
     }
     template<typename SPEC, typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT void increment(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
+    LAYER_IN_C_FUNCTION_PLACEMENT inline void increment(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
         m._data[index(m, row, col)] += value;
     }
 
@@ -66,11 +66,11 @@ namespace layer_in_c{
     }
     namespace containers::vectorization::operators{
         template<typename T>
-        T copy(T b){
+        inline T copy(T b){
             return b;
         }
         template<typename T>
-        T add(T a, T b){
+        inline T add(T a, T b){
             return a+b;
         }
     }
