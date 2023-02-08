@@ -190,8 +190,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_REPLAY_BUFFER) {
         uis[trajectory_i].host = "localhost";
         uis[trajectory_i].port = "8080";
         uis[trajectory_i].id = std::to_string(trajectory_i);
-        uis[trajectory_i].origin[0] = (trajectory_i / GRID_WIDTH) * GRID_SPACING;
-        uis[trajectory_i].origin[1] = (trajectory_i % GRID_WIDTH) * GRID_SPACING;
+        uis[trajectory_i].origin[0] = ((trajectory_i / GRID_WIDTH - ((GRID_WIDTH-1) / 2.0)) * GRID_SPACING);
+        uis[trajectory_i].origin[1] = (trajectory_i % GRID_WIDTH - ((GRID_WIDTH-1) / 2.0)) * GRID_SPACING;
         uis[trajectory_i].origin[2] = 0;
         lic::init(device, envs[trajectory_i], uis[trajectory_i]);
     }
