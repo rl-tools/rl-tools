@@ -10,11 +10,11 @@
 namespace layer_in_c{
     template<typename DEV_SPEC, typename SPEC>
     void malloc(devices::CPU_MKL<DEV_SPEC>& device, Matrix<SPEC>& matrix){
-        matrix.data = (typename SPEC::T*)mkl_malloc(SPEC::SIZE_BYTES, 64);
+        matrix._data = (typename SPEC::T*)mkl_malloc(SPEC::SIZE_BYTES, 64);
     }
     template<typename DEV_SPEC, typename SPEC>
     void free(devices::CPU_MKL<DEV_SPEC>& device, Matrix<SPEC>& matrix){
-        mkl_free(matrix.data);
+        mkl_free(matrix._data);
     }
 }
 #endif

@@ -65,8 +65,7 @@ TEST(LAYER_IN_C_NN_CUDA, COPY) {
     std::cout << "CPU network round-trip: " << cpu_network_diff_round_trip << std::endl;
     ASSERT_FLOAT_EQ(cpu_network_diff_round_trip, 0);
 
-    network_cpu.hidden_layers[0].weights.data[50] += 5;
-    std::cout << "CPU network weights: " << network_cpu.hidden_layers[0].weights.data[50] << std::endl;
+    increment(network_cpu.hidden_layers[0].weights, 0, 50, 5);
 
     cpu_network_diff = lic::abs_diff(device_cpu, network_cpu, network_cpu_2);
     std::cout << "CPU network diff: " << cpu_network_diff << std::endl;
@@ -74,7 +73,6 @@ TEST(LAYER_IN_C_NN_CUDA, COPY) {
 
     lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
     lic::copy(device_cpu, device_cuda, network_cpu_2, network_cuda);
-    std::cout << "CPU network weights: " << network_cpu_2.hidden_layers[0].weights.data[50] << std::endl;
     cpu_network_diff_round_trip = lic::abs_diff(device_cpu, network_cpu, network_cpu_2);
     ASSERT_FLOAT_EQ(cpu_network_diff_round_trip, 0);
     std::cout << "CPU network round-trip: " << cpu_network_diff_round_trip << std::endl;
@@ -125,9 +123,10 @@ void GEMM() {
     lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda_cpu;
     lic::malloc(device_cpu, output_first_layer_cuda_cpu);
 
-    for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::INPUT_DIM; ++i)
-    {
-        input_cpu.data[i] = lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng);
+    for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+        for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
+            set(input_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+        }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
 //        std::cout << "Input:" << std::endl;
@@ -284,9 +283,10 @@ void FORWARD() {
     lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
     lic::malloc(device_cpu, output_cuda_cpu);
 
-    for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::INPUT_DIM; ++i)
-    {
-        input_cpu.data[i] = lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng);
+    for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+        for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
+            set(input_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+        }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
 //        std::cout << "Input:" << std::endl;
@@ -327,12 +327,12 @@ void FORWARD() {
 
     lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);
 
-    lic::forward(device_cpu, network_cpu, input_cpu, output_cpu);
-    lic::forward(device_cuda, network_cuda, input_cuda, output_cuda);
+    lic::forward(device_cpu, network_cpu, input_cpu);
+    lic::forward(device_cuda, network_cuda, input_cuda);
     cudaDeviceSynchronize();
 
-    lic::copy(device_cpu, device_cuda, output_cuda_cpu, output_cuda);
-    auto evaluation_diff = lic::abs_diff(device_cpu, output_cuda_cpu, output_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
+    lic::copy(device_cpu, device_cuda, output_cuda_cpu, network_cuda.output_layer.output);
+    auto evaluation_diff = lic::abs_diff(device_cpu, output_cuda_cpu, network_cpu.output_layer.output)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
 //        std::cout << "cpu output:" << std::endl;
@@ -449,13 +449,15 @@ void BACKWARD() {
     lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
     lic::malloc(device_cpu, output_cuda_cpu);
 
-    for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::INPUT_DIM; ++i)
-    {
-        input_cpu.data[i] = lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng);
+    for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+        for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
+            set(input_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+        }
     }
-    for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM; ++i)
-    {
-        output_target_cpu.data[i] = lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng);
+    for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+        for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::OUTPUT_DIM; input_i++){
+            set(output_target_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+        }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
 //        std::cout << "Input:" << std::endl;
@@ -628,13 +630,15 @@ void ADAM_UPDATE() {
     lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
     lic::malloc(device_cpu, output_cuda_cpu);
 
-    for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::INPUT_DIM; ++i)
-    {
-        input_cpu.data[i] = lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng);
+    for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+        for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
+            set(input_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+        }
     }
-    for(typename NetworkTypeCPU::TI i = 0; i < BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM; ++i)
-    {
-        output_target_cpu.data[i] = lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng);
+    for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+        for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::OUTPUT_DIM; input_i++){
+            set(output_target_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+        }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
 //        std::cout << "Input:" << std::endl;

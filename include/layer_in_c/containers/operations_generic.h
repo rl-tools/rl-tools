@@ -2,6 +2,9 @@
 #define LAYER_IN_C_CONTAINERS_OPERATIONS_GENERIC_H
 
 #include <layer_in_c/containers.h>
+#ifndef LAYER_IN_C_FUNCTION_PLACEMENT
+    #define LAYER_IN_C_FUNCTION_PLACEMENT
+#endif
 
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
@@ -21,16 +24,16 @@ namespace layer_in_c{
     }
 
     template<typename SPEC>
-    typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
+    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
         return SPEC::ROW_PITCH;
     }
     template<typename SPEC>
-    typename SPEC::TI col_pitch(const Matrix<SPEC>& m){
+    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::TI col_pitch(const Matrix<SPEC>& m){
         return SPEC::COL_PITCH;
     }
 
     template<typename SPEC>
-    typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
         // bounds checking for debugging
 //        if(row >= SPEC::ROWS || col >= SPEC::COLS){
@@ -39,15 +42,15 @@ namespace layer_in_c{
         return index;
     }
     template<typename SPEC>
-    typename SPEC::T get(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::T get(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         return m._data[index(m, row, col)];
     }
     template<typename SPEC, typename T>
-    void set(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
+    LAYER_IN_C_FUNCTION_PLACEMENT void set(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
         m._data[index(m, row, col)] = value;
     }
     template<typename SPEC, typename T>
-    void increment(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
+    LAYER_IN_C_FUNCTION_PLACEMENT void increment(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
         m._data[index(m, row, col)] += value;
     }
 
