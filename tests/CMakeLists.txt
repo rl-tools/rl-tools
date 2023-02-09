@@ -336,3 +336,15 @@ target_include_directories(
         lib/nlohmann/include
 )
 gtest_discover_tests(test_rl_environments_multirotor_ui_test)
+
+# Container tests
+add_executable(
+        test_container
+        src/container/container.cpp
+)
+target_link_libraries(
+        test_container
+        layer_in_c
+        GTest::gtest_main
+)
+gtest_discover_tests(test_container)

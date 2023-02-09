@@ -4,6 +4,7 @@
 namespace layer_in_c{
     namespace matrix{
         namespace layouts{
+
             template <typename TI, TI ALIGNMENT = 1>
             struct RowMajorAlignment{
                 template <TI ROWS, TI COLS>
@@ -12,8 +13,17 @@ namespace layer_in_c{
                 static constexpr TI COL_PITCH = 1;
             };
 
-            template <typename TI, TI ALIGNMENT = 1>
+            template <typename TI, TI ALIGNMENT = 4>
             using RowMajorAlignmentOptimized = RowMajorAlignment<TI, ALIGNMENT>;
+
+            template <typename TI, TI T_ROW_PITCH, TI T_COL_PITCH>
+            struct Fixed{
+                template <TI ROWS, TI COLS>
+                static constexpr TI ROW_PITCH = T_ROW_PITCH;
+                template <TI ROWS, TI COLS>
+                static constexpr TI COL_PITCH = T_COL_PITCH;
+            };
+
         }
         template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename T_LAYOUT = layouts::RowMajorAlignmentOptimized<T_TI>> // row-major by default
         struct Specification{

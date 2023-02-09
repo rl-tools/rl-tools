@@ -75,20 +75,22 @@ namespace layer_in_c{
         }
     }
     template<typename DEVICE, typename SPEC>
-    Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::COLS, SPEC::ROWS>> transpose(DEVICE& device, Matrix<SPEC>& target){
+    auto transpose(DEVICE& device, Matrix<SPEC>& target){
         static_assert(SPEC::ROWS == SPEC::COLS);
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         for(TI i = 0; i < SPEC::ROWS; i++){
             for(TI j = i + 1; j < SPEC::COLS; j++){
                 T temp = get(target, i,  j);
-                get(target,  i,  j) = get(target,  j,  i);
-                get(target,  j,  i) = temp;
+                set(target,  i,  j, get(target,  j,  i));
+                set(target,  j,  i, temp);
             }
         }
-        auto data = target.data;
-        target.data = nullptr;
-        return {data};
+        auto data = target._data;
+        target._data = nullptr;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::COLS, SPEC::ROWS>> out;
+        out._data = data;
+        return out;
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
@@ -282,10 +284,11 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
-    Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, typename SPEC::LAYOUT>> view(DEVICE& device, Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+    auto view(DEVICE& device, Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, typename SPEC::LAYOUT>> out;
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout>> out;
         out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
         return out;
     }
