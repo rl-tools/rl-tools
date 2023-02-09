@@ -29,9 +29,14 @@ namespace layer_in_c{
             static constexpr TI SIZE = ROW_MAJOR ? ROWS * ROW_PITCH : COLS * COL_PITCH;
             static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
         };
+
+
+
+
     }
     template<typename T_SPEC>
     struct Matrix{
+        Matrix(){};
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -41,8 +46,8 @@ namespace layer_in_c{
         static constexpr TI COL_PITCH = SPEC::COL_PITCH;
 
         T* _data = nullptr;
-        //[SPEC::ROW_MAJOR ? ROWS : COLS][SPEC::ROW_MAJOR ? ROW_PITCH : COL_PITCH]
     };
+
     namespace containers{
         template<typename SPEC_1, typename SPEC_2>
         constexpr bool check_structure = SPEC_1::ROWS == SPEC_2::ROWS && SPEC_1::COLS == SPEC_2::COLS;

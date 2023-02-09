@@ -9,22 +9,6 @@ namespace layer_in_c::rl::components::replay_buffer{
         static constexpr TI ACTION_DIM = T_ACTION_DIM;
         static constexpr TI CAPACITY = T_CAPACITY;
     };
-    template<typename SPEC, typename SPEC::TI T_BATCH_SIZE>
-    struct Batch{
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-
-        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
-        static constexpr TI OBSERVATION_DIM = SPEC::OBSERVATION_DIM;
-        static constexpr TI ACTION_DIM = SPEC::ACTION_DIM;
-
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> observations;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
-        Matrix<matrix::Specification<T, TI, 1, BATCH_SIZE>> rewards;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> next_observations;
-        Matrix<matrix::Specification<bool, TI, 1, BATCH_SIZE>> terminated;
-        Matrix<matrix::Specification<bool, TI, 1, BATCH_SIZE>> truncated;
-    };
 
 }
 namespace layer_in_c::rl::components {

@@ -27,32 +27,25 @@ namespace layer_in_c {
         using TI = typename DEVICE::index_t;
         typename ENVIRONMENT::State state = eval_state.state;
 
-        T observation_mem[ENVIRONMENT::OBSERVATION_DIM];
-        T* observation;
-        if constexpr(ENVIRONMENT::REQUIRES_OBSERVATION){
-            observation = observation_mem;
-            observe(device, env, state, observation);
-        }
-        else{
-            static_assert(sizeof(state.state)/sizeof(state.state[0]) == ENVIRONMENT::OBSERVATION_DIM, "The environments state dimension must match the environment's observation dimension.");
-            observation = state.state;
-        }
-        T action[ENVIRONMENT::ACTION_DIM];
-        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action_matrix = {action};
-        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_matrix = {observation};
+        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
+        malloc(device, observation);
+        malloc(device, action);
+        observe(device, env, state, observation);
 
-        evaluate(device, policy, observation_matrix, action_matrix);
-        T action_clipped[ENVIRONMENT::ACTION_DIM];
+        evaluate(device, policy, observation, action);
         for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
-            action_clipped[action_i] = math::clamp<T>(action[action_i], -1, 1);
+            set(action, 0, action_i, math::clamp<T>(get(action, 0, action_i), -1, 1));
         }
         typename ENVIRONMENT::State next_state;
-        T dt = step(device, env, state, action_clipped, next_state);
+        T dt = step(device, env, state, action, next_state);
         set_state(device, ui, state);
-        T r = reward(device, env, state, action_clipped, next_state);
+        T r = reward(device, env, state, action, next_state);
         state = next_state;
         eval_state.episode_return += r;
         eval_state.state = state;
+        free(device, observation);
+        malloc(device, action);
         return terminated(device, env, state);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename DEVICE::index_t STEP_LIMIT>

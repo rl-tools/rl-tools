@@ -281,5 +281,15 @@ namespace layer_in_c{
         }
     }
 
+    template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
+    Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, typename SPEC::LAYOUT>> view(DEVICE& device, Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+        static_assert(SPEC::ROWS >= ROWS);
+        static_assert(SPEC::COLS >= COLS);
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, typename SPEC::LAYOUT>> out;
+        out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
+        return out;
+    }
+
+
 }
 #endif

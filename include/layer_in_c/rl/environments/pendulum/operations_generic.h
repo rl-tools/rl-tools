@@ -28,12 +28,14 @@ namespace layer_in_c{
         state.theta = -math::PI<typename SPEC::T>;
         state.theta_dot = 0;
     }
-    template<typename DEVICE, typename SPEC>
-    static typename SPEC::T step(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], rl::environments::pendulum::State<typename SPEC::T>& next_state) {
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
+    static typename SPEC::T step(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const Matrix<ACTION_SPEC>& action, rl::environments::pendulum::State<typename SPEC::T>& next_state) {
+        static_assert(ACTION_SPEC::ROWS == 1);
+        static_assert(ACTION_SPEC::COLS == 1);
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         typedef typename SPEC::PARAMETERS PARAMS;
-        T u_normalised = action[0];
+        T u_normalised = get(action, 0, 0);
         T u = PARAMS::max_torque * u_normalised;
         T g = PARAMS::g;
         T m = PARAMS::m;
@@ -50,23 +52,25 @@ namespace layer_in_c{
         next_state.theta_dot = newthdot;
         return SPEC::PARAMETERS::dt;
     }
-    template<typename DEVICE, typename SPEC>
-    static typename SPEC::T reward(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const typename SPEC::T action[1], const rl::environments::pendulum::State<typename SPEC::T>& next_state){
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
+    static typename SPEC::T reward(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::pendulum::State<typename SPEC::T>& next_state){
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         T angle_norm = angle_normalize(typename DEVICE::SPEC::MATH(), state.theta);
-        T u_normalised = action[0];
+        T u_normalised = get(action, 0, 0);
         T u = SPEC::PARAMETERS::max_torque * u_normalised;
         T costs = angle_norm * angle_norm + 0.1 * state.theta_dot * state.theta_dot + 0.001 * (u * u);
         return -costs;
     }
 
-    template<typename DEVICE, typename SPEC>
-    static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, typename SPEC::T observation[3]){
+    template<typename DEVICE, typename SPEC, typename OBS_SPEC>
+    static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, Matrix<OBS_SPEC>& observation){
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == 3);
         typedef typename SPEC::T T;
-        observation[0] = math::cos(typename DEVICE::SPEC::MATH(), state.theta);
-        observation[1] = math::sin(typename DEVICE::SPEC::MATH(), state.theta);
-        observation[2] = state.theta_dot;
+        set(observation, 0, 0, math::cos(typename DEVICE::SPEC::MATH(), state.theta));
+        set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta));
+        set(observation, 0, 2, state.theta_dot);
     }
     template<typename DEVICE, typename SPEC>
     static bool terminated(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::pendulum::State<typename SPEC::T> state){

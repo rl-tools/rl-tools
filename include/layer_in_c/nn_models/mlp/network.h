@@ -89,7 +89,7 @@ namespace layer_in_c::nn_models::mlp {
         using OUTPUT_LAYER = nn::layers::dense::LayerBackwardAdam<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC, T_ADAM_PARAMETERS>;
     };
 
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE = T_SPEC::BATCH_SIZE>
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE>
     struct NeuralNetworkBuffers{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
@@ -98,7 +98,7 @@ namespace layer_in_c::nn_models::mlp {
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tick;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tock;
     };
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE = T_SPEC::BATCH_SIZE>
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE>
     struct NeuralNetworkBuffersForwardBackward: NeuralNetworkBuffers<T_SPEC, T_BATCH_SIZE>{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
@@ -113,9 +113,9 @@ namespace layer_in_c::nn_models::mlp {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE>
+        template<TI BUFFER_BATCH_SIZE>
         using Buffers = NeuralNetworkBuffers<SPEC, BUFFER_BATCH_SIZE>;
-        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE>
+        template<TI BUFFER_BATCH_SIZE>
         using BuffersForwardBackward = NeuralNetworkBuffersForwardBackward<SPEC, BUFFER_BATCH_SIZE>;
 
         // Convenience

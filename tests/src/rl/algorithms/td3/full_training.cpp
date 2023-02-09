@@ -120,6 +120,8 @@ lic::rl::components::OffPolicyRunner<
         DTYPE,
         DEVICE::index_t,
         ENVIRONMENT,
+        ACTOR_NETWORK_TYPE,
+        1,
         REPLAY_BUFFER_CAP,
         ENVIRONMENT_STEP_LIMIT,
         lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
@@ -144,17 +146,17 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 
     lic::malloc(ac_dev, off_policy_runner);
 
-    lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
+    lic::rl::components::off_policy_runner::Batch<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-    CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
+    CRITIC_NETWORK_TYPE::BuffersForwardBackward<ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
     lic::malloc(ac_dev, critic_batch);
     lic::malloc(ac_dev, critic_training_buffers);
     lic::malloc(ac_dev, critic_buffers[0]);
     lic::malloc(ac_dev, critic_buffers[1]);
 
-    lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
+    lic::rl::components::off_policy_runner::Batch<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
     lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
-    ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
+    ACTOR_NETWORK_TYPE::Buffers<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
     lic::malloc(ac_dev, actor_batch);
     lic::malloc(ac_dev, actor_training_buffers);
     lic::malloc(ac_dev, actor_buffers[0]);
@@ -175,7 +177,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
         lic::set_state(ui, off_policy_runner.state);
 #endif
 
-        if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
+        if(off_policy_runner.step > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
                 auto current_time = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_seconds = current_time - start_time;
@@ -184,7 +186,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 lic::target_action_noise(ac_dev, actor_critic, critic_training_buffers.target_next_action_noise, rng);
-                lic::gather_batch(ac_dev, off_policy_runner.replay_buffer, critic_batch, rng);
+                lic::gather_batch(ac_dev, off_policy_runner, critic_batch, rng);
                 lic::train_critic(ac_dev, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
             }
 
@@ -193,7 +195,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 //            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
                 {
-                    lic::gather_batch(ac_dev, off_policy_runner.replay_buffer, actor_batch, rng);
+                    lic::gather_batch(ac_dev, off_policy_runner, actor_batch, rng);
                     lic::train_actor(ac_dev, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
                 }
 

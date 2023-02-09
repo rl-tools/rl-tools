@@ -4,6 +4,7 @@
 #include "td3.h"
 
 #include <layer_in_c/rl/components/replay_buffer/replay_buffer.h>
+#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 #include <layer_in_c/nn/nn.h>
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/utils/generic/polyak.h>
@@ -85,8 +86,8 @@ namespace layer_in_c{
         copy(device, device, actor_critic.critic_target_1, actor_critic.critic_1);
         copy(device, device, actor_critic.critic_target_2, actor_critic.critic_2);
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE>
-    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE> critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, typename DEVICE::index_t BATCH_SIZE>
+    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE> critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
         // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -152,8 +153,8 @@ namespace layer_in_c{
             }
         }
     }
-    template <typename DEVICE, typename SPEC, typename REPLAY_BUFFER_SPEC, typename REPLAY_BUFFER_SPEC::TI BATCH_SIZE>
-    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::T train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::replay_buffer::Batch<REPLAY_BUFFER_SPEC, BATCH_SIZE>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename SPEC::CRITIC_NETWORK_TYPE::template Buffers<BATCH_SIZE> critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, typename DEVICE::index_t BATCH_SIZE>
+    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::T train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename SPEC::CRITIC_NETWORK_TYPE::template Buffers<BATCH_SIZE> critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
