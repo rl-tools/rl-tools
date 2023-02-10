@@ -115,18 +115,16 @@ DEVICE::SPEC::LOGGING logger;
 DEVICE ac_dev(logger);
 //DEVICE::SPEC::LOGGING nn_logger;
 DEVICE nn_dev(logger);
-lic::rl::components::OffPolicyRunner<
-    lic::rl::components::off_policy_runner::Specification<
+using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
         DTYPE,
         DEVICE::index_t,
         ENVIRONMENT,
-        ACTOR_NETWORK_TYPE,
         1,
         REPLAY_BUFFER_CAP,
         ENVIRONMENT_STEP_LIMIT,
         lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
-    >
-> off_policy_runner;
+>;
+lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 ActorCriticType actor_critic;
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
@@ -157,8 +155,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::rl::components::off_policy_runner::Batch<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
     lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
     ACTOR_NETWORK_TYPE::Buffers<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+    ACTOR_NETWORK_TYPE::Buffers<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
     lic::malloc(ac_dev, actor_batch);
     lic::malloc(ac_dev, actor_training_buffers);
+    lic::malloc(ac_dev, actor_buffers_eval);
     lic::malloc(ac_dev, actor_buffers[0]);
     lic::malloc(ac_dev, actor_buffers[1]);
 
@@ -172,7 +172,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, decltype(actor_critic.actor), decltype(actor_critic.critic_1)>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
         }
 #endif
-        lic::step(ac_dev, off_policy_runner, actor_critic.actor, rng);
+        lic::step(ac_dev, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
         lic::set_state(ui, off_policy_runner.state);
 #endif

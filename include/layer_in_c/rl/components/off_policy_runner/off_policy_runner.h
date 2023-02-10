@@ -11,12 +11,11 @@ namespace layer_in_c::rl::components::off_policy_runner {
     struct DefaultParameters{
         static constexpr T EXPLORATION_NOISE = 0.1;
     };
-    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, typename T_POLICY, T_TI T_N_ENVIRONMENTS, T_TI T_REPLAY_BUFFER_CAPACITY, T_TI T_STEP_LIMIT, typename T_PARAMETERS>
+    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS, T_TI T_REPLAY_BUFFER_CAPACITY, T_TI T_STEP_LIMIT, typename T_PARAMETERS>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
         using ENVIRONMENT =  T_ENVIRONMENT;
-        using POLICY = T_POLICY;
         static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
         static constexpr TI REPLAY_BUFFER_CAPACITY = T_REPLAY_BUFFER_CAPACITY;
         static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
@@ -56,12 +55,10 @@ namespace layer_in_c::rl::components{
     struct OffPolicyRunner {
         using SPEC = T_SPEC;
         using ReplayBufferSpec = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY>;
-        using POLICY = typename SPEC::POLICY;
         static constexpr typename SPEC::TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
         off_policy_runner::Buffers<SPEC> buffers;
-        typename POLICY::template Buffers<N_ENVIRONMENTS> policy_eval_buffers;
 
         struct State{
             typename SPEC::ENVIRONMENT env;

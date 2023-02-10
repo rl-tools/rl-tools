@@ -16,7 +16,6 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         malloc(device, runner.buffers);
-        malloc(device, runner.policy_eval_buffers);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             malloc(device, runner.states[env_i].replay_buffer);
         }
@@ -39,7 +38,6 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         free(device, runner.buffers);
-        free(device, runner.policy_eval_buffers);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             free(device, runner.states[env_i].replay_buffer);
         }
@@ -70,8 +68,8 @@ namespace layer_in_c{
         observe(device, runner_state.env, runner_state.state, observation);
     }
     template<typename DEVICE, typename SPEC, typename POLICY>
-    void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, POLICY &policy) {
-        evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, runner.policy_eval_buffers);
+    void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
+        evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
     }
 
     template<typename DEVICE, typename SPEC, typename RNG>
@@ -122,7 +120,7 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, POLICY &policy, RNG &rng) {
+    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG &rng) {
         static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::OBSERVATION_DIM,
                       "The policy's input dimension must match the environment's observation dimension.");
         static_assert(POLICY::OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM,
@@ -135,7 +133,7 @@ namespace layer_in_c{
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
             prologue(device, runner, rng, env_i);
         }
-        interlude(device, runner, policy);
+        interlude(device, runner, policy, policy_eval_buffers);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
             epilogue(device, &runner, rng, env_i);
         }

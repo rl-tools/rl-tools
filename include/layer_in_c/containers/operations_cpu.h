@@ -1,3 +1,6 @@
+#ifndef LAYER_IN_C_CONTAINERS_OPERATIONS_CPU_H
+#define LAYER_IN_C_CONTAINERS_OPERATIONS_CPU_H
+
 #include "operations_generic.h"
 
 #include <iostream>
@@ -12,3 +15,5 @@ namespace layer_in_c{
         }
     }
 }
+
+#endif
