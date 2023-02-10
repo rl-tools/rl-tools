@@ -77,6 +77,7 @@ namespace parameters_0{
                 T,
                 TI,
                 ENVIRONMENT,
+                1,
                 REPLAY_BUFFER_CAP,
                 ENVIRONMENT_STEP_LIMIT,
                 ReplayBufferParameters

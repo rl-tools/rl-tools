@@ -55,6 +55,10 @@ namespace layer_in_c{
         static constexpr TI ROW_PITCH = SPEC::ROW_PITCH;
         static constexpr TI COL_PITCH = SPEC::COL_PITCH;
 
+        using VIEW_LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        template<typename SPEC::TI ROWS, typename SPEC::TI COLS>
+        using VIEW = Matrix<matrix::Specification<T, TI, ROWS, COLS, VIEW_LAYOUT>>;
+
         T* _data = nullptr;
     };
 

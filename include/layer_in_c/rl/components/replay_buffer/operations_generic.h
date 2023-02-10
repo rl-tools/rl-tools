@@ -7,21 +7,18 @@
 namespace layer_in_c {
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
-        malloc(device, rb.observations);
-        malloc(device, rb.actions);
-        malloc(device, rb.rewards);
-        malloc(device, rb.next_observations);
-        malloc(device, rb.terminated);
-        malloc(device, rb.truncated);
+        using DATA_SPEC = typename decltype(rb.data)::SPEC;
+        malloc(device, rb.data);
+        rb.observations      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>(device, rb.data, 0, 0);
+        rb.actions           = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::ACTION_DIM     >(device, rb.data, 0, SPEC::OBSERVATION_DIM);
+        rb.rewards           = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                    >(device, rb.data, 0, SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM);
+        rb.next_observations = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>(device, rb.data, 0, SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM + 1);
+        rb.terminated        = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                    >(device, rb.data, 0, SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM);
+        rb.truncated         = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                    >(device, rb.data, 0, SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM + 1);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
-        free(device, rb.observations);
-        free(device, rb.actions);
-        free(device, rb.rewards);
-        free(device, rb.next_observations);
-        free(device, rb.terminated);
-        free(device, rb.truncated);
+        free(device, rb.data);
     }
     template <typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC>
     void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const bool terminated, const bool truncated) {

@@ -3,8 +3,7 @@
 
 namespace layer_in_c::rl::environments::multirotor {
     template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
-    class Parameters {
-    public:
+    struct Parameters {
         struct Dynamics{
             struct ActionLimit{
                 T min;

@@ -17,13 +17,19 @@ namespace layer_in_c::rl::components {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr typename SPEC::TI CAPACITY = SPEC::CAPACITY;
-        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>> observations;
-        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, SPEC::ACTION_DIM>> actions;
-        Matrix<matrix::Specification<T, TI, 1, SPEC::CAPACITY>> rewards;
-        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>> next_observations;
-        Matrix<matrix::Specification<bool, TI, 1, SPEC::CAPACITY>> terminated;
-        Matrix<matrix::Specification<bool, TI, 1, SPEC::CAPACITY>> truncated;
+        static constexpr TI CAPACITY = SPEC::CAPACITY;
+        static constexpr TI DATA_COLS = SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM + 1 + 1;
+        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, DATA_COLS>> data;
+
+        template<typename SPEC::TI DIM>
+        using DATA_VIEW = typename decltype(data)::template VIEW<CAPACITY, DIM>;
+
+        DATA_VIEW<SPEC::OBSERVATION_DIM> observations;
+        DATA_VIEW<SPEC::ACTION_DIM> actions;
+        DATA_VIEW<1> rewards;
+        DATA_VIEW<SPEC::OBSERVATION_DIM> next_observations;
+        DATA_VIEW<1> terminated;
+        DATA_VIEW<1> truncated;
         TI position = 0;
         bool full = false;
     };

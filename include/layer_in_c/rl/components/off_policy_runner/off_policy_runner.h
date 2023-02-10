@@ -62,23 +62,23 @@ namespace layer_in_c::rl::components{
     template<typename T_SPEC>
     struct OffPolicyRunner {
         using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY>;
         using REPLAY_BUFFER_TYPE = ReplayBuffer<REPLAY_BUFFER_SPEC>;
-        static constexpr typename SPEC::TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
+        using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        static constexpr TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
         off_policy_runner::Buffers<SPEC> buffers;
 
-        struct State{
-            typename SPEC::ENVIRONMENT env;
-            REPLAY_BUFFER_TYPE replay_buffer;
-            typename SPEC::ENVIRONMENT::State state;
-            bool truncated = true;
-            typename SPEC::TI episode_step = 0;
-            typename SPEC::T episode_return = 0;
-        };
-        State states[N_ENVIRONMENTS];
-        typename SPEC::TI step = 0;
+        ENVIRONMENT envs[N_ENVIRONMENTS];
+        REPLAY_BUFFER_TYPE replay_buffers[N_ENVIRONMENTS];
+        Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, N_ENVIRONMENTS>> states;
+        Matrix<matrix::Specification<T, TI, 1, N_ENVIRONMENTS>> episode_return;
+        Matrix<matrix::Specification<TI, TI, 1, N_ENVIRONMENTS>> episode_step;
+        Matrix<matrix::Specification<bool, TI, 1, N_ENVIRONMENTS>> truncated; // init to true !!
+        TI step = 0;
     };
 }
 
