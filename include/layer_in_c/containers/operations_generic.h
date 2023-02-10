@@ -60,7 +60,7 @@ namespace layer_in_c{
         static_assert(SPEC_1::COLS == SPEC_2::ROWS);
         for(typename SPEC_1::TI i = 0; i < SPEC_1::ROWS; i++){
             for(typename SPEC_1::TI j = 0; j < SPEC_1::COLS; j++){
-                get(target,  i,  j) = get(source,  j,  i);
+                set(target, i, j, get(source, j, i));
             }
         }
     }
@@ -283,6 +283,19 @@ namespace layer_in_c{
         }
     }
 
+    template<typename TARGET_DEVICE, typename SPEC, typename T>
+    void assign(TARGET_DEVICE& source_device, T* target, Matrix<SPEC>& source, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
+        using TI = typename SPEC::TI;
+        utils::assert_exit(source_device, row + rows <= SPEC::ROWS, "row + rows <= SPEC::ROWS");
+        utils::assert_exit(source_device, col + cols <= SPEC::COLS, "col + cols <= SPEC::COLS");
+        for(TI i = 0; i < rows; i++){
+            for(TI j = 0; j < cols; j++){
+//                set(target, row + i, col+j, source[i * row_pitch + j * col_pitch]);
+                target[i * cols + j] = get(source, row + i, col+j);
+            }
+        }
+    }
+
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
     auto view(DEVICE& device, Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         static_assert(SPEC::ROWS >= ROWS);
@@ -291,6 +304,19 @@ namespace layer_in_c{
         Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout>> out;
         out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
         return out;
+    }
+
+    template <typename DEVICE, typename T, typename INPUT_SPEC, typename MEAN_SPEC, typename STD_SPEC, typename OUTPUT_SPEC>
+    void standardise(DEVICE& device, const layer_in_c::Matrix<INPUT_SPEC>& input, const layer_in_c::Matrix<MEAN_SPEC> mean, const layer_in_c::Matrix<STD_SPEC> std, layer_in_c::Matrix<OUTPUT_SPEC> output){
+        static_assert(layer_in_c::containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
+        static_assert(layer_in_c::containers::check_structure<MEAN_SPEC, STD_SPEC>);
+        static_assert(INPUT_SPEC::COLS == MEAN_SPEC::COLS);
+        static_assert(MEAN_SPEC::ROWS == 1);
+        for(typename DEVICE::index row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
+            for(typename DEVICE::index col_i = 0; col_i < INPUT_SPEC::COLS; col_i++){
+                set(output, row_i, col_i, (get(input, row_i, col_i) - get(mean, 0, col_i)) / get(std, 0, col_i));
+            }
+        }
     }
 
 

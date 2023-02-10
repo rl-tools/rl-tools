@@ -176,19 +176,19 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
         }
     }
 
-    memcpy(A, network_mkl.input_layer.weights.data, m*k*sizeof( DTYPE ));
+    lic::assign(device, A, network_mkl.input_layer.weights);
 
-    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix({B});
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_mkl_matrix;
+    lic::malloc(device, input_mkl_matrix);
+    lic::assign(device, input_mkl_matrix, B);
 
     lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
     lic::malloc(device, input_lic_matrix);
-    memcpy(input_lic_matrix.data, input.data, sizeof(DTYPE) * BATCH_SIZE * NetworkType::INPUT_DIM);
+    copy(device, device, input_lic_matrix, input);
 
     lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;
     lic::malloc(device, input_lic_matrix_transpose);
     lic::transpose(device, input_lic_matrix_transpose, input_lic_matrix);
-
-    memcpy(B, input_lic_matrix_transpose.data, k*n*sizeof( DTYPE ));
 
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
@@ -205,12 +205,12 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
     for(INDEX_TYPE batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(INDEX_TYPE output_i=0; output_i < HIDDEN_DIM; output_i++){
-            C[batch_i + output_i * BATCH_SIZE] = lic::activation<DEVICE::SPEC::MATH, DTYPE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>(C[batch_i + output_i * BATCH_SIZE] + network_mkl.input_layer.biases.data[output_i]);
+            C[batch_i + output_i * BATCH_SIZE] = lic::activation<DEVICE::SPEC::MATH, DTYPE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>(C[batch_i + output_i * BATCH_SIZE] + get(network_mkl.input_layer.biases, 0, output_i));
         }
     }
 
-    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE>> output_mkl_matrix_transpose;
-    output_mkl_matrix_transpose.data = C;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM, BATCH_SIZE, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_mkl_matrix_transpose;
+    output_mkl_matrix_transpose._data = C;
 
     lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_mkl_matrix;
     lic::malloc(device, output_mkl_matrix);
@@ -234,7 +234,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
 
     lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     lic::malloc(device_mkl, output_matrix);
-    lic::set(device_mkl, output_matrix, 0);
+    lic::set_all(device_mkl, output_matrix, 0);
 
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
@@ -262,7 +262,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
 
     lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     lic::malloc(device_mkl, output_matrix);
-    lic::set(device_mkl, output_matrix, 0);
+    lic::set_all(device_mkl, output_matrix, 0);
 
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
@@ -315,11 +315,11 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
     lic::zero_gradient(device_mkl, network_mkl);
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
-        lic::forward_backward_mse(device_mkl, network_mkl, input, output_target);
+        lic::forward_backward_mse(device_mkl, network_mkl, input, output_target, network_mkl_buffers);
     }
     auto end = std::chrono::high_resolution_clock::now();
     lic::zero_gradient(device_mkl, network_mkl);
-    lic::forward_backward_mse(device_mkl, network_mkl, input, output_target);
+    lic::forward_backward_mse(device_mkl, network_mkl, input, output_target, network_mkl_buffers);
     std::cout << "MKL LIC forward backward mse: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
 
 //    DTYPE abs_diff = lic::abs_diff(device_mkl, network_mkl.output_layer.d_weights, network.output_layer.d_weights) / NetworkType::NUM_WEIGHTS;

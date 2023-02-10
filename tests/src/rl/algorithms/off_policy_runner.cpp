@@ -18,7 +18,7 @@ namespace lic = layer_in_c;
 using DEVICE = lic::devices::DefaultCPU;
 using ENVIRONMENT_SPEC = lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>;
 using ENVIRONMENT = lic::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
-typedef lic::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, 5000, 100, lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
+typedef lic::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, 1, 5000, 100, lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
 typedef lic::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
 
 using PendulumStructureSpecification = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
@@ -33,8 +33,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     lic::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner;
     lic::malloc(device, off_policy_runner);
+    decltype(policy)::Buffers<OffPolicyRunnerSpec::N_ENVIRONMENTS> policy_buffers;
+    lic::malloc(device, policy_buffers);
     for(int step_i = 0; step_i < 10000; step_i++){
-        lic::step(device, off_policy_runner, policy, rng);
+        lic::step(device, off_policy_runner, policy, policy_buffers, rng);
     }
     lic::free(device, off_policy_runner);
 }

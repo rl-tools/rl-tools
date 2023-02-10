@@ -45,7 +45,7 @@ namespace layer_in_c {
         eval_state.episode_return += r;
         eval_state.state = state;
         free(device, observation);
-        malloc(device, action);
+        free(device, action);
         return terminated(device, env, state);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename DEVICE::index_t STEP_LIMIT>

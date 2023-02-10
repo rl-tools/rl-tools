@@ -45,8 +45,11 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
         for(int step_i = 0; step_i < states.size(); step_i++){
             std::cout << "step i: " << step_i << std::endl;
             ENVIRONMENT::State next_state;
-            lic::step(device, env, state, actions[step_i].data(), next_state);
-            DTYPE r = lic::reward(device, env, state, actions[step_i].data(), next_state);
+            lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
+            lic::malloc(device, action);
+            lic::assign(device, action, actions[step_i].data());
+            lic::step(device, env, state, action, next_state);
+            DTYPE r = lic::reward(device, env, state, action, next_state);
             EXPECT_NEAR(     states[step_i][0], state.theta, STATE_TOLERANCE);
             EXPECT_NEAR(     states[step_i][1], state.theta_dot, STATE_TOLERANCE);
             EXPECT_NEAR(    rewards[step_i]   , r, STATE_TOLERANCE);

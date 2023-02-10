@@ -7,7 +7,7 @@ namespace layer_in_c::utils{
     void assert_exit(devices::CPU<DEV_SPEC>& dev, bool condition, T message){
         if(!condition){
             logging::text(dev.logger, message);
-            std::exit(-1);
+            throw std::runtime_error(message);
         }
     }
 }

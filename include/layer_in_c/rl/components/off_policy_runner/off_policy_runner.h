@@ -6,6 +6,14 @@
 
 namespace lic = layer_in_c;
 
+
+/* requirements
+- Multiple environments
+- Batched action inference
+
+
+*/
+
 namespace layer_in_c::rl::components::off_policy_runner {
     template<typename T>
     struct DefaultParameters{
@@ -54,7 +62,8 @@ namespace layer_in_c::rl::components{
     template<typename T_SPEC>
     struct OffPolicyRunner {
         using SPEC = T_SPEC;
-        using ReplayBufferSpec = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY>;
+        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY>;
+        using REPLAY_BUFFER_TYPE = ReplayBuffer<REPLAY_BUFFER_SPEC>;
         static constexpr typename SPEC::TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
@@ -62,7 +71,7 @@ namespace layer_in_c::rl::components{
 
         struct State{
             typename SPEC::ENVIRONMENT env;
-            ReplayBuffer<ReplayBufferSpec> replay_buffer;
+            REPLAY_BUFFER_TYPE replay_buffer;
             typename SPEC::ENVIRONMENT::State state;
             bool truncated = true;
             typename SPEC::TI episode_step = 0;

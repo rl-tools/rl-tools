@@ -63,16 +63,16 @@ constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 AC_DEVICE::SPEC::LOGGING logger;
 AC_DEVICE device(logger);
 NN_DEVICE nn_device(logger);
-lic::rl::components::OffPolicyRunner<
-        lic::rl::components::off_policy_runner::Specification<
-                DTYPE,
-                AC_DEVICE::index_t,
-                ENVIRONMENT,
-                REPLAY_BUFFER_CAP,
-                ENVIRONMENT_STEP_LIMIT,
-                lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
-        >
-> off_policy_runner;
+using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
+        DTYPE,
+        AC_DEVICE::index_t,
+        ENVIRONMENT,
+        1,
+        REPLAY_BUFFER_CAP,
+        ENVIRONMENT_STEP_LIMIT,
+        lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
+>;
+lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 ActorCriticType actor_critic;
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
@@ -86,7 +86,7 @@ int main() {
 
     bool ui = false;
 
-    lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
+    lic::rl::components::off_policy_runner::Batch<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
     CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
     lic::malloc(device, critic_batch);
@@ -94,28 +94,30 @@ int main() {
     lic::malloc(device, critic_buffers[0]);
     lic::malloc(device, critic_buffers[1]);
 
-    lic::rl::components::replay_buffer::Batch<decltype(off_policy_runner.replay_buffer)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
+    lic::rl::components::off_policy_runner::Batch<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
     lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
     ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
+    ACTOR_NETWORK_TYPE::Buffers<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
     lic::malloc(device, actor_batch);
     lic::malloc(device, actor_training_buffers);
+    lic::malloc(device, actor_buffers_eval);
     lic::malloc(device, actor_buffers[0]);
     lic::malloc(device, actor_buffers[1]);
 
     for(int step_i = 0; step_i < 15000; step_i++){
-        lic::step(device, off_policy_runner, actor_critic.actor, rng);
+        lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 
-        if(off_policy_runner.replay_buffer.full || off_policy_runner.replay_buffer.position > N_WARMUP_STEPS){
+        if(off_policy_runner.step > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
                 lic::logging::text(device.logger, "step_i: ", step_i);
             }
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
-                lic::gather_batch(device, off_policy_runner.replay_buffer, critic_batch, rng);
+                lic::gather_batch(device, off_policy_runner, critic_batch, rng);
                 lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
             }
             if(step_i % 2 == 0){
-                lic::gather_batch(device, off_policy_runner.replay_buffer, actor_batch, rng);
+                lic::gather_batch(device, off_policy_runner, actor_batch, rng);
                 lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
                 lic::update_critic_targets(device, actor_critic);
                 lic::update_actor_target(device, actor_critic);
