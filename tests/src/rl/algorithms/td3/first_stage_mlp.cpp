@@ -52,20 +52,21 @@ void load_dataset(DEVICE& device, HighFive::Group g, RB& rb){
     lic::load(device, rb.observations, g, "states");
     lic::load(device, rb.actions, g, "actions");
     lic::load(device, rb.next_observations, g, "next_states");
-    lic::load(device, rb.rewards, g, "rewards");
+    auto rT = lic::view_transpose(device, rb.rewards);
+    lic::load(device, rT, g, "rewards");
     std::vector<std::vector<typename RB::T>> terminated_matrix;
     g.getDataSet("terminated").read(terminated_matrix);
     assert(terminated_matrix.size() == 1);
     auto terminated = terminated_matrix[0];
     for(int i = 0; i < terminated.size(); i++){
-        lic::set(rb.terminated, 0, i, terminated[i] == 1);
+        lic::set(rb.terminated, i, 0, terminated[i] == 1);
     }
     std::vector<std::vector<typename RB::T>> truncated_matrix;
     g.getDataSet("truncated").read(truncated_matrix);
     assert(truncated_matrix.size() == 1);
     auto truncated = truncated_matrix[0];
     for(int i = 0; i < truncated.size(); i++){
-        lic::set(rb.truncated, 0, i, truncated[i] == 1);
+        lic::set(rb.truncated, i, 0, truncated[i] == 1);
     }
     rb.position = terminated.size();
 //    g.getDataSet("states").read(rb.observations.data);
@@ -365,6 +366,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         auto next_state_action_value_critic_1_diff = lic::abs_diff(device, critic_training_buffers_target.next_state_action_value_critic_1, critic_training_buffers.next_state_action_value_critic_1);
         auto next_state_action_value_critic_2_diff = lic::abs_diff(device, critic_training_buffers_target.next_state_action_value_critic_2, critic_training_buffers.next_state_action_value_critic_2);
         auto target_action_value_diff = lic::abs_diff(device, critic_training_buffers_target.target_action_value, critic_training_buffers.target_action_value);
+        ASSERT_LT(target_next_action_diff, 1e-14);
+        ASSERT_LT(next_state_action_value_input_diff, 1e-14);
+        ASSERT_LT(next_state_action_value_critic_1_diff, 1e-14);
+        ASSERT_LT(next_state_action_value_critic_2_diff, 1e-14);
+        ASSERT_LT(target_action_value_diff, 1e-14);
 
         lic::reset_forward_state(device, pre_critic_1);
         lic::reset_forward_state(device, post_critic_1);

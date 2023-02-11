@@ -130,7 +130,11 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_SPEEDTEST
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING_SPEEDTEST) {
+#else
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
+#endif
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
     UI ui;
 #endif
@@ -230,11 +234,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
         if(std::getenv("LAYER_IN_C_TEST_ENABLE_TIMING") != nullptr){
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_SPEEDTEST
 #ifdef LAYER_IN_C_TEST_MACHINE_LENOVO_P1
             ASSERT_LT(elapsed_seconds.count(), 6); // should be 5.5s when run in isolation
 #endif
 #ifdef LAYER_IN_C_TEST_MACHINE_MACBOOK_M1
             ASSERT_LT(elapsed_seconds.count(), 3); // should be 2.5s when run in isolation
+#endif
 #endif
         }
     }

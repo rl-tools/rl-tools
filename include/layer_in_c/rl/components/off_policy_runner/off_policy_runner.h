@@ -48,10 +48,16 @@ namespace layer_in_c::rl::components::off_policy_runner {
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> observations;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 2*OBSERVATION_DIM + ACTION_DIM>> observations_action_next_observations;
+
+        template<typename SPEC::TI DIM>
+        using OANO_VIEW = typename decltype(observations_action_next_observations)::template VIEW<BATCH_SIZE, DIM>;
+
+        OANO_VIEW<OBSERVATION_DIM> observations;
+        OANO_VIEW<ACTION_DIM> actions;
+        OANO_VIEW<OBSERVATION_DIM> next_observations;
+
         Matrix<matrix::Specification<T, TI, 1, BATCH_SIZE>> rewards;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> next_observations;
         Matrix<matrix::Specification<bool, TI, 1, BATCH_SIZE>> terminated;
         Matrix<matrix::Specification<bool, TI, 1, BATCH_SIZE>> truncated;
     };

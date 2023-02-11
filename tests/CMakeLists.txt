@@ -12,6 +12,13 @@ if(LAYER_IN_C_TEST_MACHINE_MACBOOK_M1)
     add_compile_definitions(LAYER_IN_C_TEST_MACHINE_MACBOOK_M1)
 endif()
 
+option(LAYER_IN_C_DEBUG "Debug" ON)
+
+function(LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS TARGET)
+    if(LAYER_IN_C_DEBUG)
+        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_BOUNDS_CHECKING)
+    endif()
+endfunction()
 
 #option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" ${LAYER_IN_C_TEST_LOCAL})
 option(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" OFF)
@@ -59,6 +66,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_mlp)
 gtest_discover_tests(test_neural_network_mlp)
 
 # Neural Network Test Full Training MLP
@@ -72,6 +80,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_full_training_mlp)
 gtest_discover_tests(test_neural_network_full_training_mlp)
 
 # Neural Network Persistence Test
@@ -85,6 +94,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_persistence)
 gtest_discover_tests(test_neural_network_persistence)
 
 # RL Environment Pendulum test
@@ -98,6 +108,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_pendulum)
 gtest_discover_tests(test_rl_environments_pendulum)
 
 
@@ -115,6 +126,7 @@ if(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
             GTest::gtest_main
             Qt5::Widgets
     )
+    LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_pendulum_render)
     gtest_discover_tests(test_rl_environments_pendulum_render)
 endif()
 
@@ -128,6 +140,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_off_policy_runner)
 gtest_discover_tests(test_rl_algorithms_td3_off_policy_runner)
 
 # RL Algorithm td3 test first stage mlp
@@ -141,6 +154,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_first_stage_mlp)
 gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
 
 
@@ -170,6 +184,7 @@ if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
     )
     target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
 endif()
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_second_stage_mlp)
 gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
 
 # RL Algorithm td3 test full training
@@ -201,7 +216,25 @@ if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
     )
     target_compile_definitions(test_rl_algorithms_td3_full_training PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
 endif()
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_full_training)
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
+
+
+# RL Algorithm td3 test full training speedtest
+add_executable(
+        test_rl_algorithms_td3_full_training_speedtest
+        src/rl/algorithms/td3/full_training.cpp
+)
+target_link_libraries(
+        test_rl_algorithms_td3_full_training_speedtest
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        tensorboard_logger
+)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training_speedtest)
+target_compile_definitions(test_rl_algorithms_td3_full_training_speedtest PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_SPEEDTEST)
+gtest_discover_tests(test_rl_algorithms_td3_full_training_speedtest)
 
 # RL Algorithm td3 test full training dummy dependencies compilation without any deps
 add_executable(
@@ -261,6 +294,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_multirotor)
 gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
 
@@ -286,6 +320,7 @@ target_include_directories(
         lib/tensorboard/include
         lib/nlohmann/include
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_training_test)
 gtest_discover_tests(test_rl_environments_multirotor_training_test)
 
 # Neural Network Test Conversions
@@ -295,9 +330,11 @@ add_executable(
 )
 target_link_libraries(
         test_neural_network_conversions
+        PRIVATE
         layer_in_c
         GTest::gtest_main
 )
+LAYER_IN_C_TARGET_LINK_BLAS(test_neural_network_conversions)
 gtest_discover_tests(test_neural_network_conversions)
 
 
@@ -335,6 +372,7 @@ target_include_directories(
         PRIVATE
         lib/nlohmann/include
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_ui_test)
 gtest_discover_tests(test_rl_environments_multirotor_ui_test)
 
 # Container tests
@@ -347,4 +385,5 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
 )
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_container)
 gtest_discover_tests(test_container)

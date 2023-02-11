@@ -6,6 +6,11 @@
     #define LAYER_IN_C_FUNCTION_PLACEMENT
 #endif
 
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_BOUNDS_CHECKING
+#include <iostream>
+#include <sstream>
+#endif
+
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, Matrix<SPEC>& matrix){
@@ -36,9 +41,13 @@ namespace layer_in_c{
     LAYER_IN_C_FUNCTION_PLACEMENT inline typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
         // bounds checking for debugging
-//        if(row >= SPEC::ROWS || col >= SPEC::COLS){
-//            std::cout << "index: " << row << "(" << SPEC::ROWS << "):" << col << "(" << SPEC::COLS << ") out of bounds" << std::endl;
-//        }
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_BOUNDS_CHECKING
+        if(row >= SPEC::ROWS || col >= SPEC::COLS){
+            std::stringstream ss;
+            ss << "index: " << row << "(" << SPEC::ROWS << "):" << col << "(" << SPEC::COLS << ") out of bounds";
+            throw std::runtime_error(ss.str());
+        }
+#endif
         return index;
     }
     template<typename SPEC>
@@ -75,21 +84,20 @@ namespace layer_in_c{
         }
     }
     template<typename DEVICE, typename SPEC>
-    auto transpose(DEVICE& device, Matrix<SPEC>& target){
-        static_assert(SPEC::ROWS == SPEC::COLS);
+    auto view_transpose(DEVICE& device, Matrix<SPEC>& target){
+//        static_assert(SPEC::ROWS == SPEC::COLS);
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        for(TI i = 0; i < SPEC::ROWS; i++){
-            for(TI j = i + 1; j < SPEC::COLS; j++){
-                T temp = get(target, i,  j);
-                set(target,  i,  j, get(target,  j,  i));
-                set(target,  j,  i, temp);
-            }
-        }
-        auto data = target._data;
-        target._data = nullptr;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::COLS, SPEC::ROWS>> out;
-        out._data = data;
+//        for(TI i = 0; i < SPEC::ROWS; i++){
+//            for(TI j = i + 1; j < SPEC::COLS; j++){
+//                T temp = get(target, i,  j);
+//                set(target,  i,  j, get(target,  j,  i));
+//                set(target,  j,  i, temp);
+//            }
+//        }
+        using LayOut = matrix::layouts::Fixed<TI, SPEC::COL_PITCH, SPEC::ROW_PITCH>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::COLS, SPEC::ROWS, LayOut>> out;
+        out._data = target._data;
         return out;
     }
 

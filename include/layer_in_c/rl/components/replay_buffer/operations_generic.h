@@ -30,9 +30,9 @@ namespace layer_in_c {
         for(typename DEVICE::index_t i = 0; i < SPEC::ACTION_DIM; i++) {
             set(buffer.actions, buffer.position, i, get(action, 0, i));
         }
-        set(buffer.rewards, 0, buffer.position, reward);
-        set(buffer.terminated, 0, buffer.position, terminated);
-        set(buffer.truncated, 0, buffer.position, truncated);
+        set(buffer.rewards, buffer.position, 0, reward);
+        set(buffer.terminated, buffer.position, 0, terminated);
+        set(buffer.truncated, buffer.position, 0, truncated);
         buffer.position = (buffer.position + 1) % SPEC::CAPACITY;
         if(buffer.position == 0 && !buffer.full) {
             buffer.full = true;

@@ -30,7 +30,8 @@ TEST(LAYER_IN_C_TEST_CONTAINER, SLICE) {
     ASSERT_FLOAT_EQ(lic::get(m2, 1, 0), 5);
     ASSERT_FLOAT_EQ(lic::get(m2, 1, 1), 6);
 
-    auto m3 = lic::transpose(device, m);
+    std::cout << "transpose: " << std::endl;
+    auto m3 = lic::view_transpose(device, m);
     lic::print(device, m3);
     lic::free(device, m3);
 

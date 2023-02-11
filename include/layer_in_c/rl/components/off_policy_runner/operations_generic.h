@@ -148,15 +148,12 @@ namespace layer_in_c{
             auto& replay_buffer = runner.states[env_index].replay_buffer;
             typename DEVICE::index_t sample_index_max = (replay_buffer.full ? SPEC::REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
             typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, sample_index_max, rng);
-//            utils::memcpy(&get(batch.observations, batch_step_i, 0), &get(replay_buffer.observations, sample_index, 0), SPEC::OBSERVATION_DIM);
             lic::slice(device, batch.observations, replay_buffer.observations, sample_index, 0, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM, batch_step_i, 0);
-//            utils::memcpy(&get(batch.actions, batch_step_i, 0), &get(replay_buffer.actions, sample_index, 0), SPEC::ACTION_DIM);
             lic::slice(device, batch.actions, replay_buffer.actions, sample_index, 0, 1, SPEC::ENVIRONMENT::ACTION_DIM, batch_step_i, 0);
-            set(batch.rewards, 0, batch_step_i, get(replay_buffer.rewards, 0, sample_index));
-//            utils::memcpy(&get(batch.next_observations, batch_step_i, 0), &get(replay_buffer.next_observations, sample_index, 0), SPEC::OBSERVATION_DIM);
+            set(batch.rewards, 0, batch_step_i, get(replay_buffer.rewards, sample_index, 0));
             lic::slice(device, batch.next_observations, replay_buffer.next_observations, sample_index, 0, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM, batch_step_i, 0);
-            set(batch.terminated, 0, batch_step_i, get(replay_buffer.terminated, 0, sample_index));
-            set(batch.truncated, 0, batch_step_i, get(replay_buffer.truncated, 0, sample_index));
+            set(batch.terminated, 0, batch_step_i, get(replay_buffer.terminated, sample_index, 0));
+            set(batch.truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
         }
     }
 }
