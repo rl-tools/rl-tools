@@ -105,11 +105,11 @@ void GEMM() {
     NetworkTypeCPU network_cpu;
     typename NetworkTypeCPU::template Buffers<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
-    typename NetworkTypeCPU::template Buffers<BATCH_SIZE> network_cuda_buffers;
+    typename NetworkTypeCUDA::template Buffers<BATCH_SIZE> network_cuda_buffers;
     lic::malloc(device_cpu, network_cpu);
     lic::malloc(device_cpu, network_cpu_buffers);
     lic::malloc(device_cuda, network_cuda);
-    lic::malloc(device_cpu, network_cuda_buffers);
+    lic::malloc(device_cuda, network_cuda_buffers);
 
     auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 

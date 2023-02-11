@@ -51,7 +51,8 @@ namespace layer_in_c{
         return index;
     }
     template<typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT inline typename SPEC::T get(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+    // todo: return reference
+    LAYER_IN_C_FUNCTION_PLACEMENT inline typename SPEC::T& get(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         return m._data[index(m, row, col)];
     }
     template<typename SPEC, typename T>
