@@ -20,7 +20,9 @@ namespace layer_in_c{
         matrix._data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
 #ifdef LAYER_IN_C_DEBUG_CONTAINER_MALLOC_INIT_NAN
         for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
-            matrix._data[i] = 0.0/0.0;
+            if constexpr(std::is_convertible<typename SPEC::T, float>::value){
+                matrix._data[i] = 0.0/0.0;
+            }
         }
 #endif
     }

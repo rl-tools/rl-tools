@@ -33,6 +33,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     lic::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner;
     lic::malloc(device, off_policy_runner);
+    ENVIRONMENT envs[OffPolicyRunnerSpec::N_ENVIRONMENTS];
+    lic::init(device, off_policy_runner, envs);
     decltype(policy)::Buffers<OffPolicyRunnerSpec::N_ENVIRONMENTS> policy_buffers;
     lic::malloc(device, policy_buffers);
     for(int step_i = 0; step_i < 10000; step_i++){

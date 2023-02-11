@@ -69,7 +69,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_mlp)
+#LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_mlp)
 gtest_discover_tests(test_neural_network_mlp)
 
 # Neural Network Test Full Training MLP
@@ -83,7 +83,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_full_training_mlp)
+#LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_full_training_mlp)
 gtest_discover_tests(test_neural_network_full_training_mlp)
 
 # Neural Network Persistence Test
@@ -192,6 +192,40 @@ gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
 
 # RL Algorithm td3 test full training
 add_executable(
+        test_rl_algorithms_td3_full_training_debug
+        src/rl/algorithms/td3/full_training.cpp
+)
+target_link_libraries(
+        test_rl_algorithms_td3_full_training_debug
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        tensorboard_logger
+)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training_debug)
+
+if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
+    target_link_libraries(
+            test_rl_algorithms_td3_full_training_debug
+            matplotlib_cpp
+    )
+    target_include_directories(test_rl_algorithms_td3_full_training_debug PRIVATE lib)
+    target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
+endif()
+if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
+    target_link_libraries(
+            test_rl_algorithms_td3_full_training_debug
+            Qt5::Widgets
+    )
+    target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
+endif()
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_full_training_debug)
+target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG)
+gtest_discover_tests(test_rl_algorithms_td3_full_training_debug)
+
+
+# RL Algorithm td3 test full training
+add_executable(
         test_rl_algorithms_td3_full_training
         src/rl/algorithms/td3/full_training.cpp
 )
@@ -203,41 +237,7 @@ target_link_libraries(
         tensorboard_logger
 )
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training)
-
-if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
-    target_link_libraries(
-            test_rl_algorithms_td3_full_training
-            matplotlib_cpp
-    )
-    target_include_directories(test_rl_algorithms_td3_full_training PRIVATE lib)
-    target_compile_definitions(test_rl_algorithms_td3_full_training PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
-endif()
-if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
-    target_link_libraries(
-            test_rl_algorithms_td3_full_training
-            Qt5::Widgets
-    )
-    target_compile_definitions(test_rl_algorithms_td3_full_training PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
-endif()
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_full_training)
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
-
-
-# RL Algorithm td3 test full training speedtest
-add_executable(
-        test_rl_algorithms_td3_full_training_speedtest
-        src/rl/algorithms/td3/full_training.cpp
-)
-target_link_libraries(
-        test_rl_algorithms_td3_full_training_speedtest
-        PRIVATE
-        layer_in_c
-        GTest::gtest_main
-        tensorboard_logger
-)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training_speedtest)
-target_compile_definitions(test_rl_algorithms_td3_full_training_speedtest PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_SPEEDTEST)
-gtest_discover_tests(test_rl_algorithms_td3_full_training_speedtest)
 
 # RL Algorithm td3 test full training dummy dependencies compilation without any deps
 add_executable(

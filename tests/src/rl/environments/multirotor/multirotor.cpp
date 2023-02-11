@@ -57,10 +57,11 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
         }
 
         lic::utils::memcpy(env_state.state, state, STATE_DIM);
+        lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, ACTION_DIM>> env_action;
+        lic::malloc(device, env_action);
 
         for(COUNTER_TYPE substep_i = 0; substep_i < 100; substep_i++){
             DTYPE action[ACTION_DIM];
-            DTYPE env_action[ACTION_DIM];
             DTYPE dsdt[STATE_DIM];
             DTYPE next_state[STATE_DIM];
             ENVIRONMENT::State env_next_state;
@@ -70,7 +71,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
                 action[action_i] = 1000 + lic::math::clamp<DTYPE>(action_distribution(rng) * 500, action_min, action_max);
             }
             for(COUNTER_TYPE action_i = 0; action_i < ACTION_DIM; action_i++){
-                env_action[action_i] = (action[action_i] - action_min) / (action_max - action_min) * 2 - 1;
+                set(env_action, 0, action_i, (action[action_i] - action_min) / (action_max - action_min) * 2 - 1);
             }
 
             // Legacy

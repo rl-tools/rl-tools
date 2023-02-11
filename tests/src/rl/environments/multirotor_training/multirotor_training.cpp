@@ -143,7 +143,12 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
 
     // training
-    for(int step_i = 0; step_i < parameters_rl::REPLAY_BUFFER_CAP; step_i++){
+#ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
+    constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
+#else
+    constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
+#endif
+    for(int step_i = 0; step_i < step_limit; step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         device.logger.step = step_i;
         lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);

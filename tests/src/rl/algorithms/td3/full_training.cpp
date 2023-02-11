@@ -77,7 +77,6 @@ typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
-ENVIRONMENT env;
 
 struct DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
     using LOGGING = lic::devices::logging::CPU;
@@ -130,8 +129,8 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_SPEEDTEST
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING_SPEEDTEST) {
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
+TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING_DEBUG) {
 #else
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 #endif
@@ -147,7 +146,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::construct(ac_dev.logger);
 
     lic::malloc(ac_dev, off_policy_runner);
-    lic::init(ac_dev, off_policy_runner);
+    ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
+    lic::init(ac_dev, off_policy_runner, envs);
 
     lic::rl::components::off_policy_runner::Batch<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
@@ -170,7 +170,12 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    for(int step_i = 0; step_i < 15000; step_i++){
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
+    constexpr DEVICE::index_t step_limit = 1000;
+#else
+    constexpr DEVICE::index_t step_limit = 15000;
+#endif
+    for(int step_i = 0; step_i < step_limit; step_i++){
         ac_dev.logger.step = step_i;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
         if(step_i % 20 == 0){
@@ -209,7 +214,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), ENVIRONMENT_STEP_LIMIT, true>(ac_dev, env, ui, actor_critic.actor, 1, rng);
+            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), ENVIRONMENT_STEP_LIMIT, true>(ac_dev, envs[0], ui, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
 //            if(step_i >= 6000){
 //                ASSERT_GT(mean_return, -1000);
@@ -235,7 +240,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
         if(std::getenv("LAYER_IN_C_TEST_ENABLE_TIMING") != nullptr){
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_SPEEDTEST
+#ifndef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
 #ifdef LAYER_IN_C_TEST_MACHINE_LENOVO_P1
             ASSERT_LT(elapsed_seconds.count(), 6); // should be 5.5s when run in isolation
 #endif

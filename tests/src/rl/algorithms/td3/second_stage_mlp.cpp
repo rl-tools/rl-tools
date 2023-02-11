@@ -106,9 +106,9 @@ void load(DEVICE& device, ReplayBufferTypeCopyTraining& rb, std::vector<std::vec
         lic::assign(device, rb.actions, &batch[i][ENVIRONMENT::OBSERVATION_DIM], i, 0, 1, ENVIRONMENT::ACTION_DIM);
 //        lic::utils::memcpy(&lic::get(rb.next_observations, i, 0), &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], ENVIRONMENT::OBSERVATION_DIM);
         lic::assign(device, rb.next_observations, &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
-        lic::set(rb.rewards, 0, i, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM]);
-        lic::set(rb.terminated, 0, i, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1);
-        lic::set(rb.truncated, 0, i, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1);
+        lic::set(rb.rewards, i, 0, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM]);
+        lic::set(rb.terminated, i, 0, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1);
+        lic::set(rb.truncated, i, 0, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1);
     }
     rb.position = batch.size();
 }
