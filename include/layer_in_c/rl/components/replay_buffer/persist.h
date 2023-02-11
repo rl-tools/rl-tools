@@ -11,14 +11,14 @@ namespace layer_in_c{
         save(device, rb.rewards, group, "rewards");
         save(device, rb.next_observations, group, "next_observations");
         {
-            lic::Matrix<lic::matrix::Specification<typename SPEC::T, typename DEVICE::index_t, 1, SPEC::CAPACITY>> terminated;
+            lic::Matrix<lic::matrix::Specification<typename SPEC::T, typename DEVICE::index_t, SPEC::CAPACITY, 1>> terminated;
             lic::malloc(device, terminated);
             copy(device, device, terminated, rb.terminated);
             save(device, terminated, group, "terminated");
             lic::free(device, terminated);
         }
         {
-            lic::Matrix<lic::matrix::Specification<typename SPEC::T, typename DEVICE::index_t, 1, SPEC::CAPACITY>> truncated;
+            lic::Matrix<lic::matrix::Specification<typename SPEC::T, typename DEVICE::index_t, SPEC::CAPACITY, 1>> truncated;
             lic::malloc(device, truncated);
             copy(device, device, truncated, rb.truncated);
             save(device, truncated, group, "truncated");

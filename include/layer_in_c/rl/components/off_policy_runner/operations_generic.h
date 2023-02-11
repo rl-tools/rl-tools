@@ -60,8 +60,14 @@ namespace layer_in_c{
         free(device, batch.truncated);
     }
     template<typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
+    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT envs[SPEC::N_ENVIRONMENTS]) {
         lic::set_all(device, runner.truncated, true);
+        for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
+            runner.envs[env_i] = envs[env_i];
+        }
+#ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
+        runner.initialized = true;
+#endif
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     void prologue(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, RNG &rng, typename DEVICE::index_t env_i) {
@@ -136,6 +142,9 @@ namespace layer_in_c{
 
     template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
     void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG &rng) {
+#ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
+        utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
+#endif
         static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::OBSERVATION_DIM,
                       "The policy's input dimension must match the environment's observation dimension.");
         static_assert(POLICY::OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM,

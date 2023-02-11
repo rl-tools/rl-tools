@@ -102,15 +102,26 @@ namespace layer_in_c{
         }
         state.state[3] = 1;
     }
-    template<typename DEVICE, typename SPEC>
-    static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], typename rl::environments::Multirotor<SPEC>::State& next_state) {
+    template<typename DEVICE, typename SPEC, typename OBS_SPEC>
+    static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, Matrix<OBS_SPEC>& observation){
+        using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == ENVIRONMENT::STATE_DIM);
+        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::STATE_DIM; i++){
+            set(observation, 0, i, state.state[i]);
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
+    static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::Multirotor<SPEC>::State& next_state) {
         constexpr auto STATE_DIM = rl::environments::Multirotor<SPEC>::STATE_DIM;
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
+        static_assert(ACTION_SPEC::ROWS == 1);
+        static_assert(ACTION_SPEC::COLS == ACTION_DIM);
         typename SPEC::T action_scaled[ACTION_DIM];
 
         for(typename DEVICE::index_t action_i = 0; action_i < ACTION_DIM; action_i++){
             typename SPEC::T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
-            action_scaled[action_i] = action[action_i] * half_range + env.parameters.dynamics.action_limit.min + half_range;
+            action_scaled[action_i] = get(action, 0, action_i) * half_range + env.parameters.dynamics.action_limit.min + half_range;
         }
         utils::integrators::rk4<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, STATE_DIM, ACTION_DIM, typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION>>(device, env.parameters, state.state, action_scaled, env.parameters.integration.dt, next_state.state);
         typename SPEC::T quaternion_norm = 0;
@@ -124,8 +135,8 @@ namespace layer_in_c{
 
         return env.parameters.integration.dt;
     }
-    template<typename DEVICE, typename SPEC>
-    static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state) {
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
+    static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state) {
         return rl::environments::multirotor::parameters::reward_functions::reward(device, env, env.parameters.mdp.reward, state, action, next_state);
     }
 

@@ -10,6 +10,9 @@
 namespace layer_in_c{
     template<typename DEV_SPEC, typename SPEC>
     void malloc(devices::CUBLAS<DEV_SPEC>& device, Matrix<SPEC>& matrix){
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
+        utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
+#endif
         cudaMalloc(&matrix.data, SPEC::SIZE_BYTES);
     }
     template<typename DEV_SPEC, typename SPEC>

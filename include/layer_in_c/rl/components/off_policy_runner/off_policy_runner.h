@@ -85,6 +85,9 @@ namespace layer_in_c::rl::components{
         Matrix<matrix::Specification<TI, TI, 1, N_ENVIRONMENTS>> episode_step;
         Matrix<matrix::Specification<bool, TI, 1, N_ENVIRONMENTS>> truncated; // init to true !!
         TI step = 0;
+#ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
+        bool initialized = false;
+#endif
     };
 }
 

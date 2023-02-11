@@ -226,7 +226,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //            step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
             lic::load(device, critic_training_buffers.target_next_action_noise, step_group, "target_next_action_noise");
 
-            load(device, off_policy_runner.states[0].replay_buffer, batch);
+            load(device, off_policy_runner.replay_buffers[0], batch);
 //            if (step_i == 0 && step_group.exist("pre_critic1")){
 //                decltype(actor_critic.critic_1) pre_critic_1_step;
 //                lic::malloc(device, pre_critic_1_step);
@@ -326,7 +326,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             std::vector<std::vector<DTYPE>> batch;
             step_group.getDataSet("actor_batch").read(batch);
             assert(batch.size() == ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
-            load(device, off_policy_runner.states[0].replay_buffer, batch);
+            load(device, off_policy_runner.replay_buffers[0], batch);
 
             decltype(actor_critic.actor) post_actor;
             lic::malloc(device, post_actor);

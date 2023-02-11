@@ -6,7 +6,7 @@
     #define LAYER_IN_C_FUNCTION_PLACEMENT
 #endif
 
-#ifdef LAYER_IN_C_DEBUG_CONTAINER_BOUNDS_CHECKING
+#if defined(LAYER_IN_C_DEBUG_CONTAINER_CHECK_BOUNDS) || defined(LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC)
 #include <iostream>
 #include <sstream>
 #endif
@@ -14,16 +14,21 @@
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, Matrix<SPEC>& matrix){
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
+#endif
         matrix._data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
-        // for debugging, initializing to NaN
-//        for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
-//            matrix._data[i] = 0.0/0.0;
-//        }
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_MALLOC_INIT_NAN
+        for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
+            matrix._data[i] = 0.0/0.0;
+        }
+#endif
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, Matrix<SPEC>& matrix){
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data != nullptr, "Matrix has not been allocated");
+#endif
         delete matrix._data;
         matrix._data = nullptr;
     }
@@ -41,7 +46,7 @@ namespace layer_in_c{
     LAYER_IN_C_FUNCTION_PLACEMENT inline typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
         // bounds checking for debugging
-#ifdef LAYER_IN_C_DEBUG_CONTAINER_BOUNDS_CHECKING
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_BOUNDS
         if(row >= SPEC::ROWS || col >= SPEC::COLS){
             std::stringstream ss;
             ss << "index: " << row << "(" << SPEC::ROWS << "):" << col << "(" << SPEC::COLS << ") out of bounds";

@@ -16,7 +16,10 @@ option(LAYER_IN_C_DEBUG "Debug" ON)
 
 function(LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS TARGET)
     if(LAYER_IN_C_DEBUG)
-        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_BOUNDS_CHECKING)
+        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_CHECK_BOUNDS)
+        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC)
+        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_MALLOC_INIT_NAN)
+        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT)
     endif()
 endfunction()
 
@@ -299,13 +302,14 @@ gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
 
 
+function(factory_test_rl_environments_multirotor TARGET DEBUG)
 # Multirotor Training test
 add_executable(
-        test_rl_environments_multirotor_training_test
+        ${TARGET}
         src/rl/environments/multirotor_training/multirotor_training.cpp
 )
 target_link_libraries(
-        test_rl_environments_multirotor_training_test
+        ${TARGET}
         PRIVATE
         layer_in_c
         GTest::gtest_main
@@ -313,15 +317,22 @@ target_link_libraries(
         tensorboard_logger
         Boost::headers
 )
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_multirotor_training_test)
+LAYER_IN_C_TARGET_LINK_BLAS(${TARGET})
 target_include_directories(
-        test_rl_environments_multirotor_training_test
+        ${TARGET}
         PRIVATE
         lib/tensorboard/include
         lib/nlohmann/include
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_training_test)
-gtest_discover_tests(test_rl_environments_multirotor_training_test)
+if(${DEBUG})
+    target_compile_definitions(${TARGET} PRIVATE LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG)
+    LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(${TARGET})
+endif()
+gtest_discover_tests(${TARGET})
+endfunction()
+
+factory_test_rl_environments_multirotor(test_rl_environments_multirotor_training_debug true)
+factory_test_rl_environments_multirotor(test_rl_environments_multirotor_training false)
 
 # Neural Network Test Conversions
 add_executable(

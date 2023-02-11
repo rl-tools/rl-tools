@@ -11,13 +11,16 @@
 #include <layer_in_c/rl/algorithms/td3/td3.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 
+#include <layer_in_c/utils/generic/typing.h>
+
 namespace parameters_0{
 
     template<typename DEVICE, typename T>
     struct environment{
         using TI = typename DEVICE::index_t;
         static constexpr auto reward_function = layer_in_c::rl::environments::multirotor::parameters::reward_functions::reward_dr<T>;
-        using REWARD_FUNCTION = decltype(reward_function);
+        using REWARD_FUNCTION_CONST = typename layer_in_c::utils::typing::remove_cv_t<decltype(reward_function)>;
+        using REWARD_FUNCTION = typename layer_in_c::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
         static constexpr layer_in_c::rl::environments::multirotor::Parameters<T, TI, 4, REWARD_FUNCTION> parameters = {
                 layer_in_c::rl::environments::multirotor::parameters::dynamics::crazy_flie<T, TI, REWARD_FUNCTION>,
@@ -29,7 +32,9 @@ namespace parameters_0{
                 }
         };
 
-        using ENVIRONMENT_SPEC = lic::rl::environments::multirotor::Specification<T, typename DEVICE::index_t, decltype(parameters), lic::rl::environments::multirotor::StaticParameters>;
+        using PARAMETERS = typename layer_in_c::utils::typing::remove_cv_t<decltype(parameters)>;
+
+        using ENVIRONMENT_SPEC = lic::rl::environments::multirotor::Specification<T, typename DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters>;
         using ENVIRONMENT = lic::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     };
 

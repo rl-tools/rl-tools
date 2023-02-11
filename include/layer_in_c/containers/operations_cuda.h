@@ -12,9 +12,11 @@ namespace layer_in_c{
     void malloc(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){
         auto result = cudaMalloc(&matrix._data, SPEC::SIZE_BYTES);
 
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
         if (result != cudaSuccess) {
             std::cerr << "Failed to allocate container: " << cudaGetErrorString(result) << std::endl;
         }
+#endif
     }
     template<typename DEV_SPEC, typename SPEC>
     void free(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){
