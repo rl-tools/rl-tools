@@ -12,10 +12,11 @@ if(LAYER_IN_C_TEST_MACHINE_MACBOOK_M1)
     add_compile_definitions(LAYER_IN_C_TEST_MACHINE_MACBOOK_M1)
 endif()
 
-option(LAYER_IN_C_DEBUG "Debug" ON)
+#option(LAYER_IN_C_DEBUG "Debug" ON)
 
 function(LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS TARGET)
-    if(LAYER_IN_C_DEBUG)
+#    if(LAYER_IN_C_DEBUG)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_CHECK_BOUNDS)
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC)
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_MALLOC_INIT_NAN)
