@@ -1,3 +1,6 @@
+#ifndef LAYER_IN_C_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
+#define LAYER_IN_C_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
+
 #include <layer_in_c/rl/components/replay_buffer/replay_buffer.h>
 
 namespace layer_in_c::test::rl::components::replay_buffer{
@@ -17,3 +20,5 @@ namespace layer_in_c::test::rl::components::replay_buffer{
         }
     }
 }
+
+#endif

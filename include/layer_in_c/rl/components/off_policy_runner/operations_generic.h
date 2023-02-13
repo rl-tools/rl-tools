@@ -172,6 +172,17 @@ namespace layer_in_c{
     }
 
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
+    void gather_batch(DEVICE& device, const rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {
+        typename DEVICE::index_t sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
+        typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, sample_index_max, rng);
+        slice(device, batch.observations, replay_buffer.observations, sample_index, 0, 1, SPEC::OBSERVATION_DIM, batch_step_i, 0);
+        slice(device, batch.actions, replay_buffer.actions, sample_index, 0, 1, SPEC::ACTION_DIM, batch_step_i, 0);
+        set(batch.rewards, 0, batch_step_i, get(replay_buffer.rewards, sample_index, 0));
+        slice(device, batch.next_observations, replay_buffer.next_observations, sample_index, 0, 1, SPEC::OBSERVATION_DIM, batch_step_i, 0);
+        set(batch.terminated, 0, batch_step_i, get(replay_buffer.terminated, sample_index, 0));
+        set(batch.truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
+    }
+    template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
     void gather_batch(DEVICE& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, RNG& rng) {
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
         using T = typename SPEC::T;
@@ -180,14 +191,7 @@ namespace layer_in_c{
         for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, SPEC::N_ENVIRONMENTS - 1, rng);
             auto& replay_buffer = runner.replay_buffers[env_i];
-            typename DEVICE::index_t sample_index_max = (replay_buffer.full ? SPEC::REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
-            typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, sample_index_max, rng);
-            lic::slice(device, batch.observations, replay_buffer.observations, sample_index, 0, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM, batch_step_i, 0);
-            lic::slice(device, batch.actions, replay_buffer.actions, sample_index, 0, 1, SPEC::ENVIRONMENT::ACTION_DIM, batch_step_i, 0);
-            set(batch.rewards, 0, batch_step_i, get(replay_buffer.rewards, sample_index, 0));
-            lic::slice(device, batch.next_observations, replay_buffer.next_observations, sample_index, 0, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM, batch_step_i, 0);
-            set(batch.terminated, 0, batch_step_i, get(replay_buffer.terminated, sample_index, 0));
-            set(batch.truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
+            gather_batch(device, replay_buffer, batch, batch_step_i, rng);
         }
     }
 //    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
