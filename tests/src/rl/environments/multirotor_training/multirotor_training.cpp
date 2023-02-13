@@ -174,10 +174,17 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                     std::mt19937 rng1(std::uniform_int_distribution<DEVICE::index_t>()(rng));
                     std::mt19937 rng2(std::uniform_int_distribution<DEVICE::index_t>()(rng));
 
-                    auto critic_1_loss = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
-                    auto critic_2_loss = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);});
-                    lic::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss.get(), 100);
-                    critic_2_loss.wait();
+                    if(std::getenv("LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
+                        auto critic_1_loss = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
+                        auto critic_2_loss = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);});
+                        lic::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss.get(), 100);
+                        critic_2_loss.wait();
+                    }
+                    else{
+                        auto critic_1_loss = train_critic(actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);
+                        auto critic_2_loss = train_critic(actor_critic.critic_2, critic_batches[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);
+                        lic::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
+                    }
                 }
                 if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0) {
                     auto update_critic_targets_start = std::chrono::high_resolution_clock::now();
