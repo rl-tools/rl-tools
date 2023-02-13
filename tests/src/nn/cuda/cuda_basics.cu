@@ -578,6 +578,7 @@ void BACKWARD() {
 
 TEST(LAYER_IN_C_NN_CUDA, BACKWARD) {
     using DEFAULT_DTYPE = float;
+    BACKWARD<DEFAULT_DTYPE, unsigned int,    1, 1, 1, 1, 1>();
     BACKWARD<DEFAULT_DTYPE, unsigned int,    1, 256,  10, 100, 1>();
     BACKWARD<DEFAULT_DTYPE, unsigned int,    2, 256,  10, 100, 1>();
     BACKWARD<DEFAULT_DTYPE, unsigned int,   32, 256,  10, 100, 1>();

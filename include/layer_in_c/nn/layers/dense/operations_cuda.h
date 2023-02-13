@@ -131,8 +131,11 @@ namespace layer_in_c{
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
-        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // Warning do not use the same buffer for input and output!
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        static_assert(INPUT_SPEC::COL_PITCH == 1);
+        static_assert(OUTPUT_SPEC::COL_PITCH == 1);
+        static_assert(decltype(layer.weights)::COL_PITCH == 1);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
@@ -164,6 +167,9 @@ namespace layer_in_c{
     void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         // Warning do not use the same buffer for input and output!
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        static_assert(INPUT_SPEC::COL_PITCH == 1);
+        static_assert(OUTPUT_SPEC::COL_PITCH == 1);
+        static_assert(decltype(layer.weights)::COL_PITCH == 1);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
@@ -199,6 +205,11 @@ namespace layer_in_c{
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
+        static_assert(INPUT_SPEC::COL_PITCH == 1);
+        static_assert(D_OUTPUT_SPEC::COL_PITCH == 1);
+        static_assert(D_INPUT_SPEC::COL_PITCH == 1);
+        static_assert(decltype(layer.d_weights)::COL_PITCH == 1);
+
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
@@ -248,15 +259,15 @@ namespace layer_in_c{
     }
     template<typename DEV_SPEC, typename SPEC>
     void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
-        cudaMemset(layer.d_weights._data, 0, SPEC::INPUT_DIM * SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
-        cudaMemset(layer.d_biases._data, 0, SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
+        cudaMemset(layer.d_weights._data, 0, decltype(layer.d_weights)::SPEC::SIZE_BYTES);
+        cudaMemset(layer.d_biases._data, 0, decltype(layer.d_biases)::SPEC::SIZE_BYTES);
     }
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
     void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
-        cudaMemset(layer.d_weights_first_order_moment._data, 0, SPEC::INPUT_DIM * SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
-        cudaMemset(layer.d_weights_second_order_moment._data, 0, SPEC::INPUT_DIM * SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
-        cudaMemset(layer.d_biases_first_order_moment._data, 0, SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
-        cudaMemset(layer.d_biases_second_order_moment._data, 0, SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
+        cudaMemset(layer.d_weights_first_order_moment._data, 0, decltype(layer.d_weights_first_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemset(layer.d_weights_second_order_moment._data, 0, decltype(layer.d_weights_second_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemset(layer.d_biases_first_order_moment._data, 0, decltype(layer.d_biases_first_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemset(layer.d_biases_second_order_moment._data, 0, decltype(layer.d_biases_second_order_moment)::SPEC::SIZE_BYTES);
     }
 
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>

@@ -65,6 +65,8 @@ namespace layer_in_c{
     namespace containers{
         template<typename SPEC_1, typename SPEC_2>
         constexpr bool check_structure = SPEC_1::ROWS == SPEC_2::ROWS && SPEC_1::COLS == SPEC_2::COLS;
+        template<typename SPEC_1, typename SPEC_2>
+        constexpr bool check_memory_layout = check_structure<SPEC_1, SPEC_2> && SPEC_1::ROW_PITCH == SPEC_2::ROW_PITCH && SPEC_1::COL_PITCH == SPEC_2::COL_PITCH;
     }
 }
 
