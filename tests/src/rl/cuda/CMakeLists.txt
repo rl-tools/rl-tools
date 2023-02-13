@@ -27,6 +27,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         cublas
+        HighFive
 )
 LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_nn_cuda_rl)
 gtest_discover_tests(test_nn_cuda_rl)

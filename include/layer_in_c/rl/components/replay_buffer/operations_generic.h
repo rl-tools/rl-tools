@@ -39,6 +39,10 @@ namespace layer_in_c {
         }
         add_scalar(device, device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
     }
+    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::ReplayBuffer<TARGET_SPEC>& target, rl::components::ReplayBuffer<SOURCE_SPEC>& source) {
+        copy(target_device, source_device, target.data, source.data);
+    }
 
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, rl::components::ReplayBuffer<SPEC_1>& b1, rl::components::ReplayBuffer<SPEC_2>& b2) {
