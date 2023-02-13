@@ -235,19 +235,19 @@ void GEMM() {
         std::cout << "CUDA evaluation time: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((T)ITERATIONS) << "us" << std::endl;
     }
 }
-//TEST(LAYER_IN_C_NN_CUDA, GEMM) {
-//    using DEFAULT_DTYPE = float;
-//    GEMM<DEFAULT_DTYPE, unsigned int, 1, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 2, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 32, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 1024, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 10, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 9, 1>();
-//    GEMM<double, unsigned int, 200, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 200, 1>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 64, 1000>();
-//    GEMM<DEFAULT_DTYPE, unsigned int, 256, 1000>();
-//}
+TEST(LAYER_IN_C_NN_CUDA, GEMM) {
+    using DEFAULT_DTYPE = float;
+    GEMM<DEFAULT_DTYPE, unsigned int, 1, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 2, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 32, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 1024, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 10, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 9, 1>();
+    GEMM<double, unsigned int, 200, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 200, 1>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 64, 1000>();
+    GEMM<DEFAULT_DTYPE, unsigned int, 256, 1000>();
+}
 
 template <typename T, typename TI, TI BATCH_SIZE, TI ITERATIONS>
 void FORWARD() {
@@ -396,18 +396,18 @@ void FORWARD() {
     }
 }
 
-//TEST(LAYER_IN_C_NN_CUDA, FORWARD) {
-//    FORWARD<float, unsigned int, 1, 1>();
-//    FORWARD<float, unsigned int, 2, 1>();
-//    FORWARD<float, unsigned int, 32, 1>();
-//    FORWARD<float, unsigned int, 1024, 1>();
-//    FORWARD<float, unsigned int, 10, 1>();
-//    FORWARD<float, unsigned int, 9, 1>();
-//    FORWARD<double, unsigned int, 200, 1>();
-//    FORWARD<float, unsigned int, 200, 1>();
-//    FORWARD<float, unsigned int, 64, 10000>();
-//    FORWARD<float, unsigned int, 256, 100000>();
-//}
+TEST(LAYER_IN_C_NN_CUDA, FORWARD) {
+    FORWARD<float, unsigned int, 1, 1>();
+    FORWARD<float, unsigned int, 2, 1>();
+    FORWARD<float, unsigned int, 32, 1>();
+    FORWARD<float, unsigned int, 1024, 1>();
+    FORWARD<float, unsigned int, 10, 1>();
+    FORWARD<float, unsigned int, 9, 1>();
+    FORWARD<double, unsigned int, 200, 1>();
+    FORWARD<float, unsigned int, 200, 1>();
+    FORWARD<float, unsigned int, 64, 10000>();
+    FORWARD<float, unsigned int, 256, 100000>();
+}
 
 template <typename T, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
 void BACKWARD() {
@@ -588,7 +588,7 @@ TEST(LAYER_IN_C_NN_CUDA, BACKWARD) {
     BACKWARD<DEFAULT_DTYPE, unsigned int,  200, 256,  11, 100, 1>();
     BACKWARD<double       , unsigned int,  200, 256,  12, 101, 1>();
     BACKWARD<DEFAULT_DTYPE, unsigned int,   64, 256,  50, 101, 1>();
-    BACKWARD<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 1>();
+    BACKWARD<DEFAULT_DTYPE, unsigned int,  256, 256, 256, 256, 10000>();
 }
 
 template <typename T, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
