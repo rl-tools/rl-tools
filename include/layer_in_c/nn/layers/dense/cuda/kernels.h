@@ -25,7 +25,7 @@ evaluate_batch_kernel(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::
     TI print_thread_idy = 0;
 
     T acc = 0;
-    for(TI block_reduction_i = 0; block_reduction_i < LAYER_IN_C_CEIL(INPUT_DIM, BLOCK_SIZE) * BLOCK_SIZE; block_reduction_i += BLOCK_SIZE){
+    for(TI block_reduction_i = 0; block_reduction_i < LAYER_IN_C_DEVICES_CUDA_CEIL(INPUT_DIM, BLOCK_SIZE) * BLOCK_SIZE; block_reduction_i += BLOCK_SIZE){
         TI thread_input_pos = block_reduction_i + threadIdx.x;
         if(thread_input_pos < INPUT_DIM && thread_batch_pos < BATCH_SIZE){
             shared_input[thread_block_index] = input[thread_batch_pos * INPUT_DIM + thread_input_pos];
@@ -92,9 +92,9 @@ evaluate_batch_kernel(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::
 // invocation code
 //        {
 //            constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_BATCH = 32;
-//            constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_BATCH = LAYER_IN_C_CEIL(BATCH_SIZE, BLOCKSIZE_BATCH);
+//            constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_BATCH = LAYER_IN_C_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_BATCH);
 //            constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_OUTPUT = 32;
-//            constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_OUTPUT = LAYER_IN_C_CEIL(BATCH_SIZE, BLOCKSIZE_OUTPUT);
+//            constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_OUTPUT = LAYER_IN_C_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_OUTPUT);
 //            dim3 grid(N_BLOCKS_OUTPUT, N_BLOCKS_BATCH);
 //            dim3 block(BLOCKSIZE_OUTPUT, BLOCKSIZE_BATCH);
 //            nn::dense::cuda::evaluate_batch_kernel<DEV_SPEC, LAYER_SPEC, BATCH_SIZE, BLOCKSIZE_BATCH><<<grid, block>>>(device, layer, input.data, output.data);

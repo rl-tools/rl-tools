@@ -25,15 +25,16 @@ namespace layer_in_c{
             };
 
         }
-        template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename T_LAYOUT = layouts::RowMajorAlignmentOptimized<T_TI>> // row-major by default
+        template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename LAYOUT_FACTORY = layouts::RowMajorAlignmentOptimized<T_TI>> // row-major by default
         struct Specification{
             using T = T_T;
             using TI = T_TI;
-            using LAYOUT = T_LAYOUT;
             static constexpr TI ROWS = T_ROWS;
             static constexpr TI COLS = T_COLS;
-            static constexpr TI ROW_PITCH = LAYOUT::template ROW_PITCH<ROWS, COLS>;
-            static constexpr TI COL_PITCH = LAYOUT::template COL_PITCH<ROWS, COLS>;
+            static constexpr TI ROW_PITCH = LAYOUT_FACTORY::template ROW_PITCH<ROWS, COLS>;
+            static constexpr TI COL_PITCH = LAYOUT_FACTORY::template COL_PITCH<ROWS, COLS>;
+            using LAYOUT = layouts::Fixed<TI, ROW_PITCH, COL_PITCH>;
+
             static_assert(COL_PITCH * T_COLS <= ROW_PITCH || ROW_PITCH * T_ROWS <= COL_PITCH, "Pitches of the matrix dimensions are not compatible");
             static constexpr bool ROW_MAJOR = ROWS * ROW_PITCH >= COL_PITCH * COLS;
             static constexpr TI SIZE = ROW_MAJOR ? ROWS * ROW_PITCH : COLS * COL_PITCH;

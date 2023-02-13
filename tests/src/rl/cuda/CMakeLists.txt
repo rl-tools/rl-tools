@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_CUDA_ARCHITECTURES 75)
 message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
-project(test_layer_in_c_nn_cuda CUDA)
+project(test_layer_in_c_rl_cuda CUDA)
 
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD  17)
@@ -18,25 +18,15 @@ function(LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS TARGET)
 endfunction()
 
 add_executable(
-        test_nn_cuda_basics
-        cuda_basics.cu
+        test_nn_cuda_rl
+        rl.cu
 )
 target_link_libraries(
-        test_nn_cuda_basics
+        test_nn_cuda_rl
         PRIVATE
         layer_in_c
         GTest::gtest_main
         cublas
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
-gtest_discover_tests(test_nn_cuda_basics)
-
-#add_executable(
-#        test_nn_cuda_cutlass
-#        cutlass_test.cu
-#)
-#target_link_libraries(
-#        test_nn_cuda_cutlass
-#        PRIVATE
-#        CUTLASS
-#)
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_nn_cuda_rl)
+gtest_discover_tests(test_nn_cuda_rl)
