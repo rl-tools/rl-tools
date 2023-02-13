@@ -24,12 +24,18 @@ namespace layer_in_c{
             malloc(device, runner.replay_buffers[env_i]);
         }
     }
-    template <typename DEVICE, typename SPEC, typename SPEC::TI BATCH_SIZE>
-    void malloc(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC, BATCH_SIZE>& batch) {
-        malloc(device, batch.observations);
-        malloc(device, batch.actions);
+    template <typename DEVICE, typename BATCH_SPEC>
+    void malloc(DEVICE& device, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch) {
+        using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
+        using SPEC = typename BATCH_SPEC::SPEC;
+        using DATA_SPEC = typename decltype(batch.observations_action_next_observations)::SPEC;
+        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
+        malloc(device, batch.observations_action_next_observations);
+        batch.observations      = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM>(device, batch.observations_action_next_observations, 0, 0);
+        batch.actions           = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::     ACTION_DIM>(device, batch.observations_action_next_observations, 0, BATCH::OBSERVATION_DIM);
+        batch.next_observations = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM>(device, batch.observations_action_next_observations, 0, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM);
+
         malloc(device, batch.rewards);
-        malloc(device, batch.next_observations);
         malloc(device, batch.terminated);
         malloc(device, batch.truncated);
     }
@@ -50,12 +56,13 @@ namespace layer_in_c{
             free(device, runner.replay_buffers[env_i]);
         }
     }
-    template <typename DEVICE, typename SPEC, typename SPEC::TI BATCH_SIZE>
-    void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC, BATCH_SIZE>& batch) {
-        free(device, batch.observations);
-        free(device, batch.actions);
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC>& batch) {
+        free(device, batch.observations_action_next_observations);
+        batch.observations._data = nullptr;
+        batch.actions._data      = nullptr;
+        batch.next_observations._data = nullptr;
         free(device, batch.rewards);
-        free(device, batch.next_observations);
         free(device, batch.terminated);
         free(device, batch.truncated);
     }
@@ -164,9 +171,12 @@ namespace layer_in_c{
         runner.step += SPEC::N_ENVIRONMENTS;
     }
 
-    template <typename DEVICE, typename SPEC, typename SPEC::TI BATCH_SIZE, typename RNG, bool DETERMINISTIC=false>
-    void gather_batch(DEVICE& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::Batch<SPEC, BATCH_SIZE>& batch, RNG& rng) {
+    template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
+    void gather_batch(DEVICE& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, RNG& rng) {
+        static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
         using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
             typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, SPEC::N_ENVIRONMENTS - 1, rng);
             auto& replay_buffer = runner.replay_buffers[env_i];
@@ -180,6 +190,12 @@ namespace layer_in_c{
             set(batch.truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
         }
     }
+//    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
+//    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::off_policy_runner::Batch<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkBuffersForwardBackward<SOURCE_SPEC>& source){
+//        copy(target_device, source_device, (nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>&)target, (nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>&)source);
+//        copy(target_device, source_device, target.d_input, source.d_input);
+//        copy(target_device, source_device, target.d_output, source.d_output);
+//    }
 }
 
 #endif

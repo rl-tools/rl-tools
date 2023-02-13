@@ -88,7 +88,8 @@ int main() {
 
     bool ui = false;
 
-    lic::rl::components::off_policy_runner::Batch<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
+    using CRITIC_BATCH_SPEC = lic::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
+    lic::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
     CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
     lic::malloc(device, critic_batch);
@@ -96,7 +97,8 @@ int main() {
     lic::malloc(device, critic_buffers[0]);
     lic::malloc(device, critic_buffers[1]);
 
-    lic::rl::components::off_policy_runner::Batch<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
+    using ACTOR_BATCH_SPEC = lic::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
+    lic::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
     lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
     ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
     ACTOR_NETWORK_TYPE::Buffers<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;

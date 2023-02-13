@@ -201,7 +201,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     lic::malloc(device, pre_critic_1_target);
     lic::copy(device, device, pre_critic_1_target, actor_critic.critic_target_1);
 
-    lic::rl::components::off_policy_runner::Batch<OFF_POLICY_RUNNER_SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
+    using CRITIC_BATCH_SPEC = lic::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
+    lic::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
     CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
     lic::malloc(device, critic_batch);
@@ -209,7 +210,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     lic::malloc(device, critic_buffers[0]);
     lic::malloc(device, critic_buffers[1]);
 
-    lic::rl::components::off_policy_runner::Batch<OFF_POLICY_RUNNER_SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
+    using ACTOR_BATCH_SPEC = lic::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
+    lic::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
     lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
     ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
     lic::malloc(device, actor_batch);
@@ -247,7 +249,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             lic::load(device, post_critic_1, step_group.getGroup("critic1"));
 
 
-            lic::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
+            lic::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
             lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_buffers[0], critic_buffers[0], critic_training_buffers);
 
 
@@ -299,7 +301,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
                 lic::load(device, critic_training_buffers.target_next_action_noise, step_group, "target_next_action_noise");
 
-                lic::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
+                lic::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
                 lic::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, actor_buffers[0], critic_buffers[0], critic_training_buffers);
             }
             lic::copy(device, device, pre_critic_1, actor_critic.critic_1);
@@ -348,7 +350,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 
             {
-                lic::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, decltype(rng), true>(device, off_policy_runner, actor_batch, rng);
+                lic::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, ACTOR_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, actor_batch, rng);
                 lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
             }
 //            DTYPE actor_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, decltype(replay_buffer)::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);

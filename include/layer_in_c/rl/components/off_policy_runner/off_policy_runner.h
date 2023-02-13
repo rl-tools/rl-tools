@@ -39,12 +39,20 @@ namespace layer_in_c::rl::components::off_policy_runner {
         Matrix<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> next_observations;
     };
 
-    template<typename SPEC, typename SPEC::TI T_BATCH_SIZE>
+
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE>
+    struct BatchSpecification {
+        using SPEC = T_SPEC;
+        static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
+    };
+
+    template <typename T_SPEC>
     struct Batch{
+        using SPEC = typename T_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+        static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
