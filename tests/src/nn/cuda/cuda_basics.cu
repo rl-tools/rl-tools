@@ -755,6 +755,7 @@ void ADAM_UPDATE() {
         for(int i = 0; i < ITERATIONS; ++i)
         {
             lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
+            lic::update(device_cuda, network_cuda);
             cudaDeviceSynchronize();
         }
         auto end = std::chrono::high_resolution_clock::now();
