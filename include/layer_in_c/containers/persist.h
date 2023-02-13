@@ -1,3 +1,6 @@
+#ifndef LAYER_IN_C_CONTAINERS_PERSIST_H
+#define LAYER_IN_C_CONTAINERS_PERSIST_H
+
 #include <highfive/H5File.hpp>
 
 namespace layer_in_c {
@@ -40,3 +43,5 @@ namespace layer_in_c {
         }
     }
 }
+
+#endif
