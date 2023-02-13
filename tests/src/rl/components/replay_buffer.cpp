@@ -9,7 +9,7 @@
 namespace lic = layer_in_c;
 
 
-TEST(LAYER_IN_C_RL_CUDA, REPLAY_BUFFER_PERSISTENCE){
+TEST(LAYER_IN_C_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE){
 std::string replay_buffer_path = "test_cuda_replay_buffer.h5";
 using DEVICE = lic::devices::DefaultCPU;
 using DTYPE = float;
