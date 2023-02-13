@@ -130,8 +130,8 @@ namespace layer_in_c{
         bool truncated = terminated_flag || get(runner->episode_step, 0, env_i) == SPEC::STEP_LIMIT;
         set(runner->truncated, 0, env_i, truncated);
         if(truncated){
-            add_scalar(device.logger, "episode_return", get(runner->episode_return, 0, env_i));
-            add_scalar(device.logger, "episode_steps", (T)get(runner->episode_step, 0, env_i));
+            add_scalar(device, device.logger, "episode_return", get(runner->episode_return, 0, env_i));
+            add_scalar(device, device.logger, "episode_steps", (T)get(runner->episode_step, 0, env_i));
         }
         // todo: add truncation / termination handling (stemming from the environment)
         add(device, runner->replay_buffers[env_i], observation, action, reward_value, next_observation, terminated_flag, truncated);

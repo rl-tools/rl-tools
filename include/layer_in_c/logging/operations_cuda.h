@@ -6,20 +6,21 @@
 
 namespace layer_in_c{
     namespace logging{
-        template <typename A>
-        void text(devices::logging::CUDA& dev, const char * a, const char * b){
+        template <typename DEVICE, typename A>
+        void text(DEVICE& device, devices::logging::CUDA* logger, const char * a, const char * b){
             std::cout << a << b << std::endl;
         }
-        template <typename A>
-        void text(devices::logging::CUDA& dev, const A a){
+        template <typename DEVICE, typename A>
+        void text(DEVICE& device, devices::logging::CUDA* logger, const A a){
         }
-        template <typename A, typename B>
-        void text(devices::logging::CUDA& dev, const A a, const B b){
+        template <typename DEVICE, typename A, typename B>
+        void text(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b){
         }
-        template <typename A, typename B, typename C, typename D>
-        void text(devices::logging::CUDA& dev, const A a, const B b, const C c, const D d){
+        template <typename DEVICE, typename A, typename B, typename C, typename D>
+        void text(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d){
         }
-        void add_scalar(devices::logging::CUDA& dev, const char* key, const float value, const typename devices::logging::CUDA::index_t cadence = 1){
+        template <typename DEVICE>
+        void add_scalar(DEVICE& device, devices::logging::CUDA* logger, const char* key, const float value, const typename devices::logging::CUDA::index_t cadence = 1){
             //noop
         }
     }

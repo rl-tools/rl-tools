@@ -3,17 +3,18 @@
 
 namespace layer_in_c{
     namespace logging{
-        template <typename A>
-        void text(devices::logging::Dummy& dev, const A a){
+        template <typename DEVICE, typename A>
+        void text(DEVICE& device, devices::logging::Dummy* logger, const A a){
         }
-        template <typename A, typename B>
-        void text(devices::logging::Dummy& dev, const A a, const B b){
+        template <typename DEVICE, typename A, typename B>
+        void text(DEVICE& device, devices::logging::Dummy* logger, const A a, const B b){
         }
-        template <typename A, typename B, typename C, typename D>
-        void text(devices::logging::Dummy& dev, const A a, const B b, const C c, const D d){
+        template <typename DEVICE, typename A, typename B, typename C, typename D>
+        void text(DEVICE& device, devices::logging::Dummy* logger, const A a, const B b, const C c, const D d){
         }
     }
-    void add_scalar(devices::logging::Dummy& dev, const char* key, const float value, const typename devices::logging::Dummy::index_t cadence = 1){
+    template <typename DEVICE>
+    void add_scalar(DEVICE& device, devices::logging::Dummy* logger, const char* key, const float value, const typename devices::logging::Dummy::index_t cadence = 1){
         //noop
     }
 }

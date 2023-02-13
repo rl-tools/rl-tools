@@ -59,6 +59,20 @@ namespace layer_in_c::utils::typing {
 
     template< class T >
     using remove_cv_t = typename remove_cv<T>::type;
+
+    template<bool condition>
+    struct warn_if{};
+
+    template<> struct [[deprecated]] warn_if<false>{constexpr warn_if() = default;};
+
+    template<bool B, class T, class F>
+    struct conditional { using type = T; };
+
+    template<class T, class F>
+    struct conditional<false, T, F> { using type = F; };
+
 }
+
+#define layer_in_c_static_warn(x, ...) ((void) warn_if<x>())
 
 #endif

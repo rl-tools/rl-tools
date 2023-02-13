@@ -122,7 +122,8 @@ std::string get_replay_buffer_file_path(){
 }
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_REPLAY_BUFFER) {
     DEVICE::SPEC::LOGGING logger;
-    DEVICE device(logger);
+    DEVICE device;
+    device.logger = &logger;
 //    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::all_around<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
     auto parameters = parameters_environment::parameters;
     std::mt19937 rng(0);

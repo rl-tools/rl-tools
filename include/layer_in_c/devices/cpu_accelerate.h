@@ -8,9 +8,7 @@
 
 namespace layer_in_c::devices{
     template <typename T_SPEC>
-    struct CPU_ACCELERATE: CPU_BLAS<T_SPEC>{
-        explicit CPU_ACCELERATE(typename T_SPEC::LOGGING& logger) : CPU_BLAS<T_SPEC>(logger) {}
-    };
+    struct CPU_ACCELERATE: CPU_BLAS<T_SPEC>{};
     using DefaultCPU_ACCELERATE = CPU_ACCELERATE<DefaultCPUSpecification>;
 }
 

@@ -8,9 +8,7 @@
 
 namespace layer_in_c::devices{
     template <typename T_SPEC>
-    struct CPU_BLAS: CPU<T_SPEC>{
-        explicit CPU_BLAS(typename T_SPEC::LOGGING& logger) : CPU<T_SPEC>(logger) {}
-    };
+    struct CPU_BLAS: CPU<T_SPEC>{};
     using DefaultCPU_BLAS = CPU_BLAS<DefaultCPUSpecification>;
 }
 

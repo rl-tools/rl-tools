@@ -138,8 +138,10 @@ T abs_diff_network(const NT network, const HighFive::Group g){
 }
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     AC_DEVICE::SPEC::LOGGING logger;
-    AC_DEVICE device(logger);
-    first_stage_first_stage::NN_DEVICE nn_device(logger);
+    AC_DEVICE device;
+    device.logger = &logger;
+    first_stage_first_stage::NN_DEVICE nn_device;
+    nn_device.logger = &logger;
     first_stage_first_stage::ActorCriticType actor_critic;
     lic::malloc(device, actor_critic);
 
@@ -182,8 +184,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 //    using ActorCriticSpec = lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3_PARAMETERS>;
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     AC_DEVICE::SPEC::LOGGING logger;
-    AC_DEVICE device(logger);
-    first_stage_first_stage::NN_DEVICE nn_device(logger);
+    AC_DEVICE device;
+    device.logger = &logger;
+    first_stage_first_stage::NN_DEVICE nn_device;
+    nn_device.logger = &logger;
     first_stage_first_stage::ActorCriticType actor_critic;
     typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers;
     typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers;
@@ -268,8 +272,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 //    typedef lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3_PARAMETERS> ActorCriticSpec;
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     AC_DEVICE::SPEC::LOGGING logger;
-    AC_DEVICE device(logger);
-    first_stage_second_stage::NN_DEVICE nn_device(logger);
+    AC_DEVICE device;
+    device.logger = &logger;
+    first_stage_second_stage::NN_DEVICE nn_device;
+    nn_device.logger = &logger;
     first_stage_second_stage::ActorCriticType actor_critic;
     lic::malloc(device, actor_critic);
 
@@ -429,8 +435,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 //    typedef lic::rl::algorithms::td3::ActorCriticSpecification<lic::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3_PARAMETERS> ActorCriticSpec;
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     AC_DEVICE::SPEC::LOGGING logger;
-    AC_DEVICE device(logger);
-    first_stage_second_stage::NN_DEVICE nn_device(logger);
+    AC_DEVICE device;
+    device.logger = &logger;
+    first_stage_second_stage::NN_DEVICE nn_device;
+    nn_device.logger = &logger;
     first_stage_second_stage::ActorCriticType actor_critic;
     lic::malloc(device, actor_critic);
 

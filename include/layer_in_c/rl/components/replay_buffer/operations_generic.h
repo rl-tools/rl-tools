@@ -37,7 +37,7 @@ namespace layer_in_c {
         if(buffer.position == 0 && !buffer.full) {
             buffer.full = true;
         }
-        add_scalar(device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
+        add_scalar(device, device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
     }
 }
 #endif

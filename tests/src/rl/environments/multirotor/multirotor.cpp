@@ -30,7 +30,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
 
 
     typename DEVICE::SPEC::LOGGING logger;
-    DEVICE device(logger);
+    DEVICE device;
+    device.logger = &logger;
 
     const auto parameters = lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, typename DEVICE::index_t>;
     using PARAMETERS = decltype(parameters);

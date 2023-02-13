@@ -26,7 +26,8 @@ using PendulumStructureSpecification = lic::nn_models::mlp::StructureSpecificati
 TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     typedef lic::nn_models::mlp::AdamSpecification<PendulumStructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> SPEC;
     DEVICE::SPEC::LOGGING logger;
-    DEVICE device(logger);
+    DEVICE device;
+    device.logger = &logger;
     lic::nn_models::mlp::NeuralNetworkAdam<SPEC> policy;
     lic::malloc(device, policy);
     std::mt19937 rng(0);

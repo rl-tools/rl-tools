@@ -125,11 +125,11 @@ namespace layer_in_c{
             set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
             mean_target_action_value += current_target_action_value;
             if(batch_step_i == 0){
-                add_scalar(device.logger, "mean_target_action_value_sample", mean_target_action_value, 100);
+                add_scalar(device, device.logger, "mean_target_action_value_sample", mean_target_action_value, 100);
             }
         }
         mean_target_action_value /= BATCH_SIZE;
-        add_scalar(device.logger, "mean_target_action_value", mean_target_action_value, 100);
+        add_scalar(device, device.logger, "mean_target_action_value", mean_target_action_value, 100);
 
         forward_backward_mse(device, critic, training_buffers.state_action_value_input, training_buffers.target_action_value, critic_buffers);
         static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value

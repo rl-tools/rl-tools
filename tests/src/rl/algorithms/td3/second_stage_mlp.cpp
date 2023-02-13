@@ -73,8 +73,10 @@ using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;
     AC_DEVICE::SPEC::LOGGING logger;
-    AC_DEVICE device(logger);
-    NN_DEVICE nn_device(logger);
+    AC_DEVICE device;
+    device.logger = &logger;
+    NN_DEVICE nn_device;
+    nn_device.logger = &logger;
     ActorCriticType actor_critic;
     lic::malloc(device, actor_critic);
 
@@ -150,8 +152,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 #endif
     constexpr bool verbose = true;
     AC_DEVICE::SPEC::LOGGING logger;
-    AC_DEVICE device(logger);
-    NN_DEVICE nn_device(logger);
+    AC_DEVICE device;
+    device.logger = &logger;
+    NN_DEVICE nn_device;
+    nn_device.logger = &logger;
     ActorCriticType actor_critic;
     lic::malloc(device, actor_critic);
 

@@ -7,20 +7,27 @@
 
 namespace layer_in_c{
     namespace logging{
-        template <typename A>
-        void text(devices::logging::CPU& dev, const A a){
-            std::cout << a << std::endl;
+        template <typename DEVICE, typename A>
+        void text(DEVICE& dev, devices::logging::CPU* logger, const A a){
+            if(logger != nullptr && dev.logger == logger){
+                std::cout << a << std::endl;
+            }
         }
-        template <typename A, typename B>
-        void text(devices::logging::CPU& dev, const A a, const B b){
-            std::cout << a << b << std::endl;
+        template <typename DEVICE, typename A, typename B>
+        void text(DEVICE& device, devices::logging::CPU* logger, const A a, const B b){
+            if(logger != nullptr && device.logger == logger){
+                std::cout << a << b << std::endl;
+            }
         }
-        template <typename A, typename B, typename C, typename D>
-        void text(devices::logging::CPU& dev, const A a, const B b, const C c, const D d){
-            std::cout << a << b << c << d << std::endl;
+        template <typename DEVICE, typename A, typename B, typename C, typename D>
+        void text(DEVICE& device, devices::logging::CPU* logger, const A a, const B b, const C c, const D d){
+            if(logger != nullptr && device.logger == logger){
+                std::cout << a << b << c << d << std::endl;
+            }
         }
     }
-    void add_scalar(devices::logging::CPU& dev, const char* key, const float value, const typename devices::logging::CPU::index_t cadence = 1){
+    template <typename DEVICE>
+    void add_scalar(DEVICE& device, devices::logging::CPU* logger, const char* key, const float value, const typename devices::logging::CPU::index_t cadence = 1){
         //noop
     }
 }

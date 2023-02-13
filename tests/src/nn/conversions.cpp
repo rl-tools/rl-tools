@@ -48,25 +48,27 @@ static_assert(lic::utils::typing::is_same_v<LayerSpec1, LayerSpec2>);
 //static_assert(lic::utils::typing::is_same_v<LayerSpec1, LayerSpec5>);
 
 
-using Device1 = lic::devices::DefaultDummy;
-using Layer1 = lic::nn::layers::dense::Layer<LayerSpec1>;
-
-Device1::SPEC::LOGGING logger;
-Device1 device1(logger);
-Layer1 layer1;
-
-Layer1 layer11;
-
-using Device2 = lic::devices::DefaultCPU;
-using Layer2 = lic::nn::layers::dense::Layer<LayerSpec2>;
-
-Device2::SPEC::LOGGING logger2;
-Device2 device2(logger2);
-Layer2 layer2;
-Layer2 layer22;
-Layer2 layer222;
 
 TEST(LAYER_IN_C_NN_MLP_CONVERSIONS, CONVERSIONS) {
+    using Device1 = lic::devices::DefaultDummy;
+    using Layer1 = lic::nn::layers::dense::Layer<LayerSpec1>;
+
+    Device1::SPEC::LOGGING logger;
+    Device1 device1;
+    device1.logger = &logger;
+    Layer1 layer1;
+
+    Layer1 layer11;
+
+    using Device2 = lic::devices::DefaultCPU;
+    using Layer2 = lic::nn::layers::dense::Layer<LayerSpec2>;
+
+    Device2::SPEC::LOGGING logger2;
+    Device2 device2;
+    device2.logger = &logger2;
+    Layer2 layer2;
+    Layer2 layer22;
+    Layer2 layer222;
 
     lic::malloc(device1, layer1);
     lic::malloc(device2, layer2);

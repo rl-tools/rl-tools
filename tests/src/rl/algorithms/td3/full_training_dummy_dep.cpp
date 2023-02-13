@@ -60,9 +60,6 @@ using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
-AC_DEVICE::SPEC::LOGGING logger;
-AC_DEVICE device(logger);
-NN_DEVICE nn_device(logger);
 using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
         DTYPE,
         AC_DEVICE::index_t,
@@ -79,6 +76,11 @@ constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SI
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 int main() {
+    AC_DEVICE::SPEC::LOGGING logger;
+    AC_DEVICE device;
+    NN_DEVICE nn_device;
+    device.logger = &logger;
+    nn_device.logger = &logger;
     lic::malloc(device, off_policy_runner);
     lic::malloc(device, actor_critic);
     auto rng = lic::random::default_engine(decltype(device)::SPEC::RANDOM());
@@ -109,7 +111,7 @@ int main() {
 
         if(off_policy_runner.step > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
-                lic::logging::text(device.logger, "step_i: ", step_i);
+                lic::logging::text(device, device.logger, "step_i: ", step_i);
             }
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
@@ -125,7 +127,7 @@ int main() {
         }
         if(step_i % 1000 == 0){
             DTYPE mean_return = lic::evaluate<AC_DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, ui, actor_critic.actor, 1, rng);
-            lic::logging::text(logger, "Mean return: ", mean_return);
+            lic::logging::text(device, device.logger, "Mean return: ", mean_return);
             if(mean_return > -200000){
                 return 0;
             }

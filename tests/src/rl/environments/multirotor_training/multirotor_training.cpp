@@ -91,8 +91,9 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
     // device
     typename DEVICE::SPEC::LOGGING logger;
-    lic::construct(logger);
-    DEVICE device(logger);
+    DEVICE device;
+    device.logger = &logger;
+    lic::construct(device, device.logger);
 
     // environment
     DTYPE ui_speed_factor = 1;
@@ -150,7 +151,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 #endif
     for(int step_i = 0; step_i < step_limit; step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
-        device.logger.step = step_i;
+        device.logger->step = step_i;
         lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
         if(step_i % 1000 == 0){
             std::cout << "step_i: " << step_i << std::endl;
@@ -163,11 +164,11 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                         lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                         lic::gather_batch(device, off_policy_runner, critic_batch, rng);
                         auto gather_batch_end = std::chrono::high_resolution_clock::now();
-                        lic::add_scalar(device.logger, "performance/gather_batch_duration", std::chrono::duration_cast<std::chrono::microseconds>(gather_batch_end - gather_batch_start).count(), performance_logging_interval);
+                        lic::add_scalar(device, device.logger, "performance/gather_batch_duration", std::chrono::duration_cast<std::chrono::microseconds>(gather_batch_end - gather_batch_start).count(), performance_logging_interval);
                         auto critic_training_start = std::chrono::high_resolution_clock::now();
                         DTYPE critic_loss = lic::train_critic(device, actor_critic, critic, critic_batch, actor_buffers, critic_buffers, critic_training_buffers);
                         auto critic_training_end = std::chrono::high_resolution_clock::now();
-                        lic::add_scalar(device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
+                        lic::add_scalar(device, device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
                         return critic_loss;
                     };
                     std::mt19937 rng1(std::uniform_int_distribution<DEVICE::index_t>()(rng));
@@ -175,14 +176,14 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
                     auto critic_1_loss = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
                     auto critic_2_loss = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);});
-                    lic::add_scalar(device.logger, "critic_1_loss", critic_1_loss.get(), 100);
+                    lic::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss.get(), 100);
                     critic_2_loss.wait();
                 }
                 if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0) {
                     auto update_critic_targets_start = std::chrono::high_resolution_clock::now();
                     lic::update_critic_targets(device, actor_critic);
                     auto update_critic_targets_end = std::chrono::high_resolution_clock::now();
-                    lic::add_scalar(device.logger, "performance/update_critic_targets_duration", std::chrono::duration_cast<std::chrono::microseconds>(update_critic_targets_end - update_critic_targets_start).count(), performance_logging_interval);
+                    lic::add_scalar(device, device.logger, "performance/update_critic_targets_duration", std::chrono::duration_cast<std::chrono::microseconds>(update_critic_targets_end - update_critic_targets_start).count(), performance_logging_interval);
                 }
             }
             if(step_i >= parameters_rl::N_WARMUP_STEPS_ACTOR){
@@ -191,8 +192,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                     auto actor_training_start = std::chrono::high_resolution_clock::now();
                     DTYPE actor_value = lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
                     auto actor_training_end = std::chrono::high_resolution_clock::now();
-                    lic::add_scalar(device.logger, "performance/actor_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(actor_training_end - actor_training_start).count(), performance_logging_interval);
-                    lic::add_scalar(device.logger, "actor_value", actor_value, 100);
+                    lic::add_scalar(device, device.logger, "performance/actor_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(actor_training_end - actor_training_start).count(), performance_logging_interval);
+                    lic::add_scalar(device, device.logger, "actor_value", actor_value, 100);
                 }
                 if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_TARGET_UPDATE_INTERVAL == 0) {
                     lic::update_actor_target(device, actor_critic);
@@ -200,7 +201,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             }
         }
         auto step_end = std::chrono::high_resolution_clock::now();
-        lic::add_scalar(device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
+        lic::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
         if(step_i % 10000 == 0){
             DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), parameters_rl::ENVIRONMENT_STEP_LIMIT, true>(device, envs[0], ui, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
@@ -229,7 +230,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             std::cout << "Error while saving actor: " << e.what() << std::endl;
         }
     }
-    lic::destruct(logger);
+    lic::destruct(device, device.logger);
     lic::free(device, critic_batches[0]);
     lic::free(device, critic_batches[1]);
     lic::free(device, critic_training_buffers[0]);

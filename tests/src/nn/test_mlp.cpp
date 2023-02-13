@@ -45,14 +45,13 @@ T abs_diff_network(const NT network, const HighFive::Group g){
 //    acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights, weights);
 //    return acc;
 //}
-typename NN_DEVICE::SPEC::LOGGING logger;
 using DEVICE = NN_DEVICE;
-NN_DEVICE device(logger);
 
 template <typename NetworkType>
 class NeuralNetworkTestLoadWeights : public NeuralNetworkTest {
 protected:
     NeuralNetworkTestLoadWeights(){
+        device.logger = &logger;
         model_name = "model_1";
         lic::malloc(device, network);
         lic::malloc(device, network_buffers);
@@ -104,6 +103,8 @@ protected:
         lic::assign(device, network.output_layer.biases, output_layer_biases.data());
     }
 
+    typename NN_DEVICE::SPEC::LOGGING logger;
+    NN_DEVICE device;
     NetworkType network;
     typename NetworkType::template Buffers<> network_buffers;
     std::vector<std::vector<DTYPE>> input_layer_weights;
@@ -545,7 +546,8 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     NN_DEVICE::SPEC::LOGGING logger;
-    NN_DEVICE device(logger);
+    NN_DEVICE device;
+    device.logger = &logger;
     NetworkType network;
     lic::malloc(device, network);
     std::vector<DTYPE> losses;

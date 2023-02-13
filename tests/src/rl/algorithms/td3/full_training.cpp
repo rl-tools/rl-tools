@@ -110,10 +110,6 @@ using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
-DEVICE::SPEC::LOGGING logger;
-DEVICE ac_dev(logger);
-//DEVICE::SPEC::LOGGING nn_logger;
-DEVICE nn_dev(logger);
 using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
         DTYPE,
         DEVICE::index_t,
@@ -137,13 +133,19 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
     UI ui;
 #endif
+    DEVICE::SPEC::LOGGING logger;
+    DEVICE ac_dev;
+    ac_dev.logger = &logger;
+    DEVICE nn_dev;
+    nn_dev.logger = &logger;
+
     std::mt19937 rng(4);
     lic::malloc(nn_dev, actor_critic);
     lic::init(nn_dev, actor_critic, rng);
 
     bool ui = false;
 
-    lic::construct(ac_dev.logger);
+    lic::construct(ac_dev, ac_dev.logger);
 
     lic::malloc(ac_dev, off_policy_runner);
     ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
@@ -176,7 +178,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     constexpr DEVICE::index_t step_limit = 15000;
 #endif
     for(int step_i = 0; step_i < step_limit; step_i++){
-        ac_dev.logger.step = step_i;
+        ac_dev.logger->step = step_i;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
         if(step_i % 20 == 0){
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, decltype(actor_critic.actor), decltype(actor_critic.critic_1)>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);

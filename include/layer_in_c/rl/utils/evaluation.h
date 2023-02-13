@@ -89,7 +89,7 @@ namespace layer_in_c {
         }
         variance /= N;
         T standard_deviation = math::sqrt(typename DEVICE::SPEC::MATH(), variance);
-        logging::text(device.logger, "Mean: ", mean, ", Standard deviation: ", standard_deviation);
+        logging::text(device, device.logger, "Mean: ", mean, ", Standard deviation: ", standard_deviation);
         return mean;
     }
 

@@ -38,8 +38,7 @@ namespace layer_in_c::devices{
         template <typename OTHER_DEVICE>
         static constexpr bool compatible = utils::typing::is_same_v<OTHER_DEVICE, CPU<T_SPEC>>;
         using SPEC = T_SPEC;
-        typename SPEC::LOGGING& logger;
-        explicit CPU(typename SPEC::LOGGING& logger) : logger(logger) {}
+        typename SPEC::LOGGING* logger = nullptr;
     };
 
     using DefaultCPUSpecification = cpu::Specification<math::CPU, random::CPU, logging::CPU>;

@@ -72,7 +72,8 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     data_file.getDataSet("data/Y_std").read(Y_std);
 
     DEVICE::SPEC::LOGGING logger;
-    DEVICE device(logger);
+    DEVICE device;
+    device.logger = &logger;
     NetworkType network;
     typename NetworkType::Buffers<1> buffers;
     lic::malloc(device, network);

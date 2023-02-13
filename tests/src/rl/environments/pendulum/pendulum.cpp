@@ -19,7 +19,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
         DATA_FILE_PATH = std::string(data_file_path);
     }
     typename DEVICE::SPEC::LOGGING logger;
-    DEVICE device(logger);
+    DEVICE device;
+    device.logger = &logger;
     HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto episodes_group = file.getGroup("episodes");
     for(int episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){

@@ -57,6 +57,7 @@ if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
     set(CUTLASS_ENABLE_CUBLAS ON)
     add_subdirectory(lib/cutlass EXCLUDE_FROM_ALL)
     add_subdirectory(src/nn/cuda)
+    add_subdirectory(src/rl/cuda)
 endif()
 
 # Neural Network Test MLP

@@ -10,7 +10,8 @@ TEST(LAYER_IN_C_TEST_CONTAINER, SLICE) {
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE::SPEC::LOGGING logger;
-    DEVICE device(logger);
+    DEVICE device;
+    device.logger = &logger;
     lic::Matrix<lic::matrix::Specification<float, typename DEVICE::index_t, 3, 3>> m;
     lic::malloc(device, m);
     lic::set(m, 0, 0, 1);

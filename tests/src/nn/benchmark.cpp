@@ -71,7 +71,8 @@ protected:
     NetworkType::BuffersForwardBackward<BATCH_SIZE> network_buffers;
     NetworkType network_mkl;
     NetworkType::BuffersForwardBackward<BATCH_SIZE> network_mkl_buffers;
-    LAYER_IN_C_NN_DENSE_BENCHMARK(): device(this->logger){
+    LAYER_IN_C_NN_DENSE_BENCHMARK(){
+        device.logger = &logger;
         lic::malloc(device, input);
         lic::malloc(device, expected_output_input_layer);
         lic::malloc(device, expected_output_output_layer);
@@ -230,7 +231,8 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
-    DEVICE_MKL device_mkl(device.logger);
+    DEVICE_MKL device_mkl;
+    device_mkl.logger = &logger;
 
     lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     lic::malloc(device_mkl, output_matrix);
@@ -258,7 +260,8 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
     std::cout << "Layer batch size: " << decltype(network_mkl.input_layer)::SPEC::BATCH_SIZE << std::endl;
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
-    DEVICE_MKL device_mkl(device.logger);
+    DEVICE_MKL device_mkl;
+    device_mkl.logger = device.logger;
 
     lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_matrix;
     lic::malloc(device_mkl, output_matrix);
@@ -286,7 +289,8 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
     std::cout << "Layer batch size: " << decltype(network_mkl.input_layer)::SPEC::BATCH_SIZE << std::endl;
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
-    DEVICE_MKL device_mkl(device.logger);
+    DEVICE_MKL device_mkl;
+    device_mkl.logger = device.logger;
 
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
@@ -309,7 +313,8 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
 
 TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
-    DEVICE_MKL device_mkl(device.logger);
+    DEVICE_MKL device_mkl;
+    device_mkl.logger = device.logger;
 
     lic::reset_optimizer_state(device_mkl, network_mkl);
     lic::zero_gradient(device_mkl, network_mkl);

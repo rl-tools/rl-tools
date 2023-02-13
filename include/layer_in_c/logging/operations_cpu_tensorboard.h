@@ -2,8 +2,12 @@
 #define LAYER_IN_C_LOGGING_OPERATIONS_CPU_TENSORBOARD_H
 
 #include <filesystem>
+#include <cassert>
 namespace layer_in_c{
-    void construct(devices::logging::CPU_TENSORBOARD& dev){
+    template <typename DEVICE>
+    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger){
+        assert(logger != nullptr);// "Cannot construct TensorBoard logger on null device");
+        utils::assert_exit(device, device.logger == logger, "Device logger and passed logger are not the same");
         time_t now;
         time(&now);
         char buf[sizeof "2011-10-08T07:07:09Z"];
@@ -20,15 +24,21 @@ namespace layer_in_c{
 
         std::string log_file = log_dir + "/" + std::string("data.tfevents");
         std::cout << "Logging to " << log_file << std::endl;
-        dev.tb = new TensorBoardLogger(log_file);
+        logger->tb = new TensorBoardLogger(log_file);
     }
-    void destruct(devices::logging::CPU_TENSORBOARD& dev){
-        delete dev.tb;
+    template <typename DEVICE>
+    void destruct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger){
+        assert(logger != nullptr);// "Cannot destruct TensorBoard logger on null device");
+        delete logger->tb;
     }
-    void add_scalar(devices::logging::CPU_TENSORBOARD& dev, const char* key, const float value, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
-        std::lock_guard<std::mutex> lock(dev.mutex);
-        if(dev.step % cadence == 0){
-            dev.tb->add_scalar(key, dev.step, value);
+    template <typename DEVICE>
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const char* key, const float value, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
+        if(logger == nullptr){
+            return;
+        }
+        std::lock_guard<std::mutex> lock(logger->mutex);
+        if(logger->step % cadence == 0){
+            logger->tb->add_scalar(key, logger->step, value);
         }
     }
 }
