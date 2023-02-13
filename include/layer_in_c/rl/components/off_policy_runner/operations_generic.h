@@ -175,10 +175,20 @@ namespace layer_in_c{
     void gather_batch(DEVICE& device, const rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {
         typename DEVICE::index_t sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
         typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, sample_index_max, rng);
-        slice(device, batch.observations, replay_buffer.observations, sample_index, 0, 1, SPEC::OBSERVATION_DIM, batch_step_i, 0);
-        slice(device, batch.actions, replay_buffer.actions, sample_index, 0, 1, SPEC::ACTION_DIM, batch_step_i, 0);
+
+        auto observation_target = view<DEVICE, typename decltype(batch.observations)::SPEC, 1, SPEC::OBSERVATION_DIM>(device, batch.observations, batch_step_i, 0);
+        auto observation_source = view<DEVICE, typename decltype(replay_buffer.observations)::SPEC, 1, SPEC::OBSERVATION_DIM>(device, replay_buffer.observations, sample_index, 0);
+        copy(device, device, observation_target, observation_source);
+
+        auto action_target = view<DEVICE, typename decltype(batch.actions)::SPEC, 1, SPEC::ACTION_DIM>(device, batch.actions, batch_step_i, 0);
+        auto action_source = view<DEVICE, typename decltype(replay_buffer.actions)::SPEC, 1, SPEC::ACTION_DIM>(device, replay_buffer.actions, sample_index, 0);
+        copy(device, device, action_target, action_source);
+
+        auto next_observation_target = view<DEVICE, typename decltype(batch.next_observations)::SPEC, 1, SPEC::OBSERVATION_DIM>(device, batch.next_observations, batch_step_i, 0);
+        auto next_observation_source = view<DEVICE, typename decltype(replay_buffer.next_observations)::SPEC, 1, SPEC::OBSERVATION_DIM>(device, replay_buffer.next_observations, sample_index, 0);
+        copy(device, device, next_observation_target, next_observation_source);
+
         set(batch.rewards, 0, batch_step_i, get(replay_buffer.rewards, sample_index, 0));
-        slice(device, batch.next_observations, replay_buffer.next_observations, sample_index, 0, 1, SPEC::OBSERVATION_DIM, batch_step_i, 0);
         set(batch.terminated, 0, batch_step_i, get(replay_buffer.terminated, sample_index, 0));
         set(batch.truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
     }

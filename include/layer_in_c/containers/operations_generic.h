@@ -245,16 +245,18 @@ namespace layer_in_c{
             }
         }
     }
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, bool BOUNDS_CHECKING=true>
     void slice(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source, typename SPEC_1::TI row, typename SPEC_1::TI col, typename SPEC_1::TI rows = SPEC_1::ROWS, typename SPEC_1::TI cols = SPEC_1::COLS, typename SPEC_1::TI target_row=0, typename SPEC_1::TI target_col=0){
 //        static_assert(SPEC_1::ROWS <= SPEC_2::ROWS);
 //        static_assert(SPEC_1::COLS <= SPEC_2::COLS);
         using TI = typename SPEC_1::TI;
         using T = typename SPEC_1::T;
-        utils::assert_exit(device, row + rows <= SPEC_2::ROWS, "row + rows <= SPEC_2::ROWS");
-        utils::assert_exit(device, col + cols <= SPEC_2::COLS, "col + cols <= SPEC_2::COLS");
-        utils::assert_exit(device, target_row + rows <= SPEC_1::ROWS, "target_row + rows <= SPEC_1::ROWS");
-        utils::assert_exit(device, target_col + cols <= SPEC_1::COLS, "target_col + cols <= SPEC_1::COLS");
+        if constexpr(BOUNDS_CHECKING){
+            utils::assert_exit(device, row + rows <= SPEC_2::ROWS, "row + rows <= SPEC_2::ROWS");
+            utils::assert_exit(device, col + cols <= SPEC_2::COLS, "col + cols <= SPEC_2::COLS");
+            utils::assert_exit(device, target_row + rows <= SPEC_1::ROWS, "target_row + rows <= SPEC_1::ROWS");
+            utils::assert_exit(device, target_col + cols <= SPEC_1::COLS, "target_col + cols <= SPEC_1::COLS");
+        }
         for(TI i = 0; i < rows; i++){
             for(TI j = 0; j < cols; j++){
                 set(target, target_row + i, target_col + j, get(source, row + i, col + j));
@@ -313,7 +315,7 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
-    auto view(DEVICE& device, Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+    auto view(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;

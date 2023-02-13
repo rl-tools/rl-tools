@@ -18,6 +18,8 @@ namespace layer_in_c::test::rl::components::replay_buffer{
             set(rb.terminated, row_i, 0, terminated);
             set(rb.truncated, row_i, 0, truncated);
         }
+        rb.position = 0;
+        rb.full = true;
     }
 }
 
