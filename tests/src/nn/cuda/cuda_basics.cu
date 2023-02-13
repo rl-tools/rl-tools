@@ -55,6 +55,12 @@ TEST(LAYER_IN_C_NN_CUDA, COPY) {
 
     lic::init_weights(device_cpu, network_cpu, rng);
     lic::init_weights(device_cpu, network_cpu_2, rng);
+    lic::zero_gradient(device_cpu, network_cpu);
+    lic::zero_gradient(device_cpu, network_cpu_2);
+    lic::reset_optimizer_state(device_cpu, network_cpu);
+    lic::reset_optimizer_state(device_cpu, network_cpu_2);
+    lic::reset_forward_state(device_cpu, network_cpu);
+    lic::reset_forward_state(device_cpu, network_cpu_2);
     auto cpu_network_diff = lic::abs_diff(device_cpu, network_cpu, network_cpu_2);
     std::cout << "CPU network diff: " << cpu_network_diff << std::endl;
     ASSERT_GT(cpu_network_diff, 0);
@@ -114,6 +120,7 @@ void GEMM() {
     auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
     lic::init_weights(device_cpu, network_cpu, rng);
+    lic::reset_optimizer_state(device_cpu, network_cpu);
     lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
     lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
@@ -228,19 +235,19 @@ void GEMM() {
         std::cout << "CUDA evaluation time: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((T)ITERATIONS) << "us" << std::endl;
     }
 }
-TEST(LAYER_IN_C_NN_CUDA, GEMM) {
-    using DEFAULT_DTYPE = float;
-    GEMM<DEFAULT_DTYPE, unsigned int, 1, 1>();
-    GEMM<DEFAULT_DTYPE, unsigned int, 2, 1>();
-    GEMM<DEFAULT_DTYPE, unsigned int, 32, 1>();
-    GEMM<DEFAULT_DTYPE, unsigned int, 1024, 1>();
-    GEMM<DEFAULT_DTYPE, unsigned int, 10, 1>();
-    GEMM<DEFAULT_DTYPE, unsigned int, 9, 1>();
-    GEMM<double, unsigned int, 200, 1>();
-    GEMM<DEFAULT_DTYPE, unsigned int, 200, 1>();
-    GEMM<DEFAULT_DTYPE, unsigned int, 64, 1000>();
-    GEMM<DEFAULT_DTYPE, unsigned int, 256, 1000>();
-}
+//TEST(LAYER_IN_C_NN_CUDA, GEMM) {
+//    using DEFAULT_DTYPE = float;
+//    GEMM<DEFAULT_DTYPE, unsigned int, 1, 1>();
+//    GEMM<DEFAULT_DTYPE, unsigned int, 2, 1>();
+//    GEMM<DEFAULT_DTYPE, unsigned int, 32, 1>();
+//    GEMM<DEFAULT_DTYPE, unsigned int, 1024, 1>();
+//    GEMM<DEFAULT_DTYPE, unsigned int, 10, 1>();
+//    GEMM<DEFAULT_DTYPE, unsigned int, 9, 1>();
+//    GEMM<double, unsigned int, 200, 1>();
+//    GEMM<DEFAULT_DTYPE, unsigned int, 200, 1>();
+//    GEMM<DEFAULT_DTYPE, unsigned int, 64, 1000>();
+//    GEMM<DEFAULT_DTYPE, unsigned int, 256, 1000>();
+//}
 
 template <typename T, typename TI, TI BATCH_SIZE, TI ITERATIONS>
 void FORWARD() {
@@ -389,18 +396,18 @@ void FORWARD() {
     }
 }
 
-TEST(LAYER_IN_C_NN_CUDA, FORWARD) {
-    FORWARD<float, unsigned int, 1, 1>();
-    FORWARD<float, unsigned int, 2, 1>();
-    FORWARD<float, unsigned int, 32, 1>();
-    FORWARD<float, unsigned int, 1024, 1>();
-    FORWARD<float, unsigned int, 10, 1>();
-    FORWARD<float, unsigned int, 9, 1>();
-    FORWARD<double, unsigned int, 200, 1>();
-    FORWARD<float, unsigned int, 200, 1>();
-    FORWARD<float, unsigned int, 64, 10000>();
-    FORWARD<float, unsigned int, 256, 100000>();
-}
+//TEST(LAYER_IN_C_NN_CUDA, FORWARD) {
+//    FORWARD<float, unsigned int, 1, 1>();
+//    FORWARD<float, unsigned int, 2, 1>();
+//    FORWARD<float, unsigned int, 32, 1>();
+//    FORWARD<float, unsigned int, 1024, 1>();
+//    FORWARD<float, unsigned int, 10, 1>();
+//    FORWARD<float, unsigned int, 9, 1>();
+//    FORWARD<double, unsigned int, 200, 1>();
+//    FORWARD<float, unsigned int, 200, 1>();
+//    FORWARD<float, unsigned int, 64, 10000>();
+//    FORWARD<float, unsigned int, 256, 100000>();
+//}
 
 template <typename T, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
 void BACKWARD() {

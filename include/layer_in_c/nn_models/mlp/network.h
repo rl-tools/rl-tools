@@ -90,20 +90,28 @@ namespace layer_in_c::nn_models::mlp {
     };
 
     template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE>
-    struct NeuralNetworkBuffers{
+    struct NeuralNetworkBuffersSpecification{
         using SPEC = T_SPEC;
+        static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
+    };
+
+    template<typename T_BUFFER_SPEC>
+    struct NeuralNetworkBuffers{
+        using BUFFER_SPEC = T_BUFFER_SPEC;
+        using SPEC = typename BUFFER_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+        static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tick;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tock;
     };
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE>
-    struct NeuralNetworkBuffersForwardBackward: NeuralNetworkBuffers<T_SPEC, T_BATCH_SIZE>{
-        using SPEC = T_SPEC;
+    template<typename T_BUFFER_SPEC>
+    struct NeuralNetworkBuffersForwardBackward: NeuralNetworkBuffers<T_BUFFER_SPEC>{
+        using BUFFER_SPEC = T_BUFFER_SPEC;
+        using SPEC = typename BUFFER_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+        static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM>> d_input;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM>> d_output;
     };
@@ -114,9 +122,9 @@ namespace layer_in_c::nn_models::mlp {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE>
-        using Buffers = NeuralNetworkBuffers<SPEC, BUFFER_BATCH_SIZE>;
+        using Buffers = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE>>;
         template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE>
-        using BuffersForwardBackward = NeuralNetworkBuffersForwardBackward<SPEC, BUFFER_BATCH_SIZE>;
+        using BuffersForwardBackward = NeuralNetworkBuffersForwardBackward<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE>>;
 
         // Convenience
         static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required

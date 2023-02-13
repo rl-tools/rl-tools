@@ -2,7 +2,7 @@
 namespace layer_in_c::nn::loss_functions {
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
     typename SPEC_A::T mse(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, typename SPEC_A::T loss_weight = 1) {
-        containers::check_structure<SPEC_A, SPEC_B>;
+        static_assert(containers::check_structure<SPEC_A, SPEC_B>);
         using T = typename SPEC_A::T;
         using TI = typename SPEC_A::TI;
         T acc = 0;
@@ -18,8 +18,8 @@ namespace layer_in_c::nn::loss_functions {
 
     template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
     void d_mse_d_x(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight = 1) {
-        containers::check_structure<SPEC_A, SPEC_B>;
-        containers::check_structure<SPEC_A, SPEC_DA>;
+        static_assert(containers::check_structure<SPEC_A, SPEC_B>);
+        static_assert(containers::check_structure<SPEC_A, SPEC_DA>);
         using T = typename SPEC_A::T;
         using TI = typename SPEC_A::TI;
         for(TI row_i = 0; row_i < SPEC_A::ROWS; row_i++) {

@@ -6,45 +6,45 @@
 
 namespace layer_in_c {
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
+    void malloc(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
         malloc(device, network.input_layer);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             malloc(device, network.hidden_layers[layer_i]);
         }
         malloc(device, network.output_layer);
     }
-    template<typename DEVICE, typename SPEC, typename DEVICE::index_t BATCH_SIZE>
-    LAYER_IN_C_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<SPEC, BATCH_SIZE>& buffers) {
+    template<typename DEVICE, typename BUFFER_SPEC>
+    void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>& buffers) {
         malloc(device, buffers.tick);
         malloc(device, buffers.tock);
     }
-    template<typename DEVICE, typename SPEC, typename DEVICE::index_t BATCH_SIZE>
-    LAYER_IN_C_FUNCTION_PLACEMENT void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffersForwardBackward<SPEC, BATCH_SIZE>& buffers) {
-        malloc(device, (nn_models::mlp::NeuralNetworkBuffers<SPEC, BATCH_SIZE>&) buffers);
+    template<typename DEVICE, typename BUFFER_SPEC>
+    void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffersForwardBackward<BUFFER_SPEC>& buffers) {
+        malloc(device, (nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>&) buffers);
         malloc(device, buffers.d_input);
         malloc(device, buffers.d_output);
     }
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
+    void free(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
         free(device, network.input_layer);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             free(device, network.hidden_layers[layer_i]);
         }
         free(device, network.output_layer);
     }
-    template<typename DEVICE, typename SPEC, typename DEVICE::index_t BATCH_SIZE>
-    LAYER_IN_C_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<SPEC, BATCH_SIZE>& buffers) {
+    template<typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<SPEC>& buffers) {
         free(device, buffers.tick);
         free(device, buffers.tock);
     }
-    template<typename DEVICE, typename SPEC, typename DEVICE::index_t BATCH_SIZE>
-    LAYER_IN_C_FUNCTION_PLACEMENT void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffersForwardBackward<SPEC, BATCH_SIZE>& buffers) {
-        free(device, (nn_models::mlp::NeuralNetworkBuffers<SPEC, BATCH_SIZE>&) buffers);
+    template<typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffersForwardBackward<SPEC>& buffers) {
+        free(device, (nn_models::mlp::NeuralNetworkBuffers<SPEC>&) buffers);
         free(device, buffers.d_input);
         free(device, buffers.d_output);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    LAYER_IN_C_FUNCTION_PLACEMENT void init_weights(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, RNG& rng) {
+    void init_weights(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, RNG& rng) {
         init_kaiming(device, network.input_layer, rng);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             init_kaiming(device, network.hidden_layers[layer_i], rng);
@@ -63,7 +63,7 @@ namespace layer_in_c {
                 (!MODEL_SPEC::ENFORCE_FLOATING_POINT_TYPE || ( utils::typing::is_same_v<typename MODEL_SPEC::T, typename INPUT_SPEC::T> && utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>));
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename TEMP_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void evaluate_memless(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, Matrix<TEMP_SPEC>& layer_output_tick, Matrix<TEMP_SPEC>& layer_output_tock){
+    void evaluate_memless(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, Matrix<TEMP_SPEC>& layer_output_tick, Matrix<TEMP_SPEC>& layer_output_tock){
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         static_assert(TEMP_SPEC::ROWS >= BATCH_SIZE);
@@ -83,11 +83,12 @@ namespace layer_in_c {
         }
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC, OUTPUT_SPEC::ROWS>& buffers){
+    void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffers){
+        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
         evaluate_memless(device, network, input, output, buffers.tick, buffers.tock);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
+    void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = typename MODEL_SPEC::T;
@@ -102,7 +103,7 @@ namespace layer_in_c {
 
     // forward modifies intermediate outputs and pre activations to facilitate backward pass
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename TEMP_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void forward_memless(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, Matrix<TEMP_SPEC>& layer_output_tick, Matrix<TEMP_SPEC>& layer_output_tock){
+    void forward_memless(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, Matrix<TEMP_SPEC>& layer_output_tick, Matrix<TEMP_SPEC>& layer_output_tock){
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         static_assert(TEMP_SPEC::ROWS == BATCH_SIZE);
@@ -124,11 +125,12 @@ namespace layer_in_c {
         }
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void forward(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC, OUTPUT_SPEC::ROWS> buffers){
+    void forward(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers){
+        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
         forward_memless(device, network, input, output, buffers.tick, buffers.tock);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input) {
+    void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input) {
         forward(device, network.input_layer, input);
 
         auto current_output = network.input_layer.output;
@@ -139,14 +141,14 @@ namespace layer_in_c {
         forward(device, network.output_layer, current_output);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
+    void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         forward(device, network, input);
         copy(device, device, output, network.output_layer.output);
     }
 
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
+    void zero_gradient(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
         zero_gradient(device, network.input_layer);
         for(typename DEVICE::index_t i = 0; i < SPEC::NUM_HIDDEN_LAYERS; i++){
             zero_gradient(device, network.hidden_layers[i]);
@@ -154,7 +156,7 @@ namespace layer_in_c {
         zero_gradient(device, network.output_layer);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename TEMP_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void backward_memless(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, Matrix<TEMP_SPEC>& d_layer_input_tick, Matrix<TEMP_SPEC>& d_layer_input_tock) {
+    void backward_memless(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, Matrix<TEMP_SPEC>& d_layer_input_tick, Matrix<TEMP_SPEC>& d_layer_input_tock) {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
         static_assert(TEMP_SPEC::ROWS == BATCH_SIZE);
@@ -176,12 +178,13 @@ namespace layer_in_c {
         }
     }
     template<typename DEVICE, typename MODEL_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC, D_INPUT_SPEC::ROWS> buffers) {
+    void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers) {
+        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == D_INPUT_SPEC::ROWS);
         backward_memless(device, network, d_output, d_input, buffers.tick, buffers.tock);
     }
 
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename TEMP_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void backward_memless(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, Matrix<TEMP_SPEC>& d_layer_input_tick, Matrix<TEMP_SPEC>& d_layer_input_tock) {
+    void backward_memless(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, Matrix<TEMP_SPEC>& d_layer_input_tick, Matrix<TEMP_SPEC>& d_layer_input_tock) {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
@@ -206,12 +209,14 @@ namespace layer_in_c {
         }
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC, D_INPUT_SPEC::ROWS> buffers) {
+    void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers) {
+        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == D_INPUT_SPEC::ROWS);
         backward_memless(device, network, input, d_output, d_input, buffers.tick, buffers.tock);
     }
 
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename TARGET_SPEC, typename BUFFER_MODEL_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void forward_backward_mse(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, const Matrix<TARGET_SPEC>& target, nn_models::mlp::NeuralNetworkBuffersForwardBackward<BUFFER_MODEL_SPEC, INPUT_SPEC::ROWS> buffers, typename MODEL_SPEC::T loss_weight = 1) {
+    void forward_backward_mse(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, const Matrix<TARGET_SPEC>& target, nn_models::mlp::NeuralNetworkBuffersForwardBackward<BUFFER_MODEL_SPEC> buffers, typename MODEL_SPEC::T loss_weight = 1) {
+        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == INPUT_SPEC::ROWS);
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, TARGET_SPEC>);
         using T = typename MODEL_SPEC::T;
         using TI = typename MODEL_SPEC::TI;
@@ -221,7 +226,7 @@ namespace layer_in_c {
     }
 
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void update(DEVICE& device, nn_models::mlp::NeuralNetworkSGD<SPEC>& network) {
+    void update(DEVICE& device, nn_models::mlp::NeuralNetworkSGD<SPEC>& network) {
         update_layer(network.input_layer);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             update_layer(network.hidden_layers[layer_i]);
@@ -244,11 +249,11 @@ namespace layer_in_c {
     }
 
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void reset_optimizer_state(DEVICE& device, nn_models::mlp::NeuralNetworkSGD<SPEC>& network) {
+    void reset_optimizer_state(DEVICE& device, nn_models::mlp::NeuralNetworkSGD<SPEC>& network) {
     }
 
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void reset_optimizer_state(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network) {
+    void reset_optimizer_state(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network) {
         reset_optimizer_state(device, network.input_layer);
         for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             reset_optimizer_state(device, network.hidden_layers[layer_i]);
@@ -259,7 +264,7 @@ namespace layer_in_c {
 
     // The following copy operators are more powerful than the default copy assignment operator in that they can e.g. copy between networks with different activation functions
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>* target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>* source){
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>* target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>* source){
         static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
         copy(target_device, source_device, target->input_layer, source->input_layer);
         for(typename TARGET_SPEC::TI layer_i = 0; layer_i <  TARGET_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
@@ -268,25 +273,25 @@ namespace layer_in_c {
         copy(target_device, source_device, target->output_layer, source->output_layer);
     }
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source){
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source){
         static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
         copy(target_device, source_device, &target, &source);
     }
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>* target, const nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>* source){
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>* target, const nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>* source){
         static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
         copy(target_device, source_device, (nn_models::mlp::NeuralNetwork<TARGET_SPEC>*)target, (nn_models::mlp::NeuralNetwork<SOURCE_SPEC>*)source);
         target->age = source->age;
     }
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>& source){
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>& source){
         static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
         copy(target_device, source_device, &target, &source);
     }
 
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>* n){
+    void reset_forward_state(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>* n){
         reset_forward_state(device, n->input_layer);
         for(typename DEVICE::index_t layer_i = 0; layer_i <  SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             reset_forward_state(device, n->hidden_layers[layer_i]);
@@ -294,30 +299,30 @@ namespace layer_in_c {
         reset_forward_state(device, n->output_layer);
     }
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& n){
+    void reset_forward_state(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& n){
         reset_forward_state(device, &n);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    LAYER_IN_C_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>* n){
+    void reset_forward_state(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>* n){
         reset_forward_state(device, (nn_models::mlp::NeuralNetwork<SPEC>*)n);
         n->age = 1; // not technically forward state but fits the same category from a usage point of view
     }
 
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    LAYER_IN_C_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& n){
+    void reset_forward_state(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& n){
         reset_forward_state(device, &n);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC_1>& n1, const nn_models::mlp::NeuralNetwork<SPEC_2>& n2){
+    typename SPEC_1::T abs_diff(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC_1>& n1, const nn_models::mlp::NeuralNetwork<SPEC_2>& n2){
         static_assert(layer_in_c::nn_models::mlp::check_spec_memory<typename SPEC_1::STRUCTURE_SPEC, typename SPEC_2::STRUCTURE_SPEC>, "The target and source network must have the same structure");
         typename SPEC_1::T acc = 0;
 
-        acc += abs_diff(device, n1.input_layer, n2.input_layer);
+        acc += abs_diff(device, n1.output_layer, n2.output_layer);
         for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC_1::NUM_HIDDEN_LAYERS; layer_i++){
             acc += abs_diff(device, n1.hidden_layers[layer_i], n2.hidden_layers[layer_i]);
         }
-        acc += abs_diff(device, n1.output_layer, n2.output_layer);
+        acc += abs_diff(device, n1.input_layer, n2.input_layer);
         return acc;
     }
     template <typename DEVICE, typename SPEC>

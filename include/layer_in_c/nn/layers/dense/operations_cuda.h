@@ -72,8 +72,8 @@ namespace layer_in_c{
             using T = typename SPEC::T;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
-            containers::check_structure<PRE_ACTIVATIONS_SPEC, D_OUTPUT_SPEC>;
-            containers::check_structure<D_OUTPUT_SPEC, D_PRE_ACTIVATIONS_SPEC>;
+            static_assert(containers::check_structure<PRE_ACTIVATIONS_SPEC, D_OUTPUT_SPEC>);
+            static_assert(containers::check_structure<D_OUTPUT_SPEC, D_PRE_ACTIVATIONS_SPEC>);
             constexpr TI BATCH_SIZE = PRE_ACTIVATIONS_SPEC::ROWS;
             static_assert(PRE_ACTIVATIONS_SPEC::COLS == D_BIASES_SPEC::COLS);
 
@@ -247,12 +247,12 @@ namespace layer_in_c{
         }
     }
     template<typename DEV_SPEC, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
+    void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
         cudaMemset(layer.d_weights._data, 0, SPEC::INPUT_DIM * SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
         cudaMemset(layer.d_biases._data, 0, SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
     }
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
-    LAYER_IN_C_FUNCTION_PLACEMENT void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
+    void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
         cudaMemset(layer.d_weights_first_order_moment._data, 0, SPEC::INPUT_DIM * SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
         cudaMemset(layer.d_weights_second_order_moment._data, 0, SPEC::INPUT_DIM * SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));
         cudaMemset(layer.d_biases_first_order_moment._data, 0, SPEC::OUTPUT_DIM * sizeof(typename SPEC::T));

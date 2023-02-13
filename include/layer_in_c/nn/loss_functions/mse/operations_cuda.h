@@ -8,8 +8,8 @@ namespace layer_in_c::nn::loss_functions {
         template<typename DEV_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
         __global__
         void d_mse_d_x_kernel(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight = 1) {
-            containers::check_structure<SPEC_A, SPEC_B>;
-            containers::check_structure<SPEC_A, SPEC_DA>;
+            static_assert(containers::check_structure<SPEC_A, SPEC_B>);
+            static_assert(containers::check_structure<SPEC_A, SPEC_DA>);
             using T = typename SPEC_A::T;
             using TI = typename devices::CUDA<DEV_SPEC>::index_t;
             constexpr TI BATCH_SIZE = SPEC_A::ROWS;
@@ -26,7 +26,7 @@ namespace layer_in_c::nn::loss_functions {
     }
     template<typename DEV_SPEC, typename SPEC_A, typename SPEC_B>
     typename SPEC_A::T mse(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, typename SPEC_A::T loss_weight = 1) {
-        containers::check_structure<SPEC_A, SPEC_B>;
+        static_assert(containers::check_structure<SPEC_A, SPEC_B>);
         using T = typename SPEC_A::T;
         using TI = typename SPEC_A::TI;
         T acc = 0;
@@ -42,8 +42,8 @@ namespace layer_in_c::nn::loss_functions {
 
     template<typename DEV_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
     void d_mse_d_x(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight = 1) {
-        containers::check_structure<SPEC_A, SPEC_B>;
-        containers::check_structure<SPEC_A, SPEC_DA>;
+        static_assert(containers::check_structure<SPEC_A, SPEC_B>);
+        static_assert(containers::check_structure<SPEC_A, SPEC_DA>);
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BATCH_SIZE = SPEC_A::ROWS;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t OUTPUT_DIM = SPEC_A::COLS;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_BATCH = 32;
