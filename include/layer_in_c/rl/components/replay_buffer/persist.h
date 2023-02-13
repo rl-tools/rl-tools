@@ -1,36 +1,53 @@
+#ifndef LAYER_IN_C_RL_COMPONENTS_REPLAY_BUFFER_PERSIST_H
+#define LAYER_IN_C_RL_COMPONENTS_REPLAY_BUFFER_PERSIST_H
+
 #include "replay_buffer.h"
 
+#include <layer_in_c/containers/persist.h>
 #include <highfive/H5Group.hpp>
 #include <vector>
 
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
     void save(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, HighFive::Group group) {
+        static_assert(decltype(rb.rewards)::COLS == 1);
+        static_assert(decltype(rb.terminated)::COLS == 1);
+        static_assert(decltype(rb.truncated)::COLS == 1);
         save(device, rb.observations, group, "observations");
         save(device, rb.actions, group, "actions");
         save(device, rb.rewards, group, "rewards");
         save(device, rb.next_observations, group, "next_observations");
-        {
-            lic::Matrix<lic::matrix::Specification<typename SPEC::T, typename DEVICE::index_t, SPEC::CAPACITY, 1>> terminated;
-            lic::malloc(device, terminated);
-            copy(device, device, terminated, rb.terminated);
-            save(device, terminated, group, "terminated");
-            lic::free(device, terminated);
-        }
-        {
-            lic::Matrix<lic::matrix::Specification<typename SPEC::T, typename DEVICE::index_t, SPEC::CAPACITY, 1>> truncated;
-            lic::malloc(device, truncated);
-            copy(device, device, truncated, rb.truncated);
-            save(device, truncated, group, "truncated");
-            lic::free(device, truncated);
-        }
+        save(device, rb.terminated, group, "terminated");
+        save(device, rb.truncated, group, "truncated");
 
-        std::vector<typeof(rb.position)> position;
+        std::vector<decltype(rb.position)> position;
         position.push_back(rb.position);
         group.createDataSet("position", position);
 
-        std::vector<typeof(rb.position)> full;
-        position.push_back(rb.full);
+        std::vector<decltype(rb.position)> full;
+        full.push_back(rb.full);
         group.createDataSet("full", full);
     }
+    template <typename DEVICE, typename SPEC>
+    void load(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, HighFive::Group group) {
+        static_assert(decltype(rb.rewards)::COLS == 1);
+        static_assert(decltype(rb.terminated)::COLS == 1);
+        static_assert(decltype(rb.truncated)::COLS == 1);
+        load(device, rb.observations, group, "observations");
+        load(device, rb.actions, group, "actions");
+        load(device, rb.rewards, group, "rewards");
+        load(device, rb.next_observations, group, "next_observations");
+        load(device, rb.terminated, group, "terminated");
+        load(device, rb.truncated, group, "truncated");
+
+        std::vector<decltype(rb.position)> position;
+        group.getDataSet("position").read(position);
+        rb.position = position[0];
+
+        std::vector<decltype(rb.position)> full;
+        group.getDataSet("full").read(full);
+        rb.full = full[0];
+    }
 }
+
+#endif

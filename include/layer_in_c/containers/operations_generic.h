@@ -328,11 +328,45 @@ namespace layer_in_c{
         static_assert(layer_in_c::containers::check_structure<MEAN_SPEC, STD_SPEC>);
         static_assert(INPUT_SPEC::COLS == MEAN_SPEC::COLS);
         static_assert(MEAN_SPEC::ROWS == 1);
-        for(typename DEVICE::index row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
-            for(typename DEVICE::index col_i = 0; col_i < INPUT_SPEC::COLS; col_i++){
+        for(typename DEVICE::index_t row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
+            for(typename DEVICE::index_t col_i = 0; col_i < INPUT_SPEC::COLS; col_i++){
                 set(output, row_i, col_i, (get(input, row_i, col_i) - get(mean, 0, col_i)) / get(std, 0, col_i));
             }
         }
+    }
+
+    template <typename DEVICE, typename SPEC, typename RNG>
+    void randn(DEVICE& device, layer_in_c::Matrix<SPEC>& m, RNG& rng){
+        using T = typename SPEC::T;
+        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
+            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
+                set(m, row_i, col_i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, (T)1, rng));
+            }
+        }
+    }
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::T mean(DEVICE& device, layer_in_c::Matrix<SPEC>& m){
+        using T = typename SPEC::T;
+        T acc = 0;
+        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
+            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
+                acc += get(m, row_i, col_i);
+            }
+        }
+        return acc/(SPEC::ROWS * SPEC::COLS);
+    }
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::T std(DEVICE& device, layer_in_c::Matrix<SPEC>& m){
+        using T = typename SPEC::T;
+        T acc = 0;
+        T avg = mean(device, m);
+        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
+            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
+                T diff = get(m, row_i, col_i) - avg;
+                acc += diff * diff;
+            }
+        }
+        return math::sqrt(typename DEVICE::SPEC::MATH(), acc/(SPEC::ROWS * SPEC::COLS));
     }
 
 

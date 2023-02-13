@@ -335,6 +335,17 @@ namespace layer_in_c {
         found_nan = found_nan || is_nan(device, n.output_layer);
         return found_nan;
     }
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>& source){
+        copy(target_device, source_device, target.tick, source.tick);
+        copy(target_device, source_device, target.tock, source.tock);
+    }
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkBuffersForwardBackward<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkBuffersForwardBackward<SOURCE_SPEC>& source){
+        copy(target_device, source_device, (nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>&)target, (nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>&)source);
+        copy(target_device, source_device, target.d_input, source.d_input);
+        copy(target_device, source_device, target.d_output, source.d_output);
+    }
 }
 
 #endif

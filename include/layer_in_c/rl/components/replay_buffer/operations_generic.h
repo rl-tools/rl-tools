@@ -39,5 +39,17 @@ namespace layer_in_c {
         }
         add_scalar(device, device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
     }
+
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    typename SPEC_1::T abs_diff(DEVICE& device, rl::components::ReplayBuffer<SPEC_1>& b1, rl::components::ReplayBuffer<SPEC_2>& b2) {
+        typename SPEC_1::T acc = 0;
+        acc += abs_diff(device, b1.observations, b2.observations);
+        acc += abs_diff(device, b1.actions, b2.actions);
+        acc += abs_diff(device, b1.rewards, b2.rewards);
+        acc += abs_diff(device, b1.next_observations, b2.next_observations);
+        acc += abs_diff(device, b1.terminated, b2.terminated);
+        acc += abs_diff(device, b1.truncated, b2.truncated);
+        return acc;
+    }
 }
 #endif

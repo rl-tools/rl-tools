@@ -400,3 +400,18 @@ target_link_libraries(
 )
 LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_container)
 gtest_discover_tests(test_container)
+
+add_executable(
+        test_rl_components_replay_buffer
+        src/rl/components/replay_buffer.cpp
+)
+target_link_libraries(
+        test_rl_components_replay_buffer
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        cublas
+        HighFive
+)
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_components_replay_buffer)
+gtest_discover_tests(test_rl_components_replay_buffer)
