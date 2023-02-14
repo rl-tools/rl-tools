@@ -68,11 +68,16 @@ namespace layer_in_c::rl::algorithms::td3 {
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
+
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> target_next_action_noise;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> next_actions;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> next_state_action_value_input;
+        template<typename SPEC::TI DIM>
+        using NEXT_STATE_ACTION_VALUE_VIEW = typename decltype(next_state_action_value_input)::template VIEW<BATCH_SIZE, DIM>;
+
+        NEXT_STATE_ACTION_VALUE_VIEW<OBSERVATION_DIM> next_observations;
+        NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM> next_actions;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_action_value;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
+//        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_2;
     };

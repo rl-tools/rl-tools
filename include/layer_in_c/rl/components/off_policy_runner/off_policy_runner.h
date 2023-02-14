@@ -63,6 +63,7 @@ namespace layer_in_c::rl::components::off_policy_runner {
 
         OANO_VIEW<OBSERVATION_DIM> observations;
         OANO_VIEW<ACTION_DIM> actions;
+        OANO_VIEW<OBSERVATION_DIM + ACTION_DIM> observations_and_actions;
         OANO_VIEW<OBSERVATION_DIM> next_observations;
 
         Matrix<matrix::Specification<T, TI, 1, BATCH_SIZE>> rewards;

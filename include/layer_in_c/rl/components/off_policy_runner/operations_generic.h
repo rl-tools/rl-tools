@@ -31,9 +31,10 @@ namespace layer_in_c{
         using DATA_SPEC = typename decltype(batch.observations_action_next_observations)::SPEC;
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         malloc(device, batch.observations_action_next_observations);
-        batch.observations      = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM>(device, batch.observations_action_next_observations, 0, 0);
-        batch.actions           = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::     ACTION_DIM>(device, batch.observations_action_next_observations, 0, BATCH::OBSERVATION_DIM);
-        batch.next_observations = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM>(device, batch.observations_action_next_observations, 0, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM);
+        batch.observations             = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                    >(device, batch.observations_action_next_observations, 0, 0);
+        batch.actions                  = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::     ACTION_DIM                    >(device, batch.observations_action_next_observations, 0, BATCH::OBSERVATION_DIM);
+        batch.next_observations        = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                    >(device, batch.observations_action_next_observations, 0, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM);
+        batch.observations_and_actions = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM>(device, batch.observations_action_next_observations, 0, 0);
 
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
@@ -59,9 +60,10 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC>& batch) {
         free(device, batch.observations_action_next_observations);
-        batch.observations._data = nullptr;
-        batch.actions._data      = nullptr;
-        batch.next_observations._data = nullptr;
+        batch.observations.            _data = nullptr;
+        batch.actions.                 _data = nullptr;
+        batch.next_observations.       _data = nullptr;
+        batch.observations_and_actions._data = nullptr;
         free(device, batch.rewards);
         free(device, batch.terminated);
         free(device, batch.truncated);

@@ -53,11 +53,14 @@ namespace layer_in_c{
 
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
+        using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
         malloc(device, critic_training_buffers.target_next_action_noise);
-        malloc(device, critic_training_buffers.next_actions);
+//        malloc(device, critic_training_buffers.next_actions);
         malloc(device, critic_training_buffers.next_state_action_value_input);
+        critic_training_buffers.next_observations = lic::view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM>(device, critic_training_buffers.next_state_action_value_input, 0, 0);
+        critic_training_buffers.next_actions      = lic::view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM     >(device, critic_training_buffers.next_state_action_value_input, 0, BUFFERS::OBSERVATION_DIM);
         malloc(device, critic_training_buffers.target_action_value);
-        malloc(device, critic_training_buffers.state_action_value_input);
+//        malloc(device, critic_training_buffers.state_action_value_input);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
         malloc(device, critic_training_buffers.next_state_action_value_critic_2);
     }
@@ -65,10 +68,10 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         free(device, critic_training_buffers.target_next_action_noise);
-        free(device, critic_training_buffers.next_actions);
+//        free(device, critic_training_buffers.next_actions);
         free(device, critic_training_buffers.next_state_action_value_input);
         free(device, critic_training_buffers.target_action_value);
-        free(device, critic_training_buffers.state_action_value_input);
+//        free(device, critic_training_buffers.state_action_value_input);
         free(device, critic_training_buffers.next_state_action_value_critic_1);
         free(device, critic_training_buffers.next_state_action_value_critic_2);
     }
@@ -125,10 +128,6 @@ namespace layer_in_c{
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         T mean_target_action_value = 0;
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-//            utils::memcpy(&get(training_buffers.state_action_value_input, batch_step_i, 0), &get(batch.observations, batch_step_i, 0), OBSERVATION_DIM);
-            slice(device, training_buffers.state_action_value_input, batch.observations, batch_step_i, 0, 1, OBSERVATION_DIM, batch_step_i, 0);
-//            utils::memcpy(&get(training_buffers.state_action_value_input, batch_step_i, OBSERVATION_DIM), &get(batch.actions, batch_step_i, 0), ACTION_DIM);
-            slice(device, training_buffers.state_action_value_input, batch.actions, batch_step_i, 0, 1, ACTION_DIM, batch_step_i, OBSERVATION_DIM);
             T min_next_state_action_value = math::min(
                     get(training_buffers.next_state_action_value_critic_1, batch_step_i, 0),
                     get(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)
@@ -156,14 +155,14 @@ namespace layer_in_c{
 
         evaluate(device, actor_critic.actor_target, batch.next_observations, training_buffers.next_actions, actor_buffers);
         noisy_next_actions(device, training_buffers);
-        hcat(device, batch.next_observations, training_buffers.next_actions, training_buffers.next_state_action_value_input);
+        copy(device, device, training_buffers.next_observations, batch.next_observations);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
 
         T mean_target_action_value = target_actions(device, batch, training_buffers);
         add_scalar(device, device.logger, "mean_target_action_value", mean_target_action_value, 100);
 
-        forward_backward_mse(device, critic, training_buffers.state_action_value_input, training_buffers.target_action_value, critic_buffers);
+        forward_backward_mse(device, critic, batch.observations_and_actions, training_buffers.target_action_value, critic_buffers);
         static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
         T loss = nn::loss_functions::mse(device, critic.output_layer.pre_activations, training_buffers.target_action_value);
 
@@ -229,6 +228,16 @@ namespace layer_in_c{
         found_nan = found_nan || is_nan(device, ac.critic_target_1);
         found_nan = found_nan || is_nan(device, ac.critic_target_2);
         return found_nan;
+    }
+    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::algorithms::td3::ActorCritic<TARGET_SPEC>& target, rl::algorithms::td3::ActorCritic<SOURCE_SPEC>& source){
+        copy(target_device, source_device, target.actor   , source.actor);
+        copy(target_device, source_device, target.critic_1, source.critic_1);
+        copy(target_device, source_device, target.critic_2, source.critic_2);
+
+        copy(target_device, source_device, target.actor_target   , source.actor);
+        copy(target_device, source_device, target.critic_target_1, source.critic_1);
+        copy(target_device, source_device, target.critic_target_2, source.critic_2);
     }
 }
 

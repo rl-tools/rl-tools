@@ -68,4 +68,38 @@ namespace layer_in_c{
         dim3 bias_block(BLOCKSIZE_COLS);
         noisy_next_actions_kernel<DEV_SPEC, SPEC><<<bias_grid, bias_block>>>(device, training_buffers);
     }
+
+    template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
+    __global__
+    void target_actions_kernel(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
+        static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
+        TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(batch_step_i < BATCH_SIZE){
+            T min_next_state_action_value = math::min(
+                    get(training_buffers.next_state_action_value_critic_1, batch_step_i, 0),
+                    get(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)
+            );
+            T reward = get(batch.rewards, 0, batch_step_i);
+            bool terminated = get(batch.terminated, 0, batch_step_i);
+            T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
+            T current_target_action_value = reward + future_value;
+            set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
+        }
+    }
+    template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
+    __global__
+    void target_actions(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        constexpr TI BLOCKSIZE_COLS = 32;
+        constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
+        dim3 bias_grid(N_BLOCKS_COLS);
+        dim3 bias_block(BLOCKSIZE_COLS);
+        target_actions_kernel<DEV_SPEC, SPEC><<<bias_grid, bias_block>>>(device, batch, training_buffers);
+    }
 }
