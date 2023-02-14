@@ -1,14 +1,14 @@
 // Group 1
-#include <layer_in_c/operations/cpu/group_1.h>
 #include <layer_in_c/operations/cuda/group_1.h>
+#include <layer_in_c/operations/cpu/group_1.h>
 
 // Group 2
-#include <layer_in_c/operations/cpu/group_2.h>
 #include <layer_in_c/operations/cuda/group_2.h>
+#include <layer_in_c/operations/cpu/group_2.h>
 
 // Group 3
-#include <layer_in_c/operations/cpu/group_3.h>
 #include <layer_in_c/operations/cuda/group_3.h>
+#include <layer_in_c/operations/cpu/group_3.h>
 
 #include <layer_in_c/nn/operations_cuda.h>
 #include <layer_in_c/nn/loss_functions/mse/operations_cuda.h>
@@ -22,6 +22,8 @@
 #include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
 
 #include <layer_in_c/rl/components/off_policy_runner/operations_cuda.h>
+#include <layer_in_c/rl/algorithms/td3/operations_cuda.h>
+#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
 
 #include "../components/replay_buffer.h"
 
@@ -35,6 +37,7 @@ class LAYER_IN_C_RL_CUDA : public ::testing::Test {
 public:
     using DEVICE_CPU = lic::devices::DefaultCPU;
     using DEVICE_GPU = lic::devices::DefaultCUDA;
+    using NN_DEVICE = DEVICE_CPU;
     using DTYPE = float;
     static constexpr DEVICE_CPU::index_t CAPACITY = 2000;
     static constexpr DEVICE_CPU::index_t BATCH_SIZE = 20;
@@ -46,6 +49,19 @@ public:
     using OFF_POLICY_RUNNER_TYPE = lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
     using BATCH_SPEC = lic::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>;
     using BATCH_TYPE = lic::rl::components::off_policy_runner::Batch<BATCH_SPEC>;
+    using TD3_PARAMETERS = lic::rl::algorithms::td3::DefaultParameters<DTYPE, NN_DEVICE::index_t>;
+    using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
+    using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
+    using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC , typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+    using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
+    using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
+    using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+    using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+    using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+    using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
+    using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+    using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
+    using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
     DEVICE_CPU device_cpu;
     DEVICE_GPU device_gpu;
     OFF_POLICY_RUNNER_TYPE off_policy_runner_cpu;
@@ -55,6 +71,11 @@ public:
     BATCH_TYPE batch_cpu, batch_cpu_2;
     BATCH_TYPE batch_gpu;
     BATCH_TYPE* batch_gpu_struct;
+    ACTOR_CRITIC_TYPE actor_critic_cpu;
+    ACTOR_CRITIC_TYPE actor_critic_gpu;
+    lic::rl::algorithms::td3::CriticTrainingBuffers<ACTOR_CRITIC_SPEC> critic_training_buffers_cpu;
+    lic::rl::algorithms::td3::CriticTrainingBuffers<ACTOR_CRITIC_SPEC> critic_training_buffers_cpu_2;
+    lic::rl::algorithms::td3::CriticTrainingBuffers<ACTOR_CRITIC_SPEC> critic_training_buffers_gpu;
 protected:
     void SetUp() override {
 
@@ -69,6 +90,11 @@ protected:
         lic::malloc(device_gpu, batch_gpu);
         cudaMalloc(&off_policy_runner_gpu_struct, sizeof(OFF_POLICY_RUNNER_TYPE));
         cudaMalloc(&batch_gpu_struct, sizeof(BATCH_TYPE));
+        lic::malloc(device_cpu, actor_critic_cpu);
+        lic::malloc(device_cpu, actor_critic_gpu);
+        lic::malloc(device_cpu, critic_training_buffers_cpu);
+        lic::malloc(device_cpu, critic_training_buffers_cpu_2);
+        lic::malloc(device_gpu, critic_training_buffers_gpu);
 
         // init
         for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; rb_i++) {
@@ -90,6 +116,11 @@ protected:
         lic::free(device_gpu, batch_gpu);
         cudaFree(off_policy_runner_gpu_struct);
         cudaFree(batch_gpu_struct);
+        lic::free(device_cpu, actor_critic_cpu);
+        lic::free(device_cpu, actor_critic_gpu);
+        lic::free(device_cpu, critic_training_buffers_cpu);
+        lic::free(device_cpu, critic_training_buffers_cpu_2);
+        lic::free(device_gpu, critic_training_buffers_gpu);
     }
 };
 
@@ -117,4 +148,24 @@ TEST_F(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
 
     auto abs_diff_observations = lic::abs_diff(device_cpu, batch_cpu.observations, batch_cpu_2.observations);
     ASSERT_FLOAT_EQ(abs_diff_observations, 0);
+}
+TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
+
+    auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
+
+
+    lic::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
+    lic::target_action_noise(device_gpu, actor_critic_gpu, critic_training_buffers_gpu.target_next_action_noise, rng_gpu);
+    lic::check_status(device_gpu);
+
+    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+    lic::check_status(device_gpu);
+    lic::print(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise);
+
+    lic::print(device_cpu, critic_training_buffers_cpu.target_next_action_noise);
+
+    lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
+    lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+    lic::check_status(device_gpu);
 }

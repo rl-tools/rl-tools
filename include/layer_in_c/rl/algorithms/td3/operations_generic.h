@@ -13,7 +13,7 @@
 
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
+    void malloc(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
         malloc(device, actor_critic.actor);
         malloc(device, actor_critic.actor_target);
         malloc(device, actor_critic.critic_1);
@@ -22,7 +22,7 @@ namespace layer_in_c{
         malloc(device, actor_critic.critic_target_2);
     }
     template <typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
+    void free(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
         free(device, actor_critic.actor);
         free(device, actor_critic.actor_target);
         free(device, actor_critic.critic_1);
@@ -31,7 +31,7 @@ namespace layer_in_c{
         free(device, actor_critic.critic_target_2);
     }
     template <typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
+    void malloc(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
         malloc(device, actor_training_buffers.actions);
         malloc(device, actor_training_buffers.state_action_value_input);
         malloc(device, actor_training_buffers.state_action_value);
@@ -41,7 +41,7 @@ namespace layer_in_c{
         malloc(device, actor_training_buffers.d_actor_input);
     }
     template <typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
+    void free(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
         free(device, actor_training_buffers.actions);
         free(device, actor_training_buffers.state_action_value_input);
         free(device, actor_training_buffers.state_action_value);
@@ -52,7 +52,7 @@ namespace layer_in_c{
     }
 
     template <typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
+    void malloc(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         malloc(device, critic_training_buffers.target_next_action_noise);
         malloc(device, critic_training_buffers.next_actions);
         malloc(device, critic_training_buffers.next_state_action_value_input);
@@ -63,7 +63,7 @@ namespace layer_in_c{
     }
 
     template <typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
+    void free(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         free(device, critic_training_buffers.target_next_action_noise);
         free(device, critic_training_buffers.next_actions);
         free(device, critic_training_buffers.next_state_action_value_input);
@@ -74,7 +74,7 @@ namespace layer_in_c{
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
-    LAYER_IN_C_FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
+    void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
         init_weights(device, actor_critic.critic_1, rng);
         init_weights(device, actor_critic.critic_2, rng);
@@ -87,7 +87,7 @@ namespace layer_in_c{
         copy(device, device, actor_critic.critic_target_2, actor_critic.critic_2);
     }
     template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC, typename RNG>
-    LAYER_IN_C_FUNCTION_PLACEMENT void target_action_noise(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, Matrix<OUTPUT_SPEC> target_action_noise, RNG& rng ) {
+    void target_action_noise(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, Matrix<OUTPUT_SPEC>& target_action_noise, RNG& rng ) {
         static_assert(OUTPUT_SPEC::ROWS == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static_assert(OUTPUT_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
         typedef typename SPEC::T T;
@@ -102,7 +102,7 @@ namespace layer_in_c{
         }
     }
     template <typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void noisy_next_actions(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
+    void noisy_next_actions(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
@@ -147,7 +147,7 @@ namespace layer_in_c{
         return mean_target_action_value;
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, typename DEVICE::index_t BATCH_SIZE>
-    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE> critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
+    typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE> critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
         // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -171,7 +171,7 @@ namespace layer_in_c{
         return loss;
     }
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, typename DEVICE::index_t BATCH_SIZE>
-    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::T train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename SPEC::CRITIC_NETWORK_TYPE::template Buffers<BATCH_SIZE> critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
+    typename SPEC::T train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename SPEC::CRITIC_NETWORK_TYPE::template Buffers<BATCH_SIZE> critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
@@ -194,12 +194,12 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void update_target_layer(DEVICE& device, nn::layers::dense::Layer<SPEC>& target, const nn::layers::dense::Layer<SPEC>& source, typename SPEC::T polyak) {
+    void update_target_layer(DEVICE& device, nn::layers::dense::Layer<SPEC>& target, const nn::layers::dense::Layer<SPEC>& source, typename SPEC::T polyak) {
         utils::polyak::update(device, target.weights, source.weights, polyak);
         utils::polyak::update(device, target.biases , source.biases , polyak);
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void update_target_network(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, T polyak) {
+    void update_target_network(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, T polyak) {
         using TargetNetworkType = typename utils::typing::remove_reference<decltype(target)>::type;
         update_target_layer(device, target.input_layer, source.input_layer, polyak);
         for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
@@ -209,13 +209,13 @@ namespace layer_in_c{
     }
 
     template <typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void update_critic_targets(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
+    void update_critic_targets(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
         update_target_network(device, actor_critic.critic_target_1, actor_critic.critic_1, SPEC::PARAMETERS::CRITIC_POLYAK);
         update_target_network(device, actor_critic.critic_target_2, actor_critic.critic_2, SPEC::PARAMETERS::CRITIC_POLYAK);
 
     }
     template <typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT void update_actor_target(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
+    void update_actor_target(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
         update_target_network(device, actor_critic.actor_target   , actor_critic.   actor, SPEC::PARAMETERS::ACTOR_POLYAK);
     }
 

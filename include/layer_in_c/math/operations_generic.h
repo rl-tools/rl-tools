@@ -1,22 +1,26 @@
 #ifndef LAYER_IN_C_UTILS_GENERIC_MATH_H
 #define LAYER_IN_C_UTILS_GENERIC_MATH_H
 
+#ifndef LAYER_IN_C_FUNCTION_PLACEMENT
+#define LAYER_IN_C_FUNCTION_PLACEMENT
+#endif
+
 namespace layer_in_c::math {
 
     template<typename T>
-    T clamp(T x, T min, T max){
+    LAYER_IN_C_FUNCTION_PLACEMENT T clamp(T x, T min, T max){
         return x < min ? min : (x > max ? max : x);
     }
     template<typename T>
-    T min(T x, T y){
+    LAYER_IN_C_FUNCTION_PLACEMENT T min(T x, T y){
         return x < y ? x : y;
     }
     template<typename T>
-    T max(T x, T y){
+    LAYER_IN_C_FUNCTION_PLACEMENT T max(T x, T y){
         return x > y ? x : y;
     }
     template<typename T>
-    T abs(T x){
+    LAYER_IN_C_FUNCTION_PLACEMENT T abs(T x){
         return x > 0 ? x : -x;
     }
 

@@ -64,11 +64,6 @@ namespace layer_in_c{
         dim3 bias_block(BLOCKSIZE_COLS);
         gather_batch_kernel<DEV_SPEC, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(device, runner, batch, rng);
 
-        // get cuda status
-        cudaError_t cudaStatus = cudaGetLastError();
-        if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "gather_batch_kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        }
     }
 }
 

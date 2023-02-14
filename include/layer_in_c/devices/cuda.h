@@ -56,6 +56,7 @@ namespace layer_in_c::devices{
     using DefaultCUDAGeneric = CUDA_GENERIC<DefaultCUDASpecification>;
 }
 
+#include <iostream>
 namespace layer_in_c {
     template <typename SPEC>
     void init(devices::CUDA<SPEC>& device){
@@ -66,6 +67,14 @@ namespace layer_in_c {
             std::cout << "CUBLAS initialization failed " << cublasGetStatusString(stat) << std::endl;
         }
     }
+    template <typename SPEC>
+    void check_status(devices::CUDA<SPEC>& device){
+        cudaError_t cudaStatus = cudaGetLastError();
+        if (cudaStatus != cudaSuccess) {
+            std::cerr << "cuda failed: " << cudaGetErrorString(cudaStatus) << std::endl;
+        }
+    }
+
 }
 
 #endif
