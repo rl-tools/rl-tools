@@ -163,7 +163,12 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
     lic::check_status(device_gpu);
     lic::print(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise);
 
-    lic::print(device_cpu, critic_training_buffers_cpu.target_next_action_noise);
+    lic::noisy_next_actions(device_cpu, critic_training_buffers_cpu);
+    lic::noisy_next_actions(device_gpu, critic_training_buffers_gpu);
+    lic::check_status(device_gpu);
+    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_gpu.next_actions);
+    lic::check_status(device_gpu);
+    lic::print(device_cpu, critic_training_buffers_cpu_2.next_actions);
 
     lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
     lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);

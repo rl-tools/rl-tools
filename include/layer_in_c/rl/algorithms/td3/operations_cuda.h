@@ -56,11 +56,9 @@ namespace layer_in_c{
             }
         }
     }
-    template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename RNG>
+    template <typename DEV_SPEC, typename SPEC>
     void noisy_next_actions(devices::CUDA<DEV_SPEC>& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        static_assert(OUTPUT_SPEC::ROWS == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
-        static_assert(OUTPUT_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         constexpr TI BATCH_SIZE = SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
@@ -68,6 +66,6 @@ namespace layer_in_c{
         constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        noisy_next_actions_kernel<DEV_SPEC, SPEC><<<bias_grid, bias_block>>>(device, target_action_noise);
+        noisy_next_actions_kernel<DEV_SPEC, SPEC><<<bias_grid, bias_block>>>(device, training_buffers);
     }
 }
