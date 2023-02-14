@@ -7,21 +7,27 @@
 #include <curand_kernel.h>
 
 namespace layer_in_c::random{
-    curandState default_engine(const devices::random::CUDA& dev){
-        return curandState();
+    namespace cuda{
+        using RNG = unsigned int; // actually the seed
+    }
+    cuda::RNG default_engine(const devices::random::CUDA& dev){
+        return 0;
     };
+
+    cuda::RNG next(const devices::random::CUDA& dev, cuda::RNG& rng){
+        return rng + 1;
+    };
+
 
     template<typename T, typename RNG>
     LAYER_IN_C_FUNCTION_PLACEMENT T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
+        static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>, "Only float and double are supported");
         if constexpr(utils::typing::is_same_v<T, float>){
             return curand_uniform(&rng) * (high - low) + low;
         }
         else{
             if constexpr(utils::typing::is_same_v<T, double>){
                 return curand_uniform_double(&rng) * (high - low) + low;
-            }
-            else{
-                return 0;
             }
         }
         return 0;

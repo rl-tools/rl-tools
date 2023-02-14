@@ -5,9 +5,9 @@
 #include <layer_in_c/devices/dummy.h>
 
 namespace layer_in_c{
-    template <typename DEV_SPEC, typename RUNNER_SPEC, typename BATCH_SPEC, typename RNG>
+    template <typename DEV_SPEC, typename RUNNER_SPEC, typename BATCH_SPEC>
     __global__
-    void gather_batch_kernel(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<RUNNER_SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng, bool DETERMINISTIC=false) {
+    void gather_batch_kernel(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<RUNNER_SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, random::cuda::RNG rng, bool DETERMINISTIC=false) {
         using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
         using T = typename RUNNER_SPEC::T;
         using TI = typename RUNNER_SPEC::TI;
@@ -15,19 +15,26 @@ namespace layer_in_c{
         static_assert(decltype(batch->observations)::COL_PITCH == 1);
         static_assert(decltype(batch->actions)::COL_PITCH == 1);
         static_assert(decltype(batch->next_observations)::COL_PITCH == 1);
+        // rng
+        constexpr auto rand_max = 4294967296ULL;
+        static_assert(rand_max / RUNNER_SPEC::N_ENVIRONMENTS > 100);
+        static_assert(rand_max / RUNNER_SPEC::REPLAY_BUFFER_CAPACITY > 100); // so that the distribution is not skewed too much towards the remainder values
 
-        typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, (typename DEVICE::index_t)(RUNNER_SPEC::N_ENVIRONMENTS - 1), rng);
+        curandState rng_state;
+
+        TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
+        curand_init(rng, batch_step_i, 0, &rng_state);
+
+        typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : curand(&rng_state) % RUNNER_SPEC::N_ENVIRONMENTS;
         auto& replay_buffer = runner->replay_buffers[env_i];
         static_assert(decltype(replay_buffer.observations)::COL_PITCH == 1);
         static_assert(decltype(replay_buffer.actions)::COL_PITCH == 1);
         static_assert(decltype(replay_buffer.next_observations)::COL_PITCH == 1);
 
-        TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
-        curand_init(1234, batch_step_i, 0, &rng);
         if(batch_step_i < BATCH_SPEC::BATCH_SIZE){
             set(batch->observations, batch_step_i, 0, get(replay_buffer.observations, batch_step_i, 0));
-            typename DEVICE::index_t sample_index_max = (replay_buffer.full ? RUNNER_SPEC::REPLAY_BUFFER_CAPACITY : replay_buffer.position) - 1;
-            typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, sample_index_max, rng);
+            typename DEVICE::index_t sample_index_max = (replay_buffer.full ? RUNNER_SPEC::REPLAY_BUFFER_CAPACITY : replay_buffer.position);
+            typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : curand(&rng_state) % sample_index_max;
 
             // todo: replace with smarter, coalesced copy
             for(typename DEVICE::index_t i = 0; i < BATCH::OBSERVATION_DIM; i++){
@@ -43,8 +50,8 @@ namespace layer_in_c{
             set(batch->truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
         }
     }
-    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG>
-    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG& rng, bool DETERMINISTIC=false){
+    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC>
+    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, random::cuda::RNG rng, bool DETERMINISTIC=false){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
         using T = typename SPEC::T;

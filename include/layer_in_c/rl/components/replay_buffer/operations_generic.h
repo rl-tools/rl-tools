@@ -42,6 +42,8 @@ namespace layer_in_c {
     template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::ReplayBuffer<TARGET_SPEC>& target, rl::components::ReplayBuffer<SOURCE_SPEC>& source) {
         copy(target_device, source_device, target.data, source.data);
+        target.full = source.full;
+        target.position = source.position;
     }
 
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>

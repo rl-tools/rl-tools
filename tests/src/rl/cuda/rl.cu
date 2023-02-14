@@ -58,6 +58,7 @@ TEST(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
     BATCH_TYPE batch_gpu;
     BATCH_TYPE* batch_gpu_struct;
 
+    // alloc
     lic::malloc(device_cpu, off_policy_runner_cpu);
     lic::malloc(device_cpu, off_policy_runner_cpu_2);
     lic::malloc(device_gpu, off_policy_runner_gpu_cpu);
@@ -66,13 +67,16 @@ TEST(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
     lic::malloc(device_gpu, batch_gpu);
     cudaMalloc(&off_policy_runner_gpu_struct, sizeof(OFF_POLICY_RUNNER_TYPE));
     cudaMalloc(&batch_gpu_struct, sizeof(BATCH_TYPE));
-    cudaMemcpy(off_policy_runner_gpu_struct, &off_policy_runner_gpu_cpu, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
-    cudaMemcpy(batch_gpu_struct, &batch_gpu, sizeof(BATCH_TYPE), cudaMemcpyHostToDevice);
 
+    // init
     for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; rb_i++) {
         lic::test::rl::components::replay_buffer::sample(device_cpu, off_policy_runner_cpu.replay_buffers[rb_i], rng_cpu);
         lic::copy(device_gpu, device_cpu, off_policy_runner_gpu_cpu.replay_buffers[rb_i], off_policy_runner_cpu.replay_buffers[rb_i]);
     }
+
+    // copy
+    cudaMemcpy(off_policy_runner_gpu_struct, &off_policy_runner_gpu_cpu, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(batch_gpu_struct, &batch_gpu, sizeof(BATCH_TYPE), cudaMemcpyHostToDevice);
 
     for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; rb_i++) {
         lic::copy(device_cpu, device_gpu, off_policy_runner_cpu_2.replay_buffers[rb_i], off_policy_runner_gpu_cpu.replay_buffers[rb_i]);

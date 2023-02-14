@@ -19,8 +19,13 @@ namespace layer_in_c::rl::components {
         using TI = typename SPEC::TI;
         static constexpr TI CAPACITY = SPEC::CAPACITY;
         static constexpr TI DATA_COLS = SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM + 1 + 1;
-        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, DATA_COLS>> data;
 
+        // mem
+        Matrix<matrix::Specification<T, TI, SPEC::CAPACITY, DATA_COLS>> data;
+        TI position = 0;
+        bool full = false;
+
+        // views
         template<typename SPEC::TI DIM>
         using DATA_VIEW = typename decltype(data)::template VIEW<CAPACITY, DIM>;
 
@@ -30,8 +35,6 @@ namespace layer_in_c::rl::components {
         DATA_VIEW<SPEC::OBSERVATION_DIM> next_observations;
         DATA_VIEW<1> terminated;
         DATA_VIEW<1> truncated;
-        TI position = 0;
-        bool full = false;
     };
 }
 #endif
