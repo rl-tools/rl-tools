@@ -5,9 +5,9 @@
 #include <layer_in_c/devices/dummy.h>
 
 namespace layer_in_c{
-    template <typename DEV_SPEC, typename RUNNER_SPEC, typename BATCH_SPEC>
+    template <typename DEV_SPEC, typename RUNNER_SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
     __global__
-    void gather_batch_kernel(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<RUNNER_SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, random::cuda::RNG rng, bool DETERMINISTIC=false) {
+    void gather_batch_kernel(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<RUNNER_SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng) {
         using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
         using T = typename RUNNER_SPEC::T;
         using TI = typename RUNNER_SPEC::TI;
@@ -50,8 +50,9 @@ namespace layer_in_c{
             set(batch->truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
         }
     }
-    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC>
-    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, random::cuda::RNG rng, bool DETERMINISTIC=false){
+    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
+    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng){
+        static_assert(utils::typing::is_same_v<RNG, random::cuda::RNG>);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
         using T = typename SPEC::T;
@@ -61,7 +62,7 @@ namespace layer_in_c{
         constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        gather_batch_kernel<<<bias_grid, bias_block>>>(device, runner, batch, rng, DETERMINISTIC);
+        gather_batch_kernel<DEV_SPEC, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(device, runner, batch, rng);
 
         // get cuda status
         cudaError_t cudaStatus = cudaGetLastError();

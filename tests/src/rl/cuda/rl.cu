@@ -84,8 +84,8 @@ TEST(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
         ASSERT_FLOAT_EQ(abs_diff, 0);
     }
 
-    lic::gather_batch(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu, true);
-    lic::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu, true);
+    lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
+    lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
     cudaDeviceSynchronize();
 
     auto batch_observation_view = lic::view<DEVICE_CPU, typename decltype(off_policy_runner_cpu.replay_buffers[0].observations)::SPEC, BATCH_SIZE, BATCH_TYPE::OBSERVATION_DIM>(device_cpu, off_policy_runner_cpu.replay_buffers[0].observations, 0, 0);
