@@ -133,7 +133,7 @@ namespace layer_in_c{
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto UNARY_OPERATOR>
-    void vectorize_unary(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    LAYER_IN_C_FUNCTION_PLACEMENT void vectorize_unary(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
@@ -144,7 +144,7 @@ namespace layer_in_c{
     }
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename SPEC_1, typename SPEC_2>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    LAYER_IN_C_FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
 //        static_assert(utils::typing::is_same<TARGET_DEVICE, SOURCE_DEVICE>); // todo: implement
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
@@ -315,7 +315,7 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
-    auto view(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+    LAYER_IN_C_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
