@@ -110,19 +110,26 @@ namespace layer_in_c{
                 malloc(target_device, temp);
                 copy(target_device, source_device, temp, source);
                 copy_structure_mismatch_kernel<<<bias_grid, bias_block>>>(target_device, target, temp);
+                check_status(target_device);
             }
         }
         else{
             if constexpr(utils::typing::is_same_v<TARGET_DEV, TARGET_DEV_CPU> && utils::typing::is_same_v<SOURCE_DEV, SOURCE_DEV_CUDA>){
-                Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename SOURCE_SPEC::LAYOUT, false>> temp;
-                malloc(target_device, temp);
-                copy(target_device, source_device, temp, source);
-                copy(target_device, target_device, target, temp);
-                free(target_device, temp);
+                // GPU (possible view) -> GPU (dense) -> CPU (dense) -> CPU (possible view)
+                Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS>> temp_gpu, temp_cpu;
+                malloc(source_device, temp_gpu);
+                copy_structure_mismatch_kernel<<<bias_grid, bias_block>>>(source_device, temp_gpu, source);
+                check_status(source_device);
+                malloc(target_device, temp_cpu);
+                copy(target_device, source_device, temp_cpu, temp_gpu);
+                free(source_device, temp_gpu);
+                copy(target_device, target_device, target, temp_cpu);
+                free(target_device, temp_cpu);
             }
             else{
                 if constexpr(utils::typing::is_same_v<TARGET_DEV, TARGET_DEV_CUDA> && utils::typing::is_same_v<SOURCE_DEV, SOURCE_DEV_CUDA>){
                     copy_structure_mismatch_kernel<<<bias_grid, bias_block>>>(target_device, target, source);
+                    check_status(target_device);
                 }
             }
         }

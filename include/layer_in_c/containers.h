@@ -39,7 +39,7 @@ namespace layer_in_c{
             static_assert(COL_PITCH * T_COLS <= ROW_PITCH || ROW_PITCH * T_ROWS <= COL_PITCH, "Pitches of the matrix dimensions are not compatible");
             static constexpr bool ROW_MAJOR = ROWS * ROW_PITCH >= COL_PITCH * COLS;
             static constexpr TI SIZE = ROW_MAJOR ? ROWS * ROW_PITCH : COLS * COL_PITCH;
-            static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
+            static constexpr TI SIZE_BYTES = SIZE * sizeof(T); // todo: discount size for views
         };
 
 
