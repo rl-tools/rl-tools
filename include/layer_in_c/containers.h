@@ -13,7 +13,7 @@ namespace layer_in_c{
                 static constexpr TI COL_PITCH = 1;
             };
 
-            template <typename TI, TI ALIGNMENT = 16>
+            template <typename TI, TI ALIGNMENT = 128>
             using RowMajorAlignmentOptimized = RowMajorAlignment<TI, ALIGNMENT>;
 
             template <typename TI, TI T_ROW_PITCH, TI T_COL_PITCH>
@@ -25,12 +25,13 @@ namespace layer_in_c{
             };
 
         }
-        template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename LAYOUT_FACTORY = layouts::RowMajorAlignmentOptimized<T_TI>> // row-major by default
+        template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename LAYOUT_FACTORY = layouts::RowMajorAlignmentOptimized<T_TI>, bool T_IS_VIEW = false> // row-major by default
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             static constexpr TI ROWS = T_ROWS;
             static constexpr TI COLS = T_COLS;
+            static constexpr bool IS_VIEW = T_IS_VIEW;
             static constexpr TI ROW_PITCH = LAYOUT_FACTORY::template ROW_PITCH<ROWS, COLS>;
             static constexpr TI COL_PITCH = LAYOUT_FACTORY::template COL_PITCH<ROWS, COLS>;
             using LAYOUT = layouts::Fixed<TI, ROW_PITCH, COL_PITCH>;
@@ -53,12 +54,13 @@ namespace layer_in_c{
         using TI = typename SPEC::TI;
         static constexpr TI ROWS = SPEC::ROWS;
         static constexpr TI COLS = SPEC::COLS;
+        static constexpr bool IS_VIEW = SPEC::IS_VIEW;
         static constexpr TI ROW_PITCH = SPEC::ROW_PITCH;
         static constexpr TI COL_PITCH = SPEC::COL_PITCH;
 
         using VIEW_LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
         template<typename SPEC::TI ROWS, typename SPEC::TI COLS>
-        using VIEW = Matrix<matrix::Specification<T, TI, ROWS, COLS, VIEW_LAYOUT>>;
+        using VIEW = Matrix<matrix::Specification<T, TI, ROWS, COLS, VIEW_LAYOUT, true>>;
 
         T* _data = nullptr;
     };

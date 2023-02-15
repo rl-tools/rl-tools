@@ -38,7 +38,8 @@ public:
     using DEVICE_CPU = lic::devices::DefaultCPU;
     using DEVICE_GPU = lic::devices::DefaultCUDA;
     using NN_DEVICE = DEVICE_CPU;
-    using DTYPE = float;
+    using DTYPE = double;
+    static constexpr DTYPE EPSILON = lic::utils::typing::is_same_v<DTYPE, float> ? 1e-5 : 1e-13;
     static constexpr DEVICE_CPU::index_t CAPACITY = 2000;
     static constexpr DEVICE_CPU::index_t BATCH_SIZE = 20;
 //    using REPLAY_BUFFER_SPEC = lic::rl::components::replay_buffer::Specification<DTYPE, DEVICE_CPU::index_t, OBSERVATION_DIM, ACTION_DIM, CAPACITY>;
@@ -85,7 +86,7 @@ public:
     ACTOR_BUFFERS actor_buffers_gpu;
 protected:
     void SetUp() override {
-
+        lic::init(device_gpu);
         auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
         auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
         // alloc
@@ -115,10 +116,12 @@ protected:
         lic::init(device_cpu, actor_critic_cpu, rng_cpu);
 
         // copy
-        cudaMemcpy(off_policy_runner_gpu_struct, &off_policy_runner_gpu_cpu, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
-        cudaMemcpy(batch_gpu_struct, &batch_gpu, sizeof(BATCH_TYPE), cudaMemcpyHostToDevice);
-        lic::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu);
         lic::check_status(device_gpu);
+        cudaMemcpy(off_policy_runner_gpu_struct, &off_policy_runner_gpu_cpu, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
+        lic::check_status(device_gpu);
+        cudaMemcpy(batch_gpu_struct, &batch_gpu, sizeof(BATCH_TYPE), cudaMemcpyHostToDevice);
+        lic::check_status(device_gpu);
+        lic::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu);
     }
 
     void TearDown() override {
@@ -161,11 +164,16 @@ TEST_F(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
     std::cout << "BATCH" << std::endl;
     lic::print(device_cpu, batch_cpu.observations);
     std::cout << "BATCH GPU" << std::endl;
-    lic::copy(device_cpu, device_gpu, batch_cpu_2.observations, batch_gpu.observations);
+    lic::copy(device_cpu, device_gpu, batch_cpu_2, batch_gpu);
     lic::print(device_cpu, batch_cpu_2.observations);
 
-    auto abs_diff_observations = lic::abs_diff(device_cpu, batch_cpu.observations, batch_cpu_2.observations);
-    ASSERT_FLOAT_EQ(abs_diff_observations, 0);
+    auto abs_diff_batch = lic::abs_diff(device_cpu, batch_cpu.observations, batch_cpu_2.observations);
+    abs_diff_batch += lic::abs_diff(device_cpu, batch_cpu.actions, batch_cpu_2.actions);
+    abs_diff_batch += lic::abs_diff(device_cpu, batch_cpu.next_observations, batch_cpu_2.next_observations);
+    abs_diff_batch += lic::abs_diff(device_cpu, batch_cpu.rewards, batch_cpu_2.rewards);
+    abs_diff_batch += lic::abs_diff(device_cpu, batch_cpu.terminated, batch_cpu_2.terminated);
+    abs_diff_batch += lic::abs_diff(device_cpu, batch_cpu.truncated, batch_cpu_2.truncated);
+    ASSERT_FLOAT_EQ(abs_diff_batch, 0);
 }
 TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
 
@@ -174,7 +182,6 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
 
     lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
     lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
-    lic::check_status(device_gpu);
 
     lic::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
     lic::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
@@ -182,20 +189,34 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
     auto abs_diff_target_next_action_noise = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
     ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
 //    lic::target_action_noise(device_gpu, actor_critic_gpu, critic_training_buffers_gpu.target_next_action_noise, rng_gpu);
-    lic::check_status(device_gpu);
 
     lic::zero_gradient(device_cpu, actor_critic_cpu.critic_1);
     lic::zero_gradient(device_gpu, actor_critic_gpu.critic_1);
 
     static_assert(BATCH_SPEC::BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
 
+    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+    lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+    auto abs_diff_actor_critic = lic::abs_diff(device_cpu, actor_critic_cpu_2.actor_target, actor_critic_cpu.actor_target);
+    ASSERT_FLOAT_EQ(abs_diff_actor_critic, 0);
+
+    lic::evaluate(device_cpu, actor_critic_cpu.actor.input_layer, batch_cpu.observations, actor_buffers_cpu.tick);
+    lic::evaluate(device_gpu, actor_critic_gpu.actor.input_layer, batch_gpu.observations, actor_buffers_gpu.tick);
+    lic::copy(device_cpu, device_gpu, actor_buffers_cpu_2, actor_buffers_gpu);
+    auto abs_diff_tick = lic::abs_diff(device_cpu, actor_buffers_cpu_2.tick, actor_buffers_cpu.tick);
+    ASSERT_LT(abs_diff_tick, EPSILON);
+
     lic::evaluate(device_cpu, actor_critic_cpu.actor_target, batch_cpu.next_observations, critic_training_buffers_cpu.next_actions, actor_buffers_cpu);
+    lic::evaluate(device_gpu, actor_critic_gpu.actor_target, batch_gpu.next_observations, critic_training_buffers_gpu.next_actions, actor_buffers_gpu);
+
+    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+    auto abs_diff_next_actions = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_cpu.next_actions);
+    ASSERT_LT(abs_diff_next_actions, EPSILON);
+
     lic::noisy_next_actions(device_cpu, critic_training_buffers_cpu);
     lic::noisy_next_actions(device_gpu, critic_training_buffers_gpu);
-    lic::check_status(device_gpu);
-    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_gpu.next_actions);
+    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
     lic::check_status(device_gpu);
     lic::print(device_cpu, critic_training_buffers_cpu_2.next_actions);
-
 
 }

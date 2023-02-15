@@ -33,6 +33,7 @@ namespace layer_in_c{
             dim3 bias_grid(N_BLOCKS_BIAS);
             dim3 bias_block(BLOCKSIZE_BIAS);
             nn::dense::cuda::set_biases_kernel<<<bias_grid, bias_block>>>(device, layer, output);
+            check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename OUTPUT_SPEC>
         __global__ void
@@ -63,6 +64,7 @@ namespace layer_in_c{
             dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT, N_BLOCKS_ACTIVATION_BATCH);
             dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT, BLOCKSIZE_ACTIVATION_BATCH);
             nn::dense::cuda::activation_kernel<<<activation_grid, activation_block>>>(device, layer, pre_activations, output);
+            check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
         __global__ void
@@ -93,6 +95,7 @@ namespace layer_in_c{
             dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT);
             dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT);
             nn::dense::cuda::d_activation_kernel<<<activation_grid, activation_block>>>(device, layer, pre_activations, d_output, d_biases, d_pre_activations);
+            check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
         __global__
@@ -143,18 +146,21 @@ namespace layer_in_c{
 
             constexpr T alpha = 1;
             constexpr T beta = 1;
-            // op(A) m x k = input^T   (B x I)
-            // op(B) k x n = weights   (I x O)
-            // op(C) m x n = OUTPUT    (B x O)
-            constexpr auto m = BATCH_SIZE;
+            // op(A) m x k = WEIGHTS^T^T (O x I)
+            // op(B) k x n = INPUT^T     (I x B)
+            // op(C) m x n = OUTPUT^T    (O x B)
+            constexpr auto m = LAYER_SPEC::OUTPUT_DIM;
             constexpr auto k = LAYER_SPEC::INPUT_DIM;
-            constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
+            constexpr auto n = BATCH_SIZE;
             cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
                 stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
             }
             else{
                 stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+            }
+            if(stat != CUBLAS_STATUS_SUCCESS){
+                std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
             }
 
             nn::dense::cuda::activation(device, layer, output, output);
@@ -189,6 +195,9 @@ namespace layer_in_c{
         }
         else{
             stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+        }
+        if(stat != CUBLAS_STATUS_SUCCESS){
+            std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
         }
 
         copy(device, device, layer.pre_activations, output);
@@ -228,11 +237,15 @@ namespace layer_in_c{
 
             nn::dense::cuda::d_activation(device, layer, layer.pre_activations, d_output, layer.d_biases, d_output);
 
+            cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
-                cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.d_weights._data, row_pitch(layer.d_weights));
+                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.d_weights._data, row_pitch(layer.d_weights));
             }
             else{
-                cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.d_weights._data, row_pitch(layer.d_weights));
+                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.d_weights._data, row_pitch(layer.d_weights));
+            }
+            if(stat != CUBLAS_STATUS_SUCCESS){
+                std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
             }
         }
         {
@@ -247,25 +260,35 @@ namespace layer_in_c{
             constexpr auto n = BATCH_SIZE;
             constexpr auto k = LAYER_SPEC::OUTPUT_DIM;
 
+            cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
-                cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
+                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
             }
             else{
-                cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
+                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
+            }
+            if(stat != CUBLAS_STATUS_SUCCESS){
+                std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
             }
         }
     }
     template<typename DEV_SPEC, typename SPEC>
     void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
         cudaMemset(layer.d_weights._data, 0, decltype(layer.d_weights)::SPEC::SIZE_BYTES);
+        check_status(device);
         cudaMemset(layer.d_biases._data, 0, decltype(layer.d_biases)::SPEC::SIZE_BYTES);
+        check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
     void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
         cudaMemset(layer.d_weights_first_order_moment._data, 0, decltype(layer.d_weights_first_order_moment)::SPEC::SIZE_BYTES);
+        check_status(device);
         cudaMemset(layer.d_weights_second_order_moment._data, 0, decltype(layer.d_weights_second_order_moment)::SPEC::SIZE_BYTES);
+        check_status(device);
         cudaMemset(layer.d_biases_first_order_moment._data, 0, decltype(layer.d_biases_first_order_moment)::SPEC::SIZE_BYTES);
+        check_status(device);
         cudaMemset(layer.d_biases_second_order_moment._data, 0, decltype(layer.d_biases_second_order_moment)::SPEC::SIZE_BYTES);
+        check_status(device);
     }
 
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
@@ -277,6 +300,7 @@ namespace layer_in_c{
         dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
         dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
         nn::dense::cuda::update_layer_kernel<<<activation_grid, activation_block>>>(device, layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
+        check_status(device);
     }
 }
 #endif

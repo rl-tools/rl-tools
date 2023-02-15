@@ -77,7 +77,6 @@ namespace layer_in_c::rl::algorithms::td3 {
         NEXT_STATE_ACTION_VALUE_VIEW<OBSERVATION_DIM> next_observations;
         NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM> next_actions;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_action_value;
-//        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_2;
     };

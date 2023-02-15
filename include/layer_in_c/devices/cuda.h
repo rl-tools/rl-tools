@@ -37,6 +37,9 @@ namespace layer_in_c::devices{
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
         cublasHandle_t handle;
+#ifdef LAYER_IN_C_DEBUG_DEVICE_CUDA_CHECK_INIT
+        bool initialized = false;
+#endif
     };
     template <typename T_SPEC>
     struct CUDA_GENERIC: cuda::Base{
@@ -62,6 +65,7 @@ namespace layer_in_c {
     void init(devices::CUDA<SPEC>& device){
         cublasStatus_t stat;
         stat = cublasCreate(&device.handle);
+        device.initialized = true;
         if (stat != CUBLAS_STATUS_SUCCESS) {
 //            logging::text(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
             std::cout << "CUBLAS initialization failed " << cublasGetStatusString(stat) << std::endl;
@@ -69,6 +73,11 @@ namespace layer_in_c {
     }
     template <typename SPEC>
     void check_status(devices::CUDA<SPEC>& device){
+#ifdef LAYER_IN_C_DEBUG_DEVICE_CUDA_CHECK_INIT
+        if(!device.initialized){
+            std::cerr << "CUDA device not initialized" << std::endl;
+        }
+#endif
         cudaError_t cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess) {
             std::cerr << "cuda failed: " << cudaGetErrorString(cudaStatus) << std::endl;

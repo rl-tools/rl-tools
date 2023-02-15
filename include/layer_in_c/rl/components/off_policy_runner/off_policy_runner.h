@@ -56,10 +56,10 @@ namespace layer_in_c::rl::components::off_policy_runner {
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 2*OBSERVATION_DIM + ACTION_DIM>> observations_action_next_observations;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 2*OBSERVATION_DIM + ACTION_DIM>> observations_actions_next_observations;
 
         template<typename SPEC::TI DIM>
-        using OANO_VIEW = typename decltype(observations_action_next_observations)::template VIEW<BATCH_SIZE, DIM>;
+        using OANO_VIEW = typename decltype(observations_actions_next_observations)::template VIEW<BATCH_SIZE, DIM>;
 
         OANO_VIEW<OBSERVATION_DIM> observations;
         OANO_VIEW<ACTION_DIM> actions;

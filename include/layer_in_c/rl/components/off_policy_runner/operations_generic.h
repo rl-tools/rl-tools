@@ -28,13 +28,13 @@ namespace layer_in_c{
     void malloc(DEVICE& device, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch) {
         using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
         using SPEC = typename BATCH_SPEC::SPEC;
-        using DATA_SPEC = typename decltype(batch.observations_action_next_observations)::SPEC;
+        using DATA_SPEC = typename decltype(batch.observations_actions_next_observations)::SPEC;
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
-        malloc(device, batch.observations_action_next_observations);
-        batch.observations             = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                    >(device, batch.observations_action_next_observations, 0, 0);
-        batch.actions                  = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::     ACTION_DIM                    >(device, batch.observations_action_next_observations, 0, BATCH::OBSERVATION_DIM);
-        batch.next_observations        = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                    >(device, batch.observations_action_next_observations, 0, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM);
-        batch.observations_and_actions = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM>(device, batch.observations_action_next_observations, 0, 0);
+        malloc(device, batch.observations_actions_next_observations);
+        batch.observations             = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                    >(device, batch.observations_actions_next_observations, 0, 0);
+        batch.actions                  = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::     ACTION_DIM                    >(device, batch.observations_actions_next_observations, 0, BATCH::OBSERVATION_DIM);
+        batch.next_observations        = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                    >(device, batch.observations_actions_next_observations, 0, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM);
+        batch.observations_and_actions = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM>(device, batch.observations_actions_next_observations, 0, 0);
 
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
@@ -59,7 +59,7 @@ namespace layer_in_c{
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC>& batch) {
-        free(device, batch.observations_action_next_observations);
+        free(device, batch.observations_actions_next_observations);
         batch.observations.            _data = nullptr;
         batch.actions.                 _data = nullptr;
         batch.next_observations.       _data = nullptr;
@@ -213,6 +213,13 @@ namespace layer_in_c{
 //        copy(target_device, source_device, target.d_input, source.d_input);
 //        copy(target_device, source_device, target.d_output, source.d_output);
 //    }
+    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::off_policy_runner::Batch<TARGET_SPEC>& target, rl::components::off_policy_runner::Batch<SOURCE_SPEC>& source){
+        copy(target_device, source_device, target.observations_actions_next_observations, source.observations_actions_next_observations);
+        copy(target_device, source_device, target.rewards, source.rewards);
+        copy(target_device, source_device, target.terminated, source.terminated);
+        copy(target_device, source_device, target.truncated, source.truncated);
+    }
 }
 
 #endif

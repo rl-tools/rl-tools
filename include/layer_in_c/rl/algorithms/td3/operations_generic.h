@@ -239,6 +239,14 @@ namespace layer_in_c{
         copy(target_device, source_device, target.critic_target_1, source.critic_1);
         copy(target_device, source_device, target.critic_target_2, source.critic_2);
     }
+    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::algorithms::td3::CriticTrainingBuffers<TARGET_SPEC>& target, rl::algorithms::td3::CriticTrainingBuffers<SOURCE_SPEC>& source){
+        copy(target_device, source_device, target.target_next_action_noise, source.target_next_action_noise);
+        copy(target_device, source_device, target.next_state_action_value_input, source.next_state_action_value_input);
+        copy(target_device, source_device, target.target_action_value, source.target_action_value);
+        copy(target_device, source_device, target.next_state_action_value_critic_1, source.next_state_action_value_critic_1);
+        copy(target_device, source_device, target.next_state_action_value_critic_2, source.next_state_action_value_critic_2);
+    }
 }
 
 #endif

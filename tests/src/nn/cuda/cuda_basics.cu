@@ -193,6 +193,85 @@ template <typename T, typename TI, TI DIM_1, TI DIM_2, TI OFFSET_1, TI OFFSET_2,
     COPY_CONTAINER<double, unsigned int, 711, 20, 295, 10, 609, 133, 803, 705, 300, 262, 777, 276>();
 
 }
+
+
+/*
+TEST(LAYER_IN_C_NN_CUDA, COPYING_VIEWS){
+    using DEVICE_CPU = lic::devices::DefaultCPU;
+    using DEVICE_CUDA = lic::devices::DefaultCUDA;
+
+    DEVICE_CUDA device_cuda;
+    DEVICE_CPU device_cpu;
+    using DTYPE = float;
+    {
+        auto rng = lic::random::default_engine(decltype(device_cpu)::SPEC::RANDOM());
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data;
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_2;
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_3;
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_3_orig;
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_4;
+        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cuda_data;
+        lic::malloc(device_cpu, matrix_cpu_data);
+        lic::malloc(device_cpu, matrix_cpu_data_2);
+        lic::malloc(device_cpu, matrix_cpu_data_3);
+        lic::malloc(device_cpu, matrix_cpu_data_3_orig);
+        lic::malloc(device_cpu, matrix_cpu_data_4);
+        lic::malloc(device_cuda, matrix_cuda_data);
+
+        auto matrix_cpu_view = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data)::SPEC, 50, 50>(device_cuda, matrix_cpu_data, 25, 25);
+        auto matrix_cpu_view_2 = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_2)::SPEC, 50, 50>(device_cuda, matrix_cpu_data_2, 25, 25);
+        auto matrix_cpu_view_3 = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_3)::SPEC, 50, 50>(device_cuda, matrix_cpu_data_3, 25, 25);
+        auto matrix_cuda_view = lic::view<DEVICE_CUDA, typename decltype(matrix_cuda_data)::SPEC, 50, 50>(device_cuda, matrix_cuda_data, 25, 25);
+
+        auto matrix_cpu_view_alt        = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data       )::SPEC, 40, 5>(device_cuda, matrix_cpu_data       ,  5, 5);
+        auto matrix_cpu_view_3_alt      = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_3     )::SPEC, 40, 5>(device_cuda, matrix_cpu_data_3     ,  5, 5);
+        auto matrix_cpu_view_3_alt_orig = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_3_orig)::SPEC, 40, 5>(device_cuda, matrix_cpu_data_3_orig,  5, 5);
+
+
+        {
+            lic::randn(device_cpu, matrix_cpu_data, rng);
+            lic::randn(device_cpu, matrix_cpu_data_2, rng);
+            lic::randn(device_cpu, matrix_cpu_data_3, rng);
+            lic::copy(device_cpu, device_cpu, matrix_cpu_data_3_orig, matrix_cpu_data_3);
+            lic::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data_2);
+            lic::copy_structure_mismatch(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view);
+            lic::copy(device_cpu, device_cuda, matrix_cpu_data_3, matrix_cuda_data);
+            DTYPE abs_diff = lic::abs_diff(device_cpu, matrix_cpu_view, matrix_cpu_view_3);
+            EXPECT_LT(abs_diff, 1e-5);
+        }
+        {
+            lic::randn(device_cpu, matrix_cpu_data, rng);
+            lic::randn(device_cpu, matrix_cpu_data_2, rng);
+            lic::randn(device_cpu, matrix_cpu_data_3, rng);
+            lic::copy(device_cpu, device_cpu, matrix_cpu_data_3_orig, matrix_cpu_data_3);
+            lic::copy(device_cpu, device_cpu, matrix_cpu_view_3, matrix_cpu_view);
+
+            DTYPE abs_diff_3_orig = lic::abs_diff(device_cpu, matrix_cpu_view_3_alt, matrix_cpu_view_3_alt_orig);
+            EXPECT_LT(abs_diff_3_orig, 1e-5);
+
+            lic::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data);
+            lic::copy_structure_mismatch(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_2);
+
+            lic::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
+            DTYPE abs_diff = lic::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
+            EXPECT_GT(abs_diff, 1e-5);
+
+            lic::copy_structure_mismatch(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_3);
+            lic::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
+            abs_diff = lic::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
+            EXPECT_LT(abs_diff, 1e-5);
+        }
+
+
+
+        lic::free(device_cpu, matrix_cpu_data);
+        lic::free(device_cpu, matrix_cpu_data_2);
+        lic::free(device_cpu, matrix_cpu_data_3);
+        lic::free(device_cpu, matrix_cpu_data_4);
+        lic::free(device_cuda, matrix_cuda_data);
+    }
+}
+*/
      namespace copy{
     using DTYPE = float;
     using DEVICE_CPU = lic::devices::DefaultCPU;

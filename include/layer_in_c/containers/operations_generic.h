@@ -48,11 +48,15 @@ namespace layer_in_c{
     LAYER_IN_C_FUNCTION_PLACEMENT inline typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
         // bounds checking for debugging
-#ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_BOUNDS
+#if defined(LAYER_IN_C_DEBUG_CONTAINER_CHECK_BOUNDS)
         if(row >= SPEC::ROWS || col >= SPEC::COLS){
+#if !defined(__CUDA_ARCH__)
             std::stringstream ss;
             ss << "index: " << row << "(" << SPEC::ROWS << "):" << col << "(" << SPEC::COLS << ") out of bounds";
             throw std::runtime_error(ss.str());
+#else
+            printf("index: %d(%d):%d(%d) out of bounds", row, SPEC::ROWS, col, SPEC::COLS);
+#endif
         }
 #endif
         return index;
@@ -319,7 +323,7 @@ namespace layer_in_c{
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout>> out;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout, true>> out;
         out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
         return out;
     }
