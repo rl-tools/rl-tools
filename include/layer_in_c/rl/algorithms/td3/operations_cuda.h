@@ -93,7 +93,6 @@ namespace layer_in_c{
         }
     }
     template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
-    __global__
     void target_actions(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
@@ -102,7 +101,7 @@ namespace layer_in_c{
         constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        target_actions_kernel<DEV_SPEC, SPEC><<<bias_grid, bias_block>>>(device, batch, training_buffers);
+        target_actions_kernel<<<bias_grid, bias_block>>>(device, batch, training_buffers);
         lic::check_status(device);
     }
 }

@@ -67,6 +67,7 @@ public:
     using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
     using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
     using ACTOR_BUFFERS = lic::nn_models::mlp::NeuralNetworkBuffersForwardBackward<lic::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;
+    using CRITIC_BUFFERS = lic::nn_models::mlp::NeuralNetworkBuffersForwardBackward<lic::nn_models::mlp::NeuralNetworkBuffersSpecification<CRITIC_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
     DEVICE_CPU device_cpu;
     DEVICE_GPU device_gpu;
     OFF_POLICY_RUNNER_TYPE off_policy_runner_cpu;
@@ -84,6 +85,9 @@ public:
     ACTOR_BUFFERS actor_buffers_cpu;
     ACTOR_BUFFERS actor_buffers_cpu_2;
     ACTOR_BUFFERS actor_buffers_gpu;
+    CRITIC_BUFFERS critic_buffers_cpu;
+    CRITIC_BUFFERS critic_buffers_cpu_2;
+    CRITIC_BUFFERS critic_buffers_gpu;
 protected:
     void SetUp() override {
         lic::init(device_gpu);
@@ -107,6 +111,9 @@ protected:
         lic::malloc(device_cpu, actor_buffers_cpu);
         lic::malloc(device_cpu, actor_buffers_cpu_2);
         lic::malloc(device_gpu, actor_buffers_gpu);
+        lic::malloc(device_cpu, critic_buffers_cpu);
+        lic::malloc(device_cpu, critic_buffers_cpu_2);
+        lic::malloc(device_gpu, critic_buffers_gpu);
 
         // init
         for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; rb_i++) {
@@ -142,9 +149,24 @@ protected:
         lic::free(device_cpu, actor_buffers_cpu);
         lic::free(device_cpu, actor_buffers_cpu_2);
         lic::free(device_gpu, actor_buffers_gpu);
+        lic::free(device_cpu, critic_buffers_cpu);
+        lic::free(device_cpu, critic_buffers_cpu_2);
+        lic::free(device_gpu, critic_buffers_gpu);
     }
 };
 
+TEST_F(LAYER_IN_C_RL_CUDA, VIEW_COPY_PROBLEM) {
+
+    auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
+
+    lic::randn(device_cpu, batch_cpu.next_observations, rng_cpu);
+    lic::copy_structure_mismatch(device_gpu, device_cpu, batch_gpu.next_observations, batch_cpu.next_observations);
+    lic::copy_structure_mismatch(device_cpu, device_gpu, batch_cpu_2.next_observations, batch_gpu.next_observations);
+
+    auto abs_diff_next_observations = lic::abs_diff(device_cpu, batch_cpu_2.next_observations, batch_cpu.next_observations);
+    ASSERT_LT(abs_diff_next_observations, EPSILON);
+}
 
 TEST_F(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
 
@@ -217,19 +239,45 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
     lic::noisy_next_actions(device_gpu, critic_training_buffers_gpu);
     lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
     lic::check_status(device_gpu);
-    lic::print(device_cpu, critic_training_buffers_cpu_2.next_actions);
+    auto abs_diff_noisy_next_actions = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_cpu.next_actions);
+    ASSERT_LT(abs_diff_noisy_next_actions, EPSILON);
+
+    lic::copy(device_cpu, device_cpu, critic_training_buffers_cpu.next_observations, batch_cpu.next_observations);
+    lic::copy_structure_mismatch(device_gpu, device_gpu, critic_training_buffers_gpu.next_observations, batch_gpu.next_observations);
+    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+    auto abs_diff_next_state_action_value_input = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_input);
+    ASSERT_LT(abs_diff_next_state_action_value_input, EPSILON);
+
+    lic::evaluate(device_cpu, actor_critic_cpu.critic_target_1, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_1, critic_buffers_cpu);
+    lic::evaluate(device_cpu, actor_critic_cpu.critic_target_2, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_2, critic_buffers_cpu);
+
+    lic::evaluate(device_gpu, actor_critic_gpu.critic_target_1, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_1, critic_buffers_gpu);
+    lic::evaluate(device_gpu, actor_critic_gpu.critic_target_2, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_2, critic_buffers_gpu);
+
+    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+    auto abs_diff_next_state_action_value_critic_1 = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_critic_1, critic_training_buffers_cpu.next_state_action_value_critic_1);
+    auto abs_diff_next_state_action_value_critic_2 = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_critic_2, critic_training_buffers_cpu.next_state_action_value_critic_2);
+    ASSERT_LT(abs_diff_next_state_action_value_critic_1, EPSILON);
+    ASSERT_LT(abs_diff_next_state_action_value_critic_2, EPSILON);
+
+    lic::target_actions(device_cpu, batch_cpu, critic_training_buffers_cpu);
+    lic::target_actions(device_gpu, batch_gpu, critic_training_buffers_gpu);
+    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+    auto abs_diff_target_action_value = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_action_value, critic_training_buffers_cpu.target_action_value);
+    ASSERT_LT(abs_diff_target_action_value, EPSILON);
+
+    forward_backward_mse(device_cpu, actor_critic_cpu.critic_1, batch_cpu.observations_and_actions, critic_training_buffers_cpu.target_action_value, critic_buffers_cpu);
+    forward_backward_mse(device_gpu, actor_critic_gpu.critic_1, batch_gpu.observations_and_actions, critic_training_buffers_gpu.target_action_value, critic_buffers_gpu);
+    lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+
+    auto abs_diff_critic_1 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_1, actor_critic_cpu_2.critic_1);
+    ASSERT_LT(abs_diff_critic_1, 10*EPSILON);
+
+    lic::update(device_cpu, actor_critic_cpu.critic_1);
+    lic::update(device_gpu, actor_critic_gpu.critic_1);
+    lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+    auto abs_diff_critic_after_update = lic::abs_diff(device_cpu, actor_critic_cpu.critic_1, actor_critic_cpu_2.critic_1);
+    ASSERT_LT(abs_diff_critic_after_update, 10*EPSILON);
 
 }
 
-TEST_F(LAYER_IN_C_RL_CUDA, VIEW_COPY_PROBLEM) {
-
-    auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
-    auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
-
-    lic::randn(device_cpu, batch_cpu.next_observations, rng_cpu);
-    lic::copy_structure_mismatch(device_gpu, device_cpu, batch_gpu.next_observations, batch_cpu.next_observations);
-    lic::copy_structure_mismatch(device_cpu, device_gpu, batch_cpu_2.next_observations, batch_gpu.next_observations);
-
-    auto abs_diff_next_observations = lic::abs_diff(device_cpu, batch_cpu_2.next_observations, batch_cpu.next_observations);
-    ASSERT_LT(abs_diff_next_observations, EPSILON);
-}
