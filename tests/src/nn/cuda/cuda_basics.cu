@@ -55,7 +55,7 @@ void COPY_CONTAINER() {
 
         lic::set_all(device_cpu, matrix_cpu, 1337.0f);
 
-        lic::copy_structure_mismatch(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
+        lic::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
         lic::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
         auto diff = lic::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 0.0f);
@@ -74,11 +74,11 @@ void COPY_CONTAINER() {
 
         lic::set_all(device_cpu, matrix_cpu, 1337.0f);
 
-        lic::copy_structure_mismatch(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
+        lic::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
         static_assert(DIM_1 > OFFSET_1);
         static_assert(DIM_2 > OFFSET_2);
         increment(matrix_cpu, OFFSET_1, OFFSET_2, 17);
-        lic::copy_structure_mismatch(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
+        lic::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
         auto diff = lic::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 17.0f);
         lic::free(device_cpu, matrix_cpu);
@@ -109,10 +109,10 @@ void COPY_CONTAINER() {
             }
         }
 
-        lic::copy_structure_mismatch(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
+        lic::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
         increment(matrix_cpu, OFFSET_1, OFFSET_2, 17);
-        lic::copy_structure_mismatch(device_cuda, device_cuda, matrix_cuda2, matrix_cuda);
-        lic::copy_structure_mismatch(device_cpu, device_cuda, matrix_cpu2, matrix_cuda2);
+        lic::copy(device_cuda, device_cuda, matrix_cuda2, matrix_cuda);
+        lic::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda2);
         auto diff = lic::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 17.0f);
         lic::free(device_cpu, matrix_cpu);
@@ -233,7 +233,7 @@ TEST(LAYER_IN_C_NN_CUDA, COPYING_VIEWS){
             lic::randn(device_cpu, matrix_cpu_data_3, rng);
             lic::copy(device_cpu, device_cpu, matrix_cpu_data_3_orig, matrix_cpu_data_3);
             lic::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data_2);
-            lic::copy_structure_mismatch(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view);
+            lic::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view);
             lic::copy(device_cpu, device_cuda, matrix_cpu_data_3, matrix_cuda_data);
             DTYPE abs_diff = lic::abs_diff(device_cpu, matrix_cpu_view, matrix_cpu_view_3);
             EXPECT_LT(abs_diff, 1e-5);
@@ -249,13 +249,13 @@ TEST(LAYER_IN_C_NN_CUDA, COPYING_VIEWS){
             EXPECT_LT(abs_diff_3_orig, 1e-5);
 
             lic::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data);
-            lic::copy_structure_mismatch(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_2);
+            lic::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_2);
 
             lic::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
             DTYPE abs_diff = lic::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
             EXPECT_GT(abs_diff, 1e-5);
 
-            lic::copy_structure_mismatch(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_3);
+            lic::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_3);
             lic::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
             abs_diff = lic::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
             EXPECT_LT(abs_diff, 1e-5);

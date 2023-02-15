@@ -31,13 +31,13 @@ namespace layer_in_c{
         cudaFree(matrix._data);
         check_status(device);
     }
-    namespace containers::cuda::internal {
-        template<typename DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
+    namespace containers::cuda::kernels {
+        template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
         __global__ void
-        copy(devices::CUDA<DEV_SPEC>& device, Matrix<TARGET_SPEC> target, Matrix<SOURCE_SPEC> source) {
+        copy(Matrix<TARGET_SPEC> target, Matrix<SOURCE_SPEC> source) {
             static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
             using T = typename TARGET_SPEC::T;
-            using TI = typename devices::CUDA<DEV_SPEC>::index_t;
+            using TI = typename DEVICE::index_t;
 
             TI col = blockIdx.x * blockDim.x + threadIdx.x;
             if(col < TARGET_SPEC::COLS){
@@ -46,10 +46,22 @@ namespace layer_in_c{
                 }
             }
         }
+        template<typename DEVICE, typename SPEC, typename VALUE_T>
+        __global__
+        void set_all(Matrix<SPEC> m, VALUE_T value){
+            using TI = typename DEVICE::index_t;
+            TI col = blockIdx.x * blockDim.x + threadIdx.x;
+            if(col < SPEC::COLS){
+                for(typename SPEC::TI row = 0; row < SPEC::ROWS; row++){
+                    set(m, row, col, value);
+                }
+            }
+        }
     }
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(devices::CUDA<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
 //        static_assert(!TARGET_SPEC::IS_VIEW);
+        using DEVICE_CUDA = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
         static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
         using SPEC = TARGET_SPEC;
@@ -72,13 +84,14 @@ namespace layer_in_c{
                 constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
                 dim3 grid(N_BLOCKS_COLS);
                 dim3 block(BLOCKSIZE_COLS);
-                containers::cuda::internal::copy<<<grid, block>>>(target_device, target, temp);
+                containers::cuda::kernels::copy<DEVICE_CUDA, TARGET_SPEC, typename decltype(temp)::SPEC><<<grid, block>>>(target, temp);
                 check_status(target_device);
             }
         }
     }
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CUDA<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+        using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
         static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
         using SPEC = TARGET_SPEC;
@@ -91,7 +104,7 @@ namespace layer_in_c{
             constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
-            containers::cuda::internal::copy<<<grid, block>>>(source_device, temp_gpu, source);
+            containers::cuda::kernels::copy<DEVICE_CUDA, typename decltype(temp_gpu)::SPEC, SOURCE_SPEC><<<grid, block>>>(temp_gpu, source);
             check_status(source_device);
         }
         malloc(target_device, temp_cpu);
@@ -105,81 +118,29 @@ namespace layer_in_c{
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(devices::CUDA<TARGET_DEV_SPEC>& target_device, devices::CUDA<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
 //        static_assert(!TARGET_SPEC::IS_VIEW);
+        using DEVICE = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
         static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-//        cudaMemcpy(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice);
-//        check_status(source_device);
         constexpr TI BLOCKSIZE_COLS = 32;
         constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
         dim3 grid(N_BLOCKS_COLS);
         dim3 block(BLOCKSIZE_COLS);
-        containers::cuda::internal::copy<<<grid, block>>>(target_device, target, source);
+        containers::cuda::kernels::copy<DEVICE, TARGET_SPEC, SOURCE_SPEC><<<grid, block>>>(target, source);
         check_status(target_device);
     }
-
-
-    template<typename TARGET_DEV, typename SOURCE_DEV, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy_structure_mismatch(TARGET_DEV& target_device, SOURCE_DEV& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
-        static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
-//        static_assert(!TARGET_SPEC::IS_VIEW);
-        using SPEC = TARGET_SPEC;
-        using T = typename TARGET_SPEC::T;
-        using TI = typename TARGET_SPEC::TI;
-        using TARGET_DEV_CUDA = devices::CUDA<typename TARGET_DEV::SPEC>;
-        using TARGET_DEV_CPU = devices::CPU<typename TARGET_DEV::SPEC>;
-        using SOURCE_DEV_CUDA = devices::CUDA<typename SOURCE_DEV::SPEC>;
-        using SOURCE_DEV_CPU = devices::CPU<typename SOURCE_DEV::SPEC>;
-        static_assert(
-                (utils::typing::is_same_v<TARGET_DEV, TARGET_DEV_CUDA> && utils::typing::is_same_v<SOURCE_DEV, SOURCE_DEV_CPU >) ||
-                (utils::typing::is_same_v<TARGET_DEV, TARGET_DEV_CPU > && utils::typing::is_same_v<SOURCE_DEV, SOURCE_DEV_CUDA>) ||
-                (utils::typing::is_same_v<TARGET_DEV, TARGET_DEV_CUDA> && utils::typing::is_same_v<SOURCE_DEV, SOURCE_DEV_CUDA>)
-        );
-        constexpr bool TARGET_IS_VIEW = TARGET_SPEC::IS_VIEW;
+    template<typename DEV_SPEC, typename SPEC, typename VALUE_T>
+    void set_all(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& m, VALUE_T value){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
         constexpr TI BLOCKSIZE_COLS = 32;
-        constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
-        dim3 bias_grid(N_BLOCKS_COLS);
-        dim3 bias_block(BLOCKSIZE_COLS);
-
-        if constexpr(utils::typing::is_same_v<TARGET_DEV, TARGET_DEV_CUDA> && utils::typing::is_same_v<SOURCE_DEV, SOURCE_DEV_CPU>){
-            if constexpr(!TARGET_IS_VIEW){
-                Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename TARGET_SPEC::LAYOUT, false>> temp;
-                malloc(source_device, temp);
-                copy(source_device, source_device, temp, source);
-                copy(target_device, source_device, target, temp);
-                free(source_device, temp);
-            }
-            else{
-                Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename SOURCE_SPEC::LAYOUT, false>> temp;
-                malloc(target_device, temp);
-                copy(target_device, source_device, temp, source);
-                containers::cuda::internal::copy<<<bias_grid, bias_block>>>(target_device, target, temp);
-                check_status(target_device);
-            }
-        }
-        else{
-            if constexpr(utils::typing::is_same_v<TARGET_DEV, TARGET_DEV_CPU> && utils::typing::is_same_v<SOURCE_DEV, SOURCE_DEV_CUDA>){
-                // GPU (possible view) -> GPU (dense) -> CPU (dense) -> CPU (possible view)
-                Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS>> temp_gpu, temp_cpu;
-                malloc(source_device, temp_gpu);
-                containers::cuda::internal::copy<<<bias_grid, bias_block>>>(source_device, temp_gpu, source);
-                check_status(source_device);
-                malloc(target_device, temp_cpu);
-                copy(target_device, source_device, temp_cpu, temp_gpu);
-                free(source_device, temp_gpu);
-                copy(target_device, target_device, target, temp_cpu);
-                free(target_device, temp_cpu);
-            }
-            else{
-                if constexpr(utils::typing::is_same_v<TARGET_DEV, TARGET_DEV_CUDA> && utils::typing::is_same_v<SOURCE_DEV, SOURCE_DEV_CUDA>){
-                    containers::cuda::internal::copy<<<bias_grid, bias_block>>>(target_device, target, source);
-                    check_status(target_device);
-                }
-            }
-        }
-
+        constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(SPEC::COLS, BLOCKSIZE_COLS);
+        dim3 grid(N_BLOCKS_COLS);
+        dim3 block(BLOCKSIZE_COLS);
+        containers::cuda::kernels::set_all<DEVICE, SPEC, VALUE_T><<<grid, block>>>(m, value);
+        check_status(device);
     }
 }
 
