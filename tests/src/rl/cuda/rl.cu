@@ -39,8 +39,8 @@ public:
     using DEVICE_GPU = lic::devices::DefaultCUDA;
     using NN_DEVICE = DEVICE_CPU;
     using DTYPE = double;
-    static constexpr DEVICE_CPU::index_t CAPACITY = 2000;
-    static constexpr DEVICE_CPU::index_t BATCH_SIZE = 2000;
+    static constexpr DEVICE_CPU::index_t CAPACITY = 20000;
+    static constexpr DEVICE_CPU::index_t BATCH_SIZE = 123;
     static constexpr DTYPE EPSILON = (lic::utils::typing::is_same_v<DTYPE, float> ? 1e-5 : 1e-10);// * BATCH_SIZE;
 //    using REPLAY_BUFFER_SPEC = lic::rl::components::replay_buffer::Specification<DTYPE, DEVICE_CPU::index_t, OBSERVATION_DIM, ACTION_DIM, CAPACITY>;
 //    using REPLAY_BUFFER = lic::rl::components::ReplayBuffer<REPLAY_BUFFER_SPEC>;
@@ -198,12 +198,13 @@ TEST_F(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
     ASSERT_FLOAT_EQ(abs_diff_batch, 0);
 }
 TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
+    constexpr DEVICE_CPU::index_t N_STEPS = 50;
 
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
     auto sample_batch = [&](bool deterministic){
-        lic::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
+        rng_gpu = lic::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
         if(deterministic){
             lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
             lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
@@ -293,7 +294,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
     sample_batch(true);
 
-    for(typename DEVICE_CPU::index_t i = 0; i < 20; i++){
+    for(typename DEVICE_CPU::index_t i = 0; i < N_STEPS; i++){
         typename DEVICE_CPU::index_t critic_i = i % 2;
         sample_batch(false);
         auto& critic_cpu = critic_i == 0 ? actor_critic_cpu.critic_1 : actor_critic_cpu.critic_2;
@@ -335,12 +336,13 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 }
 
 TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
+    constexpr DEVICE_CPU::index_t N_STEPS = 50;
 
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
     auto sample_batch = [&](bool deterministic){
-        lic::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
+        rng_gpu = lic::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
         if(deterministic){
             lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
             lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
@@ -369,7 +371,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
 
     sample_batch(true);
 
-    for(typename DEVICE_CPU::index_t i = 0; i < 20; i++){
+    for(typename DEVICE_CPU::index_t i = 0; i < N_STEPS; i++){
         typename DEVICE_CPU::index_t critic_i = i % 2;
         sample_batch(false);
         auto& critic_cpu = critic_i == 0 ? actor_critic_cpu.critic_1 : actor_critic_cpu.critic_2;
