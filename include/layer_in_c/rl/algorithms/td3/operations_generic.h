@@ -32,8 +32,10 @@ namespace layer_in_c{
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
-        malloc(device, actor_training_buffers.actions);
+        using BUFFERS = rl::algorithms::td3::ActorTrainingBuffers<SPEC>;
         malloc(device, actor_training_buffers.state_action_value_input);
+        actor_training_buffers.observations = lic::view<DEVICE, typename decltype(actor_training_buffers.state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM>(device, actor_training_buffers.state_action_value_input, 0, 0);
+        actor_training_buffers.actions      = lic::view<DEVICE, typename decltype(actor_training_buffers.state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM     >(device, actor_training_buffers.state_action_value_input, 0, BUFFERS::OBSERVATION_DIM);
         malloc(device, actor_training_buffers.state_action_value);
         malloc(device, actor_training_buffers.d_output);
         malloc(device, actor_training_buffers.d_critic_input);
@@ -42,8 +44,9 @@ namespace layer_in_c{
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
-        free(device, actor_training_buffers.actions);
         free(device, actor_training_buffers.state_action_value_input);
+        actor_training_buffers.observations._data = nullptr;
+        actor_training_buffers.actions._data      = nullptr;
         free(device, actor_training_buffers.state_action_value);
         free(device, actor_training_buffers.d_output);
         free(device, actor_training_buffers.d_critic_input);
@@ -55,12 +58,10 @@ namespace layer_in_c{
     void malloc(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
         malloc(device, critic_training_buffers.target_next_action_noise);
-//        malloc(device, critic_training_buffers.next_actions);
         malloc(device, critic_training_buffers.next_state_action_value_input);
         critic_training_buffers.next_observations = view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM>(device, critic_training_buffers.next_state_action_value_input, 0, 0);
         critic_training_buffers.next_actions      = view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM     >(device, critic_training_buffers.next_state_action_value_input, 0, BUFFERS::OBSERVATION_DIM);
         malloc(device, critic_training_buffers.target_action_value);
-//        malloc(device, critic_training_buffers.state_action_value_input);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
         malloc(device, critic_training_buffers.next_state_action_value_critic_2);
     }
@@ -68,10 +69,10 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         free(device, critic_training_buffers.target_next_action_noise);
-//        free(device, critic_training_buffers.next_actions);
         free(device, critic_training_buffers.next_state_action_value_input);
+        critic_training_buffers.next_observations._data = nullptr;
+        critic_training_buffers.next_actions._data = nullptr;
         free(device, critic_training_buffers.target_action_value);
-//        free(device, critic_training_buffers.state_action_value_input);
         free(device, critic_training_buffers.next_state_action_value_critic_1);
         free(device, critic_training_buffers.next_state_action_value_critic_2);
     }
@@ -181,7 +182,8 @@ namespace layer_in_c{
 
         zero_gradient(device, actor_critic.actor);
         forward(device, actor_critic.actor, batch.observations, training_buffers.actions);
-        hcat(device, batch.observations, training_buffers.actions, training_buffers.state_action_value_input);
+//        hcat(device, batch.observations, training_buffers.actions, training_buffers.state_action_value_input);
+        copy(device, device, training_buffers.observations, batch.observations);
         auto& critic = actor_critic.critic_1;
         forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value);
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
