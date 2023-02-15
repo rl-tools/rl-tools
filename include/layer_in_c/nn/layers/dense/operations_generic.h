@@ -3,7 +3,7 @@
 
 #include <layer_in_c/containers.h>
 #include <layer_in_c/nn/layers/dense/layer.h>
-#include <layer_in_c/utils/generic/polyak.h>
+#include <layer_in_c/utils/polyak/operations_generic.h>
 #ifndef LAYER_IN_C_FUNCTION_PLACEMENT
 #define LAYER_IN_C_FUNCTION_PLACEMENT
 #endif

@@ -279,5 +279,13 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
     auto abs_diff_critic_after_update = lic::abs_diff(device_cpu, actor_critic_cpu.critic_1, actor_critic_cpu_2.critic_1);
     ASSERT_LT(abs_diff_critic_after_update, 10*EPSILON);
 
+
+    lic::update_critic_targets(device_cpu, actor_critic_cpu);
+    lic::update_critic_targets(device_gpu, actor_critic_gpu);
+    lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+    auto abs_diff_critic_target_1 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_target_1, actor_critic_cpu_2.critic_target_1);
+    auto abs_diff_critic_target_2 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_target_2, actor_critic_cpu_2.critic_target_2);
+    ASSERT_LT(abs_diff_critic_target_1, 10*EPSILON);
+    ASSERT_LT(abs_diff_critic_target_2, 10*EPSILON);
 }
 

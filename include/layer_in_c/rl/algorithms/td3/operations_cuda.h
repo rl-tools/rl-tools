@@ -1,5 +1,6 @@
 
 
+#include <layer_in_c/utils/polyak/operations_cuda.h>
 #include "operations_generic.h"
 namespace layer_in_c{
     template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename RNG>
@@ -37,7 +38,7 @@ namespace layer_in_c{
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         target_action_noise_kernel<DEV_SPEC, SPEC, OUTPUT_SPEC, RNG><<<bias_grid, bias_block>>>(device, actor_critic, target_action_noise, rng);
-        lic::check_status(device);
+        check_status(device);
     }
 
     template <typename DEV_SPEC, typename SPEC>
@@ -68,7 +69,7 @@ namespace layer_in_c{
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         noisy_next_actions_kernel<DEV_SPEC, SPEC><<<bias_grid, bias_block>>>(device, training_buffers);
-        lic::check_status(device);
+        check_status(device);
     }
 
     template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
@@ -102,6 +103,6 @@ namespace layer_in_c{
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         target_actions_kernel<<<bias_grid, bias_block>>>(device, batch, training_buffers);
-        lic::check_status(device);
+        check_status(device);
     }
 }

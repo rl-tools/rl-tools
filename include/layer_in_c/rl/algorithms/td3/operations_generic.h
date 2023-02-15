@@ -7,7 +7,7 @@
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 #include <layer_in_c/nn/nn.h>
 #include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/utils/generic/polyak.h>
+#include <layer_in_c/utils/polyak/operations_generic.h>
 #include <layer_in_c/math/operations_generic.h>
 #include <layer_in_c/utils/generic/memcpy.h>
 
@@ -57,8 +57,8 @@ namespace layer_in_c{
         malloc(device, critic_training_buffers.target_next_action_noise);
 //        malloc(device, critic_training_buffers.next_actions);
         malloc(device, critic_training_buffers.next_state_action_value_input);
-        critic_training_buffers.next_observations = lic::view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM>(device, critic_training_buffers.next_state_action_value_input, 0, 0);
-        critic_training_buffers.next_actions      = lic::view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM     >(device, critic_training_buffers.next_state_action_value_input, 0, BUFFERS::OBSERVATION_DIM);
+        critic_training_buffers.next_observations = view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM>(device, critic_training_buffers.next_state_action_value_input, 0, 0);
+        critic_training_buffers.next_actions      = view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM     >(device, critic_training_buffers.next_state_action_value_input, 0, BUFFERS::OBSERVATION_DIM);
         malloc(device, critic_training_buffers.target_action_value);
 //        malloc(device, critic_training_buffers.state_action_value_input);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
@@ -211,7 +211,6 @@ namespace layer_in_c{
     void update_critic_targets(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
         update_target_network(device, actor_critic.critic_target_1, actor_critic.critic_1, SPEC::PARAMETERS::CRITIC_POLYAK);
         update_target_network(device, actor_critic.critic_target_2, actor_critic.critic_2, SPEC::PARAMETERS::CRITIC_POLYAK);
-
     }
     template <typename DEVICE, typename SPEC>
     void update_actor_target(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic) {
@@ -235,9 +234,9 @@ namespace layer_in_c{
         copy(target_device, source_device, target.critic_1, source.critic_1);
         copy(target_device, source_device, target.critic_2, source.critic_2);
 
-        copy(target_device, source_device, target.actor_target   , source.actor);
-        copy(target_device, source_device, target.critic_target_1, source.critic_1);
-        copy(target_device, source_device, target.critic_target_2, source.critic_2);
+        copy(target_device, source_device, target.actor_target   , source.actor_target);
+        copy(target_device, source_device, target.critic_target_1, source.critic_target_1);
+        copy(target_device, source_device, target.critic_target_2, source.critic_target_2);
     }
     template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::algorithms::td3::CriticTrainingBuffers<TARGET_SPEC>& target, rl::algorithms::td3::CriticTrainingBuffers<SOURCE_SPEC>& source){
