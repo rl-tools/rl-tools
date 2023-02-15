@@ -41,7 +41,7 @@ public:
     using DTYPE = double;
     static constexpr DTYPE EPSILON = lic::utils::typing::is_same_v<DTYPE, float> ? 1e-5 : 1e-13;
     static constexpr DEVICE_CPU::index_t CAPACITY = 2000;
-    static constexpr DEVICE_CPU::index_t BATCH_SIZE = 20;
+    static constexpr DEVICE_CPU::index_t BATCH_SIZE = 200;
 //    using REPLAY_BUFFER_SPEC = lic::rl::components::replay_buffer::Specification<DTYPE, DEVICE_CPU::index_t, OBSERVATION_DIM, ACTION_DIM, CAPACITY>;
 //    using REPLAY_BUFFER = lic::rl::components::ReplayBuffer<REPLAY_BUFFER_SPEC>;
     using PENDULUM_SPEC = lic::rl::environments::pendulum::Specification<DTYPE, DEVICE_CPU::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>;
@@ -202,82 +202,109 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
-    lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
-    lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+    auto sample_batch = [&](bool deterministic){
+        lic::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
+        if(deterministic){
+            lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
+            lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
 
-    lic::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
-    lic::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
-    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
-    auto abs_diff_target_next_action_noise = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
-    ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
+            // action noise from cpu
+            lic::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
+            lic::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
+            lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            auto abs_diff_target_next_action_noise = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
+            ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
+        }
+        else{
+            lic::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            lic::copy(device_cpu, device_gpu, batch_cpu, batch_gpu);
+
+            // action noise from gpu
+            lic::target_action_noise(device_gpu, actor_critic_gpu, critic_training_buffers_gpu.target_next_action_noise, rng_gpu);
+            lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            auto action_noise_std = lic::std(device_cpu, critic_training_buffers_cpu.target_next_action_noise);
+            auto action_noise_std_diff = std::abs(action_noise_std - ACTOR_CRITIC_SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
+            ASSERT_LT(action_noise_std_diff, 0.05);
+        }
+
 //    lic::target_action_noise(device_gpu, actor_critic_gpu, critic_training_buffers_gpu.target_next_action_noise, rng_gpu);
 
-    lic::zero_gradient(device_cpu, actor_critic_cpu.critic_1);
-    lic::zero_gradient(device_gpu, actor_critic_gpu.critic_1);
+        static_assert(BATCH_SPEC::BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
 
-    static_assert(BATCH_SPEC::BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
+        lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+        auto abs_diff_actor_critic = lic::abs_diff(device_cpu, actor_critic_cpu_2.actor_target, actor_critic_cpu.actor_target);
+        ASSERT_FLOAT_EQ(abs_diff_actor_critic, 0);
 
-    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
-    lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
-    auto abs_diff_actor_critic = lic::abs_diff(device_cpu, actor_critic_cpu_2.actor_target, actor_critic_cpu.actor_target);
-    ASSERT_FLOAT_EQ(abs_diff_actor_critic, 0);
+        lic::evaluate(device_cpu, actor_critic_cpu.actor.input_layer, batch_cpu.observations, actor_buffers_cpu.tick);
+        lic::evaluate(device_gpu, actor_critic_gpu.actor.input_layer, batch_gpu.observations, actor_buffers_gpu.tick);
+        lic::copy(device_cpu, device_gpu, actor_buffers_cpu_2, actor_buffers_gpu);
+        auto abs_diff_tick = lic::abs_diff(device_cpu, actor_buffers_cpu_2.tick, actor_buffers_cpu.tick);
+        ASSERT_LT(abs_diff_tick, EPSILON);
 
-    lic::evaluate(device_cpu, actor_critic_cpu.actor.input_layer, batch_cpu.observations, actor_buffers_cpu.tick);
-    lic::evaluate(device_gpu, actor_critic_gpu.actor.input_layer, batch_gpu.observations, actor_buffers_gpu.tick);
-    lic::copy(device_cpu, device_gpu, actor_buffers_cpu_2, actor_buffers_gpu);
-    auto abs_diff_tick = lic::abs_diff(device_cpu, actor_buffers_cpu_2.tick, actor_buffers_cpu.tick);
-    ASSERT_LT(abs_diff_tick, EPSILON);
+        lic::evaluate(device_cpu, actor_critic_cpu.actor_target, batch_cpu.next_observations, critic_training_buffers_cpu.next_actions, actor_buffers_cpu);
+        lic::evaluate(device_gpu, actor_critic_gpu.actor_target, batch_gpu.next_observations, critic_training_buffers_gpu.next_actions, actor_buffers_gpu);
 
-    lic::evaluate(device_cpu, actor_critic_cpu.actor_target, batch_cpu.next_observations, critic_training_buffers_cpu.next_actions, actor_buffers_cpu);
-    lic::evaluate(device_gpu, actor_critic_gpu.actor_target, batch_gpu.next_observations, critic_training_buffers_gpu.next_actions, actor_buffers_gpu);
+        lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        auto abs_diff_next_actions = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_cpu.next_actions);
+        ASSERT_LT(abs_diff_next_actions, EPSILON);
 
-    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
-    auto abs_diff_next_actions = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_cpu.next_actions);
-    ASSERT_LT(abs_diff_next_actions, EPSILON);
+        lic::noisy_next_actions(device_cpu, critic_training_buffers_cpu);
+        lic::noisy_next_actions(device_gpu, critic_training_buffers_gpu);
+        lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        lic::check_status(device_gpu);
+        auto abs_diff_noisy_next_actions = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_cpu.next_actions);
+        ASSERT_LT(abs_diff_noisy_next_actions, EPSILON);
 
-    lic::noisy_next_actions(device_cpu, critic_training_buffers_cpu);
-    lic::noisy_next_actions(device_gpu, critic_training_buffers_gpu);
-    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
-    lic::check_status(device_gpu);
-    auto abs_diff_noisy_next_actions = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_cpu.next_actions);
-    ASSERT_LT(abs_diff_noisy_next_actions, EPSILON);
+        lic::copy(device_cpu, device_cpu, critic_training_buffers_cpu.next_observations, batch_cpu.next_observations);
+        lic::copy_structure_mismatch(device_gpu, device_gpu, critic_training_buffers_gpu.next_observations, batch_gpu.next_observations);
+        lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        auto abs_diff_next_state_action_value_input = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_input);
+        ASSERT_LT(abs_diff_next_state_action_value_input, EPSILON);
 
-    lic::copy(device_cpu, device_cpu, critic_training_buffers_cpu.next_observations, batch_cpu.next_observations);
-    lic::copy_structure_mismatch(device_gpu, device_gpu, critic_training_buffers_gpu.next_observations, batch_gpu.next_observations);
-    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
-    auto abs_diff_next_state_action_value_input = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_input);
-    ASSERT_LT(abs_diff_next_state_action_value_input, EPSILON);
+        lic::evaluate(device_cpu, actor_critic_cpu.critic_target_1, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_1, critic_buffers_cpu);
+        lic::evaluate(device_cpu, actor_critic_cpu.critic_target_2, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_2, critic_buffers_cpu);
 
-    lic::evaluate(device_cpu, actor_critic_cpu.critic_target_1, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_1, critic_buffers_cpu);
-    lic::evaluate(device_cpu, actor_critic_cpu.critic_target_2, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_2, critic_buffers_cpu);
+        lic::evaluate(device_gpu, actor_critic_gpu.critic_target_1, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_1, critic_buffers_gpu);
+        lic::evaluate(device_gpu, actor_critic_gpu.critic_target_2, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_2, critic_buffers_gpu);
 
-    lic::evaluate(device_gpu, actor_critic_gpu.critic_target_1, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_1, critic_buffers_gpu);
-    lic::evaluate(device_gpu, actor_critic_gpu.critic_target_2, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_2, critic_buffers_gpu);
+        lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        auto abs_diff_next_state_action_value_critic_1 = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_critic_1, critic_training_buffers_cpu.next_state_action_value_critic_1);
+        auto abs_diff_next_state_action_value_critic_2 = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_critic_2, critic_training_buffers_cpu.next_state_action_value_critic_2);
+        ASSERT_LT(abs_diff_next_state_action_value_critic_1, EPSILON);
+        ASSERT_LT(abs_diff_next_state_action_value_critic_2, EPSILON);
 
-    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
-    auto abs_diff_next_state_action_value_critic_1 = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_critic_1, critic_training_buffers_cpu.next_state_action_value_critic_1);
-    auto abs_diff_next_state_action_value_critic_2 = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_critic_2, critic_training_buffers_cpu.next_state_action_value_critic_2);
-    ASSERT_LT(abs_diff_next_state_action_value_critic_1, EPSILON);
-    ASSERT_LT(abs_diff_next_state_action_value_critic_2, EPSILON);
+        lic::target_actions(device_cpu, batch_cpu, critic_training_buffers_cpu);
+        lic::target_actions(device_gpu, batch_gpu, critic_training_buffers_gpu);
+        lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        auto abs_diff_target_action_value = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_action_value, critic_training_buffers_cpu.target_action_value);
+        ASSERT_LT(abs_diff_target_action_value, EPSILON);
+    };
 
-    lic::target_actions(device_cpu, batch_cpu, critic_training_buffers_cpu);
-    lic::target_actions(device_gpu, batch_gpu, critic_training_buffers_gpu);
-    lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
-    auto abs_diff_target_action_value = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_action_value, critic_training_buffers_cpu.target_action_value);
-    ASSERT_LT(abs_diff_target_action_value, EPSILON);
+    sample_batch(false);
 
-    forward_backward_mse(device_cpu, actor_critic_cpu.critic_1, batch_cpu.observations_and_actions, critic_training_buffers_cpu.target_action_value, critic_buffers_cpu);
-    forward_backward_mse(device_gpu, actor_critic_gpu.critic_1, batch_gpu.observations_and_actions, critic_training_buffers_gpu.target_action_value, critic_buffers_gpu);
-    lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+    for(typename DEVICE_CPU::index_t critic_i = 0; critic_i < 2; critic_i++){
+        sample_batch(true);
+        auto& critic_cpu = critic_i == 0 ? actor_critic_cpu.critic_1 : actor_critic_cpu.critic_2;
+        auto& critic_gpu = critic_i == 0 ? actor_critic_gpu.critic_1 : actor_critic_gpu.critic_2;
+        auto& critic_cpu_2 = critic_i == 0 ? actor_critic_cpu_2.critic_1 : actor_critic_cpu_2.critic_2;
 
-    auto abs_diff_critic_1 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_1, actor_critic_cpu_2.critic_1);
-    ASSERT_LT(abs_diff_critic_1, 10*EPSILON);
+        lic::zero_gradient(device_cpu, critic_cpu);
+        lic::zero_gradient(device_gpu, critic_gpu);
 
-    lic::update(device_cpu, actor_critic_cpu.critic_1);
-    lic::update(device_gpu, actor_critic_gpu.critic_1);
-    lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
-    auto abs_diff_critic_after_update = lic::abs_diff(device_cpu, actor_critic_cpu.critic_1, actor_critic_cpu_2.critic_1);
-    ASSERT_LT(abs_diff_critic_after_update, 10*EPSILON);
+        forward_backward_mse(device_cpu, critic_cpu, batch_cpu.observations_and_actions, critic_training_buffers_cpu.target_action_value, critic_buffers_cpu);
+        forward_backward_mse(device_gpu, critic_gpu, batch_gpu.observations_and_actions, critic_training_buffers_gpu.target_action_value, critic_buffers_gpu);
+        lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+
+        auto abs_diff_critic = lic::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
+        ASSERT_LT(abs_diff_critic, 10*EPSILON);
+
+        lic::update(device_cpu, critic_cpu);
+        lic::update(device_gpu, critic_gpu);
+        lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+        auto abs_diff_critic_after_update = lic::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
+        ASSERT_LT(abs_diff_critic_after_update, 10*EPSILON);
+    }
 
 
     lic::update_critic_targets(device_cpu, actor_critic_cpu);

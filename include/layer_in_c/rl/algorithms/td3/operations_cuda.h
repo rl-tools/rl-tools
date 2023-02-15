@@ -17,10 +17,10 @@ namespace layer_in_c{
         if(batch_step_i < BATCH_SIZE){
             for(TI action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 set(target_action_noise, batch_step_i, action_i, math::clamp(
-//                    random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng),
-                        curand_normal(&rng_state),
-                        -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
-                        SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
+                    random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng_state),
+//                        curand_normal(&rng_state),
+                        -(T)SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
+                         (T)SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
                 ));
             }
         }
