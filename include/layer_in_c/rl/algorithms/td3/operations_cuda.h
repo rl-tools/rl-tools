@@ -1,7 +1,7 @@
 
 
 #include <layer_in_c/utils/polyak/operations_cuda.h>
-#include "operations_generic.h"
+#include <layer_in_c/rl/algorithms/td3/td3.h>
 namespace layer_in_c{
     template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename RNG>
     __global__
@@ -106,3 +106,4 @@ namespace layer_in_c{
         check_status(device);
     }
 }
+#include "operations_generic.h"

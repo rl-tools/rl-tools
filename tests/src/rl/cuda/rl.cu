@@ -291,11 +291,11 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         ASSERT_LT(abs_diff_target_action_value, EPSILON);
     };
 
-    sample_batch(false);
+    sample_batch(true);
 
     for(typename DEVICE_CPU::index_t i = 0; i < 20; i++){
         typename DEVICE_CPU::index_t critic_i = i % 2;
-        sample_batch(true);
+        sample_batch(false);
         auto& critic_cpu = critic_i == 0 ? actor_critic_cpu.critic_1 : actor_critic_cpu.critic_2;
         auto& critic_gpu = critic_i == 0 ? actor_critic_gpu.critic_1 : actor_critic_gpu.critic_2;
         auto& critic_cpu_2 = critic_i == 0 ? actor_critic_cpu_2.critic_1 : actor_critic_cpu_2.critic_2;
@@ -317,6 +317,73 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         auto abs_diff_critic_after_update = lic::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
         std::cout << "abs_diff_critic_after_update: " << abs_diff_critic_after_update << std::endl;
         ASSERT_LT(abs_diff_critic_after_update, EPSILON);
+
+        if(i % 5 == 0){
+            lic::update_critic_targets(device_cpu, actor_critic_cpu);
+            lic::update_critic_targets(device_gpu, actor_critic_gpu);
+            lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+            auto abs_diff_critic_target_1 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_target_1, actor_critic_cpu_2.critic_target_1);
+            auto abs_diff_critic_target_2 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_target_2, actor_critic_cpu_2.critic_target_2);
+            std::cout << "abs_diff_critic_target_1: " << abs_diff_critic_target_1 << std::endl;
+            std::cout << "abs_diff_critic_target_2: " << abs_diff_critic_target_2 << std::endl;
+            ASSERT_LT(abs_diff_critic_target_1, EPSILON);
+            ASSERT_LT(abs_diff_critic_target_2, EPSILON);
+        }
+    }
+
+
+}
+
+TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
+
+    auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
+
+    auto sample_batch = [&](bool deterministic){
+        lic::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
+        if(deterministic){
+            lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
+            lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+
+            // action noise from cpu
+            lic::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
+            lic::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
+            lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            auto abs_diff_target_next_action_noise = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
+            std::cout << "abs_diff_target_next_action_noise: " << abs_diff_target_next_action_noise << std::endl;
+            ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
+        }
+        else{
+            lic::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            lic::copy(device_cpu, device_gpu, batch_cpu, batch_gpu);
+
+            // action noise from gpu
+            lic::target_action_noise(device_gpu, actor_critic_gpu, critic_training_buffers_gpu.target_next_action_noise, rng_gpu);
+            lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            auto action_noise_std = lic::std(device_cpu, critic_training_buffers_cpu.target_next_action_noise);
+            auto action_noise_std_diff = std::abs(action_noise_std - ACTOR_CRITIC_SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
+            std::cout << "action_noise_std_diff: " << action_noise_std_diff << std::endl;
+            ASSERT_LT(action_noise_std_diff, 0.05);
+        }
+    };
+
+    sample_batch(true);
+
+    for(typename DEVICE_CPU::index_t i = 0; i < 20; i++){
+        typename DEVICE_CPU::index_t critic_i = i % 2;
+        sample_batch(false);
+        auto& critic_cpu = critic_i == 0 ? actor_critic_cpu.critic_1 : actor_critic_cpu.critic_2;
+        auto& critic_gpu = critic_i == 0 ? actor_critic_gpu.critic_1 : actor_critic_gpu.critic_2;
+        auto& critic_cpu_2 = critic_i == 0 ? actor_critic_cpu_2.critic_1 : actor_critic_cpu_2.critic_2;
+
+        lic::train_critic(device_cpu, actor_critic_cpu, critic_cpu, batch_cpu, actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu);
+        lic::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu);
+
+        lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+        auto abs_diff_critic_after_update = lic::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
+        std::cout << "abs_diff_critic_after_update: " << abs_diff_critic_after_update << std::endl;
+        ASSERT_LT(abs_diff_critic_after_update, EPSILON);
+
         if(i % 5 == 0){
             lic::update_critic_targets(device_cpu, actor_critic_cpu);
             lic::update_critic_targets(device_gpu, actor_critic_gpu);

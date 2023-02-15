@@ -118,7 +118,7 @@ namespace layer_in_c{
             }
         }
     }
-    template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, typename DEVICE::index_t BATCH_SIZE, typename SPEC>
+    template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
     typename SPEC::T target_actions(DEVICE& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -145,8 +145,8 @@ namespace layer_in_c{
         mean_target_action_value /= BATCH_SIZE;
         return mean_target_action_value;
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, typename DEVICE::index_t BATCH_SIZE>
-    typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE> critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
+    typename SPEC::T train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
         // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -159,17 +159,19 @@ namespace layer_in_c{
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
 
-        T mean_target_action_value = target_actions(device, batch, training_buffers);
-        add_scalar(device, device.logger, "mean_target_action_value", mean_target_action_value, 100);
+        target_actions(device, batch, training_buffers);
+//        T mean_target_action_value = target_actions(device, batch, training_buffers);
+//        add_scalar(device, device.logger, "mean_target_action_value", mean_target_action_value, 100);
 
         forward_backward_mse(device, critic, batch.observations_and_actions, training_buffers.target_action_value, critic_buffers);
-        static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
-        T loss = nn::loss_functions::mse(device, critic.output_layer.pre_activations, training_buffers.target_action_value);
+//        static_assert(CRITIC_TYPE::SPEC::OUTPUT_LAYER::SPEC::ACTIVATION_FUNCTION == nn::activation_functions::IDENTITY); // Ensuring the critic output activation is identity so that we can just use the pre_activations to get the loss value
+//        T loss = nn::loss_functions::mse(device, critic.output_layer.pre_activations, training_buffers.target_action_value);
 
         update(device, critic);
-        return loss;
+//        return loss;
+        return 0;
     }
-    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, typename DEVICE::index_t BATCH_SIZE>
+    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
     typename SPEC::T train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE> actor_buffers, typename SPEC::CRITIC_NETWORK_TYPE::template Buffers<BATCH_SIZE> critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
