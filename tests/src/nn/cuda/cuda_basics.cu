@@ -195,7 +195,6 @@ template <typename T, typename TI, TI DIM_1, TI DIM_2, TI OFFSET_1, TI OFFSET_2,
 }
 
 
-/*
 TEST(LAYER_IN_C_NN_CUDA, COPYING_VIEWS){
     using DEVICE_CPU = lic::devices::DefaultCPU;
     using DEVICE_CUDA = lic::devices::DefaultCUDA;
@@ -271,8 +270,7 @@ TEST(LAYER_IN_C_NN_CUDA, COPYING_VIEWS){
         lic::free(device_cuda, matrix_cuda_data);
     }
 }
-*/
-     namespace copy{
+namespace copy{
     using DTYPE = float;
     using DEVICE_CPU = lic::devices::DefaultCPU;
     using DEVICE_CUDA = lic::devices::DefaultCUDA;

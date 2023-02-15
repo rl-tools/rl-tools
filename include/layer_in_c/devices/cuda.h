@@ -65,7 +65,9 @@ namespace layer_in_c {
     void init(devices::CUDA<SPEC>& device){
         cublasStatus_t stat;
         stat = cublasCreate(&device.handle);
+#ifdef LAYER_IN_C_DEBUG_DEVICE_CUDA_CHECK_INIT
         device.initialized = true;
+#endif
         if (stat != CUBLAS_STATUS_SUCCESS) {
 //            logging::text(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
             std::cout << "CUBLAS initialization failed " << cublasGetStatusString(stat) << std::endl;
