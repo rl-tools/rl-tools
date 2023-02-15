@@ -214,6 +214,9 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         if(step_i % 10000 == 0){
             DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), parameters_rl::ENVIRONMENT_STEP_LIMIT, true>(device, envs[0], ui, actor_critic.actor, 1, rng);
             std::cout << "Mean return: " << mean_return << std::endl;
+            if(step_i > 200000){
+                ASSERT_GT(mean_return, 2000);
+            }
         }
     }
     {
