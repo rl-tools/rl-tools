@@ -197,7 +197,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
     abs_diff_batch += lic::abs_diff(device_cpu, batch_cpu.truncated, batch_cpu_2.truncated);
     ASSERT_FLOAT_EQ(abs_diff_batch, 0);
 }
-TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
+TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
@@ -317,17 +317,18 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
         auto abs_diff_critic_after_update = lic::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
         std::cout << "abs_diff_critic_after_update: " << abs_diff_critic_after_update << std::endl;
         ASSERT_LT(abs_diff_critic_after_update, EPSILON);
+        if(i % 5 == 0){
+            lic::update_critic_targets(device_cpu, actor_critic_cpu);
+            lic::update_critic_targets(device_gpu, actor_critic_gpu);
+            lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+            auto abs_diff_critic_target_1 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_target_1, actor_critic_cpu_2.critic_target_1);
+            auto abs_diff_critic_target_2 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_target_2, actor_critic_cpu_2.critic_target_2);
+            std::cout << "abs_diff_critic_target_1: " << abs_diff_critic_target_1 << std::endl;
+            std::cout << "abs_diff_critic_target_2: " << abs_diff_critic_target_2 << std::endl;
+            ASSERT_LT(abs_diff_critic_target_1, EPSILON);
+            ASSERT_LT(abs_diff_critic_target_2, EPSILON);
+        }
     }
 
 
-    lic::update_critic_targets(device_cpu, actor_critic_cpu);
-    lic::update_critic_targets(device_gpu, actor_critic_gpu);
-    lic::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
-    auto abs_diff_critic_target_1 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_target_1, actor_critic_cpu_2.critic_target_1);
-    auto abs_diff_critic_target_2 = lic::abs_diff(device_cpu, actor_critic_cpu.critic_target_2, actor_critic_cpu_2.critic_target_2);
-    std::cout << "abs_diff_critic_target_1: " << abs_diff_critic_target_1 << std::endl;
-    std::cout << "abs_diff_critic_target_2: " << abs_diff_critic_target_2 << std::endl;
-    ASSERT_LT(abs_diff_critic_target_1, EPSILON);
-    ASSERT_LT(abs_diff_critic_target_2, EPSILON);
 }
-
