@@ -411,7 +411,6 @@ target_link_libraries(
         PRIVATE
         layer_in_c
         GTest::gtest_main
-        cublas
         HighFive
 )
 LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_components_replay_buffer)
