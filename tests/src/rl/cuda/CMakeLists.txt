@@ -33,3 +33,20 @@ target_link_libraries(
 LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_nn_cuda_rl)
 LAYER_IN_C_TARGET_LINK_BLAS(test_nn_cuda_rl)
 gtest_discover_tests(test_nn_cuda_rl)
+
+add_executable(
+        test_rl_cuda_td3_full_training
+        td3_full_training.cu
+)
+target_link_libraries(
+        test_rl_cuda_td3_full_training
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        cublas
+        HighFive
+        tensorboard_logger
+)
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_cuda_td3_full_training)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_cuda_td3_full_training)
+gtest_discover_tests(test_rl_cuda_td3_full_training)
