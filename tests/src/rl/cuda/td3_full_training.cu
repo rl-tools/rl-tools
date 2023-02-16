@@ -154,24 +154,51 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
             }
 
-            lic::copy(device, device_init, off_policy_runner.replay_buffers[0], off_policy_runner_init.replay_buffers[0]);
-            cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
-            lic::check_status(device);
+            {
+                cudaDeviceSynchronize();
+                auto start = std::chrono::high_resolution_clock::now();
+                lic::copy(device, device_init, off_policy_runner.replay_buffers[0], off_policy_runner_init.replay_buffers[0]);
+                cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
+                auto end = std::chrono::high_resolution_clock::now();
+                lic::check_status(device);
+                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                std::cout << "copy off_policy_runner: " << duration_microseconds << "us" << std::endl;
+            }
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
+                cudaDeviceSynchronize();
+                auto start = std::chrono::high_resolution_clock::now();
                 lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 lic::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
                 lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
+                cudaDeviceSynchronize();
+                auto end = std::chrono::high_resolution_clock::now();
+                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                std::cout << "critic_i: " << critic_i << " " << duration_microseconds << "us" << std::endl;
             }
 
             if(step_i % 2 == 0){
                 {
+                    cudaDeviceSynchronize();
+                    auto start = std::chrono::high_resolution_clock::now();
                     lic::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
                     lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+                    cudaDeviceSynchronize();
+                    auto end = std::chrono::high_resolution_clock::now();
+                    auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                    std::cout << "actor: " << duration_microseconds << "us" << std::endl;
                 }
 
-                lic::update_critic_targets(device, actor_critic);
-                lic::update_actor_target(device, actor_critic);
+                {
+                    cudaDeviceSynchronize();
+                    auto start = std::chrono::high_resolution_clock::now();
+                    lic::update_critic_targets(device, actor_critic);
+                    lic::update_actor_target(device, actor_critic);
+                    cudaDeviceSynchronize();
+                    auto end = std::chrono::high_resolution_clock::now();
+                    auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                    std::cout << "update: " << duration_microseconds << "us" << std::endl;
+                }
             }
         }
         if(step_i % 1000 == 0){
