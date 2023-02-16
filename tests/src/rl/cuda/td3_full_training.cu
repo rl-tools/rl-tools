@@ -203,7 +203,8 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
         // 90s, 15x of CPU BLAS => todo: investigate individual kernel timings
-        // 24s, 6x of CPU BLAS => todo: investigate individual kernel timings
+        // on device rollout: 24s, 6x of CPU BLAS => todo: investigate individual kernel timings
+        // no device sync: 14s, 2.5x of CPU BLAS => todo: investigate individual kernel timings
 
     }
     lic::free(device, critic_batch);
