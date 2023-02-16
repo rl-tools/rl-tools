@@ -219,6 +219,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             }
         }
     }
+    // 300000 steps: 28s on M1
     {
         std::string actor_output_path = "actor.h5";
         try{
