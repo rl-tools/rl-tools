@@ -21,7 +21,7 @@ namespace layer_in_c {
         free(device, rb.data);
     }
     template <typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC>
-    __host__ __device__ void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const bool terminated, const bool truncated) {
+    LAYER_IN_C_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const bool terminated, const bool truncated) {
         // todo: change to memcpy?
         for(typename DEVICE::index_t i = 0; i < SPEC::OBSERVATION_DIM; i++) {
             set(buffer.observations, buffer.position, i, get(observation, 0, i));

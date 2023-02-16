@@ -3,17 +3,17 @@
 #include "pendulum.h"
 namespace layer_in_c::rl::environments::pendulum {
     template <typename T>
-    __device__ __host__ T clip(T x, T min, T max){
+    LAYER_IN_C_FUNCTION_PLACEMENT T clip(T x, T min, T max){
         x = x < min ? min : (x > max ? max : x);
         return x;
     }
     template <typename DEVICE, typename T>
-    __host__ __device__ T f_mod_python(const DEVICE& dev, T a, T b){
+    LAYER_IN_C_FUNCTION_PLACEMENT T f_mod_python(const DEVICE& dev, T a, T b){
         return a - b * math::floor(dev, a / b);
     }
 
     template <typename DEVICE, typename T>
-    __host__ __device__ T angle_normalize(const DEVICE& dev, T x){
+    LAYER_IN_C_FUNCTION_PLACEMENT T angle_normalize(const DEVICE& dev, T x){
         return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
     }
 }
@@ -29,7 +29,7 @@ namespace layer_in_c{
         state.theta_dot = 0;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
-    __device__ __host__ typename SPEC::T step(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const Matrix<ACTION_SPEC>& action, rl::environments::pendulum::State<typename SPEC::T>& next_state) {
+    LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const Matrix<ACTION_SPEC>& action, rl::environments::pendulum::State<typename SPEC::T>& next_state) {
         static_assert(ACTION_SPEC::ROWS == 1);
         static_assert(ACTION_SPEC::COLS == 1);
         using namespace rl::environments::pendulum;
@@ -54,7 +54,7 @@ namespace layer_in_c{
         return SPEC::PARAMETERS::dt;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
-    __device__ __host__ static typename SPEC::T reward(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::pendulum::State<typename SPEC::T>& next_state){
+    LAYER_IN_C_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::pendulum::State<typename SPEC::T>& next_state){
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         T angle_norm = angle_normalize(typename DEVICE::SPEC::MATH(), state.theta);
@@ -65,7 +65,7 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC>
-    __host__ __device__ static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, Matrix<OBS_SPEC>& observation){
+    LAYER_IN_C_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const rl::environments::pendulum::State<typename SPEC::T>& state, Matrix<OBS_SPEC>& observation){
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 3);
         typedef typename SPEC::T T;
@@ -74,7 +74,7 @@ namespace layer_in_c{
         set(observation, 0, 2, state.theta_dot);
     }
     template<typename DEVICE, typename SPEC>
-    __host__ __device__ static bool terminated(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::pendulum::State<typename SPEC::T> state){
+    LAYER_IN_C_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::pendulum::State<typename SPEC::T> state){
         return false;
     }
 }
