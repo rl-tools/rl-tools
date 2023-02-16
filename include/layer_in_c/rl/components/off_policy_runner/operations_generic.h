@@ -51,32 +51,36 @@ namespace layer_in_c::rl::components::off_policy_runner{
         auto& env = runner->envs[env_i];
         auto& state = get(runner->states, 0, env_i);
         typename ENVIRONMENT::State next_state;
+        printf("action: %f\n", get(action, 0, 0));
 
         for (typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             T action_noisy = get(action, 0, i) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T) 0, PARAMETERS::EXPLORATION_NOISE, rng);
             set(action, 0, i, math::clamp<T>(action_noisy, -1, 1));
         }
-        printf("action %p\n", action._data);
+        printf("action: %f\n", get(action, 0, 0));
 //        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
 //            auto name = "action_exploration/" + std::to_string(i);
 //            add_scalar(device.logger, name.c_str(), action[i]);
 //        }
+        printf("state before: %f %f\n", state.theta, state.theta_dot);
         step(device, env, state, action, next_state);
-        printf("after step\n");
+        printf("state after: %f %f\n", next_state.theta, next_state.theta_dot);
         T reward_value = reward(device, env, state, action, next_state);
+        printf("reward value: %f\n", reward_value);
 //        if constexpr(DEVICE::DEBUG::PRINT_REWARD){
 //            std::cout << "reward: " << reward_value << std::endl;
 //        }
 
-        printf("after step\n");
         observe(device, env, next_state, next_observation);
 
-        printf("after step\n");
         bool terminated_flag = terminated(device, env, next_state);
         increment(runner->episode_step, 0, env_i, 1);
         increment(runner->episode_return, 0, env_i, reward_value);
         bool truncated = terminated_flag || get(runner->episode_step, 0, env_i) == SPEC::STEP_LIMIT;
         set(runner->truncated, 0, env_i, truncated);
+        if(truncated){
+            printf("return: %f\n", get(runner->episode_return, 0, env_i));
+        }
 //        if(truncated){
 //            add_scalar(device, device.logger, "episode_return", get(runner->episode_return, 0, env_i));
 //            add_scalar(device, device.logger, "episode_steps", (T)get(runner->episode_step, 0, env_i));
@@ -86,7 +90,6 @@ namespace layer_in_c::rl::components::off_policy_runner{
 
         // state progression needs to come after the addition to the replay buffer because "observation" can point to the memory of runner_state.state (in the case of REQUIRES_OBSERVATION=false)
         state = next_state;
-        printf("end of step \n");
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {

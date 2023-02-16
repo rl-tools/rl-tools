@@ -323,9 +323,9 @@ namespace layer_in_c{
         static_assert(SPEC::COLS >= COLS);
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
         Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout, true>> out;
-#ifdef __CUDA_ARCH__
-        printf("view: dest %p \n", m._data);
-#endif
+//#ifdef __CUDA_ARCH__
+//        printf("view: dest %p \n", m._data);
+//#endif
         out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
         return out;
     }

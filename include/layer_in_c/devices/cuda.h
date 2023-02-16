@@ -16,9 +16,6 @@ namespace layer_in_c::devices{
         struct CUDA: cuda::Base{
             static constexpr Type TYPE = Type::math;
         };
-        struct CUDA_FAST: cuda::Base{
-            static constexpr Type TYPE = Type::math;
-        };
     }
     namespace random{
         struct CUDA: cuda::Base{
@@ -42,9 +39,8 @@ namespace layer_in_c::devices{
 #endif
     };
     struct DefaultCUDASpecification{
-        using MATH_HOST = devices::math::CPU;
-        using MATH = devices::math::CUDA_FAST;
-        using MATH_DEVICE = math::CUDA_FAST;
+//        using MATH_HOST = devices::math::CPU;
+        using MATH = devices::math::CUDA;
         using MATH_DEVICE_ACCURATE = math::CUDA;
         using RANDOM = random::CUDA;
         using LOGGING = logging::CUDA;

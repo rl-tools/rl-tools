@@ -8,13 +8,15 @@ namespace layer_in_c::rl::environments::pendulum {
         return x;
     }
     template <typename DEVICE, typename T>
-    T f_mod_python(const DEVICE& dev, T a, T b){
-        return a - b * math::floor(DEVICE(), a / b);
+    __host__ __device__ T f_mod_python(const DEVICE& dev, T a, T b){
+        printf("f_mod_python DEVICE: %d\n", DEVICE::DEVICE);
+//        return a - b * math::floor(dev, a / b);
+        return a - b * floorf(a / b);
     }
 
     template <typename DEVICE, typename T>
-    T angle_normalize(const DEVICE& dev, T x){
-        return f_mod_python(DEVICE(), (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
+    __host__ __device__ T angle_normalize(const DEVICE& dev, T x){
+        return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
     }
 }
 namespace layer_in_c{
@@ -35,31 +37,22 @@ namespace layer_in_c{
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         typedef typename SPEC::PARAMETERS PARAMS;
-        printf("inside step\n");
         T u_normalised = get(action, 0, 0);
-        printf("inside step\n");
         T u = PARAMS::max_torque * u_normalised;
         T g = PARAMS::g;
         T m = PARAMS::m;
         T l = PARAMS::l;
         T dt = PARAMS::dt;
 
-        printf("inside step\n");
         u = clip(u, -PARAMS::max_torque, PARAMS::max_torque);
 
-        printf("inside step\n");
         T sin_theta = sinf(state.theta); //math::sin(typename DEVICE::SPEC::MATH(), state.theta);
-        printf("inside step\n");
         T newthdot = state.theta_dot + (3 * g / (2 * l) * sin_theta + 3.0 / (m * l * l) * u) * dt;
-        printf("inside step\n");
         newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
-        printf("inside step\n");
         T newth = state.theta + newthdot * dt;
 
-        printf("inside step\n");
         next_state.theta = newth;
         next_state.theta_dot = newthdot;
-        printf("inside step\n");
         return SPEC::PARAMETERS::dt;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC>

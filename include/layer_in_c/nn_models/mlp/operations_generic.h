@@ -237,8 +237,9 @@ namespace layer_in_c {
 
     template<typename DEVICE, typename SPEC>
     void update(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network) {
-        typename SPEC::T  first_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH_HOST(), SPEC::ADAM_PARAMETERS::BETA_1, network.age));
-        typename SPEC::T second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH_HOST(), SPEC::ADAM_PARAMETERS::BETA_2, network.age));
+        using T = typename SPEC::T;
+        T first_order_moment_bias_correction  = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), SPEC::ADAM_PARAMETERS::BETA_1, (T)network.age));
+        T second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), SPEC::ADAM_PARAMETERS::BETA_2, (T)network.age));
 
         update_layer(device, network.input_layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
         for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){

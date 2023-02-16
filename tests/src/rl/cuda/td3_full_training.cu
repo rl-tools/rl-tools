@@ -168,12 +168,12 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 //                std::cout << "copy off_policy_runner: " << duration_microseconds << "us" << std::endl;
 //            }
 
-            {
-                std::cout << "replay_buffer position: " << off_policy_runner_init.replay_buffers[0].position << std::endl;
-                cudaMemcpy(&off_policy_runner, off_policy_runner_pointer, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyDeviceToHost);
-                lic::check_status(device);
-                std::cout << "replay_buffer position: " << off_policy_runner_init.replay_buffers[0].position << std::endl;
-            }
+//            {
+//                std::cout << "replay_buffer position: " << off_policy_runner.replay_buffers[0].position << std::endl;
+//                cudaMemcpy(&off_policy_runner, off_policy_runner_pointer, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyDeviceToHost);
+//                lic::check_status(device);
+//                std::cout << "replay_buffer position: " << off_policy_runner.replay_buffers[0].position << std::endl;
+//            }
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 cudaDeviceSynchronize();

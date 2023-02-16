@@ -9,146 +9,200 @@
 
 #include <layer_in_c/devices/cuda.h>
 
-#include <cmath>
-
 namespace layer_in_c::math {
-    namespace cuda{
-        template <typename T>
+    namespace cuda {
+        template<typename T>
         constexpr bool check = utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>;
     }
 
     // CUDA std
     template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T sqrt(const devices::math::CUDA&, const T x) {
-        return std::sqrt(x);
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T tanh(const devices::math::CUDA&, const T x) {
-        return std::tanh(x);
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T exp(const devices::math::CUDA&, const T x) {
-        return std::exp(x);
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T sin(const devices::math::CUDA&, const T x) {
-        return std::sin(x);
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T cos(const devices::math::CUDA&, const T x) {
-        return std::cos(x);
-    }
-    template<typename TX, typename TY>
-    LAYER_IN_C_FUNCTION_PLACEMENT auto pow(const devices::math::CUDA&, const TX x, const TY y) {
-        return std::pow(x, y);
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT auto log(const devices::math::CUDA&, const T x) {
-        return std::log(x);
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT auto floor(const devices::math::CUDA&, const T x) {
-        return std::floor(x);
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT bool is_nan(const devices::math::CUDA&, const T x) {
-        return std::isnan(x);
-    }
-
-
-
-
-
-
-
-
-
-
-
-    // CUDA fast
-
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T sqrt(const devices::math::CUDA_FAST&, const T x) {
+    LAYER_IN_C_FUNCTION_PLACEMENT T sqrt(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
-        if constexpr(utils::typing::is_same_v<T, float>){
-            return __sqrtf(x);
-        }
-        else{
-            return __sqrt(x);
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::sqrtf(x);
+        } else {
+            return ::sqrt(x);
         }
     }
+
     template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T tanh(const devices::math::CUDA_FAST&, const T x) {
+    LAYER_IN_C_FUNCTION_PLACEMENT T tanh(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
-        if constexpr(utils::typing::is_same_v<T, float>){
+        if constexpr (utils::typing::is_same_v<T, float>) {
             return ::tanhf(x);
-        }
-        else{
+        } else {
             return ::tanh(x);
         }
     }
+
     template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T exp(const devices::math::CUDA_FAST&, const T x) {
+    LAYER_IN_C_FUNCTION_PLACEMENT T exp(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
-            return __expf(x);
-        }
-        else {
-            return __exp(x);
+            return ::expf(x);
+        } else {
+            return ::exp(x);
         }
     }
+
     template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T sin(const devices::math::CUDA_FAST&, const T x) {
+    LAYER_IN_C_FUNCTION_PLACEMENT T sin(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
-        if constexpr (utils::typing::is_same_v<T, float>){
-            return __sinf(x);
-        }
-        else{
-            return __sin(x);
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::sinf(x);
+        } else {
+            return ::sin(x);
         }
     }
+
     template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T cos(const devices::math::CUDA_FAST&, const T x) {
+    LAYER_IN_C_FUNCTION_PLACEMENT T cos(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
-        if constexpr (utils::typing::is_same_v<T, float>){
-            return __cosf(x);
-        }
-        else{
-            return __cos(x);
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::cosf(x);
+        } else {
+            return ::cos(x);
         }
     }
+
     template<typename TX, typename TY>
-    LAYER_IN_C_FUNCTION_PLACEMENT auto pow(const devices::math::CUDA_FAST&, const TX x, const TY y) {
+    LAYER_IN_C_FUNCTION_PLACEMENT auto pow(const devices::math::CUDA &, const TX x, const TY y) {
         static_assert(cuda::check<TX>, "CUDA math only supports float and double");
         static_assert(cuda::check<TY>, "CUDA math only supports float and double");
-        if constexpr (utils::typing::is_same_v<TX, float> && utils::typing::is_same_v<TY, float>){
-            return __powf(x, y);
-        }
-        else{
-            return __pow(x, y);
+        if constexpr (utils::typing::is_same_v<TX, double> || utils::typing::is_same_v<TY, double>) {
+            return ::pow(x, y);
+        } else {
+            return ::powf(x, y);
         }
     }
+
     template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT auto log(const devices::math::CUDA_FAST&, const T x) {
+    LAYER_IN_C_FUNCTION_PLACEMENT auto log(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
-        if constexpr (utils::typing::is_same_v<T, float>){
-            return __logf(x);
-        }
-        else{
-            return __log(x);
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::logf(x);
+        } else {
+            return ::log(x);
         }
     }
+
     template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT auto floor(const devices::math::CUDA_FAST&, const T x) {
+    LAYER_IN_C_FUNCTION_PLACEMENT T floor(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
-        if constexpr (utils::typing::is_same_v<T, float>){
-            return __floorf(x);
-        }
-        else{
-            return __floor(x);
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::floorf(x);
+        } else {
+            return ::floor(x);
         }
     }
+
+    template<typename T>
+    LAYER_IN_C_FUNCTION_PLACEMENT bool is_nan(const devices::math::CUDA &, const T x) {
+        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::isnanf(x);
+        } else {
+            return ::isnan(x);
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+//    // CUDA fast
+//
+//    template<typename T>
+//    LAYER_IN_C_FUNCTION_PLACEMENT T sqrt(const devices::math::CUDA_FAST&, const T x) {
+//        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+//        if constexpr(utils::typing::is_same_v<T, float>){
+//            return __sqrtf(x);
+//        }
+//        else{
+//            return __sqrt(x);
+//        }
+//    }
+//    template<typename T>
+//    LAYER_IN_C_FUNCTION_PLACEMENT T tanh(const devices::math::CUDA_FAST&, const T x) {
+//        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+//        if constexpr(utils::typing::is_same_v<T, float>){
+//            return ::tanhf(x);
+//        }
+//        else{
+//            return ::tanh(x);
+//        }
+//    }
+//    template<typename T>
+//    LAYER_IN_C_FUNCTION_PLACEMENT T exp(const devices::math::CUDA_FAST&, const T x) {
+//        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+//        if constexpr (utils::typing::is_same_v<T, float>) {
+//            return __expf(x);
+//        }
+//        else {
+//            return __exp(x);
+//        }
+//    }
+//    template<typename T>
+//    LAYER_IN_C_FUNCTION_PLACEMENT T sin(const devices::math::CUDA_FAST&, const T x) {
+//        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+//        if constexpr (utils::typing::is_same_v<T, float>){
+//            return __sinf(x);
+//        }
+//        else{
+//            return __sin(x);
+//        }
+//    }
+//    template<typename T>
+//    LAYER_IN_C_FUNCTION_PLACEMENT T cos(const devices::math::CUDA_FAST&, const T x) {
+//        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+//        if constexpr (utils::typing::is_same_v<T, float>){
+//            return __cosf(x);
+//        }
+//        else{
+//            return __cos(x);
+//        }
+//    }
+//    template<typename TX, typename TY>
+//    LAYER_IN_C_FUNCTION_PLACEMENT auto pow(const devices::math::CUDA_FAST&, const TX x, const TY y) {
+//        static_assert(cuda::check<TX>, "CUDA math only supports float and double");
+//        static_assert(cuda::check<TY>, "CUDA math only supports float and double");
+//        if constexpr (utils::typing::is_same_v<TX, float> && utils::typing::is_same_v<TY, float>){
+//            return __powf(x, y);
+//        }
+//        else{
+//            return __pow(x, y);
+//        }
+//    }
+//    template<typename T>
+//    LAYER_IN_C_FUNCTION_PLACEMENT auto log(const devices::math::CUDA_FAST&, const T x) {
+//        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+//        if constexpr (utils::typing::is_same_v<T, float>){
+//            return __logf(x);
+//        }
+//        else{
+//            return __log(x);
+//        }
+//    }
+//    template<typename T>
+//    LAYER_IN_C_FUNCTION_PLACEMENT T floor(const devices::math::CUDA_FAST&, const T x) {
+//        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+//        if constexpr (utils::typing::is_same_v<T, float>){
+//            printf("floor %f %f\n", x, __floorf(x));
+//            return __floorf(x);
+//        }
+//        else{
+//            return __floor(x);
+//        }
+//    }
+//}
+//
+//
 }
-
-
 #endif

@@ -48,7 +48,7 @@ namespace layer_in_c{
             TI output_pos_x = blockIdx.x * blockDim.x + threadIdx.x;
             TI output_pos_y = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
-                set(output, output_pos_y, output_pos_x, activation<typename DEV_SPEC::MATH_DEVICE, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, output_pos_y, output_pos_x)));
+                set(output, output_pos_y, output_pos_x, activation<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, output_pos_y, output_pos_x)));
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename OUTPUT_SPEC>
@@ -81,7 +81,7 @@ namespace layer_in_c{
             if(output_i < OUTPUT_DIM){
                 T acc = 0;
                 for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                    T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH_DEVICE, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                    T d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
                     set(d_pre_activations, batch_i, output_i, d_pre_activation_temp);
                     acc += d_pre_activation_temp;
                 }
