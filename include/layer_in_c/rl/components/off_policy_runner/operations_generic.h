@@ -189,7 +189,7 @@ namespace layer_in_c{
     template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
     void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, POLICY& policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG &rng) {
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
-        utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
+        utils::assert_exit(device, runner->initialized, "OffPolicyRunner not initialized");
 #endif
         static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::OBSERVATION_DIM,
                       "The policy's input dimension must match the environment's observation dimension.");

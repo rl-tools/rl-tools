@@ -11,7 +11,7 @@ namespace layer_in_c::random{
         using RNG = unsigned int; // actually the seed
     }
     cuda::RNG default_engine(const devices::random::CUDA& dev){
-        return 0;
+        return 1337;
     };
 
     cuda::RNG next(const devices::random::CUDA& dev, cuda::RNG& rng){

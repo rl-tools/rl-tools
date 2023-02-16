@@ -34,6 +34,12 @@ namespace layer_in_c{
             if(batch_step_i < BATCH_SPEC::BATCH_SIZE){
                 set(batch->observations, batch_step_i, 0, get(replay_buffer.observations, batch_step_i, 0));
                 typename DEVICE::index_t sample_index_max = (replay_buffer.full ? RUNNER_SPEC::REPLAY_BUFFER_CAPACITY : replay_buffer.position);
+#ifdef LAYER_IN_C_DEBUG_DEVICE_CUDA_CHECK_BOUNDS
+                if(sample_index_max < 1){
+                    printf("sample_index_max: %d\n", sample_index_max);
+                    assert(sample_index_max > 0);
+                }
+#endif
                 typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : curand(&rng_state) % sample_index_max;
 
                 // todo: replace with smarter, coalesced copy
