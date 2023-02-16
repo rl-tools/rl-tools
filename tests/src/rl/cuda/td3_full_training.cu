@@ -144,10 +144,10 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     constexpr DEVICE::index_t step_limit = 15000;
-    for(int step_i = 0; step_i < step_limit; step_i++){
-        lic::step(device_init, off_policy_runner_init, actor_critic_init.actor, actor_buffers_eval_init, rng_init);
+    for(int step_i = 0; step_i < step_limit; step_i += OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
+        lic::step(device_init, &off_policy_runner_init, actor_critic_init.actor, actor_buffers_eval_init, rng_init);
 
-        if(off_policy_runner_init.step > N_WARMUP_STEPS){
+        if(step_i > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
                 auto current_time = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_seconds = current_time - start_time;
