@@ -163,7 +163,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 auto end = std::chrono::high_resolution_clock::now();
                 lic::check_status(device);
                 auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-                std::cout << "copy off_policy_runner: " << duration_microseconds << "us" << std::endl;
+//                std::cout << "copy off_policy_runner: " << duration_microseconds << "us" << std::endl;
             }
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
@@ -175,7 +175,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 cudaDeviceSynchronize();
                 auto end = std::chrono::high_resolution_clock::now();
                 auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-                std::cout << "critic_i: " << critic_i << " " << duration_microseconds << "us" << std::endl;
+//                std::cout << "critic_i: " << critic_i << " " << duration_microseconds << "us" << std::endl;
             }
 
             if(step_i % 2 == 0){
@@ -187,7 +187,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                     cudaDeviceSynchronize();
                     auto end = std::chrono::high_resolution_clock::now();
                     auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-                    std::cout << "actor: " << duration_microseconds << "us" << std::endl;
+//                    std::cout << "actor: " << duration_microseconds << "us" << std::endl;
                 }
 
                 {
@@ -198,7 +198,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                     cudaDeviceSynchronize();
                     auto end = std::chrono::high_resolution_clock::now();
                     auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-                    std::cout << "update: " << duration_microseconds << "us" << std::endl;
+//                    std::cout << "update: " << duration_microseconds << "us" << std::endl;
                 }
             }
         }
