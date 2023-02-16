@@ -59,13 +59,14 @@ using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRI
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
 using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
+constexpr typename DEVICE::index_t N_ENVIRONMENTS = 32;
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
         DTYPE,
         DEVICE::index_t,
         ENVIRONMENT,
-        1,
+        N_ENVIRONMENTS,
         REPLAY_BUFFER_CAP,
         ENVIRONMENT_STEP_LIMIT,
         lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
@@ -144,7 +145,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     constexpr DEVICE::index_t step_limit = 15000;
-    for(int step_i = 0; step_i < step_limit; step_i += OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
+    for(int step_i = 0; step_i < step_limit; step_i += 1){
         lic::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
         lic::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
         lic::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
