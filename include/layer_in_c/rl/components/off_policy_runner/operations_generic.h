@@ -8,7 +8,7 @@
 
 namespace layer_in_c::rl::components::off_policy_runner{
     template<typename DEVICE, typename SPEC, typename RNG>
-    void prologue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
+    LAYER_IN_C_FUNCTION_PLACEMENT void prologue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
@@ -36,7 +36,7 @@ namespace layer_in_c::rl::components::off_policy_runner{
     }
 
     template<typename DEVICE, typename SPEC, typename RNG>
-    void epilogue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
+    LAYER_IN_C_FUNCTION_PLACEMENT void epilogue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
@@ -73,10 +73,10 @@ namespace layer_in_c::rl::components::off_policy_runner{
         increment(runner->episode_return, 0, env_i, reward_value);
         bool truncated = terminated_flag || get(runner->episode_step, 0, env_i) == SPEC::STEP_LIMIT;
         set(runner->truncated, 0, env_i, truncated);
-        if(truncated){
-            add_scalar(device, device.logger, "episode_return", get(runner->episode_return, 0, env_i));
-            add_scalar(device, device.logger, "episode_steps", (T)get(runner->episode_step, 0, env_i));
-        }
+//        if(truncated){
+//            add_scalar(device, device.logger, "episode_return", get(runner->episode_return, 0, env_i));
+//            add_scalar(device, device.logger, "episode_steps", (T)get(runner->episode_step, 0, env_i));
+//        }
         // todo: add truncation / termination handling (stemming from the environment)
         add(device, runner->replay_buffers[env_i], observation, action, reward_value, next_observation, terminated_flag, truncated);
 

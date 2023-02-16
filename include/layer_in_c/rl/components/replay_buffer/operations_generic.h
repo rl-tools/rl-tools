@@ -37,7 +37,7 @@ namespace layer_in_c {
         if(buffer.position == 0 && !buffer.full) {
             buffer.full = true;
         }
-        add_scalar(device, device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
+//        add_scalar(device, device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
     }
     template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::ReplayBuffer<TARGET_SPEC>& target, rl::components::ReplayBuffer<SOURCE_SPEC>& source) {
