@@ -42,7 +42,8 @@ namespace layer_in_c::devices{
 #endif
     };
     struct DefaultCUDASpecification{
-        using MATH = devices::math::CPU;
+        using MATH_HOST = devices::math::CPU;
+        using MATH = devices::math::CUDA_FAST;
         using MATH_DEVICE = math::CUDA_FAST;
         using MATH_DEVICE_ACCURATE = math::CUDA;
         using RANDOM = random::CUDA;

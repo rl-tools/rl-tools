@@ -48,7 +48,6 @@ namespace layer_in_c{
     }
     template<typename T_SPEC>
     struct Matrix{
-        Matrix(){};
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
