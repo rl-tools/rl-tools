@@ -73,9 +73,6 @@ namespace layer_in_c::rl::components::off_policy_runner{
         increment(runner->episode_return, 0, env_i, reward_value);
         bool truncated = terminated_flag || get(runner->episode_step, 0, env_i) == SPEC::STEP_LIMIT;
         set(runner->truncated, 0, env_i, truncated);
-        if(truncated){
-            printf("return: %f\n", get(runner->episode_return, 0, env_i));
-        }
 //        if(truncated){
 //            add_scalar(device, device.logger, "episode_return", get(runner->episode_return, 0, env_i));
 //            add_scalar(device, device.logger, "episode_steps", (T)get(runner->episode_step, 0, env_i));

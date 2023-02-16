@@ -145,7 +145,6 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 
     constexpr DEVICE::index_t step_limit = 15000;
     for(int step_i = 0; step_i < step_limit; step_i += OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
-//        lic::step(device_init, &off_policy_runner_init, actor_critic_init.actor, actor_buffers_eval_init, rng_init);
         lic::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
         lic::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
         lic::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
@@ -156,24 +155,6 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 std::chrono::duration<double> elapsed_seconds = current_time - start_time;
                 std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
             }
-
-//            {
-//                cudaDeviceSynchronize();
-//                auto start = std::chrono::high_resolution_clock::now();
-//                lic::copy(device, device_init, off_policy_runner.replay_buffers[0], off_policy_runner_init.replay_buffers[0]);
-//                cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
-//                auto end = std::chrono::high_resolution_clock::now();
-//                lic::check_status(device);
-//                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-//                std::cout << "copy off_policy_runner: " << duration_microseconds << "us" << std::endl;
-//            }
-
-//            {
-//                std::cout << "replay_buffer position: " << off_policy_runner.replay_buffers[0].position << std::endl;
-//                cudaMemcpy(&off_policy_runner, off_policy_runner_pointer, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyDeviceToHost);
-//                lic::check_status(device);
-//                std::cout << "replay_buffer position: " << off_policy_runner.replay_buffers[0].position << std::endl;
-//            }
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 cudaDeviceSynchronize();
@@ -211,16 +192,19 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 }
             }
         }
-//        if(step_i % 1000 == 0){
-//            lic::copy(device_init, device, actor_critic_init, actor_critic);
-//            DTYPE mean_return = lic::evaluate<DEVICE_INIT, ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
-//            std::cout << "Mean return: " << mean_return << std::endl;
-//        }
+        if(step_i % 1000 == 0){
+            lic::copy(device_init, device, actor_critic_init, actor_critic);
+            DTYPE mean_return = lic::evaluate<DEVICE_INIT, ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
+            std::cout << "Mean return: " << mean_return << std::endl;
+        }
     }
     {
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;
-        std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl; // 90s, 15x of CPU BLAS => todo: investigate individual kernel timings
+        std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
+        // 90s, 15x of CPU BLAS => todo: investigate individual kernel timings
+        // 24s, 6x of CPU BLAS => todo: investigate individual kernel timings
+
     }
     lic::free(device, critic_batch);
     lic::free(device, critic_training_buffers);

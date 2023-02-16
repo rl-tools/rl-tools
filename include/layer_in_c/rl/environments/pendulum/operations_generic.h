@@ -19,7 +19,7 @@ namespace layer_in_c::rl::environments::pendulum {
 }
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC, typename RNG>
-    __device__ static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
+    LAYER_IN_C_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::pendulum::State<typename SPEC::T>& state, RNG& rng){
         state.theta     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
         state.theta_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed, rng);
     }
@@ -44,8 +44,7 @@ namespace layer_in_c{
 
         u = clip(u, -PARAMS::max_torque, PARAMS::max_torque);
 
-        T sin_theta = sinf(state.theta); //math::sin(typename DEVICE::SPEC::MATH(), state.theta);
-        T newthdot = state.theta_dot + (3 * g / (2 * l) * sin_theta + 3.0 / (m * l * l) * u) * dt;
+        T newthdot = state.theta_dot + (3 * g / (2 * l) * math::sin(typename DEVICE::SPEC::MATH(), state.theta) + 3.0 / (m * l * l) * u) * dt;
         newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
         T newth = state.theta + newthdot * dt;
 

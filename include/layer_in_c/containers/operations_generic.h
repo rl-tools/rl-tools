@@ -318,14 +318,11 @@ namespace layer_in_c{
     }
 
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
-    LAYER_IN_C_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC> m, typename SPEC::TI row, typename SPEC::TI col){
+    LAYER_IN_C_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
         Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout, true>> out;
-//#ifdef __CUDA_ARCH__
-//        printf("view: dest %p \n", m._data);
-//#endif
         out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
         return out;
     }
