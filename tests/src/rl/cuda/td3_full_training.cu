@@ -16,95 +16,53 @@ using DEVICE_INIT = lic::devices::CPU<DEV_SPEC_INIT>;
 using DEVICE = lic::devices::DefaultCUDA;
 using DEV_SPEC = DEVICE::SPEC;
 
-#include <layer_in_c/rl/environments/operations_generic.h>
+#include "td3_full_training_parameters.h"
+
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/components/off_policy_runner/operations_cuda.h>
 #include <layer_in_c/rl/algorithms/td3/operations_cuda.h>
 #include <layer_in_c/rl/algorithms/td3/operations_generic.h>
 
-
 #include <layer_in_c/rl/utils/evaluation.h>
+
 
 #include <gtest/gtest.h>
 #include <filesystem>
 
 using DTYPE = float;
 
-typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 
-struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE, DEVICE::index_t>{
-    constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
-    constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
-};
+using p = parameters_0<DEVICE, DTYPE>;
 
-using TD3_PARAMETERS = TD3PendulumParameters;
-
-using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
-
-using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
-using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
-
-using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
-
-using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
-using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
-
-using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
-
-using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
-using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
-
-constexpr typename DEVICE::index_t N_ENVIRONMENTS = 32;
-constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
-constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
-using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
-        DTYPE,
-        DEVICE::index_t,
-        ENVIRONMENT,
-        N_ENVIRONMENTS,
-        REPLAY_BUFFER_CAP,
-        ENVIRONMENT_STEP_LIMIT,
-        lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
->;
-using OFF_POLICY_RUNNER_TYPE = lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
-using CRITIC_BATCH_TYPE = lic::rl::components::off_policy_runner::Batch<lic::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
-using ACTOR_BATCH_TYPE = lic::rl::components::off_policy_runner::Batch<lic::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;
-
-const DTYPE STATE_TOLERANCE = 0.00001;
-constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
+static_assert(p::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == p::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     DEVICE_INIT::SPEC::LOGGING logger;
     DEVICE device;
     DEVICE_INIT device_init;
-    ACTOR_CRITIC_TYPE actor_critic_init;
-    ACTOR_CRITIC_TYPE actor_critic;
-    OFF_POLICY_RUNNER_TYPE off_policy_runner_init, off_policy_runner;
-    OFF_POLICY_RUNNER_TYPE* off_policy_runner_pointer;
+    p::ACTOR_CRITIC_TYPE actor_critic_init;
+    p::ACTOR_CRITIC_TYPE actor_critic;
+    p::OFF_POLICY_RUNNER_TYPE off_policy_runner_init, off_policy_runner;
+    p::OFF_POLICY_RUNNER_TYPE* off_policy_runner_pointer;
 
-    CRITIC_BATCH_TYPE critic_batch;
-    CRITIC_BATCH_TYPE* critic_batch_pointer;
-    lic::rl::algorithms::td3::CriticTrainingBuffers<ACTOR_CRITIC_TYPE ::SPEC> critic_training_buffers;
-    CRITIC_NETWORK_TYPE::BuffersForwardBackward<ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    p::CRITIC_BATCH_TYPE critic_batch;
+    p::CRITIC_BATCH_TYPE* critic_batch_pointer;
+    p::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers;
+    p::CRITIC_NETWORK_TYPE::BuffersForwardBackward<p::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
 
-    ACTOR_BATCH_TYPE actor_batch;
-    ACTOR_BATCH_TYPE* actor_batch_pointer;
-    lic::rl::algorithms::td3::ActorTrainingBuffers<ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
-    ACTOR_NETWORK_TYPE::Buffers<ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-    ACTOR_NETWORK_TYPE::Buffers<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
-    ACTOR_NETWORK_TYPE::Buffers<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
+    p::ACTOR_BATCH_TYPE actor_batch;
+    p::ACTOR_BATCH_TYPE* actor_batch_pointer;
+    p::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers;
+    p::ACTOR_NETWORK_TYPE::Buffers<p::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+    p::ACTOR_NETWORK_TYPE::Buffers<p::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    p::ACTOR_NETWORK_TYPE::Buffers<p::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
 
     lic::init(device);
     device_init.logger = &logger;
     lic::construct(device_init, device_init.logger);
     auto rng_init = lic::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
+    p::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
     bool ui = false;
     
     
@@ -112,18 +70,18 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     lic::malloc(device, actor_critic);
     lic::malloc(device_init, off_policy_runner_init);
     lic::malloc(device, off_policy_runner);
-    cudaMalloc(&off_policy_runner_pointer, sizeof(OFF_POLICY_RUNNER_TYPE));
+    cudaMalloc(&off_policy_runner_pointer, sizeof(p::OFF_POLICY_RUNNER_TYPE));
     lic::check_status(device);
 
     lic::malloc(device, critic_batch);
-    cudaMalloc(&critic_batch_pointer, sizeof(CRITIC_BATCH_TYPE));
+    cudaMalloc(&critic_batch_pointer, sizeof(p::CRITIC_BATCH_TYPE));
     lic::check_status(device);
     lic::malloc(device, critic_training_buffers);
     lic::malloc(device, critic_buffers[0]);
     lic::malloc(device, critic_buffers[1]);
 
     lic::malloc(device, actor_batch);
-    cudaMalloc(&actor_batch_pointer, sizeof(ACTOR_BATCH_TYPE));
+    cudaMalloc(&actor_batch_pointer, sizeof(p::ACTOR_BATCH_TYPE));
     lic::check_status(device);
     lic::malloc(device, actor_training_buffers);
     lic::malloc(device, actor_buffers_eval);
@@ -134,11 +92,11 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     lic::init(device_init, actor_critic_init, rng_init);
     lic::copy(device, device_init, actor_critic, actor_critic_init);
     lic::init(device_init, off_policy_runner_init, envs);
-    cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(p::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
     lic::check_status(device);
-    cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(ACTOR_BATCH_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(p::ACTOR_BATCH_TYPE), cudaMemcpyHostToDevice);
     lic::check_status(device);
-    cudaMemcpy(critic_batch_pointer, &critic_batch, sizeof(CRITIC_BATCH_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(critic_batch_pointer, &critic_batch, sizeof(p::CRITIC_BATCH_TYPE), cudaMemcpyHostToDevice);
     lic::check_status(device);
 
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -149,7 +107,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         lic::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
         lic::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
 
-        if(step_i > N_WARMUP_STEPS){
+        if(step_i > p::N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
                 auto current_time = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_seconds = current_time - start_time;
@@ -194,7 +152,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         }
         if(step_i % 1000 == 0){
             lic::copy(device_init, device, actor_critic_init, actor_critic);
-            DTYPE mean_return = lic::evaluate<DEVICE_INIT, ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
+            DTYPE mean_return = lic::evaluate<DEVICE_INIT, p::ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), p::ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
             std::cout << "Mean return: " << mean_return << std::endl;
         }
     }
