@@ -5,13 +5,12 @@
 #include <layer_in_c/devices/dummy.h>
 
 namespace layer_in_c{
-    template <typename DEV_SPEC, typename RUNNER_SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
+    template <typename DEVICE, typename RUNNER_SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
     __global__
-    void gather_batch_kernel(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<RUNNER_SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng) {
+    void gather_batch_kernel(const rl::components::OffPolicyRunner<RUNNER_SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng) {
         using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
         using T = typename RUNNER_SPEC::T;
         using TI = typename RUNNER_SPEC::TI;
-        using DEVICE = devices::CUDA<DEV_SPEC>;
         static_assert(decltype(batch->observations)::COL_PITCH == 1);
         static_assert(decltype(batch->actions)::COL_PITCH == 1);
         static_assert(decltype(batch->next_observations)::COL_PITCH == 1);
@@ -62,7 +61,8 @@ namespace layer_in_c{
         constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        gather_batch_kernel<DEV_SPEC, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(device, runner, batch, rng);
+        gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(runner, batch, rng);
+        check_status(device);
 
     }
 }

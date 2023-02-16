@@ -17,8 +17,8 @@ namespace layer_in_c::rl::utils::evaluation{
 
 namespace layer_in_c {
 
-    template <typename DEVICE, typename STATE>
-    void set_state(DEVICE& dev, bool ui, const STATE& state){
+    template <typename DEVICE, typename UI, typename STATE>
+    void set_state(DEVICE& dev, UI& ui, const STATE& state){
         // dummy implementation for the case where no ui should be used
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE>

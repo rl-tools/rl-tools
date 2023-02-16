@@ -72,6 +72,7 @@ namespace layer_in_c {
             std::cerr << "CUDA device not initialized" << std::endl;
         }
 #endif
+//        cudaDeviceSynchronize();
         cudaError_t cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess) {
             std::cerr << "cuda failed: " << cudaGetErrorString(cudaStatus) << std::endl;

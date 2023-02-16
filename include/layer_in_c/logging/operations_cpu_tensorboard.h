@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <cassert>
+#include "operations_cpu.h"
 namespace layer_in_c{
     template <typename DEVICE>
     void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger){

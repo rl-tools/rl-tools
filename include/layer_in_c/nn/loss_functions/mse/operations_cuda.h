@@ -53,6 +53,7 @@ namespace layer_in_c::nn::loss_functions {
         dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT, N_BLOCKS_ACTIVATION_BATCH);
         dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT, BLOCKSIZE_ACTIVATION_BATCH);
         internal::mse::d_mse_d_x_kernel<<<activation_grid, activation_block>>>(device, a, b, d_a, loss_weight);
+        check_status(device);
     }
 }
 
