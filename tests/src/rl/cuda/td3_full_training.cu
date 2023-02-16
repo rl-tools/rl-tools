@@ -16,7 +16,7 @@ using DEVICE_INIT = lic::devices::CPU<DEV_SPEC_INIT>;
 using DEVICE = lic::devices::DefaultCUDA;
 using DEV_SPEC = DEVICE::SPEC;
 
-#include "td3_full_training_parameters.h"
+#include "td3_full_training_parameters_pendulum.h"
 
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/components/off_policy_runner/operations_cuda.h>
