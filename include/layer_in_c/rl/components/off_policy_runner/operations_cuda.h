@@ -56,6 +56,63 @@ namespace layer_in_c{
                 set(batch->truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
             }
         }
+
+        template<typename DEVICE, typename SPEC, typename RNG>
+        __global__
+        void prologue_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
+            TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+            curandState rng_state;
+            curand_init(rng, env_i, 0, &rng_state);
+            if(env_i < SPEC::N_ENVIRONMENTS){
+                prologue_per_env(device, runner, rng_state, env_i);
+            }
+        }
+        template<typename DEV_SPEC, typename SPEC, typename RNG>
+        void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            constexpr TI BLOCKSIZE_COLS = 32;
+            constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
+            dim3 grid(N_BLOCKS_COLS);
+            dim3 block(BLOCKSIZE_COLS);
+            prologue_kernel<<<grid, block>>>(device, runner, rng);
+            check_status(device);
+        }
+        template<typename DEV_SPEC, typename SPEC, typename POLICY>
+        void interlude(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
+            // runner struct should be on the CPU while its buffers should be on the GPU
+            evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
+        }
+
+        template<typename DEVICE, typename SPEC, typename RNG>
+        __global__
+        void epilogue_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+
+            TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+            curandState rng_state;
+            curand_init(rng, env_i, 0, &rng_state);
+            if(env_i < SPEC::N_ENVIRONMENTS){
+                epilogue_per_env(device, runner, rng_state, env_i);
+            }
+        }
+        template<typename DEV_SPEC, typename SPEC, typename RNG>
+        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG& rng) {
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            constexpr TI BLOCKSIZE_COLS = 32;
+            constexpr TI N_BLOCKS_COLS = LAYER_IN_C_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
+            dim3 grid(N_BLOCKS_COLS);
+            dim3 block(BLOCKSIZE_COLS);
+            epilogue_kernel<<<grid, block>>>(device, runner, rng);
+            check_status(device);
+        }
     }
     template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
     void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng){
@@ -71,7 +128,6 @@ namespace layer_in_c{
         dim3 bias_block(BLOCKSIZE_COLS);
         rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(runner, batch, rng);
         check_status(device);
-
     }
 }
 
