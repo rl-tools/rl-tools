@@ -9,9 +9,7 @@ namespace layer_in_c::rl::environments::pendulum {
     }
     template <typename DEVICE, typename T>
     __host__ __device__ T f_mod_python(const DEVICE& dev, T a, T b){
-        printf("f_mod_python DEVICE: %d\n", DEVICE::DEVICE);
-//        return a - b * math::floor(dev, a / b);
-        return a - b * floorf(a / b);
+        return a - b * math::floor(dev, a / b);
     }
 
     template <typename DEVICE, typename T>

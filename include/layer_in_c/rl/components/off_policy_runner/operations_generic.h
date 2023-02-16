@@ -51,22 +51,17 @@ namespace layer_in_c::rl::components::off_policy_runner{
         auto& env = runner->envs[env_i];
         auto& state = get(runner->states, 0, env_i);
         typename ENVIRONMENT::State next_state;
-        printf("action: %f\n", get(action, 0, 0));
 
         for (typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             T action_noisy = get(action, 0, i) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T) 0, PARAMETERS::EXPLORATION_NOISE, rng);
             set(action, 0, i, math::clamp<T>(action_noisy, -1, 1));
         }
-        printf("action: %f\n", get(action, 0, 0));
 //        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
 //            auto name = "action_exploration/" + std::to_string(i);
 //            add_scalar(device.logger, name.c_str(), action[i]);
 //        }
-        printf("state before: %f %f\n", state.theta, state.theta_dot);
         step(device, env, state, action, next_state);
-        printf("state after: %f %f\n", next_state.theta, next_state.theta_dot);
         T reward_value = reward(device, env, state, action, next_state);
-        printf("reward value: %f\n", reward_value);
 //        if constexpr(DEVICE::DEBUG::PRINT_REWARD){
 //            std::cout << "reward: " << reward_value << std::endl;
 //        }
