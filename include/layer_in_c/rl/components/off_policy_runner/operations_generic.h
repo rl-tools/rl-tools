@@ -8,29 +8,35 @@
 
 namespace layer_in_c::rl::components::off_policy_runner{
     template<typename DEVICE, typename SPEC, typename RNG>
-    void prologue(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, RNG &rng, typename DEVICE::index_t env_i) {
+    void prologue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
         using RUNNER = rl::components::OffPolicyRunner<SPEC>;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
-        auto& env = runner.envs[env_i];
-        auto& state = get(runner.states, 0, env_i);
-        if (get(runner.truncated, 0, env_i)){
+        auto& env = runner->envs[env_i];
+        auto& state = get(runner->states, 0, env_i);
+        if (get(runner->truncated, 0, env_i)){
             sample_initial_state(device, env, state, rng);
-            set(runner.episode_step, 0, env_i, 0);
-            set(runner.episode_return, 0, env_i, 0);
+            set(runner->episode_step, 0, env_i, 0);
+            set(runner->episode_return, 0, env_i, 0);
         }
-        auto observation = view<DEVICE, typename decltype(runner.buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner.buffers.observations, env_i, 0);
+        auto observation = view<DEVICE, typename decltype(runner->buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner->buffers.observations, env_i, 0);
         observe(device, env, state, observation);
     }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    void prologue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {
+        for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
+            prologue_per_env(device, runner, rng, env_i);
+        }
+    }
     template<typename DEVICE, typename SPEC, typename POLICY>
-    void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
-        evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
+    void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
+        evaluate(device, policy, runner->buffers.observations, runner->buffers.actions, policy_eval_buffers);
     }
 
     template<typename DEVICE, typename SPEC, typename RNG>
-    void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
+    void epilogue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
@@ -76,6 +82,12 @@ namespace layer_in_c::rl::components::off_policy_runner{
 
         // state progression needs to come after the addition to the replay buffer because "observation" can point to the memory of runner_state.state (in the case of REQUIRES_OBSERVATION=false)
         state = next_state;
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {
+        for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
+            epilogue_per_env(device, runner, rng, env_i);
+        }
     }
 
 
@@ -175,7 +187,7 @@ namespace layer_in_c{
 #endif
     }
     template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG &rng) {
+    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, POLICY& policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG &rng) {
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
 #endif
@@ -188,14 +200,9 @@ namespace layer_in_c{
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
 
-        for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
-            prologue(device, runner, rng, env_i);
-        }
-        interlude(device, runner, policy, policy_eval_buffers);
-        for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
-            epilogue(device, &runner, rng, env_i);
-        }
-        runner.step += SPEC::N_ENVIRONMENTS;
+        rl::components::off_policy_runner::prologue(device, runner, rng);
+        rl::components::off_policy_runner::interlude(device, runner, policy, policy_eval_buffers);
+        rl::components::off_policy_runner::epilogue(device, runner, rng);
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
     void gather_batch(DEVICE& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, RNG& rng) {

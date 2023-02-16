@@ -11,6 +11,7 @@ namespace layer_in_c::rl::components::replay_buffer{
     };
 
 }
+
 namespace layer_in_c::rl::components {
     template <typename T_SPEC>
     struct ReplayBuffer {
@@ -37,4 +38,18 @@ namespace layer_in_c::rl::components {
         DATA_VIEW<1> truncated;
     };
 }
+namespace layer_in_c::rl::components::replay_buffer{
+    template <typename T_SPEC, auto T_SIZE>
+    struct SetSpecification{
+        static constexpr auto SIZE = T_SIZE;
+    };
+    template <typename T_SET_SPEC>
+    struct Set{
+        using SET_SPEC = T_SET_SPEC;
+        using SPEC = typename SET_SPEC::SPEC;
+        ReplayBuffer<SPEC> replay_buffers[SET_SPEC::SIZE];
+    };
+}
+
+
 #endif

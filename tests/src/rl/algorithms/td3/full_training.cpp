@@ -177,19 +177,19 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 #else
     constexpr DEVICE::index_t step_limit = 15000;
 #endif
-    for(int step_i = 0; step_i < step_limit; step_i++){
+    for(int step_i = 0; step_i < step_limit; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         ac_dev.logger->step = step_i;
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
         if(step_i % 20 == 0){
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, decltype(actor_critic.actor), decltype(actor_critic.critic_1)>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
         }
 #endif
-        lic::step(ac_dev, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
+        lic::step(ac_dev, &off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
         lic::set_state(ui, off_policy_runner.state);
 #endif
 
-        if(off_policy_runner.step > N_WARMUP_STEPS){
+        if(step_i > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
                 auto current_time = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_seconds = current_time - start_time;
