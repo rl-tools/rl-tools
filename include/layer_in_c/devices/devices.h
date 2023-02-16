@@ -9,8 +9,11 @@ namespace layer_in_c {
             Generic,
             Dummy,
             CPU,
+            CPU_BLAS,
+            CPU_MKL,
+            CPU_ACCELERATE,
+            CPU_TENSORBOARD,
             CUDA,
-            CUBLAS
         };
         enum class Type {
             math,

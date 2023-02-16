@@ -147,13 +147,12 @@ namespace layer_in_c{
         }
     }
 
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename SPEC_1, typename SPEC_2>
-    LAYER_IN_C_FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
-//        static_assert(utils::typing::is_same<TARGET_DEVICE, SOURCE_DEVICE>); // todo: implement
-        static_assert(containers::check_structure<SPEC_1, SPEC_2>);
-        using SPEC = SPEC_1;
-        vectorize_unary<TARGET_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename SPEC::T>>(target_device, target, source);
-    }
+//    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename SPEC_1, typename SPEC_2, typename = std::enable_if_t<TARGET_DEVICE::template compatible<SOURCE_DEVICE>, bool>>
+//    LAYER_IN_C_FUNCTION_PLACEMENT void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+//        static_assert(containers::check_structure<SPEC_1, SPEC_2>);
+//        using SPEC = SPEC_1;
+//        vectorize_unary<TARGET_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename SPEC::T>>(target_device, target, source);
+//    }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     void add(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){

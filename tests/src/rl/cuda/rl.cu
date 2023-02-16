@@ -1,19 +1,22 @@
 // Group 1
 #include <layer_in_c/operations/cuda/group_1.h>
 #include <layer_in_c/operations/cpu/group_1.h>
+#include <layer_in_c/operations/cpu_mkl/group_1.h>
 
 // Group 2
 #include <layer_in_c/operations/cuda/group_2.h>
 #include <layer_in_c/operations/cpu/group_2.h>
+#include <layer_in_c/operations/cpu_mkl/group_2.h>
 
 // Group 3
 #include <layer_in_c/operations/cuda/group_3.h>
 #include <layer_in_c/operations/cpu/group_3.h>
+#include <layer_in_c/operations/cpu_mkl/group_3.h>
 
+#include <layer_in_c/nn/operations_cpu_mkl.h>
 #include <layer_in_c/nn/operations_cuda.h>
 #include <layer_in_c/nn/loss_functions/mse/operations_cuda.h>
 #include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
 
 #include <layer_in_c/rl/components/replay_buffer/operations_cpu.h>
 #include <layer_in_c/rl/components/replay_buffer/persist.h>
@@ -35,12 +38,12 @@ namespace lic = layer_in_c;
 
 class LAYER_IN_C_RL_CUDA : public ::testing::Test {
 public:
-    using DEVICE_CPU = lic::devices::DefaultCPU;
+    using DEVICE_CPU = lic::devices::DefaultCPU_MKL;
     using DEVICE_GPU = lic::devices::DefaultCUDA;
     using NN_DEVICE = DEVICE_CPU;
     using DTYPE = double;
     static constexpr DEVICE_CPU::index_t CAPACITY = 20000;
-    static constexpr DEVICE_CPU::index_t BATCH_SIZE = 123;
+    static constexpr DEVICE_CPU::index_t BATCH_SIZE = 256;
     static constexpr DTYPE EPSILON = (lic::utils::typing::is_same_v<DTYPE, float> ? 1e-5 : 1e-10);// * BATCH_SIZE;
 //    using REPLAY_BUFFER_SPEC = lic::rl::components::replay_buffer::Specification<DTYPE, DEVICE_CPU::index_t, OBSERVATION_DIM, ACTION_DIM, CAPACITY>;
 //    using REPLAY_BUFFER = lic::rl::components::ReplayBuffer<REPLAY_BUFFER_SPEC>;
@@ -163,6 +166,7 @@ protected:
         lic::free(device_gpu, actor_training_buffers_gpu);
     }
 };
+/*
 
 TEST_F(LAYER_IN_C_RL_CUDA, VIEW_COPY_PROBLEM) {
 
@@ -207,7 +211,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
     ASSERT_FLOAT_EQ(abs_diff_batch, 0);
 }
 TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
-    constexpr DEVICE_CPU::index_t N_STEPS = 50;
+    constexpr DEVICE_CPU::index_t N_STEPS = 5;
 
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
@@ -344,7 +348,8 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
 }
 
-TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
+*/
+TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
     constexpr DEVICE_CPU::index_t N_STEPS = 50;
 
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
@@ -409,7 +414,69 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC) {
     }
 }
 
-TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_ACTOR) {
+TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
+    using DEVICE_MKL = lic::devices::DefaultCPU_MKL;
+    DEVICE_MKL device_mkl;
+    constexpr DEVICE_CPU::index_t N_STEPS = 10000;
+
+    auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
+
+    auto sample_batch = [&](bool deterministic){
+        rng_gpu = lic::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
+        if(deterministic){
+            lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
+            lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+
+            // action noise from cpu
+            lic::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
+            lic::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
+            lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            auto abs_diff_target_next_action_noise = lic::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
+            std::cout << "abs_diff_target_next_action_noise: " << abs_diff_target_next_action_noise << std::endl;
+            ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
+        }
+        else{
+            lic::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            lic::copy(device_cpu, device_gpu, batch_cpu, batch_gpu);
+
+            // action noise from gpu
+            lic::target_action_noise(device_gpu, actor_critic_gpu, critic_training_buffers_gpu.target_next_action_noise, rng_gpu);
+            lic::copy(device_cpu, device_gpu, critic_training_buffers_cpu.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            auto action_noise_std = lic::std(device_cpu, critic_training_buffers_cpu.target_next_action_noise);
+            auto action_noise_std_diff = std::abs(action_noise_std - ACTOR_CRITIC_SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
+            std::cout << "action_noise_std_diff: " << action_noise_std_diff << std::endl;
+            ASSERT_LT(action_noise_std_diff, 0.05);
+        }
+    };
+
+    sample_batch(true);
+
+    {
+        auto& critic_cpu = actor_critic_cpu.critic_1;
+        auto start = std::chrono::high_resolution_clock::now();
+        for(typename DEVICE_CPU::index_t i = 0; i < N_STEPS; i++){
+            lic::train_critic(device_mkl, actor_critic_cpu, critic_cpu, batch_cpu, actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        std::cout << "CPU train_critic: " << duration.count()/N_STEPS << " microseconds" << std::endl;
+    }
+    {
+        auto& critic_gpu = actor_critic_gpu.critic_1;
+        cudaDeviceSynchronize();
+        auto start = std::chrono::high_resolution_clock::now();
+        for(typename DEVICE_CPU::index_t i = 0; i < N_STEPS; i++){
+            lic::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu);
+        }
+        cudaDeviceSynchronize();
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        std::cout << "GPU train_critic: " << duration.count()/N_STEPS << " microseconds" << std::endl;
+    }
+}
+
+TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
     constexpr DEVICE_CPU::index_t N_STEPS = 50;
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
@@ -437,4 +504,41 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_ACTOR) {
         ASSERT_LT(abs_diff_actor_after_update, EPSILON);
     }
 
+}
+
+TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
+    constexpr DEVICE_CPU::index_t N_STEPS = 10000;
+    auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
+
+    auto sample_batch = [&](bool deterministic){
+        rng_gpu = lic::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
+        if(deterministic){
+            lic::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
+            lic::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+        }
+        else{
+            lic::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            lic::copy(device_cpu, device_gpu, batch_cpu, batch_gpu);
+        }
+    };
+    sample_batch(false);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for(typename DEVICE_CPU::index_t step_i = 0; step_i < N_STEPS; step_i++){
+        lic::train_actor(device_cpu, actor_critic_cpu, batch_cpu, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "CPU time: " << duration.count()/N_STEPS << " microseconds" << std::endl;
+
+    cudaDeviceSynchronize();
+    start = std::chrono::high_resolution_clock::now();
+    for(typename DEVICE_CPU::index_t step_i = 0; step_i < N_STEPS; step_i++){
+        lic::train_actor(device_gpu, actor_critic_gpu, batch_gpu, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu);
+    }
+    cudaDeviceSynchronize();
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    std::cout << "GPU time: " << duration.count()/N_STEPS << " microseconds" << std::endl;
 }

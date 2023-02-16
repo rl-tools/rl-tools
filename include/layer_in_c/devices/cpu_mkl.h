@@ -8,7 +8,9 @@
 
 namespace layer_in_c::devices{
     template <typename T_SPEC>
-    struct CPU_MKL: CPU_BLAS<T_SPEC>{};
+    struct CPU_MKL: CPU_BLAS<T_SPEC>{
+        static constexpr Device DEVICE = Device::CPU_MKL;
+    };
     using DefaultCPU_MKL = CPU_MKL<DefaultCPUSpecification>;
 }
 

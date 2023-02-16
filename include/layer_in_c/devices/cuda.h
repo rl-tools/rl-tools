@@ -33,20 +33,13 @@ namespace layer_in_c::devices{
     template <typename T_SPEC>
     struct CUDA: cuda::Base{
         template <typename OTHER_DEVICE>
-        static constexpr bool compatible = utils::typing::is_same_v<OTHER_DEVICE, CUDA<T_SPEC>>;
+        static constexpr bool compatible = OTHER_DEVICE::DEVICE == Device::CUDA;
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
         cublasHandle_t handle;
 #ifdef LAYER_IN_C_DEBUG_DEVICE_CUDA_CHECK_INIT
         bool initialized = false;
 #endif
-    };
-    template <typename T_SPEC>
-    struct CUDA_GENERIC: cuda::Base{
-        template <typename OTHER_DEVICE>
-        static constexpr bool compatible = utils::typing::is_same_v<OTHER_DEVICE, CUDA_GENERIC<T_SPEC>> || utils::typing::is_same_v<OTHER_DEVICE, CUDA<T_SPEC>>;
-        using SPEC = T_SPEC;
-        typename SPEC::LOGGING* logger = nullptr;
     };
     struct DefaultCUDASpecification{
         using MATH = devices::math::CPU;
@@ -56,7 +49,6 @@ namespace layer_in_c::devices{
         using LOGGING = logging::CUDA;
     };
     using DefaultCUDA = CUDA<DefaultCUDASpecification>;
-    using DefaultCUDAGeneric = CUDA_GENERIC<DefaultCUDASpecification>;
 }
 
 #include <iostream>

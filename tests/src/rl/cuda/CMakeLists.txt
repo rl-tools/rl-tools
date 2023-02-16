@@ -31,4 +31,5 @@ target_link_libraries(
         HighFive
 )
 LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_nn_cuda_rl)
+LAYER_IN_C_TARGET_LINK_BLAS(test_nn_cuda_rl)
 gtest_discover_tests(test_nn_cuda_rl)

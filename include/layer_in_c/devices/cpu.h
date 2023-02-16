@@ -36,7 +36,13 @@ namespace layer_in_c::devices{
     template <typename T_SPEC>
     struct CPU: cpu::Base{
         template <typename OTHER_DEVICE>
-        static constexpr bool compatible = utils::typing::is_same_v<OTHER_DEVICE, CPU<T_SPEC>>;
+        static constexpr bool compatible =
+            OTHER_DEVICE::DEVICE == Device::Dummy ||
+            OTHER_DEVICE::DEVICE == Device::CPU ||
+            OTHER_DEVICE::DEVICE == Device::CPU_BLAS ||
+            OTHER_DEVICE::DEVICE == Device::CPU_MKL ||
+            OTHER_DEVICE::DEVICE == Device::CPU_ACCELERATE ||
+            OTHER_DEVICE::DEVICE == Device::CPU_TENSORBOARD;
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
     };
