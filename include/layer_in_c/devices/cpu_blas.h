@@ -9,7 +9,7 @@
 namespace layer_in_c::devices{
     template <typename T_SPEC>
     struct CPU_BLAS: CPU<T_SPEC>{
-        static constexpr Device DEVICE = Device::CPU_BLAS;
+        static constexpr DeviceId DEVICE_ID = DeviceId::CPU_BLAS;
     };
     using DefaultCPU_BLAS = CPU_BLAS<DefaultCPUSpecification>;
 }

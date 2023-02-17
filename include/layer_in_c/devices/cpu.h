@@ -14,7 +14,7 @@ namespace layer_in_c::devices{
             using LOGGING = T_LOGGING;
         };
         struct Base{
-            static constexpr Device DEVICE = Device::CPU;
+            static constexpr DeviceId DEVICE_ID = DeviceId::CPU;
             using index_t = size_t;
         };
     }
@@ -34,15 +34,15 @@ namespace layer_in_c::devices{
         };
     }
     template <typename T_SPEC>
-    struct CPU: cpu::Base{
+    struct CPU: Device<T_SPEC>, cpu::Base{
         template <typename OTHER_DEVICE>
         static constexpr bool compatible =
-            OTHER_DEVICE::DEVICE == Device::Dummy ||
-            OTHER_DEVICE::DEVICE == Device::CPU ||
-            OTHER_DEVICE::DEVICE == Device::CPU_BLAS ||
-            OTHER_DEVICE::DEVICE == Device::CPU_MKL ||
-            OTHER_DEVICE::DEVICE == Device::CPU_ACCELERATE ||
-            OTHER_DEVICE::DEVICE == Device::CPU_TENSORBOARD;
+            OTHER_DEVICE::DEVICE == DeviceId::Dummy ||
+            OTHER_DEVICE::DEVICE == DeviceId::CPU ||
+            OTHER_DEVICE::DEVICE == DeviceId::CPU_BLAS ||
+            OTHER_DEVICE::DEVICE == DeviceId::CPU_MKL ||
+            OTHER_DEVICE::DEVICE == DeviceId::CPU_ACCELERATE ||
+            OTHER_DEVICE::DEVICE == DeviceId::CPU_TENSORBOARD;
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
     };

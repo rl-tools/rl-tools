@@ -8,7 +8,7 @@
 namespace layer_in_c::devices{
     namespace cuda{
         struct Base{
-            static constexpr Device DEVICE = Device::CUDA;
+            static constexpr DeviceId DEVICE_ID = DeviceId::CUDA;
             using index_t = unsigned int;
         };
     }
@@ -30,7 +30,7 @@ namespace layer_in_c::devices{
     template <typename T_SPEC>
     struct CUDA: cuda::Base{
         template <typename OTHER_DEVICE>
-        static constexpr bool compatible = OTHER_DEVICE::DEVICE == Device::CUDA;
+        static constexpr bool compatible = OTHER_DEVICE::DEVICE_ID == DeviceId::CUDA;
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
         cublasHandle_t handle;

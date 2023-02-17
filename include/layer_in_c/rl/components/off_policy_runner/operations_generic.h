@@ -25,14 +25,14 @@ namespace layer_in_c::rl::components::off_policy_runner{
         observe(device, env, state, observation);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    void prologue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {
+    void prologue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
-            prologue_per_env(device, runner, rng, env_i);
+            prologue_per_env(device, &runner, rng, env_i);
         }
     }
     template<typename DEVICE, typename SPEC, typename POLICY>
-    void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
-        evaluate(device, policy, runner->buffers.observations, runner->buffers.actions, policy_eval_buffers);
+    void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
+        evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
     }
 
     template<typename DEVICE, typename SPEC, typename RNG>
@@ -84,9 +84,9 @@ namespace layer_in_c::rl::components::off_policy_runner{
         state = next_state;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {
+    void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-            epilogue_per_env(device, runner, rng, env_i);
+            epilogue_per_env(device, &runner, rng, env_i);
         }
     }
 
@@ -187,7 +187,7 @@ namespace layer_in_c{
 #endif
     }
     template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, POLICY& policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG &rng) {
+    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG &rng) {
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner->initialized, "OffPolicyRunner not initialized");
 #endif

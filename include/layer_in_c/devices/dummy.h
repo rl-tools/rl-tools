@@ -6,7 +6,7 @@
 namespace layer_in_c::devices{
     namespace dummy{
         struct Base{
-            static constexpr Device DEVICE = Device::Dummy;
+            static constexpr DeviceId DEVICE_ID = DeviceId::Dummy;
             using index_t = unsigned;
         };
     }

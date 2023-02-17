@@ -9,7 +9,7 @@
 namespace layer_in_c::devices{
     template <typename T_SPEC>
     struct CPU_ACCELERATE: CPU_BLAS<T_SPEC>{
-        static constexpr Device DEVICE = Device::CPU_ACCELERATE;
+        static constexpr DeviceId DEVICE_ID = DeviceId::CPU_ACCELERATE;
     };
     using DefaultCPU_ACCELERATE = CPU_ACCELERATE<DefaultCPUSpecification>;
 }

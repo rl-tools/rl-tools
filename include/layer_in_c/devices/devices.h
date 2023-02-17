@@ -5,7 +5,11 @@
 
 namespace layer_in_c {
     namespace devices {
-        enum class Device {
+        template <typename DEV_SPEC>
+        struct Device{
+
+        };
+        enum class DeviceId{
             Generic,
             Dummy,
             CPU,
@@ -21,6 +25,12 @@ namespace layer_in_c {
             logging
         };
     }
+}
+
+namespace layer_in_c{
+    template <typename DEV_SPEC>
+    void init(devices::Device<DEV_SPEC>& device){
+    };
 }
 
 #endif

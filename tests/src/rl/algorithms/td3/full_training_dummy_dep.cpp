@@ -111,7 +111,7 @@ int main() {
     for(int step_i = 0; step_i < 15000; step_i++){
         lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 
-        if(off_policy_runner.step > N_WARMUP_STEPS){
+        if(step_i > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
                 lic::logging::text(device, device.logger, "step_i: ", step_i);
             }

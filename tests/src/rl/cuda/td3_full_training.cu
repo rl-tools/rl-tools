@@ -1,18 +1,23 @@
 // ------------ Groups 1 ------------
 #include <layer_in_c/operations/cuda/group_1.h>
+#include <layer_in_c/operations/cpu_mkl/group_1.h>
 #include <layer_in_c/operations/cpu_tensorboard/group_1.h>
 // ------------ Groups 2 ------------
 #include <layer_in_c/operations/cuda/group_2.h>
+#include <layer_in_c/operations/cpu_mkl/group_2.h>
 #include <layer_in_c/operations/cpu_tensorboard/group_2.h>
 // ------------ Groups 3 ------------
 #include <layer_in_c/operations/cuda/group_3.h>
+#include <layer_in_c/operations/cpu_mkl/group_3.h>
 #include <layer_in_c/operations/cpu_tensorboard/group_3.h>
 
 namespace lic = layer_in_c;
 
 #include <layer_in_c/nn/operations_cuda.h>
+#include <layer_in_c/nn/operations_cpu_mkl.h>
 using DEV_SPEC_INIT = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
 using DEVICE_INIT = lic::devices::CPU<DEV_SPEC_INIT>;
+//using DEVICE = lic::devices::CPU_MKL<DEV_SPEC_INIT>;
 using DEVICE = lic::devices::DefaultCUDA;
 using DEV_SPEC = DEVICE::SPEC;
 
@@ -33,36 +38,37 @@ using DTYPE = float;
 
 
 using p = parameters_0<DEVICE, DTYPE>;
+using rlp = p::rl<p::env::ENVIRONMENT>;
 
-static_assert(p::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == p::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
+static_assert(rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     DEVICE_INIT::SPEC::LOGGING logger;
     DEVICE device;
     DEVICE_INIT device_init;
-    p::ACTOR_CRITIC_TYPE actor_critic_init;
-    p::ACTOR_CRITIC_TYPE actor_critic;
-    p::OFF_POLICY_RUNNER_TYPE off_policy_runner_init, off_policy_runner;
-    p::OFF_POLICY_RUNNER_TYPE* off_policy_runner_pointer;
+    rlp::ACTOR_CRITIC_TYPE actor_critic_init;
+    rlp::ACTOR_CRITIC_TYPE actor_critic;
+    rlp::OFF_POLICY_RUNNER_TYPE off_policy_runner_init, off_policy_runner;
+    rlp::OFF_POLICY_RUNNER_TYPE* off_policy_runner_pointer;
 
-    p::CRITIC_BATCH_TYPE critic_batch;
-    p::CRITIC_BATCH_TYPE* critic_batch_pointer;
-    p::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers;
-    p::CRITIC_NETWORK_TYPE::BuffersForwardBackward<p::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    rlp::CRITIC_BATCH_TYPE critic_batch;
+    rlp::CRITIC_BATCH_TYPE* critic_batch_pointer;
+    rlp::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers;
+    rlp::CRITIC_NETWORK_TYPE::BuffersForwardBackward<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
 
-    p::ACTOR_BATCH_TYPE actor_batch;
-    p::ACTOR_BATCH_TYPE* actor_batch_pointer;
-    p::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers;
-    p::ACTOR_NETWORK_TYPE::Buffers<p::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-    p::ACTOR_NETWORK_TYPE::Buffers<p::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
-    p::ACTOR_NETWORK_TYPE::Buffers<p::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
+    rlp::ACTOR_BATCH_TYPE actor_batch;
+    rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;
+    rlp::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers;
+    rlp::ACTOR_NETWORK_TYPE::Buffers<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+    rlp::ACTOR_NETWORK_TYPE::Buffers<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    rlp::ACTOR_NETWORK_TYPE::Buffers<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
 
     lic::init(device);
     device_init.logger = &logger;
     lic::construct(device_init, device_init.logger);
     auto rng_init = lic::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    p::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
+    p::env::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
     bool ui = false;
     
     
@@ -70,18 +76,18 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     lic::malloc(device, actor_critic);
     lic::malloc(device_init, off_policy_runner_init);
     lic::malloc(device, off_policy_runner);
-    cudaMalloc(&off_policy_runner_pointer, sizeof(p::OFF_POLICY_RUNNER_TYPE));
+    cudaMalloc(&off_policy_runner_pointer, sizeof(rlp::OFF_POLICY_RUNNER_TYPE));
     lic::check_status(device);
 
     lic::malloc(device, critic_batch);
-    cudaMalloc(&critic_batch_pointer, sizeof(p::CRITIC_BATCH_TYPE));
+    cudaMalloc(&critic_batch_pointer, sizeof(rlp::CRITIC_BATCH_TYPE));
     lic::check_status(device);
     lic::malloc(device, critic_training_buffers);
     lic::malloc(device, critic_buffers[0]);
     lic::malloc(device, critic_buffers[1]);
 
     lic::malloc(device, actor_batch);
-    cudaMalloc(&actor_batch_pointer, sizeof(p::ACTOR_BATCH_TYPE));
+    cudaMalloc(&actor_batch_pointer, sizeof(rlp::ACTOR_BATCH_TYPE));
     lic::check_status(device);
     lic::malloc(device, actor_training_buffers);
     lic::malloc(device, actor_buffers_eval);
@@ -92,11 +98,11 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     lic::init(device_init, actor_critic_init, rng_init);
     lic::copy(device, device_init, actor_critic, actor_critic_init);
     lic::init(device_init, off_policy_runner_init, envs);
-    cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(p::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(rlp::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
     lic::check_status(device);
-    cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(p::ACTOR_BATCH_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(rlp::ACTOR_BATCH_TYPE), cudaMemcpyHostToDevice);
     lic::check_status(device);
-    cudaMemcpy(critic_batch_pointer, &critic_batch, sizeof(p::CRITIC_BATCH_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(critic_batch_pointer, &critic_batch, sizeof(rlp::CRITIC_BATCH_TYPE), cudaMemcpyHostToDevice);
     lic::check_status(device);
 
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -107,7 +113,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         lic::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
         lic::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
 
-        if(step_i > p::N_WARMUP_STEPS){
+        if(step_i > rlp::N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
                 auto current_time = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_seconds = current_time - start_time;
@@ -152,7 +158,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         }
         if(step_i % 1000 == 0){
             lic::copy(device_init, device, actor_critic_init, actor_critic);
-            DTYPE mean_return = lic::evaluate<DEVICE_INIT, p::ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), p::ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
+            DTYPE mean_return = lic::evaluate<DEVICE_INIT, p::env::ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), rlp::ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
             std::cout << "Mean return: " << mean_return << std::endl;
         }
     }
