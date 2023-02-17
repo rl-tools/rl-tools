@@ -1,5 +1,3 @@
-
-
 #include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/abs_exp.h>
 #include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/squared.h>
 #include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/default.h>

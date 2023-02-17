@@ -5,6 +5,13 @@
 #include <layer_in_c/containers.h>
 
 namespace layer_in_c::nn::layers::dense {
+    template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    constexpr bool check_input_output =
+            INPUT_SPEC::COLS == LAYER_SPEC::INPUT_DIM &&
+            INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS &&
+            //                INPUT_SPEC::ROWS <= OUTPUT_SPEC::ROWS && // todo: could be relaxed to not fill the full output
+            OUTPUT_SPEC::COLS == LAYER_SPEC::OUTPUT_DIM &&
+            (!LAYER_SPEC::ENFORCE_FLOATING_POINT_TYPE || ( utils::typing::is_same_v<typename LAYER_SPEC::T, typename INPUT_SPEC::T> && utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>));
     template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, bool T_ENFORCE_FLOATING_POINT_TYPE=true>
     struct Specification {
         using T = T_T;

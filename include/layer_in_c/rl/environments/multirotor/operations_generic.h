@@ -16,10 +16,10 @@
 
 
 namespace layer_in_c::rl::environments::multirotor {
-    template<typename DEVICE, typename T, auto STATE_DIM, auto N, typename REWARD_FUNCTION>
+    template<typename DEVICE, typename T, typename PARAMETERS, auto STATE_DIM, auto N, typename REWARD_FUNCTION>
     LAYER_IN_C_FUNCTION_PLACEMENT void multirotor_dynamics(
             DEVICE& device,
-            const Parameters<T, typename DEVICE::index_t, N, REWARD_FUNCTION> &params,
+            const PARAMETERS& params,
 
             // state
             const T state[STATE_DIM],
@@ -102,8 +102,41 @@ namespace layer_in_c{
         }
         state.state[3] = 1;
     }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    LAYER_IN_C_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state, RNG& rng){
+        typename DEVICE::SPEC::MATH math_dev;
+        typename DEVICE::SPEC::RANDOM random_dev;
+        using T = typename SPEC::T;
+        using index_t = typename devices::CPU<DEV_SPEC>::index_t;
+        for(index_t i = 0; i < 3; i++){
+            state.state[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_position, env.parameters.mdp.init.max_position, rng);
+        }
+        // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
+        if(env.parameters.mdp.init.max_angle > 0 && (random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) > env.parameters.mdp.init.guidance)){
+            T u[3];
+            for(typename devices::CPU<DEV_SPEC>::index_t i = 0; i < 3; i++){
+                u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
+            }
+            state.state[3+0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*M_PI*u[1]);
+            state.state[3+1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*M_PI*u[1]);
+            state.state[3+2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*M_PI*u[2]);
+            state.state[3+3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*M_PI*u[2]);
+        }
+        else{
+            state.state[3+0] = 1;
+            state.state[3+1] = 0;
+            state.state[3+2] = 0;
+            state.state[3+3] = 0;
+        }
+        for(index_t i = 0; i < 3; i++){
+            state.state[7+i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_linear_velocity, env.parameters.mdp.init.max_linear_velocity, rng);
+        }
+        for(index_t i = 0; i < 3; i++){
+            state.state[10+i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_angular_velocity, env.parameters.mdp.init.max_angular_velocity, rng);
+        }
+    }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC>
-    static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, Matrix<OBS_SPEC>& observation){
+    LAYER_IN_C_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, Matrix<OBS_SPEC>& observation){
         using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == ENVIRONMENT::STATE_DIM);
@@ -112,7 +145,7 @@ namespace layer_in_c{
         }
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
-    static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::Multirotor<SPEC>::State& next_state) {
+    LAYER_IN_C_FUNCTION_PLACEMENT static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::Multirotor<SPEC>::State& next_state) {
         constexpr auto STATE_DIM = rl::environments::Multirotor<SPEC>::STATE_DIM;
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         static_assert(ACTION_SPEC::ROWS == 1);
@@ -123,7 +156,7 @@ namespace layer_in_c{
             typename SPEC::T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
             action_scaled[action_i] = get(action, 0, action_i) * half_range + env.parameters.dynamics.action_limit.min + half_range;
         }
-        utils::integrators::rk4<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, STATE_DIM, ACTION_DIM, typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION>>(device, env.parameters, state.state, action_scaled, env.parameters.integration.dt, next_state.state);
+        utils::integrators::rk4<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE_DIM, ACTION_DIM, typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION>>(device, env.parameters, state.state, action_scaled, env.parameters.integration.dt, next_state.state);
         typename SPEC::T quaternion_norm = 0;
         for(typename DEVICE::index_t state_i = 3; state_i < 3+4; state_i++){
             quaternion_norm += next_state.state[state_i] * next_state.state[state_i];
@@ -136,12 +169,12 @@ namespace layer_in_c{
         return env.parameters.integration.dt;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
-    static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state) {
+    LAYER_IN_C_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state) {
         return rl::environments::multirotor::parameters::reward_functions::reward(device, env, env.parameters.mdp.reward, state, action, next_state);
     }
 
     template<typename DEVICE, typename SPEC>
-    static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state){
+    LAYER_IN_C_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state){
         using T = typename SPEC::T;
         if(env.parameters.mdp.termination.enabled){
             for(typename DEVICE::index_t position_i = 0; position_i < 3; position_i++){

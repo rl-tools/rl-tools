@@ -37,7 +37,7 @@ using DEV_SPEC = DEVICE::SPEC;
 using DTYPE = float;
 
 
-using p = parameters_0<DEVICE, DTYPE>;
+using p = parameters_1<DEVICE, DTYPE>;
 using rlp = p::rl<p::env::ENVIRONMENT>;
 
 static_assert(rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -156,11 +156,11 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 }
             }
         }
-        if(step_i % 1000 == 0){
-            lic::copy(device_init, device, actor_critic_init, actor_critic);
-            DTYPE mean_return = lic::evaluate<DEVICE_INIT, p::env::ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), rlp::ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
-            std::cout << "Mean return: " << mean_return << std::endl;
-        }
+//        if(step_i % 1000 == 0){
+//            lic::copy(device_init, device, actor_critic_init, actor_critic);
+//            DTYPE mean_return = lic::evaluate<DEVICE_INIT, p::env::ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), rlp::ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
+//            std::cout << "Mean return: " << mean_return << std::endl;
+//        }
     }
     {
         auto current_time = std::chrono::high_resolution_clock::now();

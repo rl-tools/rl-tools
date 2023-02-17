@@ -55,6 +55,15 @@ namespace layer_in_c::math {
             return ::sin(x);
         }
     }
+    template<typename T>
+    LAYER_IN_C_FUNCTION_PLACEMENT T asin(const devices::math::CUDA &, const T x) {
+        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::asin(x);
+        } else {
+            return ::asin(x);
+        }
+    }
 
     template<typename T>
     LAYER_IN_C_FUNCTION_PLACEMENT T cos(const devices::math::CUDA &, const T x) {
@@ -63,6 +72,16 @@ namespace layer_in_c::math {
             return ::cosf(x);
         } else {
             return ::cos(x);
+        }
+    }
+
+    template<typename T>
+    LAYER_IN_C_FUNCTION_PLACEMENT T acos(const devices::math::CUDA &, const T x) {
+        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::acosf(x);
+        } else {
+            return ::acos(x);
         }
     }
 

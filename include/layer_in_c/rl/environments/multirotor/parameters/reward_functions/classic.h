@@ -3,7 +3,7 @@
 #include "../../multirotor.h"
 namespace layer_in_c::rl::environments::multirotor::parameters::reward_functions{
     template<typename DEVICE, typename SPEC>
-    static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state){
+    LAYER_IN_C_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state){
 //        static_assert(utils::typing::is_same_v<typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION, AbsExp<typename SPEC::T>>);
         constexpr auto STATE_DIM = rl::environments::Multirotor<SPEC>::STATE_DIM;
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;

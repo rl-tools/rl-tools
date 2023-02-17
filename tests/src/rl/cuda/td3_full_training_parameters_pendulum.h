@@ -1,6 +1,5 @@
-
-#include <layer_in_c/rl/environments/operations_generic.h>
-
+#include <layer_in_c/rl/environments/pendulum/pendulum.h>
+#include <layer_in_c/rl/environments/pendulum/operations_generic.h>
 #include <layer_in_c/nn_models/models.h>
 #include <layer_in_c/rl/algorithms/td3/td3.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
@@ -53,4 +52,41 @@ struct parameters_0{
 
         static constexpr TI N_WARMUP_STEPS = ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
     };
+};
+
+#include <layer_in_c/rl/environments/multirotor/multirotor.h>
+#include <layer_in_c/rl/environments/multirotor/operations_generic.h>
+#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/abs_exp.h>
+#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/squared.h>
+#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/default.h>
+#include <layer_in_c/rl/environments/multirotor/parameters/dynamics/crazy_flie.h>
+#include <layer_in_c/rl/environments/multirotor/parameters/init/default.h>
+#include <layer_in_c/rl/environments/multirotor/parameters/termination/default.h>
+
+template<typename DEVICE, typename T>
+struct parameters_1{
+    using TI = typename DEVICE::index_t;
+    struct env{
+        using TI = typename DEVICE::index_t;
+        static constexpr auto reward_function = layer_in_c::rl::environments::multirotor::parameters::reward_functions::reward_dr<T>;
+        using REWARD_FUNCTION_CONST = typename layer_in_c::utils::typing::remove_cv_t<decltype(reward_function)>;
+        using REWARD_FUNCTION = typename layer_in_c::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
+
+        static constexpr layer_in_c::rl::environments::multirotor::Parameters<T, TI, 4, REWARD_FUNCTION> parameters = {
+                layer_in_c::rl::environments::multirotor::parameters::dynamics::crazy_flie<T, TI, REWARD_FUNCTION>,
+                {0.01}, // integration dt
+                {
+                        layer_in_c::rl::environments::multirotor::parameters::init::all_around<T, TI, 4, REWARD_FUNCTION>,
+                        layer_in_c::rl::environments::multirotor::parameters::termination::classic<T, TI, 4, REWARD_FUNCTION>,
+                        reward_function,
+                }
+        };
+
+        using PARAMETERS = typename layer_in_c::utils::typing::remove_cv_t<decltype(parameters)>;
+
+        using ENVIRONMENT_SPEC = lic::rl::environments::multirotor::Specification<T, typename DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters>;
+        using ENVIRONMENT = lic::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
+    };
+    template <typename ENVIRONMENT>
+    using rl = typename parameters_0<DEVICE, T>::template rl<ENVIRONMENT>;
 };

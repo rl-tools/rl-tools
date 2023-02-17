@@ -78,16 +78,6 @@ namespace layer_in_c{
         }
     }
 
-    namespace nn::layers::dense{
-        template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-        constexpr bool check_input_output =
-                INPUT_SPEC::COLS == LAYER_SPEC::INPUT_DIM &&
-                INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS &&
-//                INPUT_SPEC::ROWS <= OUTPUT_SPEC::ROWS && // todo: could be relaxed to not fill the full output
-                OUTPUT_SPEC::COLS == LAYER_SPEC::OUTPUT_DIM &&
-                (!LAYER_SPEC::ENFORCE_FLOATING_POINT_TYPE || ( utils::typing::is_same_v<typename LAYER_SPEC::T, typename INPUT_SPEC::T> && utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>));
-    }
-
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(DEVICE& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
