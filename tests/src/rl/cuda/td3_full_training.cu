@@ -97,7 +97,12 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 
     lic::init(device_init, actor_critic_init, rng_init);
     lic::copy(device, device_init, actor_critic, actor_critic_init);
+    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
+        auto parameters = p::env::parameters;
+        envs[i].parameters = parameters;
+    }
     lic::init(device_init, off_policy_runner_init, envs);
+    lic::copy(device, device_init, off_policy_runner, off_policy_runner_init);
     cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(rlp::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
     lic::check_status(device);
     cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(rlp::ACTOR_BATCH_TYPE), cudaMemcpyHostToDevice);
@@ -107,10 +112,13 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    constexpr DEVICE::index_t step_limit = 15000;
+    constexpr DEVICE::index_t step_limit = 500000;
     for(int step_i = 0; step_i < step_limit; step_i += 1){
+        rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
         lic::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
+        rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
         lic::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
+        rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
         lic::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
 
         if(step_i > rlp::N_WARMUP_STEPS){
@@ -121,9 +129,11 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
             }
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
+                rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
                 cudaDeviceSynchronize();
                 auto start = std::chrono::high_resolution_clock::now();
                 lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
+                rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
                 lic::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
                 lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
                 cudaDeviceSynchronize();
@@ -136,6 +146,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 {
                     cudaDeviceSynchronize();
                     auto start = std::chrono::high_resolution_clock::now();
+                    rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
                     lic::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
                     lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
                     cudaDeviceSynchronize();
@@ -156,11 +167,11 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 }
             }
         }
-//        if(step_i % 1000 == 0){
-//            lic::copy(device_init, device, actor_critic_init, actor_critic);
-//            DTYPE mean_return = lic::evaluate<DEVICE_INIT, p::env::ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), rlp::ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
-//            std::cout << "Mean return: " << mean_return << std::endl;
-//        }
+        if(step_i % 1000 == 0){
+            lic::copy(device_init, device, actor_critic_init, actor_critic);
+            DTYPE mean_return = lic::evaluate<DEVICE_INIT, p::env::ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), rlp::ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
+            std::cout << "Mean return: " << mean_return << std::endl;
+        }
     }
     {
         auto current_time = std::chrono::high_resolution_clock::now();

@@ -16,11 +16,13 @@ namespace layer_in_c::rl::components::off_policy_runner{
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         auto& env = runner->envs[env_i];
         auto& state = get(runner->states, 0, env_i);
+//        printf("truncated: %d\n", get(runner->truncated, 0, env_i));
         if (get(runner->truncated, 0, env_i)){
             sample_initial_state(device, env, state, rng);
             set(runner->episode_step, 0, env_i, 0);
             set(runner->episode_return, 0, env_i, 0);
         }
+//        printf("prologue state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
         auto observation = view<DEVICE, typename decltype(runner->buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner->buffers.observations, env_i, 0);
         observe(device, env, state, observation);
     }
@@ -56,17 +58,23 @@ namespace layer_in_c::rl::components::off_policy_runner{
             T action_noisy = get(action, 0, i) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T) 0, PARAMETERS::EXPLORATION_NOISE, rng);
             set(action, 0, i, math::clamp<T>(action_noisy, -1, 1));
         }
+//        printf("action: %f %f %f %f\n", get(action, 0, 0), get(action, 0, 1), get(action, 0, 2), get(action, 0, 3));
 //        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
 //            auto name = "action_exploration/" + std::to_string(i);
 //            add_scalar(device.logger, name.c_str(), action[i]);
 //        }
+//        printf("state pre step: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
         step(device, env, state, action, next_state);
+//        printf("state post step: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", next_state.state[0], next_state.state[1], next_state.state[2], next_state.state[3], next_state.state[4], next_state.state[5], next_state.state[6], next_state.state[7], next_state.state[8], next_state.state[9], next_state.state[10], next_state.state[11], next_state.state[12]);
+
         T reward_value = reward(device, env, state, action, next_state);
+//        printf("reward: %f\n", reward_value);
 //        if constexpr(DEVICE::DEBUG::PRINT_REWARD){
 //            std::cout << "reward: " << reward_value << std::endl;
 //        }
 
         observe(device, env, next_state, next_observation);
+//        printf("observation post step: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", next_state.state[0], next_state.state[1], next_state.state[2], next_state.state[3], next_state.state[4], next_state.state[5], next_state.state[6], next_state.state[7], next_state.state[8], next_state.state[9], next_state.state[10], next_state.state[11], next_state.state[12]);
 
         bool terminated_flag = terminated(device, env, next_state);
         increment(runner->episode_step, 0, env_i, 1);
@@ -229,6 +237,27 @@ namespace layer_in_c{
         copy(target_device, source_device, target.rewards, source.rewards);
         copy(target_device, source_device, target.terminated, source.terminated);
         copy(target_device, source_device, target.truncated, source.truncated);
+    }
+    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::off_policy_runner::Buffers<TARGET_SPEC>& target, rl::components::off_policy_runner::Buffers<SOURCE_SPEC>& source){
+        copy(target_device, source_device, target.observations, source.observations);
+        copy(target_device, source_device, target.actions, source.actions);
+        copy(target_device, source_device, target.next_observations, source.next_observations);
+    }
+    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::OffPolicyRunner<TARGET_SPEC>& target, rl::components::OffPolicyRunner<SOURCE_SPEC>& source){
+        copy(target_device, source_device, target.buffers, source.buffers);
+        copy(target_device, source_device, target.states, source.states);
+        copy(target_device, source_device, target.episode_return, source.episode_return);
+        copy(target_device, source_device, target.episode_step, source.episode_step);
+        copy(target_device, source_device, target.truncated, source.truncated);
+        for (typename DEVICE::index_t env_i = 0; env_i < TARGET_SPEC::N_ENVIRONMENTS; env_i++){
+            copy(target_device, source_device, target.replay_buffers[env_i], source.replay_buffers[env_i]);
+            target.envs[env_i] = source.envs[env_i];
+        }
+#ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
+        target.initialized = source.initialized;
+#endif
     }
 }
 

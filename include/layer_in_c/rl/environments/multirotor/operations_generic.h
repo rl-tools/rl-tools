@@ -134,6 +134,7 @@ namespace layer_in_c{
         for(index_t i = 0; i < 3; i++){
             state.state[10+i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_angular_velocity, env.parameters.mdp.init.max_angular_velocity, rng);
         }
+//        printf("initial state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC>
     LAYER_IN_C_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, Matrix<OBS_SPEC>& observation){

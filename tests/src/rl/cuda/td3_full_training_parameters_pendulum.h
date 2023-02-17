@@ -40,7 +40,7 @@ struct parameters_0{
         using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
-        static constexpr TI N_ENVIRONMENTS = 32;
+        static constexpr TI N_ENVIRONMENTS = 1;
         static constexpr TI REPLAY_BUFFER_CAP = 500000;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
         using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, lic::rl::components::off_policy_runner::DefaultParameters<T> >;
