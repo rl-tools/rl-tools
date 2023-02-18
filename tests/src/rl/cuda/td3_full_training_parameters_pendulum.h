@@ -13,15 +13,13 @@ struct parameters_0{
         using PENDULUM_SPEC = lic::rl::environments::pendulum::Specification<T, TI, lic::rl::environments::pendulum::DefaultParameters<T>>;
         using ENVIRONMENT = lic::rl::environments::Pendulum<PENDULUM_SPEC>;
     };
+
     template <typename ENVIRONMENT>
     struct rl{
-        struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<T, TI>{
+        struct TD3_PARAMETERS: lic::rl::algorithms::td3::DefaultParameters<T, TI>{
             constexpr static TI CRITIC_BATCH_SIZE = 100;
             constexpr static TI ACTOR_BATCH_SIZE = 100;
         };
-
-        using TD3_PARAMETERS = TD3PendulumParameters;
-
         using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
         using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
@@ -36,6 +34,7 @@ struct parameters_0{
 
         using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
         using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+
 
         using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;

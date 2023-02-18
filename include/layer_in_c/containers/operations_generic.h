@@ -117,10 +117,13 @@ namespace layer_in_c{
     typename SPEC_1::T abs_diff(DEVICE& device, const Matrix<SPEC_1>& m1, const Matrix<SPEC_2>& m2){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
+        using T = typename SPEC::T;
         typename SPEC::T acc = 0;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                acc += math::abs(get(m1, i, j) - get(m2, i, j));
+                T v1 = get(m1, i, j);
+                T v2 = get(m2, i, j);
+                acc += math::abs(v1 - v2);
             }
         }
         return acc;

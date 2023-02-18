@@ -107,14 +107,14 @@ namespace layer_in_c{
         typename DEVICE::SPEC::MATH math_dev;
         typename DEVICE::SPEC::RANDOM random_dev;
         using T = typename SPEC::T;
-        using index_t = typename devices::CPU<DEV_SPEC>::index_t;
-        for(index_t i = 0; i < 3; i++){
+        using TI = typename DEVICE::index_t;
+        for(TI i = 0; i < 3; i++){
             state.state[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_position, env.parameters.mdp.init.max_position, rng);
         }
         // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
         if(env.parameters.mdp.init.max_angle > 0 && (random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) > env.parameters.mdp.init.guidance)){
             T u[3];
-            for(typename devices::CPU<DEV_SPEC>::index_t i = 0; i < 3; i++){
+            for(TI i = 0; i < 3; i++){
                 u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
             }
             state.state[3+0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*M_PI*u[1]);
@@ -128,10 +128,10 @@ namespace layer_in_c{
             state.state[3+2] = 0;
             state.state[3+3] = 0;
         }
-        for(index_t i = 0; i < 3; i++){
+        for(TI i = 0; i < 3; i++){
             state.state[7+i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_linear_velocity, env.parameters.mdp.init.max_linear_velocity, rng);
         }
-        for(index_t i = 0; i < 3; i++){
+        for(TI i = 0; i < 3; i++){
             state.state[10+i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_angular_velocity, env.parameters.mdp.init.max_angular_velocity, rng);
         }
 //        printf("initial state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
