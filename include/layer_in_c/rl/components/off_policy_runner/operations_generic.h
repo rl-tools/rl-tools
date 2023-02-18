@@ -251,7 +251,7 @@ namespace layer_in_c{
         copy(target_device, source_device, target.episode_return, source.episode_return);
         copy(target_device, source_device, target.episode_step, source.episode_step);
         copy(target_device, source_device, target.truncated, source.truncated);
-        for (typename DEVICE::index_t env_i = 0; env_i < TARGET_SPEC::N_ENVIRONMENTS; env_i++){
+        for (typename TARGET_DEVICE::index_t env_i = 0; env_i < TARGET_SPEC::N_ENVIRONMENTS; env_i++){
             copy(target_device, source_device, target.replay_buffers[env_i], source.replay_buffers[env_i]);
             target.envs[env_i] = source.envs[env_i];
         }

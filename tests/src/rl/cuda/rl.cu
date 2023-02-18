@@ -166,7 +166,6 @@ protected:
         lic::free(device_gpu, actor_training_buffers_gpu);
     }
 };
-/*
 
 TEST_F(LAYER_IN_C_RL_CUDA, VIEW_COPY_PROBLEM) {
 
@@ -348,7 +347,6 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
 }
 
-*/
 TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
     constexpr DEVICE_CPU::index_t N_STEPS = 50;
 

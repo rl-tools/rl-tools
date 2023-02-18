@@ -20,20 +20,20 @@ function(LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS TARGET)
 endfunction()
 
 add_executable(
-        test_nn_cuda_rl
+        test_rl_cuda
         rl.cu
 )
 target_link_libraries(
-        test_nn_cuda_rl
+        test_rl_cuda
         PRIVATE
         layer_in_c
         GTest::gtest_main
         cublas
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_nn_cuda_rl)
-LAYER_IN_C_TARGET_LINK_BLAS(test_nn_cuda_rl)
-gtest_discover_tests(test_nn_cuda_rl)
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_cuda)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_cuda)
+gtest_discover_tests(test_rl_cuda)
 
 add_executable(
         test_rl_cuda_td3_full_training
