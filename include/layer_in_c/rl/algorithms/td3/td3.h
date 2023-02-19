@@ -10,6 +10,8 @@ namespace layer_in_c::rl::algorithms::td3 {
         static constexpr T GAMMA = 0.99;
         static constexpr TI ACTOR_BATCH_SIZE = 32;
         static constexpr TI CRITIC_BATCH_SIZE = 32;
+        static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
+        static constexpr TI N_WARMUP_STEPS_ACTOR = 0;
         static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
         static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
         static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;

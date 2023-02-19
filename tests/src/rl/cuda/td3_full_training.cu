@@ -22,6 +22,7 @@ using DEVICE = lic::devices::DefaultCUDA;
 using DEV_SPEC = DEVICE::SPEC;
 
 #include "td3_full_training_parameters_pendulum.h"
+#include "td3_full_training_parameters_multirotor.h"
 
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/components/off_policy_runner/operations_cuda.h>
@@ -37,7 +38,8 @@ using DEV_SPEC = DEVICE::SPEC;
 using DTYPE = float;
 
 
-using p = parameters_1<DEVICE, DTYPE>;
+using p = parameters_multirotor_0<DEVICE, DTYPE>;
+//using p = parameters_pendulum_0<DEVICE, DTYPE>;
 using rlp = p::rl<p::env::ENVIRONMENT>;
 
 static_assert(rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -121,53 +123,63 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
         lic::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
 
-        if(step_i > rlp::N_WARMUP_STEPS){
-            if(step_i % 1000 == 0){
-                auto current_time = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<double> elapsed_seconds = current_time - start_time;
-                std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
-            }
+        if(step_i % 1000 == 0){
+            auto current_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed_seconds = current_time - start_time;
+            std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
+        }
 
-            for(int critic_i = 0; critic_i < 2; critic_i++){
+        if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_CRITIC && step_i % rlp::ACTOR_CRITIC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
+            for (int critic_i = 0; critic_i < 2; critic_i++) {
                 rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
-                cudaDeviceSynchronize();
-                auto start = std::chrono::high_resolution_clock::now();
+//                cudaDeviceSynchronize();
+//                auto start = std::chrono::high_resolution_clock::now();
                 lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
                 lic::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
                 lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
-                cudaDeviceSynchronize();
-                auto end = std::chrono::high_resolution_clock::now();
-                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+//                cudaDeviceSynchronize();
+//                auto end = std::chrono::high_resolution_clock::now();
+//                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 //                std::cout << "critic_i: " << critic_i << " " << duration_microseconds << "us" << std::endl;
             }
+        }
 
-            if(step_i % 2 == 0){
-                {
-                    cudaDeviceSynchronize();
-                    auto start = std::chrono::high_resolution_clock::now();
-                    rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
-                    lic::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
-                    lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
-                    cudaDeviceSynchronize();
-                    auto end = std::chrono::high_resolution_clock::now();
-                    auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_ACTOR && step_i % rlp::ACTOR_CRITIC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
+            cudaDeviceSynchronize();
+//            auto start = std::chrono::high_resolution_clock::now();
+            rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
+            lic::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
+            lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+//            cudaDeviceSynchronize();
+//            auto end = std::chrono::high_resolution_clock::now();
+//            auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 //                    std::cout << "actor: " << duration_microseconds << "us" << std::endl;
-                }
+        }
 
-                {
-                    cudaDeviceSynchronize();
-                    auto start = std::chrono::high_resolution_clock::now();
-                    lic::update_critic_targets(device, actor_critic);
-                    lic::update_actor_target(device, actor_critic);
-                    cudaDeviceSynchronize();
-                    auto end = std::chrono::high_resolution_clock::now();
-                    auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_CRITIC && step_i % rlp::ACTOR_CRITIC_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0) {
+            {
+//                cudaDeviceSynchronize();
+//                auto start = std::chrono::high_resolution_clock::now();
+                lic::update_critic_targets(device, actor_critic);
+//                cudaDeviceSynchronize();
+//                auto end = std::chrono::high_resolution_clock::now();
+//                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 //                    std::cout << "update: " << duration_microseconds << "us" << std::endl;
-                }
             }
         }
-        if(step_i % 1000 == 0){
+        if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_ACTOR && step_i % rlp::ACTOR_CRITIC_PARAMETERS::ACTOR_TARGET_UPDATE_INTERVAL == 0) {
+            {
+//                cudaDeviceSynchronize();
+//                auto start = std::chrono::high_resolution_clock::now();
+                lic::update_actor_target(device, actor_critic);
+//                cudaDeviceSynchronize();
+//                auto end = std::chrono::high_resolution_clock::now();
+//                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+//                    std::cout << "update: " << duration_microseconds << "us" << std::endl;
+            }
+        }
+        if(step_i % 20000 == 0){
             lic::copy(device_init, device, actor_critic_init, actor_critic);
             DTYPE mean_return = lic::evaluate<DEVICE_INIT, p::env::ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), rlp::ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
             std::cout << "Mean return: " << mean_return << std::endl;
@@ -180,6 +192,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         // 90s, 15x of CPU BLAS => todo: investigate individual kernel timings
         // on device rollout: 24s, 6x of CPU BLAS => todo: investigate individual kernel timings
         // no device sync: 14s, 2.5x of CPU BLAS => todo: investigate individual kernel timings
+        // multirotor no device sync: 500k 140s, 2x of CPU BLAS => todo: investigate individual kernel timings
 
     }
     lic::free(device, critic_batch);

@@ -7,7 +7,7 @@
 #include <layer_in_c/utils/generic/typing.h>
 
 template<typename DEVICE, typename T>
-struct parameters_0{
+struct parameters_pendulum_0{
     using TI = typename DEVICE::index_t;
     struct env{
         using PENDULUM_SPEC = lic::rl::environments::pendulum::Specification<T, TI, lic::rl::environments::pendulum::DefaultParameters<T>>;
@@ -16,12 +16,14 @@ struct parameters_0{
 
     template <typename ENVIRONMENT>
     struct rl{
-        struct TD3_PARAMETERS: lic::rl::algorithms::td3::DefaultParameters<T, TI>{
+        struct ACTOR_CRITIC_PARAMETERS: lic::rl::algorithms::td3::DefaultParameters<T, TI>{
             constexpr static TI CRITIC_BATCH_SIZE = 100;
             constexpr static TI ACTOR_BATCH_SIZE = 100;
+            static constexpr TI N_WARMUP_STEPS_ACTOR = ACTOR_BATCH_SIZE;
+            static constexpr TI N_WARMUP_STEPS_CRITIC = CRITIC_BATCH_SIZE;
         };
-        using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-        using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
+        using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
+        using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
 
         using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC, typename lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
         using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
@@ -36,7 +38,7 @@ struct parameters_0{
         using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 
-        using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
+        using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, ACTOR_CRITIC_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr TI N_ENVIRONMENTS = 1;
@@ -49,43 +51,6 @@ struct parameters_0{
         using CRITIC_TRAINING_BUFFERS_TYPE = lic::rl::algorithms::td3::CriticTrainingBuffers<typename ACTOR_CRITIC_TYPE::SPEC>;
         using ACTOR_TRAINING_BUFFERS_TYPE = lic::rl::algorithms::td3::ActorTrainingBuffers<typename ACTOR_CRITIC_TYPE::SPEC>;
 
-        static constexpr TI N_WARMUP_STEPS = ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
     };
 };
 
-#include <layer_in_c/rl/environments/multirotor/multirotor.h>
-#include <layer_in_c/rl/environments/multirotor/operations_generic.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/abs_exp.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/squared.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/default.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/dynamics/crazy_flie.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/init/default.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/termination/default.h>
-
-template<typename DEVICE, typename T>
-struct parameters_1{
-    using TI = typename DEVICE::index_t;
-    struct env{
-        using TI = typename DEVICE::index_t;
-        static constexpr auto reward_function = layer_in_c::rl::environments::multirotor::parameters::reward_functions::reward_dr<T>;
-        using REWARD_FUNCTION_CONST = typename layer_in_c::utils::typing::remove_cv_t<decltype(reward_function)>;
-        using REWARD_FUNCTION = typename layer_in_c::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
-
-        static constexpr layer_in_c::rl::environments::multirotor::Parameters<T, TI, 4, REWARD_FUNCTION> parameters = {
-                layer_in_c::rl::environments::multirotor::parameters::dynamics::crazy_flie<T, TI, REWARD_FUNCTION>,
-                {0.01}, // integration dt
-                {
-                        layer_in_c::rl::environments::multirotor::parameters::init::all_around<T, TI, 4, REWARD_FUNCTION>,
-                        layer_in_c::rl::environments::multirotor::parameters::termination::classic<T, TI, 4, REWARD_FUNCTION>,
-                        reward_function,
-                }
-        };
-
-        using PARAMETERS = typename layer_in_c::utils::typing::remove_cv_t<decltype(parameters)>;
-
-        using ENVIRONMENT_SPEC = lic::rl::environments::multirotor::Specification<T, typename DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters>;
-        using ENVIRONMENT = lic::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
-    };
-    template <typename ENVIRONMENT>
-    using rl = typename parameters_0<DEVICE, T>::template rl<ENVIRONMENT>;
-};

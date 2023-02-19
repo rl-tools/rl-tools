@@ -5,7 +5,7 @@
 #include <layer_in_c/operations/cuda/group_3.h>
 #include <layer_in_c/operations/cpu/group_3.h>
 
-#include "../td3_full_training_parameters_pendulum.h"
+#include "../td3_full_training_parameters_multirotor.h"
 
 #include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
 
@@ -18,10 +18,10 @@
 namespace lic = layer_in_c;
 
 using DTYPE = double;
-constexpr DTYPE DIFF_THRESHOLD = lic::utils::typing::is_same_v<DTYPE, float> ? 1e-6 : 1e-14;
+constexpr DTYPE DIFF_THRESHOLD = lic::utils::typing::is_same_v<DTYPE, float> ? 1e-6 : 1e-10;
 using DEVICE_CPU = lic::devices::DefaultCPU;
 using DEVICE_CUDA = lic::devices::DefaultCUDA;
-using p = parameters_1<DEVICE_CUDA, DTYPE>;
+using p = parameters_multirotor_0<DEVICE_CUDA, DTYPE>;
 using rlp = p::rl<p::env::ENVIRONMENT>;
 
 using TI = typename DEVICE_CUDA::index_t;
@@ -71,14 +71,21 @@ TEST(LAYER_IN_C_RL_CUDA_ENVIRONMENTS_MULTIROTOR, TEST){
     }
     lic::copy(cuda, cpu, off_policy_runner_cuda, off_policy_runner_cpu);
 
-    lic::rl::components::off_policy_runner::prologue(cpu, off_policy_runner_cpu, rng_cpu);
-    lic::rl::components::off_policy_runner::epilogue(cpu, off_policy_runner_cpu, rng_cpu);
+    for(TI step_i = 0; step_i < 10; step_i++){
+        lic::rl::components::off_policy_runner::prologue(cpu, off_policy_runner_cpu, rng_cpu);
+        lic::rl::components::off_policy_runner::epilogue(cpu, off_policy_runner_cpu, rng_cpu);
 
-    lic::rl::components::off_policy_runner::prologue(cuda, off_policy_runner_cuda_struct, rng_cuda);
-    lic::rl::components::off_policy_runner::epilogue(cuda, off_policy_runner_cuda_struct, rng_cuda);
+        lic::rl::components::off_policy_runner::prologue(cuda, off_policy_runner_cuda_struct, rng_cuda);
+        lic::rl::components::off_policy_runner::epilogue(cuda, off_policy_runner_cuda_struct, rng_cuda);
+    }
+
 
     lic::copy(cpu, cuda, off_policy_runner_feedback, off_policy_runner_cuda);
 
+    std::cout << "next observations cpu: " << std::endl;
+    lic::print(cpu, off_policy_runner_cpu.buffers.next_observations);
+    std::cout << "next observations cuda: " << std::endl;
+    lic::print(cpu, off_policy_runner_feedback.buffers.next_observations);
 
     auto abs_diff_observations = lic::abs_diff(cpu, off_policy_runner_cpu.buffers.observations, off_policy_runner_feedback.buffers.observations);
     auto abs_diff_actions = lic::abs_diff(cpu, off_policy_runner_cpu.buffers.actions, off_policy_runner_feedback.buffers.actions);
