@@ -16,13 +16,21 @@ namespace layer_in_c::rl::components::off_policy_runner{
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         auto& env = runner->envs[env_i];
         auto& state = get(runner->states, 0, env_i);
-//        printf("truncated: %d\n", get(runner->truncated, 0, env_i));
+        static_assert(!SPEC::COLLECT_EPISODE_STATS || SPEC::EPISODE_STATS_BUFFER_SIZE > 1);
         if (get(runner->truncated, 0, env_i)){
+            if(SPEC::COLLECT_EPISODE_STATS){
+                // todo: the first episode is always zero steps and zero return because the initialization is done by setting truncated to true
+                auto& episode_stats = runner->episode_stats[env_i];
+                TI episode_i = episode_stats.episode_i;
+                set(episode_stats.returns, episode_i, 0, get(runner->episode_return, 0, env_i));
+                set(episode_stats.steps  , episode_i, 0, get(runner->episode_step  , 0, env_i));
+                episode_i = (episode_i + 1) % SPEC::EPISODE_STATS_BUFFER_SIZE;
+                episode_stats.episode_i = episode_i;
+            }
             sample_initial_state(device, env, state, rng);
             set(runner->episode_step, 0, env_i, 0);
             set(runner->episode_return, 0, env_i, 0);
         }
-//        printf("prologue state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
         auto observation = view<DEVICE, typename decltype(runner->buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner->buffers.observations, env_i, 0);
         observe(device, env, state, observation);
     }
@@ -43,10 +51,6 @@ namespace layer_in_c::rl::components::off_policy_runner{
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         using PARAMETERS = typename SPEC::PARAMETERS;
-//        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
-//            auto name = "action/" + std::to_string(i);
-//            add_scalar(device.logger, name.c_str(), action[i]);
-//        }
         auto observation = view<DEVICE, typename decltype(runner->buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner->buffers.observations, env_i, 0);
         auto next_observation = view<DEVICE, typename decltype(runner->buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner->buffers.next_observations, env_i, 0);
         auto action = view<DEVICE, typename decltype(runner->buffers.actions)::SPEC, 1, ENVIRONMENT::ACTION_DIM>(device, runner->buffers.actions, env_i, 0);
@@ -58,34 +62,18 @@ namespace layer_in_c::rl::components::off_policy_runner{
             T action_noisy = get(action, 0, i) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T) 0, PARAMETERS::EXPLORATION_NOISE, rng);
             set(action, 0, i, math::clamp<T>(action_noisy, -1, 1));
         }
-//        printf("action: %f %f %f %f\n", get(action, 0, 0), get(action, 0, 1), get(action, 0, 2), get(action, 0, 3));
-//        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
-//            auto name = "action_exploration/" + std::to_string(i);
-//            add_scalar(device.logger, name.c_str(), action[i]);
-//        }
-//        printf("state pre step: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
         step(device, env, state, action, next_state);
-//        printf("state post step: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", next_state.state[0], next_state.state[1], next_state.state[2], next_state.state[3], next_state.state[4], next_state.state[5], next_state.state[6], next_state.state[7], next_state.state[8], next_state.state[9], next_state.state[10], next_state.state[11], next_state.state[12]);
 
         T reward_value = reward(device, env, state, action, next_state);
-//        printf("reward: %f\n", reward_value);
-//        if constexpr(DEVICE::DEBUG::PRINT_REWARD){
-//            std::cout << "reward: " << reward_value << std::endl;
-//        }
 
         observe(device, env, next_state, next_observation);
-//        printf("observation post step: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", next_state.state[0], next_state.state[1], next_state.state[2], next_state.state[3], next_state.state[4], next_state.state[5], next_state.state[6], next_state.state[7], next_state.state[8], next_state.state[9], next_state.state[10], next_state.state[11], next_state.state[12]);
 
         bool terminated_flag = terminated(device, env, next_state);
         increment(runner->episode_step, 0, env_i, 1);
         increment(runner->episode_return, 0, env_i, reward_value);
-        bool truncated = terminated_flag || get(runner->episode_step, 0, env_i) == SPEC::STEP_LIMIT;
+        auto episode_step_i = get(runner->episode_step, 0, env_i);
+        bool truncated = terminated_flag || episode_step_i == SPEC::STEP_LIMIT;
         set(runner->truncated, 0, env_i, truncated);
-//        if(truncated){
-//            add_scalar(device, device.logger, "episode_return", get(runner->episode_return, 0, env_i));
-//            add_scalar(device, device.logger, "episode_steps", (T)get(runner->episode_step, 0, env_i));
-//        }
-        // todo: add truncation / termination handling (stemming from the environment)
         add(device, runner->replay_buffers[env_i], observation, action, reward_value, next_observation, terminated_flag, truncated);
 
         // state progression needs to come after the addition to the replay buffer because "observation" can point to the memory of runner_state.state (in the case of REQUIRES_OBSERVATION=false)
@@ -129,6 +117,12 @@ namespace layer_in_c{
         malloc(device, buffers.actions);
         malloc(device, buffers.next_observations);
     }
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<SPEC>& episode_stats) {
+        malloc(device, episode_stats.data);
+        episode_stats.returns = view<DEVICE, typename decltype(episode_stats.data)::SPEC, SPEC::EPISODE_STATS_BUFFER_SIZE, 1>(device, episode_stats.data, 0, 0);
+        episode_stats.steps   = view<DEVICE, typename decltype(episode_stats.data)::SPEC, SPEC::EPISODE_STATS_BUFFER_SIZE, 1>(device, episode_stats.data, 0, 1);
+    }
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         malloc(device, runner.buffers);
@@ -138,6 +132,7 @@ namespace layer_in_c{
         malloc(device, runner.truncated);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             malloc(device, runner.replay_buffers[env_i]);
+            malloc(device, runner.episode_stats[env_i]);
         }
     }
     template <typename DEVICE, typename BATCH_SPEC>
@@ -162,6 +157,12 @@ namespace layer_in_c{
         free(device, buffers.actions);
         free(device, buffers.next_observations);
     }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<SPEC>& episode_stats) {
+        free(device, episode_stats.data);
+        episode_stats.returns._data = nullptr;
+        episode_stats.steps._data = nullptr;
+    }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         free(device, runner.buffers);
@@ -171,6 +172,7 @@ namespace layer_in_c{
         free(device, runner.truncated);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             free(device, runner.replay_buffers[env_i]);
+            free(device, runner.episode_stats[env_i]);
         }
     }
     template <typename DEVICE, typename SPEC>
@@ -245,6 +247,10 @@ namespace layer_in_c{
         copy(target_device, source_device, target.next_observations, source.next_observations);
     }
     template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::off_policy_runner::EpisodeStats<TARGET_SPEC>& target, rl::components::off_policy_runner::EpisodeStats<SOURCE_SPEC>& source){
+        copy(target_device, source_device, target.data, source.data);
+    }
+    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::OffPolicyRunner<TARGET_SPEC>& target, rl::components::OffPolicyRunner<SOURCE_SPEC>& source){
         copy(target_device, source_device, target.buffers, source.buffers);
         copy(target_device, source_device, target.states, source.states);
@@ -253,6 +259,7 @@ namespace layer_in_c{
         copy(target_device, source_device, target.truncated, source.truncated);
         for (typename TARGET_DEVICE::index_t env_i = 0; env_i < TARGET_SPEC::N_ENVIRONMENTS; env_i++){
             copy(target_device, source_device, target.replay_buffers[env_i], source.replay_buffers[env_i]);
+            copy(target_device, source_device, target.episode_stats[env_i], source.episode_stats[env_i]);
             target.envs[env_i] = source.envs[env_i];
         }
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT

@@ -74,9 +74,9 @@ namespace parameters_0{
         using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr TI N_ENVIRONMENTS = 1;
-        static constexpr TI REPLAY_BUFFER_CAP = 300000;
+        static constexpr TI REPLAY_BUFFER_CAP = 500000;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
-        using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, OFF_POLICY_RUNNER_PARAMETERS>;
+        using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, OFF_POLICY_RUNNER_PARAMETERS, true, 1000>;
 
         static constexpr TI N_WARMUP_STEPS_CRITIC = 15000;
         static constexpr TI N_WARMUP_STEPS_ACTOR = 30000;
