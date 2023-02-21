@@ -21,11 +21,18 @@ namespace layer_in_c::rl::components::off_policy_runner{
             if(SPEC::COLLECT_EPISODE_STATS){
                 // todo: the first episode is always zero steps and zero return because the initialization is done by setting truncated to true
                 auto& episode_stats = runner->episode_stats[env_i];
-                TI episode_i = episode_stats.episode_i;
-                set(episode_stats.returns, episode_i, 0, get(runner->episode_return, 0, env_i));
-                set(episode_stats.steps  , episode_i, 0, get(runner->episode_step  , 0, env_i));
-                episode_i = (episode_i + 1) % SPEC::EPISODE_STATS_BUFFER_SIZE;
-                episode_stats.episode_i = episode_i;
+                TI next_episode_i = episode_stats.next_episode_i;
+                if(next_episode_i > 0){
+                    TI episode_i = next_episode_i - 1;
+                    set(episode_stats.returns, episode_i, 0, get(runner->episode_return, 0, env_i));
+                    set(episode_stats.steps  , episode_i, 0, get(runner->episode_step  , 0, env_i));
+                    episode_i = (episode_i + 1) % SPEC::EPISODE_STATS_BUFFER_SIZE;
+                    next_episode_i = episode_i + 1;
+                }
+                else{
+                    next_episode_i = 1;
+                }
+                episode_stats.next_episode_i = next_episode_i;
             }
             sample_initial_state(device, env, state, rng);
             set(runner->episode_step, 0, env_i, 0);

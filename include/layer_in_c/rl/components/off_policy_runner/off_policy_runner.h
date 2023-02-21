@@ -81,7 +81,7 @@ namespace layer_in_c::rl::components::off_policy_runner {
         static constexpr TI BUFFER_SIZE = SPEC::EPISODE_STATS_BUFFER_SIZE;
         Matrix<matrix::Specification<T, TI, BUFFER_SIZE, 2>> data;
 
-        TI episode_i = 0;
+        TI next_episode_i = 0;
         template<typename SPEC::TI DIM>
         using STATS_VIEW = typename decltype(data)::template VIEW<BUFFER_SIZE, DIM>;
         STATS_VIEW<1> returns;
