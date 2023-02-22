@@ -96,7 +96,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     std::vector<std::vector<DTYPE>> eval_step;
     std::vector<std::vector<DTYPE>> eval_return;
 
-    for(typename DEVICE::index_t run_i = 0; run_i < 2; run_i++){
+    for(typename DEVICE::index_t run_i = 0; run_i < 100; run_i++){
         episode_step.push_back({});
         episode_returns.push_back({});
         episode_steps.push_back({});
@@ -180,7 +180,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             device.logger->step = step_i;
             lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
             if(step_i % 1000 == 0){
-                std::cout << "step_i: " << step_i << std::endl;
+                std::cout << "run_i: " << run_i << "step_i: " << step_i << std::endl;
             }
             if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                 if(step_i >= parameters_rl::N_WARMUP_STEPS_CRITIC){
@@ -306,12 +306,22 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             }
         }
         lic::destruct(device, device.logger);
+
+        lic::free(device, actor_critic);
+        lic::free(device, off_policy_runner);
+
         lic::free(device, critic_batches[0]);
         lic::free(device, critic_batches[1]);
         lic::free(device, critic_training_buffers[0]);
         lic::free(device, critic_training_buffers[1]);
+        lic::free(device, critic_buffers[0]);
+        lic::free(device, critic_buffers[1]);
+
         lic::free(device, actor_batch);
         lic::free(device, actor_training_buffers);
+        lic::free(device, actor_buffers[0]);
+        lic::free(device, actor_buffers[1]);
+        lic::free(device, actor_buffers_eval);
     }
 
 
