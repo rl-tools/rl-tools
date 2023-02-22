@@ -92,14 +92,24 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     std::vector<std::vector<DTYPE>> episode_step;
     std::vector<std::vector<DTYPE>> episode_returns;
     std::vector<std::vector<DTYPE>> episode_steps;
-    for(typename DEVICE::index_t run_i = 0; run_i < 10; run_i++){
+
+    std::vector<std::vector<DTYPE>> eval_step;
+    std::vector<std::vector<DTYPE>> eval_return;
+
+    for(typename DEVICE::index_t run_i = 0; run_i < 2; run_i++){
         episode_step.push_back({});
         episode_returns.push_back({});
         episode_steps.push_back({});
 
+        eval_step.push_back({});
+        eval_return.push_back({});
+
         auto& run_episode_step = episode_step.back();
         auto& run_episode_returns = episode_returns.back();
         auto& run_episode_steps = episode_steps.back();
+
+        auto& run_eval_step = eval_step.back();
+        auto& run_eval_return = eval_return.back();
 
         std::mt19937 rng(run_i);
 
@@ -260,9 +270,12 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
             auto step_end = std::chrono::high_resolution_clock::now();
             lic::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
-            if(step_i % 10000 == 0){
+            if(step_i % 1000 == 0){
                 DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), parameters_rl::ENVIRONMENT_STEP_LIMIT, true>(device, envs[0], ui, actor_critic.actor, 1, rng);
                 std::cout << "Mean return: " << mean_return << std::endl;
+                run_eval_step.push_back(step_i);
+                run_eval_return.push_back(mean_return);
+
 //            if(step_i > 250000){
 //                ASSERT_GT(mean_return, 1000);
 //            }
@@ -308,5 +321,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         group.createDataSet("episode_step", episode_step[run_i]);
         group.createDataSet("episode_returns", episode_returns[run_i]);
         group.createDataSet("episode_steps", episode_steps[run_i]);
+        group.createDataSet("eval_step", eval_step[run_i]);
+        group.createDataSet("eval_return", eval_return[run_i]);
     }
 }
