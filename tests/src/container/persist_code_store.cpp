@@ -2,6 +2,8 @@
 #include <layer_in_c/containers/persist_code.h>
 #include <layer_in_c/nn/layers/dense/operations_cpu.h>
 #include <layer_in_c/nn/layers/dense/persist_code.h>
+#include <layer_in_c/nn_models/mlp/operations_cpu.h>
+#include <layer_in_c/nn_models/mlp/persist_code.h>
 
 namespace lic = layer_in_c;
 
@@ -45,6 +47,26 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     std::filesystem::create_directories("data");
     std::ofstream file;
     file.open ("data/test_layer_in_c_nn_layers_dense_persist_code.h");
+    file << output;
+    file.close();
+
+    ASSERT_TRUE(true);
+}
+
+TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
+    using DEVICE = lic::devices::DefaultCPU;
+    using DTYPE = float;
+    DEVICE device;
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    using SPEC = lic::nn_models::mlp::InferenceSpecification<lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 3, 3, 3, 3, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
+    lic::nn_models::mlp::NeuralNetwork<SPEC> mlp;
+    lic::malloc(device, mlp);
+    lic::init_weights(device, mlp, rng);
+    auto output = lic::save(device, mlp, "mlp_1");
+    std::cout << "output: " << output << std::endl;
+    std::filesystem::create_directories("data");
+    std::ofstream file;
+    file.open ("data/test_layer_in_c_nn_models_mlp_persist_code.h");
     file << output;
     file.close();
 

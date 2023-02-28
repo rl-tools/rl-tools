@@ -52,9 +52,9 @@ namespace layer_in_c::nn::layers::dense {
     };
     template<typename SPEC>
     struct LayerBackwardGradient : public LayerBackward<SPEC> {
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM>> output;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>> d_weights;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::OUTPUT_DIM>> d_biases;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>> output;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_weights;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_biases;
     };
     template<typename T>
     struct DefaultSGDParameters {
@@ -67,10 +67,10 @@ namespace layer_in_c::nn::layers::dense {
 
     template<typename SPEC, typename PARAMETERS>
     struct LayerBackwardAdam : public LayerBackwardGradient<SPEC> {
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>> d_weights_first_order_moment;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM>> d_weights_second_order_moment;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::OUTPUT_DIM>> d_biases_first_order_moment;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::OUTPUT_DIM>> d_biases_second_order_moment;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_weights_first_order_moment;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::OUTPUT_DIM, SPEC::INPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_weights_second_order_moment;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_biases_first_order_moment;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_biases_second_order_moment;
     };
 }
 

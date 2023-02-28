@@ -6,7 +6,7 @@
 #include <layer_in_c/containers.h>
 
 namespace layer_in_c::nn_models::mlp {
-    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, bool T_ENFORCE_FLOATING_POINT_TYPE=true>
+    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct StructureSpecification{
         using T = T_T;
         using TI = T_TI;
@@ -19,6 +19,7 @@ namespace layer_in_c::nn_models::mlp {
         static constexpr T_TI BATCH_SIZE = T_BATCH_SIZE;
 
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
+        using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
@@ -46,10 +47,11 @@ namespace layer_in_c::nn_models::mlp {
         static constexpr TI OUTPUT_DIM = S::OUTPUT_DIM;
         static constexpr TI BATCH_SIZE = S::BATCH_SIZE;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = S::ENFORCE_FLOATING_POINT_TYPE;
+        using MEMORY_LAYOUT = typename S::MEMORY_LAYOUT;
 
-        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE>;
+        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
     };
 
     template <typename T_STRUCTURE_SPEC>
@@ -102,8 +104,8 @@ namespace layer_in_c::nn_models::mlp {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tick;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM>> tock;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM, typename SPEC::MEMORY_LAYOUT>> tick;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM, typename SPEC::MEMORY_LAYOUT>> tock;
     };
     template<typename T_BUFFER_SPEC>
     struct NeuralNetworkBuffersForwardBackward: NeuralNetworkBuffers<T_BUFFER_SPEC>{
@@ -112,8 +114,8 @@ namespace layer_in_c::nn_models::mlp {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM>> d_input;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM>> d_output;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_input;
+        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_output;
     };
 
     template<typename T_SPEC>

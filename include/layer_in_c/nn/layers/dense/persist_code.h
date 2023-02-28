@@ -1,4 +1,5 @@
-#ifndef LAYER_IN_C_NN_LAYERS_DENSE_PERSIST_CODE_H #define LAYER_IN_C_NN_LAYERS_DENSE_PERSIST_CODE_H
+#ifndef LAYER_IN_C_NN_LAYERS_DENSE_PERSIST_CODE_H
+#define LAYER_IN_C_NN_LAYERS_DENSE_PERSIST_CODE_H
 #include "layer.h"
 #include <sstream>
 
@@ -41,7 +42,7 @@ namespace layer_in_c {
             << "true , "
             << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
             << ">; \n";
-        ss << "layer_in_c::nn::layers::dense::Layer<SPEC> layer = {{weights::matrix._data}, {biases::matrix._data}};\n";
+        ss << "layer_in_c::nn::layers::dense::Layer<SPEC> layer = {weights::matrix, biases::matrix};\n";
         ss << "}\n";
 
         return ss.str();

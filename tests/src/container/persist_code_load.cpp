@@ -1,7 +1,6 @@
 #include <layer_in_c/operations/cpu.h>
-#include <layer_in_c/containers/persist_code.h>
 #include <layer_in_c/nn/layers/dense/operations_cpu.h>
-#include <layer_in_c/nn/layers/dense/persist_code.h>
+#include <layer_in_c/nn_models/mlp/operations_cpu.h>
 
 namespace lic = layer_in_c;
 
@@ -41,5 +40,21 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     lic::init_kaiming(device, layer, rng);
     lic::increment(layer.weights, 2, 1, 10);
     auto abs_diff = lic::abs_diff(device, layer, layer_1::layer);
+    ASSERT_FLOAT_EQ(10, abs_diff);
+}
+
+#include "../../../data/test_layer_in_c_nn_models_mlp_persist_code.h"
+
+TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
+    using DEVICE = lic::devices::DefaultCPU;
+    using DTYPE = float;
+    DEVICE device;
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    using SPEC = lic::nn_models::mlp::InferenceSpecification<lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 3, 3, 3, 3, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
+    lic::nn_models::mlp::NeuralNetwork<SPEC> mlp;
+    lic::malloc(device, mlp);
+    lic::init_weights(device, mlp, rng);
+    lic::increment(mlp.hidden_layers[0].biases, 0, 2, 10);
+    auto abs_diff = lic::abs_diff(device, mlp, mlp_1::mlp);
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
