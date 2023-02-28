@@ -41,5 +41,5 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     lic::init_kaiming(device, layer, rng);
     lic::increment(layer.weights, 2, 1, 10);
     auto abs_diff = lic::abs_diff(device, layer, layer_1::layer);
-    ASSERT_TRUE(true);
+    ASSERT_FLOAT_EQ(10, abs_diff);
 }
