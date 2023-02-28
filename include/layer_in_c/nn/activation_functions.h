@@ -10,11 +10,10 @@ namespace layer_in_c::nn::activation_functions {
         RELU,
         GELU,
         TANH,
-        SIGMOID,
-        SIGMOID_STRETCHED,
+        SIGMOID
     };
     template<enum ActivationFunction F>
-    constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == SIGMOID || F == SIGMOID_STRETCHED;
+    constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == SIGMOID;
 
 }
 namespace layer_in_c {
@@ -38,9 +37,6 @@ namespace layer_in_c {
         }
         else if constexpr(F == SIGMOID){
             return (T)1 / ((T)1 + math::exp(DEVICE(), -x));
-        }
-        else if constexpr(F == SIGMOID_STRETCHED){
-            return activation<DEVICE, T, SIGMOID>(x) * (T)2 - (T)1;
         }
         else{
             return 0;
@@ -70,9 +66,6 @@ namespace layer_in_c {
         }
         else if constexpr(F == SIGMOID){
             return activation<DEVICE, T, SIGMOID>(x) * (1 - activation<DEVICE, T, SIGMOID>(x));
-        }
-        else if constexpr(F == SIGMOID_STRETCHED){
-            return d_activation_d_x<DEVICE, T, SIGMOID>(x) * (T)2;
         }
         else{
             return 0;

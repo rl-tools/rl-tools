@@ -12,7 +12,7 @@ namespace layer_in_c::nn::layers::dense {
             //                INPUT_SPEC::ROWS <= OUTPUT_SPEC::ROWS && // todo: could be relaxed to not fill the full output
             OUTPUT_SPEC::COLS == LAYER_SPEC::OUTPUT_DIM &&
             (!LAYER_SPEC::ENFORCE_FLOATING_POINT_TYPE || ( utils::typing::is_same_v<typename LAYER_SPEC::T, typename INPUT_SPEC::T> && utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>));
-    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, bool T_ENFORCE_FLOATING_POINT_TYPE=true>
+    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
@@ -20,9 +20,10 @@ namespace layer_in_c::nn::layers::dense {
         static constexpr auto OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
         static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
+        static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
+        using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
         // Summary
         static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
-        static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
@@ -42,8 +43,8 @@ namespace layer_in_c::nn::layers::dense {
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
-        Matrix<matrix::Specification<T, TI, OUTPUT_DIM, INPUT_DIM>>  weights;
-        Matrix<matrix::Specification<T, TI, 1, OUTPUT_DIM>> biases;
+        Matrix<matrix::Specification<T, TI, OUTPUT_DIM, INPUT_DIM, typename SPEC::MEMORY_LAYOUT>>  weights;
+        Matrix<matrix::Specification<T, TI, 1, OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>> biases;
     };
     template<typename SPEC>
     struct LayerBackward : public Layer<SPEC> {
