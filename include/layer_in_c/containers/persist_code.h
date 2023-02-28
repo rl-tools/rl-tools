@@ -75,7 +75,7 @@ namespace layer_in_c{
                 }
             }
         }
-        ss << ind << "};\n";
+        ss << "};\n";
         ss << ind << "    const layer_in_c::Matrix<layer_in_c::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>>matrix = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};

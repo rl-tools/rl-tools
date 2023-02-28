@@ -50,7 +50,7 @@ namespace layer_in_c {
             << SPEC::OUTPUT_DIM << ", "
             << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
             << 1 << ", "
-            << "true , "
+            << "true, "
             << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
             << ">; \n";
         ss << ind << "    const layer_in_c::nn::layers::dense::Layer<SPEC> layer = {weights::matrix, biases::matrix};\n";
