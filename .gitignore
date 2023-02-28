@@ -17,3 +17,5 @@
 /tests/docker/context
 /**/*.png
 /logs
+
+/data
