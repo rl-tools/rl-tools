@@ -8,27 +8,39 @@
 #include <sstream>
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
-    std::string save(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name) {
+    containers::persist::Code save_split(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, typename DEVICE::index_t indent = 0) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using STRUCTURE_SPEC = typename SPEC::STRUCTURE_SPEC;
-        std::stringstream ss;
-        ss << "#include <layer_in_c/nn_models/mlp/network.h>\n";
-        ss << "namespace " << name << " {\n";
-        ss << save(device, network.input_layer, "input_layer");
-        for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
-            ss << save(device, network.hidden_layers[hidden_layer_i], "hidden_layer_" + std::to_string(hidden_layer_i));
+        std::stringstream indent_ss;
+        for(TI i=0; i < indent; i++){
+            indent_ss << "    ";
         }
-        ss << save(device, network.output_layer, "output_layer");
-        ss << "using STRUCTURE_SPEC = layer_in_c::nn_models::mlp::StructureSpecification<";
+        std::string ind = indent_ss.str();
+        std::stringstream ss_header;
+        ss_header << "#include <layer_in_c/nn_models/mlp/network.h>\n";
+        std::stringstream ss;
+        ss << ind << "namespace " << name << " {\n";
+        auto input_layer = save_split(device, network.input_layer, "input_layer", indent+1);
+        ss_header << input_layer.header;
+        ss << input_layer.body;
+        for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
+            auto hidden_layer = save_split(device, network.hidden_layers[hidden_layer_i], "hidden_layer_" + std::to_string(hidden_layer_i), indent+1);
+            ss_header << hidden_layer.header;
+            ss << hidden_layer.body;
+        }
+        auto output_layer = save_split(device, network.output_layer, "output_layer", indent+1);
+        ss_header << output_layer.header;
+        ss << output_layer.body;
+        ss << ind << "    using STRUCTURE_SPEC = layer_in_c::nn_models::mlp::StructureSpecification<";
         ss << containers::persist::get_type_string<T>() << ", ";
         ss << containers::persist::get_type_string<TI>() << ", ";
         ss << STRUCTURE_SPEC::INPUT_DIM << ", " << STRUCTURE_SPEC::OUTPUT_DIM << ", " << STRUCTURE_SPEC::NUM_LAYERS << ", " << STRUCTURE_SPEC::HIDDEN_DIM << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>() << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<STRUCTURE_SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
-        ss << "1, true, layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
-        ss << "using SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>; \n";
-        ss << "layer_in_c::nn_models::mlp::NeuralNetwork<SPEC> mlp = {";
+        ss << ind << "1, true, layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
+        ss << ind << "    using SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>; \n";
+        ss << ind << "    const layer_in_c::nn_models::mlp::NeuralNetwork<SPEC> mlp = {";
         ss << "input_layer::layer, ";
         ss << "{";
         for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
@@ -41,7 +53,12 @@ namespace layer_in_c{
         ss << "output_layer::layer";
         ss << "};\n";
 
-        ss << "}\n";
-        return ss.str();
+        ss << ind << "}\n";
+        return {ss_header.str(), ss.str()};
+    }
+    template<typename DEVICE, typename SPEC>
+    std::string save(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, typename DEVICE::index_t indent = 0) {
+        auto code = save_split(device, network, name, indent);
+        return code.header + code.body;
     }
 }

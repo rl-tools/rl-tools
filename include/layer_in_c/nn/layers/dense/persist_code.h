@@ -25,14 +25,25 @@ namespace layer_in_c {
         }
     }
     template<typename DEVICE, typename SPEC>
-    std::string save(DEVICE &device, nn::layers::dense::Layer <SPEC> &layer, std::string name) {
+    containers::persist::Code save_split(DEVICE &device, nn::layers::dense::Layer <SPEC> &layer, std::string name, typename DEVICE::index_t indent=0){
         using TI = typename DEVICE::index_t;
+        std::stringstream indent_ss;
+        for(TI i=0; i < indent; i++){
+            indent_ss << "    ";
+        }
+        std::string ind = indent_ss.str();
+        using TI = typename DEVICE::index_t;
+        std::stringstream ss_header;
+        ss_header << "#include <layer_in_c/nn/layers/dense/layer.h>\n";
         std::stringstream ss;
-        ss << "#include <layer_in_c/nn/layers/dense/layer.h>\n";
-        ss << "namespace " << name << " {\n";
-        ss << save(device, layer.weights, "weights");
-        ss << save(device, layer.biases, "biases");
-        ss << "using SPEC = " << "layer_in_c::nn::layers::dense::Specification<"
+        ss << ind << "namespace " << name << " {\n";
+        auto weights = save_split(device, layer.weights, "weights", indent+1);
+        ss_header << weights.header;
+        ss << weights.body;
+        auto biases = save_split(device, layer.biases, "biases", indent+1);
+        ss_header << biases.header;
+        ss << biases.body;
+        ss << ind << "    using SPEC = " << "layer_in_c::nn::layers::dense::Specification<"
             << containers::persist::get_type_string<typename SPEC::T>() << ", "
             << containers::persist::get_type_string<typename SPEC::TI>() << ", "
             << SPEC::INPUT_DIM << ", "
@@ -42,10 +53,15 @@ namespace layer_in_c {
             << "true , "
             << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
             << ">; \n";
-        ss << "layer_in_c::nn::layers::dense::Layer<SPEC> layer = {weights::matrix, biases::matrix};\n";
-        ss << "}\n";
+        ss << ind << "    const layer_in_c::nn::layers::dense::Layer<SPEC> layer = {weights::matrix, biases::matrix};\n";
+        ss << ind << "}\n";
 
-        return ss.str();
+        return {ss_header.str(), ss.str()};
+    }
+    template<typename DEVICE, typename SPEC>
+    std::string save(DEVICE &device, nn::layers::dense::Layer <SPEC> &layer, std::string name, typename DEVICE::index_t indent=0){
+        auto code = save_split(device, layer, name, indent);
+        return code.header + code.body;
     }
 }
 

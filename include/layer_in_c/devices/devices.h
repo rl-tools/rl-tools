@@ -18,6 +18,7 @@ namespace layer_in_c {
             CPU_ACCELERATE,
             CPU_TENSORBOARD,
             CUDA,
+            ARM
         };
         enum class Type {
             math,
