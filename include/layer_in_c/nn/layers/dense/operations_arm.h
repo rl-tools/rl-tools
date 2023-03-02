@@ -4,37 +4,33 @@
 #include "operations_generic.h"
 //#include <layer_in_c/utils/generic/memcpy.h>
 #include <layer_in_c/devices/arm.h>
-#include "arm_math.h"
 
 namespace layer_in_c{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(devices::ARM<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
+        // For performance reasons: restricted to dense row-major matrices (row-pitch is allowed)
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
-        static_assert(INPUT_SPEC::ROW_PITCH == INPUT_SPEC::COLS);
         static_assert(INPUT_SPEC::COL_PITCH == 1);
-        static_assert(OUTPUT_SPEC::ROW_PITCH == OUTPUT_SPEC::COLS);
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
-        static_assert(decltype(layer.weights)::ROW_PITCH == INPUT_SPEC::COLS);
         static_assert(decltype(layer.weights)::COL_PITCH == 1);
         static_assert(decltype(layer.biases)::COL_PITCH == 1);
-        static_assert(decltype(layer.biases)::ROW_PITCH == decltype(layer.biases)::COLS);
         static_assert(utils::typing::is_same_v<typename LAYER_SPEC::T, float>);
 
         // Warning do not use the same buffer for input and output!
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        static_assert(BATCH_SIZE == 1);
+        // static_assert(BATCH_SIZE == 1);
         using DEVICE = devices::ARM<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         {
 
-            float32_t *weights_row = layer.weights._data;
-            float32_t *input_row = input._data;
-            float32_t *output_row = output._data;
+            T *weights_row = layer.weights._data;
+            T *input_row = input._data;
+            T *output_row = output._data;
 
-            float32_t *weights_element, *biases_element, *input_element, *output_element;
+            T *weights_element, *biases_element, *input_element, *output_element;
 
-            float32_t acc;
+            T acc;
             uint32_t weights_row_i, batch_i = BATCH_SIZE, input_i;
 
             {
@@ -43,6 +39,7 @@ namespace layer_in_c{
                     biases_element = layer.biases._data;
 
                     weights_row_i = LAYER_SPEC::OUTPUT_DIM;
+                    weights_row = layer.weights._data;
 
 
                     do
