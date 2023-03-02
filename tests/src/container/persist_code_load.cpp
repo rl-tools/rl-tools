@@ -12,6 +12,7 @@ namespace lic = layer_in_c;
 #include <filesystem>
 #include "../../../data/test_layer_in_c_container_persist_matrix.h"
 
+constexpr bool const_declaration = false;
 
 TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST){
     using DEVICE = lic::devices::DefaultCPU;
@@ -81,8 +82,8 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     lic::evaluate(device, mlp_1::mlp, input, output_loaded);
     lic::print(device, output_orig);
 
-    auto output = lic::save(device, input, "input");
-    output += lic::save(device, output_orig, "expected_output");
+    auto output = lic::save(device, input, "input", const_declaration);
+    output += lic::save(device, output_orig, "expected_output", const_declaration);
 
     std::filesystem::create_directories("data");
     std::ofstream file;

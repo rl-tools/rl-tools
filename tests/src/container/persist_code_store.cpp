@@ -14,6 +14,9 @@ namespace lic = layer_in_c;
 #include <filesystem>
 
 
+constexpr bool const_declaration = false;
+
+
 TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
@@ -23,7 +26,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST){
     lic::malloc(device, m);
     lic::randn(device, m, rng);
     lic::print(device, m);
-    auto output = lic::save(device, m, "matrix_1");
+    auto output = lic::save(device, m, "matrix_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;
@@ -42,11 +45,11 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     lic::nn::layers::dense::Layer<lic::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, lic::nn::activation_functions::ActivationFunction::RELU>> layer;
     lic::malloc(device, layer);
     lic::init_kaiming(device, layer, rng);
-    auto output = lic::save(device, layer, "layer_1");
+    auto output = lic::save(device, layer, "layer_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;
-    file.open ("data/test_layer_in_c_nn_layers_dense_persist_code.h");
+    file.open("data/test_layer_in_c_nn_layers_dense_persist_code.h");
     file << output;
     file.close();
 
@@ -62,7 +65,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     lic::nn_models::mlp::NeuralNetwork<SPEC> mlp;
     lic::malloc(device, mlp);
     lic::init_weights(device, mlp, rng);
-    auto output = lic::save(device, mlp, "mlp_1");
+    auto output = lic::save(device, mlp, "mlp_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;

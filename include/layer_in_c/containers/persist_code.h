@@ -46,7 +46,7 @@ namespace layer_in_c{
         }
     }
     template<typename DEVICE, typename SPEC>
-    containers::persist::Code save_split(DEVICE &device, Matrix<SPEC>& m, std::string name, typename DEVICE::index_t indent=0){
+    containers::persist::Code save_split(DEVICE &device, Matrix<SPEC>& m, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(utils::typing::is_same_v<containers::persist::STORAGE_TYPE, unsigned char>);
@@ -61,7 +61,7 @@ namespace layer_in_c{
         std::stringstream ss;
         ss << ind << "namespace " << name << " {\n";
         ss << ind << "    static_assert(sizeof(" << containers::persist::get_type_string<containers::persist::STORAGE_TYPE>() << ") == 1);\n";
-        ss << ind << "    alignas(" << containers::persist::get_type_string<T>() << ") const " << containers::persist::get_type_string<containers::persist::STORAGE_TYPE>() << " memory[] = {";
+        ss << ind << "    alignas(" << containers::persist::get_type_string<T>() << ") " << (const_declaration ? "const " : "") << containers::persist::get_type_string<containers::persist::STORAGE_TYPE>() << " memory[] = {";
         bool first = true;
         for(TI i=0; i < SPEC::ROWS; i++){
             for(TI j=0; j < SPEC::COLS; j++){
@@ -77,13 +77,13 @@ namespace layer_in_c{
             }
         }
         ss << "};\n";
-        ss << ind << "    const layer_in_c::Matrix<layer_in_c::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>>matrix = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "layer_in_c::Matrix<layer_in_c::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>>matrix = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }
     template<typename DEVICE, typename SPEC>
-    std::string save(DEVICE &device, Matrix<SPEC>& m, std::string name, typename DEVICE::index_t indent=0){
-        auto code = save_split(device, m, name, indent);
+    std::string save(DEVICE &device, Matrix<SPEC>& m, std::string name, bool const_declaration, typename DEVICE::index_t indent=0){
+        auto code = save_split(device, m, name, const_declaration, indent);
         return code.header + code.body;
     }
 }

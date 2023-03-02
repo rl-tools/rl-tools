@@ -8,7 +8,7 @@
 #include <sstream>
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
-    containers::persist::Code save_split(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, typename DEVICE::index_t indent = 0) {
+    containers::persist::Code save_split(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using STRUCTURE_SPEC = typename SPEC::STRUCTURE_SPEC;
@@ -21,15 +21,15 @@ namespace layer_in_c{
         ss_header << "#include <layer_in_c/nn_models/mlp/network.h>\n";
         std::stringstream ss;
         ss << ind << "namespace " << name << " {\n";
-        auto input_layer = save_split(device, network.input_layer, "input_layer", indent+1);
+        auto input_layer = save_split(device, network.input_layer, "input_layer", const_declaration, indent+1);
         ss_header << input_layer.header;
         ss << input_layer.body;
         for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
-            auto hidden_layer = save_split(device, network.hidden_layers[hidden_layer_i], "hidden_layer_" + std::to_string(hidden_layer_i), indent+1);
+            auto hidden_layer = save_split(device, network.hidden_layers[hidden_layer_i], "hidden_layer_" + std::to_string(hidden_layer_i), const_declaration, indent+1);
             ss_header << hidden_layer.header;
             ss << hidden_layer.body;
         }
-        auto output_layer = save_split(device, network.output_layer, "output_layer", indent+1);
+        auto output_layer = save_split(device, network.output_layer, "output_layer", const_declaration, indent+1);
         ss_header << output_layer.header;
         ss << output_layer.body;
         ss << ind << "    using STRUCTURE_SPEC = layer_in_c::nn_models::mlp::StructureSpecification<";
@@ -40,7 +40,7 @@ namespace layer_in_c{
         ss << nn::layers::dense::persist::get_activation_function_string<STRUCTURE_SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
         ss << ind << "1, true, layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
         ss << ind << "    using SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>; \n";
-        ss << ind << "    const layer_in_c::nn_models::mlp::NeuralNetwork<SPEC> mlp = {";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "layer_in_c::nn_models::mlp::NeuralNetwork<SPEC> mlp = {";
         ss << "input_layer::layer, ";
         ss << "{";
         for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
@@ -57,8 +57,8 @@ namespace layer_in_c{
         return {ss_header.str(), ss.str()};
     }
     template<typename DEVICE, typename SPEC>
-    std::string save(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, typename DEVICE::index_t indent = 0) {
-        auto code = save_split(device, network, name, indent);
+    std::string save(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, bool const_declaration = false, typename DEVICE::index_t indent = 0) {
+        auto code = save_split(device, network, name, const_declaration, indent);
         return code.header + code.body;
     }
 }
