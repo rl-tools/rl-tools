@@ -32,31 +32,32 @@ namespace layer_in_c{
             float32_t *input_row = input._data;
             float32_t *output_row = output._data;
 
-            float32_t *weights_element, *input_element, *output_element;
+            float32_t *weights_element, *biases_element, *input_element, *output_element;
 
-            float32_t sum;
-            uint32_t weights_row_i, i = 0U, batch_i = BATCH_SIZE, input_i;
+            float32_t acc;
+            uint32_t weights_row_i, batch_i = BATCH_SIZE, input_i;
 
             {
                 do{
                     output_element = output_row;
+                    biases_element = layer.biases._data;
 
                     weights_row_i = LAYER_SPEC::OUTPUT_DIM;
 
 
                     do
                     {
-                        sum = 0.0f;
+                        acc = 0.0f;
                         input_element = input_row;
                         weights_element = weights_row;
 
                         input_i = ((uint32_t)LAYER_SPEC::INPUT_DIM) >> 2U;
                         while (input_i > 0U)
                         {
-                            sum += *weights_element++ * *input_element++;
-                            sum += *weights_element++ * *input_element++;
-                            sum += *weights_element++ * *input_element++;
-                            sum += *weights_element++ * *input_element++;
+                            acc += *weights_element++ * *input_element++;
+                            acc += *weights_element++ * *input_element++;
+                            acc += *weights_element++ * *input_element++;
+                            acc += *weights_element++ * *input_element++;
 
                             input_i--;
                         }
@@ -64,11 +65,14 @@ namespace layer_in_c{
                         input_i = ((uint32_t)LAYER_SPEC::INPUT_DIM) % 0x4U;
 
                         while (input_i > 0U){
-                            sum += *weights_element++ * *input_element++;
+                            acc += *weights_element++ * *input_element++;
                             input_i--;
                         }
 
-                        *output_element++ = sum;
+                        acc += *biases_element++;
+                        acc = activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(acc);
+
+                        *output_element++ = acc;
 
                         weights_row_i--;
 
@@ -84,33 +88,6 @@ namespace layer_in_c{
                 } while (batch_i > 0U);
             }
 
-        }
-
-        arm_matrix_instance_f32 arm_weights = {
-            .numRows = LAYER_SPEC::OUTPUT_DIM,
-            .numCols = LAYER_SPEC::INPUT_DIM,
-            .pData = layer.weights._data
-        };
-
-        arm_matrix_instance_f32 arm_input = {
-            .numRows = LAYER_SPEC::INPUT_DIM,
-            .numCols = BATCH_SIZE,
-            .pData = input._data
-        };
-        arm_matrix_instance_f32 arm_output = {
-            .numRows = LAYER_SPEC::OUTPUT_DIM,
-            .numCols = BATCH_SIZE,
-            .pData = output._data
-        } ;
-        // arm_mat_mult_f32(&arm_weights, &arm_input, &arm_output);
-        // beware this only works for batch size = 1
-        arm_add_f32(output._data, layer.biases._data, output._data, LAYER_SPEC::OUTPUT_DIM);
-
-
-        for(TI i = 0; i < BATCH_SIZE; i++){
-            for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
-                set(output, i, j, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(output, i, j)));
-            }
         }
     }
 }
