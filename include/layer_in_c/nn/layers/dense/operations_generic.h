@@ -86,7 +86,6 @@ namespace layer_in_c{
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
-//                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
                 set(output, batch_i, output_i, get(layer.biases, 0, output_i));
                 for(TI input_i = 0; input_i < LAYER_SPEC::INPUT_DIM; input_i++) {
                     increment(output, batch_i, output_i, get(layer.weights, output_i, input_i) * get(input, batch_i, input_i));

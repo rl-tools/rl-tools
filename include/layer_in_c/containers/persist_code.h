@@ -11,7 +11,7 @@ namespace layer_in_c{
             std::string body;
         };
         using STORAGE_TYPE = unsigned char;
-        static_assert(sizeof(unsigned char) == 1);
+        static_assert(sizeof(STORAGE_TYPE) == 1);
         constexpr auto INDEX_TYPE = "unsigned int";
         template <typename T>
         auto get_type_string(){
@@ -60,7 +60,8 @@ namespace layer_in_c{
         ss_header << "#include <layer_in_c/containers.h>\n";
         std::stringstream ss;
         ss << ind << "namespace " << name << " {\n";
-        ss << ind << "    const unsigned char memory[] = {";
+        ss << ind << "    static_assert(sizeof(" << containers::persist::get_type_string<containers::persist::STORAGE_TYPE>() << ") == 1);\n";
+        ss << ind << "    alignas(" << containers::persist::get_type_string<T>() << ") const " << containers::persist::get_type_string<containers::persist::STORAGE_TYPE>() << " memory[] = {";
         bool first = true;
         for(TI i=0; i < SPEC::ROWS; i++){
             for(TI j=0; j < SPEC::COLS; j++){
@@ -70,8 +71,8 @@ namespace layer_in_c{
                     if(!first){
                         ss << ", ";
                     }
-                    first = false;
                     ss << (int)ptr[k];
+                    first = false;
                 }
             }
         }

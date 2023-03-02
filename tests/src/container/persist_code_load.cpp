@@ -91,6 +91,5 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     file.close();
 
     auto abs_diff = lic::abs_diff(device, output_orig, output_loaded);
-    lic::print(device, mlp.input_layer.weights);
     ASSERT_FLOAT_EQ(0, abs_diff);
 }
