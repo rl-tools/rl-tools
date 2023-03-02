@@ -441,3 +441,16 @@ target_link_libraries(
 )
 LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_container_persist_code_load)
 gtest_discover_tests(test_container_persist_code_load)
+
+# ARM tests
+add_executable(
+        test_nn_arm
+        src/nn/arm.cpp
+)
+target_link_libraries(
+        test_nn_arm
+        layer_in_c
+        GTest::gtest_main
+)
+LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_nn_arm)
+gtest_discover_tests(test_nn_arm)

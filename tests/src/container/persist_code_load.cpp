@@ -1,4 +1,5 @@
 #include <layer_in_c/operations/cpu.h>
+
 #include <layer_in_c/containers/persist_code.h>
 #include <layer_in_c/nn/layers/dense/operations_cpu.h>
 #include <layer_in_c/nn_models/mlp/operations_cpu.h>
@@ -65,15 +66,17 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
 TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
+    constexpr typename DEVICE::index_t BATCH_SIZE = 1;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = lic::nn_models::mlp::InferenceSpecification<lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
+    using STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using SPEC = lic::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>;
     lic::nn_models::mlp::NeuralNetwork<SPEC> mlp;
     lic::malloc(device, mlp);
     lic::init_weights(device, mlp, rng);
 
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_loaded;
+    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
+    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_loaded;
     lic::malloc(device, input);
     lic::malloc(device, output_orig);
     lic::malloc(device, output_loaded);
