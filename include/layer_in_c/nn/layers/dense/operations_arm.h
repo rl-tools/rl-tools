@@ -26,6 +26,65 @@ namespace layer_in_c{
         using DEVICE = devices::ARM<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
+        {
+
+            float32_t *weights_row = layer.weights._data;
+            float32_t *input_row = input._data;
+            float32_t *output_row = output._data;
+
+            float32_t *weights_element, *input_element, *output_element;
+
+            float32_t sum;
+            uint32_t weights_row_i, i = 0U, batch_i = BATCH_SIZE, input_i;
+
+            {
+                do{
+                    output_element = output_row;
+
+                    weights_row_i = LAYER_SPEC::OUTPUT_DIM;
+
+
+                    do
+                    {
+                        sum = 0.0f;
+                        input_element = input_row;
+                        weights_element = weights_row;
+
+                        input_i = ((uint32_t)LAYER_SPEC::INPUT_DIM) >> 2U;
+                        while (input_i > 0U)
+                        {
+                            sum += *weights_element++ * *input_element++;
+                            sum += *weights_element++ * *input_element++;
+                            sum += *weights_element++ * *input_element++;
+                            sum += *weights_element++ * *input_element++;
+
+                            input_i--;
+                        }
+
+                        input_i = ((uint32_t)LAYER_SPEC::INPUT_DIM) % 0x4U;
+
+                        while (input_i > 0U){
+                            sum += *weights_element++ * *input_element++;
+                            input_i--;
+                        }
+
+                        *output_element++ = sum;
+
+                        weights_row_i--;
+
+                        weights_row += decltype(layer.weights)::ROW_PITCH;
+
+                    } while (weights_row_i > 0U);
+
+                    output_row += OUTPUT_SPEC::ROW_PITCH;
+                    input_row += INPUT_SPEC::ROW_PITCH;
+
+                    batch_i--;
+
+                } while (batch_i > 0U);
+            }
+
+        }
 
         arm_matrix_instance_f32 arm_weights = {
             .numRows = LAYER_SPEC::OUTPUT_DIM,
@@ -43,7 +102,7 @@ namespace layer_in_c{
             .numCols = BATCH_SIZE,
             .pData = output._data
         } ;
-        arm_mat_mult_f32(&arm_weights, &arm_input, &arm_output);
+        // arm_mat_mult_f32(&arm_weights, &arm_input, &arm_output);
         // beware this only works for batch size = 1
         arm_add_f32(output._data, layer.biases._data, output._data, LAYER_SPEC::OUTPUT_DIM);
 
