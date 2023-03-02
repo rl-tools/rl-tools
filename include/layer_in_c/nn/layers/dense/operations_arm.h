@@ -24,7 +24,7 @@ namespace layer_in_c{
         using TI = typename DEVICE::index_t;
         {
 
-            T *weights_row = layer.weights._data;
+            T *weights_row;
             T *input_row = input._data;
             T *output_row = output._data;
 
@@ -41,16 +41,14 @@ namespace layer_in_c{
                     weights_row_i = LAYER_SPEC::OUTPUT_DIM;
                     weights_row = layer.weights._data;
 
-
-                    do
-                    {
+                    do{
                         acc = 0.0f;
                         input_element = input_row;
                         weights_element = weights_row;
 
+                        // reduction
                         input_i = ((uint32_t)LAYER_SPEC::INPUT_DIM) >> 2U;
-                        while (input_i > 0U)
-                        {
+                        while (input_i > 0U){
                             acc += *weights_element++ * *input_element++;
                             acc += *weights_element++ * *input_element++;
                             acc += *weights_element++ * *input_element++;
@@ -58,9 +56,7 @@ namespace layer_in_c{
 
                             input_i--;
                         }
-
                         input_i = ((uint32_t)LAYER_SPEC::INPUT_DIM) % 0x4U;
-
                         while (input_i > 0U){
                             acc += *weights_element++ * *input_element++;
                             input_i--;
@@ -75,14 +71,12 @@ namespace layer_in_c{
 
                         weights_row += decltype(layer.weights)::ROW_PITCH;
 
-                    } while (weights_row_i > 0U);
+                    }while (weights_row_i > 0U);
 
                     output_row += OUTPUT_SPEC::ROW_PITCH;
                     input_row += INPUT_SPEC::ROW_PITCH;
-
                     batch_i--;
-
-                } while (batch_i > 0U);
+                }while (batch_i > 0U);
             }
 
         }

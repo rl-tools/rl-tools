@@ -66,7 +66,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
 TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
-    constexpr typename DEVICE::index_t BATCH_SIZE = 1;
+    constexpr typename DEVICE::index_t BATCH_SIZE = 10;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
     using STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
