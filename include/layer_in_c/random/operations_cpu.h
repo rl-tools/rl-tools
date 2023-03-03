@@ -7,8 +7,8 @@
 #include <random>
 
 namespace layer_in_c::random{
-    std::default_random_engine default_engine(const devices::random::CPU& dev){
-        return std::default_random_engine(0);
+    std::default_random_engine default_engine(const devices::random::CPU& dev, devices::random::CPU::index_t seed = 0){
+        return std::default_random_engine(seed);
     };
 
     template<typename T, typename RNG>

@@ -17,7 +17,7 @@ namespace layer_in_c::rl::environments::pendulum {
         constexpr static T initial_state_min_speed = -1;
         constexpr static T initial_state_max_speed = 1;
     };
-    template <typename T_T, typename T_TI, typename T_PARAMETERS>
+    template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
