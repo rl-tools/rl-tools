@@ -53,6 +53,7 @@ namespace layer_in_c{
     void collect(DEVICE& device, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, rl::components::OnPolicyRunner<typename BUFFER_SPEC::SPEC>& runner, RNG& rng){
         using SPEC = typename BUFFER_SPEC::SPEC;
         using BUFFER = rl::components::on_policy_runner::Buffer<SPEC>;
+        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             auto& env = get(runner.environments, 0, env_i);
@@ -69,12 +70,12 @@ namespace layer_in_c{
 
                 auto action = view<DEVICE, typename decltype(buffer.actions)::SPEC, 1, SPEC::ENVIRONMENT::ACTION_DIM>(device, buffer.actions, pos, 0);
                 for(TI action_i = 0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                    set(action, 0, action_i, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -1, 1, rng));
+                    set(action, 0, action_i, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -(T)1, (T)1, rng));
                 }
-                set(buffer.action_log_probs, pos, 0, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -1, 1, rng));
+                set(buffer.action_log_probs, pos, 0, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -(T)1, (T)1, rng));
                 typename SPEC::ENVIRONMENT::State next_state;
                 step(device, env, state, action, next_state);
-                bool terminated_flag = terminated(device, env, next_state);
+                bool terminated_flag = terminated(device, env, next_state, rng);
                 set(buffer.terminated, pos, 0, terminated_flag);
                 increment(runner.episode_step, 0, env_i, 1);
                 bool truncated = terminated_flag || (SPEC::STEP_LIMIT > 0 && get(runner.episode_step, 0, env_i) >= SPEC::STEP_LIMIT);

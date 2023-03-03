@@ -17,12 +17,14 @@ namespace layer_in_c::random{
     }
     template<typename T, typename RNG>
     T uniform_real_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
+        static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
         return std::uniform_real_distribution<T>(low, high)(rng);
     }
 //    template<typename T, typename RNG>
 //    const std::normal_distribution<T> standard_normal_distribution(0, 1);
     template<typename T, typename RNG>
     T normal_distribution(const devices::random::CPU& dev, T mean, T std, RNG& rng){
+        static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
 //        return standard_normal_distribution<T, RNG>(rng) * std + mean;
         return std::normal_distribution<T>(mean, std)(rng);
     }

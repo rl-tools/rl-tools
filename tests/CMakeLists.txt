@@ -464,6 +464,7 @@ target_link_libraries(
         test_rl_components_on_policy_runner
         layer_in_c
         GTest::gtest_main
+        HighFive
 )
 LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_components_on_policy_runner)
 gtest_discover_tests(test_rl_components_on_policy_runner)
