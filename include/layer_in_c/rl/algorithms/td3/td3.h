@@ -3,8 +3,6 @@
 
 
 namespace layer_in_c::rl::algorithms::td3 {
-    // todo remove namespace assignment
-    namespace lic = layer_in_c;
     template<typename T, typename TI>
     struct DefaultParameters {
         static constexpr T GAMMA = 0.99;

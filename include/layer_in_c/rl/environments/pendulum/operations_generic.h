@@ -72,9 +72,10 @@ namespace layer_in_c{
         set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta));
         set(observation, 0, 2, state.theta_dot);
     }
-    template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::pendulum::State<typename SPEC::T> state){
-        return false;
+    template<typename DEVICE, typename SPEC, typename RNG>
+    LAYER_IN_C_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::pendulum::State<typename SPEC::T> state, RNG& rng){
+        using T = typename SPEC::T;
+        return random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, (T)1, rng) > 0.9;
     }
 }
 #endif
