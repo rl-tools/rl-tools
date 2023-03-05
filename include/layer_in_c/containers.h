@@ -41,10 +41,11 @@ namespace layer_in_c{
             static constexpr TI SIZE = ROW_MAJOR ? ROWS * ROW_PITCH : COLS * COL_PITCH;
             static constexpr TI SIZE_BYTES = SIZE * sizeof(T); // todo: discount size for views
         };
-
-
-
-
+        template <auto T_ROWS, auto T_COLS> // todo: replace old view() calling convention by new ViewSpec based one
+        struct ViewSpec{
+            static constexpr auto ROWS = T_ROWS;
+            static constexpr auto COLS = T_COLS;
+        };
     }
     template<typename T_SPEC>
     struct Matrix{

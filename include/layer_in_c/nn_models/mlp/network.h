@@ -83,7 +83,7 @@ namespace layer_in_c::nn_models::mlp {
         using OUTPUT_LAYER = nn::layers::dense::LayerBackwardSGD<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC, T_SGD_PARAMETERS>;
     };
 
-    template<typename T_STRUCTURE_SPEC, typename T_ADAM_PARAMETERS>
+    template<typename T_STRUCTURE_SPEC, typename T_ADAM_PARAMETERS = nn::optimizers::adam::DefaultParametersTorch<typename T_STRUCTURE_SPEC::T>>
     struct AdamSpecification: Specification<T_STRUCTURE_SPEC>{
         using ADAM_PARAMETERS = T_ADAM_PARAMETERS;
         using  INPUT_LAYER = nn::layers::dense::LayerBackwardAdam<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC, T_ADAM_PARAMETERS>;

@@ -12,16 +12,17 @@ if(LAYER_IN_C_TEST_MACHINE_MACBOOK_M1)
     add_compile_definitions(LAYER_IN_C_TEST_MACHINE_MACBOOK_M1)
 endif()
 
-#option(LAYER_IN_C_DEBUG "Debug" ON)
-
-function(LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS TARGET)
-#    if(LAYER_IN_C_DEBUG)
+function(LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS TARGET)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        message (STATUS "Adding debug definitions to ${TARGET}")
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_DEVICE_CUDA_CHECK_INIT)
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_CHECK_BOUNDS)
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC)
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_MALLOC_INIT_NAN)
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT)
+        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT)
+        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_GAE_CHECK_TERMINATED_TRUNCATED)
+        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT)
     endif()
 endfunction()
 
@@ -72,7 +73,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-#LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_mlp)
+#LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_neural_network_mlp)
 gtest_discover_tests(test_neural_network_mlp)
 
 # Neural Network Test Full Training MLP
@@ -86,7 +87,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-#LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_full_training_mlp)
+#LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_neural_network_full_training_mlp)
 gtest_discover_tests(test_neural_network_full_training_mlp)
 
 # Neural Network Persistence Test
@@ -100,7 +101,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_neural_network_persistence)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_neural_network_persistence)
 gtest_discover_tests(test_neural_network_persistence)
 
 # RL Environment Pendulum test
@@ -114,7 +115,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_pendulum)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_pendulum)
 gtest_discover_tests(test_rl_environments_pendulum)
 
 
@@ -132,7 +133,7 @@ if(LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
             GTest::gtest_main
             Qt5::Widgets
     )
-    LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_pendulum_render)
+    LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_pendulum_render)
     gtest_discover_tests(test_rl_environments_pendulum_render)
 endif()
 
@@ -146,7 +147,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_off_policy_runner)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_off_policy_runner)
 gtest_discover_tests(test_rl_algorithms_td3_off_policy_runner)
 
 # RL Algorithm td3 test first stage mlp
@@ -160,7 +161,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_first_stage_mlp)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_first_stage_mlp)
 gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
 
 
@@ -190,7 +191,7 @@ if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
     )
     target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
 endif()
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_second_stage_mlp)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_second_stage_mlp)
 gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
 
 # RL Algorithm td3 test full training
@@ -222,7 +223,7 @@ if(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
     )
     target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
 endif()
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_full_training_debug)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_full_training_debug)
 target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG)
 gtest_discover_tests(test_rl_algorithms_td3_full_training_debug)
 
@@ -300,7 +301,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_multirotor)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_multirotor)
 gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
 
@@ -329,7 +330,7 @@ target_include_directories(
 )
 if(${DEBUG})
     target_compile_definitions(${TARGET} PRIVATE LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG)
-    LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(${TARGET})
+    LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(${TARGET})
 endif()
 gtest_discover_tests(${TARGET})
 endfunction()
@@ -386,7 +387,7 @@ target_include_directories(
         PRIVATE
         lib/nlohmann/include
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_ui_test)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_ui_test)
 gtest_discover_tests(test_rl_environments_multirotor_ui_test)
 
 # Container tests
@@ -399,7 +400,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_container)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_container)
 gtest_discover_tests(test_container)
 
 add_executable(
@@ -413,7 +414,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_components_replay_buffer)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_components_replay_buffer)
 gtest_discover_tests(test_rl_components_replay_buffer)
 
 # Container tests
@@ -426,7 +427,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_container_persist_code_store)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_container_persist_code_store)
 gtest_discover_tests(test_container_persist_code_store)
 
 # Container tests
@@ -439,7 +440,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_container_persist_code_load)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_container_persist_code_load)
 gtest_discover_tests(test_container_persist_code_load)
 
 # ARM tests
@@ -452,7 +453,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_nn_arm)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_nn_arm)
 gtest_discover_tests(test_nn_arm)
 
 # On Policy Runner tests
@@ -466,7 +467,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_components_on_policy_runner)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_components_on_policy_runner)
 gtest_discover_tests(test_rl_components_on_policy_runner)
 
 # PPO tests
@@ -480,5 +481,6 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_ppo)
 gtest_discover_tests(test_rl_algorithms_ppo)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_ppo)
+#target_compile_definitions(test_rl_algorithms_ppo PRIVATE -DLAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT)

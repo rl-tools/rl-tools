@@ -74,6 +74,10 @@ namespace layer_in_c{
     LAYER_IN_C_FUNCTION_PLACEMENT inline void increment(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
         m._data[index(m, row, col)] += value;
     }
+    template<typename SPEC, typename T>
+    LAYER_IN_C_FUNCTION_PLACEMENT inline void multiply(Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col, T value){
+        m._data[index(m, row, col)] *= value;
+    }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     void transpose(DEVICE& device, Matrix<SPEC_1>& target, Matrix<SPEC_2>& source){
@@ -319,14 +323,37 @@ namespace layer_in_c{
             }
         }
     }
-
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
     LAYER_IN_C_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_BOUNDS
+        utils::assert_exit(device, (row + ROWS) <= SPEC::ROWS, "row + ROWS <= SPEC::ROWS");
+        utils::assert_exit(device, (col + COLS) <= SPEC::COLS, "col + COLS <= SPEC::COLS");
+#endif
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
         Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout, true>> out;
         out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
+        return out;
+    }
+    template<typename DEVICE, typename SPEC, typename ViewSpec>
+    LAYER_IN_C_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, const ViewSpec& vs, typename SPEC::TI row, typename SPEC::TI col){
+        return view<DEVICE, SPEC, ViewSpec::ROWS, ViewSpec::COLS>(device, m, row, col);
+    }
+
+    template<typename DEVICE, typename SPEC>
+    LAYER_IN_C_FUNCTION_PLACEMENT auto row(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row){
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::COLS, ViewLayout, true>> out;
+        out._data = m._data + row * row_pitch(m);
+        return out;
+    }
+
+    template<typename DEVICE, typename SPEC>
+    LAYER_IN_C_FUNCTION_PLACEMENT auto col(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI col){
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ROWS, 1, ViewLayout, true>> out;
+        out._data = m._data + col * col_pitch(m);
         return out;
     }
 

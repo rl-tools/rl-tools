@@ -6,7 +6,7 @@
 namespace lic = layer_in_c;
 
 
-TEST(LAYER_IN_C_TEST_CONTAINER, SLICE) {
+TEST(LAYER_IN_C_TEST_CONTAINER, SLICE){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE::SPEC::LOGGING logger;
@@ -53,4 +53,78 @@ TEST(LAYER_IN_C_TEST_CONTAINER, SLICE) {
     }
     lic::free(device, m4);
 
+}
+template <int ROWS, int COLS, int ROW_PITCH, int COL_PITCH, int VIEW_ROWS, int VIEW_COLS>
+void test_view(){
+    using DEVICE = lic::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
+    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::RowMajorAlignment<TI, 1>>> m_dense;
+    lic::malloc(device, m);
+    lic::malloc(device, m_dense);
+    lic::randn(device, m, rng);
+    lic::copy(device, device, m_dense, m);
+
+    for(TI row_i = 0; row_i < ROWS-VIEW_ROWS; row_i++){
+        for(TI col_i = 0; col_i < COLS-VIEW_COLS; col_i++){
+            auto view = lic::view(device, m, lic::matrix::ViewSpec<VIEW_ROWS, VIEW_COLS>(), row_i, col_i);
+            auto view_dense = lic::view(device, m_dense, lic::matrix::ViewSpec<VIEW_ROWS, VIEW_COLS>(), row_i, col_i);
+            auto abs_diff = lic::abs_diff(device, view, view_dense);
+            ASSERT_FLOAT_EQ(abs_diff, 0);
+        }
+    }
+
+    lic::free(device, m);
+    lic::free(device, m_dense);
+
+}
+TEST(LAYER_IN_C_TEST_CONTAINER, VIEW) {
+    test_view<10, 10, 10, 1, 5, 5>();
+    test_view<10, 10, 20, 2, 5, 5>();
+    test_view<15, 13, 100, 3, 3, 2>();
+    test_view<15, 13, 3, 100, 1, 1>();
+    test_view<15, 13, 3, 100, 10, 1>();
+    test_view<15, 13, 3, 100, 1, 10>();
+}
+
+template <int ROWS, int COLS, int ROW_PITCH, int COL_PITCH>
+void test_view_col(){
+    using DEVICE = lic::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
+    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::RowMajorAlignment<TI, 1>>> m_dense;
+    lic::malloc(device, m);
+    lic::malloc(device, m_dense);
+    lic::randn(device, m, rng);
+    lic::copy(device, device, m_dense, m);
+
+    for(TI row_i = 0; row_i < ROWS; row_i++){
+        auto row_m = lic::row(device, m, row_i);
+        auto row_m_dense = lic::row(device, m_dense, row_i);
+        auto abs_diff = lic::abs_diff(device, row_m, row_m_dense);
+        ASSERT_FLOAT_EQ(abs_diff, 0);
+    }
+
+    for(TI col_i = 0; col_i < COLS; col_i++){
+        auto col_m = lic::col(device, m, col_i);
+        auto col_m_dense = lic::col(device, m_dense, col_i);
+        auto abs_diff = lic::abs_diff(device, col_m, col_m_dense);
+        ASSERT_FLOAT_EQ(abs_diff, 0);
+    }
+    lic::free(device, m);
+    lic::free(device, m_dense);
+
+}
+
+TEST(LAYER_IN_C_TEST_CONTAINER, VIEW_ROW_COL) {
+    test_view_col<10, 10, 10, 1>();
+    test_view_col<10, 10, 20, 2>();
+    test_view_col<15, 13, 100, 3>();
+    test_view_col<15, 13, 3, 100>();
 }

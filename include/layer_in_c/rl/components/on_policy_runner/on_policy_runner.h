@@ -1,3 +1,6 @@
+#ifndef LAYER_IN_C_RL_COMPONENTS_ON_POLICY_RUNNER_ON_POLICY_RUNNER_H
+#define LAYER_IN_C_RL_COMPONENTS_ON_POLICY_RUNNER_ON_POLICY_RUNNER_H
+
 namespace layer_in_c::rl::components{
     namespace on_policy_runner{
         template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0>
@@ -24,20 +27,25 @@ namespace layer_in_c::rl::components{
             static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * SPEC::N_ENVIRONMENTS;
             // structure: OBSERVATION - ACTION - ACTION_LOG_P - REWARD - TERMINATED - TRUNCATED - VALUE - ADVANTAGE - TARGEt_VALUE
             static constexpr TI DATA_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM + 7;
-            Matrix<matrix::Specification<T, TI, STEPS_TOTAL, DATA_DIM>> data;
 
-            template<TI VIEW_DIM>
-            using DATA_VIEW = typename decltype(data)::template VIEW<STEPS_TOTAL, VIEW_DIM>;
+            // mem
+            Matrix<matrix::Specification<T, TI, STEPS_TOTAL + SPEC::N_ENVIRONMENTS, DATA_DIM>> data; // +1 * SPEC::N_ENVIRONMENTS for the final observation
 
+            // views
+            template<TI VIEW_DIM, bool ALL = false>
+            using DATA_VIEW = typename decltype(data)::template VIEW<STEPS_TOTAL + (ALL ? SPEC::N_ENVIRONMENTS : 0), VIEW_DIM>;
+
+            DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM, true> all_observations;
             DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM> observations;
             DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions;
             DATA_VIEW<1> action_log_probs;
             DATA_VIEW<1> rewards;
             DATA_VIEW<1> terminated;
             DATA_VIEW<1> truncated;
-            DATA_VIEW<1> value;
-            DATA_VIEW<1> advantage;
-            DATA_VIEW<1> target_value;
+            DATA_VIEW<1, true> all_values;
+            DATA_VIEW<1> values;
+            DATA_VIEW<1> advantages;
+            DATA_VIEW<1> target_values;
         };
     }
 
@@ -51,6 +59,11 @@ namespace layer_in_c::rl::components{
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT       , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> environments;
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> states;
         Matrix<matrix::Specification<bool                             , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> truncated;
-        Matrix<matrix::Specification<TI, TI, 1, SPEC::N_ENVIRONMENTS>> episode_step;
+        Matrix<matrix::Specification<TI                               , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> episode_step;
+        Matrix<matrix::Specification<T                                , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> episode_return;
+#ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
+        bool initialized = false;
+#endif
     };
 }
+#endif

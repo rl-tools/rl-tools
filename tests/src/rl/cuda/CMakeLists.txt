@@ -7,7 +7,7 @@ project(test_layer_in_c_rl_cuda CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD  17)
 
-function(LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS TARGET)
+function(LAYER_IN_C_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS TARGET)
     #    if(LAYER_IN_C_DEBUG)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 #        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_CONTAINER_CHECK_BOUNDS)
@@ -32,7 +32,7 @@ target_link_libraries(
         cublas
         HighFive
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_cuda)
+LAYER_IN_C_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_cuda)
 gtest_discover_tests(test_rl_cuda)
 
@@ -49,7 +49,7 @@ target_link_libraries(
         HighFive
         tensorboard_logger
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_cuda_td3_full_training)
+LAYER_IN_C_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda_td3_full_training)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_cuda_td3_full_training)
 gtest_discover_tests(test_rl_cuda_td3_full_training)
 
@@ -66,6 +66,6 @@ target_link_libraries(
         HighFive
         tensorboard_logger
 )
-LAYER_IN_C_TEST_ADD_DEBUG_DEFINITIONS(test_rl_cuda_environments_multirotor)
+LAYER_IN_C_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda_environments_multirotor)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_cuda_environments_multirotor)
 gtest_discover_tests(test_rl_cuda_environments_multirotor)

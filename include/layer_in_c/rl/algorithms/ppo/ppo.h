@@ -2,11 +2,11 @@ namespace layer_in_c::rl::algorithms{
     namespace ppo{
         template<typename T, typename TI>
         struct DefaultParameters {
-            static constexpr T GAMMA = 0.99;
-            static constexpr TI ACTOR_BATCH_SIZE = 32;
-            static constexpr TI CRITIC_BATCH_SIZE = 32;
+            static constexpr T GAMMA = 0.98;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 0;
+            static constexpr TI N_EPOCHS = 10;
+            static constexpr T ACTOR_LOG_STD = -0.69; // log(0.1)
             static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
         };
 
@@ -16,7 +16,7 @@ namespace layer_in_c::rl::algorithms{
                 typename T_ENVIRONMENT,
                 typename T_ACTOR_NETWORK_TYPE,
                 typename T_CRITIC_NETWORK_TYPE,
-                typename T_PARAMETERS
+                typename T_PARAMETERS = DefaultParameters<T_T, T_TI>
         >
         struct Specification {
             using T = T_T;
@@ -24,7 +24,14 @@ namespace layer_in_c::rl::algorithms{
             using ENVIRONMENT = T_ENVIRONMENT;
             using ACTOR_NETWORK_TYPE = T_ACTOR_NETWORK_TYPE;
             using CRITIC_NETWORK_TYPE = T_CRITIC_NETWORK_TYPE;
+            static constexpr TI BATCH_SIZE = ACTOR_NETWORK_TYPE::SPEC::BATCH_SIZE;
             using PARAMETERS = T_PARAMETERS;
+
+            static_assert(ACTOR_NETWORK_TYPE::SPEC::BATCH_SIZE == CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE);
+            static_assert(ACTOR_NETWORK_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
+            static_assert(CRITIC_NETWORK_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
+            static_assert(ACTOR_NETWORK_TYPE::OUTPUT_DIM == ENVIRONMENT::ACTION_DIM);
+            static_assert(CRITIC_NETWORK_TYPE::OUTPUT_DIM == 1);
         };
     }
 
@@ -35,7 +42,11 @@ namespace layer_in_c::rl::algorithms{
         using TI = typename SPEC::TI;
 
         typename SPEC::ACTOR_NETWORK_TYPE actor;
+        Matrix<matrix::Specification<T, TI, 1, SPEC::ENVIRONMENT::ACTION_DIM>> actor_log_std;
         typename SPEC::CRITIC_NETWORK_TYPE critic;
+#ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
+        bool initialized = false;
+#endif
 
     };
 }
