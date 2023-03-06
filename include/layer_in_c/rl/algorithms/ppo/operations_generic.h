@@ -49,8 +49,10 @@ namespace layer_in_c{
                 utils::assert_exit(device, !terminated || terminated && truncated, "terminationn should imply truncation");
 #endif
                 T current_step_value = get(buffer.values, pos, 0);
+//                T next_step_value = terminated || truncated ? 0 : previous_value;
                 T next_step_value = terminated ? 0 : previous_value;
                 T td_error = get(buffer.rewards, pos, 0) + PPO_SPEC::PARAMETERS::GAMMA * next_step_value - current_step_value;
+//                previous_advantage = terminated || truncated ? 0 : previous_advantage;
                 if(truncated){
                     if(!terminated){ // e.g. time limited or random truncation
                         td_error = 0;
@@ -140,8 +142,8 @@ namespace layer_in_c{
                     T clipped_ratio = math::clamp(ratio, 1 - PPO_SPEC::PARAMETERS::EPSILON_CLIP, 1 + PPO_SPEC::PARAMETERS::EPSILON_CLIP);
                     T normal_advantage = ratio * advantage;
                     T clipped_advantage = clipped_ratio * advantage;
-                    T slippage = 0;
-                    bool ratio_min_switch = normal_advantage - clipped_advantage < slippage;
+                    T slippage = 0.0;
+                    bool ratio_min_switch = normal_advantage - clipped_advantage <= slippage;
                     T clipped_surrogate = ratio_min_switch ? normal_advantage : clipped_advantage;
 
                     T d_loss_d_clipped_surrogate = -(T)1/BATCH_SIZE;

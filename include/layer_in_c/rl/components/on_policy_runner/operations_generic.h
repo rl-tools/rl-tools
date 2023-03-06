@@ -87,6 +87,7 @@ namespace layer_in_c{
                     set(runner.episode_step, 0, env_i, 0);
                     set(runner.episode_return, 0, env_i, 0);
                     sample_initial_state(device, env, state, rng);
+//                    initial_state(device, env, state);
                 }
                 auto observation = view<DEVICE, typename decltype(buffer.observations)::SPEC, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(device, buffer.observations, pos, 0);
                 observe(device, env, state, observation);
@@ -105,7 +106,7 @@ namespace layer_in_c{
                     T action_mu = get(actions, env_i, action_i);
                     T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(ppo.actor_log_std, 0, action_i));
                     T action_noisy = random::normal_distribution(typename DEVICE::SPEC::RANDOM(), action_mu, action_std, rng);
-                    T action_by_action_std = action_noisy / action_std;
+                    T action_by_action_std = (action_noisy-action_mu) / action_std;
                     action_log_prob += -0.5 * action_by_action_std * action_by_action_std - math::log(typename DEVICE::SPEC::MATH(), action_std) - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);
                     set(actions, env_i, action_i, action_noisy);
                 }
