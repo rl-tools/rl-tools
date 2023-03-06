@@ -1,7 +1,9 @@
-#include <layer_in_c/operations/cpu.h>
+#include <layer_in_c/operations/cpu_mkl.h>
 
 #include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
 
+
+#include <layer_in_c/nn/operations_cpu_mkl.h>
 #include <layer_in_c/nn_models/operations_cpu.h>
 
 
@@ -17,22 +19,22 @@ namespace lic = layer_in_c;
 
 template <typename T>
 struct AdamParameters: lic::nn::optimizers::adam::DefaultParametersTorch<T>{
-    static constexpr T ALPHA = 0.0003;
+    static constexpr T ALPHA = 0.0001;
 };
 
 
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
-    using DEVICE = lic::devices::DefaultCPU;
+    using DEVICE = lic::devices::DefaultCPU_MKL;
     using T = float;
     using TI = typename DEVICE::index_t;
     using ENVIRONMENT_SPEC = lic::rl::environments::pendulum::Specification<T, TI>;
     using ENVIRONMENT = lic::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
     constexpr TI BATCH_SIZE = 64;
-    using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::TANH, BATCH_SIZE>;
+    using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::ActivationFunction::TANH, lic::nn::activation_functions::TANH, BATCH_SIZE>;
     using ACTOR_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC, AdamParameters<T>>;
     using ACTOR_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
-    using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::IDENTITY, BATCH_SIZE>;
+    using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 64, lic::nn::activation_functions::ActivationFunction::TANH, lic::nn::activation_functions::IDENTITY, BATCH_SIZE>;
     using CRITIC_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC, AdamParameters<T>>;
     using CRITIC_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
 
@@ -40,10 +42,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     using PPO_TYPE = lic::rl::algorithms::PPO<PPO_SPEC>;
 
     constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 200;
-    constexpr TI N_ENVIRONMENTS = 20;
+    constexpr TI N_ENVIRONMENTS = 1;
     using ON_POLICY_RUNNER_SPEC = lic::rl::components::on_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ON_POLICY_RUNNER_STEP_LIMIT>;
     using ON_POLICY_RUNNER_TYPE = lic::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
-    constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 512;
+    constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 10000;
     using ON_POLICY_RUNNER_BUFFER_SPEC = lic::rl::components::on_policy_runner::BufferSpecification<ON_POLICY_RUNNER_SPEC, ON_POLICY_RUNNER_STEPS_PER_ENV>;
     using ON_POLICY_RUNNER_BUFFER_TYPE = lic::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_BUFFER_SPEC>;
 

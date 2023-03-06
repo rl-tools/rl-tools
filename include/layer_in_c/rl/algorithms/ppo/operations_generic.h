@@ -36,8 +36,6 @@ namespace layer_in_c{
         using BUFFER = decltype(buffer);
         using T = typename PPO_SPEC::T;
         using TI = typename PPO_SPEC::TI;
-        T gamma = 0.95;
-        T lambda = 0.1;
         evaluate(device, ppo.critic, buffer.all_observations, buffer.all_values);
         for(TI env_i = 0; env_i < OPR_SPEC::N_ENVIRONMENTS; env_i++){
             T previous_value = get(buffer.all_values, STEPS_PER_ENV * OPR_SPEC::N_ENVIRONMENTS + env_i, 0);
@@ -50,19 +48,20 @@ namespace layer_in_c{
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_GAE_CHECK_TERMINATED_TRUNCATED
                 utils::assert_exit(device, !terminated || terminated && truncated, "terminationn should imply truncation");
 #endif
-                bool current_step_value = get(buffer.values, pos, 0);
+                T current_step_value = get(buffer.values, pos, 0);
                 T next_step_value = terminated ? 0 : previous_value;
-                T td_error = get(buffer.rewards, pos, 0) + next_step_value - current_step_value;
+                T td_error = get(buffer.rewards, pos, 0) + PPO_SPEC::PARAMETERS::GAMMA * next_step_value - current_step_value;
                 if(truncated){
                     if(!terminated){ // e.g. time limited or random truncation
                         td_error = 0;
                     }
                     previous_advantage = 0;
                 }
-                T advantage = lambda * gamma * previous_advantage + td_error;
+                T advantage = PPO_SPEC::PARAMETERS::LAMBDA * PPO_SPEC::PARAMETERS::GAMMA * previous_advantage + td_error;
                 set(buffer.advantages, pos, 0, advantage);
                 set(buffer.target_values, pos, 0, advantage + current_step_value);
                 previous_advantage = advantage;
+                previous_value = current_step_value;
             }
         }
     }
@@ -79,8 +78,6 @@ namespace layer_in_c{
         constexpr TI BATCH_SIZE = PPO_SPEC::BATCH_SIZE;
         constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
         constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::OBSERVATION_DIM;
-        // params
-        T epsilon_clip = 0.2;
         // batch needs observations, original log-probs, advantages
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> batch_actions;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> current_batch_actions;
@@ -90,7 +87,7 @@ namespace layer_in_c{
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> batch_observations;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_batch_observations;
         Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
-        Matrix<matrix::Specification<T, TI, 1, ACTION_DIM>> d_action_log_prob_d_action_log_std;
+//        Matrix<matrix::Specification<T, TI, 1, ACTION_DIM>> d_action_log_prob_d_action_log_std;
         malloc(device, batch_actions);
         malloc(device, current_batch_actions);
         malloc(device, batch_advantages);
@@ -99,15 +96,15 @@ namespace layer_in_c{
         malloc(device, batch_observations);
         malloc(device, d_batch_observations);
         malloc(device, d_action_log_prob_d_action);
-        malloc(device, d_action_log_prob_d_action_log_std);
+//        malloc(device, d_action_log_prob_d_action_log_std);
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             constexpr TI N_BATCHES = BUFFER::STEPS_TOTAL/BATCH_SIZE;
             static_assert(N_BATCHES > 0);
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     static_assert(BUFFER::STEPS_TOTAL > 0);
-//                    TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, BUFFER::STEPS_TOTAL-1, rng);
-                    TI sample_index = batch_i * BATCH_SIZE + batch_step_i; // todo: make stochastic again
+                    TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, BUFFER::STEPS_TOTAL-1, rng);
+//                    TI sample_index = batch_i * BATCH_SIZE + batch_step_i; // todo: make stochastic again
                     {
                         auto target_row = row(device, batch_observations, batch_step_i);
                         auto source_row = row(device, buffer.observations, sample_index);
@@ -133,14 +130,14 @@ namespace layer_in_c{
                         T action_diff_by_action_std = (current_action - action) / action_std;
                         action_log_prob += -0.5 * action_diff_by_action_std * action_diff_by_action_std - math::log(typename DEVICE::SPEC::MATH(), action_std) - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);
                         set(d_action_log_prob_d_action, batch_step_i, action_i, - action_diff_by_action_std / action_std);
-                        set(d_action_log_prob_d_action_log_std, 0, action_i, -1 / action_std + action_diff_by_action_std * action_diff_by_action_std / action_std);
+//                        set(d_action_log_prob_d_action_log_std, 0, action_i, -1 / action_std + action_diff_by_action_std * action_diff_by_action_std / action_std);
                     }
                     T old_action_log_prob = get(batch_action_log_probs, 0, batch_step_i);
                     T advantage = get(batch_advantages, 0, batch_step_i);
                     T log_ratio = action_log_prob - old_action_log_prob;
                     T ratio = math::exp(typename DEVICE::SPEC::MATH(), log_ratio);
                     // todo: test relative clipping (clipping in log space makes more sense thatn clipping in exp space)
-                    T clipped_ratio = math::clamp(ratio, 1 - epsilon_clip, 1 + epsilon_clip);
+                    T clipped_ratio = math::clamp(ratio, 1 - PPO_SPEC::PARAMETERS::EPSILON_CLIP, 1 + PPO_SPEC::PARAMETERS::EPSILON_CLIP);
                     T normal_advantage = ratio * advantage;
                     T clipped_advantage = clipped_ratio * advantage;
                     T slippage = 0;
@@ -171,7 +168,7 @@ namespace layer_in_c{
         free(device, batch_observations);
         free(device, d_batch_observations);
         free(device, d_action_log_prob_d_action);
-        free(device, d_action_log_prob_d_action_log_std);
+//        free(device, d_action_log_prob_d_action_log_std);
     }
 
 }

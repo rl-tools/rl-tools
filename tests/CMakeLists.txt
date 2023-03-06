@@ -477,10 +477,12 @@ add_executable(
 )
 target_link_libraries(
         test_rl_algorithms_ppo
+        PRIVATE
         layer_in_c
         GTest::gtest_main
         HighFive
 )
 gtest_discover_tests(test_rl_algorithms_ppo)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_ppo)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_ppo)
 #target_compile_definitions(test_rl_algorithms_ppo PRIVATE -DLAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT)

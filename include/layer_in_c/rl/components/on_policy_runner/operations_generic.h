@@ -82,9 +82,9 @@ namespace layer_in_c{
                 auto& state = get(runner.states, 0, env_i);
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
                 if(get(runner.truncated, 0, env_i)){
+                    std::cout << "episode return: " << get(runner.episode_return, 0, env_i) << " in " << get(runner.episode_step, 0, env_i) << " steps" << std::endl;
                     set(runner.truncated, 0, env_i, false);
                     set(runner.episode_step, 0, env_i, 0);
-                    std::cout << "episode return: " << get(runner.episode_return, 0, env_i) << " in " << get(runner.episode_step, 0, env_i) << " steps" << std::endl;
                     set(runner.episode_return, 0, env_i, 0);
                     sample_initial_state(device, env, state, rng);
                 }
