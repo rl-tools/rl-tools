@@ -12,7 +12,7 @@ namespace layer_in_c{
         time_t now;
         time(&now);
         char buf[sizeof "2011-10-08T07:07:09Z"];
-        strftime(buf, sizeof buf, "%FT%TZ", gmtime(&now));
+        strftime(buf, sizeof buf, "%FT%TZ", localtime(&now));
 
         std::string logs_dir = "logs";
         if (!std::filesystem::is_directory(logs_dir.c_str()) || !std::filesystem::exists(logs_dir.c_str())) {
@@ -25,7 +25,9 @@ namespace layer_in_c{
 
         std::string log_file = log_dir + "/" + std::string("data.tfevents");
         std::cout << "Logging to " << log_file << std::endl;
-        logger->tb = new TensorBoardLogger(log_file);
+        TensorBoardLoggerOptions opts;
+        opts.flush_period_s(1);
+        logger->tb = new TensorBoardLogger(log_file, opts);
     }
     template <typename DEVICE>
     void destruct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger){

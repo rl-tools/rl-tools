@@ -1,4 +1,9 @@
-#include <layer_in_c/operations/cpu_mkl.h>
+#include <layer_in_c/operations/cpu_mkl/group_1.h>
+#include <layer_in_c/operations/cpu_tensorboard/group_1.h>
+#include <layer_in_c/operations/cpu_mkl/group_2.h>
+#include <layer_in_c/operations/cpu_tensorboard/group_2.h>
+#include <layer_in_c/operations/cpu_mkl/group_3.h>
+#include <layer_in_c/operations/cpu_tensorboard/group_3.h>
 
 #include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
 
@@ -25,7 +30,8 @@ struct AdamParameters: lic::nn::optimizers::adam::DefaultParametersTorch<T>{
 
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
-    using DEVICE = lic::devices::DefaultCPU_MKL;
+    using DEVSPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
+    using DEVICE = lic::devices::CPU_MKL<DEVSPEC>;
     using T = float;
     using TI = typename DEVICE::index_t;
     using ENVIRONMENT_SPEC = lic::rl::environments::pendulum::Specification<T, TI>;
@@ -53,6 +59,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     using ACTOR_BUFFERS = typename ACTOR_TYPE::template BuffersForwardBackward<BATCH_SIZE>;
     using CRITIC_BUFFERS = typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE>;
 
+    DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
     PPO_TYPE ppo;
@@ -72,8 +79,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     ENVIRONMENT envs[N_ENVIRONMENTS];
     lic::init(device, on_policy_runner, envs);
     lic::init(device, ppo, rng);
+    device.logger = &logger;
+    lic::construct(device, device.logger);
 
     for(TI ppo_step_i = 0; ppo_step_i < 1000; ppo_step_i++){
+        device.logger->step = on_policy_runner.step;
         std::cout << "PPO step: " << ppo_step_i << std::endl;
         lic::collect(device, on_policy_runner_buffer, on_policy_runner, ppo, actor_eval_buffers, rng);
 //        lic::print(device, on_policy_runner_buffer.data);

@@ -481,6 +481,7 @@ target_link_libraries(
         layer_in_c
         GTest::gtest_main
         HighFive
+        tensorboard_logger
 )
 gtest_discover_tests(test_rl_algorithms_ppo)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_ppo)

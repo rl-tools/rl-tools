@@ -82,12 +82,12 @@ namespace layer_in_c{
                 auto& state = get(runner.states, 0, env_i);
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
                 if(get(runner.truncated, 0, env_i)){
-                    std::cout << "episode return: " << get(runner.episode_return, 0, env_i) << " in " << get(runner.episode_step, 0, env_i) << " steps" << std::endl;
+                    add_scalar(device, device.logger, "episode/length", get(runner.episode_step, 0, env_i));
+                    add_scalar(device, device.logger, "episode/return", get(runner.episode_return, 0, env_i));
                     set(runner.truncated, 0, env_i, false);
                     set(runner.episode_step, 0, env_i, 0);
                     set(runner.episode_return, 0, env_i, 0);
                     sample_initial_state(device, env, state, rng);
-//                    initial_state(device, env, state);
                 }
                 auto observation = view<DEVICE, typename decltype(buffer.observations)::SPEC, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(device, buffer.observations, pos, 0);
                 observe(device, env, state, observation);
@@ -137,6 +137,7 @@ namespace layer_in_c{
             auto observation = view<DEVICE, typename decltype(buffer.all_observations)::SPEC, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(device, buffer.all_observations, pos, 0);
             observe(device, env, state, observation);
         }
+        runner.step += SPEC::N_ENVIRONMENTS * BUFFER_SPEC::STEPS_PER_ENV;
     }
 }
 #endif

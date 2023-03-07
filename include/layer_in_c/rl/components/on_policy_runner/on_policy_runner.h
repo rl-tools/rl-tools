@@ -55,6 +55,7 @@ namespace layer_in_c::rl::components{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
+        TI step = 0;
 
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT       , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> environments;
         Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> states;
