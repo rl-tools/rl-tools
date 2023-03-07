@@ -117,10 +117,10 @@ namespace layer_in_c{
             for(TI i = 0; i < 3; i++){
                 u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
             }
-            state.state[3+0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*M_PI*u[1]);
-            state.state[3+1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*M_PI*u[1]);
-            state.state[3+2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*M_PI*u[2]);
-            state.state[3+3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*M_PI*u[2]);
+            state.state[3+0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*math::PI<T>*u[1]);
+            state.state[3+1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
+            state.state[3+2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
+            state.state[3+3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
         }
         else{
             state.state[3+0] = 1;

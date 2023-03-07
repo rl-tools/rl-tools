@@ -79,14 +79,14 @@ namespace layer_in_c{
         free(device, critic_training_buffers.next_state_action_value_critic_2);
     }
 
-    template <typename DEVICE, typename SPEC, typename RNG>
-    void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
+    template <typename DEVICE, typename SPEC, typename OPTIMIZER, typename RNG>
+    void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, OPTIMIZER& optimizer, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
         init_weights(device, actor_critic.critic_1, rng);
         init_weights(device, actor_critic.critic_2, rng);
-        reset_optimizer_state(device, actor_critic.actor);
-        reset_optimizer_state(device, actor_critic.critic_1);
-        reset_optimizer_state(device, actor_critic.critic_2);
+        reset_optimizer_state(device, actor_critic.actor, optimizer);
+        reset_optimizer_state(device, actor_critic.critic_1, optimizer);
+        reset_optimizer_state(device, actor_critic.critic_2, optimizer);
 
         copy(device, device, actor_critic.actor_target, actor_critic.actor);
         copy(device, device, actor_critic.critic_target_1, actor_critic.critic_1);
@@ -141,8 +141,8 @@ namespace layer_in_c{
             set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
         }
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
-    void train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER>
+    void train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
         // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -157,7 +157,7 @@ namespace layer_in_c{
 
         target_actions(device, batch, training_buffers);
         forward_backward_mse(device, critic, batch.observations_and_actions, training_buffers.target_action_value, critic_buffers);
-        update(device, critic);
+        update(device, critic, optimizer);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
     typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
@@ -176,8 +176,8 @@ namespace layer_in_c{
         evaluate(device, critic, batch.observations_and_actions, training_buffers.action_value, critic_buffers);
         return nn::loss_functions::mse(device, training_buffers.action_value, training_buffers.target_action_value);
     }
-    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
-    void train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename SPEC::CRITIC_NETWORK_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER>
+    void train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename SPEC::CRITIC_NETWORK_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
@@ -194,7 +194,7 @@ namespace layer_in_c{
         auto d_actor_output = view<DEVICE, typename decltype(training_buffers.d_critic_input)::SPEC, BATCH_SIZE, ACTION_DIM>(device, training_buffers.d_critic_input, 0, OBSERVATION_DIM);
         backward(device, actor_critic.actor, batch.observations, d_actor_output, training_buffers.d_actor_input, actor_buffers);
 
-        update(device, actor_critic.actor);
+        update(device, actor_critic.actor, optimizer);
     }
 
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
@@ -210,10 +210,10 @@ namespace layer_in_c{
         return mean(device, training_buffers.state_action_value);
     }
 
-    template<typename DEVICE, typename SPEC>
-    void update_target_layer(DEVICE& device, nn::layers::dense::Layer<SPEC>& target, const nn::layers::dense::Layer<SPEC>& source, typename SPEC::T polyak) {
-        utils::polyak::update(device, target.weights, source.weights, polyak);
-        utils::polyak::update(device, target.biases , source.biases , polyak);
+    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void update_target_layer(DEVICE& device, nn::layers::dense::Layer<TARGET_SPEC>& target, const nn::layers::dense::Layer<SOURCE_SPEC>& source, typename TARGET_SPEC::T polyak) {
+        utils::polyak::update(device, target.weights.parameters, source.weights.parameters, polyak);
+        utils::polyak::update(device, target.biases.parameters , source.biases.parameters , polyak);
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void update_target_network(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, T polyak) {

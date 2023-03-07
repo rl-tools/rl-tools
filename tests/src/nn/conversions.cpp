@@ -15,7 +15,7 @@
 #include <layer_in_c/containers/operations_cpu.h>
 #include <layer_in_c/containers/operations_dummy.h>
 
-#include <layer_in_c/nn/nn.h>
+#include <layer_in_c/nn/operations_cpu.h>
 #include <layer_in_c/utils/generic/typing.h>
 
 #include <gtest/gtest.h>

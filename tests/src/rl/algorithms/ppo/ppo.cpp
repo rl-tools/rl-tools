@@ -38,10 +38,12 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     using ENVIRONMENT = lic::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
     constexpr TI BATCH_SIZE = 64;
     using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::ActivationFunction::TANH, lic::nn::activation_functions::IDENTITY, BATCH_SIZE>;
-    using ACTOR_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC, AdamParameters<T>>;
+    using OPTIMIZER_PARAMETERS = AdamParameters<T>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    using ACTOR_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
     using ACTOR_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
     using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 64, lic::nn::activation_functions::ActivationFunction::TANH, lic::nn::activation_functions::IDENTITY, BATCH_SIZE>;
-    using CRITIC_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC, AdamParameters<T>>;
+    using CRITIC_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
     using CRITIC_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
 
     using PPO_SPEC = lic::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, lic::rl::algorithms::ppo::DefaultParameters<T, TI>>;
@@ -61,6 +63,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
+    OPTIMIZER optimizer;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
     PPO_TYPE ppo;
     ON_POLICY_RUNNER_TYPE on_policy_runner;
@@ -77,8 +80,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     lic::malloc(device, critic_buffers);
 
     ENVIRONMENT envs[N_ENVIRONMENTS];
-    lic::init(device, on_policy_runner, envs);
-    lic::init(device, ppo, rng);
+    lic::init(device, on_policy_runner, envs, rng);
+    lic::init(device, ppo, optimizer, rng);
     device.logger = &logger;
     lic::construct(device, device.logger);
 
@@ -89,7 +92,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
 //        lic::print(device, on_policy_runner_buffer.data);
         lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer);
 //        lic::print(device, on_policy_runner_buffer.data);
-        lic::train(device, ppo, on_policy_runner_buffer, actor_buffers, critic_buffers, rng);
+        lic::train(device, ppo, on_policy_runner_buffer, optimizer, actor_buffers, critic_buffers, rng);
 //        lic::print(device, on_policy_runner_buffer.data);
     }
 

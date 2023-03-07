@@ -3,6 +3,7 @@
 
 #include <layer_in_c/nn_models/mlp/network.h>
 #include <layer_in_c/nn/operations_generic.h>
+#include <layer_in_c/nn/optimizers/adam/operations_generic.h>
 
 namespace layer_in_c {
     template<typename DEVICE, typename SPEC>
@@ -225,27 +226,27 @@ namespace layer_in_c {
         backward(device, network, input, buffers.d_output, buffers.d_input, buffers);
     }
 
-    template<typename DEVICE, typename SPEC>
-    void update(DEVICE& device, nn_models::mlp::NeuralNetworkSGD<SPEC>& network) {
-        update_layer(network.input_layer);
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void update(DEVICE& device, nn_models::mlp::NeuralNetworkSGD<SPEC>& network, OPTIMIZER& optimizer) {
+        update_layer(device, network.input_layer, optimizer);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
-            update_layer(network.hidden_layers[layer_i]);
+            update_layer(device, network.hidden_layers[layer_i], optimizer);
         }
-        update_layer(network.output_layer);
+        update_layer(device, network.output_layer, optimizer);
     }
 
 
-    template<typename DEVICE, typename SPEC>
-    void update(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network) {
+    template<typename DEVICE, typename SPEC, typename ADAM_PARAMETERS>
+    void update(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network, nn::optimizers::Adam<ADAM_PARAMETERS>& optimizer) {
         using T = typename SPEC::T;
-        T first_order_moment_bias_correction  = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), SPEC::ADAM_PARAMETERS::BETA_1, (T)network.age));
-        T second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), SPEC::ADAM_PARAMETERS::BETA_2, (T)network.age));
+        optimizer.first_order_moment_bias_correction  = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), ADAM_PARAMETERS::BETA_1, (T)network.age));
+        optimizer.second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), ADAM_PARAMETERS::BETA_2, (T)network.age));
 
-        update_layer(device, network.input_layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
+        update(device, network.input_layer, optimizer);
         for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
-            update_layer(device, network.hidden_layers[layer_i], first_order_moment_bias_correction, second_order_moment_bias_correction);
+            update(device, network.hidden_layers[layer_i], optimizer);
         }
-        update_layer(device, network.output_layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
+        update(device, network.output_layer, optimizer);
         network.age += 1;
     }
 
@@ -253,13 +254,13 @@ namespace layer_in_c {
     void reset_optimizer_state(DEVICE& device, nn_models::mlp::NeuralNetworkSGD<SPEC>& network) {
     }
 
-    template<typename DEVICE, typename SPEC>
-    void reset_optimizer_state(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network) {
-        reset_optimizer_state(device, network.input_layer);
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void reset_optimizer_state(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network, OPTIMIZER& optimizer) {
+        reset_optimizer_state(device, network.input_layer, optimizer);
         for(typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
-            reset_optimizer_state(device, network.hidden_layers[layer_i]);
+            reset_optimizer_state(device, network.hidden_layers[layer_i], optimizer);
         }
-        reset_optimizer_state(device, network.output_layer);
+        reset_optimizer_state(device, network.output_layer, optimizer);
         network.age = 1;
     }
 

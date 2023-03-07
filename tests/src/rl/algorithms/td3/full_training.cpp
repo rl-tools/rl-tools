@@ -92,13 +92,15 @@ using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DE
 using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
 
-using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+using OPTIMIZER_PARAMETERS = typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
 using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
 using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
-using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
 using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
@@ -139,9 +141,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     DEVICE nn_dev;
     nn_dev.logger = &logger;
 
+    OPTIMIZER optimizer;
+
     std::mt19937 rng(4);
     lic::malloc(nn_dev, actor_critic);
-    lic::init(nn_dev, actor_critic, rng);
+    lic::init(nn_dev, actor_critic, optimizer, rng);
 
     bool ui = false;
 
@@ -199,7 +203,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 lic::target_action_noise(ac_dev, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 lic::gather_batch(ac_dev, off_policy_runner, critic_batch, rng);
-                lic::train_critic(ac_dev, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
+                lic::train_critic(ac_dev, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
             }
 
 //            DTYPE critic_1_loss = lic::train_critic(ac_dev, actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
@@ -208,7 +212,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             if(step_i % 2 == 0){
                 {
                     lic::gather_batch(ac_dev, off_policy_runner, actor_batch, rng);
-                    lic::train_actor(ac_dev, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+                    lic::train_actor(ac_dev, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
                 }
 
                 lic::update_critic_targets(ac_dev, actor_critic);

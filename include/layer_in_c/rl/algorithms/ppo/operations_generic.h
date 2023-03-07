@@ -17,13 +17,13 @@ namespace layer_in_c{
         free(device, ppo.actor_log_std);
         free(device, ppo.critic);
     }
-    template <typename DEVICE, typename SPEC, typename RNG>
-    void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, RNG& rng){
+    template <typename DEVICE, typename SPEC, typename OPTIMIZER, typename RNG>
+    void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, OPTIMIZER& optimizer, RNG& rng){
         init_weights(device, ppo.actor, rng);
-        reset_optimizer_state(device, ppo.actor);
+        reset_optimizer_state(device, ppo.actor, optimizer);
         set_all(device, ppo.actor_log_std, SPEC::PARAMETERS::ACTOR_LOG_STD);
         init_weights(device, ppo.critic, rng);
-        reset_optimizer_state(device, ppo.critic);
+        reset_optimizer_state(device, ppo.critic, optimizer);
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         ppo.initialized = true;
 #endif
@@ -67,8 +67,8 @@ namespace layer_in_c{
             }
         }
     }
-    template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, typename PPO_SPEC::ACTOR_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename OPTIMIZER, typename RNG>
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, OPTIMIZER& optimizer, typename PPO_SPEC::ACTOR_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
@@ -156,11 +156,11 @@ namespace layer_in_c{
                 }
                 zero_gradient(device, ppo.actor);
                 backward(device, ppo.actor, batch_observations, d_action_log_prob_d_action, d_batch_observations, actor_buffers);
-                update(device, ppo.actor);
+                update(device, ppo.actor, optimizer);
 
                 zero_gradient(device, ppo.critic);
                 forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
-                update(device, ppo.critic);
+                update(device, ppo.critic, optimizer);
             }
         }
         free(device, batch_actions);

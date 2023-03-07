@@ -75,7 +75,7 @@ namespace layer_in_c::rl::components::off_policy_runner{
 
         observe(device, env, next_state, next_observation);
 
-        bool terminated_flag = terminated(device, env, next_state);
+        bool terminated_flag = terminated(device, env, next_state, rng);
         increment(runner->episode_step, 0, env_i, 1);
         increment(runner->episode_return, 0, env_i, reward_value);
         auto episode_step_i = get(runner->episode_step, 0, env_i);

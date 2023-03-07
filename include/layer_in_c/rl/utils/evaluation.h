@@ -21,8 +21,8 @@ namespace layer_in_c {
     void set_state(DEVICE& dev, UI& ui, const STATE& state){
         // dummy implementation for the case where no ui should be used
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE>
-    bool evaluate_step(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename RNG>
+    bool evaluate_step(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         typename ENVIRONMENT::State state = eval_state.state;
@@ -46,16 +46,16 @@ namespace layer_in_c {
         eval_state.state = state;
         free(device, observation);
         free(device, action);
-        return terminated(device, env, state);
+        return terminated(device, env, state, rng);
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename DEVICE::index_t STEP_LIMIT>
-    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename DEVICE::index_t STEP_LIMIT, typename RNG>
+    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         rl::utils::evaluation::State<T, typename ENVIRONMENT::State> state;
         state.state = initial_state;
         for (TI i = 0; i < STEP_LIMIT; i++) {
-            if(evaluate_step(device, env, ui, policy, state)){
+            if(evaluate_step(device, env, ui, policy, state, rng)){
                 break;
             }
         }
@@ -76,7 +76,7 @@ namespace layer_in_c {
             else{
                 sample_initial_state(device, env, initial_state, rng);
             }
-            episode_returns[i] = evaluate<DEVICE, ENVIRONMENT, UI, POLICY, STEP_LIMIT>(device, env, ui, policy, initial_state);
+            episode_returns[i] = evaluate<DEVICE, ENVIRONMENT, UI, POLICY, STEP_LIMIT, RNG>(device, env, ui, policy, initial_state, rng);
         }
         T mean = 0;
         for(TI i = 0; i < N; i++) {

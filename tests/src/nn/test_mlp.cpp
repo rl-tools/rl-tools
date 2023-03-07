@@ -2,6 +2,7 @@
 
 namespace lic = layer_in_c;
 
+#include <layer_in_c/nn/optimizers/adam/operations_generic.h>
 #include <layer_in_c/nn_models/operations_cpu.h>
 #include <layer_in_c/utils/generic/memcpy.h>
 #include "../utils/utils.h"
@@ -32,7 +33,7 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     T acc = 0;
     std::vector<std::vector<T>> weights;
     g.getDataSet("input_layer/weight").read(weights);
-    acc += abs_diff_matrix(network.input_layer.weights, weights);
+    acc += abs_diff_matrix(network.input_layer.weights.parameters, weights);
     return acc;
 }
 
@@ -95,12 +96,12 @@ protected:
         data_file.getDataSet(model_name + "/init/hidden_layer_0/bias").read(hidden_layer_0_biases);
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
-        lic::load(device, network.input_layer.weights, input_layer_weights);
-        lic::assign(device, network.input_layer.biases, input_layer_biases.data());
-        lic::load(device, network.hidden_layers[0].weights, hidden_layer_0_weights);
-        lic::assign(device, network.hidden_layers[0].biases, hidden_layer_0_biases.data());
-        lic::load(device, network.output_layer.weights, output_layer_weights);
-        lic::assign(device, network.output_layer.biases, output_layer_biases.data());
+        lic::load(device, network.input_layer.weights.parameters, input_layer_weights);
+        lic::assign(device, network.input_layer.biases.parameters, input_layer_biases.data());
+        lic::load(device, network.hidden_layers[0].weights.parameters, hidden_layer_0_weights);
+        lic::assign(device, network.hidden_layers[0].biases.parameters, hidden_layer_0_biases.data());
+        lic::load(device, network.output_layer.weights.parameters, output_layer_weights);
+        lic::assign(device, network.output_layer.biases.parameters, output_layer_biases.data());
     }
 
     typename NN_DEVICE::SPEC::LOGGING logger;
@@ -127,7 +128,7 @@ using LAYER_IN_C_NN_MLP_BACKWARD_PASS = NeuralNetworkTestLoadWeights<NetworkType
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_weights) {
     DTYPE out = abs_diff_matrix(
-            network.input_layer.d_weights,
+            network.input_layer.weights.gradient,
             batch_0_input_layer_weights_grad
     );
     std::cout << "input_layer_weights diff: " << out << std::endl;
@@ -138,7 +139,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_weights) {
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_biases) {
     DTYPE out = abs_diff_matrix(
-            network.input_layer.d_biases,
+            network.input_layer.biases.gradient,
             batch_0_input_layer_biases_grad.data()
     );
     std::cout << "input_layer_biases diff: " << out << std::endl;
@@ -149,7 +150,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_biases) {
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
     DTYPE out = abs_diff_matrix(
-            network.hidden_layers[0].d_weights,
+            network.hidden_layers[0].weights.gradient,
             batch_0_hidden_layer_0_weights_grad
     );
     std::cout << "hidden_layer_0_weights diff: " << out << std::endl;
@@ -160,7 +161,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
     DTYPE out = abs_diff_matrix(
-            network.hidden_layers[0].d_biases,
+            network.hidden_layers[0].biases.gradient,
             batch_0_hidden_layer_0_biases_grad.data()
     );
     std::cout << "hidden_layer_0_biases diff: " << out << std::endl;
@@ -171,7 +172,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_weights) {
     DTYPE out = abs_diff_matrix(
-            network.output_layer.d_weights,
+            network.output_layer.weights.gradient,
             batch_0_output_layer_weights_grad
     );
     std::cout << "output_layer_weights diff: " << out << std::endl;
@@ -182,7 +183,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_weights) {
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_biases) {
     DTYPE out = abs_diff_matrix(
-            network.output_layer.d_biases,
+            network.output_layer.biases.gradient,
             batch_0_output_layer_biases_grad.data()
     );
     std::cout << "output_layer_biases diff: " << out << std::endl;
@@ -197,6 +198,7 @@ typedef LAYER_IN_C_NN_MLP_BACKWARD_PASS LAYER_IN_C_NN_MLP_ADAM_UPDATE;
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
+    lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     std::vector<std::vector<DTYPE>> batch_0_input_layer_weights;
@@ -229,11 +231,11 @@ TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     lic::Matrix<lic::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
     d_input_matrix._data = d_input;
     lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);
-    lic::reset_optimizer_state(device, network);
-    lic::update(device, network);
+    lic::reset_optimizer_state(device, network, optimizer);
+    lic::update(device, network, optimizer);
 
     DTYPE out = abs_diff_matrix(
-            network.input_layer.weights,
+            network.input_layer.weights.parameters,
             batch_0_input_layer_weights
     );
     ASSERT_LT(out, 1.5e-7);
@@ -287,6 +289,7 @@ protected:
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
+    lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     HighFive::Group g = data_file.getGroup("model_2/overfit_small_batch");
@@ -294,7 +297,7 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     constexpr int n_iter = 1000;
     constexpr int batch_size = 32;
     DTYPE loss = 0;
-    lic::reset_optimizer_state(device, network);
+    lic::reset_optimizer_state(device, network, optimizer);
     {
         DTYPE diff = abs_diff_network<DTYPE>(network, data_file.getGroup(model_name+"/init"));
         std::cout << "initial diff: " << diff << std::endl;
@@ -329,7 +332,7 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 
         std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-        lic::update(device, network);
+        lic::update(device, network, optimizer);
 //        constexpr int comp_batch = 100;
 //        if(batch_i == comp_batch){
         std::stringstream ss;
@@ -351,6 +354,7 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     std::vector<DTYPE> losses;
+    lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
     constexpr int n_batches = 10;
     for(int batch_i_real=0; batch_i_real < n_batches; batch_i_real++){
         this->reset();
@@ -358,7 +362,7 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
         constexpr int n_iter = 1000;
         constexpr int batch_size = 32;
         DTYPE loss = 0;
-        lic::reset_optimizer_state(device, network);
+        lic::reset_optimizer_state(device, network, optimizer);
         for (int batch_i=0; batch_i < n_iter; batch_i++){
             loss = 0;
             lic::zero_gradient(device, network);
@@ -388,7 +392,7 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            lic::update(device, network);
+            lic::update(device, network, optimizer);
         }
         std::cout << "batch_i_real " << batch_i_real << " loss: " << loss << std::endl;
         losses.push_back(loss);
@@ -453,11 +457,12 @@ protected:
 #ifndef SKIP_TRAINING_TESTS
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
+    lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
     this->reset();
-    lic::reset_optimizer_state(device, network);
+    lic::reset_optimizer_state(device, network, optimizer);
     constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;
 
@@ -493,7 +498,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            lic::update(device, network);
+            lic::update(device, network, optimizer);
             std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
         }
         epoch_loss /= n_iter;
@@ -545,6 +550,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
 
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
+    lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
     NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device;
     device.logger = &logger;
@@ -554,7 +560,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
 //    this->reset();
-    lic::reset_optimizer_state(device, network);
+    lic::reset_optimizer_state(device, network, optimizer);
     std::mt19937 rng(2);
     lic::init_weights(device, network, rng);
 
@@ -594,7 +600,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            lic::update(device, network);
+            lic::update(device, network, optimizer);
             std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
         }
         epoch_loss /= n_iter;

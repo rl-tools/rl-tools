@@ -2,6 +2,9 @@
 #define LAYER_IN_C_NN_MODELS_MLP_NETWORK_H
 
 #include <layer_in_c/nn/nn.h>
+#include <layer_in_c/nn/parameters/parameters.h>
+#include <layer_in_c/nn/optimizers/sgd/sgd.h>
+#include <layer_in_c/nn/optimizers/adam/adam.h>
 #include <layer_in_c/utils/generic/typing.h>
 #include <layer_in_c/containers.h>
 
@@ -35,10 +38,11 @@ namespace layer_in_c::nn_models::mlp {
             && SPEC_1::OUTPUT_ACTIVATION_FUNCTION == SPEC_2::OUTPUT_ACTIVATION_FUNCTION;
 
 
-    template <typename T_STRUCTURE_SPEC>
+    template <typename T_STRUCTURE_SPEC, typename T_PARAMETER_TYPE>
     struct Specification{
         using STRUCTURE_SPEC = T_STRUCTURE_SPEC;
         using S = STRUCTURE_SPEC;
+        using PARAMETER_TYPE = T_PARAMETER_TYPE;
         using T = typename S::T;
         using TI = typename S::TI;
         static constexpr TI NUM_HIDDEN_LAYERS = STRUCTURE_SPEC::NUM_LAYERS - 2;
@@ -49,46 +53,49 @@ namespace layer_in_c::nn_models::mlp {
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = S::ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = typename S::MEMORY_LAYOUT;
 
-        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
     };
 
     template <typename T_STRUCTURE_SPEC>
-    struct InferenceSpecification: Specification<T_STRUCTURE_SPEC>{
-        using  INPUT_LAYER = nn::layers::dense::Layer<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC >;
-        using HIDDEN_LAYER = nn::layers::dense::Layer<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::Layer<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC>;
+    struct InferenceSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>{
+        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>;
+        using  INPUT_LAYER = nn::layers::dense::Layer<typename SUPER::INPUT_LAYER_SPEC >;
+        using HIDDEN_LAYER = nn::layers::dense::Layer<typename SUPER::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::Layer<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
     template <typename T_STRUCTURE_SPEC>
-    struct InferenceBackwardSpecification: Specification<T_STRUCTURE_SPEC>{
-        using  INPUT_LAYER = nn::layers::dense::LayerBackward<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackward<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackward<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC>;
+    struct InferenceBackwardSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>{
+        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>;
+        using  INPUT_LAYER = nn::layers::dense::LayerBackward<typename SUPER::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackward<typename SUPER::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackward<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
     template <typename T_STRUCTURE_SPEC>
-    struct BackwardGradientSpecification: Specification<T_STRUCTURE_SPEC>{
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardGradient<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC>;
+    struct BackwardGradientSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Gradient>{
+        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Gradient>;
+        using  INPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
-    template<typename T_STRUCTURE_SPEC, typename T_SGD_PARAMETERS>
-    struct SGDSpecification: Specification<T_STRUCTURE_SPEC>{
-        using SGD_PARAMETERS = T_SGD_PARAMETERS;
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardSGD<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC, T_SGD_PARAMETERS>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardSGD<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC, T_SGD_PARAMETERS>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardSGD<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC, T_SGD_PARAMETERS>;
+    template<typename T_STRUCTURE_SPEC>
+    struct SGDSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::SGD>{
+        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::SGD>;
+        using  INPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
-    template<typename T_STRUCTURE_SPEC, typename T_ADAM_PARAMETERS = nn::optimizers::adam::DefaultParametersTorch<typename T_STRUCTURE_SPEC::T>>
-    struct AdamSpecification: Specification<T_STRUCTURE_SPEC>{
-        using ADAM_PARAMETERS = T_ADAM_PARAMETERS;
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardAdam<typename Specification<T_STRUCTURE_SPEC>::INPUT_LAYER_SPEC, T_ADAM_PARAMETERS>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardAdam<typename Specification<T_STRUCTURE_SPEC>::HIDDEN_LAYER_SPEC, T_ADAM_PARAMETERS>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardAdam<typename Specification<T_STRUCTURE_SPEC>::OUTPUT_LAYER_SPEC, T_ADAM_PARAMETERS>;
+    template<typename T_STRUCTURE_SPEC>
+    struct AdamSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Adam>{
+        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Adam>;
+        using  INPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
     template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE>

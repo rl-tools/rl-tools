@@ -54,8 +54,8 @@ namespace layer_in_c{
         free(device, runner.episode_return);
         free(device, runner.truncated);
     }
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, typename SPEC::ENVIRONMENT environments[SPEC::N_ENVIRONMENTS]){
+    template <typename DEVICE, typename SPEC, typename RNG>
+    void init(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, typename SPEC::ENVIRONMENT environments[SPEC::N_ENVIRONMENTS], RNG& rng){
         using TI = typename SPEC::TI;
         set_all(device, runner.episode_step, 0);
         set_all(device, runner.episode_return, 0);

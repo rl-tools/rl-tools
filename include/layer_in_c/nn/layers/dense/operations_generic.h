@@ -2,8 +2,9 @@
 #define LAYER_IN_C_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H
 
 #include <layer_in_c/containers.h>
+#include <layer_in_c/nn/parameters/operations_generic.h>
+
 #include <layer_in_c/nn/layers/dense/layer.h>
-#include <layer_in_c/utils/polyak/operations_generic.h>
 #ifndef LAYER_IN_C_FUNCTION_PLACEMENT
 #define LAYER_IN_C_FUNCTION_PLACEMENT
 #endif
@@ -33,31 +34,11 @@ namespace layer_in_c{
     void malloc(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
         malloc(device, (nn::layers::dense::LayerBackward<SPEC>&) layer);
         malloc(device, layer.output);
-        malloc(device, layer.d_biases);
-        malloc(device, layer.d_weights);
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
         free(device, (nn::layers::dense::LayerBackward<SPEC>&) layer);
         free(device, layer.output);
-        free(device, layer.d_biases);
-        free(device, layer.d_weights);
-    }
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void malloc(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
-        malloc(device, (nn::layers::dense::LayerBackwardGradient<SPEC>&) layer);
-        malloc(device, layer.d_weights_first_order_moment);
-        malloc(device, layer.d_weights_second_order_moment);
-        malloc(device, layer.d_biases_first_order_moment);
-        malloc(device, layer.d_biases_second_order_moment);
-    }
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void free(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
-        free(device, (nn::layers::dense::LayerBackwardGradient<SPEC>&) layer);
-        free(device, layer.d_weights_first_order_moment);
-        free(device, layer.d_weights_second_order_moment);
-        free(device, layer.d_biases_first_order_moment);
-        free(device, layer.d_biases_second_order_moment);
     }
 
     template<typename DEVICE, typename SPEC, typename RNG>
@@ -71,9 +52,9 @@ namespace layer_in_c{
         T weight_bound = math::sqrt(typename DEVICE::SPEC::MATH(), (T)3.0) * std;
         T bias_bound = 1/math::sqrt(typename DEVICE::SPEC::MATH(), (T)SPEC::INPUT_DIM);
         for(TI i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            set(layer.biases, 0, i, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng));
+            set(layer.biases.parameters, 0, i, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng));
             for(TI j = 0; j < SPEC::INPUT_DIM; j++) {
-                set(layer.weights, i, j, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng));
+                set(layer.weights.parameters, i, j, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng));
             }
         }
     }
@@ -105,9 +86,9 @@ namespace layer_in_c{
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI i = 0; i < LAYER_SPEC::OUTPUT_DIM; i++) {
-                set(layer.pre_activations, batch_i, i, get(layer.biases, 0, i));
+                set(layer.pre_activations, batch_i, i, get(layer.biases.parameters, 0, i));
                 for(TI j = 0; j < LAYER_SPEC::INPUT_DIM; j++) {
-                    increment(layer.pre_activations, batch_i, i, get(layer.weights, i, j) * get(input, batch_i, j));
+                    increment(layer.pre_activations, batch_i, i, get(layer.weights.parameters, i, j) * get(input, batch_i, j));
                 }
                 set(output, batch_i, i, activation<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, i)));
             }
@@ -170,69 +151,33 @@ namespace layer_in_c{
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
 //                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
                 T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
-                increment(layer.d_biases, 0, output_i, d_pre_activation);
+                increment(layer.biases.gradient, 0, output_i, d_pre_activation);
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
 //                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_i;
                     if(output_i == 0){
                         set(d_input, batch_i, input_i, 0);
                     }
-                    increment(d_input, batch_i, input_i, get(layer.weights, output_i, input_i) * d_pre_activation);
-                    increment(layer.d_weights, output_i, input_i, d_pre_activation * get(input, batch_i, input_i));
+                    increment(d_input, batch_i, input_i, get(layer.weights.parameters, output_i, input_i) * d_pre_activation);
+                    increment(layer.weights.gradient, output_i, input_i, d_pre_activation * get(input, batch_i, input_i));
                 }
             }
         }
     }
     template<typename DEVICE, typename SPEC>
     void zero_gradient(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            set(layer.d_biases, 0, i, 0);
-            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                set(layer.d_weights, i, j, 0);
-            }
-        }
+        set_all(device, layer.weights.gradient, 0);
+        set_all(device, layer.biases.gradient, 0);
     }
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void update_layer(DEVICE& device, nn::layers::dense::LayerBackwardSGD<SPEC, PARAMETERS>& layer){
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            increment(layer.biases, 0, i, -PARAMETERS::ALPHA * get(layer.d_biases, 0, i));
-            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                increment(layer.weights, i, j, -PARAMETERS::ALPHA * get(layer.d_weights, i, j));
-            }
-        }
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void update(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, OPTIMIZER& optimizer){
+        update(device, layer.weights, optimizer);
+        update(device, layer.biases, optimizer);
     }
 
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void reset_optimizer_state(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            set(layer.d_biases_first_order_moment, 0, i, 0);
-            set(layer.d_biases_second_order_moment, 0, i, 0);
-            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                set(layer.d_weights_first_order_moment, i, j, 0);
-                set(layer.d_weights_second_order_moment, i, j, 0);
-            }
-        }
-    }
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void gradient_descent(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer, typename SPEC::T first_order_moment_bias_correction, typename SPEC::T second_order_moment_bias_correction){
-        for(typename DEVICE::index_t i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            typename SPEC::T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * get(layer.d_biases_first_order_moment, 0, i) / (math::sqrt(typename DEVICE::SPEC::MATH(), get(layer.d_biases_second_order_moment, 0, i) * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-            increment(layer.biases, 0, i, -bias_update);
-            for(typename DEVICE::index_t j = 0; j < SPEC::INPUT_DIM; j++) {
-                typename SPEC::T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * get(layer.d_weights_first_order_moment, i, j) / (math::sqrt(typename DEVICE::SPEC::MATH(), get(layer.d_weights_second_order_moment, i, j) * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-                increment(layer.weights, i, j, -weight_update);
-            }
-        }
-    }
-
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void update_layer(DEVICE& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer, typename SPEC::T first_order_moment_bias_correction, typename SPEC::T second_order_moment_bias_correction) {
-        utils::polyak::update(device, layer.d_weights_first_order_moment, layer.d_weights, PARAMETERS::BETA_1);
-        utils::polyak::update(device, layer. d_biases_first_order_moment, layer.d_biases , PARAMETERS::BETA_1);
-
-        utils::polyak::update_squared(device, layer.d_weights_second_order_moment, layer.d_weights, PARAMETERS::BETA_2);
-        utils::polyak::update_squared(device, layer. d_biases_second_order_moment, layer.d_biases , PARAMETERS::BETA_2);
-
-        gradient_descent(device, layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void reset_optimizer_state(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, OPTIMIZER& optimizer) {
+        reset_optimizer_state(device, layer.weights, optimizer);
+        reset_optimizer_state(device, layer.biases, optimizer);
     }
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
@@ -261,28 +206,11 @@ namespace layer_in_c{
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>* target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>* source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
         copy(target_device, source_device, (nn::layers::dense::LayerBackward<TARGET_SPEC>*)target, (nn::layers::dense::LayerBackward<SOURCE_SPEC>*)source);
-        copy(target_device, source_device, target->d_biases, source->d_biases);
-        copy(target_device, source_device, target->d_weights, source->d_weights);
         copy(target_device, source_device, target->output, source->output);
 
     }
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>& target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>& source){
-        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, &target, &source);
-    }
-
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC, typename TARGET_PARAMETERS, typename SOURCE_PARAMETERS>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardAdam<TARGET_SPEC, TARGET_PARAMETERS>* target, const nn::layers::dense::LayerBackwardAdam<SOURCE_SPEC, SOURCE_PARAMETERS>* source){
-        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, (nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>*)target, (nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>*)source);
-        copy(target_device, source_device, target->d_biases_first_order_moment, source->d_biases_first_order_moment);
-        copy(target_device, source_device, target->d_biases_second_order_moment, source->d_biases_second_order_moment);
-        copy(target_device, source_device, target->d_weights_first_order_moment, source->d_weights_first_order_moment);
-        copy(target_device, source_device, target->d_weights_second_order_moment, source->d_weights_second_order_moment);
-    }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC, typename TARGET_PARAMETERS, typename SOURCE_PARAMETERS>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardAdam<TARGET_SPEC, TARGET_PARAMETERS>& target, const nn::layers::dense::LayerBackwardAdam<SOURCE_SPEC, SOURCE_PARAMETERS>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
         copy(target_device, source_device, &target, &source);
     }
@@ -332,28 +260,12 @@ namespace layer_in_c{
         using T = typename SPEC_1::T;
         T acc = abs_diff(device, (layer_in_c::nn::layers::dense::LayerBackward<SPEC_1>*) l1, (layer_in_c::nn::layers::dense::LayerBackward<SPEC_2>*) l2);
         acc += abs_diff(device, l1->output, l2->output);
-        acc += abs_diff(device, l1->d_biases, l2->d_biases);
-        acc += abs_diff(device, l1->d_weights, l2->d_weights);
+        acc += abs_diff(device, l1->biases.gradient, l2->biases.gradient);
+        acc += abs_diff(device, l1->weights.gradient, l2->weights.gradient);
         return acc;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC_1>& l1, const layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC_2>& l2) {
-        static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
-        return abs_diff(device, &l1, &l2);
-    }
-    template <typename DEVICE, typename SPEC_1, typename SPEC_2, typename PARAMETERS_1, typename PARAMETERS_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const layer_in_c::nn::layers::dense::LayerBackwardAdam<SPEC_1, PARAMETERS_1>* l1, const layer_in_c::nn::layers::dense::LayerBackwardAdam<SPEC_2, PARAMETERS_2>* l2) {
-        static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
-        using T = typename SPEC_1::T;
-        T acc = abs_diff(device, (layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC_1>*) l1, (layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC_2>*) l2);
-        acc += abs_diff(device, l1->d_weights_first_order_moment, l2->d_weights_first_order_moment);
-        acc += abs_diff(device, l1->d_weights_second_order_moment, l2->d_weights_second_order_moment);
-        acc += abs_diff(device, l1->d_biases_first_order_moment, l2->d_biases_first_order_moment);
-        acc += abs_diff(device, l1->d_biases_second_order_moment, l2->d_biases_second_order_moment);
-        return acc;
-    }
-    template <typename DEVICE, typename SPEC_1, typename SPEC_2, typename PARAMETERS_1, typename PARAMETERS_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const layer_in_c::nn::layers::dense::LayerBackwardAdam<SPEC_1, PARAMETERS_1>& l1, const layer_in_c::nn::layers::dense::LayerBackwardAdam<SPEC_2, PARAMETERS_2>& l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         return abs_diff(device, &l1, &l2);
     }
@@ -391,15 +303,6 @@ namespace layer_in_c{
             is_nan(device, l.output) ||
             is_nan(device, l.d_weights) ||
             is_nan(device, l.d_biases);
-    }
-    template <typename DEVICE, typename SPEC, typename PARAMETERS>
-    bool is_nan(DEVICE& device, const layer_in_c::nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& l) {
-        return
-            is_nan(device, (layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC>&) l) ||
-            is_nan(device, l.d_weights_first_order_moment) ||
-            is_nan(device, l.d_weights_second_order_moment) ||
-            is_nan(device, l.d_biases_first_order_moment) ||
-            is_nan(device, l.d_biases_second_order_moment);
     }
 }
 

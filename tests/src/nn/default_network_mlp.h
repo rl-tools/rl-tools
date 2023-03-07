@@ -8,7 +8,7 @@ using NN_DEVICE = lic::devices::DefaultCPU;
 using StructureSpecification = lic::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY>;
 
 using STRUCTURE_SPEC = StructureSpecification;
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC>; //, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
 
 using NETWORK_SPEC_BACKWARD_ONLY = lic::nn_models::mlp::InferenceBackwardSpecification<StructureSpecification>;
@@ -53,5 +53,5 @@ protected:
 
 using StructureSpecification_3 = lic::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
 
-using NETWORK_SPEC_3 = lic::nn_models::mlp::AdamSpecification<StructureSpecification_3, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using NETWORK_SPEC_3 = lic::nn_models::mlp::AdamSpecification<StructureSpecification_3>;
 using NetworkType_3 = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC_3>;
