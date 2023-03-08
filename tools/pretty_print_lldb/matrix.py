@@ -11,23 +11,31 @@ import lldb
 # type summary add -F matrix.pretty_print_row_major_alignment -x "^layer_in_c::Matrix<layer_in_c::matrix::Specification<"
 # p m1
 
-def pretty_print_row_major_alignment(valobj, internal_dict, options):
-    # regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
+
+def decode_row_major(valobj):
     regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
     result = re.match(regex, valobj.type.name)
     if result is None:
-        return f"Matrix type could not be parsed: {valobj.type.name}"
+        return None
     else:
         meta = dict(zip(["T", "TI", "ROWS", "COLS", "TI2", "ROW_MAJOR_ALIGNMENT", "IS_VIEW"], result.groups()))
         meta["ROWS"] = int(meta["ROWS"])
         meta["COLS"] = int(meta["COLS"])
         meta["ROW_MAJOR_ALIGNMENT"] = int(meta["ROW_MAJOR_ALIGNMENT"])
         ALIGNMENT = meta["ROW_MAJOR_ALIGNMENT"]
-        meta["ROW_PITCH"] = ((meta["COLS"] + ALIGNMENT - 1) // ALIGNMENT) * ALIGNMENT;
-        float_ptr = valobj.GetChildMemberWithName("_data")
-        float_type = float_ptr.GetType().GetPointeeType()
-        target = valobj.GetTarget()
+        meta["ROW_PITCH"] = ((meta["COLS"] + ALIGNMENT - 1) // ALIGNMENT) * ALIGNMENT
+        return meta
 
+def pretty_print_row_major_alignment(valobj, internal_dict, options):
+    # regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
+    float_ptr = valobj.GetChildMemberWithName("_data")
+    float_type = float_ptr.GetType().GetPointeeType()
+    target = valobj.GetTarget()
+
+    meta = decode_row_major(valobj)
+    if meta is None:
+        return f"Matrix type could not be parsed: {valobj.type.name}"
+    else:
         acc = "\n"
         for row_i in range(meta["ROWS"]):
             for col_i in range(meta["COLS"]):
@@ -42,21 +50,32 @@ def pretty_print_row_major_alignment(valobj, internal_dict, options):
         return f"Matrix type: {acc}"
         # return float_ptr.Dereference()
 
-# class SyntheticChildrenProvider:
-#     def __init__(self, valobj, internal_dict):
-#         regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
-#         self.result = re.match(regex, valobj.type.name)
-#         self.meta = dict(zip(["T", "TI", "ROWS", "COLS", "TI2", "ROW_MAJOR_ALIGNMENT", "IS_VIEW"], self.result.groups())) if self.result is not None else None
-#     def num_children(self):
-#         return self.meta["ROWS"] if self.meta is not None else 0
-#     def get_child_index(self,name):
-#         return -1;
-#     def get_child_at_index(self,index):
-#         pos = index
-#     def update(self):
-#         this call should be used to update the internal state of this Python object whenever the state of the variables in LLDB changes.[1]
-#         Also, this method is invoked before any other method in the interface.
-#     def has_children(self):
-#         this call should return True if this object might have children, and False if this object can be guaranteed not to have children.[2]
-#     def get_value(self):
-#         this call can return an SBValue to be presented as the value of the synthetic value under consideration.[3]
+class PrettyPrintRowMajorAlignment:
+    def __init__(self, valobj, internal_dict):
+        self.meta = decode_row_major(valobj)
+        self.val = valobj
+        self.float_ptr = valobj.GetChildMemberWithName("_data")
+        self.float_type = self.float_ptr.GetType().GetPointeeType()
+        self.target = valobj.GetTarget()
+    def num_children(self):
+        return self.meta["ROWS"] if self.meta is not None else 0
+    def get_child_index(self,name):
+        return -1;
+    def get_child_at_index(self, row_i):
+        if self.meta is None:
+            return f"Matrix type could not be parsed {self.val.type.name}"
+        else:
+            col_i = 0
+            pos = row_i * self.meta["ROW_PITCH"] + col_i
+            offset = pos * self.float_type.GetByteSize()
+            # val_wrapper = self.target.CreateValueFromAddress("temp", lldb.SBAddress(offset, self.target), self.float_type)
+            # val = val_wrapper.GetValue()
+            return self.float_ptr.Dereference().CreateChildAtOffset('[' + str(row_i) + ']', offset, self.float_type)
+            # return val;
+
+    def update(self):
+        pass
+    def has_children(self):
+        return True
+    def get_value(self):
+        return None
