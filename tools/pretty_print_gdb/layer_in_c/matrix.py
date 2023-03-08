@@ -1,6 +1,7 @@
 import re
 import gdb
 
+# layer_in_c::Matrix<layer_in_c::matrix::Specification<([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*, layer_in_c::matrix::layouts::RowMajorAlignment<([^,]+)\s*,\s*([^(,)]+)>\s*,\s*([^,]+)>\s>
 class MatrixPrinter:
     def __init__(self, val):
         self.val = val
