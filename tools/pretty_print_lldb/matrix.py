@@ -8,15 +8,12 @@ import lldb
 # run
 # type summary clear
 # command script import tools/pretty_print_lldb/matrix.py
-# type summary add -F matrix.pp_matrix -x "^layer_in_c::Matrix<layer_in_c::matrix::Specification<"
+# type summary add -F matrix.pretty_print_row_major_alignment -x "^layer_in_c::Matrix<layer_in_c::matrix::Specification<"
 # p m1
 
-def pp_matrix(valobj, internal_dict, options):
-    # regex = r"layer_in_c::Matrix<layer_in_c::matrix::Specification<([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*, layer_in_c::matrix::layouts::RowMajorAlignment<([^,]+)\s*,\s*([^(,)]+)>\s*,\s*([^,]+)>\s>"
-    # regex = r"^(?:const|)\s*layer_in_c::Matrix<layer_in_c::matrix::Specification<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c::matrix::layouts::RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^(,)]+)\s*>\s*,\s*([^,]+)\s*>\s>$"
-    # regex = r"^(?:const|\s*)\s*layer_in_c::Matrix<layer_in_c::matrix::Specification<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c::matrix::layouts::RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>$"
-
-    regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
+def pretty_print_row_major_alignment(valobj, internal_dict, options):
+    # regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
+    regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
     result = re.match(regex, valobj.type.name)
     if result is None:
         return f"Matrix type could not be parsed: {valobj.type.name}"

@@ -1,0 +1,5 @@
+# probably requires enabling execution of project .lldbinit files in ~/.lldbinit:
+# echo "settings set target.load-cwd-lldbinit true" >> ~/.lldbinit
+command script import tools/pretty_print_lldb/matrix.py
+type summary add -F matrix.pretty_print_row_major_alignment -x "^layer_in_c::Matrix<layer_in_c::matrix::Specification<"
+
