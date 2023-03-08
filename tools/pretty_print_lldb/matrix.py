@@ -40,6 +40,7 @@ def pretty_print_row_major_alignment(valobj, internal_dict, options):
 
 
         return f"Matrix type: {acc}"
+        # return float_ptr.Dereference()
 
 # class SyntheticChildrenProvider:
 #     def __init__(self, valobj, internal_dict):
