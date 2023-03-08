@@ -42,10 +42,17 @@ namespace layer_in_c{
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::parameters::Adam::instance<TARGET_SPEC>& target, const nn::parameters::Adam::instance<SOURCE_SPEC>& source){
-        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
         copy(target_device, source_device, (nn::parameters::Gradient::instance<TARGET_SPEC>&) target, (nn::parameters::Gradient::instance<SOURCE_SPEC>&) source);
         copy(target_device, source_device, target.gradient_first_order_moment , source.gradient_first_order_moment);
         copy(target_device, source_device, target.gradient_second_order_moment, source.gradient_second_order_moment);
+    }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    typename SPEC_1::T abs_diff(DEVICE& device, const nn::parameters::Adam::instance<SPEC_1>& p1, const nn::parameters::Adam::instance<SPEC_2>& p2){
+        typename SPEC_1::T acc = 0;
+        acc += abs_diff(device, (nn::parameters::Gradient::instance<SPEC_1>&) p1, (nn::parameters::Gradient::instance<SPEC_2>&) p2);
+        acc += abs_diff(device, p1.gradient_first_order_moment, p2.gradient_first_order_moment);
+        acc += abs_diff(device, p1.gradient_second_order_moment, p2.gradient_second_order_moment);
+        return acc;
     }
 }
 #endif

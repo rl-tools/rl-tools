@@ -67,9 +67,9 @@ namespace layer_in_c{
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
-                set(output, batch_i, output_i, get(layer.biases, 0, output_i));
+                set(output, batch_i, output_i, get(layer.biases.parameters, 0, output_i));
                 for(TI input_i = 0; input_i < LAYER_SPEC::INPUT_DIM; input_i++) {
-                    increment(output, batch_i, output_i, get(layer.weights, output_i, input_i) * get(input, batch_i, input_i));
+                    increment(output, batch_i, output_i, get(layer.weights.parameters, output_i, input_i) * get(input, batch_i, input_i));
                 }
                 set(output, batch_i, output_i, activation<typename DEVICE::SPEC::MATH, typename LAYER_SPEC::T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(output, batch_i, output_i)));
             }
@@ -260,8 +260,6 @@ namespace layer_in_c{
         using T = typename SPEC_1::T;
         T acc = abs_diff(device, (layer_in_c::nn::layers::dense::LayerBackward<SPEC_1>*) l1, (layer_in_c::nn::layers::dense::LayerBackward<SPEC_2>*) l2);
         acc += abs_diff(device, l1->output, l2->output);
-        acc += abs_diff(device, l1->biases.gradient, l2->biases.gradient);
-        acc += abs_diff(device, l1->weights.gradient, l2->weights.gradient);
         return acc;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
@@ -300,9 +298,7 @@ namespace layer_in_c{
     bool is_nan(DEVICE& device, const layer_in_c::nn::layers::dense::LayerBackwardGradient<SPEC>& l) {
         return
             is_nan(device, (layer_in_c::nn::layers::dense::LayerBackward<SPEC>&) l) ||
-            is_nan(device, l.output) ||
-            is_nan(device, l.d_weights) ||
-            is_nan(device, l.d_biases);
+            is_nan(device, l.output);
     }
 }
 

@@ -42,13 +42,15 @@ using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DE
 using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
 
-using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+using OPTIMIZER_PARAMETERS = typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
 using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
 using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
-using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
 using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
 using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
@@ -79,12 +81,13 @@ int main() {
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
     NN_DEVICE nn_device;
+    OPTIMIZER optimizer;
     device.logger = &logger;
     nn_device.logger = &logger;
     lic::malloc(device, off_policy_runner);
     lic::malloc(device, actor_critic);
     auto rng = lic::random::default_engine(decltype(device)::SPEC::RANDOM());
-    lic::init(device, actor_critic, rng);
+    lic::init(device, actor_critic, optimizer, rng);
 
     bool ui = false;
 
@@ -118,11 +121,11 @@ int main() {
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 lic::gather_batch(device, off_policy_runner, critic_batch, rng);
-                lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
+                lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
             }
             if(step_i % 2 == 0){
                 lic::gather_batch(device, off_policy_runner, actor_batch, rng);
-                lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+                lic::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
                 lic::update_critic_targets(device, actor_critic);
                 lic::update_actor_target(device, actor_critic);
             }
