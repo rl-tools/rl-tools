@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="test_rl_cuda_environments_multirotor" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_rl_cuda_environments_multirotor" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_rl_cuda_environments_multirotor" TEST_MODE="SUITE_TEST">
+  <configuration default="false" name="test_rl_cuda_environments_multirotor" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_rl_cuda_environments_multirotor" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_rl_cuda_environments_multirotor" TEST_MODE="SUITE_TEST">
     <method v="2">
       <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       <option name="BeforeTestRunTask" enabled="true" />

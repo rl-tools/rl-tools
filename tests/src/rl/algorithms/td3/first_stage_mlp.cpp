@@ -194,6 +194,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     first_stage_first_stage::ActorCriticType actor_critic;
     typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers;
     typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers;
+    using OPTIMIZER_PARAMETERS = typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    OPTIMIZER optimizer;
 
     lic::malloc(device, actor_critic);
     lic::malloc(device, critic_buffers);
@@ -201,7 +204,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 
 
     std::mt19937 rng(0);
-    lic::init(device, actor_critic, rng);
+    lic::init(device, actor_critic, optimizer, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(device, actor_critic.critic_1, data_file.getGroup("critic_1"));
@@ -254,13 +257,15 @@ namespace first_stage_second_stage{
     using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
     using NN_DEVICE = lic::devices::DefaultCPU;
-    using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+    using OPTIMIZER_PARAMETERS = typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
     using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
     using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
     using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
-    using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec, typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+    using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
     using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
     using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
@@ -276,6 +281,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
+    first_stage_second_stage::OPTIMIZER optimizer;
     device.logger = &logger;
     first_stage_second_stage::NN_DEVICE nn_device;
     nn_device.logger = &logger;
@@ -283,7 +289,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     lic::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
-    lic::init(device, actor_critic, rng);
+    lic::init(device, actor_critic, optimizer, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(device, actor_critic.actor, data_file.getGroup("actor"));
@@ -329,7 +335,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 
     decltype(actor_critic.critic_1) pre_critic_1;
     lic::malloc(device, pre_critic_1);
-    lic::reset_optimizer_state(device, actor_critic.critic_1);
+    lic::reset_optimizer_state(device, actor_critic.critic_1, optimizer);
     lic::copy(device, device, pre_critic_1, actor_critic.critic_1);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
@@ -369,7 +375,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         }
 //        assert(!lic::is_nan(device, actor_critic));
 
-        lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_buffers[0], critic_buffers[0], critic_training_buffers);
+        lic::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, optimizer, actor_buffers[0], critic_buffers[0], critic_training_buffers);
 
         auto target_next_action_diff = lic::abs_diff(device, critic_training_buffers_target.next_actions, critic_training_buffers.next_actions);
         auto next_state_action_value_input_diff = lic::abs_diff(device, critic_training_buffers_target.next_state_action_value_input, critic_training_buffers.next_state_action_value_input);
@@ -440,6 +446,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 //    typedef lic::rl::algorithms::td3::ActorCritic<lic::devices::Generic, ActorCriticSpec> ActorCriticType;
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
+    first_stage_second_stage::OPTIMIZER optimizer;
     device.logger = &logger;
     first_stage_second_stage::NN_DEVICE nn_device;
     nn_device.logger = &logger;
@@ -447,7 +454,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     lic::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
-    lic::init(device, actor_critic, rng);
+    lic::init(device, actor_critic, optimizer, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     lic::load(device, actor_critic.actor, data_file.getGroup("actor"));
@@ -487,7 +494,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     decltype(actor_critic.actor) pre_actor;
     lic::malloc(device, pre_actor);
     lic::copy(device, device, pre_actor, actor_critic.actor);
-    lic::reset_optimizer_state(device, actor_critic.actor);
+    lic::reset_optimizer_state(device, actor_critic.actor, optimizer);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
     DTYPE mean_ratio_adam = 0;
@@ -501,7 +508,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 
 //        DTYPE actor_1_loss = lic::train_actor<AC_DEVICE, ActorCriticType::SPEC, ReplayBufferType::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
         lic::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, ACTOR_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, actor_batch, rng);
-        DTYPE actor_1_loss = lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+        lic::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
 
         lic::reset_forward_state(device, pre_actor);
         lic::reset_forward_state(device, post_actor);
