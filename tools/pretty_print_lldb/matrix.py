@@ -1,5 +1,6 @@
 import re
 import lldb
+import json
 
 
 # workflow
@@ -36,7 +37,7 @@ def pretty_print_row_major_alignment(valobj, internal_dict, options):
     if meta is None:
         return f"Matrix type could not be parsed: {valobj.type.name}"
     else:
-        acc = "\n"
+        acc = f"{json.dumps(meta)}\n"
         for row_i in range(meta["ROWS"]):
             for col_i in range(meta["COLS"]):
                 pos = row_i * meta["ROW_PITCH"] + col_i

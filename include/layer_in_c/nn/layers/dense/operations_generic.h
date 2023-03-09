@@ -181,39 +181,39 @@ namespace layer_in_c{
     }
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::Layer<TARGET_SPEC>* target, const nn::layers::dense::Layer<SOURCE_SPEC>* source){
-        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, target->weights, source->weights);
-        copy(target_device, source_device, target->biases, source->biases);
-    }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::Layer<TARGET_SPEC>& target, const nn::layers::dense::Layer<SOURCE_SPEC>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, &target, &source);
+        copy(target_device, source_device, target.weights, source.weights);
+        copy(target_device, source_device, target.biases, source.biases);
     }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackward<TARGET_SPEC>* target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>* source){
-        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, (nn::layers::dense::Layer<TARGET_SPEC>*) target, (nn::layers::dense::Layer<TARGET_SPEC>*) source);
-        copy(target_device, source_device, target->pre_activations, source->pre_activations);
-    }
+//    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+//    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::Layer<TARGET_SPEC>& target, const nn::layers::dense::Layer<SOURCE_SPEC>& source){
+//        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
+//        copy(target_device, source_device, &target, &source);
+//    }
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackward<TARGET_SPEC>& target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, &target, &source);
+        copy(target_device, source_device, (nn::layers::dense::Layer<TARGET_SPEC>&) target, (nn::layers::dense::Layer<TARGET_SPEC>&) source);
+        copy(target_device, source_device, target.pre_activations, source.pre_activations);
     }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>* target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>* source){
-        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, (nn::layers::dense::LayerBackward<TARGET_SPEC>*)target, (nn::layers::dense::LayerBackward<SOURCE_SPEC>*)source);
-        copy(target_device, source_device, target->output, source->output);
-
-    }
+//    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+//    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackward<TARGET_SPEC>& target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>& source){
+//        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
+//        copy(target_device, source_device, &target, &source);
+//    }
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>& target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, &target, &source);
+        copy(target_device, source_device, (nn::layers::dense::LayerBackward<TARGET_SPEC>&)target, (nn::layers::dense::LayerBackward<SOURCE_SPEC>&)source);
+        copy(target_device, source_device, target.output, source.output);
+
     }
+//    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+//    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>& target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>& source){
+//        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
+//        copy(target_device, source_device, &target, &source);
+//    }
 
 //    namespace nn::layers::dense::helper{
 //        template <typename DEVICE, typename T, typename DEVICE::index_t N_ROWS, typename DEVICE::index_t N_COLS>

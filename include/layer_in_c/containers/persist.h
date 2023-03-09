@@ -18,17 +18,22 @@ namespace layer_in_c {
     }
 
     template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, Matrix<SPEC>& m, HighFive::Group group, std::string dataset_name) {
-        auto dataset = group.getDataSet(dataset_name);
-        auto dims = dataset.getDimensions();
-        assert(dims.size() == 2);
-        assert(dims[0] == SPEC::ROWS);
-        assert(dims[1] == SPEC::COLS);
-        std::vector<std::vector<typename SPEC::T>> data;
-        dataset.read(data);
-        for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
-            for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
-                set(m, i, j, data[i][j]);
+    void load(DEVICE& device, Matrix<SPEC>& m, HighFive::Group group, std::string dataset_name, bool fallback_to_zero = false) {
+        if(fallback_to_zero && !group.exist(dataset_name)){
+            set_all(device, m, 0);
+        }
+        else{
+            auto dataset = group.getDataSet(dataset_name);
+            auto dims = dataset.getDimensions();
+            assert(dims.size() == 2);
+            assert(dims[0] == SPEC::ROWS);
+            assert(dims[1] == SPEC::COLS);
+            std::vector<std::vector<typename SPEC::T>> data;
+            dataset.read(data);
+            for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){
+                for(typename DEVICE::index_t j=0; j < SPEC::COLS; j++){
+                    set(m, i, j, data[i][j]);
+                }
             }
         }
     }

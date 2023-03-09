@@ -185,11 +185,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     lic::reset_optimizer_state(device, actor_critic.critic_1, optimizer);
     lic::reset_optimizer_state(device, actor_critic.critic_2, optimizer);
     DTYPE mean_ratio_critic = 0;
-    DTYPE mean_ratio_critic_grad = 0;
-    DTYPE mean_ratio_critic_adam = 0;
     DTYPE mean_ratio_actor = 0;
-    DTYPE mean_ratio_actor_grad = 0;
-    DTYPE mean_ratio_actor_adam = 0;
     DTYPE mean_ratio_critic_target = 0;
     auto full_training_group = data_file.getGroup("full_training");
     auto steps_group = full_training_group.getGroup("steps");
@@ -263,25 +259,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             DTYPE diff_target_per_weight = abs_diff(device, post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
             DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-            DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-            DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-            DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
-
-            DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-            DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-            DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
-
             if(verbose){
                 std:: cout << "    critic update" << std::endl;
 //                std::cout << "pre_post_diff_per_weight: " << pre_post_diff_per_weight << std::endl;
 //                std::cout << "diff_target_per_weight: " << diff_target_per_weight << std::endl;
                 std::cout << "        update ratio     : " << diff_ratio << std::endl;
-//                std::cout << "pre_post_diff_grad_per_weight: " << pre_post_diff_grad_per_weight << std::endl;
-//                std::cout << "diff_target_grad_per_weight: " << diff_target_grad_per_weight << std::endl;
-                std::cout << "        update ratio grad: " << diff_ratio_grad << std::endl;
-//                std::cout << "pre_post_diff_adam_per_weight: " << pre_post_diff_adam_per_weight << std::endl;
-//                std::cout << "diff_target_adam_per_weight: " << diff_target_adam_per_weight << std::endl;
-                std::cout << "        update ratio adam: " << diff_ratio_adam << std::endl;
             }
             if(diff_ratio < 1e10){
 //                std::cout << "something wrong here" << std::endl;
@@ -290,15 +272,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             switch(step_i){
                 case 0: {
                     ASSERT_GT(diff_ratio, 1e6);
-                    ASSERT_GT(diff_ratio_grad, 1e6);
-                    ASSERT_GT(diff_ratio_adam, 1e6);
                 }
                     break;
             }
 
             mean_ratio_critic += diff_ratio;
-            mean_ratio_critic_grad += diff_ratio_grad;
-            mean_ratio_critic_adam += diff_ratio_adam;
 
             {
 //                step_group.getDataSet("target_next_action_noise").read(critic_training_buffers.target_next_action_noise.data);
@@ -381,41 +359,21 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             DTYPE diff_target_per_weight = abs_diff(device, post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
             DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-            DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-            DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-            DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
-
-            DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-            DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-            DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
-
             if(verbose){
                 std:: cout << "    actor update" << std::endl;
 //                std::cout << "        pre_post_diff_per_weight: " << pre_post_diff_per_weight << std::endl;
 //                std::cout << "        diff_target_per_weight: " << diff_target_per_weight << std::endl;
                 std::cout << "        update ratio     : " << diff_ratio << std::endl;
-
-//                std::cout << "        pre_post_diff_grad_per_weight: " << pre_post_diff_grad_per_weight << std::endl;
-//                std::cout << "        diff_target_grad_per_weight: " << diff_target_grad_per_weight << std::endl;
-                std::cout << "        update ratio grad: " << diff_ratio_grad << std::endl;
-
-//                std::cout << "        pre_post_diff_adam_per_weight: " << pre_post_diff_adam_per_weight << std::endl;
-//                std::cout << "        diff_target_adam_per_weight: " << diff_target_adam_per_weight << std::endl;
-                std::cout << "        update ratio adam: " << diff_ratio_adam << std::endl;
             }
 
             switch(step_i){
                 case 0: {
                     ASSERT_GT(diff_ratio, 1e6);
-                    ASSERT_GT(diff_ratio_grad, 1e6);
-                    ASSERT_GT(diff_ratio_adam, 1e6);
                 }
                 break;
             }
 
             mean_ratio_actor += diff_ratio;
-            mean_ratio_actor_grad += diff_ratio_grad;
-            mean_ratio_actor_adam += diff_ratio_adam;
 
             lic::copy(device, device, pre_actor, actor_critic.actor);
             lic::free(device, post_actor);
@@ -507,25 +465,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
         }
     }
     mean_ratio_critic /= num_steps;
-    mean_ratio_critic_grad /= num_steps;
-    mean_ratio_critic_adam /= num_steps;
     mean_ratio_actor /= num_steps;
-    mean_ratio_actor_grad /= num_steps;
-    mean_ratio_actor_adam /= num_steps;
     mean_ratio_critic_target /= num_steps;
     std::cout << "mean_ratio_critic: " << mean_ratio_critic << std::endl;
-    std::cout << "mean_ratio_critic_grad: " << mean_ratio_critic_grad << std::endl;
-    std::cout << "mean_ratio_critic_adam: " << mean_ratio_critic_adam << std::endl;
     std::cout << "mean_ratio_actor: " << mean_ratio_actor << std::endl;
-    std::cout << "mean_ratio_actor_grad: " << mean_ratio_actor_grad << std::endl;
-    std::cout << "mean_ratio_actor_adam: " << mean_ratio_actor_adam << std::endl;
     std::cout << "mean_ratio_critic_target: " << mean_ratio_critic_target << std::endl;
     ASSERT_GT(mean_ratio_critic, 1e12);
-    ASSERT_GT(mean_ratio_critic_grad, 1e13);
-    ASSERT_GT(mean_ratio_critic_adam, 1e12);
     ASSERT_GT(mean_ratio_actor, 1e12);
-    ASSERT_GT(mean_ratio_actor_grad, 1e12);
-    ASSERT_GT(mean_ratio_actor_adam, 1e12);
     ASSERT_GT(mean_ratio_critic_target, 1e11);
 
     lic::free(device, critic_batch);

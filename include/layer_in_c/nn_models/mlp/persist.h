@@ -1,5 +1,6 @@
 #ifndef LAYER_IN_C_NN_MODELS_MLP_PERSIST_H
 #define LAYER_IN_C_NN_MODELS_MLP_PERSIST_H
+#include <layer_in_c/nn/parameters/persist.h>
 #include <layer_in_c/nn/persist.h>
 #include "network.h"
 
