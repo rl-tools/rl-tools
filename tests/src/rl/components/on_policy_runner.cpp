@@ -1,7 +1,7 @@
 #include <layer_in_c/operations/cpu.h>
 #include <layer_in_c/rl/environments/pendulum/pendulum.h>
 #include <layer_in_c/rl/environments/pendulum/operations_generic.h>
-#include <layer_in_c/nn_models/mlp/operations_cpu.h>
+#include <layer_in_c/nn_models/mlp_unconditional_stddev/operations_cpu.h>
 #include <layer_in_c/rl/components/on_policy_runner/on_policy_runner.h>
 #include <layer_in_c/rl/components/on_policy_runner/operations_generic.h>
 #include <layer_in_c/rl/components/on_policy_runner/persist.h>
@@ -33,7 +33,7 @@ TEST(LAYER_IN_C_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
 
     using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::TANH>;
     using ACTOR_SPEC = lic::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-    using ACTOR_TYPE = lic::nn_models::mlp::NeuralNetwork<ACTOR_SPEC>;
+    using ACTOR_TYPE = lic::nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<ACTOR_SPEC>;
     using ACTOR_BUFFERS = typename ACTOR_TYPE::template Buffers<ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
 
 

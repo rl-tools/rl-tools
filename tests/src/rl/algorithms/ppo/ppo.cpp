@@ -1,14 +1,47 @@
-#include <layer_in_c/operations/cpu_mkl/group_1.h>
+// ------------ Groups 1 ------------
 #include <layer_in_c/operations/cpu_tensorboard/group_1.h>
-#include <layer_in_c/operations/cpu_mkl/group_2.h>
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#include <layer_in_c/operations/cpu_mkl/group_1.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate/group_1.h>
+#else
+#include <layer_in_c/operations/cpu/group_1.h>
+#endif
+#endif
+// ------------ Groups 2 ------------
 #include <layer_in_c/operations/cpu_tensorboard/group_2.h>
-#include <layer_in_c/operations/cpu_mkl/group_3.h>
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#include <layer_in_c/operations/cpu_mkl/group_2.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate/group_2.h>
+#else
+#include <layer_in_c/operations/cpu/group_2.h>
+#endif
+#endif
+// ------------ Groups 3 ------------
 #include <layer_in_c/operations/cpu_tensorboard/group_3.h>
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#include <layer_in_c/operations/cpu_mkl/group_3.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/operations/cpu_accelerate/group_3.h>
+#else
+#include <layer_in_c/operations/cpu/group_3.h>
+#endif
+#endif
 
 #include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
 
 
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/nn/operations_cpu_mkl.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/nn/operations_cpu_accelerate.h>
+#endif
+#endif
 #include <layer_in_c/nn_models/operations_cpu.h>
 
 
@@ -31,7 +64,15 @@ struct AdamParameters: lic::nn::optimizers::adam::DefaultParametersTorch<T>{
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     using DEVSPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
     using DEVICE = lic::devices::CPU_MKL<DEVSPEC>;
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+    using DEVICE = lic::devices::CPU_ACCELERATE<DEVSPEC>;
+#else
+    using DEVICE = lic::devices::CPU<DEVSPEC>;
+#endif
+#endif
     using T = float;
     using TI = typename DEVICE::index_t;
     using ENVIRONMENT_SPEC = lic::rl::environments::pendulum::Specification<T, TI>;
@@ -41,7 +82,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     using OPTIMIZER_PARAMETERS = AdamParameters<T>;
     using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     using ACTOR_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
-    using ACTOR_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
+    using ACTOR_TYPE = lic::nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<ACTOR_SPEC>;
     using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 64, lic::nn::activation_functions::ActivationFunction::TANH, lic::nn::activation_functions::IDENTITY, BATCH_SIZE>;
     using CRITIC_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
     using CRITIC_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
@@ -88,7 +129,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     for(TI ppo_step_i = 0; ppo_step_i < 1000; ppo_step_i++){
         device.logger->step = on_policy_runner.step;
         std::cout << "PPO step: " << ppo_step_i << std::endl;
-        lic::collect(device, on_policy_runner_buffer, on_policy_runner, ppo, actor_eval_buffers, rng);
+        lic::collect(device, on_policy_runner_buffer, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
 //        lic::print(device, on_policy_runner_buffer.data);
         lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer);
 //        lic::print(device, on_policy_runner_buffer.data);

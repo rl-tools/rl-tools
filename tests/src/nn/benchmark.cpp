@@ -46,8 +46,10 @@ constexpr DEVICE::index_t HIDDEN_DIM = BATCH_SIZE;
 template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
 using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::RELU, BATCH_SIZE>;
 
+using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
-using InferenceSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+using InferenceSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>>;
 
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<InferenceSpecification<DTYPE, DEVICE::index_t, lic::nn::activation_functions::RELU>>;
 
@@ -65,6 +67,8 @@ protected:
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
+
+    OPTIMIZER optimizer;
 
 
     NetworkType network;
@@ -110,7 +114,7 @@ protected:
 
         lic::copy(device, device, expected_output_output_layer, network.output_layer.output);
 
-        lic::reset_optimizer_state(device, network);
+        lic::reset_optimizer_state(device, network, optimizer);
         lic::zero_gradient(device, network);
         {
             auto start = std::chrono::high_resolution_clock::now();

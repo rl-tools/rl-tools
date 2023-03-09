@@ -12,8 +12,8 @@ namespace layer_in_c{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(INPUT_SPEC::COL_PITCH == 1);
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
-        static_assert(decltype(layer.weights)::COL_PITCH == 1);
-        static_assert(decltype(layer.biases)::COL_PITCH == 1);
+        static_assert(decltype(layer.weights.parameters)::COL_PITCH == 1);
+        static_assert(decltype(layer.biases.parameters)::COL_PITCH == 1);
         static_assert(utils::typing::is_same_v<typename LAYER_SPEC::T, float>);
 
         // Warning do not use the same buffer for input and output!
@@ -36,10 +36,10 @@ namespace layer_in_c{
             {
                 do{
                     output_element = output_row;
-                    biases_element = layer.biases._data;
+                    biases_element = layer.biases.parameters._data;
 
                     weights_row_i = LAYER_SPEC::OUTPUT_DIM;
-                    weights_row = layer.weights._data;
+                    weights_row = layer.weights.parameters._data;
 
                     do{
                         acc = 0.0f;
@@ -69,7 +69,7 @@ namespace layer_in_c{
 
                         weights_row_i--;
 
-                        weights_row += decltype(layer.weights)::ROW_PITCH;
+                        weights_row += decltype(layer.weights.parameters)::ROW_PITCH;
 
                     }while (weights_row_i > 0U);
 

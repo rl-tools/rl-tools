@@ -44,7 +44,6 @@ namespace layer_in_c::rl::algorithms{
         using TI = typename SPEC::TI;
 
         typename SPEC::ACTOR_NETWORK_TYPE actor;
-        Matrix<matrix::Specification<T, TI, 1, SPEC::ENVIRONMENT::ACTION_DIM>> actor_log_std;
         typename SPEC::CRITIC_NETWORK_TYPE critic;
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         bool initialized = false;

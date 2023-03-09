@@ -67,8 +67,8 @@ namespace layer_in_c{
         runner.initialized = true;
 #endif
     }
-    template <typename DEVICE, typename BUFFER_SPEC, typename PPO, typename RNG> // todo: make this not PPO but general policy with output distribution
-    void collect(DEVICE& device, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, rl::components::OnPolicyRunner<typename BUFFER_SPEC::SPEC>& runner, PPO& ppo, typename PPO::SPEC::ACTOR_NETWORK_TYPE::template Buffers<BUFFER_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG& rng){
+    template <typename DEVICE, typename BUFFER_SPEC, typename ACTOR, typename RNG> // todo: make this not PPO but general policy with output distribution
+    void collect(DEVICE& device, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, rl::components::OnPolicyRunner<typename BUFFER_SPEC::SPEC>& runner, ACTOR& actor, typename ACTOR::template Buffers<BUFFER_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
 #endif
@@ -96,7 +96,7 @@ namespace layer_in_c{
             auto actions = view(device, buffer.actions, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations = view(device, buffer.observations, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
-            evaluate(device, ppo.actor, observations, actions);
+            evaluate(device, actor, observations, actions);
 
             for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
@@ -104,7 +104,7 @@ namespace layer_in_c{
                 T action_log_prob = 0;
                 for(TI action_i = 0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++) {
                     T action_mu = get(actions, env_i, action_i);
-                    T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(ppo.actor_log_std, 0, action_i));
+                    T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(actor.action_log_std, 0, action_i));
                     T action_noisy = random::normal_distribution(typename DEVICE::SPEC::RANDOM(), action_mu, action_std, rng);
                     T action_by_action_std = (action_noisy-action_mu) / action_std;
                     action_log_prob += -0.5 * action_by_action_std * action_by_action_std - math::log(typename DEVICE::SPEC::MATH(), action_std) - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);

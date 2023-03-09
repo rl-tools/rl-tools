@@ -8,20 +8,18 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
         malloc(device, ppo.actor);
-        malloc(device, ppo.actor_log_std);
         malloc(device, ppo.critic);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
         free(device, ppo.actor);
-        free(device, ppo.actor_log_std);
         free(device, ppo.critic);
     }
     template <typename DEVICE, typename SPEC, typename OPTIMIZER, typename RNG>
     void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, OPTIMIZER& optimizer, RNG& rng){
         init_weights(device, ppo.actor, rng);
         reset_optimizer_state(device, ppo.actor, optimizer);
-        set_all(device, ppo.actor_log_std, SPEC::PARAMETERS::ACTOR_LOG_STD);
+        set_all(device, ppo.actor.action_log_std, SPEC::PARAMETERS::ACTOR_LOG_STD);
         init_weights(device, ppo.critic, rng);
         reset_optimizer_state(device, ppo.critic, optimizer);
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
@@ -128,7 +126,7 @@ namespace layer_in_c{
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         T current_action = get(current_batch_actions, batch_step_i, action_i);
                         T action = get(batch_actions, batch_step_i, action_i);
-                        T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(ppo.actor_log_std, 0, action_i));
+                        T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(ppo.actor.action_log_std, 0, action_i));
                         T action_diff_by_action_std = (current_action - action) / action_std;
                         action_log_prob += -0.5 * action_diff_by_action_std * action_diff_by_action_std - math::log(typename DEVICE::SPEC::MATH(), action_std) - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);
                         set(d_action_log_prob_d_action, batch_step_i, action_i, - action_diff_by_action_std / action_std);

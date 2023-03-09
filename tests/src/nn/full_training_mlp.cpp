@@ -38,7 +38,9 @@ constexpr int batch_size = 32;
 using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY, 1>;
 
 
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTF<T>>;
+using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTF<T>;
+using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
@@ -73,6 +75,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
+    OPTIMIZER optimizer;
     device.logger = &logger;
     NetworkType network;
     typename NetworkType::Buffers<1> buffers;
@@ -83,7 +86,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     std::vector<T> epoch_durations;
     constexpr int n_epochs = 3;
     //    this->reset();
-    lic::reset_optimizer_state(device, network);
+    lic::reset_optimizer_state(device, network, optimizer);
 //    typename DEVICE::index_t rng = 2;
     std::mt19937 rng(2);
     lic::init_weights(device, network, rng);
@@ -122,7 +125,7 @@ TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
 
             //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            lic::update(device, network);
+            lic::update(device, network, optimizer);
             if(batch_i % 1000 == 0){
                 std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
             }
