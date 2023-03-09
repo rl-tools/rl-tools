@@ -1,5 +1,6 @@
 
 #include "network.h"
+#include <layer_in_c/nn/optimizers/adam/persist_code.h>
 #include <layer_in_c/nn/layers/dense/persist_code.h>
 
 
@@ -8,7 +9,7 @@
 #include <sstream>
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
-    containers::persist::Code save_split(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0) {
+    persist::Code save_split(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using STRUCTURE_SPEC = typename SPEC::STRUCTURE_SPEC;

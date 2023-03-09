@@ -25,7 +25,7 @@ namespace layer_in_c {
         }
     }
     template<typename DEVICE, typename SPEC>
-    containers::persist::Code save_split(DEVICE &device, nn::layers::dense::Layer <SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    persist::Code save_split(DEVICE &device, nn::layers::dense::Layer <SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -49,11 +49,12 @@ namespace layer_in_c {
             << SPEC::INPUT_DIM << ", "
             << SPEC::OUTPUT_DIM << ", "
             << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
+            << get_type_string(typename SPEC::PARAMETER_TYPE()) << ", "
             << 1 << ", "
             << "true, "
             << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
             << ">; \n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "layer_in_c::nn::layers::dense::Layer<SPEC> layer = {weights::matrix, biases::matrix};\n";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "layer_in_c::nn::layers::dense::Layer<SPEC> layer = {weights::parameters, biases::parameters};\n";
         ss << ind << "}\n";
 
         return {ss_header.str(), ss.str()};

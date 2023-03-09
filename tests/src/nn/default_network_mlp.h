@@ -8,7 +8,9 @@ using NN_DEVICE = lic::devices::DefaultCPU;
 using StructureSpecification = lic::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY>;
 
 using STRUCTURE_SPEC = StructureSpecification;
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC>; //, lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>>;
+using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>;
+using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC>;
 using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
 
 using NETWORK_SPEC_BACKWARD_ONLY = lic::nn_models::mlp::InferenceBackwardSpecification<StructureSpecification>;

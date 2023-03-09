@@ -18,6 +18,7 @@ TEST(LAYER_IN_C_NN_PERSIST, Saving) {
 
     NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device;
+    OPTIMIZER optimizer;
     device.logger = &logger;
     NetworkType network_1, network_2;
     lic::malloc(device, network_1);
@@ -26,11 +27,12 @@ TEST(LAYER_IN_C_NN_PERSIST, Saving) {
     lic::init_weights(device, network_1, rng);
     lic::init_weights(device, network_2, rng);
     lic::reset_forward_state(device, network_1);
-    lic::reset_optimizer_state(device, network_1);
+    lic::reset_optimizer_state(device, network_1, optimizer);
     lic::zero_gradient(device, network_1);
     lic::reset_forward_state(device, network_2);
-    lic::reset_optimizer_state(device, network_2);
+    lic::reset_optimizer_state(device, network_2, optimizer);
     lic::zero_gradient(device, network_2);
+    lic::increment(network_1.input_layer.weights.gradient_first_order_moment, 2, 3, 10);
     {
         auto output_file = HighFive::File(std::string("test.hdf5"), HighFive::File::Overwrite);
         lic::save(device, network_1, output_file.createGroup("three_layer_fc"));

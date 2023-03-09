@@ -15,12 +15,6 @@ namespace layer_in_c{
         save(device, parameter.gradient, group, "gradient");
     }
     template<typename DEVICE, typename CONTAINER>
-    void save(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, HighFive::Group group) {
-        save(device, (nn::parameters::Gradient::instance<CONTAINER>&)parameter, group);
-        save(device, parameter.gradient_first_order_moment, group, "gradient_first_order_moment");
-        save(device, parameter.gradient_second_order_moment, group, "gradient_second_order_moment");
-    }
-    template<typename DEVICE, typename CONTAINER>
     void load(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& parameter, HighFive::Group group) {
         load(device, parameter.parameters, group, "parameters");
     }
@@ -28,12 +22,6 @@ namespace layer_in_c{
     void load(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& parameter, HighFive::Group group) {
         load(device, (nn::parameters::Plain::instance<CONTAINER>&)parameter, group);
         load(device, parameter.gradient, group, "gradient");
-    }
-    template<typename DEVICE, typename CONTAINER>
-    void load(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, HighFive::Group group) {
-        load(device, (nn::parameters::Gradient::instance<CONTAINER>&)parameter, group);
-        load(device, parameter.gradient_first_order_moment, group, "gradient_first_order_moment", true);
-        load(device, parameter.gradient_second_order_moment, group, "gradient_second_order_moment", true);
     }
 }
 #endif

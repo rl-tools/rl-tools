@@ -24,10 +24,13 @@ typedef lic::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunne
 using PendulumStructureSpecification = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
-    typedef lic::nn_models::mlp::AdamSpecification<PendulumStructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> SPEC;
+    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    typedef lic::nn_models::mlp::AdamSpecification<PendulumStructureSpecification> SPEC;
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     device.logger = &logger;
+    OPTIMIZER optimizer;
     lic::nn_models::mlp::NeuralNetworkAdam<SPEC> policy;
     lic::malloc(device, policy);
     std::mt19937 rng(0);

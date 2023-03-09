@@ -1,5 +1,6 @@
 #include <layer_in_c/operations/cpu.h>
 #include <layer_in_c/containers/persist_code.h>
+#include <layer_in_c/nn/parameters/persist_code.h>
 #include <layer_in_c/nn/layers/dense/operations_cpu.h>
 #include <layer_in_c/nn/layers/dense/persist_code.h>
 #include <layer_in_c/nn_models/mlp/operations_cpu.h>

@@ -1,15 +1,12 @@
 #ifndef LAYER_IN_C_CONTAINERS_PERSIST_CODE_H
 #define LAYER_IN_C_CONTAINERS_PERSIST_CODE_H
 
+#include <layer_in_c/persist/code.h>
 #include <layer_in_c/utils/generic/typing.h>
 #include <sstream>
 
 namespace layer_in_c{
     namespace containers::persist{
-        struct Code{
-            std::string header;
-            std::string body;
-        };
         using STORAGE_TYPE = unsigned char;
         static_assert(sizeof(STORAGE_TYPE) == 1);
         constexpr auto INDEX_TYPE = "unsigned int";
@@ -46,7 +43,7 @@ namespace layer_in_c{
         }
     }
     template<typename DEVICE, typename SPEC>
-    containers::persist::Code save_split(DEVICE &device, Matrix<SPEC>& m, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    persist::Code save_split(DEVICE &device, Matrix<SPEC>& m, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(utils::typing::is_same_v<containers::persist::STORAGE_TYPE, unsigned char>);
@@ -77,7 +74,9 @@ namespace layer_in_c{
             }
         }
         ss << "};\n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "layer_in_c::Matrix<layer_in_c::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>>matrix = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
+        ss << ind << "    using CONTAINER_SPEC = layer_in_c::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>;\n";
+        ss << ind << "    using CONTAINER_TYPE = layer_in_c::Matrix<CONTAINER_SPEC>;\n";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "CONTAINER_TYPE container = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }
