@@ -1,5 +1,6 @@
 #include <layer_in_c/operations/cpu.h>
 #include <layer_in_c/containers/persist_code.h>
+#include <layer_in_c/nn/optimizers/adam/persist_code.h>
 #include <layer_in_c/nn/parameters/persist_code.h>
 #include <layer_in_c/nn/layers/dense/operations_cpu.h>
 #include <layer_in_c/nn/layers/dense/persist_code.h>
@@ -41,11 +42,23 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST){
 TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
+    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    OPTIMIZER optimizer;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    lic::nn::layers::dense::Layer<lic::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, lic::nn::activation_functions::ActivationFunction::RELU>> layer;
+    lic::nn::layers::dense::LayerBackwardGradient<lic::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::parameters::Adam>> layer;
     lic::malloc(device, layer);
     lic::init_kaiming(device, layer, rng);
+    lic::zero_gradient(device, layer);
+    lic::reset_forward_state(device, layer);
+    lic::reset_optimizer_state(device, layer, optimizer);
+    lic::randn(device, layer.weights.gradient, rng);
+    lic::randn(device, layer.weights.gradient_first_order_moment, rng);
+    lic::randn(device, layer.weights.gradient_second_order_moment, rng);
+    lic::randn(device, layer.biases.gradient, rng);
+    lic::randn(device, layer.biases.gradient_first_order_moment, rng);
+    lic::randn(device, layer.biases.gradient_second_order_moment, rng);
     auto output = lic::save(device, layer, "layer_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");

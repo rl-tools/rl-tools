@@ -47,6 +47,34 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
+TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
+    using DEVICE = lic::devices::DefaultCPU;
+    using DTYPE = float;
+    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    OPTIMIZER optimizer;
+    DEVICE device;
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    lic::nn::layers::dense::LayerBackwardGradient<lic::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::parameters::Adam>> layer;
+    lic::malloc(device, layer);
+    lic::init_kaiming(device, layer, rng);
+    lic::zero_gradient(device, layer);
+    lic::reset_forward_state(device, layer);
+    lic::reset_optimizer_state(device, layer, optimizer);
+    lic::randn(device, layer.weights.gradient, rng);
+    lic::randn(device, layer.weights.gradient_first_order_moment, rng);
+    lic::randn(device, layer.weights.gradient_second_order_moment, rng);
+    lic::randn(device, layer.biases.gradient, rng);
+    lic::randn(device, layer.biases.gradient_first_order_moment, rng);
+    lic::randn(device, layer.biases.gradient_second_order_moment, rng);
+    lic::increment(layer.weights.parameters, 2, 1, 10);
+    lic::increment(layer.weights.gradient, 2, 1, 5);
+    lic::increment(layer.weights.gradient_first_order_moment, 2, 1, 2);
+    lic::increment(layer.weights.gradient_second_order_moment, 2, 1, 1);
+    auto abs_diff = lic::abs_diff(device, layer, layer_1::layer);
+    ASSERT_FLOAT_EQ(10 + 5 + 2 + 1, abs_diff);
+}
+
 #include "../../../data/test_layer_in_c_nn_models_mlp_persist_code.h"
 
 TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
@@ -59,6 +87,27 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
     lic::malloc(device, mlp);
     lic::init_weights(device, mlp, rng);
     lic::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
+    auto abs_diff = lic::abs_diff(device, mlp, mlp_1::mlp);
+    ASSERT_FLOAT_EQ(10, abs_diff);
+}
+
+TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
+    using DEVICE = lic::devices::DefaultCPU;
+    using DTYPE = float;
+    DEVICE device;
+    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    OPTIMIZER optimizer;
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    using SPEC = lic::nn_models::mlp::AdamSpecification<lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
+    lic::nn_models::mlp::NeuralNetworkAdam<SPEC> mlp;
+    lic::malloc(device, mlp);
+    lic::init_weights(device, mlp, rng);
+    lic::zero_gradient(device, mlp);
+    lic::reset_forward_state(device, mlp);
+    lic::reset_optimizer_state(device, mlp, optimizer);
+    lic::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
+    mlp_1::mlp.input_layer = mlp_1::input_layer::layer;
     auto abs_diff = lic::abs_diff(device, mlp, mlp_1::mlp);
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
