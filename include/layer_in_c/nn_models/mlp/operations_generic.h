@@ -3,6 +3,7 @@
 
 #include <layer_in_c/nn_models/mlp/network.h>
 #include <layer_in_c/nn/operations_generic.h>
+#include <layer_in_c/nn/parameters/operations_generic.h>
 #include <layer_in_c/nn/optimizers/adam/operations_generic.h>
 
 namespace layer_in_c {

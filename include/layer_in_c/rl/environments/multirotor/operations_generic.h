@@ -174,8 +174,8 @@ namespace layer_in_c{
         return rl::environments::multirotor::parameters::reward_functions::reward(device, env, env.parameters.mdp.reward, state, action, next_state);
     }
 
-    template<typename DEVICE, typename SPEC>
-    LAYER_IN_C_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state){
+    template<typename DEVICE, typename SPEC, typename RNG>
+    LAYER_IN_C_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         if(env.parameters.mdp.termination.enabled){
             for(typename DEVICE::index_t position_i = 0; position_i < 3; position_i++){

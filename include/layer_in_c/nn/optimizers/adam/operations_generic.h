@@ -54,5 +54,10 @@ namespace layer_in_c{
         acc += abs_diff(device, p1.gradient_second_order_moment, p2.gradient_second_order_moment);
         return acc;
     }
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void reset_optimizer_state(DEVICE& device, nn::parameters::Adam::instance<SPEC>& p1, OPTIMIZER& optimizer) {
+        set_all(device, p1.gradient_first_order_moment, 0);
+        set_all(device, p1.gradient_second_order_moment, 0);
+    }
 }
 #endif

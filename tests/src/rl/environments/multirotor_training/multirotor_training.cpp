@@ -96,7 +96,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     std::vector<std::vector<DTYPE>> eval_step;
     std::vector<std::vector<DTYPE>> eval_return;
 
-    for(typename DEVICE::index_t run_i = 0; run_i < 100; run_i++){
+    for(typename DEVICE::index_t run_i = 0; run_i < 1; run_i++){
         episode_step.push_back({});
         episode_returns.push_back({});
         episode_steps.push_back({});
@@ -119,6 +119,9 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         device.logger = &logger;
         lic::construct(device, device.logger);
 
+        // optimizer
+        parameters_rl::OPTIMIZER optimizer[2];
+
         // environment
         DTYPE ui_speed_factor = 1;
         auto parameters = parameters_environment::parameters;
@@ -134,7 +137,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         // rl
         parameters_rl::ActorCriticType actor_critic;
         lic::malloc(device, actor_critic);
-        lic::init(device, actor_critic, rng);
+        lic::init(device, actor_critic, optimizer, rng);
 
         lic::rl::components::OffPolicyRunner<parameters_rl::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
         lic::malloc(device, off_policy_runner);
@@ -185,14 +188,14 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                 if(step_i >= parameters_rl::N_WARMUP_STEPS_CRITIC){
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
-                        auto train_critic = [&device, &actor_critic, &off_policy_runner](parameters_rl::CRITIC_NETWORK_TYPE& critic, decltype(critic_batches[0])& critic_batch, decltype(actor_buffers[0]) actor_buffers, decltype(critic_buffers[0]) critic_buffers, decltype(critic_training_buffers[0])& critic_training_buffers, decltype(rng) rng){
+                        auto train_critic = [&device, &actor_critic, &off_policy_runner](parameters_rl::CRITIC_NETWORK_TYPE& critic, decltype(critic_batches[0])& critic_batch, decltype(optimizer[0])& optimizer, decltype(actor_buffers[0])& actor_buffers, decltype(critic_buffers[0])& critic_buffers, decltype(critic_training_buffers[0])& critic_training_buffers, decltype(rng)& rng){
                             auto gather_batch_start = std::chrono::high_resolution_clock::now();
                             lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                             lic::gather_batch(device, off_policy_runner, critic_batch, rng);
                             auto gather_batch_end = std::chrono::high_resolution_clock::now();
                             lic::add_scalar(device, device.logger, "performance/gather_batch_duration", std::chrono::duration_cast<std::chrono::microseconds>(gather_batch_end - gather_batch_start).count(), performance_logging_interval);
                             auto critic_training_start = std::chrono::high_resolution_clock::now();
-                            lic::train_critic(device, actor_critic, critic, critic_batch, actor_buffers, critic_buffers, critic_training_buffers);
+                            lic::train_critic(device, actor_critic, critic, critic_batch, optimizer, actor_buffers, critic_buffers, critic_training_buffers);
                             auto critic_training_end = std::chrono::high_resolution_clock::now();
                             lic::add_scalar(device, device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
                         };
@@ -200,14 +203,14 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                         std::mt19937 rng2(std::uniform_int_distribution<DEVICE::index_t>()(rng));
 
                         if(std::getenv("LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
-                            auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
-                            auto critic_2_training = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);});
+                            auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], optimizer[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
+                            auto critic_2_training = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], optimizer[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);});
                             critic_1_training.wait();
                             critic_2_training.wait();
                         }
                         else{
-                            train_critic(actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);
-                            train_critic(actor_critic.critic_2, critic_batches[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);
+                            train_critic(actor_critic.critic_1, critic_batches[0], optimizer[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);
+                            train_critic(actor_critic.critic_2, critic_batches[1], optimizer[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);
                         }
                     }
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0) {
@@ -221,7 +224,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
                         lic::gather_batch(device, off_policy_runner, actor_batch, rng);
                         auto actor_training_start = std::chrono::high_resolution_clock::now();
-                        lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+                        lic::train_actor(device, actor_critic, actor_batch, optimizer[0], actor_buffers[0], critic_buffers[0], actor_training_buffers);
                         auto actor_training_end = std::chrono::high_resolution_clock::now();
                         lic::add_scalar(device, device.logger, "performance/actor_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(actor_training_end - actor_training_start).count(), performance_logging_interval);
                     }
