@@ -48,6 +48,8 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     DEVICE_INIT::SPEC::LOGGING logger;
     DEVICE device;
     DEVICE_INIT device_init;
+    rlp::OPTIMIZER optimizer;
+
     rlp::ACTOR_CRITIC_TYPE actor_critic_init;
     rlp::ACTOR_CRITIC_TYPE actor_critic;
     rlp::OFF_POLICY_RUNNER_TYPE off_policy_runner_init, off_policy_runner;
@@ -97,7 +99,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     lic::malloc(device, actor_buffers[0]);
     lic::malloc(device, actor_buffers[1]);
 
-    lic::init(device_init, actor_critic_init, rng_init);
+    lic::init(device_init, actor_critic_init, optimizer, rng_init);
     lic::copy(device, device_init, actor_critic, actor_critic_init);
     for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
         auto parameters = p::env::parameters;
@@ -137,7 +139,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 lic::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
                 lic::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
-                lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
+                lic::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
 //                cudaDeviceSynchronize();
 //                auto end = std::chrono::high_resolution_clock::now();
 //                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -150,7 +152,7 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 //            auto start = std::chrono::high_resolution_clock::now();
             rng = lic::random::next(DEVICE::SPEC::RANDOM(), rng);
             lic::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
-            lic::train_actor(device, actor_critic, actor_batch, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+            lic::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
 //            cudaDeviceSynchronize();
 //            auto end = std::chrono::high_resolution_clock::now();
 //            auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
