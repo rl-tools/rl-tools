@@ -20,7 +20,7 @@ namespace layer_in_c{
 
             TI output_pos = blockIdx.x * blockDim.x + threadIdx.x;
             if(output_pos < OUTPUT_DIM){
-                T bias = get(layer.biases, 0, output_pos);
+                T bias = get(layer.biases.parameters, 0, output_pos);
                 for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
                     set(output, batch_i, output_pos, bias);
                 }
@@ -99,7 +99,7 @@ namespace layer_in_c{
         }
         template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
         __global__
-        void update_layer_kernel(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS> layer, typename SPEC::T first_order_moment_bias_correction, typename SPEC::T second_order_moment_bias_correction) {
+        void update_kernel(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC> layer, nn::optimizers::Adam<PARAMETERS> optimizer) {
             // fully fused adam update
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC::T;
@@ -111,21 +111,21 @@ namespace layer_in_c{
             TI output_i = blockIdx.y * blockDim.y + threadIdx.y;
             if(input_i < INPUT_DIM && output_i < OUTPUT_DIM){
                 if(input_i == 0){
-                    T d_bias = get(layer.d_biases, 0, output_i);
-                    T d_bias_first_order_moment = PARAMETERS::BETA_1 * get(layer.d_biases_first_order_moment, 0, output_i) + (1 - PARAMETERS::BETA_1) * d_bias;
-                    set(layer.d_biases_first_order_moment, 0, output_i, d_bias_first_order_moment);
-                    T d_bias_second_order_moment = PARAMETERS::BETA_2 * get(layer.d_biases_second_order_moment, 0, output_i) + (1 - PARAMETERS::BETA_2) * d_bias * d_bias;
-                    set(layer.d_biases_second_order_moment, 0, output_i, d_bias_second_order_moment);
-                    T bias_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_bias_second_order_moment * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-                    increment(layer.biases, 0, output_i, -bias_update);
+                    T d_bias = get(layer.biases.gradient, 0, output_i);
+                    T d_bias_first_order_moment = PARAMETERS::BETA_1 * get(layer.biases.gradient_first_order_moment, 0, output_i) + (1 - PARAMETERS::BETA_1) * d_bias;
+                    set(layer.biases.gradient_first_order_moment, 0, output_i, d_bias_first_order_moment);
+                    T d_bias_second_order_moment = PARAMETERS::BETA_2 * get(layer.biases.gradient_second_order_moment, 0, output_i) + (1 - PARAMETERS::BETA_2) * d_bias * d_bias;
+                    set(layer.biases.gradient_second_order_moment, 0, output_i, d_bias_second_order_moment);
+                    T bias_update = PARAMETERS::ALPHA * optimizer.first_order_moment_bias_correction * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_bias_second_order_moment * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                    increment(layer.biases.parameters, 0, output_i, -bias_update);
                 }
-                T d_weight = get(layer.d_weights, output_i, input_i);
-                T d_weight_first_order_moment = PARAMETERS::BETA_1 * get(layer.d_weights_first_order_moment, output_i, input_i) + (1 - PARAMETERS::BETA_1) * d_weight;
-                set(layer.d_weights_first_order_moment, output_i, input_i, d_weight_first_order_moment);
-                T d_weight_second_order_moment = PARAMETERS::BETA_2 * get(layer.d_weights_second_order_moment, output_i, input_i) + (1 - PARAMETERS::BETA_2) * d_weight * d_weight;
-                set(layer.d_weights_second_order_moment, output_i, input_i, d_weight_second_order_moment);
-                T weight_update = PARAMETERS::ALPHA * first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-                increment(layer.weights, output_i, input_i, -weight_update);
+                T d_weight = get(layer.weights.gradient, output_i, input_i);
+                T d_weight_first_order_moment = PARAMETERS::BETA_1 * get(layer.weights.gradient_first_order_moment, output_i, input_i) + (1 - PARAMETERS::BETA_1) * d_weight;
+                set(layer.weights.gradient_first_order_moment, output_i, input_i, d_weight_first_order_moment);
+                T d_weight_second_order_moment = PARAMETERS::BETA_2 * get(layer.weights.gradient_second_order_moment, output_i, input_i) + (1 - PARAMETERS::BETA_2) * d_weight * d_weight;
+                set(layer.weights.gradient_second_order_moment, output_i, input_i, d_weight_second_order_moment);
+                T weight_update = PARAMETERS::ALPHA * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                increment(layer.weights.parameters, output_i, input_i, -weight_update);
             }
         }
     }
@@ -136,7 +136,7 @@ namespace layer_in_c{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(INPUT_SPEC::COL_PITCH == 1);
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
-        static_assert(decltype(layer.weights)::COL_PITCH == 1);
+        static_assert(decltype(layer.weights.parameters)::COL_PITCH == 1);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
@@ -154,10 +154,10 @@ namespace layer_in_c{
             constexpr auto n = BATCH_SIZE;
             cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
-                stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+                stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
             }
             else{
-                stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+                stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
             }
             if(stat != CUBLAS_STATUS_SUCCESS){
                 std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
@@ -173,7 +173,7 @@ namespace layer_in_c{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(INPUT_SPEC::COL_PITCH == 1);
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
-        static_assert(decltype(layer.weights)::COL_PITCH == 1);
+        static_assert(decltype(layer.weights.parameters)::COL_PITCH == 1);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
@@ -191,10 +191,10 @@ namespace layer_in_c{
 
         cublasStatus_t stat;
         if constexpr(utils::typing::is_same_v<T, float>){
-            stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+            stat = cublasSgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
         }
         else{
-            stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
+            stat = cublasDgemm(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)input._data, row_pitch(input), &beta, (T*)output._data, row_pitch(output));
         }
         if(stat != CUBLAS_STATUS_SUCCESS){
             std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
@@ -215,7 +215,7 @@ namespace layer_in_c{
         static_assert(INPUT_SPEC::COL_PITCH == 1);
         static_assert(D_OUTPUT_SPEC::COL_PITCH == 1);
         static_assert(D_INPUT_SPEC::COL_PITCH == 1);
-        static_assert(decltype(layer.d_weights)::COL_PITCH == 1);
+        static_assert(decltype(layer.weights.gradient)::COL_PITCH == 1);
 
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
@@ -224,7 +224,7 @@ namespace layer_in_c{
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
 
         {
-            // d_weights
+            // weights.gradient
             constexpr T alpha = 1;
             constexpr T beta = 1;
             // op(A) m x k = input^T       (I x B)
@@ -235,14 +235,14 @@ namespace layer_in_c{
             constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
             constexpr auto k = BATCH_SIZE;
 
-            nn::dense::cuda::d_activation(device, layer, layer.pre_activations, d_output, layer.d_biases, d_output);
+            nn::dense::cuda::d_activation(device, layer, layer.pre_activations, d_output, layer.biases.gradient, d_output);
 
             cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
-                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.d_weights._data, row_pitch(layer.d_weights));
+                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.weights.gradient._data, row_pitch(layer.weights.gradient));
             }
             else{
-                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.d_weights._data, row_pitch(layer.d_weights));
+                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, (T*)input._data, row_pitch(input), (T*)d_output._data, row_pitch(d_output), &beta, (T*)layer.weights.gradient._data, row_pitch(layer.weights.gradient));
             }
             if(stat != CUBLAS_STATUS_SUCCESS){
                 std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
@@ -262,10 +262,10 @@ namespace layer_in_c{
 
             cublasStatus_t stat;
             if constexpr(utils::typing::is_same_v<T, float>){
-                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
+                stat = cublasSgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
             }
             else{
-                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights._data, row_pitch(layer.weights), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
+                stat = cublasDgemm(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), (T*)d_output._data, row_pitch(d_output), &beta, (T*)d_input._data, row_pitch(d_input));
             }
             if(stat != CUBLAS_STATUS_SUCCESS){
                 std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
@@ -274,32 +274,32 @@ namespace layer_in_c{
     }
     template<typename DEV_SPEC, typename SPEC>
     void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
-        cudaMemset(layer.d_weights._data, 0, decltype(layer.d_weights)::SPEC::SIZE_BYTES);
+        cudaMemset(layer.weights.gradient._data, 0, decltype(layer.weights.gradient)::SPEC::SIZE_BYTES);
         check_status(device);
-        cudaMemset(layer.d_biases._data, 0, decltype(layer.d_biases)::SPEC::SIZE_BYTES);
+        cudaMemset(layer.biases.gradient._data, 0, decltype(layer.biases.gradient)::SPEC::SIZE_BYTES);
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
-    void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer) {
-        cudaMemset(layer.d_weights_first_order_moment._data, 0, decltype(layer.d_weights_first_order_moment)::SPEC::SIZE_BYTES);
+    void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
+        cudaMemset(layer.weights.gradient_first_order_moment._data, 0, decltype(layer.weights.gradient_first_order_moment)::SPEC::SIZE_BYTES);
         check_status(device);
-        cudaMemset(layer.d_weights_second_order_moment._data, 0, decltype(layer.d_weights_second_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemset(layer.weights.gradient_second_order_moment._data, 0, decltype(layer.weights.gradient_second_order_moment)::SPEC::SIZE_BYTES);
         check_status(device);
-        cudaMemset(layer.d_biases_first_order_moment._data, 0, decltype(layer.d_biases_first_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemset(layer.biases.gradient_first_order_moment._data, 0, decltype(layer.biases.gradient_first_order_moment)::SPEC::SIZE_BYTES);
         check_status(device);
-        cudaMemset(layer.d_biases_second_order_moment._data, 0, decltype(layer.d_biases_second_order_moment)::SPEC::SIZE_BYTES);
+        cudaMemset(layer.biases.gradient_second_order_moment._data, 0, decltype(layer.biases.gradient_second_order_moment)::SPEC::SIZE_BYTES);
         check_status(device);
     }
 
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
-    void update_layer(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardAdam<SPEC, PARAMETERS>& layer, typename SPEC::T first_order_moment_bias_correction, typename SPEC::T second_order_moment_bias_correction) {
+    void update(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_INPUT = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = LAYER_IN_C_DEVICES_CUDA_CEIL(SPEC::OUTPUT_DIM, BLOCKSIZE_ACTIVATION_OUTPUT);
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_INPUT = LAYER_IN_C_DEVICES_CUDA_CEIL(SPEC::INPUT_DIM, BLOCKSIZE_ACTIVATION_INPUT);
         dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
         dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
-        nn::dense::cuda::update_layer_kernel<<<activation_grid, activation_block>>>(device, layer, first_order_moment_bias_correction, second_order_moment_bias_correction);
+        nn::dense::cuda::update_kernel<<<activation_grid, activation_block>>>(device, layer, optimizer);
         check_status(device);
     }
 }

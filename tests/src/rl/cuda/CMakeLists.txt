@@ -4,6 +4,9 @@ set(CMAKE_CUDA_ARCHITECTURES 75)
 message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
 project(test_layer_in_c_rl_cuda CUDA)
 
+find_package(CUDAToolkit REQUIRED)
+
+
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD  17)
 
@@ -29,7 +32,7 @@ target_link_libraries(
         PRIVATE
         layer_in_c
         GTest::gtest_main
-        cublas
+        CUDA::cublas
         HighFive
 )
 LAYER_IN_C_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda)
@@ -45,7 +48,7 @@ target_link_libraries(
         PRIVATE
         layer_in_c
         GTest::gtest_main
-        cublas
+        CUDA::cublas
         HighFive
         tensorboard_logger
 )
@@ -62,7 +65,7 @@ target_link_libraries(
         PRIVATE
         layer_in_c
         GTest::gtest_main
-        cublas
+        CUDA::cublas
         HighFive
         tensorboard_logger
 )

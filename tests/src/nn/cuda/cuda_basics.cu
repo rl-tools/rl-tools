@@ -281,8 +281,10 @@ namespace copy{
     template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
     using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
+    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
-    using InferenceSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>, lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>>;
+    using NNSPEC = lic::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>>;
 
     constexpr DEVICE_CPU::index_t ITERATIONS = 1;
     constexpr DEVICE_CPU::index_t NAIVE_ITERATIONS = 1;
@@ -290,8 +292,9 @@ namespace copy{
 
 
 TEST(LAYER_IN_C_NN_CUDA, COPY) {
-    using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<copy::InferenceSpecification<copy::DTYPE, copy::DEVICE_CPU::index_t, lic::nn::activation_functions::RELU>>;
-    using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<copy::InferenceSpecification<copy::DTYPE, copy::DEVICE_CUDA::index_t, lic::nn::activation_functions::RELU>>;
+    using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<copy::NNSPEC<copy::DTYPE, copy::DEVICE_CPU::index_t, lic::nn::activation_functions::RELU>>;
+    using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<copy::NNSPEC<copy::DTYPE, copy::DEVICE_CUDA::index_t, lic::nn::activation_functions::RELU>>;
+    copy::OPTIMIZER optimizer;
     copy::DEVICE_CPU::SPEC::LOGGING cpu_logger;
     copy::DEVICE_CUDA::SPEC::LOGGING cuda_logger;
     copy::DEVICE_CPU device_cpu;
@@ -311,8 +314,8 @@ TEST(LAYER_IN_C_NN_CUDA, COPY) {
     lic::init_weights(device_cpu, network_cpu_2, rng);
     lic::zero_gradient(device_cpu, network_cpu);
     lic::zero_gradient(device_cpu, network_cpu_2);
-    lic::reset_optimizer_state(device_cpu, network_cpu);
-    lic::reset_optimizer_state(device_cpu, network_cpu_2);
+    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    lic::reset_optimizer_state(device_cpu, network_cpu_2, optimizer);
     lic::reset_forward_state(device_cpu, network_cpu);
     lic::reset_forward_state(device_cpu, network_cpu_2);
     auto cpu_network_diff = lic::abs_diff(device_cpu, network_cpu, network_cpu_2);
@@ -325,7 +328,7 @@ TEST(LAYER_IN_C_NN_CUDA, COPY) {
     std::cout << "CPU network round-trip: " << cpu_network_diff_round_trip << std::endl;
     ASSERT_FLOAT_EQ(cpu_network_diff_round_trip, 0);
 
-    increment(network_cpu.hidden_layers[0].weights, 0, 50, 5);
+    increment(network_cpu.hidden_layers[0].weights.parameters, 0, 50, 5);
 
     cpu_network_diff = lic::abs_diff(device_cpu, network_cpu, network_cpu_2);
     std::cout << "CPU network diff: " << cpu_network_diff << std::endl;
@@ -352,7 +355,9 @@ void GEMM() {
     constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
     using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::RELU, BATCH_SIZE>;
 
-    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
+    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
     std::cout << "GEMM<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
     using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
@@ -368,6 +373,7 @@ void GEMM() {
     typename NetworkTypeCPU::template Buffers<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
     typename NetworkTypeCUDA::template Buffers<BATCH_SIZE> network_cuda_buffers;
+    OPTIMIZER optimizer;
     lic::malloc(device_cpu, network_cpu);
     lic::malloc(device_cpu, network_cpu_buffers);
     lic::malloc(device_cuda, network_cuda);
@@ -376,7 +382,7 @@ void GEMM() {
     auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
     lic::init_weights(device_cpu, network_cpu, rng);
-    lic::reset_optimizer_state(device_cpu, network_cpu);
+    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
     lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
     lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
@@ -515,7 +521,9 @@ void FORWARD() {
     constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
     using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::RELU, BATCH_SIZE>;
 
-    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
+    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
     std::cout << "FORWARD<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
     using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
@@ -675,7 +683,9 @@ void BACKWARD() {
     constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
     using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, lic::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
-    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
+    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
     std::cout << "BACKWARD<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
     using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
@@ -693,6 +703,7 @@ void BACKWARD() {
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cuda_buffers;
+    OPTIMIZER optimizer;
     lic::malloc(device_cpu, network_cpu);
     lic::malloc(device_cpu, network_cpu_pre);
     lic::malloc(device_cpu, network_cuda_cpu);
@@ -704,7 +715,7 @@ void BACKWARD() {
 
     lic::init_weights(device_cpu, network_cpu, rng);
     lic::zero_gradient(device_cpu, network_cpu);
-    lic::reset_optimizer_state(device_cpu, network_cpu);
+    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
     lic::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
 
     lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
@@ -859,7 +870,9 @@ void ADAM_UPDATE() {
     constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
     using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, lic::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
-    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification, lic::nn::optimizers::adam::DefaultParametersTorch<T>>;
+    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER = lic::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
     std::cout << "BACKWARD<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
     using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
@@ -877,6 +890,7 @@ void ADAM_UPDATE() {
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cuda_buffers;
+    OPTIMIZER optimizer;
     lic::malloc(device_cpu, network_cpu);
     lic::malloc(device_cpu, network_cpu_pre);
     lic::malloc(device_cpu, network_cuda_cpu);
@@ -888,7 +902,7 @@ void ADAM_UPDATE() {
 
     lic::init_weights(device_cpu, network_cpu, rng);
     lic::zero_gradient(device_cpu, network_cpu);
-    lic::reset_optimizer_state(device_cpu, network_cpu);
+    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
     lic::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
 
     lic::Matrix<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
@@ -957,12 +971,12 @@ void ADAM_UPDATE() {
 
     lic::zero_gradient(device_cpu, network_cpu);
     lic::zero_gradient(device_cuda, network_cuda);
-    lic::reset_optimizer_state(device_cpu, network_cpu);
-    lic::reset_optimizer_state(device_cuda, network_cuda);
+    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    lic::reset_optimizer_state(device_cuda, network_cuda, optimizer);
     lic::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
-    lic::update(device_cpu, network_cpu);
+    lic::update(device_cpu, network_cpu, optimizer);
     lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
-    lic::update(device_cuda, network_cuda);
+    lic::update(device_cuda, network_cuda, optimizer);
     cudaDeviceSynchronize();
 
     lic::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
@@ -1017,7 +1031,7 @@ void ADAM_UPDATE() {
         for(int i = 0; i < ITERATIONS; ++i)
         {
             lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
-            lic::update(device_cuda, network_cuda);
+            lic::update(device_cuda, network_cuda, optimizer);
             cudaDeviceSynchronize();
         }
         auto end = std::chrono::high_resolution_clock::now();

@@ -180,17 +180,17 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
     lic::copy(device, device, input_mkl_matrix, input);
     lic::set_all(device, output_mkl_matrix, (T)0);
 
-    static_assert(decltype(network_mkl.input_layer.weights)::COL_PITCH == 1);
+    static_assert(decltype(network_mkl.input_layer.weights.parameters)::COL_PITCH == 1);
     static_assert(decltype(input_mkl_matrix)::COL_PITCH == 1);
     static_assert(decltype(output_mkl_matrix)::COL_PITCH == 1);
 
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
         if constexpr(lic::utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (float*)input_mkl_matrix._data, lic::row_pitch(input_mkl_matrix), (float*)network_mkl.input_layer.weights._data, lic::row_pitch(network_mkl.input_layer.weights), beta, (float*)output_mkl_matrix._data, lic::row_pitch(output_mkl_matrix));
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (float*)input_mkl_matrix._data, lic::row_pitch(input_mkl_matrix), (float*)network_mkl.input_layer.weights.parameters._data, lic::row_pitch(network_mkl.input_layer.weights.parameters), beta, (float*)output_mkl_matrix._data, lic::row_pitch(output_mkl_matrix));
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input_mkl_matrix._data, lic::row_pitch(input_mkl_matrix), (double*)network_mkl.input_layer.weights._data, lic::row_pitch(network_mkl.input_layer.weights), beta, (double*)output_mkl_matrix._data, lic::row_pitch(output_mkl_matrix));
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (double*)input_mkl_matrix._data, lic::row_pitch(input_mkl_matrix), (double*)network_mkl.input_layer.weights.parameters._data, lic::row_pitch(network_mkl.input_layer.weights.parameters), beta, (double*)output_mkl_matrix._data, lic::row_pitch(output_mkl_matrix));
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
@@ -199,7 +199,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
     for(INDEX_TYPE batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(INDEX_TYPE output_i=0; output_i < HIDDEN_DIM; output_i++){
-            set(output_mkl_matrix, batch_i, output_i, lic::activation<DEVICE::SPEC::MATH, T, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>(get(output_mkl_matrix, batch_i, output_i) + get(network_mkl.input_layer.biases, 0, output_i)));
+            set(output_mkl_matrix, batch_i, output_i, lic::activation<DEVICE::SPEC::MATH, T, NetworkType::SPEC::STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>(get(output_mkl_matrix, batch_i, output_i) + get(network_mkl.input_layer.biases.parameters, 0, output_i)));
         }
     }
 
@@ -300,8 +300,9 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl;
     device_mkl.logger = device.logger;
+    OPTIMIZER optimizer;
 
-    lic::reset_optimizer_state(device_mkl, network_mkl);
+    lic::reset_optimizer_state(device_mkl, network_mkl, optimizer);
     lic::zero_gradient(device_mkl, network_mkl);
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
