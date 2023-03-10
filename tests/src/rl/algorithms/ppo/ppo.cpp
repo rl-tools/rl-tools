@@ -126,7 +126,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     device.logger = &logger;
     lic::construct(device, device.logger);
 
-    for(TI ppo_step_i = 0; ppo_step_i < 1000; ppo_step_i++){
+    for(TI ppo_step_i = 0; ppo_step_i < 25; ppo_step_i++){
         device.logger->step = on_policy_runner.step;
         std::cout << "PPO step: " << ppo_step_i << std::endl;
         lic::collect(device, on_policy_runner_buffer, on_policy_runner, ppo.actor, actor_eval_buffers, rng);

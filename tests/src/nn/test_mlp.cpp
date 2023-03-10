@@ -198,7 +198,7 @@ typedef LAYER_IN_C_NN_MLP_BACKWARD_PASS LAYER_IN_C_NN_MLP_ADAM_UPDATE;
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
-    lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
+    lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> optimizer;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     std::vector<std::vector<DTYPE>> batch_0_input_layer_weights;
@@ -289,7 +289,7 @@ protected:
 #ifndef SKIP_TESTS
 TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
-    lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
+    lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> optimizer;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     HighFive::Group g = data_file.getGroup("model_2/overfit_small_batch");

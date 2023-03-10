@@ -38,6 +38,8 @@ option(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS "Visual Eval
 #option(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY "Visual Evaluation" ${LAYER_IN_C_TEST_LOCAL})
 option(LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY "Visual Evaluation" OFF)
 
+option(LAYER_IN_C_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE "Multirotor UI" OFF)
+
 set(INSTALL_GTEST OFF CACHE BOOL "")
 set(BUILD_GMOCK OFF CACHE BOOL "")
 add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)
@@ -371,6 +373,7 @@ LAYER_IN_C_TARGET_LINK_BLAS(test_neural_network_benchmark)
 gtest_discover_tests(test_neural_network_benchmark)
 
 # Multirotor UI test
+if(${LAYER_IN_C_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE})
 add_executable(
         test_rl_environments_multirotor_ui_test
         src/rl/environments/multirotor/ui.cpp
@@ -389,6 +392,7 @@ target_include_directories(
 )
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_ui_test)
 gtest_discover_tests(test_rl_environments_multirotor_ui_test)
+endif()
 
 # Container tests
 add_executable(

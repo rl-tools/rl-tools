@@ -98,6 +98,10 @@ namespace layer_in_c{
         inline T add(T a, T b){
             return a+b;
         }
+        template<typename T>
+        inline T sub(T a, T b){
+            return a-b;
+        }
     }
     template<typename DEVICE, typename SPEC>
     auto view_transpose(DEVICE& device, Matrix<SPEC>& target){
@@ -133,13 +137,14 @@ namespace layer_in_c{
         return acc;
     }
 
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto BINARY_OPERATOR>
-    void vectorize_binary(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3, auto BINARY_OPERATOR>
+    void vectorize_binary(DEVICE& device, const Matrix<SPEC_1>& a, const Matrix<SPEC_2>& b, Matrix<SPEC_3>& c){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
+        static_assert(containers::check_structure<SPEC_2, SPEC_3>);
         using SPEC = SPEC_1;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                set(target, i, j, BINARY_OPERATOR(get(target, i, j), get(source, i, j)));
+                set(c, i, j, BINARY_OPERATOR(get(a, i, j), get(b, i, j)));
             }
         }
     }
@@ -162,10 +167,18 @@ namespace layer_in_c{
 //    }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    void add(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    void add(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
-        vectorize_binary<DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::add<typename SPEC::T>>(device, target, source);
+        vectorize_binary<DEVICE, SPEC_1, SPEC_2, SPEC_1, containers::vectorization::operators::add<typename SPEC::T>>(device, target, source, target);
+    }
+
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3>
+    void sub(DEVICE& device, const Matrix<SPEC_1>& a, const Matrix<SPEC_2>& b, Matrix<SPEC_3>& c){
+        static_assert(containers::check_structure<SPEC_1, SPEC_2>);
+        static_assert(containers::check_structure<SPEC_2, SPEC_3>);
+        using SPEC = SPEC_1;
+        vectorize_binary<DEVICE, SPEC_1, SPEC_2, SPEC_3, containers::vectorization::operators::sub<typename SPEC::T>>(device, a, b, c);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
