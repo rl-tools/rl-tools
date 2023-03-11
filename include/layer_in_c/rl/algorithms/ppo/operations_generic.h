@@ -97,11 +97,11 @@ namespace layer_in_c{
         malloc(device, d_batch_observations);
         malloc(device, d_action_log_prob_d_action);
         malloc(device, d_action_log_prob_d_action_log_std);
-        zero_gradient(device, ppo.actor); // has to be reset before accumulating the action-log-std gradient
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             constexpr TI N_BATCHES = BUFFER::STEPS_TOTAL/BATCH_SIZE;
             static_assert(N_BATCHES > 0);
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
+                zero_gradient(device, ppo.actor); // has to be reset before accumulating the action-log-std gradient
                 T advantage_mean = 0;
                 T advantage_std = 0;
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){

@@ -23,8 +23,8 @@ namespace layer_in_c{
         using T = typename SPEC::T;
         optimizer.first_order_moment_bias_correction  = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), ADAM_PARAMETERS::BETA_1, (T)network.age));
         optimizer.second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), ADAM_PARAMETERS::BETA_2, (T)network.age));
-        update(device, (nn_models::mlp::NeuralNetworkAdam<SPEC>&)network, optimizer);
         update(device, network.action_log_std, optimizer);
+        update(device, (nn_models::mlp::NeuralNetworkAdam<SPEC>&)network, optimizer);
     }
     template<typename DEVICE, typename SPEC>
     void zero_gradient(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& network) {
