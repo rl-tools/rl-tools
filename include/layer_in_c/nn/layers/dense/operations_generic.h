@@ -165,8 +165,8 @@ namespace layer_in_c{
     }
     template<typename DEVICE, typename SPEC>
     void zero_gradient(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
-        set_all(device, layer.weights.gradient, 0);
-        set_all(device, layer.biases.gradient, 0);
+        zero_gradient(device, layer.weights);
+        zero_gradient(device, layer.biases);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     void update(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, OPTIMIZER& optimizer){

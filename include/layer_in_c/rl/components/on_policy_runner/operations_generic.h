@@ -104,7 +104,10 @@ namespace layer_in_c{
                 T action_log_prob = 0;
                 for(TI action_i = 0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++) {
                     T action_mu = get(actions, env_i, action_i);
-                    T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(actor.action_log_std, 0, action_i));
+                    std::stringstream topic;
+                    topic << "action/" << action_i;
+                    add_scalar(device, device.logger, topic.str(), action_mu);
+                    T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(actor.action_log_std.parameters, 0, action_i));
                     T action_noisy = random::normal_distribution(typename DEVICE::SPEC::RANDOM(), action_mu, action_std, rng);
                     T action_by_action_std = (action_noisy-action_mu) / action_std;
                     action_log_prob += -0.5 * action_by_action_std * action_by_action_std - math::log(typename DEVICE::SPEC::MATH(), action_std) - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);

@@ -126,9 +126,15 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     device.logger = &logger;
     lic::construct(device, device.logger);
 
-    for(TI ppo_step_i = 0; ppo_step_i < 25; ppo_step_i++){
+    for(TI ppo_step_i = 0; ppo_step_i < 1000; ppo_step_i++){
         device.logger->step = on_policy_runner.step;
         std::cout << "PPO step: " << ppo_step_i << std::endl;
+        for(TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
+            T action_log_std = lic::get(ppo.actor.action_log_std.parameters, 0, action_i);
+            std::stringstream topic;
+            topic << "actor/action_std/" << action_i;
+            lic::add_scalar(device, device.logger, topic.str(), lic::math::exp(DEVICE::SPEC::MATH(), action_log_std));
+        }
         lic::collect(device, on_policy_runner_buffer, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
 //        lic::print(device, on_policy_runner_buffer.data);
         lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer);

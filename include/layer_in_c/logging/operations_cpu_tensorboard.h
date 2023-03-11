@@ -35,7 +35,7 @@ namespace layer_in_c{
         delete logger->tb;
     }
     template <typename DEVICE>
-    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const char* key, const float value, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const std::string key, const float value, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
         if(logger == nullptr){
             return;
         }
@@ -43,6 +43,10 @@ namespace layer_in_c{
         if(logger->step % cadence == 0){
             logger->tb->add_scalar(key, logger->step, value);
         }
+    }
+    template <typename DEVICE>
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const char* key, const float value, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
+        add_scalar(device, logger, std::string(key), value, cadence);
     }
 }
 #endif

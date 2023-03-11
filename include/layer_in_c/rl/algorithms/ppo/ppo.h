@@ -5,6 +5,9 @@ namespace layer_in_c::rl::algorithms{
             static constexpr T GAMMA = 0.9;
             static constexpr T LAMBDA = 0.95;
             static constexpr T EPSILON_CLIP = 0.2;
+            static constexpr T ACTION_ENTROPY_COEFFICIENT = 0;
+            static constexpr T ADVANTAGE_EPSILON = 1e-8;
+            static constexpr bool NORMALIZE_ADVANTAGE = false;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 0;
             static constexpr TI N_EPOCHS = 20;

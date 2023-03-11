@@ -22,6 +22,10 @@ namespace layer_in_c{
         free(device, (nn::parameters::Plain::instance<CONTAINER>&) p);
         free(device, p.gradient);
     }
+    template<typename DEVICE, typename CONTAINER>
+    void zero_gradient(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& container) {
+        set_all(device, container.gradient, 0);
+    }
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::parameters::Plain::instance<TARGET_SPEC>& target, const nn::parameters::Plain::instance<SOURCE_SPEC>& source){
