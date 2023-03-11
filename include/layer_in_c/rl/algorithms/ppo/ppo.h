@@ -5,11 +5,11 @@ namespace layer_in_c::rl::algorithms{
             static constexpr T GAMMA = 0.9;
             static constexpr T LAMBDA = 0.95;
             static constexpr T EPSILON_CLIP = 0.2;
-            static constexpr T INITIAL_ACTION_STD = 0.5; // log(0.1)
-            static constexpr bool LEARN_ACTION_STD = false;
-            static constexpr T ACTION_ENTROPY_COEFFICIENT = 0;
+            static constexpr T INITIAL_ACTION_STD = 0.5;
+            static constexpr bool LEARN_ACTION_STD = true;
+            static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.01;
             static constexpr T ADVANTAGE_EPSILON = 1e-8;
-            static constexpr bool NORMALIZE_ADVANTAGE = false;
+            static constexpr bool NORMALIZE_ADVANTAGE = true;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 0;
             static constexpr TI N_EPOCHS = 20;
