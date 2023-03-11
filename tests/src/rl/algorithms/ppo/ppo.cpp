@@ -105,7 +105,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     OPTIMIZER optimizer;
-    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     PPO_TYPE ppo;
     ON_POLICY_RUNNER_TYPE on_policy_runner;
     ON_POLICY_RUNNER_BUFFER_TYPE on_policy_runner_buffer;

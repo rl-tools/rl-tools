@@ -19,7 +19,7 @@ namespace layer_in_c{
     void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, OPTIMIZER& optimizer, RNG& rng){
         init_weights(device, ppo.actor, rng);
         reset_optimizer_state(device, ppo.actor, optimizer);
-        set_all(device, ppo.actor.action_log_std.parameters, SPEC::PARAMETERS::ACTOR_LOG_STD);
+        set_all(device, ppo.actor.action_log_std.parameters, math::log(typename DEVICE::SPEC::MATH(), SPEC::PARAMETERS::INITIAL_ACTION_STD));
         init_weights(device, ppo.critic, rng);
         reset_optimizer_state(device, ppo.critic, optimizer);
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
@@ -148,13 +148,15 @@ namespace layer_in_c{
 //                      d_action_log_prob_d_action_log_std = (action_diff_by_action_std * action_diff_by_action_std - 1) / action_std * exp(action_log_std)
 //                      d_action_log_prob_d_action_log_std = (action_diff_by_action_std * action_diff_by_action_std - 1) / action_std * action_std
 //                      d_action_log_prob_d_action_log_std =  action_diff_by_action_std * action_diff_by_action_std - 1
-                        T current_d_action_log_prob_d_action_log_std = action_diff_by_action_std * action_diff_by_action_std - 1;
                         T current_entropy = action_log_std + math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>)/(T)2 + (T)1/(T)2;
                         T current_entropy_loss = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT * current_entropy;
                         T current_d_entropy_loss_d_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
                         increment(ppo.actor.action_log_std.gradient, 0, action_i, current_d_entropy_loss_d_action_log_std);
                         // todo: think about possible implementation detail: clipping entropy bonus as well (because it changes the distribution)
-                        set(d_action_log_prob_d_action_log_std, batch_step_i, action_i, current_d_action_log_prob_d_action_log_std);
+                        if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
+                            T current_d_action_log_prob_d_action_log_std = action_diff_by_action_std * action_diff_by_action_std - 1;
+                            set(d_action_log_prob_d_action_log_std, batch_step_i, action_i, current_d_action_log_prob_d_action_log_std);
+                        }
                     }
                     T old_action_log_prob = get(batch_action_log_probs, 0, batch_step_i);
                     T advantage = get(batch_advantages, 0, batch_step_i);
@@ -178,7 +180,9 @@ namespace layer_in_c{
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         multiply(d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                         T current_d_action_log_prob_d_action_log_std = get(d_action_log_prob_d_action_log_std, batch_step_i, action_i);
-//                        increment(ppo.actor.action_log_std.gradient, 0, action_i, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
+                        if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
+                            increment(ppo.actor.action_log_std.gradient, 0, action_i, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
+                        }
                     }
                 }
                 backward(device, ppo.actor, batch_observations, d_action_log_prob_d_action, d_batch_observations, actor_buffers);
