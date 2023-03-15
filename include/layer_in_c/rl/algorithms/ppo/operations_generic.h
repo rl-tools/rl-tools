@@ -6,6 +6,30 @@
 
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
+        malloc(device, buffers.batch_actions);
+        malloc(device, buffers.current_batch_actions);
+        malloc(device, buffers.batch_advantages);
+        malloc(device, buffers.batch_action_log_probs);
+        malloc(device, buffers.batch_target_values);
+        malloc(device, buffers.batch_observations);
+        malloc(device, buffers.d_batch_observations);
+        malloc(device, buffers.d_action_log_prob_d_action);
+        malloc(device, buffers.d_action_log_prob_d_action_log_std);
+    }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
+        free(device, buffers.batch_actions);
+        free(device, buffers.current_batch_actions);
+        free(device, buffers.batch_advantages);
+        free(device, buffers.batch_action_log_probs);
+        free(device, buffers.batch_target_values);
+        free(device, buffers.batch_observations);
+        free(device, buffers.d_batch_observations);
+        free(device, buffers.d_action_log_prob_d_action);
+        free(device, buffers.d_action_log_prob_d_action_log_std);
+    }
+    template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
         malloc(device, ppo.actor);
         malloc(device, ppo.critic);
@@ -66,7 +90,7 @@ namespace layer_in_c{
         }
     }
     template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename OPTIMIZER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, OPTIMIZER& optimizer, typename PPO_SPEC::ACTOR_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, OPTIMIZER& optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
@@ -76,31 +100,14 @@ namespace layer_in_c{
         using BUFFER = rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>;
         constexpr TI N_EPOCHS = PPO_SPEC::PARAMETERS::N_EPOCHS;
         constexpr TI BATCH_SIZE = PPO_SPEC::BATCH_SIZE;
+        constexpr TI N_BATCHES = BUFFER::STEPS_TOTAL/BATCH_SIZE;
+        static_assert(N_BATCHES > 0);
         constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
         constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::OBSERVATION_DIM;
         // batch needs observations, original log-probs, advantages
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> batch_actions;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> current_batch_actions;
-        Matrix<matrix::Specification<T, TI, 1, BATCH_SIZE>> batch_advantages;
-        Matrix<matrix::Specification<T, TI, 1, BATCH_SIZE>> batch_action_log_probs;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> batch_target_values;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> batch_observations;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_batch_observations;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action_log_std;
-        malloc(device, batch_actions);
-        malloc(device, current_batch_actions);
-        malloc(device, batch_advantages);
-        malloc(device, batch_action_log_probs);
-        malloc(device, batch_target_values);
-        malloc(device, batch_observations);
-        malloc(device, d_batch_observations);
-        malloc(device, d_action_log_prob_d_action);
-        malloc(device, d_action_log_prob_d_action_log_std);
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
-            constexpr TI N_BATCHES = BUFFER::STEPS_TOTAL/BATCH_SIZE;
-            static_assert(N_BATCHES > 0);
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
+                zero_gradient(device, ppo.critic);
                 zero_gradient(device, ppo.actor); // has to be reset before accumulating the action-log-std gradient
                 T advantage_mean = 0;
                 T advantage_std = 0;
@@ -109,39 +116,40 @@ namespace layer_in_c{
                     TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, BUFFER::STEPS_TOTAL-1, rng);
 //                    TI sample_index = batch_i * BATCH_SIZE + batch_step_i; // todo: make stochastic again
                     {
-                        auto target_row = row(device, batch_observations, batch_step_i);
+                        auto target_row = row(device, ppo_buffers.batch_observations, batch_step_i);
                         auto source_row = row(device, buffer.observations, sample_index);
                         copy(device, device, target_row, source_row);
                     }
                     {
-                        auto target_row = row(device, batch_actions, batch_step_i);
+                        auto target_row = row(device, ppo_buffers.batch_actions, batch_step_i);
                         auto source_row = row(device, buffer.actions, sample_index);
                         copy(device, device, target_row, source_row);
                     }
                     T advantage = get(buffer.advantages, sample_index, 0);
                     advantage_mean += advantage;
                     advantage_std += advantage * advantage;
-                    set(batch_advantages, 0, batch_step_i, advantage);
-                    set(batch_action_log_probs, 0, batch_step_i, get(buffer.action_log_probs, sample_index, 0));
-                    set(batch_target_values, batch_step_i, 0, get(buffer.target_values, sample_index, 0));
+                    set(ppo_buffers.batch_advantages, 0, batch_step_i, advantage);
+                    set(ppo_buffers.batch_action_log_probs, 0, batch_step_i, get(buffer.action_log_probs, sample_index, 0));
+                    set(ppo_buffers.batch_target_values, batch_step_i, 0, get(buffer.target_values, sample_index, 0));
                 }
                 advantage_mean /= BATCH_SIZE;
                 advantage_std /= BATCH_SIZE;
                 advantage_std = math::sqrt(typename DEVICE::SPEC::MATH(), advantage_std - advantage_mean * advantage_mean);
                 add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
                 add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
-                forward(device, ppo.actor, batch_observations, current_batch_actions);
+                forward(device, ppo.actor, ppo_buffers.batch_observations, ppo_buffers.current_batch_actions);
 //                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
+
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     T action_log_prob = 0;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-                        T current_action = get(current_batch_actions, batch_step_i, action_i);
-                        T action = get(batch_actions, batch_step_i, action_i);
+                        T current_action = get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
+                        T action = get(ppo_buffers.batch_actions, batch_step_i, action_i);
                         T action_log_std = get(ppo.actor.action_log_std.parameters, 0, action_i);
                         T action_std = math::exp(typename DEVICE::SPEC::MATH(), action_log_std);
                         T action_diff_by_action_std = (current_action - action) / action_std;
                         action_log_prob += -0.5 * action_diff_by_action_std * action_diff_by_action_std - action_log_std - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);
-                        set(d_action_log_prob_d_action, batch_step_i, action_i, - action_diff_by_action_std / action_std);
+                        set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, - action_diff_by_action_std / action_std);
 //                      d_action_log_prob_d_action_std =  (-action_diff_by_action_std) * (-action_diff_by_action_std)      / action_std - 1 / action_std)
 //                      d_action_log_prob_d_action_std = ((-action_diff_by_action_std) * (-action_diff_by_action_std) - 1) / action_std)
 //                      d_action_log_prob_d_action_std = (action_diff_by_action_std * action_diff_by_action_std - 1) / action_std
@@ -155,11 +163,11 @@ namespace layer_in_c{
                         // todo: think about possible implementation detail: clipping entropy bonus as well (because it changes the distribution)
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T current_d_action_log_prob_d_action_log_std = action_diff_by_action_std * action_diff_by_action_std - 1;
-                            set(d_action_log_prob_d_action_log_std, batch_step_i, action_i, current_d_action_log_prob_d_action_log_std);
+                            set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, current_d_action_log_prob_d_action_log_std);
                         }
                     }
-                    T old_action_log_prob = get(batch_action_log_probs, 0, batch_step_i);
-                    T advantage = get(batch_advantages, 0, batch_step_i);
+                    T old_action_log_prob = get(ppo_buffers.batch_action_log_probs, 0, batch_step_i);
+                    T advantage = get(ppo_buffers.batch_advantages, 0, batch_step_i);
                     if(PPO_SPEC::PARAMETERS::NORMALIZE_ADVANTAGE){
                         advantage = (advantage - advantage_mean) / (advantage_std + PPO_SPEC::PARAMETERS::ADVANTAGE_EPSILON);
                     }
@@ -178,29 +186,19 @@ namespace layer_in_c{
                     T d_ratio_d_action_log_prob = ratio;
                     T d_loss_d_action_log_prob = d_loss_d_clipped_surrogate * d_clipped_surrogate_d_ratio * d_ratio_d_action_log_prob;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-                        multiply(d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
-                        T current_d_action_log_prob_d_action_log_std = get(d_action_log_prob_d_action_log_std, batch_step_i, action_i);
+                        multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
+                        T current_d_action_log_prob_d_action_log_std = get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             increment(ppo.actor.action_log_std.gradient, 0, action_i, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
                         }
                     }
                 }
-                backward(device, ppo.actor, batch_observations, d_action_log_prob_d_action, d_batch_observations, actor_buffers);
+                backward(device, ppo.actor, ppo_buffers.batch_observations, ppo_buffers.d_action_log_prob_d_action, ppo_buffers.d_batch_observations, actor_buffers);
+                forward_backward_mse(device, ppo.critic, ppo_buffers.batch_observations, ppo_buffers.batch_target_values, critic_buffers);
                 update(device, ppo.actor, optimizer);
-
-                zero_gradient(device, ppo.critic);
-                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
                 update(device, ppo.critic, optimizer);
             }
         }
-        free(device, batch_actions);
-        free(device, batch_advantages);
-        free(device, batch_action_log_probs);
-        free(device, batch_target_values);
-        free(device, batch_observations);
-        free(device, d_batch_observations);
-        free(device, d_action_log_prob_d_action);
-        free(device, d_action_log_prob_d_action_log_std);
     }
 
 }
