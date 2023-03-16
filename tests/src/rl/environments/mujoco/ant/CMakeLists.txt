@@ -1,3 +1,5 @@
+find_package(glfw3 REQUIRED)
+
 add_executable(
     test_rl_environments_mujoco_ant
     ant.cpp
@@ -31,3 +33,21 @@ target_link_libraries(
 gtest_discover_tests(test_rl_environments_mujoco_ant_full_training)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_full_training)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_full_training)
+
+add_executable(
+        test_rl_environments_mujoco_ant_ui
+        ui.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_ui
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+        mujoco
+        glfw
+)
+gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_ui)
