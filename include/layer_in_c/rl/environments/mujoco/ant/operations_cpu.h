@@ -6,7 +6,8 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env){
         using TI = typename DEVICE::index_t;
-        char model_path[] = "/home/jonas/miniconda3/envs/mujoco/lib/python3.9/site-packages/gym/envs/mujoco/assets/ant.xml";
+//        char model_path[] = "/home/jonas/miniconda3/envs/mujoco/lib/python3.9/site-packages/gym/envs/mujoco/assets/ant.xml";
+        char model_path[] = "./lib/gymnasium/gymnasium/envs/mujoco/assets/ant.xml";
 #ifdef LAYER_IN_C_DEBUG_RL_ENVIRONMENTS_MUJOCO_CHECK_INIT
         constexpr typename DEVICE::index_t error_length = 1000;
         char error[error_length] = "Could not load model";

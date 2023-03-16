@@ -21,3 +21,4 @@
 /data
 /**/__pycache__
 /**/.gdb_history
+/logs_old

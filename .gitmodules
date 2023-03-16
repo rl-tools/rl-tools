@@ -19,3 +19,6 @@
 [submodule "lib/mujoco"]
 	path = lib/mujoco
 	url = https://github.com/deepmind/mujoco.git
+[submodule "lib/gymnasium"]
+	path = lib/gymnasium
+	url = https://github.com/Farama-Foundation/Gymnasium.git
