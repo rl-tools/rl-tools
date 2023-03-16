@@ -38,7 +38,6 @@ namespace layer_in_c::rl::environments{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr bool REQUIRES_OBSERVATION = true;
         using State = pendulum::State<typename SPEC::T>;
         using PARAMETERS = typename SPEC::PARAMETERS;
         static constexpr TI OBSERVATION_DIM = 3;

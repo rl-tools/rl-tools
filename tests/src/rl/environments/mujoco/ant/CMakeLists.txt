@@ -1,0 +1,33 @@
+add_executable(
+    test_rl_environments_mujoco_ant
+    ant.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+        mujoco
+)
+gtest_discover_tests(test_rl_environments_mujoco_ant)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant)
+
+add_executable(
+        test_rl_environments_mujoco_ant_full_training
+        full_training.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_full_training
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+        mujoco
+)
+gtest_discover_tests(test_rl_environments_mujoco_ant_full_training)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_full_training)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_full_training)

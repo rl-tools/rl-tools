@@ -23,6 +23,7 @@ function(LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS TARGET)
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT)
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_GAE_CHECK_TERMINATED_TRUNCATED)
         target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT)
+        target_compile_definitions(${TARGET} PRIVATE -DLAYER_IN_C_DEBUG_RL_ENVIRONMENTS_MUJOCO_CHECK_INIT)
     endif()
 endfunction()
 
@@ -490,4 +491,5 @@ target_link_libraries(
 gtest_discover_tests(test_rl_algorithms_ppo)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_ppo)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_ppo)
-#target_compile_definitions(test_rl_algorithms_ppo PRIVATE -DLAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT)
+
+add_subdirectory(src/rl/environments/mujoco/ant)

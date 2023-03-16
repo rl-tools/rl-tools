@@ -9,6 +9,8 @@ option(LAYER_IN_C_ENABLE_TESTS "Build the unit tests when enabled." off)
 option(LAYER_IN_C_BACKEND_ENABLE_MKL "Enable the MKL gemm library, only available on Intel CPUs" OFF)
 option(LAYER_IN_C_BACKEND_ENABLE_ACCELERATE "Enable the Accelerate gemm library, only available on Apple CPUs" OFF)
 option(LAYER_IN_C_BACKEND_ENABLE_CUDA "Enable Nvidia CUDA" OFF)
+option(LAYER_IN_C_BACKEND_ENABLE_MUJOCO "Enable MuJoCo" OFF)
+
 
 add_library(layer_in_c INTERFACE)
 target_include_directories(layer_in_c INTERFACE include)
@@ -52,6 +54,15 @@ endfunction()
 if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
     add_compile_definitions(LAYER_IN_C_BACKEND_ENABLE_CUDA)
 endif()
+
+if(LAYER_IN_C_BACKEND_ENABLE_MUJOCO)
+    set(MUJOCO_BUILD_EXAMPLES OFF)
+    set(MUJOCO_BUILD_SIMULATE OFF)
+    set(MUJOCO_BUILD_TESTS OFF)
+    set(MUJOCO_TEST_PYTHON_UTIL OFF)
+    add_subdirectory(lib/mujoco)
+endif()
+
 
 if (LAYER_IN_C_ENABLE_TESTS)
     include(CTest)

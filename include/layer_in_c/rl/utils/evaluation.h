@@ -22,7 +22,7 @@ namespace layer_in_c {
         // dummy implementation for the case where no ui should be used
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename RNG>
-    bool evaluate_step(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, RNG& rng) {
+    bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         typename ENVIRONMENT::State state = eval_state.state;
@@ -49,7 +49,7 @@ namespace layer_in_c {
         return terminated(device, env, state, rng);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename DEVICE::index_t STEP_LIMIT, typename RNG>
-    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, RNG& rng) {
+    typename POLICY::T evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         rl::utils::evaluation::State<T, typename ENVIRONMENT::State> state;
@@ -62,7 +62,7 @@ namespace layer_in_c {
         return state.episode_return;
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, auto STEP_LIMIT, bool DETERMINISTIC>
-    typename POLICY::T evaluate(DEVICE& device, const ENVIRONMENT& env, UI& ui, const POLICY& policy, typename DEVICE::index_t N, RNG &rng) {
+    typename POLICY::T evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, typename DEVICE::index_t N, RNG &rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
