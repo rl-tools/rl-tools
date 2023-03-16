@@ -90,17 +90,25 @@ namespace layer_in_c{
         }
     }
     namespace containers::vectorization::operators{
-        template<typename T>
-        inline T copy(T b){
+        template<typename DEVICE, typename T>
+        inline T copy(DEVICE dev, T b){
             return b;
         }
-        template<typename T>
-        inline T add(T a, T b){
+        template<typename DEVICE, typename T>
+        inline T add(DEVICE dev, T a, T b){
             return a+b;
         }
-        template<typename T>
-        inline T sub(T a, T b){
+        template<typename DEVICE, typename T>
+        inline T sub(DEVICE dev, T a, T b){
             return a-b;
+        }
+        template<typename DEVICE, typename T>
+        inline bool is_nan(DEVICE dev, bool a, T c){
+            return a || math::is_nan(dev, c);
+        }
+        template<typename DEVICE, typename T>
+        inline bool is_finite(DEVICE dev, bool a, T c){
+            return a && math::is_finite(dev, c);
         }
     }
     template<typename DEVICE, typename SPEC>
@@ -154,9 +162,32 @@ namespace layer_in_c{
         using SPEC = SPEC_1;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                set(target, i, j, UNARY_OPERATOR(get(source, i, j)));
+                set(target, i, j, UNARY_OPERATOR(typename DEVICE::SPEC::MATH(), get(source, i, j)));
             }
         }
+    }
+    template<typename DEVICE, typename SPEC, typename RETURN_TYPE, auto BINARY_OPERATOR>
+    LAYER_IN_C_FUNCTION_PLACEMENT RETURN_TYPE reduce_unary(DEVICE device, const Matrix<SPEC>& source, const RETURN_TYPE& init){
+        using TI = typename SPEC::TI;
+        RETURN_TYPE acc = init;
+        for(TI row_i = 0; row_i < SPEC::ROWS; row_i++){
+            for(TI col_i = 0; col_i < SPEC::COLS; col_i++){
+                acc = BINARY_OPERATOR(typename DEVICE::SPEC::MATH(), acc, get(source, row_i, col_i));
+            }
+        }
+        return acc;
+    }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename RETURN_TYPE, auto TERTIARY_OPERATOR>
+    LAYER_IN_C_FUNCTION_PLACEMENT RETURN_TYPE reduce_binary(DEVICE& device, Matrix<SPEC_1>& source_1, Matrix<SPEC_2>& source_2, const RETURN_TYPE& init){
+        static_assert(containers::check_structure<SPEC_1, SPEC_2>);
+        using TI = typename SPEC_1::TI;
+        RETURN_TYPE acc = init;
+        for(TI row_i = 0; row_i < SPEC_1::ROWS; row_i++){
+            for(TI col_i = 0; col_i < SPEC_1::COLS; col_i++){
+                acc = TERTIARY_OPERATOR(typename DEVICE::SPEC::MATH(), acc, get(source_1, row_i, col_i), get(source_2, row_i, col_i));
+            }
+        }
+        return acc;
     }
 
 //    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename SPEC_1, typename SPEC_2, typename = std::enable_if_t<TARGET_DEVICE::template compatible<SOURCE_DEVICE>, bool>>
@@ -301,16 +332,11 @@ namespace layer_in_c{
     }
     template<typename DEVICE, typename SPEC>
     bool is_nan(DEVICE& device, const Matrix<SPEC>& m){
-        using TI = typename SPEC::TI;
-        using T = typename SPEC::T;
-        for(TI i = 0; i < SPEC::ROWS; i++){
-            for(TI j = 0; j < SPEC::COLS; j++){
-                if(math::is_nan(typename DEVICE::SPEC::MATH(), get(m, i, j))){
-                    return true;
-                }
-            }
-        }
-        return false;
+        return reduce_unary<DEVICE, SPEC, bool, containers::vectorization::operators::is_nan<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, false);
+    }
+    template<typename DEVICE, typename SPEC>
+    bool is_finite(DEVICE& device, const Matrix<SPEC>& m){
+        return reduce_unary<DEVICE, SPEC, bool, containers::vectorization::operators::is_finite<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, true);
     }
     template<typename TARGET_DEVICE, typename SPEC, typename T>
     void assign(TARGET_DEVICE& target_device, Matrix<SPEC>& target, const T* source, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
@@ -415,6 +441,11 @@ namespace layer_in_c{
             }
         }
         return math::sqrt(typename DEVICE::SPEC::MATH(), acc/(SPEC::ROWS * SPEC::COLS));
+    }
+
+    template <typename DEVICE, typename T, typename DEVICE::index_t DIM>
+    Matrix<matrix::Specification<T, typename DEVICE::index_t, 1, DIM, matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>> wrap(DEVICE& dev, T* data){
+        return {data};
     }
 
 

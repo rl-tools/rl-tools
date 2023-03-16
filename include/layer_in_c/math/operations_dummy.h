@@ -47,5 +47,9 @@ namespace layer_in_c::math {
     auto is_nan(const devices::math::Dummy&, const T x) {
         return false;
     }
+    template<typename T>
+    auto is_finite(const devices::math::Dummy&, const T x) {
+        return true;
+    }
 }
 #endif

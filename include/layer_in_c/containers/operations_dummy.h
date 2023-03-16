@@ -10,7 +10,7 @@ namespace layer_in_c{
         using TARGET_DEVICE = devices::Dummy<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
-        vectorize_unary<TARGET_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename SPEC::T>>(target_device, target, source);
+        vectorize_unary<TARGET_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename TARGET_DEVICE::SPEC::MATH, typename SPEC::T>>(target_device, target, source);
     }
 }
 #endif

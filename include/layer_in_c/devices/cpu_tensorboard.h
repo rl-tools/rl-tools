@@ -17,6 +17,8 @@ namespace layer_in_c::devices{
             std::mutex mutex;
         };
     }
+    using DefaultCPU_TENSORBOARDSpecification = cpu::Specification<math::CPU, random::CPU, logging::CPU_TENSORBOARD>;
+    using DefaultCPU_TENSORBOARD = CPU<DefaultCPU_TENSORBOARDSpecification>;
 }
 
 #endif

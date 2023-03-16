@@ -49,5 +49,9 @@ namespace layer_in_c::math {
     auto is_nan(const devices::math::CPU&, const T x) {
         return std::isnan(x);
     }
+    template<typename T>
+    auto is_finite(const devices::math::CPU&, const T x) {
+        return std::isfinite(x);
+    }
 }
 #endif

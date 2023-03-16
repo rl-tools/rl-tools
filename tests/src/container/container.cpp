@@ -128,3 +128,79 @@ TEST(LAYER_IN_C_TEST_CONTAINER, VIEW_ROW_COL) {
     test_view_col<15, 13, 100, 3>();
     test_view_col<15, 13, 3, 100>();
 }
+
+template <int ROWS, int COLS, int ROW_PITCH, int COL_PITCH>
+void test_is_nan(){
+    using DEVICE = lic::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
+    lic::malloc(device, m);
+    lic::randn(device, m, rng);
+
+    bool is_nan_m = lic::is_nan(device, m);
+    ASSERT_TRUE(!is_nan_m);
+
+    set(m, ROWS/2, COLS/2, std::numeric_limits<T>::quiet_NaN());
+    is_nan_m = lic::is_nan(device, m);
+    ASSERT_TRUE(is_nan_m);
+
+    lic::free(device, m);
+}
+
+TEST(LAYER_IN_C_TEST_CONTAINER, IS_NAN) {
+    test_is_nan<10, 10, 10, 1>();
+    test_is_nan<10, 10, 20, 2>();
+    test_is_nan<15, 13, 100, 3>();
+    test_is_nan<15, 13, 3, 100>();
+}
+template <int ROWS, int COLS, int ROW_PITCH, int COL_PITCH>
+void test_is_finite(){
+    using DEVICE = lic::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
+    lic::malloc(device, m);
+    lic::randn(device, m, rng);
+
+    bool is_finite = lic::is_finite(device, m);
+    ASSERT_TRUE(is_finite);
+
+    set(m, ROWS/2, COLS/2, std::numeric_limits<T>::infinity());
+    lic::print(device, m);
+    is_finite = lic::is_finite(device, m);
+    ASSERT_TRUE(!is_finite);
+
+    set(m, ROWS/2, COLS/2, std::numeric_limits<T>::quiet_NaN());
+    lic::print(device, m);
+    is_finite = lic::is_finite(device, m);
+    ASSERT_TRUE(!is_finite);
+
+    lic::free(device, m);
+}
+
+TEST(LAYER_IN_C_TEST_CONTAINER, IS_FINITE) {
+    test_is_finite<10, 10, 10, 1>();
+    test_is_finite<10, 10, 20, 2>();
+    test_is_finite<15, 13, 100, 3>();
+    test_is_finite<15, 13, 3, 100>();
+}
+
+TEST(LAYER_IN_C_TEST_CONTAINER, WRAP) {
+    using DEVICE = lic::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    constexpr int DIM = 11;
+    DEVICE device;
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
+    T test[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    auto m = lic::wrap<DEVICE, T, DIM>(device, test);
+    lic::print(device, m);
+    for(TI i = 0; i < DIM; i++){
+        ASSERT_FLOAT_EQ(get(m, 0, i), test[i]);
+    }
+}
