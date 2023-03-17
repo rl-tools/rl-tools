@@ -33,7 +33,21 @@
 #endif
 
 namespace lic = layer_in_c;
-using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
+using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
+using TI = typename lic::devices::CPU_MKL<DEV_SPEC_SUPER>::index_t;
+namespace execution_hints{
+    namespace rl::components::off_policy_runner{
+        struct HINTS{
+            static constexpr TI NUM_THREADS = 16;
+        };
+    }
+    struct HINTS{
+        using RL_COMPONENTS_OFF_POLICY_RUNNER = execution_hints::rl::components::off_policy_runner::HINTS;
+    };
+}
+struct DEV_SPEC: DEV_SPEC_SUPER{
+    using EXECUTION_HINTS = execution_hints::HINTS;
+};
 
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/nn/operations_cpu_mkl.h>
@@ -52,7 +66,7 @@ using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #include <layer_in_c/nn_models/operations_generic.h>
 // simulation is run on the cpu and the environments functions are required in the off_policy_runner operations included afterwards
 #include <layer_in_c/rl/environments/mujoco/ant/operations_cpu.h>
-#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+#include <layer_in_c/rl/algorithms/td3/operations_cpu_mkl.h>
 
 // additional includes for the ui and persisting
 #include <layer_in_c/nn_models/persist.h>
@@ -128,7 +142,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         auto& run_eval_step = eval_step.back();
         auto& run_eval_return = eval_return.back();
 
-        std::mt19937 rng(run_i);
+        auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), run_i);
 
         // device
         typename DEVICE::SPEC::LOGGING logger;
@@ -193,7 +207,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             device.logger->step = step_i;
             lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
             if(step_i % 1000 == 0){
-                std::cout << "run_i: " << run_i << "step_i: " << step_i << std::endl;
+                std::cout << "run_i: " << run_i << " step_i: " << step_i << std::endl;
             }
             if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                 if(step_i >= parameters_rl::N_WARMUP_STEPS_CRITIC){
@@ -209,8 +223,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                             auto critic_training_end = std::chrono::high_resolution_clock::now();
                             lic::add_scalar(device, device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
                         };
-                        std::mt19937 rng1(std::uniform_int_distribution<DEVICE::index_t>()(rng));
-                        std::mt19937 rng2(std::uniform_int_distribution<DEVICE::index_t>()(rng));
+                        auto rng1 = lic::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
+                        auto rng2 = lic::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
 
                         if(std::getenv("LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
                             auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], optimizer[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});

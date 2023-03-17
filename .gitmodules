@@ -22,3 +22,6 @@
 [submodule "lib/gymnasium"]
 	path = lib/gymnasium
 	url = https://github.com/Farama-Foundation/Gymnasium.git
+[submodule "tests/lib/cli11"]
+	path = tests/lib/cli11
+	url = https://github.com/CLIUtils/CLI11.git

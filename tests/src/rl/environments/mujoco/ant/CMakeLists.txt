@@ -65,6 +65,7 @@ target_link_libraries(
         tensorboard_logger
         mujoco
         glfw
+        CLI11::CLI11
 )
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation)
