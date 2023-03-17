@@ -7,10 +7,10 @@ namespace layer_in_c::rl::environments::mujoco::ant {
         using ENVIRONMENT = T_ENVIRONMENT;
         ENVIRONMENT* env;
         GLFWwindow* window;
-        mjvCamera cam;                      // abstract camera
-        mjvOption opt;                      // visualization options
-        mjvScene scn;                       // abstract scene
-        mjrContext con;                     // custom GPU context
+        mjvCamera camera;
+        mjvOption option;
+        mjvScene scene;
+        mjrContext context;
         bool button_left = false;
         bool button_middle = false;
         bool button_right =  false;
@@ -57,13 +57,13 @@ namespace layer_in_c::rl::environments::mujoco::ant {
             } else {
                 action = mjMOUSE_ZOOM;
             }
-            mjv_moveCamera(ui->env->model, action, dx/height, dy/height, &ui->scn, &ui->cam);
+            mjv_moveCamera(ui->env->model, action, dx/height, dy/height, &ui->scene, &ui->camera);
         }
 
         template <typename UI>
         void scroll(GLFWwindow* window, double xoffset, double yoffset) {
             UI* ui = (UI*)glfwGetWindowUserPointer(window);
-            mjv_moveCamera(ui->env->model, mjMOUSE_ZOOM, 0, -0.05*yoffset, &ui->scn, &ui->cam);
+            mjv_moveCamera(ui->env->model, mjMOUSE_ZOOM, 0, -0.05*yoffset, &ui->scene, &ui->camera);
         }
     }
 }
@@ -82,13 +82,15 @@ namespace layer_in_c{
         glfwMakeContextCurrent(ui.window);
         glfwSwapInterval(1);
 
-        mjv_defaultCamera(&ui.cam);
-        mjv_defaultOption(&ui.opt);
-        mjv_defaultScene(&ui.scn);
-        mjr_defaultContext(&ui.con);
+        mjv_defaultCamera(&ui.camera);
+        ui.camera.type = mjCAMERA_TRACKING;
+        ui.camera.trackbodyid = env.torso_id;
+        mjv_defaultOption(&ui.option);
+        mjv_defaultScene(&ui.scene);
+        mjr_defaultContext(&ui.context);
 
-        mjv_makeScene(ui.env->model, &ui.scn, 2000);
-        mjr_makeContext(ui.env->model, &ui.con, mjFONTSCALE_150);
+        mjv_makeScene(ui.env->model, &ui.scene, 2000);
+        mjr_makeContext(ui.env->model, &ui.context, mjFONTSCALE_150);
 
         glfwSetKeyCallback(ui.window, rl::environments::mujoco::ant::ui::callbacks::keyboard<UI>);
         glfwSetCursorPosCallback(ui.window, rl::environments::mujoco::ant::ui::callbacks::mouse_move<UI>);
@@ -108,8 +110,8 @@ namespace layer_in_c{
         mjrRect viewport = {0, 0, 0, 0};
         glfwGetFramebufferSize(ui.window, &viewport.width, &viewport.height);
 
-        mjv_updateScene(ui.env->model, ui.env->data, &ui.opt, NULL, &ui.cam, mjCAT_ALL, &ui.scn);
-        mjr_render(viewport, &ui.scn, &ui.con);
+        mjv_updateScene(ui.env->model, ui.env->data, &ui.option, NULL, &ui.camera, mjCAT_ALL, &ui.scene);
+        mjr_render(viewport, &ui.scene, &ui.context);
 
         glfwSwapBuffers(ui.window);
 
@@ -118,8 +120,8 @@ namespace layer_in_c{
 
     template <typename DEVICE, typename ENVIRONMENT>
     void destruct(DEVICE& dev, ENVIRONMENT& env, rl::environments::mujoco::ant::UI<ENVIRONMENT>& ui){
-        mjv_freeScene(&ui.scn);
-        mjr_freeContext(&ui.con);
+        mjv_freeScene(&ui.scene);
+        mjr_freeContext(&ui.context);
 
 #if defined(__APPLE__) || defined(_WIN32)
         glfwTerminate();

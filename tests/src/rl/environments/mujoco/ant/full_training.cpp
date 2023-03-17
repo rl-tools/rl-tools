@@ -68,6 +68,10 @@ using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #include <filesystem>
 #include <thread>
 #include <future>
+#include <iostream>
+#include <iomanip>
+#include <chrono>
+#include <ctime>
 
 using DTYPE = double;
 
@@ -82,6 +86,7 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 constexpr DEVICE::index_t performance_logging_interval = 100;
 constexpr DEVICE::index_t ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
 constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 5000;
+const std::string ACTOR_CHECKPOINT_DIRECTORY = "actor_checkpoints";
 
 
 #ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
@@ -98,6 +103,17 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
     std::vector<std::vector<DTYPE>> eval_return;
 
     for(typename DEVICE::index_t run_i = 0; run_i < 1; run_i++){
+        std::string run_name;
+        {
+            auto now = std::chrono::system_clock::now();
+            auto local_time = std::chrono::system_clock::to_time_t(now);
+            std::tm* tm = std::localtime(&local_time);
+
+            std::ostringstream oss;
+            oss << std::put_time(tm, "%FT%T%z");
+            run_name = oss.str();
+        }
+
         episode_step.push_back({});
         episode_returns.push_back({});
         episode_steps.push_back({});
@@ -277,13 +293,15 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 //            }
             }
             if(step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
-                std::string actor_output_dir = "actor_checkpoints";
-                if (!std::filesystem::exists(actor_output_dir)) {
-                    std::filesystem::create_directory(actor_output_dir);
+                std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
+                try {
+                    std::filesystem::create_directories(actor_output_dir);
                 }
-                std::stringstream actor_output_path_ss;
-                actor_output_path_ss << actor_output_dir << "/" << "actor_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
-                std::string actor_output_path = actor_output_path_ss.str();
+                catch (std::exception& e) {
+                }
+                std::stringstream checkpoint_name;
+                checkpoint_name << "actor_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
+                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name.str();
                 try{
                     auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
                     lic::save(device, actor_critic.actor, actor_file.createGroup("actor"));
