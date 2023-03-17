@@ -32,18 +32,12 @@
 #endif
 #endif
 
+#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 namespace lic = layer_in_c;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
 using TI = typename lic::devices::CPU_MKL<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    namespace rl::components::off_policy_runner{
-        struct HINTS{
-            static constexpr TI NUM_THREADS = 16;
-        };
-    }
-    struct HINTS{
-        using RL_COMPONENTS_OFF_POLICY_RUNNER = execution_hints::rl::components::off_policy_runner::HINTS;
-    };
+    struct HINTS: lic::rl::components::off_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;

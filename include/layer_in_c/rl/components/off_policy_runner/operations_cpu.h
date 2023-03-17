@@ -5,13 +5,21 @@
 
 #include "operations_generic_per_env.h"
 namespace layer_in_c::rl::components::off_policy_runner{
+    constexpr auto get_num_threads(devices::ExecutionHints hints) {
+        return 1;
+    }
+    template<typename TI, TI NUM_THREADS>
+    constexpr TI get_num_threads(rl::components::off_policy_runner::ExecutionHints<TI, NUM_THREADS> hints) {
+        return NUM_THREADS;
+    }
+
     template<typename DEV_SPEC, typename SPEC, typename RNG>
     void prologue(devices::CPU<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
         using DEVICE = devices::CPU<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         std::vector<std::thread> threads;
 
-        constexpr TI NUM_THREADS = DEV_SPEC::EXECUTION_HINTS::RL_COMPONENTS_OFF_POLICY_RUNNER::NUM_THREADS;
+        constexpr TI NUM_THREADS = get_num_threads(typename DEVICE::EXECUTION_HINTS());
 
         RNG rngs[SPEC::N_ENVIRONMENTS];
         auto base = random::uniform_int_distribution(typename DEV_SPEC::RANDOM(), 0, 1000000, rng);
@@ -38,7 +46,7 @@ namespace layer_in_c::rl::components::off_policy_runner{
         using TI = typename DEVICE::index_t;
         std::vector<std::thread> threads;
 
-        constexpr TI NUM_THREADS = DEV_SPEC::EXECUTION_HINTS::RL_COMPONENTS_OFF_POLICY_RUNNER::NUM_THREADS;
+        constexpr TI NUM_THREADS = get_num_threads(typename DEVICE::EXECUTION_HINTS());
 
         RNG rngs[SPEC::N_ENVIRONMENTS];
         auto base = random::uniform_int_distribution(typename DEV_SPEC::RANDOM(), 0, 1000000, rng);

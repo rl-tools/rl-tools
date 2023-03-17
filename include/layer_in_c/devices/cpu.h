@@ -9,6 +9,7 @@ namespace layer_in_c::devices{
     namespace cpu{
         template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
         struct Specification{
+            using EXECUTION_HINTS = ExecutionHints;
             using MATH = T_MATH;
             using RANDOM = T_RANDOM;
             using LOGGING = T_LOGGING;
@@ -44,6 +45,7 @@ namespace layer_in_c::devices{
             OTHER_DEVICE::DEVICE == DeviceId::CPU_ACCELERATE ||
             OTHER_DEVICE::DEVICE == DeviceId::CPU_TENSORBOARD;
         using SPEC = T_SPEC;
+        using EXECUTION_HINTS = typename SPEC::EXECUTION_HINTS;
         typename SPEC::LOGGING* logger = nullptr;
     };
 

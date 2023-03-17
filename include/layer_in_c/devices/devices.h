@@ -5,9 +5,9 @@
 
 namespace layer_in_c {
     namespace devices {
+        struct ExecutionHints{};
         template <typename DEV_SPEC>
         struct Device{
-
         };
         enum class DeviceId{
             Generic,

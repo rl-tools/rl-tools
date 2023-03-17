@@ -15,6 +15,10 @@ namespace lic = layer_in_c;
 */
 
 namespace layer_in_c::rl::components::off_policy_runner {
+    template <typename TI, TI T_NUM_THREADS>
+    struct ExecutionHints{
+        static constexpr TI NUM_THREADS = T_NUM_THREADS;
+    };
     template<typename T>
     struct DefaultParameters{
         static constexpr T EXPLORATION_NOISE = 0.1;
