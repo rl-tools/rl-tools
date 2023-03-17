@@ -65,6 +65,7 @@ using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #include <gtest/gtest.h>
 #include <iostream>
 #include <highfive/H5File.hpp>
+#include <filesystem>
 #include <thread>
 #include <future>
 
@@ -80,6 +81,8 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 
 constexpr DEVICE::index_t performance_logging_interval = 100;
 constexpr DEVICE::index_t ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
+constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 5000;
+
 
 #ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING_DEBUG) {
@@ -261,7 +264,6 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                     }
                 }
             }
-
             auto step_end = std::chrono::high_resolution_clock::now();
             lic::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % 1000 == 0){
@@ -274,16 +276,21 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 //                ASSERT_GT(mean_return, 1000);
 //            }
             }
-        }
-        // 300000 steps: 28s on M1
-        {
-            std::string actor_output_path = "actor.h5";
-            try{
-                auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
-                lic::save(device, actor_critic.actor, actor_file.createGroup("actor"));
-            }
-            catch(HighFive::Exception& e){
-                std::cout << "Error while saving actor: " << e.what() << std::endl;
+            if(step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
+                std::string actor_output_dir = "actor_checkpoints";
+                if (!std::filesystem::exists(actor_output_dir)) {
+                    std::filesystem::create_directory(actor_output_dir);
+                }
+                std::stringstream actor_output_path_ss;
+                actor_output_path_ss << actor_output_dir << "/" << "actor_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
+                std::string actor_output_path = actor_output_path_ss.str();
+                try{
+                    auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+                    lic::save(device, actor_critic.actor, actor_file.createGroup("actor"));
+                }
+                catch(HighFive::Exception& e){
+                    std::cout << "Error while saving actor: " << e.what() << std::endl;
+                }
             }
         }
         {

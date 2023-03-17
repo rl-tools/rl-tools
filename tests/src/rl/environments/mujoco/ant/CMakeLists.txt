@@ -51,3 +51,20 @@ target_link_libraries(
 gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_ui)
+
+add_executable(
+        test_rl_environments_mujoco_ant_evaluation
+        evaluate_actor.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_evaluation
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+        mujoco
+        glfw
+)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation)
