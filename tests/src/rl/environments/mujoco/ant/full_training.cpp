@@ -2,11 +2,17 @@
 #include <layer_in_c/operations/cpu_tensorboard/group_1.h>
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl/group_1.h>
+template <typename DEV_SPEC>
+using DEVICE_FACTORY = lic::devices::CPU_MKL<DEV_SPEC>;
 #else
 #ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
 #include <layer_in_c/operations/cpu_accelerate/group_1.h>
+template <typename DEV_SPEC>
+using DEVICE_FACTORY = layer_in_c::devices::CPU_ACCELERATE<DEV_SPEC>;
 #else
 #include <layer_in_c/operations/cpu/group_1.h>
+template <typename DEV_SPEC>
+using DEVICE_FACTORY = lic::devices::CPU<DEV_SPEC>;
 #endif
 #endif
 // ------------ Groups 2 ------------
@@ -35,24 +41,22 @@
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 namespace lic = layer_in_c;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
-using TI = typename lic::devices::CPU_MKL<DEV_SPEC_SUPER>::index_t;
+using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
     struct HINTS: lic::rl::components::off_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
+using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
 
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/nn/operations_cpu_mkl.h>
-using DEVICE = lic::devices::CPU_MKL<DEV_SPEC>;
 #else
 #ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
 #include <layer_in_c/nn/operations_cpu_accelerate.h>
-using DEVICE = lic::devices::CPU_ACCELERATE<DEV_SPEC>;
 #else
 #include <layer_in_c/nn/operations_generic.h>
-using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #endif
 #endif
 
@@ -60,7 +64,16 @@ using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #include <layer_in_c/nn_models/operations_generic.h>
 // simulation is run on the cpu and the environments functions are required in the off_policy_runner operations included afterwards
 #include <layer_in_c/rl/environments/mujoco/ant/operations_cpu.h>
+
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/rl/algorithms/td3/operations_cpu_mkl.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/rl/algorithms/td3/operations_cpu_accelerate.h>
+#else
+#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+#endif
+#endif
 
 // additional includes for the ui and persisting
 #include <layer_in_c/nn_models/persist.h>
@@ -84,6 +97,7 @@ using DEVICE = lic::devices::CPU<DEV_SPEC>;
 using DTYPE = double;
 
 namespace parameter_set = parameters_0;
+
 
 using parameters_environment = parameter_set::environment<DEVICE, DTYPE>;
 using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
