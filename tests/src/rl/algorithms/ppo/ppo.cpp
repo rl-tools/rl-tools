@@ -1,39 +1,4 @@
-// ------------ Groups 1 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_1.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_1.h>
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_1.h>
-#else
-#include <layer_in_c/operations/cpu/group_1.h>
-#endif
-#endif
-// ------------ Groups 2 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_2.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_2.h>
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_2.h>
-#else
-#include <layer_in_c/operations/cpu/group_2.h>
-#endif
-#endif
-// ------------ Groups 3 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_3.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_3.h>
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_3.h>
-#else
-#include <layer_in_c/operations/cpu/group_3.h>
-#endif
-#endif
-
-#include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
-
+#include <layer_in_c/operations/cpu_mux.h>
 
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/nn/operations_cpu_mkl.h>
