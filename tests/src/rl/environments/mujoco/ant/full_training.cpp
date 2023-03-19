@@ -1,43 +1,4 @@
-// ------------ Groups 1 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_1.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_1.h>
-template <typename DEV_SPEC>
-using DEVICE_FACTORY = layer_in_c::devices::CPU_MKL<DEV_SPEC>;
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_1.h>
-template <typename DEV_SPEC>
-using DEVICE_FACTORY = layer_in_c::devices::CPU_ACCELERATE<DEV_SPEC>;
-#else
-#include <layer_in_c/operations/cpu/group_1.h>
-template <typename DEV_SPEC>
-using DEVICE_FACTORY = layer_in_c::devices::CPU<DEV_SPEC>;
-#endif
-#endif
-// ------------ Groups 2 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_2.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_2.h>
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_2.h>
-#else
-#include <layer_in_c/operations/cpu/group_2.h>
-#endif
-#endif
-// ------------ Groups 3 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_3.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_3.h>
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_3.h>
-#else
-#include <layer_in_c/operations/cpu/group_3.h>
-#endif
-#endif
-
+#include <layer_in_c/operations/cpu_mux.h>
 #include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
 namespace lic = layer_in_c;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
@@ -50,30 +11,14 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 };
 using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
 
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/nn/operations_cpu_mkl.h>
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/nn/operations_cpu_accelerate.h>
-#else
-#include <layer_in_c/nn/operations_generic.h>
-#endif
-#endif
+#include <layer_in_c/nn/operations_cpu_mux.h>
 
 // generic nn_model operations use the specialized layer operations depending on the backend device
 #include <layer_in_c/nn_models/operations_generic.h>
 // simulation is run on the cpu and the environments functions are required in the off_policy_runner operations included afterwards
 #include <layer_in_c/rl/environments/mujoco/ant/operations_cpu.h>
 
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/rl/algorithms/td3/operations_cpu_mkl.h>
-#else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/rl/algorithms/td3/operations_cpu_accelerate.h>
-#else
-#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
-#endif
-#endif
+#include <layer_in_c/rl/algorithms/td3/operations_cpu_mux.h>
 
 // additional includes for the ui and persisting
 #include <layer_in_c/nn_models/persist.h>
