@@ -1,3 +1,6 @@
+#ifndef LAYER_IN_C_RL_ALGORITHMS_PPO_PPO_H
+#define LAYER_IN_C_RL_ALGORITHMS_PPO_PPO_H
+
 namespace layer_in_c::rl::algorithms{
     namespace ppo{
         template<typename T, typename TI>
@@ -12,7 +15,7 @@ namespace layer_in_c::rl::algorithms{
             static constexpr bool NORMALIZE_ADVANTAGE = true;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 0;
-            static constexpr TI N_EPOCHS = 20;
+            static constexpr TI N_EPOCHS = 10;
             static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
         };
 
@@ -73,3 +76,5 @@ namespace layer_in_c::rl::algorithms{
 
     };
 }
+
+#endif

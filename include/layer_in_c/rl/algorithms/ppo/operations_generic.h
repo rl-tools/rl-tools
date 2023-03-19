@@ -135,8 +135,8 @@ namespace layer_in_c{
                 advantage_mean /= BATCH_SIZE;
                 advantage_std /= BATCH_SIZE;
                 advantage_std = math::sqrt(typename DEVICE::SPEC::MATH(), advantage_std - advantage_mean * advantage_mean);
-                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
-                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
+//                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
+//                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
                 forward(device, ppo.actor, ppo_buffers.batch_observations, ppo_buffers.current_batch_actions);
 //                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
 

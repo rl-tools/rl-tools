@@ -262,7 +262,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                             mean_steps /= num_episodes;
 
                             lic::add_scalar(device, device.logger, "episode/return", mean_return);
-                            lic::add_scalar(device, device.logger, "episode/steps", mean_steps);
+                            lic::add_scalar(device, device.logger, "episode/length", mean_steps);
                             run_episode_step.push_back(step_i);
                             run_episode_returns.push_back(mean_return);
                             run_episode_steps.push_back(mean_steps);

@@ -82,8 +82,8 @@ namespace layer_in_c{
                 auto& state = get(runner.states, 0, env_i);
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
                 if(get(runner.truncated, 0, env_i)){
-                    add_scalar(device, device.logger, "episode/length", get(runner.episode_step, 0, env_i));
-                    add_scalar(device, device.logger, "episode/return", get(runner.episode_return, 0, env_i));
+                    add_scalar(device, device.logger, "episode/length", get(runner.episode_step, 0, env_i), 100);
+                    add_scalar(device, device.logger, "episode/return", get(runner.episode_return, 0, env_i), 100);
                     set(runner.truncated, 0, env_i, false);
                     set(runner.episode_step, 0, env_i, 0);
                     set(runner.episode_return, 0, env_i, 0);
@@ -104,9 +104,9 @@ namespace layer_in_c{
                 T action_log_prob = 0;
                 for(TI action_i = 0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++) {
                     T action_mu = get(actions, env_i, action_i);
-                    std::stringstream topic;
-                    topic << "action/" << action_i;
-                    add_scalar(device, device.logger, topic.str(), action_mu);
+//                    std::stringstream topic;
+//                    topic << "action/" << action_i;
+//                    add_scalar(device, device.logger, topic.str(), action_mu);
                     T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(actor.action_log_std.parameters, 0, action_i));
                     T action_noisy = random::normal_distribution(typename DEVICE::SPEC::RANDOM(), action_mu, action_std, rng);
                     T action_by_action_std = (action_noisy-action_mu) / action_std;
