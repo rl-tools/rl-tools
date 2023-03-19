@@ -150,6 +150,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         auto& run_eval_return = eval_return.back();
 
         auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), run_i);
+        auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), run_i); // separate evaluation rng to make runs reproducible/deterministic even if evaluation is turned on or off
 
         // device
         typename DEVICE::SPEC::LOGGING logger;
@@ -173,10 +174,11 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         lic::rl::components::OffPolicyRunner<parameters_rl::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
         lic::malloc(device, off_policy_runner);
 
-        ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
+        ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS], evaluation_env;
         for (auto& env : envs) {
             lic::malloc(device, env);
         }
+        lic::malloc(device, evaluation_env);
 
         lic::init(device, off_policy_runner, envs);
 
@@ -303,11 +305,12 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             }
             auto step_end = std::chrono::high_resolution_clock::now();
             lic::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
-            if(step_i % 1000 == 0){
-//                DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), parameters_rl::ENVIRONMENT_STEP_LIMIT, true>(device, envs[0], ui, actor_critic.actor, 1, rng);
-//                std::cout << "Mean return: " << mean_return << std::endl;
-//                run_eval_step.push_back(step_i);
-//                run_eval_return.push_back(mean_return);
+            if(step_i % 10000 == 0){
+                DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), parameters_rl::ENVIRONMENT_STEP_LIMIT, true>(device, evaluation_env, ui, actor_critic.actor, 1, evaluation_rng);
+                lic::add_scalar(device, device.logger, "evaluation/return", mean_return);
+                std::cout << "Mean return: " << mean_return << std::endl;
+                run_eval_step.push_back(step_i);
+                run_eval_return.push_back(mean_return);
 
 //            if(step_i > 250000){
 //                ASSERT_GT(mean_return, 1000);
