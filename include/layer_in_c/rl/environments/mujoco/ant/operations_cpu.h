@@ -85,7 +85,7 @@ namespace layer_in_c{
         healthy &= next_state.q[2] >= SPEC::PARAMETERS::HEALTY_Z_MIN && next_state.q[2] <= SPEC::PARAMETERS::HEALTY_Z_MAX;
         T healty_reward = healthy || SPEC::PARAMETERS::TERMINATE_WHEN_UNHEALTHY ? SPEC::PARAMETERS::HEALTHY_REWARD : 0;
         T forward_reward = (x_post - x_pre) / SPEC::PARAMETERS::DT / SPEC::PARAMETERS::FRAME_SKIP;
-        env.last_reward = (forward_reward + healty_reward - control_cost)/10;
+        env.last_reward = forward_reward + healty_reward - control_cost;
         env.last_terminated = SPEC::PARAMETERS::TERMINATE_WHEN_UNHEALTHY && !healthy;
         return SPEC::PARAMETERS::DT * SPEC::PARAMETERS::FRAME_SKIP;
     }
