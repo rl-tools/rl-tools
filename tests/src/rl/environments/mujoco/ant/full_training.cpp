@@ -3,7 +3,7 @@
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl/group_1.h>
 template <typename DEV_SPEC>
-using DEVICE_FACTORY = lic::devices::CPU_MKL<DEV_SPEC>;
+using DEVICE_FACTORY = layer_in_c::devices::CPU_MKL<DEV_SPEC>;
 #else
 #ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
 #include <layer_in_c/operations/cpu_accelerate/group_1.h>
@@ -12,7 +12,7 @@ using DEVICE_FACTORY = layer_in_c::devices::CPU_ACCELERATE<DEV_SPEC>;
 #else
 #include <layer_in_c/operations/cpu/group_1.h>
 template <typename DEV_SPEC>
-using DEVICE_FACTORY = lic::devices::CPU<DEV_SPEC>;
+using DEVICE_FACTORY = layer_in_c::devices::CPU<DEV_SPEC>;
 #endif
 #endif
 // ------------ Groups 2 ------------
