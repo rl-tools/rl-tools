@@ -7,24 +7,14 @@
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
-        malloc(device, buffers.batch_actions);
         malloc(device, buffers.current_batch_actions);
-        malloc(device, buffers.batch_advantages);
-        malloc(device, buffers.batch_action_log_probs);
-        malloc(device, buffers.batch_target_values);
-        malloc(device, buffers.batch_observations);
         malloc(device, buffers.d_batch_observations);
         malloc(device, buffers.d_action_log_prob_d_action);
         malloc(device, buffers.d_action_log_prob_d_action_log_std);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
-        free(device, buffers.batch_actions);
         free(device, buffers.current_batch_actions);
-        free(device, buffers.batch_advantages);
-        free(device, buffers.batch_action_log_probs);
-        free(device, buffers.batch_target_values);
-        free(device, buffers.batch_observations);
         free(device, buffers.d_batch_observations);
         free(device, buffers.d_action_log_prob_d_action);
         free(device, buffers.d_action_log_prob_d_action_log_std);
@@ -99,6 +89,7 @@ namespace layer_in_c{
         using TI = typename PPO_SPEC::TI;
         static_assert(utils::typing::is_same_v<typename PPO_SPEC::ENVIRONMENT, typename OPR_SPEC::ENVIRONMENT>, "environment mismatch");
         using BUFFER = rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>;
+        static_assert(BUFFER::STEPS_TOTAL > 0);
         constexpr TI N_EPOCHS = PPO_SPEC::PARAMETERS::N_EPOCHS;
         constexpr TI BATCH_SIZE = PPO_SPEC::BATCH_SIZE;
         constexpr TI N_BATCHES = BUFFER::STEPS_TOTAL/BATCH_SIZE;
@@ -107,45 +98,55 @@ namespace layer_in_c{
         constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::OBSERVATION_DIM;
         // batch needs observations, original log-probs, advantages
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
+            // shuffling
+            for(TI buffer_i = 0; buffer_i < BUFFER::STEPS_TOTAL; buffer_i++){
+                TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), buffer_i, BUFFER::STEPS_TOTAL-1, rng);
+                {
+                    auto target_row = row(device, buffer.observations, buffer_i);
+                    auto source_row = row(device, buffer.observations, sample_index);
+                    swap(device, target_row, source_row);
+                }
+                {
+                    auto target_row = row(device, buffer.actions, buffer_i);
+                    auto source_row = row(device, buffer.actions, sample_index);
+                    swap(device, target_row, source_row);
+                }
+                swap(device, buffer.advantages      , buffer.advantages      , buffer_i, 0, sample_index, 0);
+                swap(device, buffer.action_log_probs, buffer.action_log_probs, buffer_i, 0, sample_index, 0);
+                swap(device, buffer.target_values   , buffer.target_values   , buffer_i, 0, sample_index, 0);
+            }
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
                 zero_gradient(device, ppo.critic);
                 zero_gradient(device, ppo.actor); // has to be reset before accumulating the action-log-std gradient
+
+                auto batch_offset = batch_i * BATCH_SIZE;
+                auto batch_observations     = view(device, buffer.observations    , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM>(), batch_offset, 0);
+                auto batch_actions          = view(device, buffer.actions         , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
+                auto batch_action_log_probs = view(device, buffer.action_log_probs, matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
+                auto batch_advantages       = view(device, buffer.advantages      , matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
+                auto batch_target_values    = view(device, buffer.target_values   , matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
+
                 T advantage_mean = 0;
                 T advantage_std = 0;
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-                    static_assert(BUFFER::STEPS_TOTAL > 0);
-                    TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, BUFFER::STEPS_TOTAL-1, rng);
-//                    TI sample_index = batch_i * BATCH_SIZE + batch_step_i; // todo: make stochastic again
-                    {
-                        auto target_row = row(device, ppo_buffers.batch_observations, batch_step_i);
-                        auto source_row = row(device, buffer.observations, sample_index);
-                        copy(device, device, target_row, source_row);
-                    }
-                    {
-                        auto target_row = row(device, ppo_buffers.batch_actions, batch_step_i);
-                        auto source_row = row(device, buffer.actions, sample_index);
-                        copy(device, device, target_row, source_row);
-                    }
-                    T advantage = get(buffer.advantages, sample_index, 0);
+                    T advantage = get(batch_advantages, batch_step_i, 0);
                     advantage_mean += advantage;
                     advantage_std += advantage * advantage;
-                    set(ppo_buffers.batch_advantages, 0, batch_step_i, advantage);
-                    set(ppo_buffers.batch_action_log_probs, 0, batch_step_i, get(buffer.action_log_probs, sample_index, 0));
-                    set(ppo_buffers.batch_target_values, batch_step_i, 0, get(buffer.target_values, sample_index, 0));
                 }
                 advantage_mean /= BATCH_SIZE;
                 advantage_std /= BATCH_SIZE;
+
                 advantage_std = math::sqrt(typename DEVICE::SPEC::MATH(), advantage_std - advantage_mean * advantage_mean);
 //                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
-                forward(device, ppo.actor, ppo_buffers.batch_observations, ppo_buffers.current_batch_actions);
+                forward(device, ppo.actor, batch_observations, ppo_buffers.current_batch_actions);
 //                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
 
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     T action_log_prob = 0;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         T current_action = get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
-                        T action = get(ppo_buffers.batch_actions, batch_step_i, action_i);
+                        T action = get(batch_actions, batch_step_i, action_i);
                         T action_log_std = get(ppo.actor.action_log_std.parameters, 0, action_i);
                         T action_std = math::exp(typename DEVICE::SPEC::MATH(), action_log_std);
                         T action_diff_by_action_std = (current_action - action) / action_std;
@@ -167,8 +168,8 @@ namespace layer_in_c{
                             set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, current_d_action_log_prob_d_action_log_std);
                         }
                     }
-                    T old_action_log_prob = get(ppo_buffers.batch_action_log_probs, 0, batch_step_i);
-                    T advantage = get(ppo_buffers.batch_advantages, 0, batch_step_i);
+                    T old_action_log_prob = get(batch_action_log_probs, batch_step_i, 0);
+                    T advantage = get(batch_advantages, batch_step_i, 0);
                     if(PPO_SPEC::PARAMETERS::NORMALIZE_ADVANTAGE){
                         advantage = (advantage - advantage_mean) / (advantage_std + PPO_SPEC::PARAMETERS::ADVANTAGE_EPSILON);
                     }
@@ -194,8 +195,8 @@ namespace layer_in_c{
                         }
                     }
                 }
-                backward(device, ppo.actor, ppo_buffers.batch_observations, ppo_buffers.d_action_log_prob_d_action, ppo_buffers.d_batch_observations, actor_buffers);
-                forward_backward_mse(device, ppo.critic, ppo_buffers.batch_observations, ppo_buffers.batch_target_values, critic_buffers);
+                backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, ppo_buffers.d_batch_observations, actor_buffers);
+                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
                 update(device, ppo.actor, optimizer);
                 update(device, ppo.critic, optimizer);
             }

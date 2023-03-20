@@ -456,5 +456,27 @@ namespace layer_in_c{
             }
         }
     }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    void swap(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b){
+        using T = typename SPEC_A::T;
+        using TI = typename DEVICE::index_t;
+        static_assert(containers::check_structure<SPEC_A, SPEC_B>);
+        for(TI row_i = 0; row_i < SPEC_A::ROWS; row_i++){
+            for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++){
+                T tmp = get(a, row_i, col_i);
+                set(a, row_i, col_i, get(b, row_i, col_i));
+                set(b, row_i, col_i, tmp);
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    void swap(DEVICE& device, Matrix<SPEC_A>& a, Matrix<SPEC_B>& b, typename DEVICE::index_t row_a, typename DEVICE::index_t col_a, typename DEVICE::index_t row_b, typename DEVICE::index_t col_b){
+        using T = typename SPEC_A::T;
+        using TI = typename DEVICE::index_t;
+        static_assert(containers::check_structure<SPEC_A, SPEC_B>);
+        T tmp = get(a, row_a, col_a);
+        set(a, row_a, col_a, get(b, row_b, col_b));
+        set(b, row_b, col_b, tmp);
+    }
 }
 #endif

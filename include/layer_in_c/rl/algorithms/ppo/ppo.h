@@ -50,12 +50,7 @@ namespace layer_in_c::rl::algorithms{
             static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
             static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
             static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> batch_actions;
             Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> current_batch_actions;
-            Matrix<matrix::Specification<T, TI, 1, BATCH_SIZE>> batch_advantages;
-            Matrix<matrix::Specification<T, TI, 1, BATCH_SIZE>> batch_action_log_probs;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> batch_target_values;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> batch_observations;
             Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_batch_observations;
             Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
             Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action_log_std;
