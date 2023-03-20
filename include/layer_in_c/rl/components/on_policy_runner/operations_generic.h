@@ -82,8 +82,9 @@ namespace layer_in_c{
                 auto& state = get(runner.states, 0, env_i);
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
                 if(get(runner.truncated, 0, env_i)){
-                    add_scalar(device, device.logger, "episode/length", get(runner.episode_step, 0, env_i), 100);
-                    add_scalar(device, device.logger, "episode/return", get(runner.episode_return, 0, env_i), 100);
+                    add_scalar(device, device.logger, "episode/length", get(runner.episode_step, 0, env_i));
+                    add_scalar(device, device.logger, "episode/return", get(runner.episode_return, 0, env_i));
+//                    std::cout << "epsidoe return: " << get(runner.episode_return, 0, env_i) << std::endl;
                     set(runner.truncated, 0, env_i, false);
                     set(runner.episode_step, 0, env_i, 0);
                     set(runner.episode_return, 0, env_i, 0);

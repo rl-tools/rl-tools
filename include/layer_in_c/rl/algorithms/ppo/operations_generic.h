@@ -72,7 +72,8 @@ namespace layer_in_c{
 #endif
                 T current_step_value = get(buffer.values, pos, 0);
 //                T next_step_value = terminated || truncated ? 0 : previous_value;
-                T next_step_value = terminated ? 0 : previous_value;
+                T next_step_value = terminated && !PPO_SPEC::PARAMETERS::IGNORE_TERMINATION ? 0 : previous_value;
+
                 T td_error = get(buffer.rewards, pos, 0) + PPO_SPEC::PARAMETERS::GAMMA * next_step_value - current_step_value;
 //                previous_advantage = terminated || truncated ? 0 : previous_advantage;
                 if(truncated){
@@ -158,10 +159,10 @@ namespace layer_in_c{
 //                      d_action_log_prob_d_action_log_std =  action_diff_by_action_std * action_diff_by_action_std - 1
                         T current_entropy = action_log_std + math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>)/(T)2 + (T)1/(T)2;
                         T current_entropy_loss = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT * current_entropy;
-                        T current_d_entropy_loss_d_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
-                        increment(ppo.actor.action_log_std.gradient, 0, action_i, current_d_entropy_loss_d_action_log_std);
                         // todo: think about possible implementation detail: clipping entropy bonus as well (because it changes the distribution)
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
+                            T current_d_entropy_loss_d_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
+                            increment(ppo.actor.action_log_std.gradient, 0, action_i, current_d_entropy_loss_d_action_log_std);
                             T current_d_action_log_prob_d_action_log_std = action_diff_by_action_std * action_diff_by_action_std - 1;
                             set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, current_d_action_log_prob_d_action_log_std);
                         }
@@ -187,8 +188,8 @@ namespace layer_in_c{
                     T d_loss_d_action_log_prob = d_loss_d_clipped_surrogate * d_clipped_surrogate_d_ratio * d_ratio_d_action_log_prob;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
-                        T current_d_action_log_prob_d_action_log_std = get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
+                            T current_d_action_log_prob_d_action_log_std = get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
                             increment(ppo.actor.action_log_std.gradient, 0, action_i, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
                         }
                     }
