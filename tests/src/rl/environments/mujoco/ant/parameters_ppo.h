@@ -14,7 +14,7 @@ namespace parameters_0{
         using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 256, lic::nn::activation_functions::ActivationFunction::TANH, lic::nn::activation_functions::IDENTITY, BATCH_SIZE>;
 
         struct OPTIMIZER_PARAMETERS: lic::nn::optimizers::adam::DefaultParametersTorch<T>{
-            static constexpr T ALPHA = 0.0001;
+            static constexpr T ALPHA = 3e-4;
         };
         using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
         using ACTOR_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
@@ -24,14 +24,17 @@ namespace parameters_0{
         using CRITIC_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
 
         struct PPO_PARAMETERS: lic::rl::algorithms::ppo::DefaultParameters<T, TI>{
-            static constexpr TI N_EPOCHS = 1;
+            static constexpr TI N_EPOCHS = 4;
+            static constexpr bool LEARN_ACTION_STD = true;
+            static constexpr T INITIAL_ACTION_STD = 1;
+            static constexpr T ACTION_ENTROPY_COEFFICIENT = 0;
         };
         using PPO_SPEC = lic::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
         using PPO_TYPE = lic::rl::algorithms::PPO<PPO_SPEC>;
         using PPO_BUFFERS_TYPE = lic::rl::algorithms::ppo::Buffers<PPO_SPEC>;
 
         static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 1000;
-        static constexpr TI N_ENVIRONMENTS = 10;
+        static constexpr TI N_ENVIRONMENTS = 64;
         using ON_POLICY_RUNNER_SPEC = lic::rl::components::on_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ON_POLICY_RUNNER_STEP_LIMIT>;
         using ON_POLICY_RUNNER_TYPE = lic::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
         static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;

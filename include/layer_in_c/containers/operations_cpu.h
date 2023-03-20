@@ -22,6 +22,20 @@ namespace layer_in_c{
         using SPEC = SPEC_1;
         vectorize_unary<TARGET_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename TARGET_DEVICE::SPEC::MATH, typename SPEC::T>>(target_device, target, source);
     }
+    template<typename DEV_SPEC, typename SPEC>
+    LAYER_IN_C_FUNCTION_PLACEMENT std::vector<std::vector<typename SPEC::T>> std_vector(devices::CPU<DEV_SPEC>& device, Matrix<SPEC>& matrix){
+        using DEVICE = devices::CPU<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        std::vector<std::vector<typename SPEC::T>> result;
+        for(TI row_i = 0; row_i < SPEC::ROWS; row_i++){
+            std::vector<typename SPEC::T> row;
+            for(TI col_i = 0; col_i < SPEC::COLS; col_i++){
+                row.push_back(get(matrix, row_i, col_i));
+            }
+            result.push_back(row);
+        }
+        return result;
+    }
 }
 
 #endif

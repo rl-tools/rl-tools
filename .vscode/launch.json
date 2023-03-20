@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "tests.rl.environments.mujoco.ant.generate_data",
+            "type": "python",
+            "request": "launch",
+            "program": "tests/src/rl/environments/mujoco/ant/gym_generate_data.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}

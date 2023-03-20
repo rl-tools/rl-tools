@@ -23,7 +23,7 @@ namespace TEST_DEFINITIONS{
     using TI = typename DEVICE::index_t;
     namespace parameter_set = parameters_0;
 
-    using parameters_environment = parameter_set::environment<DEVICE, T>;
+    using parameters_environment = parameter_set::environment<T, TI>;
     struct ENVIRONMENT_EVALUATION_PARAMETERS: parameters_environment::ENVIRONMENT_SPEC::PARAMETERS{
         constexpr static TI FRAME_SKIP = 1; // for smoother playback
     };
@@ -31,7 +31,7 @@ namespace TEST_DEFINITIONS{
     using ENVIRONMENT = lic::rl::environments::mujoco::Ant<ENVIRONMENT_EVALUATION_SPEC>;
     using UI = lic::rl::environments::mujoco::ant::UI<ENVIRONMENT>;
 
-    using parameters_rl = parameter_set::rl<DEVICE, T, ENVIRONMENT>;
+    using parameters_rl = parameter_set::rl<T, TI, ENVIRONMENT>;
 }
 
 
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     DEVICE dev;
     ENVIRONMENT env;
     UI ui;
-    parameters_rl::ACTOR_NETWORK_TYPE actor;
+    parameters_rl::ACTOR_TYPE actor;
     lic::Matrix<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     lic::Matrix<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     typename ENVIRONMENT::State state, next_state;

@@ -1,12 +1,14 @@
 #include <layer_in_c/operations/cpu_mux.h>
 #include <layer_in_c/nn/operations_cpu_mux.h>
 #include <layer_in_c/nn_models/operations_cpu.h>
+#include <layer_in_c/nn_models/persist.h>
 namespace lic = layer_in_c;
 #include "parameters_ppo.h"
 #include <layer_in_c/rl/components/on_policy_runner/operations_generic.h>
 #include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
 
 #include <gtest/gtest.h>
+#include <highfive/H5File.hpp>
 
 
 namespace parameters = parameters_0;
@@ -14,18 +16,34 @@ namespace parameters = parameters_0;
 using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
 
+
 using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
 using T = float;
 using TI = typename DEVICE::index_t;
 
+
+constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
+const std::string ACTOR_CHECKPOINT_DIRECTORY = "actor_checkpoints";
+
 TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
+    std::string run_name;
+    {
+        auto now = std::chrono::system_clock::now();
+        auto local_time = std::chrono::system_clock::to_time_t(now);
+        std::tm* tm = std::localtime(&local_time);
+
+        std::ostringstream oss;
+        oss << std::put_time(tm, "%FT%T%z");
+        run_name = oss.str();
+    }
     using penv = parameters::environment<double, TI>;
     using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     prl::OPTIMIZER optimizer;
-    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 11);
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
@@ -90,6 +108,24 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> elapsed = end - start;
 //        std::cout << "Total: " << elapsed.count() << " s" << std::endl;
+        if(ACTOR_ENABLE_CHECKPOINTS && ppo_step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
+            std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
+            try {
+                std::filesystem::create_directories(actor_output_dir);
+            }
+            catch (std::exception& e) {
+            }
+            std::stringstream checkpoint_name;
+            checkpoint_name << "actor_" << std::setw(15) << std::setfill('0') << ppo_step_i << ".h5";
+            std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name.str();
+            try{
+                auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+                lic::save(device, ppo.actor, actor_file.createGroup("actor"));
+            }
+            catch(HighFive::Exception& e){
+                std::cout << "Error while saving actor: " << e.what() << std::endl;
+            }
+        }
     }
 
     lic::free(device, ppo);

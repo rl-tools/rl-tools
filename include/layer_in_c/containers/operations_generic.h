@@ -448,6 +448,13 @@ namespace layer_in_c{
         return {data};
     }
 
-
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::T clamp(DEVICE& device, layer_in_c::Matrix<SPEC>& m, typename SPEC::T lower, typename SPEC::T upper){
+        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
+            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
+                set(m, row_i, col_i, math::clamp(get(m, row_i, col_i), lower, upper));
+            }
+        }
+    }
 }
 #endif
