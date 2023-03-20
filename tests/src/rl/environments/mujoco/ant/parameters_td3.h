@@ -8,23 +8,21 @@
 
 namespace parameters_0{
 
-    template<typename DEVICE, typename T>
+    template<typename T, typename TI>
     struct environment{
-        using TI = typename DEVICE::index_t;
         using ENVIRONMENT_SPEC = lic::rl::environments::mujoco::ant::Specification<T, TI, lic::rl::environments::mujoco::ant::DefaultParameters<T, TI>>;
         using ENVIRONMENT = lic::rl::environments::mujoco::Ant<ENVIRONMENT_SPEC>;
     };
 
-    template<typename DEVICE, typename T, typename ENVIRONMENT>
+    template<typename T, typename TI, typename ENVIRONMENT>
     struct rl{
-        using TI = typename DEVICE::index_t;
-        struct ACTOR_CRITIC_PARAMETERS: lic::rl::algorithms::td3::DefaultParameters<T, typename DEVICE::index_t>{
-            static constexpr typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
-            static constexpr typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
-            static constexpr typename DEVICE::index_t CRITIC_TRAINING_INTERVAL = 1;
-            static constexpr typename DEVICE::index_t ACTOR_TRAINING_INTERVAL = 2;
-            static constexpr typename DEVICE::index_t CRITIC_TARGET_UPDATE_INTERVAL = 2;
-            static constexpr typename DEVICE::index_t ACTOR_TARGET_UPDATE_INTERVAL = 2;
+        struct ACTOR_CRITIC_PARAMETERS: lic::rl::algorithms::td3::DefaultParameters<T, TI>{
+            static constexpr TI ACTOR_BATCH_SIZE = 256;
+            static constexpr TI CRITIC_BATCH_SIZE = 256;
+            static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
+            static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
+            static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
+            static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2;
             static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
             static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
             static constexpr bool IGNORE_TERMINATION = false;

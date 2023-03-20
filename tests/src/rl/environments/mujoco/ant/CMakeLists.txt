@@ -18,11 +18,11 @@ LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant)
 
 add_executable(
-        test_rl_environments_mujoco_ant_full_training
-        full_training.cpp
+        test_rl_environments_mujoco_ant_training_td3
+        training_td3.cpp
 )
 target_link_libraries(
-        test_rl_environments_mujoco_ant_full_training
+        test_rl_environments_mujoco_ant_training_td3
         PRIVATE
         layer_in_c
         GTest::gtest_main
@@ -30,9 +30,9 @@ target_link_libraries(
         tensorboard_logger
         mujoco
 )
-gtest_discover_tests(test_rl_environments_mujoco_ant_full_training)
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_full_training)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_full_training)
+gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_td3)
 
 add_executable(
         test_rl_environments_mujoco_ant_ui
@@ -69,3 +69,20 @@ target_link_libraries(
 )
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation)
+
+add_executable(
+        test_rl_environments_mujoco_ant_training_ppo
+        training_ppo.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_training_ppo
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+        mujoco
+)
+gtest_discover_tests(test_rl_environments_mujoco_ant_training_ppo)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo)

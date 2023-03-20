@@ -8,7 +8,7 @@
 
 namespace lic = layer_in_c;
 
-#include "parameters.h"
+#include "parameters_td3.h"
 
 #include <chrono>
 #include <iostream>

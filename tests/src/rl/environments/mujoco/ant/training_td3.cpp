@@ -26,7 +26,7 @@ using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
 
 #include <layer_in_c/rl/utils/evaluation.h>
 
-#include "parameters.h"
+#include "parameters_td3.h"
 
 #include <gtest/gtest.h>
 #include <iostream>
@@ -43,10 +43,10 @@ using DTYPE = float;
 
 namespace parameter_set = parameters_0;
 
-using parameters_environment = parameter_set::environment<DEVICE, double>;
+using parameters_environment = parameter_set::environment<double, typename DEVICE::index_t>;
 using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
 
-using parameters_rl = parameter_set::rl<DEVICE, DTYPE, ENVIRONMENT>;
+using parameters_rl = parameter_set::rl<DTYPE, typename DEVICE::index_t, ENVIRONMENT>;
 static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 constexpr DEVICE::index_t performance_logging_interval = 100;
@@ -154,7 +154,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 #ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
         constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
 #else
-        constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
+        constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP * 100;
 #endif
         for(int step_i = 0; step_i < step_limit; step_i++){
             auto step_start = std::chrono::high_resolution_clock::now();
@@ -240,7 +240,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                             mean_steps /= num_episodes;
 
                             lic::add_scalar(device, device.logger, "episode/return", mean_return);
-                            lic::add_scalar(device, device.logger, "episode/steps", mean_steps);
+                            lic::add_scalar(device, device.logger, "episode/length", mean_steps);
                             run_episode_step.push_back(step_i);
                             run_episode_returns.push_back(mean_return);
                             run_episode_steps.push_back(mean_steps);
