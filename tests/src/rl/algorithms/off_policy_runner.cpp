@@ -33,7 +33,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     OPTIMIZER optimizer;
     lic::nn_models::mlp::NeuralNetworkAdam<SPEC> policy;
     lic::malloc(device, policy);
-    std::mt19937 rng(0);
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
     lic::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner;
     lic::malloc(device, off_policy_runner);

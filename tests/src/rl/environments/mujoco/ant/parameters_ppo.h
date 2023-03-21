@@ -25,9 +25,10 @@ namespace parameters_0{
 
         struct PPO_PARAMETERS: lic::rl::algorithms::ppo::DefaultParameters<T, TI>{
             static constexpr TI N_EPOCHS = 4;
-            static constexpr bool LEARN_ACTION_STD = true;
-            static constexpr T INITIAL_ACTION_STD = 1;
+            static constexpr bool LEARN_ACTION_STD = false;
+            static constexpr T INITIAL_ACTION_STD = 0.2;
             static constexpr T ACTION_ENTROPY_COEFFICIENT = 0;
+            static constexpr bool NORMALIZE_ADVANTAGE = false;
         };
         using PPO_SPEC = lic::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
         using PPO_TYPE = lic::rl::algorithms::PPO<PPO_SPEC>;

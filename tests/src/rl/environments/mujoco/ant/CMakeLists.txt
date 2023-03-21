@@ -53,11 +53,11 @@ LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_ui)
 
 add_executable(
-        test_rl_environments_mujoco_ant_evaluation
+        test_rl_environments_mujoco_ant_evaluation_td3
         evaluate_actor.cpp
 )
 target_link_libraries(
-        test_rl_environments_mujoco_ant_evaluation
+        test_rl_environments_mujoco_ant_evaluation_td3
         PRIVATE
         layer_in_c
         GTest::gtest_main
@@ -67,8 +67,31 @@ target_link_libraries(
         glfw
         CLI11::CLI11
 )
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_td3)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_td3)
+
+add_executable(
+        test_rl_environments_mujoco_ant_evaluation_ppo
+        evaluate_actor.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_evaluation_ppo
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+        mujoco
+        glfw
+        CLI11::CLI11
+)
+target_compile_definitions(
+        test_rl_environments_mujoco_ant_evaluation_ppo
+        PRIVATE
+        -DLAYER_IN_C_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_ppo)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_ppo)
 
 add_executable(
         test_rl_environments_mujoco_ant_training_ppo

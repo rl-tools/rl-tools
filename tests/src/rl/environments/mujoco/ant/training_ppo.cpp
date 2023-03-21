@@ -23,8 +23,9 @@ using TI = typename DEVICE::index_t;
 
 
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50;
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
-const std::string ACTOR_CHECKPOINT_DIRECTORY = "actor_checkpoints";
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = true;
+const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant_actor";
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     std::string run_name;
@@ -43,7 +44,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     prl::OPTIMIZER optimizer;
-    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 11);
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
@@ -87,6 +88,12 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
         {
             auto start = std::chrono::high_resolution_clock::now();
             lic::collect(device, on_policy_runner_buffer, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+            lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_buffer.observations));
+            lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_buffer.observations));
+            lic::add_scalar(device, device.logger, "opr/action/mean", lic::mean(device, on_policy_runner_buffer.actions));
+            lic::add_scalar(device, device.logger, "opr/action/std", lic::std(device, on_policy_runner_buffer.actions));
+            lic::add_scalar(device, device.logger, "opr/rewards/mean", lic::mean(device, on_policy_runner_buffer.rewards));
+            lic::add_scalar(device, device.logger, "opr/rewards/std", lic::std(device, on_policy_runner_buffer.rewards));
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "Rollout: " << elapsed.count() << " s" << std::endl;
@@ -115,9 +122,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
             }
             catch (std::exception& e) {
             }
-            std::stringstream checkpoint_name;
-            checkpoint_name << "actor_" << std::setw(15) << std::setfill('0') << ppo_step_i << ".h5";
-            std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name.str();
+            std::string checkpoint_name = "latest.h5";
+            if(!ACTOR_OVERWRITE_CHECKPOINTS){
+                std::stringstream checkpoint_name_ss;
+                checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << ppo_step_i << ".h5";
+                checkpoint_name = checkpoint_name_ss.str();
+            }
+            std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
             try{
                 auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
                 lic::save(device, ppo.actor, actor_file.createGroup("actor"));
@@ -128,6 +139,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
         }
     }
 
+    for(auto& env : envs){
+        lic::malloc(device, env);
+    }
     lic::free(device, ppo);
     lic::free(device, ppo_buffers);
     lic::free(device, on_policy_runner_buffer);

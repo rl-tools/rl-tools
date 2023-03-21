@@ -8,7 +8,11 @@
 
 namespace lic = layer_in_c;
 
+#ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+#include "parameters_ppo.h"
+#else
 #include "parameters_td3.h"
+#endif
 
 #include <chrono>
 #include <iostream>

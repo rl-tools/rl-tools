@@ -29,6 +29,7 @@ namespace layer_in_c::rl::components{
             static constexpr TI DATA_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM + 7;
 
             // mem
+            // todo: evaluate transposing this / storing in column major order for better memory access in the single dimensional columns
             Matrix<matrix::Specification<T, TI, STEPS_TOTAL + SPEC::N_ENVIRONMENTS, DATA_DIM>> data; // +1 * SPEC::N_ENVIRONMENTS for the final observation
 
             // views
