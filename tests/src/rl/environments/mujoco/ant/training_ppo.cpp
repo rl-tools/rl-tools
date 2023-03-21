@@ -4,7 +4,7 @@
 #include <layer_in_c/nn_models/persist.h>
 namespace lic = layer_in_c;
 #include "parameters_ppo.h"
-#include <layer_in_c/rl/components/on_policy_runner/operations_generic.h>
+#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
 
 #include <gtest/gtest.h>
