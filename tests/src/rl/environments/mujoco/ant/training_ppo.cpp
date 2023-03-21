@@ -25,7 +25,7 @@ using TI = typename DEVICE::index_t;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50;
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = true;
-const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant_actor";
+const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     std::string run_name;
