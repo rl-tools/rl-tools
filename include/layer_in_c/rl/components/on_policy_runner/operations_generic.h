@@ -102,7 +102,7 @@ namespace layer_in_c{
             auto actions = view(device, buffer.actions, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations = view(device, buffer.observations, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
-            evaluate(device, actor, observations, actions);
+            evaluate(device, actor, observations, actions, policy_eval_buffers);
 
             rl::components::on_policy_runner::epilogue(device, buffer, runner, actions, actor.action_log_std.parameters, rng, step_i);
         }

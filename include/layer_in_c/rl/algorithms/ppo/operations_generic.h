@@ -40,15 +40,17 @@ namespace layer_in_c{
         ppo.initialized = true;
 #endif
     }
-    template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV>
-    void estimate_generalized_advantages(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer){
+    template <typename DEVICE, typename PPO_SPEC, typename BUFFER_SPEC>
+    void estimate_generalized_advantages(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, typename PPO_SPEC::CRITIC_TYPE::template Buffers<BUFFER_SPEC::STEPS_TOTAL_ALL>& critic_evaluation_buffers){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
+        using OPR_SPEC = typename BUFFER_SPEC::SPEC;
         using BUFFER = decltype(buffer);
         using T = typename PPO_SPEC::T;
         using TI = typename PPO_SPEC::TI;
-        evaluate(device, ppo.critic, buffer.all_observations, buffer.all_values);
+        constexpr TI STEPS_PER_ENV = BUFFER_SPEC::STEPS_PER_ENV;
+        evaluate(device, ppo.critic, buffer.all_observations, buffer.all_values, critic_evaluation_buffers);
         for(TI env_i = 0; env_i < OPR_SPEC::N_ENVIRONMENTS; env_i++){
             T previous_value = get(buffer.all_values, STEPS_PER_ENV * OPR_SPEC::N_ENVIRONMENTS + env_i, 0);
             T previous_advantage = 0;
@@ -81,7 +83,7 @@ namespace layer_in_c{
         }
     }
     template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename OPTIMIZER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, OPTIMIZER& optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_NETWORK_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, OPTIMIZER& optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif

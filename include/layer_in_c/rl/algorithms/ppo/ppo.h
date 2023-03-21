@@ -23,24 +23,24 @@ namespace layer_in_c::rl::algorithms{
                 typename T_T,
                 typename T_TI,
                 typename T_ENVIRONMENT,
-                typename T_ACTOR_NETWORK_TYPE,
-                typename T_CRITIC_NETWORK_TYPE,
+                typename T_ACTOR_TYPE,
+                typename T_CRITIC_TYPE,
                 typename T_PARAMETERS = DefaultParameters<T_T, T_TI>
         >
         struct Specification {
             using T = T_T;
             using TI = T_TI;
             using ENVIRONMENT = T_ENVIRONMENT;
-            using ACTOR_NETWORK_TYPE = T_ACTOR_NETWORK_TYPE;
-            using CRITIC_NETWORK_TYPE = T_CRITIC_NETWORK_TYPE;
-            static constexpr TI BATCH_SIZE = ACTOR_NETWORK_TYPE::SPEC::BATCH_SIZE;
+            using ACTOR_TYPE = T_ACTOR_TYPE;
+            using CRITIC_TYPE = T_CRITIC_TYPE;
+            static constexpr TI BATCH_SIZE = ACTOR_TYPE::SPEC::BATCH_SIZE;
             using PARAMETERS = T_PARAMETERS;
 
-            static_assert(ACTOR_NETWORK_TYPE::SPEC::BATCH_SIZE == CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE);
-            static_assert(ACTOR_NETWORK_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
-            static_assert(CRITIC_NETWORK_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
-            static_assert(ACTOR_NETWORK_TYPE::OUTPUT_DIM == ENVIRONMENT::ACTION_DIM);
-            static_assert(CRITIC_NETWORK_TYPE::OUTPUT_DIM == 1);
+            static_assert(ACTOR_TYPE::SPEC::BATCH_SIZE == CRITIC_TYPE::SPEC::BATCH_SIZE);
+            static_assert(ACTOR_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
+            static_assert(CRITIC_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
+            static_assert(ACTOR_TYPE::OUTPUT_DIM == ENVIRONMENT::ACTION_DIM);
+            static_assert(CRITIC_TYPE::OUTPUT_DIM == 1);
         };
 
         template <typename SPEC>
@@ -63,8 +63,8 @@ namespace layer_in_c::rl::algorithms{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-        typename SPEC::ACTOR_NETWORK_TYPE actor;
-        typename SPEC::CRITIC_NETWORK_TYPE critic;
+        typename SPEC::ACTOR_TYPE actor;
+        typename SPEC::CRITIC_TYPE critic;
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         bool initialized = false;
 #endif

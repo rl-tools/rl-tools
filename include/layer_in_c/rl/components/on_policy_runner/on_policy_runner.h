@@ -15,7 +15,10 @@ namespace layer_in_c::rl::components{
         template <typename T_SPEC, typename T_SPEC::TI T_STEPS_PER_ENV>
         struct BufferSpecification{
             using SPEC = T_SPEC;
-            static constexpr typename SPEC::TI STEPS_PER_ENV = T_STEPS_PER_ENV;
+            using TI = typename SPEC::TI;
+            static constexpr TI STEPS_PER_ENV = T_STEPS_PER_ENV;
+            static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * SPEC::N_ENVIRONMENTS;
+            static constexpr TI STEPS_TOTAL_ALL = (STEPS_PER_ENV+1) * SPEC::N_ENVIRONMENTS; // +1 for the final observation
         };
 
         template <typename T_SPEC>
@@ -24,7 +27,7 @@ namespace layer_in_c::rl::components{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             static constexpr TI STEPS_PER_ENV = T_SPEC::STEPS_PER_ENV;
-            static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * SPEC::N_ENVIRONMENTS;
+            static constexpr TI STEPS_TOTAL = T_SPEC::STEPS_TOTAL;
             // structure: OBSERVATION - ACTION - ACTION_LOG_P - REWARD - TERMINATED - TRUNCATED - VALUE - ADVANTAGE - TARGEt_VALUE
             static constexpr TI DATA_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM + 7;
 
@@ -47,6 +50,10 @@ namespace layer_in_c::rl::components{
             DATA_VIEW<1> values;
             DATA_VIEW<1> advantages;
             DATA_VIEW<1> target_values;
+        };
+        template <typename TI, TI T_NUM_THREADS>
+        struct ExecutionHints{
+            static constexpr TI NUM_THREADS = T_NUM_THREADS;
         };
     }
 

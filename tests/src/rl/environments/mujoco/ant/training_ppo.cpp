@@ -14,7 +14,16 @@ namespace lic = layer_in_c;
 namespace parameters = parameters_0;
 
 using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
-using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
+
+using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
+using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
+namespace execution_hints{
+    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 1>{};
+}
+struct DEV_SPEC: DEV_SPEC_SUPER{
+    using EXECUTION_HINTS = execution_hints::HINTS;
+};
+using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
 
 
 using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
@@ -52,6 +61,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     prl::ACTOR_EVAL_BUFFERS actor_eval_buffers;
     prl::ACTOR_BUFFERS actor_buffers;
     prl::CRITIC_BUFFERS critic_buffers;
+    prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
 
     lic::malloc(device, ppo);
     lic::malloc(device, ppo_buffers);
@@ -60,6 +70,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     lic::malloc(device, actor_eval_buffers);
     lic::malloc(device, actor_buffers);
     lic::malloc(device, critic_buffers);
+    lic::malloc(device, critic_buffers_gae);
 
     penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
     for(auto& env : envs){
@@ -100,7 +111,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer);
+            lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer, critic_buffers_gae);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
