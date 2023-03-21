@@ -29,13 +29,14 @@ namespace TEST_DEFINITIONS{
 
     using parameters_environment = parameter_set::environment<T, TI>;
     struct ENVIRONMENT_EVALUATION_PARAMETERS: parameters_environment::ENVIRONMENT_SPEC::PARAMETERS{
-        constexpr static TI FRAME_SKIP = 1; // for smoother playback
+        constexpr static TI FRAME_SKIP = 5; // for smoother playback
     };
     using ENVIRONMENT_EVALUATION_SPEC = lic::rl::environments::mujoco::ant::Specification<T, TI, ENVIRONMENT_EVALUATION_PARAMETERS>;
     using ENVIRONMENT = lic::rl::environments::mujoco::Ant<ENVIRONMENT_EVALUATION_SPEC>;
     using UI = lic::rl::environments::mujoco::ant::UI<ENVIRONMENT>;
 
     using parameters_rl = parameter_set::rl<T, TI, ENVIRONMENT>;
+    constexpr TI MAX_EPISODE_LENGTH = 1000;
 }
 
 
@@ -90,16 +91,23 @@ int main(int argc, char** argv) {
         lic::load(dev, actor, data_file.getGroup("actor"));
 
         lic::sample_initial_state(dev, env, state, rng);
-        for(int i = 0; i < 1000; i++){
+        T reward_acc = 0;
+        for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             lic::observe(dev, env, state, observation);
             lic::evaluate(dev, actor, observation, action);
             T dt = lic::step(dev, env, state, action, next_state);
+            bool terminated_flag = lic::terminated(dev, env, next_state, rng);
+            reward_acc += lic::reward(dev, env, state, action, next_state);
             lic::set_state(dev, ui, state);
             state = next_state;
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> diff = end-start;
             std::this_thread::sleep_for(std::chrono::milliseconds((int)((dt - diff.count())*1000)));
+            if(terminated_flag || step_i == (MAX_EPISODE_LENGTH - 1)){
+                std::cout << "Episode terminated after " << step_i << " steps with reward " << reward_acc << std::endl;
+                break;
+            }
         }
     }
 }
