@@ -64,7 +64,11 @@ int main(int argc, char** argv) {
     while(true){
         std::filesystem::path actor_run;
         if(run == ""){
-            std::filesystem::path actor_checkpoints_dir = "actor_checkpoints";
+#ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+            std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "ppo_ant";
+#else
+            std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "td3_ant";
+#endif
             std::vector<std::filesystem::path> actor_runs;
 
             for (const auto& run : std::filesystem::directory_iterator(actor_checkpoints_dir)) {
@@ -87,8 +91,17 @@ int main(int argc, char** argv) {
         std::sort(actor_checkpoints.begin(), actor_checkpoints.end());
 
         std::cout << "Loading actor from " << actor_checkpoints.back() << std::endl;
-        auto data_file = HighFive::File(actor_checkpoints.back(), HighFive::File::ReadOnly);
-        lic::load(dev, actor, data_file.getGroup("actor"));
+        {
+            try{
+                auto data_file = HighFive::File(actor_checkpoints.back(), HighFive::File::ReadOnly);
+                lic::load(dev, actor, data_file.getGroup("actor"));
+            }
+            catch(HighFive::FileException& e){
+                std::cout << "Failed to load actor from " << actor_checkpoints.back() << std::endl;
+                std::cout << "Error: " << e.what() << std::endl;
+                continue;
+            }
+        }
 
         lic::sample_initial_state(dev, env, state, rng);
         T reward_acc = 0;

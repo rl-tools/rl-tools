@@ -30,9 +30,5 @@ namespace layer_in_c{
     void add_scalar(DEVICE& device, devices::logging::CPU* logger, const std::string key, const float value, const typename devices::logging::CPU::index_t cadence = 1){
         //noop
     }
-    template <typename DEVICE>
-    void add_scalar(DEVICE& device, devices::logging::CPU* logger, const char* key, const float value, const typename devices::logging::CPU::index_t cadence = 1){
-        //noop
-    }
 }
 #endif

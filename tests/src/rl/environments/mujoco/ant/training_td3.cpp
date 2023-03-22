@@ -50,8 +50,9 @@ using parameters_rl = parameter_set::rl<DTYPE, typename DEVICE::index_t, ENVIRON
 static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 constexpr DEVICE::index_t performance_logging_interval = 100;
-constexpr DEVICE::index_t ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
-constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 5000;
+constexpr DEVICE::index_t ACTOR_CRITIC_EVALUATION_SYNC_INTERVAL = 100;
+constexpr DEVICE::index_t DETERMINISTIC_EVALUATION_INTERVAL = 10000;
+constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 10000;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "actor_checkpoints";
 
 
@@ -210,7 +211,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                         lic::update_actor_target(device, actor_critic);
                     }
                 }
-                if(step_i % ACTOR_CRITIC_EVALUATION_INTERVAL == 0){
+                if(step_i % ACTOR_CRITIC_EVALUATION_SYNC_INTERVAL == 0){
                     lic::gather_batch(device, off_policy_runner, critic_batches[0], rng);
                     DTYPE critic_1_loss = lic::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0]);
                     lic::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
@@ -250,12 +251,14 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             }
             auto step_end = std::chrono::high_resolution_clock::now();
             lic::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
-            if(step_i % 10000 == 0){
-                DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), parameters_rl::ENVIRONMENT_STEP_LIMIT, true>(device, evaluation_env, ui, actor_critic.actor, 1, evaluation_rng);
-                lic::add_scalar(device, device.logger, "evaluation/return", mean_return);
-                std::cout << "Mean return: " << mean_return << std::endl;
+            if(step_i % DETERMINISTIC_EVALUATION_INTERVAL == 0){
+                auto result = lic::evaluate(device, evaluation_env, ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), evaluation_rng);
+                lic::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
+                lic::add_scalar(device, device.logger, "evaluation/return/std", result.std);
+                lic::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
+                std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
                 run_eval_step.push_back(step_i);
-                run_eval_return.push_back(mean_return);
+                run_eval_return.push_back(result.mean);
 
 //            if(step_i > 250000){
 //                ASSERT_GT(mean_return, 1000);

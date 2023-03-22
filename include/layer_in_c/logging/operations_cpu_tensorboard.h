@@ -44,9 +44,15 @@ namespace layer_in_c{
             logger->tb->add_scalar(key, logger->step, value);
         }
     }
-    template <typename DEVICE>
-    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const char* key, const float value, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
-        add_scalar(device, logger, std::string(key), value, cadence);
+    template <typename DEVICE, typename T, typename TI>
+    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const std::string key, const T* values, const TI n_values, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
+        if(logger == nullptr){
+            return;
+        }
+        std::lock_guard<std::mutex> lock(logger->mutex);
+        if(logger->step % cadence == 0){
+            logger->tb->add_histogram(key, logger->step, values, n_values);
+        }
     }
 }
 #endif

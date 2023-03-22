@@ -13,6 +13,18 @@ namespace layer_in_c::rl::utils::evaluation{
         T episode_return = 0;
         ENV_STATE state;
     };
+    template <auto T_N_EPISODES, auto T_STEP_LIMIT>
+    struct Specification{
+        constexpr static auto N_EPISODES = T_N_EPISODES;
+        constexpr static auto STEP_LIMIT = T_STEP_LIMIT;
+    };
+    template <typename T, auto T_N_EPISODES>
+    struct Result{
+        constexpr static auto N_EPISODES = T_N_EPISODES;
+        T returns[N_EPISODES];
+        T mean;
+        T std;
+    };
 }
 
 namespace layer_in_c {
@@ -48,52 +60,45 @@ namespace layer_in_c {
         free(device, action);
         return terminated(device, env, state, rng);
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename DEVICE::index_t STEP_LIMIT, typename RNG>
-    typename POLICY::T evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, RNG& rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename RNG>
+    typename POLICY::T evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         rl::utils::evaluation::State<T, typename ENVIRONMENT::State> state;
         state.state = initial_state;
-        for (TI i = 0; i < STEP_LIMIT; i++) {
+        for (TI i = 0; i < SPEC::STEP_LIMIT; i++) {
             if(evaluate_step(device, env, ui, policy, state, rng)){
                 break;
             }
         }
         return state.episode_return;
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, auto STEP_LIMIT, bool DETERMINISTIC>
-    typename POLICY::T evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, typename DEVICE::index_t N, RNG &rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC>
+    rl::utils::evaluation::Result<typename POLICY::T, SPEC::N_EPISODES> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM, "Action and policy output dimensions must match");
-        T episode_returns[N];
-        for(TI i = 0; i < N; i++) {
+        rl::utils::evaluation::Result<T, SPEC::N_EPISODES> results;
+        results.mean = 0;
+        results.std = 0;
+        for(TI i = 0; i < SPEC::N_EPISODES; i++) {
             typename ENVIRONMENT::State initial_state;
-            if(DETERMINISTIC) {
+            if(deterministic) {
                 layer_in_c::initial_state(device, env, initial_state);
             }
             else{
                 sample_initial_state(device, env, initial_state, rng);
             }
-            episode_returns[i] = evaluate<DEVICE, ENVIRONMENT, UI, POLICY, STEP_LIMIT, RNG>(device, env, ui, policy, initial_state, rng);
+            T r = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, rng);
+            results.returns[i] = r;
+            results.mean += r;
+            results.std += r*r;
         }
-        T mean = 0;
-        for(TI i = 0; i < N; i++) {
-            mean += episode_returns[i];
-        }
-        mean /= N;
-        T variance = 0;
-        for(TI i = 0; i < N; i++) {
-            variance += (episode_returns[i] - mean) * (episode_returns[i] - mean);
-        }
-        variance /= N;
-        T standard_deviation = math::sqrt(typename DEVICE::SPEC::MATH(), variance);
-        logging::text(device, device.logger, "Mean: ", mean, ", Standard deviation: ", standard_deviation);
-        return mean;
+        results.mean /= SPEC::N_EPISODES;
+        results.std = lic::math::sqrt(typename DEVICE::SPEC::MATH(), results.std/SPEC::N_EPISODES - results.mean*results.mean);
+        return results;
     }
-
-
 }
 
 #endif

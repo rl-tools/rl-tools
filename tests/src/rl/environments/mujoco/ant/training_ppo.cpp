@@ -4,8 +4,17 @@
 #include <layer_in_c/nn_models/persist.h>
 namespace lic = layer_in_c;
 #include "parameters_ppo.h"
+#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/rl/components/on_policy_runner/operations_cpu_mkl.h>
+#else
+#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_accelerate.h>
+#else
+#include <layer_in_c/rl/components/on_policy_runner/operations_cpu.h>
+#endif
+#endif
 #include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
+#include <layer_in_c/rl/utils/evaluation.h>
 
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
@@ -18,7 +27,7 @@ using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
 using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
+    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 8>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
@@ -31,9 +40,10 @@ using T = float;
 using TI = typename DEVICE::index_t;
 
 
-constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50;
+constexpr TI ACTOR_CHECKPOINT_INTERVAL = 150;
+constexpr TI EVALUATION_INTERVAL = 150;
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
-constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = true;
+constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
 
 TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
@@ -54,6 +64,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     DEVICE device;
     prl::OPTIMIZER optimizer;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
+    auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
@@ -62,6 +73,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     prl::ACTOR_BUFFERS actor_buffers;
     prl::CRITIC_BUFFERS critic_buffers;
     prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
+    penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
+    penv::ENVIRONMENT evaluation_env;
+    bool ui = false;
 
     lic::malloc(device, ppo);
     lic::malloc(device, ppo_buffers);
@@ -71,11 +85,11 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     lic::malloc(device, actor_buffers);
     lic::malloc(device, critic_buffers);
     lic::malloc(device, critic_buffers_gae);
-
-    penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
     for(auto& env : envs){
         lic::malloc(device, env);
     }
+    lic::malloc(device, evaluation_env);
+
     lic::init(device, on_policy_runner, envs, rng);
     lic::init(device, ppo, optimizer, rng);
     device.logger = &logger;
@@ -126,6 +140,17 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> elapsed = end - start;
         std::cout << "Total: " << elapsed.count() << " s" << std::endl;
+        if(ppo_step_i % EVALUATION_INTERVAL == 0){
+            auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<10, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), evaluation_rng);
+            lic::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
+            lic::add_scalar(device, device.logger, "evaluation/return/std", result.std);
+            lic::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
+            std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
+
+//            if(step_i > 250000){
+//                ASSERT_GT(mean_return, 1000);
+//            }
+        }
         if(ACTOR_ENABLE_CHECKPOINTS && ppo_step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
             std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
             try {
