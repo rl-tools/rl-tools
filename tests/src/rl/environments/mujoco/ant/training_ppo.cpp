@@ -18,7 +18,7 @@ using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
 using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 1>{};
+    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
@@ -107,25 +107,25 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
             lic::add_scalar(device, device.logger, "opr/rewards/std", lic::std(device, on_policy_runner_buffer.rewards));
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
-//            std::cout << "Rollout: " << elapsed.count() << " s" << std::endl;
+            std::cout << "Rollout: " << elapsed.count() << " s" << std::endl;
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
             lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer, critic_buffers_gae);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
-//            std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
+            std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
             lic::train(device, ppo, on_policy_runner_buffer, optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
-//            std::cout << "Train: " << elapsed.count() << " s" << std::endl;
+            std::cout << "Train: " << elapsed.count() << " s" << std::endl;
         }
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> elapsed = end - start;
-//        std::cout << "Total: " << elapsed.count() << " s" << std::endl;
+        std::cout << "Total: " << elapsed.count() << " s" << std::endl;
         if(ACTOR_ENABLE_CHECKPOINTS && ppo_step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
             std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
             try {

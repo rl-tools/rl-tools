@@ -23,9 +23,9 @@ namespace layer_in_c::rl::components::on_policy_runner{
         using SPEC = typename BUFFER_SPEC::SPEC;
         using DEVICE = devices::CPU<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
-        std::vector<std::thread> threads;
 
         constexpr TI NUM_THREADS = get_num_threads(typename DEVICE::EXECUTION_HINTS());
+        std::thread threads[NUM_THREADS];
 
         if(NUM_THREADS > 1){
             RNG rngs[SPEC::N_ENVIRONMENTS];
@@ -35,7 +35,7 @@ namespace layer_in_c::rl::components::on_policy_runner{
             }
 
             for (TI thread_i = 0; thread_i < NUM_THREADS; thread_i++) {
-                threads.emplace_back([&device, thread_i, &buffer, &runner, &actions, &action_log_std, &step_i, &rngs](){
+                threads[thread_i] = std::thread([&device, thread_i, &buffer, &runner, &actions, &action_log_std, &step_i, &rngs](){
                     for (TI env_i = thread_i; env_i < SPEC::N_ENVIRONMENTS; env_i += NUM_THREADS) {
                         TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
                         per_env::epilogue(device, buffer, runner, actions, action_log_std, rngs[env_i], pos, env_i);

@@ -85,6 +85,7 @@ namespace layer_in_c{
         mjv_defaultCamera(&ui.camera);
         ui.camera.type = mjCAMERA_TRACKING;
         ui.camera.trackbodyid = env.torso_id;
+        ui.camera.distance = 6;
         mjv_defaultOption(&ui.option);
         mjv_defaultScene(&ui.scene);
         mjr_defaultContext(&ui.context);
