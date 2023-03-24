@@ -51,7 +51,7 @@ namespace layer_in_c::rl::components::off_policy_runner{
 
         for (typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++) {
             T action_noisy = get(action, 0, i) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T) 0, PARAMETERS::EXPLORATION_NOISE, rng);
-            set(action, 0, i, math::clamp<T>(action_noisy, -1, 1));
+            set(action, 0, i, math::clamp<T>(typename DEVICE::SPEC::MATH(), action_noisy, -1, 1));
         }
         step(device, env, state, action, next_state);
 

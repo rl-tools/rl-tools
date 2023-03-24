@@ -69,7 +69,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
             constexpr DTYPE action_min = 0;
             constexpr DTYPE action_max = 2000;
             for(COUNTER_TYPE action_i = 0; action_i < ACTION_DIM; action_i++){
-                action[action_i] = 1000 + lic::math::clamp<DTYPE>(action_distribution(rng) * 500, action_min, action_max);
+                action[action_i] = 1000 + lic::math::clamp<DTYPE>(typename DEVICE::SPEC::MATH(), action_distribution(rng) * 500, action_min, action_max);
             }
             for(COUNTER_TYPE action_i = 0; action_i < ACTION_DIM; action_i++){
                 set(env_action, 0, action_i, (action[action_i] - action_min) / (action_max - action_min) * 2 - 1);

@@ -126,11 +126,42 @@ namespace layer_in_c::math {
         }
     }
 
-
-
-
-
-
+    template<typename T>
+    LAYER_IN_C_FUNCTION_PLACEMENT T clamp(const devices::math::CUDA&, const T x, const T min, const T max) {
+        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::fmin(max, ::fmax(x, min));
+        } else {
+            return ::min(max, ::max(x, min));
+        }
+    }
+    template<typename T>
+    LAYER_IN_C_FUNCTION_PLACEMENT T min(const devices::math::CUDA&, const T a, const T b) {
+        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::fmin(a, b);
+        } else {
+            return ::min(a, b);
+        }
+    }
+    template<typename T>
+    LAYER_IN_C_FUNCTION_PLACEMENT T max(const devices::math::CUDA&, const T a, const T b) {
+        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::fmax(a, b);
+        } else {
+            return ::max(a, b);
+        }
+    }
+    template<typename T>
+    LAYER_IN_C_FUNCTION_PLACEMENT T abs(const devices::math::CUDA&, const T x) {
+        static_assert(cuda::check<T>, "CUDA math only supports float and double");
+        if constexpr (utils::typing::is_same_v<T, float>) {
+            return ::fabs(x);
+        } else {
+            return ::abs(x);
+        }
+    }
 
 
 

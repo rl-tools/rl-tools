@@ -97,10 +97,10 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
 
     T acc = 0;
     for(TI state_i=0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q; state_i++){
-        acc += lic::math::abs(next_state_1.q[state_i] - next_state_2.q[state_i]);
+        acc += lic::math::abs(typename DEVICE::SPEC::MATH(), next_state_1.q[state_i] - next_state_2.q[state_i]);
     }
     for(TI state_i=0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q_DOT; state_i++){
-        acc += lic::math::abs(next_state_1.q_dot[state_i] - next_state_2.q_dot[state_i]);
+        acc += lic::math::abs(typename DEVICE::SPEC::MATH(), next_state_1.q_dot[state_i] - next_state_2.q_dot[state_i]);
     }
     std::cout << "next_state_1 vs. next_state_2 abs diff: " << acc << std::endl;
     ASSERT_LT(acc, 1e-12);
@@ -166,9 +166,9 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
         mj_forward(env.model, env.data);
         lic::step(dev, env, state, action, next_state);
         for(TI state_i = 0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q; state_i++){
-            T abs_diff = lic::math::abs(next_state.q[state_i] - next_states[step_i][state_i]);
+            T abs_diff = lic::math::abs(typename DEVICE::SPEC::MATH(), next_state.q[state_i] - next_states[step_i][state_i]);
             if(abs_diff > 0){
-                T relative_diff = lic::math::abs(next_state.q[state_i] - initial_state.q[state_i]);
+                T relative_diff = lic::math::abs(typename DEVICE::SPEC::MATH(), next_state.q[state_i] - initial_state.q[state_i]);
                 T ratio = relative_diff / abs_diff;
                 std::cout << "ratio: " << ratio << std::endl;
                 if(abs_diff > 1e-10 && ratio < 1e10){
@@ -180,7 +180,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
             ASSERT_NEAR(next_state.q_dot[state_i], next_states[step_i][state_i + ENVIRONMENT::SPEC::STATE_DIM_Q], 1e-10);
         }
         T reward = lic::reward(dev, env, state, action, next_state);
-        T reward_abs_diff = lic::math::abs(reward - rewards[step_i]);
+        T reward_abs_diff = lic::math::abs(typename DEVICE::SPEC::MATH(), reward - rewards[step_i]);
         if(reward_abs_diff > 1e-2){
             ASSERT_NEAR(reward, rewards[step_i], 1e-5);
         }

@@ -59,7 +59,7 @@ namespace layer_in_c{
         T control_cost = 0;
         for(TI action_i = 0; action_i < SPEC::ACTION_DIM; action_i++){
             T control = get(action, 0, action_i);
-            control = math::clamp<T>(control, -1, 1);
+            control = math::clamp<T>(typename DEVICE::SPEC::MATH(), control, -1, 1);
             env.data->ctrl[action_i] = control;
             control_cost += control * control;
         }

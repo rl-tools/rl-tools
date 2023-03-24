@@ -109,3 +109,22 @@ target_link_libraries(
 gtest_discover_tests(test_rl_environments_mujoco_ant_training_ppo)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo)
+
+add_executable(
+        test_rl_environments_mujoco_ant_throughput
+        throughput.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_throughput
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+        mujoco
+)
+gtest_discover_tests(test_rl_environments_mujoco_ant_throughput)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_throughput)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_throughput)
+
+add_subdirectory(cuda)

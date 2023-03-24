@@ -131,9 +131,9 @@ int main() {
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<AC_DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), ENVIRONMENT_STEP_LIMIT, true>(device, env, ui, actor_critic.actor, 1, rng);
-            lic::logging::text(device, device.logger, "Mean return: ", mean_return);
-            if(mean_return > -200000){
+            auto result = lic::evaluate(device, env, ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), rng, true);
+            lic::logging::text(device, device.logger, "Mean return: ", result.mean);
+            if(result.mean > -200000){
                 return 0;
             }
         }

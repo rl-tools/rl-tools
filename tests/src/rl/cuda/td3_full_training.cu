@@ -183,8 +183,8 @@ TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         }
         if(step_i % 20000 == 0){
             lic::copy(device_init, device, actor_critic_init, actor_critic);
-            DTYPE mean_return = lic::evaluate<DEVICE_INIT, p::env::ENVIRONMENT, decltype(ui), decltype(actor_critic_init.actor), decltype(rng_init), rlp::ENVIRONMENT_STEP_LIMIT, true>(device_init, envs[0], ui, actor_critic_init.actor, 1, rng_init);
-            std::cout << "Mean return: " << mean_return << std::endl;
+            auto results = lic::evaluate(device_init, envs[0], ui, actor_critic_init.actor, lic::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), rng_init, true);
+            std::cout << "Mean return: " << results.mean << std::endl;
         }
     }
     {

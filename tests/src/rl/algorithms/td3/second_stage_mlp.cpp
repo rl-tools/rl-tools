@@ -91,8 +91,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) 
     assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     lic::load(device, actor_critic.actor, step_group.getGroup("actor"));
-    DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), 200, true>(device, env, ui, actor_critic.actor, 100, rng);
-    std::cout << "mean return: " << mean_return << std::endl;
+    auto result = lic::evaluate(device, env, ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<100, 200>(), rng, true);
+    std::cout << "mean return: " << result.mean << std::endl;
 }
 
 //using ReplayBufferSpecCopyTraining = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 1000>;
@@ -491,7 +491,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             if(!verbose){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), typeof(rng), 200, true>(device, env, ui, actor_critic.actor, 100, rng);
+            auto result = lic::evaluate(device, env, ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<100, 200>(), rng, true);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("second_stage"), step_i);
 #endif

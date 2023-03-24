@@ -99,7 +99,7 @@ namespace layer_in_c{
         typedef typename SPEC::T T;
         for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
             for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                set(target_action_noise, batch_sample_i, action_i, math::clamp(
+                set(target_action_noise, batch_sample_i, action_i, math::clamp(typename DEVICE::SPEC::MATH(),
                         random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng),
                         -SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
                         SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP
@@ -116,7 +116,7 @@ namespace layer_in_c{
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
             for(TI action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 T noisy_next_action = get(training_buffers.next_actions, batch_step_i, action_i) + get(training_buffers.target_next_action_noise, batch_step_i, action_i);
-                noisy_next_action = math::clamp<T>(noisy_next_action, -1, 1);
+                noisy_next_action = math::clamp<T>(typename DEVICE::SPEC::MATH(), noisy_next_action, -1, 1);
                 set(training_buffers.next_actions, batch_step_i, action_i, noisy_next_action);
             }
         }
@@ -130,7 +130,7 @@ namespace layer_in_c{
         constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-            T min_next_state_action_value = math::min(
+            T min_next_state_action_value = math::min(typename DEVICE::SPEC::MATH(),
                     get(training_buffers.next_state_action_value_critic_1, batch_step_i, 0),
                     get(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)
             );

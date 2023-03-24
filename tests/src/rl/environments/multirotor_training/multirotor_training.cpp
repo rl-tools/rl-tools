@@ -274,10 +274,10 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             auto step_end = std::chrono::high_resolution_clock::now();
             lic::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % 1000 == 0){
-                DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), parameters_rl::ENVIRONMENT_STEP_LIMIT, true>(device, envs[0], ui, actor_critic.actor, 1, rng);
-                std::cout << "Mean return: " << mean_return << std::endl;
+                auto results = lic::evaluate(device, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<1, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, true);
+                std::cout << "Mean return: " << results.mean << std::endl;
                 run_eval_step.push_back(step_i);
-                run_eval_return.push_back(mean_return);
+                run_eval_return.push_back(results.mean);
 
 //            if(step_i > 250000){
 //                ASSERT_GT(mean_return, 1000);

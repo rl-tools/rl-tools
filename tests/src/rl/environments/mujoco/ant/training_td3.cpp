@@ -56,11 +56,7 @@ constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 10000;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "actor_checkpoints";
 
 
-#ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING_DEBUG) {
-#else
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
-#endif
+TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_TD3){
     std::string DATA_FILE_PATH = "learning_curves.h5";
     std::vector<std::vector<DTYPE>> episode_step;
     std::vector<std::vector<DTYPE>> episode_returns;

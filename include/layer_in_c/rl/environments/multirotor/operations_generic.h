@@ -179,17 +179,17 @@ namespace layer_in_c{
         using T = typename SPEC::T;
         if(env.parameters.mdp.termination.enabled){
             for(typename DEVICE::index_t position_i = 0; position_i < 3; position_i++){
-                if(math::abs(state.state[position_i]) > env.parameters.mdp.termination.position_threshold){
+                if(math::abs(typename DEVICE::SPEC::MATH(), state.state[position_i]) > env.parameters.mdp.termination.position_threshold){
                     return true;
                 }
             }
             for(typename DEVICE::index_t linear_velocity_i = 0; linear_velocity_i < 3; linear_velocity_i++){
-                if(math::abs(state.state[3 + 4 + linear_velocity_i]) > env.parameters.mdp.termination.linear_velocity_threshold){
+                if(math::abs(typename DEVICE::SPEC::MATH(), state.state[3 + 4 + linear_velocity_i]) > env.parameters.mdp.termination.linear_velocity_threshold){
                     return true;
                 }
             }
             for(typename DEVICE::index_t angular_velocity_i = 0; angular_velocity_i < 3; angular_velocity_i++){
-                if(math::abs(state.state[3 + 4 + 3 + angular_velocity_i]) > env.parameters.mdp.termination.angular_velocity_threshold){
+                if(math::abs(typename DEVICE::SPEC::MATH(), state.state[3 + 4 + 3 + angular_velocity_i]) > env.parameters.mdp.termination.angular_velocity_threshold){
                     return true;
                 }
             }

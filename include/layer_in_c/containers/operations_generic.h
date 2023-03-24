@@ -139,7 +139,7 @@ namespace layer_in_c{
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
                 T v1 = get(m1, i, j);
                 T v2 = get(m2, i, j);
-                acc += math::abs(v1 - v2);
+                acc += math::abs(typename DEVICE::SPEC::MATH(), v1 - v2);
             }
         }
         return acc;
@@ -452,7 +452,7 @@ namespace layer_in_c{
     typename SPEC::T clamp(DEVICE& device, layer_in_c::Matrix<SPEC>& m, typename SPEC::T lower, typename SPEC::T upper){
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
-                set(m, row_i, col_i, math::clamp(get(m, row_i, col_i), lower, upper));
+                set(m, row_i, col_i, math::clamp<typename SPEC::T>(typename DEVICE::SPEC::MATH(), get(m, row_i, col_i), lower, upper));
             }
         }
     }

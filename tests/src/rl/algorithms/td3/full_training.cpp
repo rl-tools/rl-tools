@@ -220,8 +220,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             }
         }
         if(step_i % 1000 == 0){
-            DTYPE mean_return = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor_critic.actor), decltype(rng), ENVIRONMENT_STEP_LIMIT, true>(ac_dev, envs[0], ui, actor_critic.actor, 1, rng);
-            std::cout << "Mean return: " << mean_return << std::endl;
+            auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<1, ENVIRONMENT_STEP_LIMIT>(), rng, true);
+            std::cout << "Mean return: " << result.mean << std::endl;
 //            if(step_i >= 6000){
 //                ASSERT_GT(mean_return, -1000);
 //            }

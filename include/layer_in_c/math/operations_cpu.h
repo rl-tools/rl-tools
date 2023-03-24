@@ -6,6 +6,7 @@
 #include <layer_in_c/devices/cpu.h>
 
 #include <cmath>
+#include <algorithm> // required for clamp(...)
 
 namespace layer_in_c::math {
 
@@ -52,6 +53,22 @@ namespace layer_in_c::math {
     template<typename T>
     auto is_finite(const devices::math::CPU&, const T x) {
         return std::isfinite(x);
+    }
+    template<typename T>
+    T clamp(const devices::math::CPU&, T x, T min, T max){
+        return std::clamp(x, min, max);
+    }
+    template<typename T>
+    T min(const devices::math::CPU&, T x, T y){
+        return std::min(x, y);
+    }
+    template<typename T>
+    T max(const devices::math::CPU&, T x, T y){
+        return std::max(x, y);
+    }
+    template<typename T>
+    T abs(const devices::math::CPU&, T x){
+        return std::abs(x);
     }
 }
 #endif

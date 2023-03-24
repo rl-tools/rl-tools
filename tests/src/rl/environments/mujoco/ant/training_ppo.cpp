@@ -27,7 +27,7 @@ using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
 using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 8>{};
+    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
@@ -41,12 +41,13 @@ using TI = typename DEVICE::index_t;
 
 
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 150;
+constexpr bool ENABLE_EVALUATION = false;
 constexpr TI EVALUATION_INTERVAL = 150;
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
 
-TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
+TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
     std::string run_name;
     {
         auto now = std::chrono::system_clock::now();
@@ -140,7 +141,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> elapsed = end - start;
         std::cout << "Total: " << elapsed.count() << " s" << std::endl;
-        if(ppo_step_i % EVALUATION_INTERVAL == 0){
+        if(ENABLE_EVALUATION && (ppo_step_i % EVALUATION_INTERVAL == 0)){
             auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<10, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), evaluation_rng);
             lic::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
             lic::add_scalar(device, device.logger, "evaluation/return/std", result.std);

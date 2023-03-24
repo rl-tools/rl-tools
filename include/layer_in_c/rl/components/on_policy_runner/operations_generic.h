@@ -98,12 +98,11 @@ namespace layer_in_c{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         for(TI step_i = 0; step_i < BUFFER_SPEC::STEPS_PER_ENV; step_i++){
-            rl::components::on_policy_runner::prologue(device, buffer, runner, rng, step_i);
             auto actions = view(device, buffer.actions, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations = view(device, buffer.observations, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
+            rl::components::on_policy_runner::prologue(device, buffer, runner, rng, step_i);
             evaluate(device, actor, observations, actions, policy_eval_buffers);
-
             rl::components::on_policy_runner::epilogue(device, buffer, runner, actions, actor.action_log_std.parameters, rng, step_i);
         }
         // final observation

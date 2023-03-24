@@ -49,5 +49,25 @@ namespace layer_in_c::math {
     auto is_nan(const devices::math::ARM&, const T x) {
         return isnan(x);
     }
+    template<typename T>
+    auto is_finite(const devices::math::ARM&, const T x) {
+        return std::isfinite(x);
+    }
+    template<typename T>
+    T clamp(const devices::math::ARM&, T x, T min, T max){
+        return std::clamp(x, min, max);
+    }
+    template<typename T>
+    T min(const devices::math::ARM&, T x, T y){
+        return std::min(x, y);
+    }
+    template<typename T>
+    T max(const devices::math::ARM&, T x, T y){
+        return std::max(x, y);
+    }
+    template<typename T>
+    T abs(const devices::math::ARM&, T x){
+        return std::abs(x);
+    }
 }
 #endif

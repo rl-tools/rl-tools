@@ -16,7 +16,7 @@ namespace layer_in_c{
         curand_init(rng, batch_step_i, 0, &rng_state);
         if(batch_step_i < BATCH_SIZE){
             for(TI action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                set(target_action_noise, batch_step_i, action_i, math::clamp(
+                set(target_action_noise, batch_step_i, action_i, math::clamp(typename DEVICE::SPEC::MATH(),
                     random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD, rng_state),
 //                        curand_normal(&rng_state),
                         -(T)SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP,
@@ -53,7 +53,7 @@ namespace layer_in_c{
         if(batch_step_i < BATCH_SIZE){
             for(TI action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 T noisy_next_action = get(training_buffers.next_actions, batch_step_i, action_i) + get(training_buffers.target_next_action_noise, batch_step_i, action_i);
-                noisy_next_action = math::clamp<T>(noisy_next_action, -1, 1);
+                noisy_next_action = math::clamp<T>(typename DEVICE::SPEC::MATH(), noisy_next_action, -1, 1);
                 set(training_buffers.next_actions, batch_step_i, action_i, noisy_next_action);
             }
         }
@@ -82,7 +82,7 @@ namespace layer_in_c{
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(batch_step_i < BATCH_SIZE){
-            T min_next_state_action_value = math::min(
+            T min_next_state_action_value = math::min(typename DEVICE::SPEC::MATH(),
                     get(training_buffers.next_state_action_value_critic_1, batch_step_i, 0),
                     get(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)
             );

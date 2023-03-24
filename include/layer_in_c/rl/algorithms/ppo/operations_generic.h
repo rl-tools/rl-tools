@@ -178,7 +178,7 @@ namespace layer_in_c{
                     T log_ratio = action_log_prob - old_action_log_prob;
                     T ratio = math::exp(typename DEVICE::SPEC::MATH(), log_ratio);
                     // todo: test relative clipping (clipping in log space makes more sense thatn clipping in exp space)
-                    T clipped_ratio = math::clamp(ratio, 1 - PPO_SPEC::PARAMETERS::EPSILON_CLIP, 1 + PPO_SPEC::PARAMETERS::EPSILON_CLIP);
+                    T clipped_ratio = math::clamp(typename DEVICE::SPEC::MATH(), ratio, 1 - PPO_SPEC::PARAMETERS::EPSILON_CLIP, 1 + PPO_SPEC::PARAMETERS::EPSILON_CLIP);
                     T normal_advantage = ratio * advantage;
                     T clipped_advantage = clipped_ratio * advantage;
                     T slippage = 0.0;

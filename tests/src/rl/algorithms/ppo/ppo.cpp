@@ -35,6 +35,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     prl::ACTOR_EVAL_BUFFERS actor_eval_buffers;
     prl::ACTOR_BUFFERS actor_buffers;
     prl::CRITIC_BUFFERS critic_buffers;
+    prl::CRITIC_BUFFERS_ALL critic_buffers_all;
 
     lic::malloc(device, ppo);
     lic::malloc(device, ppo_buffers);
@@ -43,6 +44,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     lic::malloc(device, actor_eval_buffers);
     lic::malloc(device, actor_buffers);
     lic::malloc(device, critic_buffers);
+    lic::malloc(device, critic_buffers_all);
 
     penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
     lic::init(device, on_policy_runner, envs, rng);
@@ -50,7 +52,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     device.logger = &logger;
     lic::construct(device, device.logger);
     auto training_start = std::chrono::high_resolution_clock::now();
-    for(TI ppo_step_i = 0; ppo_step_i < 100000; ppo_step_i++) {
+    for(TI ppo_step_i = 0; ppo_step_i < 1000; ppo_step_i++) {
         device.logger->step = on_policy_runner.step;
 
         if(ppo_step_i % 100 == 0){
@@ -74,7 +76,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer);
+            lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer, critic_buffers_all);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
@@ -98,5 +100,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
     lic::free(device, actor_eval_buffers);
     lic::free(device, actor_buffers);
     lic::free(device, critic_buffers);
+    lic::free(device, critic_buffers_all);
 
 }

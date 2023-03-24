@@ -8,23 +8,6 @@
 namespace layer_in_c::math {
 
     template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T clamp(T x, T min, T max){
-        return x < min ? min : (x > max ? max : x);
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T min(T x, T y){
-        return x < y ? x : y;
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T max(T x, T y){
-        return x > y ? x : y;
-    }
-    template<typename T>
-    LAYER_IN_C_FUNCTION_PLACEMENT T abs(T x){
-        return x > 0 ? x : -x;
-    }
-
-    template<typename T>
     constexpr T PI = 3.141592653589793238462643383279502884L;
 
     template<typename T>

@@ -47,7 +47,7 @@ namespace layer_in_c {
 
         evaluate(device, policy, observation, action);
         for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
-            set(action, 0, action_i, math::clamp<T>(get(action, 0, action_i), -1, 1));
+            set(action, 0, action_i, math::clamp<T>(typename DEVICE::SPEC::MATH(), get(action, 0, action_i), -1, 1));
         }
         typename ENVIRONMENT::State next_state;
         T dt = step(device, env, state, action, next_state);
