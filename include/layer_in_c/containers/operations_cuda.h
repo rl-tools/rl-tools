@@ -59,7 +59,7 @@ namespace layer_in_c{
         }
     }
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(devices::CUDA<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+    void copy_layout_mismatch(devices::CUDA<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
 //        static_assert(!TARGET_SPEC::IS_VIEW);
         using DEVICE_CUDA = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
@@ -90,7 +90,29 @@ namespace layer_in_c{
         }
     }
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CUDA<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+    void copy(devices::CUDA<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+        using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
+        constexpr bool DIRECT_COPY_POSSIBLE = containers::check_structure<TARGET_SPEC, SOURCE_SPEC> &&
+                                              TARGET_SPEC::ROW_PITCH == SOURCE_SPEC::ROW_PITCH &&
+                                              TARGET_SPEC::COL_PITCH == SOURCE_SPEC::COL_PITCH &&
+                                              TARGET_SPEC::COL_PITCH == 1 &&
+                                              TARGET_SPEC::ROW_PITCH == TARGET_SPEC::ROWS &&
+                                              utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T> &&
+                                              TARGET_SPEC::SIZE_BYTES == SOURCE_SPEC::SIZE_BYTES; // redundant wrt to the memory layout check but better safe than sorry
+        using SPEC = TARGET_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        if(DIRECT_COPY_POSSIBLE){
+            cudaMemcpy(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyHostToDevice);
+            check_status(target_device);
+        }
+        else{
+            copy_layout_mismatch(target_device, source_device, target, source);
+        }
+    }
+
+    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy_layout_mismatch(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CUDA<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
         static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
@@ -113,6 +135,27 @@ namespace layer_in_c{
         free(source_device, temp_gpu);
         copy(target_device, target_device, target, temp_cpu);
         free(target_device, temp_cpu);
+    }
+    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CUDA<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+        using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
+        constexpr bool DIRECT_COPY_POSSIBLE = containers::check_structure<TARGET_SPEC, SOURCE_SPEC> &&
+                                              TARGET_SPEC::ROW_PITCH == SOURCE_SPEC::ROW_PITCH &&
+                                              TARGET_SPEC::COL_PITCH == SOURCE_SPEC::COL_PITCH &&
+                                              TARGET_SPEC::COL_PITCH == 1 &&
+                                              TARGET_SPEC::ROW_PITCH == TARGET_SPEC::ROWS &&
+                                              utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T> &&
+                                              TARGET_SPEC::SIZE_BYTES == SOURCE_SPEC::SIZE_BYTES; // redundant wrt to the memory layout check but better safe than sorry
+        using SPEC = TARGET_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        if(DIRECT_COPY_POSSIBLE){
+            cudaMemcpy(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost);
+            check_status(source_device);
+        }
+        else{
+            copy_layout_mismatch(target_device, source_device, target, source);
+        }
     }
 
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>

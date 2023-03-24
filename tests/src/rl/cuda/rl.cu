@@ -175,12 +175,15 @@ TEST_F(LAYER_IN_C_RL_CUDA, VIEW_COPY_PROBLEM) {
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
 
-    lic::randn(device_cpu, batch_cpu.next_observations, rng_cpu);
+    lic::randn(device_cpu, batch_cpu.observations_actions_next_observations, rng_cpu);
+    lic::set_all(device_cpu, batch_cpu_2.observations_actions_next_observations, 0);
     lic::copy(device_gpu, device_cpu, batch_gpu.next_observations, batch_cpu.next_observations);
     lic::copy(device_cpu, device_gpu, batch_cpu_2.next_observations, batch_gpu.next_observations);
 
     auto abs_diff_next_observations = lic::abs_diff(device_cpu, batch_cpu_2.next_observations, batch_cpu.next_observations);
     ASSERT_LT(abs_diff_next_observations, EPSILON);
+    ASSERT_LT(lic::sum(device_cpu, batch_cpu_2.observations), EPSILON);
+    ASSERT_LT(lic::sum(device_cpu, batch_cpu_2.actions), EPSILON);
 }
 
 TEST_F(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
