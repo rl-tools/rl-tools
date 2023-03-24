@@ -14,7 +14,6 @@ namespace layer_in_c::nn::activation_functions {
     };
     template<enum ActivationFunction F>
     constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == SIGMOID;
-
 }
 namespace layer_in_c {
     template<typename DEVICE, typename T, nn::activation_functions::ActivationFunction F>
@@ -26,7 +25,7 @@ namespace layer_in_c {
             return x;
         }
         else if constexpr(F == RELU){
-            return x > 0 ? x : 0;
+            return math::max(DEVICE(), x, (T)0);
         }
         else if constexpr(F == GELU){
             constexpr T a = math::FRAC_2_SQRTPI<T> * math::SQRT1_2<T> * (T)0.5;
