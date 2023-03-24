@@ -69,13 +69,14 @@ namespace layer_in_c{
 #endif
     }
     namespace rl::components::on_policy_runner{
-        template <typename DEVICE, typename BUFFER_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-        void prologue(DEVICE& device, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, rl::components::OnPolicyRunner<typename BUFFER_SPEC::SPEC>& runner, RNG& rng, typename DEVICE::index_t step_i){
-            using SPEC = typename BUFFER_SPEC::SPEC;
+        template <typename DEVICE, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+        void prologue(DEVICE& device, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t step_i){
+            static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
+            static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::OBSERVATION_DIM);
             using TI = typename SPEC::TI;
             for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-                per_env::prologue(device, buffer, runner, rng, pos, env_i);
+                per_env::prologue(device, observations, runner, rng, env_i);
             }
         }
         template <typename DEVICE, typename BUFFER_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
@@ -101,7 +102,7 @@ namespace layer_in_c{
             auto actions = view(device, buffer.actions, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations = view(device, buffer.observations, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
-            rl::components::on_policy_runner::prologue(device, buffer, runner, rng, step_i);
+            rl::components::on_policy_runner::prologue(device, observations, runner, rng, step_i);
             evaluate(device, actor, observations, actions, policy_eval_buffers);
             rl::components::on_policy_runner::epilogue(device, buffer, runner, actions, actor.action_log_std.parameters, rng, step_i);
         }
@@ -110,7 +111,7 @@ namespace layer_in_c{
             auto& env = get(runner.environments, 0, env_i);
             auto& state = get(runner.states, 0, env_i);
             TI pos = BUFFER_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
-            auto observation = view<DEVICE, typename decltype(buffer.all_observations)::SPEC, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(device, buffer.all_observations, pos, 0);
+            auto observation = view(device, buffer.all_observations, matrix::ViewSpec<1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), pos, 0);
             observe(device, env, state, observation);
         }
         runner.step += SPEC::N_ENVIRONMENTS * BUFFER_SPEC::STEPS_PER_ENV;

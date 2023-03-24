@@ -22,3 +22,41 @@ target_link_libraries(
 gtest_discover_tests(test_rl_environments_mujoco_ant_throughput_cuda)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_throughput_cuda)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_throughput_cuda)
+
+
+
+add_executable(
+        test_rl_environments_mujoco_ant_training_ppo_cuda
+        training_ppo.cu
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_training_ppo_cuda
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+        mujoco
+        CUDA::cublas
+)
+gtest_discover_tests(test_rl_environments_mujoco_ant_training_ppo_cuda)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo_cuda)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo_cuda)
+
+add_executable(
+        test_rl_environments_mujoco_ant_collection_cuda
+        collection.cu
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_collection_cuda
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+        mujoco
+        CUDA::cublas
+)
+gtest_discover_tests(test_rl_environments_mujoco_ant_collection_cuda)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_collection_cuda)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_collection_cuda)

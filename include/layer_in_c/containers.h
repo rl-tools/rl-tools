@@ -69,7 +69,7 @@ namespace layer_in_c{
         template<typename SPEC_1, typename SPEC_2>
         constexpr bool check_structure = SPEC_1::ROWS == SPEC_2::ROWS && SPEC_1::COLS == SPEC_2::COLS;
         template<typename SPEC_1, typename SPEC_2>
-        constexpr bool check_memory_layout = check_structure<SPEC_1, SPEC_2> && SPEC_1::ROW_PITCH == SPEC_2::ROW_PITCH && SPEC_1::COL_PITCH == SPEC_2::COL_PITCH;
+        constexpr bool check_memory_layout = check_structure<SPEC_1, SPEC_2> && SPEC_1::ROW_PITCH == SPEC_2::ROW_PITCH && SPEC_1::COL_PITCH == SPEC_2::COL_PITCH && SPEC_1::IS_VIEW == false && SPEC_2::IS_VIEW == false && utils::typing::is_same_v<typename SPEC_1::T, typename SPEC_2::T> && SPEC_1::SIZE_BYTES == SPEC_2::SIZE_BYTES; // check if e.g. direct memory copy is possible
     }
 }
 

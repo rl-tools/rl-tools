@@ -2,9 +2,10 @@
 #define LAYER_IN_C_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_GENERIC_PER_ENV_H
 
 namespace layer_in_c::rl::components::on_policy_runner::per_env{
-    template <typename DEVICE, typename BUFFER_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-    void prologue(DEVICE& device, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, rl::components::OnPolicyRunner<typename BUFFER_SPEC::SPEC>& runner, RNG& rng, typename DEVICE::index_t pos, typename DEVICE::index_t env_i){
-        using SPEC = typename BUFFER_SPEC::SPEC;
+    template <typename DEVICE, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+    void prologue(DEVICE& device, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t env_i){
+        static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
+        static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::OBSERVATION_DIM);
         auto& env = get(runner.environments, 0, env_i);
         auto& state = get(runner.states, 0, env_i);
         if(get(runner.truncated, 0, env_i)){
@@ -16,7 +17,7 @@ namespace layer_in_c::rl::components::on_policy_runner::per_env{
             set(runner.episode_return, 0, env_i, 0);
             sample_initial_state(device, env, state, rng);
         }
-        auto observation = view<DEVICE, typename decltype(buffer.observations)::SPEC, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(device, buffer.observations, pos, 0);
+        auto observation = view(device, observations, matrix::ViewSpec<1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
         observe(device, env, state, observation);
     }
     template <typename DEVICE, typename BUFFER_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
