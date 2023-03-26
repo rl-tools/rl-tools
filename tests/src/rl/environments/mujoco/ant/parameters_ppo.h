@@ -30,6 +30,7 @@ namespace parameters_0{
             static constexpr T INITIAL_ACTION_STD = 0.5;
             static constexpr T ACTION_ENTROPY_COEFFICIENT = 0;
             static constexpr bool NORMALIZE_ADVANTAGE = false;
+            static constexpr T GAMMA = 0.99;
         };
         using PPO_SPEC = lic::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
         using PPO_TYPE = lic::rl::algorithms::PPO<PPO_SPEC>;

@@ -126,7 +126,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
 
         if(ppo_step_i % 1 == 0){
             std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;
-            std::cout << "PPO step: " << ppo_step_i << " elapsed: " << training_elapsed.count() << "s" << std::endl;
+            T steps_per_second = on_policy_runner.step / training_elapsed.count();
+            std::cout << "PPO step: " << ppo_step_i << " elapsed: " << training_elapsed.count() << "s (" << steps_per_second << " steps/s)" << std::endl;
             lic::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
         }
         lic::copy(device, device_gpu, ppo_cpu, ppo);
