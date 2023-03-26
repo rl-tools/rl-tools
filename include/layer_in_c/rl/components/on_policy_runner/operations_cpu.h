@@ -18,9 +18,9 @@ namespace layer_in_c::rl::components::on_policy_runner{
             per_env::prologue(device, observations, runner, rng, env_i);
         }
     }
-    template <typename DEV_SPEC, typename BUFFER_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-    void epilogue(devices::CPU<DEV_SPEC>& device, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, rl::components::OnPolicyRunner<typename BUFFER_SPEC::SPEC>& runner, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename devices::CPU<DEV_SPEC>::index_t step_i){
-        using SPEC = typename BUFFER_SPEC::SPEC;
+    template <typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+    void epilogue(devices::CPU<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename devices::CPU<DEV_SPEC>::index_t step_i){
+        using SPEC = typename DATASET_SPEC::SPEC;
         using DEVICE = devices::CPU<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
 
@@ -31,11 +31,11 @@ namespace layer_in_c::rl::components::on_policy_runner{
             auto base = random::uniform_int_distribution(typename DEV_SPEC::RANDOM(), 0, 1000000, rng);
 
             for (TI thread_i = 0; thread_i < NUM_THREADS; thread_i++) {
-                threads.emplace_back([&device, thread_i, &buffer, &runner, &actions, &action_log_std, &step_i, &base](){
+                threads.emplace_back([&device, thread_i, &dataset, &runner, &actions, &action_log_std, &step_i, &base](){
                     for (TI env_i = thread_i; env_i < SPEC::N_ENVIRONMENTS; env_i += NUM_THREADS) {
                         auto rng = layer_in_c::random::default_engine(typename DEV_SPEC::RANDOM(), base + env_i);
                         TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-                        per_env::epilogue(device, buffer, runner, actions, action_log_std, rng, pos, env_i);
+                        per_env::epilogue(device, dataset, runner, actions, action_log_std, rng, pos, env_i);
                     }
                 });
             }
@@ -47,7 +47,7 @@ namespace layer_in_c::rl::components::on_policy_runner{
         else{
             for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-                per_env::epilogue(device, buffer, runner, actions, action_log_std, rng, pos, env_i);
+                per_env::epilogue(device, dataset, runner, actions, action_log_std, rng, pos, env_i);
             }
         }
     }

@@ -19,13 +19,13 @@ namespace layer_in_c{
         free(device, buffer.observations);
         free(device, buffer.actions);
     }
-    template <typename DEVICE, typename DEVICE_EVALUATION, typename BUFFER_SPEC, typename ACTOR, typename ACTOR_EVALUATION, typename RNG> // todo: make this not PPO but general policy with output distribution
-    void collect_hybrid(DEVICE& device, DEVICE_EVALUATION& device_evaluation, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, rl::components::OnPolicyRunner<typename BUFFER_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_EVALUATION& actor_evaluation, typename ACTOR_EVALUATION::template Buffers<BUFFER_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename BUFFER_SPEC::SPEC> evaluation_buffer, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename BUFFER_SPEC::SPEC>& evaluation_buffer_evaluation, RNG& rng){
+    template <typename DEVICE, typename DEVICE_EVALUATION, typename DATASET_SPEC, typename ACTOR, typename ACTOR_EVALUATION, typename RNG> // todo: make this not PPO but general policy with output distribution
+    void collect_hybrid(DEVICE& device, DEVICE_EVALUATION& device_evaluation, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& buffer, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_EVALUATION& actor_evaluation, typename ACTOR_EVALUATION::template Buffers<DATASET_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC> evaluation_buffer, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC>& evaluation_buffer_evaluation, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
 #endif
-        using SPEC = typename BUFFER_SPEC::SPEC;
-        using BUFFER = rl::components::on_policy_runner::Buffer<SPEC>;
+        using SPEC = typename DATASET_SPEC::SPEC;
+        using BUFFER = rl::components::on_policy_runner::Dataset<SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         TI prologue_time = 0;
@@ -33,7 +33,7 @@ namespace layer_in_c{
         TI evaluate_time = 0;
         TI copy_back_time = 0;
         TI epilogue_time = 0;
-        for(TI step_i = 0; step_i < BUFFER_SPEC::STEPS_PER_ENV; step_i++){
+        for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
             auto actions = view(device, buffer.actions, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations = view(device, buffer.observations, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
@@ -82,11 +82,11 @@ namespace layer_in_c{
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             auto& env = get(runner.environments, 0, env_i);
             auto& state = get(runner.states, 0, env_i);
-            TI pos = BUFFER_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
+            TI pos = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
             auto observation = view(device, buffer.all_observations, matrix::ViewSpec<1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), pos, 0);
             observe(device, env, state, observation);
         }
-        runner.step += SPEC::N_ENVIRONMENTS * BUFFER_SPEC::STEPS_PER_ENV;
+        runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }
 
 }

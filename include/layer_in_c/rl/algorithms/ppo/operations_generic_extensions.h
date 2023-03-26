@@ -43,7 +43,7 @@ namespace layer_in_c{
         DEVICE_EVALUATION& device_evaluation,
         rl::algorithms::PPO<PPO_SPEC>& ppo,
         rl::algorithms::PPO<PPO_SPEC>& ppo_evaluation,
-        rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer,
+        rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer,
         OPTIMIZER& optimizer,
         rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers,
         rl::algorithms::ppo::TrainingBuffersHybrid<PPO_SPEC>& hybrid_buffers,
@@ -56,7 +56,7 @@ namespace layer_in_c{
         using T = typename PPO_SPEC::T;
         using TI = typename PPO_SPEC::TI;
         static_assert(utils::typing::is_same_v<typename PPO_SPEC::ENVIRONMENT, typename OPR_SPEC::ENVIRONMENT>, "environment mismatch");
-        using BUFFER = rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>;
+        using BUFFER = rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>;
         static_assert(BUFFER::STEPS_TOTAL > 0);
         constexpr TI N_EPOCHS = PPO_SPEC::PARAMETERS::N_EPOCHS;
         constexpr TI BATCH_SIZE = PPO_SPEC::BATCH_SIZE;

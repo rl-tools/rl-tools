@@ -79,22 +79,22 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
     prl::ACTOR_TYPE_INFERENCE actor_gpu;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
-    prl::ON_POLICY_RUNNER_BUFFER_TYPE on_policy_runner_buffer;
+    prl::ON_POLICY_RUNNER_DATASET_TYPE dataset;
     ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE on_policy_runner_collection_eval_buffer_gpu, on_policy_runner_collection_eval_buffer_cpu;
     PPO_TRAINING_HYBRID_BUFFER_TYPE ppo_training_hybrid_buffer_cpu, ppo_training_hybrid_buffer_gpu;
     prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;
     prl::ACTOR_BUFFERS actor_buffers;
     prl::CRITIC_BUFFERS critic_buffers;
     prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
-    lic::Matrix<lic::matrix::Specification<T, TI, decltype(on_policy_runner_buffer.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::OBSERVATION_DIM>> gae_all_observations;
-    lic::Matrix<lic::matrix::Specification<T, TI, decltype(on_policy_runner_buffer.data)::ROWS, 1>> gae_all_values;
+    lic::Matrix<lic::matrix::Specification<T, TI, decltype(dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::OBSERVATION_DIM>> gae_all_observations;
+    lic::Matrix<lic::matrix::Specification<T, TI, decltype(dataset.data)::ROWS, 1>> gae_all_values;
     penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
     penv::ENVIRONMENT evaluation_env;
     bool ui = false;
 
     lic::malloc(device, ppo_cpu);
     lic::malloc(device, ppo_buffers);
-    lic::malloc(device, on_policy_runner_buffer);
+    lic::malloc(device, dataset);
     lic::malloc(device, on_policy_runner_collection_eval_buffer_cpu);
     lic::malloc(device, ppo_training_hybrid_buffer_cpu);
     lic::malloc(device, on_policy_runner);
@@ -139,34 +139,34 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         auto start = std::chrono::high_resolution_clock::now();
         {
             auto start = std::chrono::high_resolution_clock::now();
-//            lic::collect(device, on_policy_runner_buffer, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+//            lic::collect(device, dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
 //            lic::copy(device_gpu, device, actor_gpu, ppo.actor);
-            lic::collect_hybrid(device, device_gpu, on_policy_runner_buffer, on_policy_runner, ppo_cpu.actor, ppo.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng);
+            lic::collect_hybrid(device, device_gpu, dataset, on_policy_runner, ppo_cpu.actor, ppo.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng);
 
-            lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_buffer.observations));
-            lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_buffer.observations));
-            lic::add_scalar(device, device.logger, "opr/action/mean", lic::mean(device, on_policy_runner_buffer.actions));
-            lic::add_scalar(device, device.logger, "opr/action/std", lic::std(device, on_policy_runner_buffer.actions));
-            lic::add_scalar(device, device.logger, "opr/rewards/mean", lic::mean(device, on_policy_runner_buffer.rewards));
-            lic::add_scalar(device, device.logger, "opr/rewards/std", lic::std(device, on_policy_runner_buffer.rewards));
+            lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, dataset.observations));
+            lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, dataset.observations));
+            lic::add_scalar(device, device.logger, "opr/action/mean", lic::mean(device, dataset.actions));
+            lic::add_scalar(device, device.logger, "opr/action/std", lic::std(device, dataset.actions));
+            lic::add_scalar(device, device.logger, "opr/rewards/mean", lic::mean(device, dataset.rewards));
+            lic::add_scalar(device, device.logger, "opr/rewards/std", lic::std(device, dataset.rewards));
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "Rollout: " << elapsed.count() << " s" << std::endl;
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            copy(device_gpu, device, gae_all_observations, on_policy_runner_buffer.all_observations);
+            copy(device_gpu, device, gae_all_observations, dataset.all_observations);
             evaluate(device_gpu, ppo.critic, gae_all_observations, gae_all_values, critic_buffers_gae);
             lic::check_status(device_gpu);
-            copy(device, device_gpu, on_policy_runner_buffer.all_values, gae_all_values);
-            lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer, critic_buffers_gae);
+            copy(device, device_gpu, dataset.all_values, gae_all_values);
+            lic::estimate_generalized_advantages(device, dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            lic::train_hybrid(device, device_gpu, ppo_cpu, ppo, on_policy_runner_buffer, optimizer, ppo_buffers, ppo_training_hybrid_buffer_gpu, actor_buffers, critic_buffers, rng);
+            lic::train_hybrid(device, device_gpu, ppo_cpu, ppo, dataset, optimizer, ppo_buffers, ppo_training_hybrid_buffer_gpu, actor_buffers, critic_buffers, rng);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "Train: " << elapsed.count() << " s" << std::endl;
@@ -214,7 +214,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
     }
     lic::free(device, ppo);
     lic::free(device, ppo_buffers);
-    lic::free(device, on_policy_runner_buffer);
+    lic::free(device, dataset);
     lic::free(device, on_policy_runner);
     lic::free(device, actor_eval_buffers);
     lic::free(device, actor_buffers);

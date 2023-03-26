@@ -40,32 +40,32 @@ namespace layer_in_c{
         ppo.initialized = true;
 #endif
     }
-    template <typename DEVICE, typename PPO_SPEC, typename BUFFER_SPEC>
-    void estimate_generalized_advantages(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, typename PPO_SPEC::CRITIC_TYPE::template Buffers<BUFFER_SPEC::STEPS_TOTAL_ALL>& critic_evaluation_buffers){
+    template <typename DEVICE, typename DATASET_SPEC, typename PPO_PARAMETERS>
+    void estimate_generalized_advantages(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, PPO_PARAMETERS ppo_parameters_tag){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
-        using OPR_SPEC = typename BUFFER_SPEC::SPEC;
-        using BUFFER = decltype(buffer);
-        using T = typename PPO_SPEC::T;
-        using TI = typename PPO_SPEC::TI;
-        constexpr TI STEPS_PER_ENV = BUFFER_SPEC::STEPS_PER_ENV;
+        using OPR_SPEC = typename DATASET_SPEC::SPEC;
+        using BUFFER = decltype(dataset);
+        using T = typename DATASET_SPEC::SPEC::T;
+        using TI = typename DEVICE::index_t;
+        constexpr TI STEPS_PER_ENV = DATASET_SPEC::STEPS_PER_ENV;
         for(TI env_i = 0; env_i < OPR_SPEC::N_ENVIRONMENTS; env_i++){
-            T previous_value = get(buffer.all_values, STEPS_PER_ENV * OPR_SPEC::N_ENVIRONMENTS + env_i, 0);
+            T previous_value = get(dataset.all_values, STEPS_PER_ENV * OPR_SPEC::N_ENVIRONMENTS + env_i, 0);
             T previous_advantage = 0;
             for(TI step_forward_i = 0; step_forward_i < STEPS_PER_ENV; step_forward_i++){
                 TI step_backward_i = (STEPS_PER_ENV - 1 - step_forward_i);
                 TI pos = step_backward_i * OPR_SPEC::N_ENVIRONMENTS + env_i;
-                bool terminated = get(buffer.terminated, pos, 0);
-                bool truncated = get(buffer.truncated, pos, 0);
+                bool terminated = get(dataset.terminated, pos, 0);
+                bool truncated = get(dataset.truncated, pos, 0);
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_GAE_CHECK_TERMINATED_TRUNCATED
                 utils::assert_exit(device, !terminated || terminated && truncated, "terminationn should imply truncation");
 #endif
-                T current_step_value = get(buffer.values, pos, 0);
+                T current_step_value = get(dataset.values, pos, 0);
 //                T next_step_value = terminated || truncated ? 0 : previous_value;
-                T next_step_value = terminated && !PPO_SPEC::PARAMETERS::IGNORE_TERMINATION ? 0 : previous_value;
+                T next_step_value = terminated && !PPO_PARAMETERS::IGNORE_TERMINATION ? 0 : previous_value;
 
-                T td_error = get(buffer.rewards, pos, 0) + PPO_SPEC::PARAMETERS::GAMMA * next_step_value - current_step_value;
+                T td_error = get(dataset.rewards, pos, 0) + PPO_PARAMETERS::GAMMA * next_step_value - current_step_value;
 //                previous_advantage = terminated || truncated ? 0 : previous_advantage;
                 if(truncated){
                     if(!terminated){ // e.g. time limited or random truncation
@@ -73,35 +73,35 @@ namespace layer_in_c{
                     }
                     previous_advantage = 0;
                 }
-                T advantage = PPO_SPEC::PARAMETERS::LAMBDA * PPO_SPEC::PARAMETERS::GAMMA * previous_advantage + td_error;
-                set(buffer.advantages, pos, 0, advantage);
-                set(buffer.target_values, pos, 0, advantage + current_step_value);
+                T advantage = PPO_PARAMETERS::LAMBDA * PPO_PARAMETERS::GAMMA * previous_advantage + td_error;
+                set(dataset.advantages, pos, 0, advantage);
+                set(dataset.target_values, pos, 0, advantage + current_step_value);
                 previous_advantage = advantage;
                 previous_value = current_step_value;
             }
         }
     }
     template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename OPTIMIZER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, OPTIMIZER& optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, OPTIMIZER& optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
         using T = typename PPO_SPEC::T;
         using TI = typename PPO_SPEC::TI;
         static_assert(utils::typing::is_same_v<typename PPO_SPEC::ENVIRONMENT, typename OPR_SPEC::ENVIRONMENT>, "environment mismatch");
-        using BUFFER = rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>;
-        static_assert(BUFFER::STEPS_TOTAL > 0);
+        using DATASET = rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>;
+        static_assert(DATASET::STEPS_TOTAL > 0);
         constexpr TI N_EPOCHS = PPO_SPEC::PARAMETERS::N_EPOCHS;
         constexpr TI BATCH_SIZE = PPO_SPEC::BATCH_SIZE;
-        constexpr TI N_BATCHES = BUFFER::STEPS_TOTAL/BATCH_SIZE;
+        constexpr TI N_BATCHES = DATASET::STEPS_TOTAL/BATCH_SIZE;
         static_assert(N_BATCHES > 0);
         constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
         constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::OBSERVATION_DIM;
         // batch needs observations, original log-probs, advantages
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // shuffling
-            for(TI buffer_i = 0; buffer_i < BUFFER::STEPS_TOTAL; buffer_i++){
-                TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), buffer_i, BUFFER::STEPS_TOTAL-1, rng);
+            for(TI buffer_i = 0; buffer_i < DATASET::STEPS_TOTAL; buffer_i++){
+                TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), buffer_i, DATASET::STEPS_TOTAL-1, rng);
                 {
                     auto target_row = row(device, buffer.observations, buffer_i);
                     auto source_row = row(device, buffer.observations, sample_index);

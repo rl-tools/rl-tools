@@ -13,7 +13,7 @@ namespace layer_in_c::rl::components{
         };
 
         template <typename T_SPEC, typename T_SPEC::TI T_STEPS_PER_ENV>
-        struct BufferSpecification{
+        struct DatasetSpecification{
             using SPEC = T_SPEC;
             using TI = typename SPEC::TI;
             static constexpr TI STEPS_PER_ENV = T_STEPS_PER_ENV;
@@ -22,7 +22,7 @@ namespace layer_in_c::rl::components{
         };
 
         template <typename T_SPEC>
-        struct Buffer{
+        struct Dataset{
             using SPEC = typename T_SPEC::SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
