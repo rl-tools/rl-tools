@@ -25,20 +25,17 @@ namespace layer_in_c::rl::components::on_policy_runner{
         using TI = typename DEVICE::index_t;
 
         constexpr TI NUM_THREADS = get_num_threads(typename DEVICE::EXECUTION_HINTS());
-        std::thread threads[NUM_THREADS];
+        std::vector<std::thread> threads;
 
         if(NUM_THREADS > 1){
-            RNG rngs[SPEC::N_ENVIRONMENTS];
             auto base = random::uniform_int_distribution(typename DEV_SPEC::RANDOM(), 0, 1000000, rng);
-            for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
-                rngs[env_i] = layer_in_c::random::default_engine(typename DEV_SPEC::RANDOM(), base + env_i);
-            }
 
             for (TI thread_i = 0; thread_i < NUM_THREADS; thread_i++) {
-                threads[thread_i] = std::thread([&device, thread_i, &buffer, &runner, &actions, &action_log_std, &step_i, &rngs](){
+                threads.emplace_back([&device, thread_i, &buffer, &runner, &actions, &action_log_std, &step_i, &base](){
                     for (TI env_i = thread_i; env_i < SPEC::N_ENVIRONMENTS; env_i += NUM_THREADS) {
+                        auto rng = layer_in_c::random::default_engine(typename DEV_SPEC::RANDOM(), base + env_i);
                         TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-                        per_env::epilogue(device, buffer, runner, actions, action_log_std, rngs[env_i], pos, env_i);
+                        per_env::epilogue(device, buffer, runner, actions, action_log_std, rng, pos, env_i);
                     }
                 });
             }

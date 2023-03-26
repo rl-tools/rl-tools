@@ -1,5 +1,6 @@
 #define LAYER_IN_C_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <layer_in_c/operations/cpu_mux.h>
+#include <layer_in_c/nn/optimizers/adam/operations_cuda.h>
 #include <layer_in_c/nn/operations_cpu_mux.h>
 #include <layer_in_c/nn_models/operations_cpu.h>
 #include <layer_in_c/nn_models/persist.h>
@@ -16,6 +17,7 @@ namespace lic = layer_in_c;
 #endif
 #endif
 #include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
+#include <layer_in_c/rl/algorithms/ppo/operations_generic_extensions.h>
 #include <layer_in_c/rl/utils/evaluation.h>
 
 #include <gtest/gtest.h>
@@ -29,7 +31,7 @@ using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
 using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
+    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 1>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
@@ -64,6 +66,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
     using penv = parameters::environment<double, TI>;
     using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
     using ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE = lic::rl::components::on_policy_runner::CollectionEvaluationBuffer<prl::ON_POLICY_RUNNER_SPEC>;
+    using PPO_TRAINING_HYBRID_BUFFER_TYPE = lic::rl::algorithms::ppo::TrainingBuffersHybrid<prl::PPO_SPEC>;
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
@@ -72,39 +75,48 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
     prl::OPTIMIZER optimizer;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
     auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
-    prl::PPO_TYPE ppo;
-    prl::PPO_TYPE::SPEC::ACTOR_TYPE actor_gpu;
+    prl::PPO_TYPE ppo, ppo_cpu;
+    prl::ACTOR_TYPE_INFERENCE actor_gpu;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
     prl::ON_POLICY_RUNNER_BUFFER_TYPE on_policy_runner_buffer;
     ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE on_policy_runner_collection_eval_buffer_gpu, on_policy_runner_collection_eval_buffer_cpu;
+    PPO_TRAINING_HYBRID_BUFFER_TYPE ppo_training_hybrid_buffer_cpu, ppo_training_hybrid_buffer_gpu;
     prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;
     prl::ACTOR_BUFFERS actor_buffers;
     prl::CRITIC_BUFFERS critic_buffers;
     prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
+    lic::Matrix<lic::matrix::Specification<T, TI, decltype(on_policy_runner_buffer.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::OBSERVATION_DIM>> gae_all_observations;
+    lic::Matrix<lic::matrix::Specification<T, TI, decltype(on_policy_runner_buffer.data)::ROWS, 1>> gae_all_values;
     penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
     penv::ENVIRONMENT evaluation_env;
     bool ui = false;
 
-    lic::malloc(device, ppo);
+    lic::malloc(device, ppo_cpu);
     lic::malloc(device, ppo_buffers);
     lic::malloc(device, on_policy_runner_buffer);
     lic::malloc(device, on_policy_runner_collection_eval_buffer_cpu);
+    lic::malloc(device, ppo_training_hybrid_buffer_cpu);
     lic::malloc(device, on_policy_runner);
     lic::malloc(device, actor_eval_buffers);
-    lic::malloc(device, actor_buffers);
-    lic::malloc(device, critic_buffers);
-    lic::malloc(device, critic_buffers_gae);
+    lic::malloc(device_gpu, actor_buffers);
+    lic::malloc(device_gpu, critic_buffers);
+    lic::malloc(device_gpu, critic_buffers_gae);
+    lic::malloc(device_gpu, ppo);
     lic::malloc(device_gpu, actor_gpu);
     lic::malloc(device_gpu, on_policy_runner_collection_eval_buffer_gpu);
+    lic::malloc(device_gpu, ppo_training_hybrid_buffer_gpu);
     lic::malloc(device_gpu, actor_eval_buffers_gpu);
+    lic::malloc(device_gpu, gae_all_observations);
+    lic::malloc(device_gpu, gae_all_values);
     for(auto& env : envs){
         lic::malloc(device, env);
     }
     lic::malloc(device, evaluation_env);
 
     lic::init(device, on_policy_runner, envs, rng);
-    lic::init(device, ppo, optimizer, rng);
+    lic::init(device, ppo_cpu, optimizer, rng);
+    lic::copy(device_gpu, device, ppo, ppo_cpu);
     device.logger = &logger;
     lic::construct(device, device.logger);
     auto training_start = std::chrono::high_resolution_clock::now();
@@ -117,8 +129,9 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
             std::cout << "PPO step: " << ppo_step_i << " elapsed: " << training_elapsed.count() << "s" << std::endl;
             lic::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
         }
+        lic::copy(device, device_gpu, ppo_cpu, ppo);
         for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
-            T action_log_std = lic::get(ppo.actor.action_log_std.parameters, 0, action_i);
+            T action_log_std = lic::get(ppo_cpu.actor.action_log_std.parameters, 0, action_i);
             std::stringstream topic;
             topic << "actor/action_std/" << action_i;
             lic::add_scalar(device, device.logger, topic.str(), lic::math::exp(DEVICE::SPEC::MATH(), action_log_std));
@@ -127,8 +140,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         {
             auto start = std::chrono::high_resolution_clock::now();
 //            lic::collect(device, on_policy_runner_buffer, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
-            lic::copy(device_gpu, device, actor_gpu, ppo.actor);
-            lic::collect_hybrid(device, device_gpu, on_policy_runner_buffer, on_policy_runner, ppo.actor, actor_gpu, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng);
+//            lic::copy(device_gpu, device, actor_gpu, ppo.actor);
+            lic::collect_hybrid(device, device_gpu, on_policy_runner_buffer, on_policy_runner, ppo_cpu.actor, ppo.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng);
 
             lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_buffer.observations));
             lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_buffer.observations));
@@ -142,6 +155,10 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
+            copy(device_gpu, device, gae_all_observations, on_policy_runner_buffer.all_observations);
+            evaluate(device_gpu, ppo.critic, gae_all_observations, gae_all_values, critic_buffers_gae);
+            lic::check_status(device_gpu);
+            copy(device, device_gpu, on_policy_runner_buffer.all_values, gae_all_values);
             lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer, critic_buffers_gae);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
@@ -149,7 +166,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            lic::train(device, ppo, on_policy_runner_buffer, optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
+            lic::train_hybrid(device, device_gpu, ppo_cpu, ppo, on_policy_runner_buffer, optimizer, ppo_buffers, ppo_training_hybrid_buffer_gpu, actor_buffers, critic_buffers, rng);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "Train: " << elapsed.count() << " s" << std::endl;

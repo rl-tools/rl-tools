@@ -40,7 +40,7 @@ namespace layer_in_c::utils::polyak {
         check_status(dev);
     }
     template<typename DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void update_square(devices::CUDA<DEV_SPEC>& dev, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source, const typename TARGET_SPEC::T polyak) {
+    void update_squared(devices::CUDA<DEV_SPEC>& dev, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source, const typename TARGET_SPEC::T polyak) {
         update<DEV_SPEC, TARGET_SPEC, SOURCE_SPEC, true>(dev, target, source, polyak);
     }
 }

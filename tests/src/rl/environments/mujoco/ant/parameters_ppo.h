@@ -19,6 +19,7 @@ namespace parameters_0{
         using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
         using ACTOR_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
         using ACTOR_TYPE = lic::nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<ACTOR_SPEC>;
+        using ACTOR_TYPE_INFERENCE = lic::nn_models::mlp_unconditional_stddev::NeuralNetwork<ACTOR_SPEC>;
         using CRITIC_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 256, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::IDENTITY, BATCH_SIZE>;
         using CRITIC_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
         using CRITIC_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;

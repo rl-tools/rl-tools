@@ -3,6 +3,7 @@
 
 //#include "operations_generic.h"
 #include <layer_in_c/devices/cuda.h>
+#include <layer_in_c/nn/parameters/operations_cuda.h>
 #include <layer_in_c/nn/nn.h>
 
 #include <cublas_v2.h>

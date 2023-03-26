@@ -89,11 +89,12 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA)
 
     auto start = std::chrono::high_resolution_clock::now();
     for(TI rollout_step_i = 0; rollout_step_i < NUM_ROLLOUT_STEPS; rollout_step_i++){
+        lic::copy(device_cuda, device, actor_gpu, actor_cpu);
         std::cout << "Rollout step " << rollout_step_i << std::endl;
         for(TI step_i = 0; step_i < NUM_STEPS_PER_ENVIRONMENT; step_i++) {
-            std::thread threads[NUM_THREADS];
+            std::vector<std::thread> threads;
             for(TI thread_i = 0; thread_i < NUM_THREADS; thread_i++){
-                threads[thread_i] = std::thread([&device, &rngs, &actions, &observations, &envs, &states, &next_states, thread_i, step_i](){
+                threads.emplace_back([&device, &rngs, &actions, &observations, &envs, &states, &next_states, thread_i, step_i](){
                     for(TI env_i = thread_i; env_i < NUM_ENVIRONMENTS; env_i += NUM_THREADS){
                         auto rng = rngs[thread_i];
                         auto& env = envs[env_i];

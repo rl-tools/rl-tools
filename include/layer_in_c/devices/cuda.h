@@ -74,7 +74,8 @@ namespace layer_in_c {
 #endif
         cudaError_t cudaStatus = cudaGetLastError();
         if (cudaStatus != cudaSuccess) {
-            std::cerr << "cuda failed: " << cudaGetErrorString(cudaStatus) << std::endl;
+            std::string error_string = cudaGetErrorString(cudaStatus);
+            std::cerr << "cuda failed: " << error_string << std::endl;
         }
     }
 

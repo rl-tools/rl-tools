@@ -1,88 +1,55 @@
-#ifndef LAYER_IN_C_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_H
-#define LAYER_IN_C_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_H
+#ifndef LAYER_IN_C_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_EXTENSIONS_H
+#define LAYER_IN_C_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_EXTENSIONS_H
 
 #include "ppo.h"
 #include <layer_in_c/rl/components/on_policy_runner/on_policy_runner.h>
 
 namespace layer_in_c{
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
-        malloc(device, buffers.current_batch_actions);
-        malloc(device, buffers.d_batch_observations);
-        malloc(device, buffers.d_action_log_prob_d_action);
-        malloc(device, buffers.d_action_log_prob_d_action_log_std);
-    }
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
-        free(device, buffers.current_batch_actions);
-        free(device, buffers.d_batch_observations);
-        free(device, buffers.d_action_log_prob_d_action);
-        free(device, buffers.d_action_log_prob_d_action_log_std);
-    }
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
-        malloc(device, ppo.actor);
-        malloc(device, ppo.critic);
-    }
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
-        free(device, ppo.actor);
-        free(device, ppo.critic);
-    }
-    template <typename DEVICE, typename SPEC, typename OPTIMIZER, typename RNG>
-    void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, OPTIMIZER& optimizer, RNG& rng){
-        init_weights(device, ppo.actor, rng);
-        reset_optimizer_state(device, ppo.actor, optimizer);
-        set_all(device, ppo.actor.action_log_std.parameters, math::log(typename DEVICE::SPEC::MATH(), SPEC::PARAMETERS::INITIAL_ACTION_STD));
-        init_weights(device, ppo.critic, rng);
-        reset_optimizer_state(device, ppo.critic, optimizer);
-#ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
-        ppo.initialized = true;
-#endif
-    }
-    template <typename DEVICE, typename PPO_SPEC, typename BUFFER_SPEC>
-    void estimate_generalized_advantages(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<BUFFER_SPEC>& buffer, typename PPO_SPEC::CRITIC_TYPE::template Buffers<BUFFER_SPEC::STEPS_TOTAL_ALL>& critic_evaluation_buffers){
-#ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
-        utils::assert_exit(device, ppo.initialized, "PPO not initialized");
-#endif
-        using OPR_SPEC = typename BUFFER_SPEC::SPEC;
-        using BUFFER = decltype(buffer);
-        using T = typename PPO_SPEC::T;
-        using TI = typename PPO_SPEC::TI;
-        constexpr TI STEPS_PER_ENV = BUFFER_SPEC::STEPS_PER_ENV;
-        for(TI env_i = 0; env_i < OPR_SPEC::N_ENVIRONMENTS; env_i++){
-            T previous_value = get(buffer.all_values, STEPS_PER_ENV * OPR_SPEC::N_ENVIRONMENTS + env_i, 0);
-            T previous_advantage = 0;
-            for(TI step_forward_i = 0; step_forward_i < STEPS_PER_ENV; step_forward_i++){
-                TI step_backward_i = (STEPS_PER_ENV - 1 - step_forward_i);
-                TI pos = step_backward_i * OPR_SPEC::N_ENVIRONMENTS + env_i;
-                bool terminated = get(buffer.terminated, pos, 0);
-                bool truncated = get(buffer.truncated, pos, 0);
-#ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_GAE_CHECK_TERMINATED_TRUNCATED
-                utils::assert_exit(device, !terminated || terminated && truncated, "terminationn should imply truncation");
-#endif
-                T current_step_value = get(buffer.values, pos, 0);
-//                T next_step_value = terminated || truncated ? 0 : previous_value;
-                T next_step_value = terminated && !PPO_SPEC::PARAMETERS::IGNORE_TERMINATION ? 0 : previous_value;
+    namespace rl::algorithms::ppo{
 
-                T td_error = get(buffer.rewards, pos, 0) + PPO_SPEC::PARAMETERS::GAMMA * next_step_value - current_step_value;
-//                previous_advantage = terminated || truncated ? 0 : previous_advantage;
-                if(truncated){
-                    if(!terminated){ // e.g. time limited or random truncation
-                        td_error = 0;
-                    }
-                    previous_advantage = 0;
-                }
-                T advantage = PPO_SPEC::PARAMETERS::LAMBDA * PPO_SPEC::PARAMETERS::GAMMA * previous_advantage + td_error;
-                set(buffer.advantages, pos, 0, advantage);
-                set(buffer.target_values, pos, 0, advantage + current_step_value);
-                previous_advantage = advantage;
-                previous_value = current_step_value;
-            }
-        }
+        template <typename PPO_SPEC>
+        struct TrainingBuffersHybrid{
+            using SPEC = PPO_SPEC;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
+            static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+            static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
+            Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> observations;
+            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
+            Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_observations;
+            Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_values;
+        };
     }
-    template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename OPTIMIZER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, OPTIMIZER& optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rl::algorithms::ppo::TrainingBuffersHybrid<SPEC>& buffers){
+        malloc(device, buffers.actions);
+        malloc(device, buffers.observations);
+        malloc(device, buffers.d_action_log_prob_d_action);
+        malloc(device, buffers.d_observations);
+        malloc(device, buffers.target_values);
+    }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rl::algorithms::ppo::TrainingBuffersHybrid<SPEC>& buffers){
+        free(device, buffers.actions);
+        free(device, buffers.observations);
+        free(device, buffers.d_action_log_prob_d_action);
+        free(device, buffers.d_observations);
+        free(device, buffers.target_values);
+    }
+    template <typename DEVICE, typename DEVICE_EVALUATION, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename OPTIMIZER, typename RNG>
+    void train_hybrid(DEVICE& device,
+        DEVICE_EVALUATION& device_evaluation,
+        rl::algorithms::PPO<PPO_SPEC>& ppo,
+        rl::algorithms::PPO<PPO_SPEC>& ppo_evaluation,
+        rl::components::on_policy_runner::Buffer<rl::components::on_policy_runner::BufferSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer,
+        OPTIMIZER& optimizer,
+        rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers,
+        rl::algorithms::ppo::TrainingBuffersHybrid<PPO_SPEC>& hybrid_buffers,
+        typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers,
+        typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers,
+        RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
@@ -117,8 +84,8 @@ namespace layer_in_c{
                 swap(device, buffer.target_values   , buffer.target_values   , buffer_i, 0, sample_index, 0);
             }
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
-                zero_gradient(device, ppo.critic);
-                zero_gradient(device, ppo.actor); // has to be reset before accumulating the action-log-std gradient
+                zero_gradient(device_evaluation, ppo_evaluation.critic);
+                zero_gradient(device_evaluation, ppo_evaluation.actor); // has to be reset before accumulating the action-log-std gradient
 
                 auto batch_offset = batch_i * BATCH_SIZE;
                 auto batch_observations     = view(device, buffer.observations    , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM>(), batch_offset, 0);
@@ -141,9 +108,13 @@ namespace layer_in_c{
 //                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
-                forward(device, ppo.actor, batch_observations, ppo_buffers.current_batch_actions);
+                copy(device_evaluation, device, hybrid_buffers.observations, batch_observations);
+                forward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.actions);
+                copy(device, device_evaluation, ppo_buffers.current_batch_actions, hybrid_buffers.actions);
 //                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
 
+                copy(device, device_evaluation, ppo.actor.action_log_std.parameters, ppo_evaluation.actor.action_log_std.parameters);
+                copy(device, device_evaluation, ppo.actor.action_log_std.gradient, ppo_evaluation.actor.action_log_std.gradient);
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     T action_log_prob = 0;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
@@ -197,21 +168,17 @@ namespace layer_in_c{
                         }
                     }
                 }
-                backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, ppo_buffers.d_batch_observations, actor_buffers);
-                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
-                update(device, ppo.actor, optimizer);
-                update(device, ppo.critic, optimizer);
+                copy(device_evaluation, device, ppo_evaluation.actor.action_log_std.parameters, ppo.actor.action_log_std.parameters);
+                copy(device_evaluation, device, ppo_evaluation.actor.action_log_std.gradient, ppo.actor.action_log_std.gradient);
+
+                copy(device_evaluation, device, hybrid_buffers.d_action_log_prob_d_action, ppo_buffers.d_action_log_prob_d_action);
+                backward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.d_action_log_prob_d_action, hybrid_buffers.d_observations, actor_buffers);
+                copy(device_evaluation, device, hybrid_buffers.target_values, batch_target_values);
+                forward_backward_mse(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.target_values, critic_buffers);
+                update(device_evaluation, ppo_evaluation.actor, optimizer);
+                update(device_evaluation, ppo_evaluation.critic, optimizer);
             }
         }
-    }
-
-    template <typename DEVICE_TARGET, typename DEVICE_SOURCE, typename PPO_SPEC>
-    void copy(DEVICE_TARGET& device_target, DEVICE_SOURCE& device_source, rl::algorithms::PPO<PPO_SPEC>& target, rl::algorithms::PPO<PPO_SPEC>& source){
-        copy(device_target, device_source, target.actor, source.actor);
-        copy(device_target, device_source, target.critic, source.critic);
-#ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
-        target.initialized = source.initialized;
-#endif
     }
 
 }
