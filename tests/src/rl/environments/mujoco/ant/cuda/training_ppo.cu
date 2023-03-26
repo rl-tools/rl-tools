@@ -31,7 +31,7 @@ using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
 using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 1>{};
+    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
@@ -73,7 +73,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
     DEVICE_GPU device_gpu;
     lic::init(device_gpu);
     prl::OPTIMIZER optimizer;
-    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 13);
     auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
     prl::PPO_TYPE ppo, ppo_cpu;
     prl::ACTOR_TYPE_INFERENCE actor_gpu;
