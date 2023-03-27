@@ -29,18 +29,18 @@ namespace parameters = parameters_0;
 using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
-using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
+using TI = typename lic::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
     struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
-using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
-using DEVICE_GPU = DEVICE_FACTORY_GPU<lic::devices::DefaultCUDASpecification>;
+using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE_GPU = lic::DEVICE_FACTORY_GPU<lic::devices::DefaultCUDASpecification>;
 
 
-using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -132,7 +132,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         }
         lic::copy(device, device_gpu, ppo_cpu, ppo);
         for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
-            T action_log_std = lic::get(ppo_cpu.actor.action_log_std.parameters, 0, action_i);
+            T action_log_std = lic::get(ppo_cpu.actor.log_std.parameters, 0, action_i);
             std::stringstream topic;
             topic << "actor/action_std/" << action_i;
             lic::add_scalar(device, device.logger, topic.str(), lic::math::exp(DEVICE::SPEC::MATH(), action_log_std));

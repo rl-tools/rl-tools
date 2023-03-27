@@ -26,18 +26,18 @@ namespace parameters = parameters_0;
 using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
-using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
+using TI = typename lic::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
     struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
-using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
 
 
-using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
-using DEVICE_CUDA = DEVICE_FACTORY_GPU<lic::devices::DefaultCUDASpecification>;
+using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE_CUDA = lic::DEVICE_FACTORY_GPU<lic::devices::DefaultCUDASpecification>;
 using T = float;
 using TI = typename DEVICE::index_t;
 using envp = parameters::environment<double, TI>;

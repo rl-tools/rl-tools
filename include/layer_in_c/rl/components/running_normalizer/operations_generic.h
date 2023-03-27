@@ -1,3 +1,6 @@
+#ifndef LAYER_IN_C_RL_COMPONENTS_RUNNING_NORMALIZER_OPERATIONS_GENERIC_H
+#define LAYER_IN_C_RL_COMPONENTS_RUNNING_NORMALIZER_OPERATIONS_GENERIC_H
+
 #include "running_normalizer.h"
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
@@ -32,13 +35,15 @@ namespace layer_in_c{
                 T mean = get(normalizer.mean, 0, col_i);
                 T variance = get(normalizer.variance, 0, col_i);
                 T new_mean = mean + (x - mean)/normalizer.age;
-                T new_variance = variance + (x - new_mean) * (x - new_mean) / normalizer.age;
+                T new_variance = variance + x * x / normalizer.age;
                 set(normalizer.mean, 0, col_i, new_mean);
                 set(normalizer.variance, 0, col_i, new_variance);
             }
         }
         for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
+            T mean = get(normalizer.mean, 0, col_i);
             T variance = get(normalizer.variance, 0, col_i);
+            variance -= mean * mean;
             T std = math::sqrt(typename DEVICE::SPEC::MATH(), variance);
             set(normalizer.std, 0, col_i, std);
         }
@@ -60,3 +65,4 @@ namespace layer_in_c{
         }
     }
 }
+#endif

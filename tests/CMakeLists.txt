@@ -54,6 +54,8 @@ endif()
 add_subdirectory(lib/highfive EXCLUDE_FROM_ALL)
 add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
 
+add_subdirectory(src/rl/environments/mujoco/ant)
+
 find_package(Eigen3 REQUIRED)
 #find_package(OpenMP REQUIRED)
 find_package(Boost REQUIRED)
@@ -494,4 +496,19 @@ gtest_discover_tests(test_rl_algorithms_ppo)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_ppo)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_ppo)
 
-add_subdirectory(src/rl/environments/mujoco/ant)
+
+add_executable(
+        test_rl_components_running_normalizer
+        src/rl/components/running_normalizer.cpp
+)
+target_link_libraries(
+        test_rl_components_running_normalizer
+        PRIVATE
+        layer_in_c
+        GTest::gtest_main
+        HighFive
+        tensorboard_logger
+)
+gtest_discover_tests(test_rl_components_running_normalizer)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_components_running_normalizer)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_components_running_normalizer)

@@ -34,7 +34,7 @@ namespace parameters = parameters_0;
 using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
-using TI = typename DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
+using TI = typename lic::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints {
     struct HINTS : lic::rl::components::on_policy_runner::ExecutionHints<TI, 16> {
     };
@@ -42,11 +42,11 @@ namespace execution_hints {
 struct DEV_SPEC : DEV_SPEC_SUPER {
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
-using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
-using DEVICE_GPU = DEVICE_FACTORY_GPU<lic::devices::DefaultCUDASpecification>;
+using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE_GPU = lic::DEVICE_FACTORY_GPU<lic::devices::DefaultCUDASpecification>;
 
 
-using DEVICE = DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
 using T = double;
 using TI = typename DEVICE::index_t;
 
@@ -66,7 +66,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
     prl::PPO_TYPE::SPEC::ACTOR_TYPE actor_gpu, actor3;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner_cpu, on_policy_runner_gpu;
-    prl::ON_POLICY_RUNNER_BUFFER_TYPE on_policy_runner_buffer_cpu, on_policy_runner_buffer_gpu;
+    prl::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset_cpu, on_policy_runner_dataset_gpu;
     ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE on_policy_runner_collection_eval_buffer_gpu, on_policy_runner_collection_eval_buffer_cpu;
     prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;
     penv::ENVIRONMENT envs_cpu[prl::N_ENVIRONMENTS];
@@ -75,8 +75,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
     lic::malloc(device, ppo);
     lic::malloc(device, actor3);
     lic::malloc(device, ppo_buffers);
-    lic::malloc(device, on_policy_runner_buffer_cpu);
-    lic::malloc(device, on_policy_runner_buffer_gpu);
+    lic::malloc(device, on_policy_runner_dataset_cpu);
+    lic::malloc(device, on_policy_runner_dataset_gpu);
     lic::malloc(device, on_policy_runner_collection_eval_buffer_cpu);
     lic::malloc(device, on_policy_runner_cpu);
     lic::malloc(device, on_policy_runner_gpu);
@@ -106,15 +106,15 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
     for (TI step_i = 0; step_i < 1; step_i++) {
         auto rng_cpu_copy = rng;
         auto rng_gpu_copy = rng;
-        lic::collect(device, on_policy_runner_buffer_cpu, on_policy_runner_cpu, ppo.actor, actor_eval_buffers, rng_cpu_copy);
+        lic::collect(device, on_policy_runner_dataset_cpu, on_policy_runner_cpu, ppo.actor, actor_eval_buffers, rng_cpu_copy);
         lic::copy(device_gpu, device, actor_gpu, ppo.actor);
-        lic::collect_hybrid(device, device_gpu, on_policy_runner_buffer_gpu, on_policy_runner_gpu, ppo.actor, actor_gpu, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng_gpu_copy);
+        lic::collect_hybrid(device, device_gpu, on_policy_runner_dataset_gpu, on_policy_runner_gpu, ppo.actor, actor_gpu, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng_gpu_copy);
         for(TI rollout_step_i = 0; rollout_step_i < prl::ON_POLICY_RUNNER_STEPS_PER_ENV; rollout_step_i++) {
-            auto observations_cpu = lic::view(device, on_policy_runner_buffer_cpu.observations, lic::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::OBSERVATION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
-            auto observations_gpu = lic::view(device, on_policy_runner_buffer_gpu.observations, lic::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::OBSERVATION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
+            auto observations_cpu = lic::view(device, on_policy_runner_dataset_cpu.observations, lic::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::OBSERVATION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
+            auto observations_gpu = lic::view(device, on_policy_runner_dataset_gpu.observations, lic::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::OBSERVATION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
             auto diff_observations = lic::abs_diff(device, observations_cpu, observations_gpu);
-            auto actions_cpu = lic::view(device, on_policy_runner_buffer_cpu.actions, lic::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::ACTION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
-            auto actions_gpu = lic::view(device, on_policy_runner_buffer_gpu.actions, lic::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::ACTION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
+            auto actions_cpu = lic::view(device, on_policy_runner_dataset_cpu.actions, lic::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::ACTION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
+            auto actions_gpu = lic::view(device, on_policy_runner_dataset_gpu.actions, lic::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::ACTION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
             auto diff_actions = lic::abs_diff(device, actions_cpu, actions_gpu);
             std::cout << "step " << step_i << " rollout_step " << rollout_step_i << " diff_observations " << diff_observations << " diff_actions " << diff_actions << std::endl;
             ASSERT_LT(diff_observations/decltype(observations_cpu)::SPEC::SIZE, 1e-5);

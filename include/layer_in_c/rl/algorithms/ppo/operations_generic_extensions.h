@@ -113,14 +113,14 @@ namespace layer_in_c{
                 copy(device, device_evaluation, ppo_buffers.current_batch_actions, hybrid_buffers.actions);
 //                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
 
-                copy(device, device_evaluation, ppo.actor.action_log_std.parameters, ppo_evaluation.actor.action_log_std.parameters);
-                copy(device, device_evaluation, ppo.actor.action_log_std.gradient, ppo_evaluation.actor.action_log_std.gradient);
+                copy(device, device_evaluation, ppo.actor.log_std.parameters, ppo_evaluation.actor.log_std.parameters);
+                copy(device, device_evaluation, ppo.actor.log_std.gradient, ppo_evaluation.actor.log_std.gradient);
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     T action_log_prob = 0;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         T current_action = get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
                         T action = get(batch_actions, batch_step_i, action_i);
-                        T action_log_std = get(ppo.actor.action_log_std.parameters, 0, action_i);
+                        T action_log_std = get(ppo.actor.log_std.parameters, 0, action_i);
                         T action_std = math::exp(typename DEVICE::SPEC::MATH(), action_log_std);
                         T action_diff_by_action_std = (current_action - action) / action_std;
                         action_log_prob += -0.5 * action_diff_by_action_std * action_diff_by_action_std - action_log_std - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);
@@ -136,7 +136,7 @@ namespace layer_in_c{
                         // todo: think about possible implementation detail: clipping entropy bonus as well (because it changes the distribution)
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T current_d_entropy_loss_d_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
-                            increment(ppo.actor.action_log_std.gradient, 0, action_i, current_d_entropy_loss_d_action_log_std);
+                            increment(ppo.actor.log_std.gradient, 0, action_i, current_d_entropy_loss_d_action_log_std);
                             T current_d_action_log_prob_d_action_log_std = action_diff_by_action_std * action_diff_by_action_std - 1;
                             set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, current_d_action_log_prob_d_action_log_std);
                         }
@@ -164,12 +164,12 @@ namespace layer_in_c{
                         multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T current_d_action_log_prob_d_action_log_std = get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
-                            increment(ppo.actor.action_log_std.gradient, 0, action_i, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
+                            increment(ppo.actor.log_std.gradient, 0, action_i, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
                         }
                     }
                 }
-                copy(device_evaluation, device, ppo_evaluation.actor.action_log_std.parameters, ppo.actor.action_log_std.parameters);
-                copy(device_evaluation, device, ppo_evaluation.actor.action_log_std.gradient, ppo.actor.action_log_std.gradient);
+                copy(device_evaluation, device, ppo_evaluation.actor.log_std.parameters, ppo.actor.log_std.parameters);
+                copy(device_evaluation, device, ppo_evaluation.actor.log_std.gradient, ppo.actor.log_std.gradient);
 
                 copy(device_evaluation, device, hybrid_buffers.d_action_log_prob_d_action, ppo_buffers.d_action_log_prob_d_action);
                 backward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.d_action_log_prob_d_action, hybrid_buffers.d_observations, actor_buffers);

@@ -1,5 +1,6 @@
-#ifndef LAYER_IN_C_RL_COMPONENTS_RUNNING_NORMALIZER
-#define LAYER_IN_C_RL_COMPONENTS_RUNNING_NORMALIZER
+#ifndef LAYER_IN_C_RL_COMPONENTS_RUNNING_NORMALIZER_RUNNING_NORMALIZER_H
+#define LAYER_IN_C_RL_COMPONENTS_RUNNING_NORMALIZER_RUNNING_NORMALIZER_H
+
 namespace layer_in_c::rl::components{
     namespace running_normalizer{
         template <typename T_T, typename T_TI, T_TI T_DIM>

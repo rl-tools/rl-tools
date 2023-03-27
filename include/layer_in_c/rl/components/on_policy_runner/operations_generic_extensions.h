@@ -34,7 +34,8 @@ namespace layer_in_c{
         TI copy_back_time = 0;
         TI epilogue_time = 0;
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            auto actions = view(device, buffer.actions, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto actions_mean = view(device, buffer.actions_mean, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto actions      = view(device, buffer.actions     , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations = view(device, buffer.observations, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
             {
@@ -61,13 +62,13 @@ namespace layer_in_c{
                 auto start = std::chrono::high_resolution_clock::now();
                 copy(device, device, observations, evaluation_buffer.observations);
                 copy(device, device_evaluation, evaluation_buffer.actions, evaluation_buffer_evaluation.actions);
-                copy(device, device, actions, evaluation_buffer.actions);
+                copy(device, device, actions_mean, evaluation_buffer.actions);
                 auto end = std::chrono::high_resolution_clock::now();
                 copy_back_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
             {
                 auto start = std::chrono::high_resolution_clock::now();
-                rl::components::on_policy_runner::epilogue(device, buffer, runner, actions, actor.action_log_std.parameters, rng, step_i);
+                rl::components::on_policy_runner::epilogue(device, buffer, runner, actions_mean, actions, actor.log_std.parameters, rng, step_i);
                 auto end = std::chrono::high_resolution_clock::now();
                 epilogue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
