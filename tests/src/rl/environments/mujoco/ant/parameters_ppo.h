@@ -31,8 +31,8 @@ namespace parameters_0{
             static constexpr T ACTION_ENTROPY_COEFFICIENT = 0;
             static constexpr bool NORMALIZE_ADVANTAGE = false;
             static constexpr T GAMMA = 0.99;
-            static constexpr bool ADAPTIVE_LEARNING_RATE = false;
-            static constexpr T ADAPTIVE_LEARNING_RATE_KL_THRESHOLD = 0.5;
+            static constexpr bool ADAPTIVE_LEARNING_RATE = true;
+            static constexpr T ADAPTIVE_LEARNING_RATE_KL_THRESHOLD = 0.008;
 
             static constexpr bool NORMALIZE_OBSERVATIONS = false;
         };
