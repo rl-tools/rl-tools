@@ -86,7 +86,7 @@ namespace layer_in_c{
         }
     }
     template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename OPTIMIZER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer, OPTIMIZER& optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, OPTIMIZER& optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
@@ -109,31 +109,31 @@ namespace layer_in_c{
             copy(device, device, rollout_log_std, ppo.actor.log_std.parameters);
         }
         if(PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
-            update(device, ppo.observation_normalizer, buffer.observations);
-            normalize(device, ppo.observation_normalizer, buffer.observations);
+            update(device, ppo.observation_normalizer, dataset.observations);
+            normalize(device, ppo.observation_normalizer, dataset.observations);
         }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // shuffling
             for(TI buffer_i = 0; buffer_i < DATASET::STEPS_TOTAL; buffer_i++){
                 TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), buffer_i, DATASET::STEPS_TOTAL-1, rng);
                 {
-                    auto target_row = row(device, buffer.observations, buffer_i);
-                    auto source_row = row(device, buffer.observations, sample_index);
+                    auto target_row = row(device, dataset.observations, buffer_i);
+                    auto source_row = row(device, dataset.observations, sample_index);
                     swap(device, target_row, source_row);
                 }
                 if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
-                    auto target_row = row(device, buffer.actions_mean, buffer_i);
-                    auto source_row = row(device, buffer.actions_mean, sample_index);
+                    auto target_row = row(device, dataset.actions_mean, buffer_i);
+                    auto source_row = row(device, dataset.actions_mean, sample_index);
                     swap(device, target_row, source_row);
                 }
                 {
-                    auto target_row = row(device, buffer.actions, buffer_i);
-                    auto source_row = row(device, buffer.actions, sample_index);
+                    auto target_row = row(device, dataset.actions, buffer_i);
+                    auto source_row = row(device, dataset.actions, sample_index);
                     swap(device, target_row, source_row);
                 }
-                swap(device, buffer.advantages      , buffer.advantages      , buffer_i, 0, sample_index, 0);
-                swap(device, buffer.action_log_probs, buffer.action_log_probs, buffer_i, 0, sample_index, 0);
-                swap(device, buffer.target_values   , buffer.target_values   , buffer_i, 0, sample_index, 0);
+                swap(device, dataset.advantages      , dataset.advantages      , buffer_i, 0, sample_index, 0);
+                swap(device, dataset.action_log_probs, dataset.action_log_probs, buffer_i, 0, sample_index, 0);
+                swap(device, dataset.target_values   , dataset.target_values   , buffer_i, 0, sample_index, 0);
             }
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
                 T batch_policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
@@ -141,12 +141,12 @@ namespace layer_in_c{
                 zero_gradient(device, ppo.actor); // has to be reset before accumulating the action-log-std gradient
 
                 auto batch_offset = batch_i * BATCH_SIZE;
-                auto batch_observations     = view(device, buffer.observations    , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM>(), batch_offset, 0);
-                auto batch_actions_mean     = view(device, buffer.actions_mean    , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
-                auto batch_actions          = view(device, buffer.actions         , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
-                auto batch_action_log_probs = view(device, buffer.action_log_probs, matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
-                auto batch_advantages       = view(device, buffer.advantages      , matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
-                auto batch_target_values    = view(device, buffer.target_values   , matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
+                auto batch_observations     = view(device, dataset.observations    , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM>(), batch_offset, 0);
+                auto batch_actions_mean     = view(device, dataset.actions_mean    , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
+                auto batch_actions          = view(device, dataset.actions         , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
+                auto batch_action_log_probs = view(device, dataset.action_log_probs, matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
+                auto batch_advantages       = view(device, dataset.advantages      , matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
+                auto batch_target_values    = view(device, dataset.target_values   , matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
 
                 T advantage_mean = 0;
                 T advantage_std = 0;
@@ -164,7 +164,7 @@ namespace layer_in_c{
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
                 forward(device, ppo.actor, batch_observations, ppo_buffers.current_batch_actions);
-//                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
+//                auto abs_diff = abs_diff(device, batch_actions, dataset.actions);
 
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     T action_log_prob = 0;

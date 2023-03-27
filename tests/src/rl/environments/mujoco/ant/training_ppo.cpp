@@ -96,6 +96,10 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
     device.logger = &logger;
     lic::construct(device, device.logger);
     auto training_start = std::chrono::high_resolution_clock::now();
+    for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
+        lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+        update(device, ppo.observation_normalizer, on_policy_runner_dataset.observations);
+    }
     for(TI ppo_step_i = 0; ppo_step_i < 100000; ppo_step_i++) {
         device.logger->step = on_policy_runner.step;
 
