@@ -16,7 +16,8 @@ namespace layer_in_c::rl::algorithms{
             static constexpr T ADVANTAGE_EPSILON = 1e-8;
             static constexpr bool NORMALIZE_ADVANTAGE = true;
             static constexpr bool ADAPTIVE_LEARNING_RATE = false;
-            static constexpr T ADAPTIVE_LEARNING_RATE_KL_THRESHOLD = 0.008;
+            static constexpr T ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD = 0.008;
+            static constexpr T POLICY_KL_EPSILON = 1e-5;
             static constexpr T ADAPTIVE_LEARNING_RATE_DECAY = (T)1/(T)1.5;
             static constexpr T ADAPTIVE_LEARNING_RATE_MIN = 1e-6;
             static constexpr T ADAPTIVE_LEARNING_RATE_MAX = 1e-2;

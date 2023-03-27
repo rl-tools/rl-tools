@@ -150,15 +150,16 @@ namespace layer_in_c{
 
                 T advantage_mean = 0;
                 T advantage_std = 0;
-                for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-                    T advantage = get(batch_advantages, batch_step_i, 0);
-                    advantage_mean += advantage;
-                    advantage_std += advantage * advantage;
+                if(PPO_SPEC::PARAMETERS::NORMALIZE_ADVANTAGE) {
+                    for (TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++) {
+                        T advantage = get(batch_advantages, batch_step_i, 0);
+                        advantage_mean += advantage;
+                        advantage_std += advantage * advantage;
+                    }
+                    advantage_mean /= BATCH_SIZE;
+                    advantage_std /= BATCH_SIZE;
+                    advantage_std = math::sqrt(typename DEVICE::SPEC::MATH(), advantage_std - advantage_mean * advantage_mean);
                 }
-                advantage_mean /= BATCH_SIZE;
-                advantage_std /= BATCH_SIZE;
-
-                advantage_std = math::sqrt(typename DEVICE::SPEC::MATH(), advantage_std - advantage_mean * advantage_mean);
 //                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
@@ -178,9 +179,8 @@ namespace layer_in_c{
                             T rollout_action_std = math::exp(typename DEVICE::SPEC::MATH(), rollout_action_log_std);
                             T rollout_action_mean = get(batch_actions_mean, batch_step_i, action_i);
                             T action_mean_diff = rollout_action_mean - current_action;
-                            T eps = 1e-5;
                             T kl = rollout_action_log_std - current_action_log_std;
-                            kl += (current_action_std * current_action_std + action_mean_diff * action_mean_diff)/(2 * rollout_action_std * rollout_action_std + eps);
+                            kl += (current_action_std * current_action_std + action_mean_diff * action_mean_diff)/(2 * rollout_action_std * rollout_action_std + PPO_SPEC::PARAMETERS::POLICY_KL_EPSILON);
                             kl += (T)-0.5;
                             kl = math::max(typename DEVICE::SPEC::MATH(), kl, (T)0);
                             policy_kl_divergence += kl;
@@ -236,11 +236,10 @@ namespace layer_in_c{
                 }
                 if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
                     batch_policy_kl_divergence /= BATCH_SIZE;
-                    T thres = PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_KL_THRESHOLD;
-                    if(batch_policy_kl_divergence > 2 * thres){
+                    if(batch_policy_kl_divergence > 2 * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD){
                         optimizer.alpha = math::max(typename DEVICE::SPEC::MATH(), optimizer.alpha * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MIN);
                     }
-                    if(batch_policy_kl_divergence < 0.5 * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_KL_THRESHOLD){
+                    if(batch_policy_kl_divergence < 0.5 * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD){
                         optimizer.alpha = math::min(typename DEVICE::SPEC::MATH(), optimizer.alpha / PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MAX);
                     }
                 }

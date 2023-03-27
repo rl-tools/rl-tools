@@ -64,7 +64,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     prl::OPTIMIZER optimizer;
-    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 17);
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 19);
     auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
