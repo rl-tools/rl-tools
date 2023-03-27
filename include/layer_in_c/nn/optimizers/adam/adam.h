@@ -27,8 +27,10 @@ namespace layer_in_c::nn::optimizers{
     template<typename T_PARAMETERS>
     struct Adam{
         using PARAMETERS = T_PARAMETERS;
+        using T = typename PARAMETERS::T;
         typename PARAMETERS::T first_order_moment_bias_correction;
         typename PARAMETERS::T second_order_moment_bias_correction;
+        T alpha = PARAMETERS::ALPHA;
     };
 
 

@@ -17,7 +17,7 @@ namespace layer_in_c {
                 set(p.gradient_first_order_moment, row_i, col_i, d_weight_first_order_moment);
                 T d_weight_second_order_moment = PARAMETERS::BETA_2 * get(p.gradient_second_order_moment, row_i, col_i) + (1 - PARAMETERS::BETA_2) * d_weight * d_weight;
                 set(p.gradient_second_order_moment, row_i, col_i, d_weight_second_order_moment);
-                T weight_update = PARAMETERS::ALPHA * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                T weight_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
                 increment(p.parameters, row_i, col_i, -weight_update);
             }
         }

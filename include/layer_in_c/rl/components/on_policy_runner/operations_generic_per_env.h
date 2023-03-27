@@ -20,20 +20,20 @@ namespace layer_in_c::rl::components::on_policy_runner::per_env{
         auto observation = view(device, observations, matrix::ViewSpec<1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
         observe(device, env, state, observation);
     }
-    template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-    void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename DEVICE::index_t pos, typename DEVICE::index_t env_i){
+    template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+    void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename DEVICE::index_t pos, typename DEVICE::index_t env_i){
         using SPEC = typename DATASET_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         T action_log_prob = 0;
         for(TI action_i = 0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++) {
-            T action_mu = get(actions, env_i, action_i);
+            T action_mean = get(actions_mean, env_i, action_i);
 //                    std::stringstream topic;
 //                    topic << "action/" << action_i;
 //                    add_scalar(device, device.logger, topic.str(), action_mu);
             T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(action_log_std, 0, action_i));
-            T action_noisy = random::normal_distribution(typename DEVICE::SPEC::RANDOM(), action_mu, action_std, rng);
-            T action_by_action_std = (action_noisy-action_mu) / action_std;
+            T action_noisy = random::normal_distribution(typename DEVICE::SPEC::RANDOM(), action_mean, action_std, rng);
+            T action_by_action_std = (action_noisy-action_mean) / action_std;
             action_log_prob += -0.5 * action_by_action_std * action_by_action_std - math::log(typename DEVICE::SPEC::MATH(), action_std) - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);
             set(actions, env_i, action_i, action_noisy);
         }

@@ -117,7 +117,7 @@ namespace layer_in_c{
                     set(layer.biases.gradient_first_order_moment, 0, output_i, d_bias_first_order_moment);
                     T d_bias_second_order_moment = PARAMETERS::BETA_2 * get(layer.biases.gradient_second_order_moment, 0, output_i) + (1 - PARAMETERS::BETA_2) * d_bias * d_bias;
                     set(layer.biases.gradient_second_order_moment, 0, output_i, d_bias_second_order_moment);
-                    T bias_update = PARAMETERS::ALPHA * optimizer.first_order_moment_bias_correction * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_bias_second_order_moment * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                    T bias_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_bias_second_order_moment * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
                     increment(layer.biases.parameters, 0, output_i, -bias_update);
                 }
                 T d_weight = get(layer.weights.gradient, output_i, input_i);
@@ -125,7 +125,7 @@ namespace layer_in_c{
                 set(layer.weights.gradient_first_order_moment, output_i, input_i, d_weight_first_order_moment);
                 T d_weight_second_order_moment = PARAMETERS::BETA_2 * get(layer.weights.gradient_second_order_moment, output_i, input_i) + (1 - PARAMETERS::BETA_2) * d_weight * d_weight;
                 set(layer.weights.gradient_second_order_moment, output_i, input_i, d_weight_second_order_moment);
-                T weight_update = PARAMETERS::ALPHA * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                T weight_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
                 increment(layer.weights.parameters, output_i, input_i, -weight_update);
             }
         }

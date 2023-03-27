@@ -127,4 +127,7 @@ gtest_discover_tests(test_rl_environments_mujoco_ant_throughput)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_throughput)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_throughput)
 
+
+if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
 add_subdirectory(cuda)
+endif()

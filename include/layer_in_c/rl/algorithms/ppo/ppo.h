@@ -1,6 +1,8 @@
 #ifndef LAYER_IN_C_RL_ALGORITHMS_PPO_PPO_H
 #define LAYER_IN_C_RL_ALGORITHMS_PPO_PPO_H
 
+#include <layer_in_c/rl/components/running_normalizer/running_normalizer.h>
+
 namespace layer_in_c::rl::algorithms{
     namespace ppo{
         template<typename T, typename TI>
@@ -13,6 +15,12 @@ namespace layer_in_c::rl::algorithms{
             static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.01;
             static constexpr T ADVANTAGE_EPSILON = 1e-8;
             static constexpr bool NORMALIZE_ADVANTAGE = true;
+            static constexpr bool ADAPTIVE_LEARNING_RATE = false;
+            static constexpr T ADAPTIVE_LEARNING_RATE_KL_THRESHOLD = 0.008;
+            static constexpr T ADAPTIVE_LEARNING_RATE_DECAY = (T)1/(T)1.5;
+            static constexpr T ADAPTIVE_LEARNING_RATE_MIN = 1e-6;
+            static constexpr T ADAPTIVE_LEARNING_RATE_MAX = 1e-2;
+            static constexpr bool NORMALIZE_OBSERVATIONS = false;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 0;
             static constexpr TI N_EPOCHS = 10;
@@ -65,6 +73,7 @@ namespace layer_in_c::rl::algorithms{
 
         typename SPEC::ACTOR_TYPE actor;
         typename SPEC::CRITIC_TYPE critic;
+        components::RunningNormalizer<components::running_normalizer::Specification<T, TI, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         bool initialized = false;
 #endif

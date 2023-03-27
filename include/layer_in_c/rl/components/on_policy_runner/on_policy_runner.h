@@ -29,7 +29,7 @@ namespace layer_in_c::rl::components{
             static constexpr TI STEPS_PER_ENV = T_SPEC::STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = T_SPEC::STEPS_TOTAL;
             // structure: OBSERVATION - ACTION - ACTION_LOG_P - REWARD - TERMINATED - TRUNCATED - VALUE - ADVANTAGE - TARGEt_VALUE
-            static constexpr TI DATA_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM + 7;
+            static constexpr TI DATA_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM + SPEC::ENVIRONMENT::ACTION_DIM * 2 + 7;
 
             // mem
             // todo: evaluate transposing this / storing in column major order for better memory access in the single dimensional columns
@@ -41,6 +41,7 @@ namespace layer_in_c::rl::components{
 
             DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM, true> all_observations;
             DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM> observations;
+            DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions_mean;
             DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions;
             DATA_VIEW<1> action_log_probs;
             DATA_VIEW<1> rewards;

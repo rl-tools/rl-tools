@@ -29,7 +29,7 @@ namespace layer_in_c{
     void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<Matrix<SPEC>>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++) {
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++) {
-                typename SPEC::T parameter_update = PARAMETERS::ALPHA * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(typename DEVICE::SPEC::MATH(), get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                typename SPEC::T parameter_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(typename DEVICE::SPEC::MATH(), get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
                 increment(parameter.parameters, row_i, col_i, -parameter_update);
             }
         }

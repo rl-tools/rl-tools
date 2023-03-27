@@ -40,10 +40,10 @@ using T = float;
 using TI = typename DEVICE::index_t;
 
 
-constexpr TI ACTOR_CHECKPOINT_INTERVAL = 150;
+constexpr TI ACTOR_CHECKPOINT_INTERVAL = 300;
 constexpr bool ENABLE_EVALUATION = false;
 constexpr TI EVALUATION_INTERVAL = 150;
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
 
@@ -64,12 +64,12 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     prl::OPTIMIZER optimizer;
-    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
+    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 17);
     auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
-    prl::ON_POLICY_RUNNER_BUFFER_TYPE on_policy_runner_buffer;
+    prl::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
     prl::ACTOR_EVAL_BUFFERS actor_eval_buffers;
     prl::ACTOR_BUFFERS actor_buffers;
     prl::CRITIC_BUFFERS critic_buffers;
@@ -80,7 +80,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
 
     lic::malloc(device, ppo);
     lic::malloc(device, ppo_buffers);
-    lic::malloc(device, on_policy_runner_buffer);
+    lic::malloc(device, on_policy_runner_dataset);
     lic::malloc(device, on_policy_runner);
     lic::malloc(device, actor_eval_buffers);
     lic::malloc(device, actor_buffers);
@@ -103,9 +103,10 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
             std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;
             std::cout << "PPO step: " << ppo_step_i << " elapsed: " << training_elapsed.count() << "s" << std::endl;
             lic::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
+            lic::add_scalar(device, device.logger, "ppo/learning_rate", optimizer.alpha);
         }
         for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
-            T action_log_std = lic::get(ppo.actor.action_log_std.parameters, 0, action_i);
+            T action_log_std = lic::get(ppo.actor.log_std.parameters, 0, action_i);
             std::stringstream topic;
             topic << "actor/action_std/" << action_i;
             lic::add_scalar(device, device.logger, topic.str(), lic::math::exp(DEVICE::SPEC::MATH(), action_log_std));
@@ -113,27 +114,28 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         auto start = std::chrono::high_resolution_clock::now();
         {
             auto start = std::chrono::high_resolution_clock::now();
-            lic::collect(device, on_policy_runner_buffer, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
-            lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_buffer.observations));
-            lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_buffer.observations));
-            lic::add_scalar(device, device.logger, "opr/action/mean", lic::mean(device, on_policy_runner_buffer.actions));
-            lic::add_scalar(device, device.logger, "opr/action/std", lic::std(device, on_policy_runner_buffer.actions));
-            lic::add_scalar(device, device.logger, "opr/rewards/mean", lic::mean(device, on_policy_runner_buffer.rewards));
-            lic::add_scalar(device, device.logger, "opr/rewards/std", lic::std(device, on_policy_runner_buffer.rewards));
+            lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+            lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_dataset.observations));
+            lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_dataset.observations));
+            lic::add_scalar(device, device.logger, "opr/action/mean", lic::mean(device, on_policy_runner_dataset.actions));
+            lic::add_scalar(device, device.logger, "opr/action/std", lic::std(device, on_policy_runner_dataset.actions));
+            lic::add_scalar(device, device.logger, "opr/rewards/mean", lic::mean(device, on_policy_runner_dataset.rewards));
+            lic::add_scalar(device, device.logger, "opr/rewards/std", lic::std(device, on_policy_runner_dataset.rewards));
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "Rollout: " << elapsed.count() << " s" << std::endl;
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            lic::estimate_generalized_advantages(device, ppo, on_policy_runner_buffer, critic_buffers_gae);
+            evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations, on_policy_runner_dataset.all_values, critic_buffers_gae);
+            lic::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            lic::train(device, ppo, on_policy_runner_buffer, optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
+            lic::train(device, ppo, on_policy_runner_dataset, optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "Train: " << elapsed.count() << " s" << std::endl;
@@ -152,7 +154,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
 //                ASSERT_GT(mean_return, 1000);
 //            }
         }
-        if(ACTOR_ENABLE_CHECKPOINTS && ppo_step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
+        if(ACTOR_ENABLE_CHECKPOINTS && (ppo_step_i % ACTOR_CHECKPOINT_INTERVAL == 0)){
             std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
             try {
                 std::filesystem::create_directories(actor_output_dir);
@@ -181,7 +183,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
     }
     lic::free(device, ppo);
     lic::free(device, ppo_buffers);
-    lic::free(device, on_policy_runner_buffer);
+    lic::free(device, on_policy_runner_dataset);
     lic::free(device, on_policy_runner);
     lic::free(device, actor_eval_buffers);
     lic::free(device, actor_buffers);

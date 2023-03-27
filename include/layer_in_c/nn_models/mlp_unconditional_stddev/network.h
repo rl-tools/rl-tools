@@ -9,7 +9,7 @@ namespace layer_in_c::nn_models::mlp_unconditional_stddev {
     struct NEURAL_NETWORK_FACTORY: public BASE<SPEC>{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        nn::parameters::Adam::instance<Matrix<matrix::Specification<T, TI, 1, SPEC::OUTPUT_DIM>>> action_log_std;
+        nn::parameters::Adam::instance<Matrix<matrix::Specification<T, TI, 1, SPEC::OUTPUT_DIM>>> log_std;
     };
 
     template <typename SPEC>

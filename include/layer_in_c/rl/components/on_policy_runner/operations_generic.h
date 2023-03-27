@@ -13,6 +13,7 @@ namespace layer_in_c{
         TI pos = 0;
         dataset.all_observations = view<DEVICE, DATA_SPEC, decltype(dataset.all_observations)::ROWS, decltype(dataset.all_observations)::COLS>(device, dataset.data, 0, pos);
         dataset.observations     = view<DEVICE, DATA_SPEC, decltype(dataset.observations    )::ROWS, decltype(dataset.observations    )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.observations    )::COLS;
+        dataset.actions_mean     = view<DEVICE, DATA_SPEC, decltype(dataset.actions         )::ROWS, decltype(dataset.actions         )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.actions         )::COLS;
         dataset.actions          = view<DEVICE, DATA_SPEC, decltype(dataset.actions         )::ROWS, decltype(dataset.actions         )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.actions         )::COLS;
         dataset.action_log_probs = view<DEVICE, DATA_SPEC, decltype(dataset.action_log_probs)::ROWS, decltype(dataset.action_log_probs)::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.action_log_probs)::COLS;
         dataset.rewards          = view<DEVICE, DATA_SPEC, decltype(dataset.rewards         )::ROWS, decltype(dataset.rewards         )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.rewards         )::COLS;
@@ -28,6 +29,7 @@ namespace layer_in_c{
         free(device, dataset.data);
         dataset.all_observations._data = nullptr;
         dataset.observations    ._data = nullptr;
+        dataset.actions_mean    ._data = nullptr;
         dataset.actions         ._data = nullptr;
         dataset.action_log_probs._data = nullptr;
         dataset.rewards         ._data = nullptr;
@@ -97,12 +99,13 @@ namespace layer_in_c{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            auto actions = view(device, dataset.actions, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto actions_mean = view(device, dataset.actions_mean, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto actions      = view(device, dataset.actions     , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations = view(device, dataset.observations, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
             rl::components::on_policy_runner::prologue(device, observations, runner, rng, step_i);
-            evaluate(device, actor, observations, actions, policy_eval_buffers);
-            rl::components::on_policy_runner::epilogue(device, dataset, runner, actions, actor.action_log_std.parameters, rng, step_i);
+            evaluate(device, actor, observations, actions_mean, policy_eval_buffers);
+            rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, actor.log_std.parameters, rng, step_i);
         }
         // final observation
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){

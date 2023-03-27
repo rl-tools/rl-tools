@@ -31,6 +31,9 @@ namespace parameters_0{
             static constexpr T ACTION_ENTROPY_COEFFICIENT = 0;
             static constexpr bool NORMALIZE_ADVANTAGE = false;
             static constexpr T GAMMA = 0.99;
+            static constexpr bool ADAPTIVE_LEARNING_RATE = true;
+            static constexpr T ADAPTIVE_LEARNING_RATE_KL_THRESHOLD = 0.5;
+            static constexpr bool NORMALIZE_OBSERVATIONS = true;
         };
         using PPO_SPEC = lic::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
         using PPO_TYPE = lic::rl::algorithms::PPO<PPO_SPEC>;
