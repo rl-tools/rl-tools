@@ -252,6 +252,7 @@ namespace layer_in_c{
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
             policy_kl_divergence /= N_EPOCHS * N_BATCHES * BATCH_SIZE;
             lic::add_scalar(device, device.logger, "ppo/policy_kl", policy_kl_divergence);
+            free(device, rollout_log_std);
         }
     }
 
