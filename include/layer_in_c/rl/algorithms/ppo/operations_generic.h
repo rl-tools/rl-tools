@@ -187,7 +187,7 @@ namespace layer_in_c{
                             batch_policy_kl_divergence += kl;
                         }
 
-                        T action_diff_by_action_std = current_action - rollout_action / current_action_std;
+                        T action_diff_by_action_std = (current_action - rollout_action) / current_action_std;
                         action_log_prob += -0.5 * action_diff_by_action_std * action_diff_by_action_std - current_action_log_std - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);
                         set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, - action_diff_by_action_std / current_action_std);
 //                      d_action_log_prob_d_action_std =  (-action_diff_by_action_std) * (-action_diff_by_action_std)      / action_std - 1 / action_std)
