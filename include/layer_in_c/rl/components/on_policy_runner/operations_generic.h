@@ -13,7 +13,7 @@ namespace layer_in_c{
         TI pos = 0;
         dataset.all_observations = view<DEVICE, DATA_SPEC, decltype(dataset.all_observations)::ROWS, decltype(dataset.all_observations)::COLS>(device, dataset.data, 0, pos);
         dataset.observations     = view<DEVICE, DATA_SPEC, decltype(dataset.observations    )::ROWS, decltype(dataset.observations    )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.observations    )::COLS;
-        dataset.actions_mean     = view<DEVICE, DATA_SPEC, decltype(dataset.actions         )::ROWS, decltype(dataset.actions         )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.actions         )::COLS;
+        dataset.actions_mean     = view<DEVICE, DATA_SPEC, decltype(dataset.actions_mean    )::ROWS, decltype(dataset.actions_mean    )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.actions_mean    )::COLS;
         dataset.actions          = view<DEVICE, DATA_SPEC, decltype(dataset.actions         )::ROWS, decltype(dataset.actions         )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.actions         )::COLS;
         dataset.action_log_probs = view<DEVICE, DATA_SPEC, decltype(dataset.action_log_probs)::ROWS, decltype(dataset.action_log_probs)::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.action_log_probs)::COLS;
         dataset.rewards          = view<DEVICE, DATA_SPEC, decltype(dataset.rewards         )::ROWS, decltype(dataset.rewards         )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.rewards         )::COLS;

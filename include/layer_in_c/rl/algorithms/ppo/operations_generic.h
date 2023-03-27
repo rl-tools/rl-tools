@@ -43,9 +43,9 @@ namespace layer_in_c{
         init_weights(device, ppo.critic, rng);
         reset_optimizer_state(device, ppo.critic, optimizer);
         init(device, ppo.observation_normalizer);
-        set_all(device, ppo.actor.input_layer.biases.parameters, 0);
-        set_all(device, ppo.actor.hidden_layers[0].biases.parameters, 0);
-        set_all(device, ppo.actor.output_layer.biases.parameters, 0);
+//        set_all(device, ppo.actor.input_layer.biases.parameters, 0);
+//        set_all(device, ppo.actor.hidden_layers[0].biases.parameters, 0);
+//        set_all(device, ppo.actor.output_layer.biases.parameters, 0);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename PPO_PARAMETERS>
     void estimate_generalized_advantages(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, PPO_PARAMETERS ppo_parameters_tag){
