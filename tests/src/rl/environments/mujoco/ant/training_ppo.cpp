@@ -99,7 +99,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         lic::construct(device, device.logger);
         auto training_start = std::chrono::high_resolution_clock::now();
         for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-            lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, ppo.observation_normalizer.mean, ppo.observation_normalizer.std, rng);
+            lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
             update(device, ppo.observation_normalizer, on_policy_runner_dataset.observations);
         }
         for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
@@ -120,7 +120,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
             auto start = std::chrono::high_resolution_clock::now();
             {
                 auto start = std::chrono::high_resolution_clock::now();
-                lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, ppo.observation_normalizer.mean, ppo.observation_normalizer.std, rng);
+                lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
                 lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_dataset.observations));
                 lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_dataset.observations));
                 lic::add_scalar(device, device.logger, "opr/action/mean", lic::mean(device, on_policy_runner_dataset.actions));
