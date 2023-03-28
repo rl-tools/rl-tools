@@ -13,10 +13,14 @@ namespace parameters_0{
         static constexpr TI BATCH_SIZE = 2048;
         using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 256, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::IDENTITY, BATCH_SIZE>;
 
-        struct OPTIMIZER_PARAMETERS: lic::nn::optimizers::adam::DefaultParametersTorch<T>{
+        struct ACTOR_OPTIMIZER_PARAMETERS: lic::nn::optimizers::adam::DefaultParametersTorch<T>{
             static constexpr T ALPHA = 3e-4;
         };
-        using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+        struct CRITIC_OPTIMIZER_PARAMETERS: lic::nn::optimizers::adam::DefaultParametersTorch<T>{
+            static constexpr T ALPHA = 3e-4 * 2;
+        };
+        using ACTOR_OPTIMIZER = lic::nn::optimizers::Adam<ACTOR_OPTIMIZER_PARAMETERS>;
+        using CRITIC_OPTIMIZER = lic::nn::optimizers::Adam<CRITIC_OPTIMIZER_PARAMETERS>;
         using ACTOR_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
         using ACTOR_TYPE = lic::nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<ACTOR_SPEC>;
         using ACTOR_TYPE_INFERENCE = lic::nn_models::mlp_unconditional_stddev::NeuralNetwork<ACTOR_SPEC>;
@@ -32,7 +36,7 @@ namespace parameters_0{
             static constexpr bool NORMALIZE_ADVANTAGE = false;
             static constexpr T GAMMA = 0.99;
             static constexpr bool ADAPTIVE_LEARNING_RATE = true;
-            static constexpr T ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD = 0.010;
+            static constexpr T ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD = 0.008;
 
             static constexpr bool NORMALIZE_OBSERVATIONS = false;
         };

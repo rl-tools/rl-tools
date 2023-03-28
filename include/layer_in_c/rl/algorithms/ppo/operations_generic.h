@@ -85,8 +85,8 @@ namespace layer_in_c{
             }
         }
     }
-    template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename OPTIMIZER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, OPTIMIZER& optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
@@ -237,16 +237,16 @@ namespace layer_in_c{
                 if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
                     batch_policy_kl_divergence /= BATCH_SIZE;
                     if(batch_policy_kl_divergence > 2 * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD){
-                        optimizer.alpha = math::max(typename DEVICE::SPEC::MATH(), optimizer.alpha * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MIN);
+                        actor_optimizer.alpha = math::max(typename DEVICE::SPEC::MATH(), actor_optimizer.alpha * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MIN);
                     }
                     if(batch_policy_kl_divergence < 0.5 * PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD){
-                        optimizer.alpha = math::min(typename DEVICE::SPEC::MATH(), optimizer.alpha / PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MAX);
+                        actor_optimizer.alpha = math::min(typename DEVICE::SPEC::MATH(), actor_optimizer.alpha / PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MAX);
                     }
                 }
                 backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, ppo_buffers.d_batch_observations, actor_buffers);
                 forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
-                update(device, ppo.actor, optimizer);
-                update(device, ppo.critic, optimizer);
+                update(device, ppo.actor, actor_optimizer);
+                update(device, ppo.critic, actor_optimizer);
             }
         }
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
