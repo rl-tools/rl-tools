@@ -26,15 +26,21 @@ namespace layer_in_c{
         env.torso_id = mj_name2id(env.model, mjOBJ_XBODY, "torso");
 
     }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env){
+        mj_deleteData(env.data);
+        mj_deleteModel(env.model);
+    }
     template<typename DEVICE, typename SPEC, typename RNG>
     LAYER_IN_C_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::ant::State<SPEC>& state, RNG& rng){
+        using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         mj_resetData(env.model, env.data);
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q; state_i++){
             state.q    [state_i] = env.init_q    [state_i] + random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::RESET_NOISE_SCALE, SPEC::PARAMETERS::RESET_NOISE_SCALE, rng);
         }
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q_DOT; state_i++){
-            state.q_dot[state_i] = env.init_q_dot[state_i] + random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::RESET_NOISE_SCALE, SPEC::PARAMETERS::RESET_NOISE_SCALE, rng);
+            state.q_dot[state_i] = env.init_q_dot[state_i] + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, SPEC::PARAMETERS::RESET_NOISE_SCALE, rng);
         }
         mj_forward(env.model, env.data);
     }
