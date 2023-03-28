@@ -6,20 +6,20 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
         malloc(device, normalizer.mean);
-        malloc(device, normalizer.variance);
+        malloc(device, normalizer.M2);
         malloc(device, normalizer.std);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
         free(device, normalizer.mean);
-        free(device, normalizer.variance);
+        free(device, normalizer.M2);
         free(device, normalizer.std);
     }
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
         normalizer.age = 0;
         set_all(device, normalizer.mean, 0);
-        set_all(device, normalizer.variance, 0);
+        set_all(device, normalizer.M2, SPEC::M2_INIT);
         set_all(device, normalizer.std, 0);
     }
     template <typename DEVICE, typename SPEC, typename DATA_SPEC>
@@ -29,21 +29,21 @@ namespace layer_in_c{
         using TI = typename DEVICE::index_t;
         constexpr TI DATA_SIZE = DATA_SPEC::ROWS;
         for(TI row_i = 0; row_i < DATA_SIZE; row_i++){
-            normalizer.age++;
             for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
                 T x = get(data, row_i, col_i);
                 T mean = get(normalizer.mean, 0, col_i);
-                T variance = get(normalizer.variance, 0, col_i);
-                T new_mean = mean + (x - mean)/normalizer.age;
-                T new_variance = variance + x * x / normalizer.age;
+                T M2 = get(normalizer.M2, 0, col_i);
+                T new_mean = mean + (x - mean)/(normalizer.age+1);
+                T new_M2 = M2 + (x - mean)*(x - new_mean);
                 set(normalizer.mean, 0, col_i, new_mean);
-                set(normalizer.variance, 0, col_i, new_variance);
+                set(normalizer.M2, 0, col_i, new_M2);
             }
+            normalizer.age++;
         }
         for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
             T mean = get(normalizer.mean, 0, col_i);
-            T variance = get(normalizer.variance, 0, col_i);
-            variance -= mean * mean;
+            T M2 = get(normalizer.M2, 0, col_i);
+            T variance = M2/normalizer.age;
             T std = math::sqrt(typename DEVICE::SPEC::MATH(), variance);
             set(normalizer.std, 0, col_i, std);
         }
@@ -51,18 +51,13 @@ namespace layer_in_c{
     template <typename DEVICE, typename SPEC, typename DATA_SPEC>
     void normalize(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer, Matrix<DATA_SPEC>& data){
         static_assert(DATA_SPEC::COLS == SPEC::DIM, "Data dimension must match normalizer dimension");
-        using T = typename SPEC::T;
-        using TI = typename DEVICE::index_t;
-        constexpr TI DATA_SIZE = DATA_SPEC::ROWS;
-        for(TI row_i = 0; row_i < DATA_SIZE; row_i++){
-            for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
-                T x = get(data, row_i, col_i);
-                T mean = get(normalizer.mean, 0, col_i);
-                T std = get(normalizer.std, 0, col_i);
-                T normalized_x = (x - mean) / std;
-                set(data, row_i, col_i, normalized_x);
-            }
-        }
+        normalize(device, normalizer.mean, normalizer.std, data, data);
+    }
+    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    void normalize(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
+        static_assert(containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
+        static_assert(INPUT_SPEC::COLS == SPEC::DIM, "Data dimension must match normalizer dimension");
+        normalize(device, normalizer.mean, normalizer.std, input, output);
     }
 }
 #endif

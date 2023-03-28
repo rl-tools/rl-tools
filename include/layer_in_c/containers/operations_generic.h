@@ -236,6 +236,14 @@ namespace layer_in_c{
             }
         }
     }
+    template<typename DEVICE, typename SPEC, typename VALUE_T>
+    void increment_all(DEVICE& device, Matrix<SPEC>& m, VALUE_T value){
+        for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
+            for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
+                increment(m, i, j, value);
+            }
+        }
+    }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3>
     void mul(DEVICE& device, const Matrix<SPEC_1>& A, const Matrix<SPEC_2>& B, const Matrix<SPEC_3>& C){
@@ -470,6 +478,28 @@ namespace layer_in_c{
         T tmp = get(a, row_a, col_a);
         set(a, row_a, col_a, get(b, row_b, col_b));
         set(b, row_b, col_b, tmp);
+    }
+
+    template <typename DEVICE, typename MEAN_SPEC, typename STD_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    void normalize(DEVICE& device, Matrix<MEAN_SPEC>& mean, Matrix<STD_SPEC>& std, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
+        static_assert(containers::check_structure<MEAN_SPEC, STD_SPEC>);
+        static_assert(containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
+        static_assert(MEAN_SPEC::ROWS == 1);
+        static_assert(MEAN_SPEC::COLS == INPUT_SPEC::COLS);
+
+        using T = typename INPUT_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        constexpr TI DATA_SIZE = INPUT_SPEC::ROWS;
+        constexpr TI DIM = INPUT_SPEC::COLS;
+        for(TI row_i = 0; row_i < DATA_SIZE; row_i++){
+            for(TI col_i = 0; col_i < DIM; col_i++){
+                T x = get(input, row_i, col_i);
+                T mu = get(mean, 0, col_i);
+                T sigma = get(std, 0, col_i);
+                T normalized_x = (x - mu) / sigma;
+                set(output, row_i, col_i, normalized_x);
+            }
+        }
     }
 }
 #endif

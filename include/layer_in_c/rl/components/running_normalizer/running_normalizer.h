@@ -8,6 +8,7 @@ namespace layer_in_c::rl::components{
             using T = T_T;
             using TI = T_TI;
             static constexpr TI DIM = T_DIM;
+            static constexpr T M2_INIT = 1e-10;
         };
     }
     template <typename T_SPEC>
@@ -18,7 +19,7 @@ namespace layer_in_c::rl::components{
         static constexpr TI DIM = SPEC::DIM;
 
         Matrix<matrix::Specification<T, TI, 1, DIM>> mean;
-        Matrix<matrix::Specification<T, TI, 1, DIM>> variance;
+        Matrix<matrix::Specification<T, TI, 1, DIM>> M2;
         Matrix<matrix::Specification<T, TI, 1, DIM>> std;
         TI age = 0;
     };
