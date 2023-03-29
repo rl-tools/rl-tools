@@ -41,9 +41,10 @@ using TI = typename DEVICE::index_t;
 
 
 constexpr TI NUM_RUNS = 100;
-constexpr TI ACTOR_CHECKPOINT_INTERVAL = 300;
-constexpr bool ENABLE_EVALUATION = false;
-constexpr TI EVALUATION_INTERVAL = 150;
+constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
+constexpr bool ENABLE_EVALUATION = true;
+constexpr TI NUM_EVALUATION_EPISODES = 10;
+constexpr TI EVALUATION_INTERVAL = 100000;
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
@@ -52,7 +53,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
     for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
         using penv = parameters::environment<double, TI>;
         using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
-        std::string run_name;
+        std::string run_name = "ppo_ant_non_adaptive_lr";
         {
             auto now = std::chrono::system_clock::now();
             auto local_time = std::chrono::system_clock::to_time_t(now);
@@ -60,7 +61,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
 
             std::ostringstream oss;
             oss << std::put_time(tm, "%FT%T%z");
-            run_name = oss.str();
+            run_name = oss.str() + "_" + run_name;
         }
 
         DEVICE::SPEC::LOGGING logger;
@@ -80,6 +81,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
         bool ui = false;
+        TI next_checkpoint_id = 0;
+        TI next_evaluation_id = 0;
 
         lic::malloc(device, ppo);
         lic::malloc(device, ppo_buffers);
@@ -100,11 +103,49 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         device.logger = &logger;
         lic::construct(device, device.logger, run_name);
         auto training_start = std::chrono::high_resolution_clock::now();
-        for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-            lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
-            update(device, ppo.observation_normalizer, on_policy_runner_dataset.observations);
+        if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
+            for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
+                lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+                update(device, ppo.observation_normalizer, on_policy_runner_dataset.observations);
+            }
+            lic::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
         }
         for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
+            if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
+                std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
+                try {
+                    std::filesystem::create_directories(actor_output_dir);
+                }
+                catch (std::exception& e) {
+                }
+                std::string checkpoint_name = "latest.h5";
+                if(!ACTOR_OVERWRITE_CHECKPOINTS){
+                    std::stringstream checkpoint_name_ss;
+                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << next_checkpoint_id << "_" << std::setw(15) << std::setfill('0') << on_policy_runner.step << ".h5";
+                    checkpoint_name = checkpoint_name_ss.str();
+                }
+                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
+                try{
+                    auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+                    lic::save(device, ppo.actor, actor_file.createGroup("actor"));
+                }
+                catch(HighFive::Exception& e){
+                    std::cout << "Error while saving actor: " << e.what() << std::endl;
+                }
+                next_checkpoint_id++;
+            }
+            if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
+                auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), evaluation_rng);
+                lic::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
+                lic::add_scalar(device, device.logger, "evaluation/return/std", result.std);
+                lic::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
+                std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
+
+//            if(step_i > 250000){
+//                ASSERT_GT(mean_return, 1000);
+//            }
+                next_evaluation_id++;
+            }
             device.logger->step = on_policy_runner.step;
 
             if(ppo_step_i % 1 == 0){
@@ -124,6 +165,10 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
             {
                 auto start = std::chrono::high_resolution_clock::now();
                 lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+                if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
+                    update(device, ppo.observation_normalizer, on_policy_runner_dataset.observations);
+                    normalize(device, ppo.observation_normalizer, on_policy_runner_dataset.observations);
+                }
                 lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_dataset.observations));
                 lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_dataset.observations));
                 lic::add_scalar(device, device.logger, "opr/action/mean", lic::mean(device, on_policy_runner_dataset.actions));
@@ -152,39 +197,6 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "Total: " << elapsed.count() << " s" << std::endl;
-            if(ENABLE_EVALUATION && (ppo_step_i % EVALUATION_INTERVAL == 0)){
-                auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<10, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), evaluation_rng);
-                lic::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
-                lic::add_scalar(device, device.logger, "evaluation/return/std", result.std);
-                lic::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
-                std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
-
-//            if(step_i > 250000){
-//                ASSERT_GT(mean_return, 1000);
-//            }
-            }
-            if(ACTOR_ENABLE_CHECKPOINTS && (ppo_step_i % ACTOR_CHECKPOINT_INTERVAL == 0)){
-                std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
-                try {
-                    std::filesystem::create_directories(actor_output_dir);
-                }
-                catch (std::exception& e) {
-                }
-                std::string checkpoint_name = "latest.h5";
-                if(!ACTOR_OVERWRITE_CHECKPOINTS){
-                    std::stringstream checkpoint_name_ss;
-                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << ppo_step_i << ".h5";
-                    checkpoint_name = checkpoint_name_ss.str();
-                }
-                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
-                try{
-                    auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
-                    lic::save(device, ppo.actor, actor_file.createGroup("actor"));
-                }
-                catch(HighFive::Exception& e){
-                    std::cout << "Error while saving actor: " << e.what() << std::endl;
-                }
-            }
         }
 
         lic::free(device, ppo);

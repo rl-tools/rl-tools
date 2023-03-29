@@ -109,10 +109,6 @@ namespace layer_in_c{
             malloc(device, rollout_log_std);
             copy(device, device, rollout_log_std, ppo.actor.log_std.parameters);
         }
-        if(PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
-            update(device, ppo.observation_normalizer, dataset.observations);
-            normalize(device, ppo.observation_normalizer, dataset.observations);
-        }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // shuffling
             for(TI buffer_i = 0; buffer_i < DATASET::STEPS_TOTAL; buffer_i++){
