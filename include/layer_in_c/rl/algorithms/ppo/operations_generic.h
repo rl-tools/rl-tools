@@ -2,6 +2,7 @@
 #define LAYER_IN_C_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_H
 
 #include "ppo.h"
+#include <layer_in_c/nn/loss_functions/mse/operations_generic.h>
 #include <layer_in_c/rl/components/on_policy_runner/on_policy_runner.h>
 #include <layer_in_c/rl/components/running_normalizer/operations_generic.h>
 
@@ -245,13 +246,15 @@ namespace layer_in_c{
                 }
                 backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, ppo_buffers.d_batch_observations, actor_buffers);
                 forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
+                T critic_loss = nn::loss_functions::mse(device, ppo.critic.output_layer.output, batch_target_values);
+                add_scalar(device, device.logger, "ppo/critic_loss", critic_loss);
                 update(device, ppo.actor, actor_optimizer);
                 update(device, ppo.critic, actor_optimizer);
             }
         }
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
             policy_kl_divergence /= N_EPOCHS * N_BATCHES * BATCH_SIZE;
-            lic::add_scalar(device, device.logger, "ppo/policy_kl", policy_kl_divergence);
+            add_scalar(device, device.logger, "ppo/policy_kl", policy_kl_divergence);
             free(device, rollout_log_std);
         }
     }

@@ -67,7 +67,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         DEVICE device;
         prl::ACTOR_OPTIMIZER actor_optimizer;
         prl::CRITIC_OPTIMIZER critic_optimizer;
-        auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 50 + run_i);
+        auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 500 + run_i);
         auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
         prl::PPO_TYPE ppo;
         prl::PPO_BUFFERS_TYPE ppo_buffers;

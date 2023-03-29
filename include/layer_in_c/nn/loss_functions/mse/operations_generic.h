@@ -1,3 +1,5 @@
+#ifndef LAYER_IN_C_NN_LOSS_FUNCTIONS_MSE_OPERATIONS_GENERIC
+#define LAYER_IN_C_NN_LOSS_FUNCTIONS_MSE_OPERATIONS_GENERIC
 
 namespace layer_in_c::nn::loss_functions {
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
@@ -31,3 +33,5 @@ namespace layer_in_c::nn::loss_functions {
         }
     }
 }
+
+#endif
