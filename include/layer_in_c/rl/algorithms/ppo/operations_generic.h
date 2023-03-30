@@ -33,16 +33,16 @@ namespace layer_in_c{
         free(device, ppo.critic);
         free(device, ppo.observation_normalizer);
     }
-    template <typename DEVICE, typename SPEC, typename OPTIMIZER, typename RNG>
-    void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, OPTIMIZER& optimizer, RNG& rng){
+    template <typename DEVICE, typename SPEC, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
+    void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         ppo.initialized = true;
 #endif
         init_weights(device, ppo.actor, rng);
-        reset_optimizer_state(device, ppo.actor, optimizer);
+        reset_optimizer_state(device, ppo.actor, actor_optimizer);
         set_all(device, ppo.actor.log_std.parameters, math::log(typename DEVICE::SPEC::MATH(), SPEC::PARAMETERS::INITIAL_ACTION_STD));
         init_weights(device, ppo.critic, rng);
-        reset_optimizer_state(device, ppo.critic, optimizer);
+        reset_optimizer_state(device, ppo.critic, critic_optimizer);
         init(device, ppo.observation_normalizer);
 //        set_all(device, ppo.actor.input_layer.biases.parameters, 0);
 //        set_all(device, ppo.actor.hidden_layers[0].biases.parameters, 0);

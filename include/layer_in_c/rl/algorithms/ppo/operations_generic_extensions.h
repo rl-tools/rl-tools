@@ -38,13 +38,14 @@ namespace layer_in_c{
         free(device, buffers.d_observations);
         free(device, buffers.target_values);
     }
-    template <typename DEVICE, typename DEVICE_EVALUATION, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename OPTIMIZER, typename RNG>
+    template <typename DEVICE, typename DEVICE_EVALUATION, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
     void train_hybrid(DEVICE& device,
         DEVICE_EVALUATION& device_evaluation,
         rl::algorithms::PPO<PPO_SPEC>& ppo,
         rl::algorithms::PPO<PPO_SPEC>& ppo_evaluation,
         rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& buffer,
-        OPTIMIZER& optimizer,
+        ACTOR_OPTIMIZER& actor_optimizer,
+        CRITIC_OPTIMIZER& critic_optimizer,
         rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers,
         rl::algorithms::ppo::TrainingBuffersHybrid<PPO_SPEC>& hybrid_buffers,
         typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers,
@@ -175,8 +176,8 @@ namespace layer_in_c{
                 backward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.d_action_log_prob_d_action, hybrid_buffers.d_observations, actor_buffers);
                 copy(device_evaluation, device, hybrid_buffers.target_values, batch_target_values);
                 forward_backward_mse(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.target_values, critic_buffers);
-                update(device_evaluation, ppo_evaluation.actor, optimizer);
-                update(device_evaluation, ppo_evaluation.critic, optimizer);
+                update(device_evaluation, ppo_evaluation.actor, actor_optimizer);
+                update(device_evaluation, ppo_evaluation.critic, critic_optimizer);
             }
         }
     }

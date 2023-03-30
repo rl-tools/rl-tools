@@ -17,6 +17,9 @@ namespace layer_in_c{
 
         }
         */
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
+        utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
+#endif
         auto result = cudaMalloc(&matrix._data, SPEC::SIZE_BYTES);
         check_status(device);
 

@@ -98,8 +98,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         lic::malloc(device, evaluation_env);
 
         lic::init(device, on_policy_runner, envs, rng);
-        lic::init(device, ppo, actor_optimizer, rng);
-        lic::init(device, ppo, critic_optimizer, rng);
+        lic::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         device.logger = &logger;
         lic::construct(device, device.logger, run_name);
         auto training_start = std::chrono::high_resolution_clock::now();

@@ -49,7 +49,7 @@ add_subdirectory(lib/cli11 EXCLUDE_FROM_ALL)
 include(GoogleTest)
 
 if(NOT APPLE)
-    add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
+#    add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
 endif()
 add_subdirectory(lib/highfive EXCLUDE_FROM_ALL)
 add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
