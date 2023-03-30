@@ -43,7 +43,7 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI NUM_RUNS = 100;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-constexpr bool ENABLE_EVALUATION = false;
+constexpr bool ENABLE_EVALUATION = true;
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
@@ -101,6 +101,9 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         }
         lic::malloc(device, evaluation_env);
 
+        auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
+        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
+
         lic::init(device, on_policy_runner, envs, rng);
         lic::init(device, ppo, actor_optimizer, rng);
         lic::init(device, ppo, critic_optimizer, rng);
@@ -145,7 +148,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
                 next_checkpoint_id++;
             }
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
-                auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), evaluation_rng);
+                auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, evaluation_rng);
                 lic::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
                 lic::add_scalar(device, device.logger, "evaluation/return/std", result.std);
                 lic::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
@@ -202,7 +205,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
             }
             {
                 auto start = std::chrono::high_resolution_clock::now();
-                evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations_normalized, on_policy_runner_dataset.all_values, critic_buffers_gae);
+                evaluate(device, ppo.critic, on_policy_runner_dataset_all_observations, on_policy_runner_dataset.all_values, critic_buffers_gae);
                 lic::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<T> elapsed = end - start;
