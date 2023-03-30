@@ -28,7 +28,7 @@ using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
 using TI = typename lic::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 1>{};
+    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
@@ -176,9 +176,9 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
                 auto start = std::chrono::high_resolution_clock::now();
                 lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
                 if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
-                    lic::copy(device, device, observation_normalizer_old, observation_normalizer);
+//                    lic::copy(device, device, observation_normalizer_old, observation_normalizer);
                     lic::update(device, observation_normalizer, on_policy_runner_dataset.observations);
-                    lic::normalize(device, observation_normalizer_old, on_policy_runner_dataset.all_observations);
+//                    lic::normalize(device, observation_normalizer_old, on_policy_runner_dataset.all_observations);
                     if(lic::is_nan(device, on_policy_runner_dataset.all_observations)){
                         std::cout << "Observation normalizer is NaN" << std::endl;
                     }
@@ -202,7 +202,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
             }
             {
                 auto start = std::chrono::high_resolution_clock::now();
-                evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations, on_policy_runner_dataset.all_values, critic_buffers_gae);
+                evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations_normalized, on_policy_runner_dataset.all_values, critic_buffers_gae);
                 lic::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<T> elapsed = end - start;
