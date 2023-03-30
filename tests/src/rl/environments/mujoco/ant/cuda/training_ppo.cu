@@ -54,6 +54,7 @@ using T = float;
 using TI = typename DEVICE::index_t;
 
 
+constexpr TI BASE_SEED = 600;
 constexpr TI NUM_RUNS = 100;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
 constexpr bool ENABLE_EVALUATION = true;
@@ -73,7 +74,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         using ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE = lic::rl::components::on_policy_runner::CollectionEvaluationBuffer<prl::ON_POLICY_RUNNER_SPEC>;
         using PPO_TRAINING_HYBRID_BUFFER_TYPE = lic::rl::algorithms::ppo::TrainingBuffersHybrid<prl::PPO_SPEC>;
         // -------------------------------------------------------
-        std::string run_name = "ppo_ant_normobs";
+        TI seed = BASE_SEED + run_i;
+        std::string run_name = "ppo_ant_" + std::to_string(seed) + "normobs_";
         {
             auto now = std::chrono::system_clock::now();
             auto local_time = std::chrono::system_clock::to_time_t(now);
@@ -91,7 +93,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         // -------------------------------------------------------
         prl::ACTOR_OPTIMIZER actor_optimizer;
         prl::CRITIC_OPTIMIZER critic_optimizer;
-        auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 500 + run_i);
+        auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
         auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
         prl::PPO_TYPE ppo;
         // -------------- added for cuda training ----------------
