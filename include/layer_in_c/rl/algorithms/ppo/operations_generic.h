@@ -4,7 +4,6 @@
 #include "ppo.h"
 #include <layer_in_c/nn/loss_functions/mse/operations_generic.h>
 #include <layer_in_c/rl/components/on_policy_runner/on_policy_runner.h>
-#include <layer_in_c/rl/components/running_normalizer/operations_generic.h>
 
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
@@ -25,13 +24,11 @@ namespace layer_in_c{
     void malloc(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
         malloc(device, ppo.actor);
         malloc(device, ppo.critic);
-        malloc(device, ppo.observation_normalizer);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
         free(device, ppo.actor);
         free(device, ppo.critic);
-        free(device, ppo.observation_normalizer);
     }
     template <typename DEVICE, typename SPEC, typename OPTIMIZER, typename RNG>
     void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, OPTIMIZER& optimizer, RNG& rng){
@@ -43,7 +40,6 @@ namespace layer_in_c{
         set_all(device, ppo.actor.log_std.parameters, math::log(typename DEVICE::SPEC::MATH(), SPEC::PARAMETERS::INITIAL_ACTION_STD));
         init_weights(device, ppo.critic, rng);
         reset_optimizer_state(device, ppo.critic, optimizer);
-        init(device, ppo.observation_normalizer);
 //        set_all(device, ppo.actor.input_layer.biases.parameters, 0);
 //        set_all(device, ppo.actor.hidden_layers[0].biases.parameters, 0);
 //        set_all(device, ppo.actor.output_layer.biases.parameters, 0);

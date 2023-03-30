@@ -74,7 +74,6 @@ namespace layer_in_c::rl::algorithms{
 
         typename SPEC::ACTOR_TYPE actor;
         typename SPEC::CRITIC_TYPE critic;
-        components::RunningNormalizer<components::running_normalizer::Specification<T, TI, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
 #ifdef LAYER_IN_C_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         bool initialized = false;
 #endif

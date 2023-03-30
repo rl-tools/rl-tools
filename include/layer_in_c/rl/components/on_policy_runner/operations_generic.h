@@ -90,8 +90,8 @@ namespace layer_in_c{
             }
         }
     }
-    template <typename DEVICE, typename DATASET_SPEC, typename ACTOR, typename RNG> // todo: make this not PPO but general policy with output distribution
-    void collect(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, typename ACTOR::template Buffers<DATASET_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG& rng){
+    template <typename DEVICE, typename DATASET_SPEC, typename ACTOR, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+    void collect(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, typename ACTOR::template Buffers<DATASET_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
 #endif
@@ -102,9 +102,13 @@ namespace layer_in_c{
             auto actions_mean = view(device, dataset.actions_mean, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto actions      = view(device, dataset.actions     , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations = view(device, dataset.observations, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
-
+            Matrix<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observations_normalized;
+            malloc(device, observations_normalized);
             rl::components::on_policy_runner::prologue(device, observations, runner, rng, step_i);
-            evaluate(device, actor, observations, actions_mean, policy_eval_buffers);
+            copy(device, device, observations_normalized, observations);
+            normalize(device, observation_mean, observation_std, observations, observations);
+            evaluate(device, actor, observations_normalized, actions_mean, policy_eval_buffers);
+            free(device, observations_normalized);
             rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, actor.log_std.parameters, rng, step_i);
         }
         // final observation
