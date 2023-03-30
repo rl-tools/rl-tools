@@ -4,7 +4,6 @@
 #include "ppo.h"
 #include <layer_in_c/nn/loss_functions/mse/operations_generic.h>
 #include <layer_in_c/rl/components/on_policy_runner/on_policy_runner.h>
-#include <layer_in_c/rl/components/running_normalizer/operations_generic.h>
 
 namespace layer_in_c{
     template <typename DEVICE, typename SPEC>
@@ -25,13 +24,11 @@ namespace layer_in_c{
     void malloc(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
         malloc(device, ppo.actor);
         malloc(device, ppo.critic);
-        malloc(device, ppo.observation_normalizer);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
         free(device, ppo.actor);
         free(device, ppo.critic);
-        free(device, ppo.observation_normalizer);
     }
     template <typename DEVICE, typename SPEC, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
     void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, RNG& rng){
@@ -102,6 +99,9 @@ namespace layer_in_c{
         static_assert(N_BATCHES > 0);
         constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
         constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::OBSERVATION_DIM;
+        constexpr bool NORMALIZE_OBSERVATIONS = PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS;
+        auto all_observations = NORMALIZE_OBSERVATIONS ? dataset.all_observations_normalized : dataset.all_observations;
+        auto observations = NORMALIZE_OBSERVATIONS ? dataset.observations_normalized : dataset.observations;
         // batch needs observations, original log-probs, advantages
         Matrix<matrix::Specification<T, TI, 1, ACTION_DIM>> rollout_log_std;
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
@@ -114,8 +114,8 @@ namespace layer_in_c{
             for(TI buffer_i = 0; buffer_i < DATASET::STEPS_TOTAL; buffer_i++){
                 TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), buffer_i, DATASET::STEPS_TOTAL-1, rng);
                 {
-                    auto target_row = row(device, dataset.observations, buffer_i);
-                    auto source_row = row(device, dataset.observations, sample_index);
+                    auto target_row = row(device, observations, buffer_i);
+                    auto source_row = row(device, observations, sample_index);
                     swap(device, target_row, source_row);
                 }
                 if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
@@ -138,7 +138,7 @@ namespace layer_in_c{
                 zero_gradient(device, ppo.actor); // has to be reset before accumulating the action-log-std gradient
 
                 auto batch_offset = batch_i * BATCH_SIZE;
-                auto batch_observations     = view(device, dataset.observations    , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM>(), batch_offset, 0);
+                auto batch_observations     = view(device, observations            , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM>(), batch_offset, 0);
                 auto batch_actions_mean     = view(device, dataset.actions_mean    , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
                 auto batch_actions          = view(device, dataset.actions         , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
                 auto batch_action_log_probs = view(device, dataset.action_log_probs, matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);

@@ -27,6 +27,19 @@ def decode_row_major(valobj):
         meta["ROW_PITCH"] = ((meta["COLS"] + ALIGNMENT - 1) // ALIGNMENT) * ALIGNMENT
         return meta
 
+def decode_fixed(valobj):
+    regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*Fixed\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
+    result = re.match(regex, valobj.type.name)
+    if result is None:
+        return None
+    else:
+        meta = dict(zip(["T", "TI", "ROWS", "COLS", "TI2", "ROW_PITCH", "COL_PITCH", "IS_VIEW"], result.groups()))
+        meta["ROWS"] = int(meta["ROWS"])
+        meta["COLS"] = int(meta["COLS"])
+        meta["ROW_PITCH"] = int(meta["ROW_PITCH"])
+        meta["COL_PITCH"] = int(meta["COL_PITCH"])
+        return meta
+
 def pretty_print_row_major_alignment(valobj, internal_dict, options):
     # regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
     float_ptr = valobj.GetChildMemberWithName("_data")
@@ -51,6 +64,28 @@ def pretty_print_row_major_alignment(valobj, internal_dict, options):
         return f"Matrix type: {acc}"
         # return float_ptr.Dereference()
 
+def pretty_print_fixed_alignment(valobj, internal_dict, options):
+    # regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
+    float_ptr = valobj.GetChildMemberWithName("_data")
+    float_type = float_ptr.GetType().GetPointeeType()
+    target = valobj.GetTarget()
+
+    meta = decode_fixed(valobj)
+    if meta is None:
+        return f"Matrix type could not be parsed: {valobj.type.name}"
+    else:
+        acc = f"{json.dumps(meta)}\n"
+        for row_i in range(meta["ROWS"]):
+            for col_i in range(meta["COLS"]):
+                pos = row_i * meta["ROW_PITCH"] + col_i * meta["COL_PITCH"]
+                offset = float_ptr.GetValueAsUnsigned() + pos * float_type.GetByteSize()
+                val_wrapper = target.CreateValueFromAddress("temp", lldb.SBAddress(offset, target), float_type)
+                val = val_wrapper.GetValue()
+                acc += str(val) + ", "
+            acc += "\n"
+
+        return f"Matrix type: {acc}"
+        # return float_ptr.Dereference()
 class PrettyPrintRowMajorAlignment:
     def __init__(self, valobj, internal_dict):
         self.meta = decode_row_major(valobj)

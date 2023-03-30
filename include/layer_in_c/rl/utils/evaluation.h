@@ -33,17 +33,19 @@ namespace layer_in_c {
     void set_state(DEVICE& dev, UI& ui, const STATE& state){
         // dummy implementation for the case where no ui should be used
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename RNG>
-    bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, RNG& rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename RNG>
+    bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         typename ENVIRONMENT::State state = eval_state.state;
 
         Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
+        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
         malloc(device, observation);
+        malloc(device, observation_normalized);
         malloc(device, action);
         observe(device, env, state, observation);
+        normalize(device, observation_mean, observation_std, observation, observation_normalized);
 
         evaluate(device, policy, observation, action);
         for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
@@ -60,21 +62,21 @@ namespace layer_in_c {
         free(device, action);
         return terminated(device, env, state, rng);
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename RNG>
-    typename POLICY::T evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, RNG& rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename RNG>
+    typename POLICY::T evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         rl::utils::evaluation::State<T, typename ENVIRONMENT::State> state;
         state.state = initial_state;
         for (TI i = 0; i < SPEC::STEP_LIMIT; i++) {
-            if(evaluate_step(device, env, ui, policy, state, rng)){
+            if(evaluate_step(device, env, ui, policy, state, observation_mean, observation_std, rng)){
                 break;
             }
         }
         return state.episode_return;
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC>
-    rl::utils::evaluation::Result<typename POLICY::T, SPEC::N_EPISODES> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, RNG &rng, bool deterministic = false){
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC>
+    rl::utils::evaluation::Result<typename POLICY::T, SPEC::N_EPISODES> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
@@ -90,7 +92,7 @@ namespace layer_in_c {
             else{
                 sample_initial_state(device, env, initial_state, rng);
             }
-            T r = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, rng);
+            T r = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, observation_mean, observation_std, rng);
             results.returns[i] = r;
             results.mean += r;
             results.std += r*r;
