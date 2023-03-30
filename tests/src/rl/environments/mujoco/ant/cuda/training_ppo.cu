@@ -75,7 +75,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         using PPO_TRAINING_HYBRID_BUFFER_TYPE = lic::rl::algorithms::ppo::TrainingBuffersHybrid<prl::PPO_SPEC>;
         // -------------------------------------------------------
         TI seed = BASE_SEED + run_i;
-        std::string run_name = "ppo_ant_" + std::to_string(seed) + "normobs_";
+        std::string run_name = "ppo_ant_" + std::to_string(seed) + "_normobs_";
         {
             auto now = std::chrono::system_clock::now();
             auto local_time = std::chrono::system_clock::to_time_t(now);
