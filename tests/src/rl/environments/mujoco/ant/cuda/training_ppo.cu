@@ -7,7 +7,9 @@
 #include <layer_in_c/nn_models/operations_cpu.h>
 #include <layer_in_c/nn_models/persist.h>
 namespace lic = layer_in_c;
+// --------------- changed for cuda training -----------------
 #include "../parameters_ppo.h"
+// -------------------------------------------------------
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
@@ -24,6 +26,7 @@ namespace lic = layer_in_c;
 // -------------- added for cuda training ----------------
 #include <layer_in_c/rl/algorithms/ppo/operations_generic_extensions.h>
 // -------------------------------------------------------
+#include <layer_in_c/rl/components/running_normalizer/operations_generic.h>
 #include <layer_in_c/rl/utils/evaluation.h>
 
 #include <gtest/gtest.h>
@@ -43,9 +46,10 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
 
-
 using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
+// -------------- added for cuda training ----------------
 using DEVICE_GPU = lic::DEVICE_FACTORY_GPU<lic::devices::DefaultCUDASpecification>;
+// -------------------------------------------------------
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -61,7 +65,7 @@ const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
 
 // --------------- changed for cuda training -----------------
 TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
-    // -------------------------------------------------------
+// -------------------------------------------------------
     for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
         using penv = parameters::environment<double, TI>;
         using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
@@ -69,8 +73,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         using ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE = lic::rl::components::on_policy_runner::CollectionEvaluationBuffer<prl::ON_POLICY_RUNNER_SPEC>;
         using PPO_TRAINING_HYBRID_BUFFER_TYPE = lic::rl::algorithms::ppo::TrainingBuffersHybrid<prl::PPO_SPEC>;
         // -------------------------------------------------------
-
-        std::string run_name = "ppo_ant_non_adaptive_lr";
+        std::string run_name = "ppo_ant_normobs";
         {
             auto now = std::chrono::system_clock::now();
             auto local_time = std::chrono::system_clock::to_time_t(now);
@@ -90,7 +93,10 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         prl::CRITIC_OPTIMIZER critic_optimizer;
         auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 500 + run_i);
         auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
-        prl::PPO_TYPE ppo, ppo_gpu;
+        prl::PPO_TYPE ppo;
+        // -------------- added for cuda training ----------------
+        prl::PPO_TYPE ppo_gpu;
+        // -------------------------------------------------------
         prl::PPO_BUFFERS_TYPE ppo_buffers;
         prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
         prl::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
@@ -106,16 +112,17 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
+        lic::rl::components::RunningNormalizer<lic::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer, observation_normalizer_old;
         penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
         bool ui = false;
         TI next_checkpoint_id = 0;
         TI next_evaluation_id = 0;
 
-        // -------------- replaced for cuda training ----------------
+        // -------------- added for cuda training ----------------
         lic::init(device_gpu);
-        lic::malloc(device, ppo);
         // -------------------------------------------------------
+        lic::malloc(device, ppo);
         lic::malloc(device, ppo_buffers);
         lic::malloc(device, on_policy_runner_dataset);
         // -------------- added for cuda training ----------------
@@ -129,6 +136,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
 //        lic::malloc(device, critic_buffers);
 //        lic::malloc(device, critic_buffers_gae);
         // -------------------------------------------------------
+        lic::malloc(device, observation_normalizer);
+        lic::malloc(device, observation_normalizer_old);
         for(auto& env : envs){
             lic::malloc(device, env);
         }
@@ -145,9 +154,14 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         lic::malloc(device_gpu, gae_all_values);
         // -------------------------------------------------------
 
+        auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
+        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
+
         lic::init(device, on_policy_runner, envs, rng);
-        // -------------- replaced for cuda training ----------------
+        lic::init(device, observation_normalizer);
+        lic::init(device, observation_normalizer_old);
         lic::init(device, ppo, actor_optimizer, critic_optimizer, rng);
+        // -------------- added for cuda training ----------------
         lic::copy(device_gpu, device, ppo_gpu, ppo);
         // -------------------------------------------------------
         device.logger = &logger;
@@ -155,9 +169,13 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
-                update(device, ppo.observation_normalizer, on_policy_runner_dataset.observations);
+                lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
+                lic::update(device, observation_normalizer, on_policy_runner_dataset.observations);
             }
+            std::cout << "Observation means: " << std::endl;
+            lic::print(device, observation_normalizer.mean);
+            std::cout << "Observation std: " << std::endl;
+            lic::print(device, observation_normalizer.std);
             lic::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
         }
         for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
@@ -188,7 +206,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
                 next_checkpoint_id++;
             }
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
-                auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), evaluation_rng);
+                auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, evaluation_rng);
                 lic::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
                 lic::add_scalar(device, device.logger, "evaluation/return/std", result.std);
                 lic::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
@@ -221,8 +239,19 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
                 lic::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng);
                 // ----------------------------------------------------------
                 if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
-                    update(device, ppo.observation_normalizer, on_policy_runner_dataset.observations);
-                    normalize(device, ppo.observation_normalizer, on_policy_runner_dataset.observations);
+//                    lic::copy(device, device, observation_normalizer_old, observation_normalizer);
+                    lic::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+//                    lic::normalize(device, observation_normalizer_old, on_policy_runner_dataset.all_observations);
+                    if(lic::is_nan(device, on_policy_runner_dataset.all_observations)){
+                        std::cout << "Observation normalizer is NaN" << std::endl;
+                    }
+                    if(lic::is_nan(device, on_policy_runner_dataset.actions)){
+                        std::cout << "actions is NaN" << std::endl;
+                    }
+                    for(TI state_i = 0; state_i < penv::ENVIRONMENT::OBSERVATION_DIM; state_i++){
+                        lic::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));
+                        lic::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
+                    }
                 }
                 lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_dataset.observations));
                 lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_dataset.observations));
@@ -260,9 +289,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
             std::cout << "Total: " << elapsed.count() << " s" << std::endl;
         }
 
-        // -------------- replaced for cuda training ----------------
         lic::free(device, ppo);
-        // -------------------------------------------------------
         lic::free(device, ppo_buffers);
         lic::free(device, on_policy_runner_dataset);
         // -------------- added for cuda training ----------------
@@ -276,6 +303,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
 //        lic::free(device, critic_buffers);
 //        lic::free(device, critic_buffers_gae);
         // -------------------------------------------------------
+        lic::free(device, observation_normalizer);
+        lic::free(device, observation_normalizer_old);
         for(auto& env : envs){
             lic::free(device, env);
         }

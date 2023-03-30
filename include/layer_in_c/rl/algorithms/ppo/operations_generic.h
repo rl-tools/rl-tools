@@ -40,7 +40,6 @@ namespace layer_in_c{
         set_all(device, ppo.actor.log_std.parameters, math::log(typename DEVICE::SPEC::MATH(), SPEC::PARAMETERS::INITIAL_ACTION_STD));
         init_weights(device, ppo.critic, rng);
         reset_optimizer_state(device, ppo.critic, critic_optimizer);
-        init(device, ppo.observation_normalizer);
 //        set_all(device, ppo.actor.input_layer.biases.parameters, 0);
 //        set_all(device, ppo.actor.hidden_layers[0].biases.parameters, 0);
 //        set_all(device, ppo.actor.output_layer.biases.parameters, 0);

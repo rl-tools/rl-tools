@@ -33,8 +33,6 @@ namespace execution_hints{
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
-using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
-
 
 using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
 using T = float;
