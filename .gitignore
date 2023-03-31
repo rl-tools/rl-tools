@@ -2,6 +2,7 @@
 /cmake-build-release
 /cmake-build-debug-cuda
 /cmake-build-release-clang
+/cmake-build-release-gcc11
 
 /.idea
 
