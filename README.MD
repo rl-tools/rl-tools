@@ -1,0 +1,1 @@
+Using clang-15 (like in the official MuJoCo builds) gives ~25% speedup over gcc 9.4

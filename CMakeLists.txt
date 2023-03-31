@@ -3,6 +3,7 @@ project(layer_in_c)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+message("C++ Compiler: ${CMAKE_CXX_COMPILER}")
 
 option(LAYER_IN_C_ENABLE_TESTS "Build the unit tests when enabled." off)
 
