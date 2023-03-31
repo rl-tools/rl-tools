@@ -8,14 +8,14 @@ namespace layer_in_c::rl::components::on_policy_runner{
     constexpr TI get_num_threads(rl::components::on_policy_runner::ExecutionHints<TI, NUM_THREADS> hints) {
         return NUM_THREADS;
     }
-    template <typename DEV_SPEC, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-    void prologue(devices::CPU<DEV_SPEC>& device, Matrix<OBSERVATIONS_SPEC>& observations,  rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, const typename devices::CPU<DEV_SPEC>::index_t step_i){
+    template <typename DEV_SPEC, typename OBSERVATIONS_SPEC, typename OBSERVATIONS_NORMALIZED_SPEC, typename SPEC, typename OBSERVATIONS_MEAN_SPEC, typename OBSERVATIONS_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+    void prologue(devices::CPU<DEV_SPEC>& device, Matrix<OBSERVATIONS_SPEC>& observations, Matrix<OBSERVATIONS_NORMALIZED_SPEC>& observations_normalized, rl::components::OnPolicyRunner<SPEC>& runner, Matrix<OBSERVATIONS_MEAN_SPEC>& observations_mean, Matrix<OBSERVATIONS_STD_SPEC>& observations_std, RNG& rng, const typename devices::CPU<DEV_SPEC>::index_t step_i){
         static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
         static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::OBSERVATION_DIM);
         using DEVICE = devices::CPU<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
-            per_env::prologue(device, observations, runner, rng, env_i);
+            per_env::prologue(device, observations, observations_normalized, runner, observations_mean, observations_std, rng, env_i);
         }
     }
     template <typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution

@@ -63,6 +63,7 @@ namespace layer_in_c::rl::algorithms{
             Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_batch_observations;
             Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
             Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action_log_std;
+            Matrix<matrix::Specification<T, TI, 1, ACTION_DIM>> rollout_log_std;
         };
     }
 

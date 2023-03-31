@@ -19,8 +19,8 @@ namespace layer_in_c{
         free(device, buffer.observations);
         free(device, buffer.actions);
     }
-    template <typename DEVICE, typename DEVICE_EVALUATION, typename DATASET_SPEC, typename ACTOR, typename ACTOR_EVALUATION, typename RNG> // todo: make this not PPO but general policy with output distribution
-    void collect_hybrid(DEVICE& device, DEVICE_EVALUATION& device_evaluation, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_EVALUATION& actor_evaluation, typename ACTOR_EVALUATION::template Buffers<DATASET_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC> evaluation_buffer, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC>& evaluation_buffer_evaluation, RNG& rng){
+    template <typename DEVICE, typename DEVICE_EVALUATION, typename DATASET_SPEC, typename ACTOR, typename ACTOR_EVALUATION, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+    void collect_hybrid(DEVICE& device, DEVICE_EVALUATION& device_evaluation, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_EVALUATION& actor_evaluation, typename ACTOR_EVALUATION::template Buffers<DATASET_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC> evaluation_buffer, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC>& evaluation_buffer_evaluation, Matrix<OBSERVATION_MEAN_SPEC>& observations_mean, Matrix<OBSERVATION_STD_SPEC>& observations_std, RNG& rng){
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
 #endif
@@ -34,19 +34,20 @@ namespace layer_in_c{
         TI copy_back_time = 0;
         TI epilogue_time = 0;
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            auto actions_mean = view(device, dataset.actions_mean, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto actions      = view(device, dataset.actions     , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto observations = view(device, dataset.observations, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto actions_mean            = view(device, dataset.actions_mean           , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto actions                 = view(device, dataset.actions                , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto observations            = view(device, dataset.observations           , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto observations_normalized = view(device, dataset.observations_normalized, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
             {
                 auto start = std::chrono::high_resolution_clock::now();
-                rl::components::on_policy_runner::prologue(device, evaluation_buffer.observations, runner, rng, step_i);
+                rl::components::on_policy_runner::prologue(device, observations, observations_normalized, runner, observations_mean, observations_std, rng, step_i);
                 auto end = std::chrono::high_resolution_clock::now();
                 prologue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
             {
                 auto start = std::chrono::high_resolution_clock::now();
-                copy(device_evaluation, device, evaluation_buffer_evaluation.observations, evaluation_buffer.observations);
+                copy(device_evaluation, device, evaluation_buffer_evaluation.observations, observations_normalized);
                 auto end = std::chrono::high_resolution_clock::now();
                 copy_observations_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
@@ -60,7 +61,6 @@ namespace layer_in_c{
             {
 
                 auto start = std::chrono::high_resolution_clock::now();
-                copy(device, device, observations, evaluation_buffer.observations);
                 copy(device, device_evaluation, evaluation_buffer.actions, evaluation_buffer_evaluation.actions);
                 copy(device, device, actions_mean, evaluation_buffer.actions);
                 auto end = std::chrono::high_resolution_clock::now();
@@ -83,9 +83,11 @@ namespace layer_in_c{
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             auto& env = get(runner.environments, 0, env_i);
             auto& state = get(runner.states, 0, env_i);
-            TI pos = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
-            auto observation = view(device, dataset.all_observations, matrix::ViewSpec<1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), pos, 0);
+            TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
+            auto observation = row(device, dataset.all_observations, row_i);
             observe(device, env, state, observation);
+            auto observation_normalized = row(device, dataset.all_observations_normalized, row_i);
+            normalize(device, observations_mean, observations_std, observation, observation_normalized);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }

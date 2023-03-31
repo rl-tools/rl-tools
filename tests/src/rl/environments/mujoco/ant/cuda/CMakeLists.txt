@@ -1,5 +1,5 @@
 
-set(CMAKE_CUDA_ARCHITECTURES 75)
+set(CMAKE_CUDA_ARCHITECTURES "native")
 project(test_rl_environments_mujoco_ant_cuda LANGUAGES CUDA)
 find_package(CUDAToolkit REQUIRED)
 set(CMAKE_CUDA_STANDARD 17)

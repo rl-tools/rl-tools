@@ -74,14 +74,14 @@ namespace layer_in_c{
 #endif
     }
     namespace rl::components::on_policy_runner{
-        template <typename DEVICE, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-        void prologue(DEVICE& device, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t step_i){
+        template <typename DEVICE, typename OBSERVATIONS_SPEC, typename OBSERVATIONS_NORMALIZED_SPEC, typename SPEC, typename OBSERVATIONS_MEAN_SPEC, typename OBSERVATIONS_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+        void prologue(DEVICE& device, Matrix<OBSERVATIONS_SPEC>& observations, Matrix<OBSERVATIONS_NORMALIZED_SPEC>& observations_normalized, rl::components::OnPolicyRunner<SPEC>& runner, Matrix<OBSERVATIONS_MEAN_SPEC>& observations_mean, Matrix<OBSERVATIONS_STD_SPEC>& observations_std, RNG& rng, typename DEVICE::index_t step_i){
             static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
             static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::OBSERVATION_DIM);
             using TI = typename SPEC::TI;
             for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-                per_env::prologue(device, observations, runner, rng, env_i);
+                per_env::prologue(device, observations, observations_normalized, runner, observations_mean, observations_std, rng, env_i);
             }
         }
         template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
@@ -107,8 +107,7 @@ namespace layer_in_c{
             auto actions                 = view(device, dataset.actions                , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations            = view(device, dataset.observations           , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations_normalized = view(device, dataset.observations_normalized, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
-            rl::components::on_policy_runner::prologue(device, observations, runner, rng, step_i);
-            normalize(device, observation_mean, observation_std, observations, observations_normalized);
+            rl::components::on_policy_runner::prologue(device, observations, observations_normalized, runner, observation_mean, observation_std, rng, step_i);
             evaluate(device, actor, observations_normalized, actions_mean, policy_eval_buffers);
             rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, actor.log_std.parameters, rng, step_i);
         }

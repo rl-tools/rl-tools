@@ -37,6 +37,8 @@ namespace layer_in_c{
             T new_mean = mean + (data_mean - mean)/(normalizer.age);
             T std = get(normalizer.std, 0, col_i);
             T new_std = std + (data_std - std)/(normalizer.age);
+            set(normalizer.mean, 0, col_i, new_mean);
+            set(normalizer.std, 0, col_i, new_std);
         }
     }
     template <typename DEVICE, typename SPEC, typename DATA_SPEC>

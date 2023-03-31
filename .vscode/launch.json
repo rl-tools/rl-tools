@@ -8,6 +8,14 @@
             "program": "tests/src/rl/environments/mujoco/ant/gym_generate_data.py",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "tests.rl.environments.mujoco.ant.training_curve_from_tb",
+            "type": "python",
+            "request": "launch",
+            "program": "tests/src/rl/environments/mujoco/ant/training_curve_from_tb.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

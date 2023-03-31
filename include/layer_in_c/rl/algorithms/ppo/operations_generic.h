@@ -12,6 +12,7 @@ namespace layer_in_c{
         malloc(device, buffers.d_batch_observations);
         malloc(device, buffers.d_action_log_prob_d_action);
         malloc(device, buffers.d_action_log_prob_d_action_log_std);
+        malloc(device, buffers.rollout_log_std);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
@@ -19,6 +20,7 @@ namespace layer_in_c{
         free(device, buffers.d_batch_observations);
         free(device, buffers.d_action_log_prob_d_action);
         free(device, buffers.d_action_log_prob_d_action_log_std);
+        free(device, buffers.rollout_log_std);
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo){
@@ -102,34 +104,32 @@ namespace layer_in_c{
         auto all_observations = NORMALIZE_OBSERVATIONS ? dataset.all_observations_normalized : dataset.all_observations;
         auto observations = NORMALIZE_OBSERVATIONS ? dataset.observations_normalized : dataset.observations;
         // batch needs observations, original log-probs, advantages
-        Matrix<matrix::Specification<T, TI, 1, ACTION_DIM>> rollout_log_std;
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
-            malloc(device, rollout_log_std);
-            copy(device, device, rollout_log_std, ppo.actor.log_std.parameters);
+            copy(device, device, ppo_buffers.rollout_log_std, ppo.actor.log_std.parameters);
         }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // shuffling
-            for(TI buffer_i = 0; buffer_i < DATASET::STEPS_TOTAL; buffer_i++){
-                TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), buffer_i, DATASET::STEPS_TOTAL-1, rng);
+            for(TI dataset_i = 0; dataset_i < DATASET::STEPS_TOTAL; dataset_i++){
+                TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), dataset_i, DATASET::STEPS_TOTAL-1, rng);
                 {
-                    auto target_row = row(device, observations, buffer_i);
+                    auto target_row = row(device, observations, dataset_i);
                     auto source_row = row(device, observations, sample_index);
                     swap(device, target_row, source_row);
                 }
                 if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
-                    auto target_row = row(device, dataset.actions_mean, buffer_i);
+                    auto target_row = row(device, dataset.actions_mean, dataset_i);
                     auto source_row = row(device, dataset.actions_mean, sample_index);
                     swap(device, target_row, source_row);
                 }
                 {
-                    auto target_row = row(device, dataset.actions, buffer_i);
+                    auto target_row = row(device, dataset.actions, dataset_i);
                     auto source_row = row(device, dataset.actions, sample_index);
                     swap(device, target_row, source_row);
                 }
-                swap(device, dataset.advantages      , dataset.advantages      , buffer_i, 0, sample_index, 0);
-                swap(device, dataset.action_log_probs, dataset.action_log_probs, buffer_i, 0, sample_index, 0);
-                swap(device, dataset.target_values   , dataset.target_values   , buffer_i, 0, sample_index, 0);
+                swap(device, dataset.advantages      , dataset.advantages      , dataset_i, 0, sample_index, 0);
+                swap(device, dataset.action_log_probs, dataset.action_log_probs, dataset_i, 0, sample_index, 0);
+                swap(device, dataset.target_values   , dataset.target_values   , dataset_i, 0, sample_index, 0);
             }
             for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
                 T batch_policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
@@ -171,7 +171,7 @@ namespace layer_in_c{
                         T current_action_log_std = get(ppo.actor.log_std.parameters, 0, action_i);
                         T current_action_std = math::exp(typename DEVICE::SPEC::MATH(), current_action_log_std);
                         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
-                            T rollout_action_log_std = get(rollout_log_std, 0, action_i);
+                            T rollout_action_log_std = get(ppo_buffers.rollout_log_std, 0, action_i);
                             T rollout_action_std = math::exp(typename DEVICE::SPEC::MATH(), rollout_action_log_std);
                             T rollout_action_mean = get(batch_actions_mean, batch_step_i, action_i);
                             T action_mean_diff = rollout_action_mean - current_action;
@@ -250,7 +250,6 @@ namespace layer_in_c{
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
             policy_kl_divergence /= N_EPOCHS * N_BATCHES * BATCH_SIZE;
             add_scalar(device, device.logger, "ppo/policy_kl", policy_kl_divergence);
-            free(device, rollout_log_std);
         }
     }
 
