@@ -24,3 +24,5 @@
 /logs_old
 /MUJOCO_LOG.TXT
 /**/*.tfevents
+
+/build-wasm

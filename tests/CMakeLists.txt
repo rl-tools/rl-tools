@@ -512,3 +512,5 @@ target_link_libraries(
 gtest_discover_tests(test_rl_components_running_normalizer)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_components_running_normalizer)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_components_running_normalizer)
+
+add_subdirectory(src/rl/algorithms/td3/wasm)
