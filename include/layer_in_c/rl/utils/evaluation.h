@@ -47,7 +47,7 @@ namespace layer_in_c {
         observe(device, env, state, observation);
         normalize(device, observation_mean, observation_std, observation, observation_normalized);
 
-        evaluate(device, policy, observation, action);
+        evaluate(device, policy, observation_normalized, action);
         for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
             set(action, 0, action_i, math::clamp<T>(typename DEVICE::SPEC::MATH(), get(action, 0, action_i), -1, 1));
         }
@@ -59,6 +59,7 @@ namespace layer_in_c {
         eval_state.episode_return += r;
         eval_state.state = state;
         free(device, observation);
+        free(device, observation_normalized);
         free(device, action);
         return terminated(device, env, state, rng);
     }
