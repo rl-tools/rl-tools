@@ -57,10 +57,10 @@ using TI = typename DEVICE::index_t;
 constexpr TI BASE_SEED = 600;
 constexpr TI NUM_RUNS = 100;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-constexpr bool ENABLE_EVALUATION = true;
+constexpr bool ENABLE_EVALUATION = false;
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
 

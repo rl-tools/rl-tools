@@ -1,6 +1,7 @@
 /cmake-build-debug
 /cmake-build-release
 /cmake-build-debug-cuda
+/cmake-build-release-clang
 
 /.idea
 

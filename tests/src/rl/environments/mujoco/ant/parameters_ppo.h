@@ -35,10 +35,10 @@ namespace parameters_0{
             static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
             static constexpr bool NORMALIZE_ADVANTAGE = false;
             static constexpr T GAMMA = 0.99;
-            static constexpr bool ADAPTIVE_LEARNING_RATE = true;
+            static constexpr bool ADAPTIVE_LEARNING_RATE = false;
             static constexpr T ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD = 0.008;
 
-            static constexpr bool NORMALIZE_OBSERVATIONS = true;
+            static constexpr bool NORMALIZE_OBSERVATIONS = false;
         };
         static constexpr T OBSERVATION_NORMALIZATION_WARMUP_STEPS = PPO_PARAMETERS::NORMALIZE_OBSERVATIONS ? 0 : 0;
         using PPO_SPEC = lic::rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;

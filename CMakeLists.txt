@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(layer_in_c)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 
 option(LAYER_IN_C_ENABLE_TESTS "Build the unit tests when enabled." off)
 
