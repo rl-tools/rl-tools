@@ -6,6 +6,7 @@
 #include <layer_in_c/devices/cpu.h>
 
 #include <cmath>
+#include <algorithm>
 
 namespace layer_in_c::math {
 
