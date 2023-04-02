@@ -51,10 +51,12 @@ namespace layer_in_c::nn::layers::dense {
     };
     template<typename SPEC>
     struct LayerBackward : public Layer<SPEC> {
+        // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
         Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM>> pre_activations;
     };
     template<typename SPEC>
     struct LayerBackwardGradient : public LayerBackward<SPEC> {
+        // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
         Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>> output;
     };
 }
