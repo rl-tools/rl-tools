@@ -15,7 +15,7 @@ namespace layer_in_c::devices{
         };
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::ARM;
-            using index_t = size_t;
+            using index_t = uint32_t;
         };
     }
     namespace math{

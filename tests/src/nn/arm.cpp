@@ -82,11 +82,8 @@ void test_mlp_forward() {
     lic::copy(device, device, mlp_arm, mlp_cpu);
 
     lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> target;
     lic::malloc(device, input);
-    lic::malloc(device, target);
     lic::randn(device, input, rng);
-    lic::randn(device, target, rng);
     lic::forward(device, mlp_cpu, input);
     lic::forward(device_arm, mlp_arm, input);
     lic::print(device, mlp_arm.output_layer.output);
