@@ -173,8 +173,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::malloc(ac_dev, actor_buffers[0]);
     lic::malloc(ac_dev, actor_buffers[1]);
 
-    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
-    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
     lic::malloc(ac_dev, observations_mean);
     lic::malloc(ac_dev, observations_std);
     lic::set_all(ac_dev, observations_mean, 0);

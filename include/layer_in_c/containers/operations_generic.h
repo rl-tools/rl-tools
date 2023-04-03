@@ -13,7 +13,18 @@
 
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, Matrix<SPEC>& matrix){
+    void malloc(DEVICE& device, MatrixStatic<SPEC>& matrix){
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
+        utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
+#endif
+        matrix._data = (typename SPEC::T*)&matrix._data_memory[0];
+    }
+    template<typename DEVICE, typename SPEC>
+    void free(DEVICE& device, MatrixStatic<SPEC>& matrix){
+        // free is a no-op for statically allocated matrices
+    }
+    template<typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, MatrixDynamic<SPEC>& matrix){
 #ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
@@ -27,7 +38,7 @@ namespace layer_in_c{
 #endif
     }
     template<typename DEVICE, typename SPEC>
-    void free(DEVICE& device, Matrix<SPEC>& matrix){
+    void free(DEVICE& device, MatrixDynamic<SPEC>& matrix){
 #ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data != nullptr, "Matrix has not been allocated");
 #endif
@@ -372,7 +383,7 @@ namespace layer_in_c{
         utils::assert_exit(device, (col + COLS) <= SPEC::COLS, "col + COLS <= SPEC::COLS");
 #endif
         using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
-        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout, true>> out;
+        MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout, true>> out;
         out._data = m._data + row * row_pitch(m) + col * col_pitch(m);
         return out;
     }

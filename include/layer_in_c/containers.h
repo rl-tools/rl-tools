@@ -59,11 +59,41 @@ namespace layer_in_c{
         static constexpr TI COL_PITCH = SPEC::COL_PITCH;
 
         using VIEW_LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
-        template<typename SPEC::TI ROWS, typename SPEC::TI COLS>
-        using VIEW = Matrix<matrix::Specification<T, TI, ROWS, COLS, VIEW_LAYOUT, true>>;
-
+//        // pure virtual function to make this class abstract (should be instantiated by either the MatrixStatic or MatrixDynamic subclasses class)
+//        virtual void _abstract_tag() = 0;
         T* _data = nullptr;
     };
+    template<typename T_SPEC>
+    struct MatrixDynamic: Matrix<T_SPEC>{
+        using T = typename MatrixDynamic::T;
+        using TI = typename MatrixDynamic::TI;
+        using SPEC = T_SPEC;
+
+        template<typename SPEC::TI ROWS, typename SPEC::TI COLS>
+        using VIEW = MatrixDynamic<matrix::Specification<T, TI, ROWS, COLS, typename MatrixDynamic::VIEW_LAYOUT, true>>;
+//        virtual void _abstract_tag(){};
+    };
+    struct MatrixDynamicTag{
+        template<typename T_SPEC>
+        using type = MatrixDynamic<T_SPEC>;
+    };
+    template<typename T_SPEC>
+    struct MatrixStatic: Matrix<T_SPEC>{
+        using T = typename MatrixStatic::T;
+        using TI = typename MatrixStatic::TI;
+        using SPEC = T_SPEC;
+
+        template<typename SPEC::TI ROWS, typename SPEC::TI COLS>
+        using VIEW = MatrixDynamic<matrix::Specification<T, TI, ROWS, COLS, typename MatrixStatic::VIEW_LAYOUT, true>>;
+//        virtual void _abstract_tag(){};
+
+        alignas(T) unsigned char _data_memory[SPEC::SIZE_BYTES];
+    };
+    struct MatrixStaticTag{
+        template<typename T_SPEC>
+        using type = MatrixStatic<T_SPEC>;
+    };
+
 
     namespace containers{
         template<typename SPEC_1, typename SPEC_2>

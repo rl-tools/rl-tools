@@ -3,19 +3,21 @@
 
 namespace layer_in_c::rl::components{
     namespace on_policy_runner{
-        template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0>
+        template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             using ENVIRONMENT = T_ENVIRONMENT;
             static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
             static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
+            using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         };
 
-        template <typename T_SPEC, typename T_SPEC::TI T_STEPS_PER_ENV>
+        template <typename T_SPEC, typename T_SPEC::TI T_STEPS_PER_ENV, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         struct DatasetSpecification{
             using SPEC = T_SPEC;
             using TI = typename SPEC::TI;
+            using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
             static constexpr TI STEPS_PER_ENV = T_STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * SPEC::N_ENVIRONMENTS;
             static constexpr TI STEPS_TOTAL_ALL = (STEPS_PER_ENV+1) * SPEC::N_ENVIRONMENTS; // +1 for the final observation
@@ -33,7 +35,7 @@ namespace layer_in_c::rl::components{
 
             // mem
             // todo: evaluate transposing this / storing in column major order for better memory access in the single dimensional columns
-            Matrix<matrix::Specification<T, TI, STEPS_TOTAL + SPEC::N_ENVIRONMENTS, DATA_DIM>> data; // +1 * SPEC::N_ENVIRONMENTS for the final observation
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, STEPS_TOTAL + SPEC::N_ENVIRONMENTS, DATA_DIM>> data; // +1 * SPEC::N_ENVIRONMENTS for the final observation
 
             // views
             template<TI VIEW_DIM, bool ALL = false>
@@ -68,11 +70,11 @@ namespace layer_in_c::rl::components{
 
         TI step = 0;
 
-        Matrix<matrix::Specification<typename SPEC::ENVIRONMENT       , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> environments;
-        Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> states;
-        Matrix<matrix::Specification<bool                             , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> truncated;
-        Matrix<matrix::Specification<TI                               , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> episode_step;
-        Matrix<matrix::Specification<T                                , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> episode_return;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename SPEC::ENVIRONMENT       , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> environments;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename SPEC::ENVIRONMENT::State, TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> states;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<bool                             , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> truncated;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<TI                               , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> episode_step;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T                                , TI, 1, SPEC::N_ENVIRONMENTS, matrix::layouts::RowMajorAlignment<TI, 1>>> episode_return;
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         bool initialized = false;
 #endif

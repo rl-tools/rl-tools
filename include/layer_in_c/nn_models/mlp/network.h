@@ -38,7 +38,7 @@ namespace layer_in_c::nn_models::mlp {
             && SPEC_1::OUTPUT_ACTIVATION_FUNCTION == SPEC_2::OUTPUT_ACTIVATION_FUNCTION;
 
 
-    template <typename T_STRUCTURE_SPEC, typename T_PARAMETER_TYPE>
+    template <typename T_STRUCTURE_SPEC, typename T_PARAMETER_TYPE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification{
         using STRUCTURE_SPEC = T_STRUCTURE_SPEC;
         using S = STRUCTURE_SPEC;
@@ -50,12 +50,13 @@ namespace layer_in_c::nn_models::mlp {
         static constexpr TI HIDDEN_DIM = S::HIDDEN_DIM;
         static constexpr TI OUTPUT_DIM = S::OUTPUT_DIM;
         static constexpr TI BATCH_SIZE = S::BATCH_SIZE;
+        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = S::ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = typename S::MEMORY_LAYOUT;
 
-        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, CONTAINER_TYPE_TAG, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, CONTAINER_TYPE_TAG, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION, PARAMETER_TYPE, CONTAINER_TYPE_TAG, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
     };
 
     template <typename T_STRUCTURE_SPEC>
@@ -98,10 +99,11 @@ namespace layer_in_c::nn_models::mlp {
         using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE>
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct NeuralNetworkBuffersSpecification{
         using SPEC = T_SPEC;
         static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
+        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
 
     template<typename T_BUFFER_SPEC>
@@ -111,8 +113,10 @@ namespace layer_in_c::nn_models::mlp {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM, typename SPEC::MEMORY_LAYOUT>> tick;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM, typename SPEC::MEMORY_LAYOUT>> tock;
+        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM, typename SPEC::MEMORY_LAYOUT>;
+        using TICK_TOCK_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
+        TICK_TOCK_CONTAINER_TYPE tick;
+        TICK_TOCK_CONTAINER_TYPE tock;
     };
     template<typename T_BUFFER_SPEC>
     struct NeuralNetworkBuffersForwardBackward: NeuralNetworkBuffers<T_BUFFER_SPEC>{
@@ -121,8 +125,12 @@ namespace layer_in_c::nn_models::mlp {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_input;
-        Matrix<matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>> d_output;
+        using D_INPUT_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
+        using D_INPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<D_INPUT_CONTAINER_SPEC>;
+        D_INPUT_CONTAINER_TYPE d_input;
+        using D_OUTPUT_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
+        using D_OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<D_OUTPUT_CONTAINER_SPEC>;
+        D_OUTPUT_CONTAINER_TYPE d_output;
     };
 
     template<typename T_SPEC>

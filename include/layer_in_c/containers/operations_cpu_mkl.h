@@ -9,7 +9,7 @@
 
 namespace layer_in_c{
     template<typename DEV_SPEC, typename SPEC>
-    void malloc(devices::CPU_MKL<DEV_SPEC>& device, Matrix<SPEC>& matrix){
+    void malloc(devices::CPU_MKL<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
 #ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
@@ -23,7 +23,7 @@ namespace layer_in_c{
 #endif
     }
     template<typename DEV_SPEC, typename SPEC>
-    void free(devices::CPU_MKL<DEV_SPEC>& device, Matrix<SPEC>& matrix){
+    void free(devices::CPU_MKL<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
 #ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data != nullptr, "Matrix has not been allocated");
 #endif

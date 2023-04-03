@@ -9,7 +9,7 @@
 
 namespace layer_in_c{
     template<typename DEV_SPEC, typename SPEC>
-    void malloc(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){
+    void malloc(devices::CUDA<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
         /* for checking the pitch
         {
             size_t pitch;
@@ -30,7 +30,7 @@ namespace layer_in_c{
 #endif
     }
     template<typename DEV_SPEC, typename SPEC>
-    void free(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& matrix){
+    void free(devices::CUDA<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
         cudaFree(matrix._data);
         check_status(device);
     }

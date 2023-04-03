@@ -3,11 +3,12 @@
 
 namespace layer_in_c::rl::components{
     namespace running_normalizer{
-        template <typename T_T, typename T_TI, T_TI T_DIM>
+        template <typename T_T, typename T_TI, T_TI T_DIM, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             static constexpr TI DIM = T_DIM;
+            using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         };
     }
     template <typename T_SPEC>
@@ -17,8 +18,8 @@ namespace layer_in_c::rl::components{
         using TI = typename SPEC::TI;
         static constexpr TI DIM = SPEC::DIM;
 
-        Matrix<matrix::Specification<T, TI, 1, DIM>> mean;
-        Matrix<matrix::Specification<T, TI, 1, DIM>> std;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, DIM>> mean;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, DIM>> std;
         TI age = 0;
     };
 }

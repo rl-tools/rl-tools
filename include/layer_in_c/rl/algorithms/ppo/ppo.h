@@ -34,7 +34,8 @@ namespace layer_in_c::rl::algorithms{
                 typename T_ENVIRONMENT,
                 typename T_ACTOR_TYPE,
                 typename T_CRITIC_TYPE,
-                typename T_PARAMETERS = DefaultParameters<T_T, T_TI>
+                typename T_PARAMETERS = DefaultParameters<T_T, T_TI>,
+                typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag
         >
         struct Specification {
             using T = T_T;
@@ -44,6 +45,7 @@ namespace layer_in_c::rl::algorithms{
             using CRITIC_TYPE = T_CRITIC_TYPE;
             static constexpr TI BATCH_SIZE = ACTOR_TYPE::SPEC::BATCH_SIZE;
             using PARAMETERS = T_PARAMETERS;
+            using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
 
             static_assert(ACTOR_TYPE::SPEC::BATCH_SIZE == CRITIC_TYPE::SPEC::BATCH_SIZE);
             static_assert(ACTOR_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
@@ -59,11 +61,11 @@ namespace layer_in_c::rl::algorithms{
             static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
             static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
             static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> current_batch_actions;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_batch_observations;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action_log_std;
-            Matrix<matrix::Specification<T, TI, 1, ACTION_DIM>> rollout_log_std;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> current_batch_actions;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_batch_observations;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action_log_std;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, ACTION_DIM>> rollout_log_std;
         };
     }
 

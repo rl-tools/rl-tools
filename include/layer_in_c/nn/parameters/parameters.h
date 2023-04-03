@@ -3,6 +3,7 @@
 
 namespace layer_in_c::nn::parameters{
     struct Plain{
+        // todo: evaluate replacing the instance mechanism with a tag similar to the container type tags
         template <typename CONTAINER>
         struct instance{
             CONTAINER parameters;

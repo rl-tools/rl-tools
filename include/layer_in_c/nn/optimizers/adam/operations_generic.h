@@ -25,8 +25,9 @@ namespace layer_in_c{
         gradient_descent(device, parameter, optimizer);
     }
 
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<Matrix<SPEC>>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
+    template<typename DEVICE, typename CONTAINER_TYPE, typename PARAMETERS>
+    void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<CONTAINER_TYPE>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
+        using SPEC = typename CONTAINER_TYPE::SPEC;
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++) {
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++) {
                 typename SPEC::T parameter_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(typename DEVICE::SPEC::MATH(), get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);

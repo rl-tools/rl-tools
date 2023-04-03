@@ -39,8 +39,8 @@ namespace layer_in_c {
         using TI = typename DEVICE::index_t;
         typename ENVIRONMENT::State state = eval_state.state;
 
-        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-        Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
+        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
         malloc(device, observation);
         malloc(device, observation_normalized);
         malloc(device, action);
@@ -100,6 +100,21 @@ namespace layer_in_c {
         }
         results.mean /= SPEC::N_EPISODES;
         results.std = lic::math::sqrt(typename DEVICE::SPEC::MATH(), results.std/SPEC::N_EPISODES - results.mean*results.mean);
+        return results;
+    }
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC>
+    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, RNG &rng, bool deterministic = false){
+        using T = typename POLICY::T;
+        using TI = typename DEVICE::index_t;
+        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_mean;
+        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_std;
+        malloc(device, observation_mean);
+        malloc(device, observation_std);
+        set_all(device, observation_mean, 0);
+        set_all(device, observation_std, 1);
+        auto results = evaluate(device, env, ui, policy, eval_spec_tag, observation_mean, observation_std, rng, deterministic);
+        free(device, observation_mean);
+        free(device, observation_std);
         return results;
     }
 }
