@@ -28,7 +28,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
     typename ENVIRONMENT::State state, next_state;
-    lic::Matrix<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     lic::malloc(dev, action);
     lic::set_all(dev, action, 1);
     lic::sample_initial_state(dev, env, state, rng);
@@ -53,7 +53,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
 
     using STATE = typename ENVIRONMENT::State;
     STATE initial_state, state, next_state_1, next_state_2, next_state_temp;
-    lic::Matrix<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> initial_action, action;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> initial_action, action;
     lic::malloc(dev, initial_action);
     lic::malloc(dev, action);
     std::vector<std::vector<T>> states_q;
@@ -138,7 +138,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
 
     using STATE = typename ENVIRONMENT::State;
     STATE state, initial_state, next_state, termination_check_state;
-    lic::Matrix<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     lic::malloc(dev, action);
     bool load_state = true;
     TI state_age = 0;

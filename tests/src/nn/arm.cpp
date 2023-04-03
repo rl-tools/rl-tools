@@ -35,8 +35,8 @@ void test_mlp_evaluate() {
     lic::malloc(device, mlp);
     lic::init_weights(device, mlp, rng);
 
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_arm;
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_arm;
     lic::malloc(device, input);
     lic::malloc(device, output_orig);
     lic::malloc(device, output_arm);
@@ -81,7 +81,7 @@ void test_mlp_forward() {
     lic::zero_gradient(device, mlp_cpu);
     lic::copy(device, device, mlp_arm, mlp_cpu);
 
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
     lic::malloc(device, input);
     lic::randn(device, input, rng);
     lic::forward(device, mlp_cpu, input);

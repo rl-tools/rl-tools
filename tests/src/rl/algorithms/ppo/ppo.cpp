@@ -26,7 +26,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
-    prl::OPTIMIZER optimizer;
+    prl::OPTIMIZER actor_optimizer, critic_optimizer;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
@@ -48,7 +48,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
 
     penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
     lic::init(device, on_policy_runner, envs, rng);
-    lic::init(device, ppo, optimizer, rng);
+    lic::init(device, ppo, actor_optimizer, critic_optimizer, rng);
     device.logger = &logger;
     lic::construct(device, device.logger);
     auto training_start = std::chrono::high_resolution_clock::now();
@@ -84,7 +84,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            lic::train(device, ppo, on_policy_runner_dataset, optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
+            lic::train(device, ppo, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "Train: " << elapsed.count() << " s" << std::endl;

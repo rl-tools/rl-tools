@@ -60,8 +60,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA)
     envp::ENVIRONMENT envs[NUM_ENVIRONMENTS];
     ACTOR_TYPE actor_cpu, actor_gpu;
     ACTOR_TYPE::Buffers<NUM_ENVIRONMENTS> actor_buffers;
-    lic::Matrix<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions, actions_gpu;
-    lic::Matrix<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations, observations_gpu;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions, actions_gpu;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations, observations_gpu;
     auto proto_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     decltype(proto_rng) rngs[NUM_THREADS];
 

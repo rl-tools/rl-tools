@@ -24,7 +24,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST){
     using DTYPE = float;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> m;
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> m;
     lic::malloc(device, m);
     lic::randn(device, m, rng);
     lic::print(device, m);

@@ -20,7 +20,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST){
     using DTYPE = float;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> orig;
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> orig;
     lic::malloc(device, orig);
     lic::randn(device, orig, rng);
     std::cout << "orig: " << std::endl;
@@ -124,8 +124,8 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     lic::malloc(device, mlp);
     lic::init_weights(device, mlp, rng);
 
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
-    lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_loaded;
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_loaded;
     lic::malloc(device, input);
     lic::malloc(device, output_orig);
     lic::malloc(device, output_loaded);

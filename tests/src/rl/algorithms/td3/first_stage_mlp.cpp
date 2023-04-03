@@ -160,8 +160,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     data_file.getDataSet("batch_output").read(outputs);
 
     for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input;
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
+        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input;
+        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
         lic::malloc(device, input);
         lic::malloc(device, output);
         for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
@@ -217,9 +217,9 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     lic::zero_gradient(device, actor_critic.critic_1);
     for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
 //        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM];
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input;
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
-        lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> target;
+        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input;
+        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
+        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> target;
         lic::malloc(device, input);
         lic::malloc(device, output);
         lic::malloc(device, target);

@@ -50,8 +50,8 @@ int main(int argc, char** argv) {
     ENVIRONMENT env;
     UI ui;
     parameters_rl::ACTOR_TYPE actor;
-    lic::Matrix<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-    lic::Matrix<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     typename ENVIRONMENT::State state, next_state;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 

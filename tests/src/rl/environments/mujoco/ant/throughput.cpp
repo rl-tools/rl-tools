@@ -48,7 +48,7 @@ using STATE = envp::ENVIRONMENT::State;
 //    DEVICE device;
 //    envp::ENVIRONMENT env;
 //    STATE state, next_state;
-//    lic::Matrix<lic::matrix::Specification<T, TI, 1, envp::ENVIRONMENT::ACTION_DIM>> action;
+//    lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, envp::ENVIRONMENT::ACTION_DIM>> action;
 //    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 //
 //    lic::malloc(device, env);
@@ -76,7 +76,7 @@ using STATE = envp::ENVIRONMENT::State;
 //    DEVICE device;
 //    envp::ENVIRONMENT envs[NUM_THREADS];
 //    std::thread threads[NUM_THREADS];
-//    lic::Matrix<lic::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::ACTION_DIM>> actions;
+//    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::ACTION_DIM>> actions;
 //    auto proto_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 //    decltype(proto_rng) rngs[NUM_THREADS];
 //
@@ -166,7 +166,7 @@ using STATE = envp::ENVIRONMENT::State;
 //    DEVICE device;
 //    envp::ENVIRONMENT envs[NUM_THREADS];
 //    std::thread threads[NUM_THREADS];
-//    lic::Matrix<lic::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::ACTION_DIM>> actions;
+//    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::ACTION_DIM>> actions;
 //    auto proto_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 //    decltype(proto_rng) rngs[NUM_THREADS];
 //
@@ -239,8 +239,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
     envp::ENVIRONMENT envs[NUM_ENVIRONMENTS];
     ACTOR_TYPE actor;
     ACTOR_TYPE::Buffers<NUM_ENVIRONMENTS> actor_buffers;
-    lic::Matrix<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions;
-    lic::Matrix<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
     auto proto_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     decltype(proto_rng) rngs[NUM_THREADS];
 
@@ -310,8 +310,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
 //    DEVICE device;
 //    envp::ENVIRONMENT envs[NUM_THREADS];
 //    std::thread threads[NUM_THREADS];
-//    lic::Matrix<lic::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::ACTION_DIM>> actions;
-//    lic::Matrix<lic::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
+//    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::ACTION_DIM>> actions;
+//    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
 //    ACTOR_TYPE actors[NUM_THREADS];
 //    ACTOR_TYPE::Buffers<1> actor_buffers[NUM_THREADS];
 //    auto proto_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
@@ -372,8 +372,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
 //    envp::ENVIRONMENT envs[NUM_ENVIRONMENTS];
 //    STATE states[NUM_ENVIRONMENTS], next_states[NUM_ENVIRONMENTS];
 //    std::thread threads[NUM_THREADS];
-//    lic::Matrix<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions;
-//    lic::Matrix<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
+//    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions;
+//    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
 //    ACTOR_TYPE actor;
 //    ACTOR_TYPE::Buffers<NUM_ENVIRONMENTS> actor_buffers;
 //    auto proto_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
@@ -479,8 +479,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
 //    envp::ENVIRONMENT envs[NUM_ENVIRONMENTS];
 //    STATE states[NUM_ENVIRONMENTS], next_states[NUM_ENVIRONMENTS];
 //    std::thread threads[NUM_THREADS];
-//    lic::Matrix<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions;
-//    lic::Matrix<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
+//    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions;
+//    lic::MatrixDynamic<lic::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
 //    ACTOR_TYPE actor;
 //    ACTOR_TYPE::Buffers<NUM_ENVIRONMENTS> actor_buffers;
 //    auto proto_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);

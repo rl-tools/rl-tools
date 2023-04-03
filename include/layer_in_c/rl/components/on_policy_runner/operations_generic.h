@@ -123,9 +123,9 @@ namespace layer_in_c{
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }
-    template <typename DEVICE, typename DATASET_SPEC, typename ACTOR, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+    template <typename DEVICE, typename DATASET_SPEC, typename ACTOR, typename RNG> // todo: make this not PPO but general policy with output distribution
     void collect(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, typename ACTOR::template Buffers<DATASET_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG& rng){
-        using T = typename DATASET_SPEC::T;
+        using T = typename DATASET_SPEC::SPEC::T;
         using TI = typename DEVICE::index_t;
         using ENVIRONMENT = typename DATASET_SPEC::SPEC::ENVIRONMENT;
         MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_mean;

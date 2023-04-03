@@ -120,8 +120,8 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         // -------------- added for cuda training ----------------
         ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE on_policy_runner_collection_eval_buffer_gpu, on_policy_runner_collection_eval_buffer_cpu;
         PPO_TRAINING_HYBRID_BUFFER_TYPE ppo_training_hybrid_buffer_cpu, ppo_training_hybrid_buffer_gpu;
-        lic::Matrix<lic::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::OBSERVATION_DIM>> gae_all_observations;
-        lic::Matrix<lic::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, 1>> gae_all_values;
+        lic::MatrixDynamic<lic::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::OBSERVATION_DIM>> gae_all_observations;
+        lic::MatrixDynamic<lic::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, 1>> gae_all_values;
         // -------------------------------------------------------
         // -------------- replaced for cuda training ----------------
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;

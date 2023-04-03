@@ -12,7 +12,7 @@ TEST(LAYER_IN_C_TEST_CONTAINER, SLICE){
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     device.logger = &logger;
-    lic::Matrix<lic::matrix::Specification<float, typename DEVICE::index_t, 3, 3>> m;
+    lic::MatrixDynamic<lic::matrix::Specification<float, typename DEVICE::index_t, 3, 3>> m;
     lic::malloc(device, m);
     lic::set(m, 0, 0, 1);
     lic::set(m, 0, 1, 2);
@@ -34,9 +34,9 @@ TEST(LAYER_IN_C_TEST_CONTAINER, SLICE){
     std::cout << "transpose: " << std::endl;
     auto m3 = lic::view_transpose(device, m);
     lic::print(device, m3);
-    lic::free(device, m3);
+    lic::free(device, m);
 
-    lic::Matrix<lic::matrix::Specification<float, typename DEVICE::index_t, 17, 15>> m4;
+    lic::MatrixDynamic<lic::matrix::Specification<float, typename DEVICE::index_t, 17, 15>> m4;
     lic::malloc(device, m4);
     //init with random data
     for(typename DEVICE::index_t row_i = 0; row_i < decltype(m4)::ROWS; row_i++){
@@ -61,8 +61,8 @@ void test_view(){
     using TI = DEVICE::index_t;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
-    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::RowMajorAlignment<TI, 1>>> m_dense;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::RowMajorAlignment<TI, 1>>> m_dense;
     lic::malloc(device, m);
     lic::malloc(device, m_dense);
     lic::randn(device, m, rng);
@@ -97,8 +97,8 @@ void test_view_col(){
     using TI = DEVICE::index_t;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
-    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::RowMajorAlignment<TI, 1>>> m_dense;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::RowMajorAlignment<TI, 1>>> m_dense;
     lic::malloc(device, m);
     lic::malloc(device, m_dense);
     lic::randn(device, m, rng);
@@ -136,7 +136,7 @@ void test_is_nan(){
     using TI = DEVICE::index_t;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
     lic::malloc(device, m);
     lic::randn(device, m, rng);
 
@@ -163,7 +163,7 @@ void test_is_finite(){
     using TI = DEVICE::index_t;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, ROWS, COLS, lic::matrix::layouts::Fixed<TI, ROW_PITCH, COL_PITCH>>> m;
     lic::malloc(device, m);
     lic::randn(device, m, rng);
 

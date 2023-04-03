@@ -101,7 +101,7 @@ namespace layer_in_c{
         using TI = typename SPEC::TI;
         if constexpr(!TARGET_SPEC::IS_VIEW){
             // make a temporary copy of the source matrix (with the same layout as the target) and then copy it directly
-            Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename TARGET_SPEC::LAYOUT, false>> temp;
+            MatrixDynamic<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename TARGET_SPEC::LAYOUT, false>> temp;
             using TEMP_SPEC = typename decltype(temp)::SPEC;
             static_assert(TEMP_SPEC::SIZE_BYTES == TARGET_SPEC::SIZE_BYTES);
             malloc(source_device, temp);
@@ -112,7 +112,7 @@ namespace layer_in_c{
             free(source_device, temp);
         }
         else{
-            Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename SOURCE_SPEC::LAYOUT, false>> temp;
+            MatrixDynamic<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename SOURCE_SPEC::LAYOUT, false>> temp;
             malloc(target_device, temp);
             copy(target_device, source_device, temp, source);
 //            {
@@ -149,7 +149,7 @@ namespace layer_in_c{
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        Matrix<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS>> temp_gpu, temp_cpu;
+        MatrixDynamic<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS>> temp_gpu, temp_cpu;
         using TEMP_SPEC = typename decltype(temp_gpu)::SPEC;
         malloc(source_device, temp_gpu);
 //        {

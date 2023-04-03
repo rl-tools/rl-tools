@@ -58,7 +58,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
         }
 
         lic::utils::memcpy(env_state.state, state, STATE_DIM);
-        lic::Matrix<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, ACTION_DIM>> env_action;
+        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, ACTION_DIM>> env_action;
         lic::malloc(device, env_action);
 
         for(COUNTER_TYPE substep_i = 0; substep_i < 100; substep_i++){
@@ -101,6 +101,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
             }
             env_state = env_next_state;
         }
+        lic::free(device, env_action);
 
     }
 

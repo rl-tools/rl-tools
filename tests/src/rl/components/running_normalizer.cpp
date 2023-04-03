@@ -17,7 +17,7 @@ void test(){
     T std_threshold_normalization = 0.01;
     static_assert((ROWS % BATCH_SIZE) == 0);
     DEVICE device;
-    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS>> data;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, ROWS, COLS>> data;
     lic::rl::components::RunningNormalizer<lic::rl::components::running_normalizer::Specification<T, TI, COLS>> running_normalizer;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
     lic::malloc(device, data);
@@ -51,7 +51,7 @@ void test(){
         ASSERT_LT(mean_diff, threshold);
         ASSERT_LT(std_diff/std, std_threshold);
     }
-    lic::Matrix<lic::matrix::Specification<T, TI, ROWS, COLS>> data_normalized;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, ROWS, COLS>> data_normalized;
     lic::malloc(device, data_normalized);
     lic::normalize(device, running_normalizer, data, data_normalized);
     for(TI col_i = 0; col_i < COLS; col_i++){
@@ -70,14 +70,14 @@ void test(){
 
 TEST(LAYER_IN_C_RL_COMPONENTS_RUNNING_NORMALIZER, TEST){
     test<double, 100, 10, 10>();
-    test<double, 32, 1, 1>();
+    test<double, 32, 2, 2>();
     test<double, 32, 1, 2>();
-    test<double, 32, 10, 1>();
     test<double, 32, 10, 2>();
+    test<double, 30, 12, 3>();
     test<double, 32, 10, 32>();
     test<double, 32, 1, 32>();
     test<double, 100, 1, 50>();
     test<double, 100, 10, 50>();
-    test<double, 10000, 10, 1>();
+    test<double, 10000, 10, 2>();
     test<double, 10000, 10, 10000>();
 }

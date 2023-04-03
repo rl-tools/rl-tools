@@ -5,8 +5,8 @@ namespace layer_in_c{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            Matrix<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observations;
-            Matrix<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>> actions;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observations;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>> actions;
         };
     }
     template <typename DEVICE, typename SPEC>
@@ -90,6 +90,22 @@ namespace layer_in_c{
             normalize(device, observations_mean, observations_std, observation, observation_normalized);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
+    }
+    template <typename DEVICE, typename DEVICE_EVALUATION, typename DATASET_SPEC, typename ACTOR, typename ACTOR_EVALUATION, typename RNG> // todo: make this not PPO but general policy with output distribution
+    void collect_hybrid(DEVICE& device, DEVICE_EVALUATION& device_evaluation, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_EVALUATION& actor_evaluation, typename ACTOR_EVALUATION::template Buffers<DATASET_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC> evaluation_buffer, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC>& evaluation_buffer_evaluation, RNG& rng){
+        using T = typename DATASET_SPEC::SPEC::T;
+        using TI = typename DEVICE::index_t;
+        using ENVIRONMENT = typename DATASET_SPEC::SPEC::ENVIRONMENT;
+        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_mean;
+        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_std;
+        malloc(device, observation_mean);
+        malloc(device, observation_std);
+        set_all(device, observation_mean, 0);
+        set_all(device, observation_std, 1);
+        collect_hybrid(device, device_evaluation, dataset, runner, actor, actor_evaluation, policy_eval_buffers, evaluation_buffer, evaluation_buffer_evaluation, observation_mean, observation_std, rng);
+        free(device, observation_mean);
+        free(device, observation_std);
+
     }
 
 }

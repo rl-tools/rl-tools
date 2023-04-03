@@ -15,11 +15,11 @@ namespace layer_in_c{
             static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
             static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
             static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> observations;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_observations;
-            Matrix<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_values;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> observations;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_observations;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_values;
         };
     }
     template <typename DEVICE, typename SPEC>

@@ -62,7 +62,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
     auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
     prl::PPO_TYPE ppo;
-    prl::OPTIMIZER optimizer;
+    prl::ACTOR_OPTIMIZER actor_optimizer;
     prl::PPO_TYPE::SPEC::ACTOR_TYPE actor_gpu, actor3;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner_cpu, on_policy_runner_gpu;
@@ -95,7 +95,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
     lic::init(device, on_policy_runner_gpu, envs_gpu, rng);
 
     lic::init_weights(device, ppo.actor, rng);
-    lic::reset_optimizer_state(device, ppo.actor, optimizer);
+    lic::reset_optimizer_state(device, ppo.actor, actor_optimizer);
     lic::reset_forward_state(device, ppo.actor);
     lic::zero_gradient(device, ppo.actor);
     lic::copy(device_gpu, device, actor_gpu, ppo.actor);

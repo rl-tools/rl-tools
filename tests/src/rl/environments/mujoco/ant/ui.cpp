@@ -32,7 +32,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
     typename ENVIRONMENT::State state, next_state;
-    lic::Matrix<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     lic::malloc(dev, action);
     lic::set_all(dev, action, 1);
     lic::sample_initial_state(dev, env, state, rng);

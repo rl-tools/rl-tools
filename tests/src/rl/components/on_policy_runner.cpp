@@ -66,7 +66,7 @@ TEST(LAYER_IN_C_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
             TI pos = step_i * ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS + env_i;
             {
-                lic::Matrix<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
+                lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
                 lic::malloc(device, observation);
                 lic::observe(device, get(runner.environments, 0, env_i), states[env_i], observation);
                 auto observation_runner = lic::view<DEVICE, decltype(dataset.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, dataset.observations, pos, 0);

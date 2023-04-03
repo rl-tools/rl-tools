@@ -244,7 +244,7 @@ namespace layer_in_c{
                 T critic_loss = nn::loss_functions::mse(device, ppo.critic.output_layer.output, batch_target_values);
                 add_scalar(device, device.logger, "ppo/critic_loss", critic_loss);
                 update(device, ppo.actor, actor_optimizer);
-                update(device, ppo.critic, actor_optimizer);
+                update(device, ppo.critic, actor_optimizer); // todo: evaluate switch to critic_optimizer
             }
         }
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
