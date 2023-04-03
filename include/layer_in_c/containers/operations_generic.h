@@ -11,6 +11,7 @@
 #include <sstream>
 #endif
 
+
 namespace layer_in_c{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, MatrixStatic<SPEC>& matrix){
@@ -18,6 +19,13 @@ namespace layer_in_c{
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
         matrix._data = (typename SPEC::T*)&matrix._data_memory[0];
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_MALLOC_INIT_NAN
+        for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
+            if constexpr(std::is_convertible<typename SPEC::T, float>::value){
+                matrix._data[i] = 0.0/0.0;
+            }
+        }
+#endif
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, MatrixStatic<SPEC>& matrix){
@@ -31,6 +39,8 @@ namespace layer_in_c{
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
         matrix._data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
+        count_malloc(device, SPEC::SIZE_BYTES);
+
 #ifdef LAYER_IN_C_DEBUG_CONTAINER_MALLOC_INIT_NAN
         for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
             if constexpr(std::is_convertible<typename SPEC::T, float>::value){

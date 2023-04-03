@@ -1,4 +1,5 @@
 //#define LAYER_IN_C_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+#define LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
 #include <layer_in_c/operations/arm.h>
 
 namespace lic = layer_in_c;
@@ -17,8 +18,10 @@ using DEVICE = lic::devices::DefaultARM;
 #endif
 
 using DTYPE = float;
-using CONTAINER_TYPE_TAG = lic::MatrixStaticTag;
+using CONTAINER_TYPE_TAG = lic::MatrixDynamicTag;
+using CONTAINER_TYPE_TAG_CRITIC = lic::MatrixStaticTag;
 using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = lic::MatrixDynamicTag;
+using CONTAINER_TYPE_TAG_TRAINING_BUFFERS = lic::MatrixDynamicTag;
 
 using PENDULUM_SPEC = lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>;
 typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
@@ -30,8 +33,8 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE,
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 16, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG>;
-using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 16, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG>;
+using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG>;
+using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG_CRITIC>;
 
 
 using OPTIMIZER_PARAMETERS = typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
@@ -58,7 +61,7 @@ constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
 constexpr DEVICE::index_t N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
 DTYPE evaluation_returns[N_EVALUATIONS];
 
-constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 5000;
+constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 4000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
         DTYPE,
@@ -74,6 +77,7 @@ using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specifica
  >;
 lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 ActorCriticType actor_critic;
+
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -82,18 +86,19 @@ ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
 
 lic::rl::components::off_policy_runner::Batch<lic::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
 lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-CRITIC_NETWORK_TYPE::BuffersForwardBackward<ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers;
+CRITIC_NETWORK_TYPE::BuffersForwardBackward<ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> critic_buffers;
 
 lic::rl::components::off_policy_runner::Batch<lic::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
 lic::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
-ACTOR_NETWORK_TYPE::Buffers<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers;
-ACTOR_NETWORK_TYPE::Buffers<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+ACTOR_NETWORK_TYPE::Buffers<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers;
+ACTOR_NETWORK_TYPE::Buffers<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers_eval;
 
 typename CONTAINER_TYPE_TAG::template type<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
 typename CONTAINER_TYPE_TAG::template type<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
 
 
 void train(){
+
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     device.logger = &logger;
@@ -116,6 +121,13 @@ void train(){
     lic::malloc(device, observations_mean);
     lic::malloc(device, observations_std);
 
+#ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
+    std::cout << "malloc counter: " << device.malloc_counter << std::endl;
+#endif
+#endif
+
+
     lic::init(device, actor_critic, optimizer, rng);
     lic::init(device, off_policy_runner, envs);
     lic::set_all(device, observations_mean, 0);
@@ -124,12 +136,28 @@ void train(){
 
 #ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
     auto start_time = std::chrono::high_resolution_clock::now();
+    std::cout << "ActorCritic size: " << sizeof(actor_critic) << std::endl;
+    std::cout << "ActorCritic.actor size: " << sizeof(actor_critic.actor) << std::endl;
+    std::cout << "ActorCritic.actor_target size: " << sizeof(actor_critic.actor_target) << std::endl;
+    std::cout << "ActorCritic.critic_1 size: " << sizeof(actor_critic.critic_1) << std::endl;
+    std::cout << "ActorCritic.critic_2 size: " << sizeof(actor_critic.critic_2) << std::endl;
+    std::cout << "ActorCritic.critic_target_1 size: " << sizeof(actor_critic.critic_target_1) << std::endl;
+    std::cout << "ActorCritic.critic_target_2 size: " << sizeof(actor_critic.critic_target_2) << std::endl;
+    std::cout << "OffPolicyRunner size: " << sizeof(off_policy_runner) << std::endl;
+    std::cout << "OffPolicyRunner.replay_buffers size: " << sizeof(off_policy_runner.replay_buffers) << std::endl;
+    std::cout << "CriticBatch size: " << sizeof(critic_batch) << std::endl;
+    std::cout << "CriticTrainingBuffers size: " << sizeof(critic_training_buffers) << std::endl;
+    std::cout << "CriticBuffers size: " << sizeof(critic_buffers) << std::endl;
+    std::cout << "ActorBatch size: " << sizeof(actor_batch) << std::endl;
+    std::cout << "ActorTrainingBuffers size: " << sizeof(actor_training_buffers) << std::endl;
+    std::cout << "ActorBuffers size: " << sizeof(actor_buffers) << std::endl;
+    std::cout << "Total: " << sizeof(actor_critic) + sizeof(off_policy_runner) + sizeof(critic_batch) + sizeof(critic_training_buffers) + sizeof(critic_buffers) + sizeof(actor_batch) + sizeof(actor_training_buffers) + sizeof(actor_buffers) << std::endl;
 #endif
 
     for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 #ifdef LAYER_IN_C_DEPLOYMENT_ARDUINO
-        if(step_i % 100 == 0){
+        if(step_i % 10 == 0){
             Serial.printf("step: %d\n", step_i);
 #else
         if(step_i % 1000 == 0){

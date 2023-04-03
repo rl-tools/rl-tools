@@ -23,6 +23,7 @@ namespace layer_in_c{
 #endif
         auto result = cudaMalloc(&matrix._data, SPEC::SIZE_BYTES);
         check_status(device);
+        count_malloc(device, SPEC::SIZE_BYTES);
 
 #ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
         if (result != cudaSuccess) {

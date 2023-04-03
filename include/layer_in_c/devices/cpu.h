@@ -47,10 +47,20 @@ namespace layer_in_c::devices{
         using SPEC = T_SPEC;
         using EXECUTION_HINTS = typename SPEC::EXECUTION_HINTS;
         typename SPEC::LOGGING* logger = nullptr;
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
+        index_t malloc_counter = 0;
+#endif
     };
 
     using DefaultCPUSpecification = cpu::Specification<math::CPU, random::CPU, logging::CPU>;
     using DefaultCPU = CPU<DefaultCPUSpecification>;
+}
+
+namespace layer_in_c{
+    template <typename DEV_SPEC, typename TI>
+    void count_malloc(devices::CPU<DEV_SPEC>& device, TI size){
+        device.malloc_counter += size;
+    }
 }
 
 #endif

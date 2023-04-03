@@ -102,8 +102,8 @@ namespace layer_in_c{
                 prologue_per_env(device, &runner, rng, env_i);
             }
         }
-        template<typename DEVICE, typename SPEC, typename POLICY>
-        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
+        template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS>
+        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers) {
             evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
         }
 
@@ -115,8 +115,8 @@ namespace layer_in_c{
             }
         }
     }
-    template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG &rng) {
+    template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>
+    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng) {
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
 #endif

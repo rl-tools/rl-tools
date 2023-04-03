@@ -39,10 +39,22 @@ namespace layer_in_c::devices{
         static constexpr bool compatible = OTHER_DEVICE::DEVICE == DeviceId::ARM;
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
+        index_t malloc_counter = 0;
+#endif
     };
 
     using DefaultARMSpecification = arm::Specification<math::ARM, random::ARM, logging::ARM>;
     using DefaultARM = ARM<DefaultARMSpecification>;
+}
+
+namespace layer_in_c{
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
+    template <typename DEV_SPEC, typename TI>
+    void count_malloc(devices::ARM<DEV_SPEC>& device, TI size){
+        device.malloc_counter += size;
+    }
+#endif
 }
 
 #endif

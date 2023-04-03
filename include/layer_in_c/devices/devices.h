@@ -30,8 +30,9 @@ namespace layer_in_c {
 
 namespace layer_in_c{
     template <typename DEV_SPEC>
-    void init(devices::Device<DEV_SPEC>& device){
-    };
+    void init(devices::Device<DEV_SPEC>& device){ };
+    template <typename DEV_SPEC, typename T>
+    void count_malloc(devices::Device<DEV_SPEC>& device, T){ };
 }
 
 #endif

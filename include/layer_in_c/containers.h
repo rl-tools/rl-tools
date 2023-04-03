@@ -13,7 +13,7 @@ namespace layer_in_c{
                 static constexpr TI COL_PITCH = 1;
             };
 
-            template <typename TI, TI ALIGNMENT = 16>
+            template <typename TI, TI ALIGNMENT = 1>
             using RowMajorAlignmentOptimized = RowMajorAlignment<TI, ALIGNMENT>;
 
             template <typename TI, TI T_ROW_PITCH, TI T_COL_PITCH>

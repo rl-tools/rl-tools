@@ -34,6 +34,9 @@ namespace layer_in_c::devices{
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
         cublasHandle_t handle;
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
+        index_t malloc_counter = 0;
+#endif
 #ifdef LAYER_IN_C_DEBUG_DEVICE_CUDA_CHECK_INIT
         bool initialized = false;
 #endif
@@ -77,6 +80,10 @@ namespace layer_in_c {
             std::string error_string = cudaGetErrorString(cudaStatus);
             std::cerr << "cuda failed: " << error_string << std::endl;
         }
+    }
+    template <typename DEV_SPEC, typename TI>
+    void count_malloc(devices::CUDA<DEV_SPEC>& device, TI size){
+        device.malloc_counter += size;
     }
 
 }
