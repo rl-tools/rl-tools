@@ -10,8 +10,10 @@ using DEVICE = lic::devices::DefaultARM;
 #include <layer_in_c/rl/operations_generic.h>
 
 #include <layer_in_c/rl/utils/evaluation.h>
-//#include <chrono>
-//#include <iostream>
+#ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
+#include <chrono>
+#include <iostream>
+#endif
 
 using DTYPE = float;
 
@@ -116,16 +118,21 @@ void train(){
     lic::set_all(device, observations_std, 1);
 
 
-//    auto start_time = std::chrono::high_resolution_clock::now();
+#ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
+    auto start_time = std::chrono::high_resolution_clock::now();
+#endif
 
     for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
         if(step_i % 100 == 0){
+#ifdef LAYER_IN_C_DEPLOYMENT_ARDUINO
             Serial.printf("step: %d\n", step_i);
+#else
+            auto current_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed_seconds = current_time - start_time;
+            std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
+#endif
 
-//            auto current_time = std::chrono::high_resolution_clock::now();
-//            std::chrono::duration<double> elapsed_seconds = current_time - start_time;
-//            std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
         }
         if(step_i > N_WARMUP_STEPS){
 
@@ -150,15 +157,20 @@ void train(){
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.mean;
             }
+#ifdef LAYER_IN_C_DEPLOYMENT_ARDUINO
             Serial.printf("mean return: %f\n", result.mean);
-//            std::cout << "Mean return: " << result.mean << std::endl;
+#else
+            std::cout << "Mean return: " << result.mean << std::endl;
+#endif
         }
     }
+#ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
     {
-//        auto current_time = std::chrono::high_resolution_clock::now();
-//        std::chrono::duration<double> elapsed_seconds = current_time - start_time;
-//        std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
+        auto current_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed_seconds = current_time - start_time;
+        std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
     }
+#endif
     lic::free(device, actor_critic);
     lic::free(device, off_policy_runner);
     lic::free(device, critic_batch);
