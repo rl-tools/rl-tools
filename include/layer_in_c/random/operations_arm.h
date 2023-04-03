@@ -6,7 +6,7 @@
 
 namespace layer_in_c::random{
    devices::random::ARM::index_t default_engine(const devices::random::ARM& dev, devices::random::ARM::index_t seed = 1){
-       return seed;
+       return 0b10101010101010101010101010101010 + seed;
    };
    template<typename RNG>
    void next(const devices::random::ARM& dev, RNG& rng){

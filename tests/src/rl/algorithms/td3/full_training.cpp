@@ -173,6 +173,13 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::malloc(ac_dev, actor_buffers[0]);
     lic::malloc(ac_dev, actor_buffers[1]);
 
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
+    lic::Matrix<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
+    lic::malloc(ac_dev, observations_mean);
+    lic::malloc(ac_dev, observations_std);
+    lic::set_all(ac_dev, observations_mean, 0);
+    lic::set_all(ac_dev, observations_std, 1);
+
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -220,7 +227,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
             }
         }
         if(step_i % 1000 == 0){
-            auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<1, ENVIRONMENT_STEP_LIMIT>(), rng, true);
+//            auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<1, ENVIRONMENT_STEP_LIMIT>(), rng, true);
+            auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, rng);
             std::cout << "Mean return: " << result.mean << std::endl;
 //            if(step_i >= 6000){
 //                ASSERT_GT(mean_return, -1000);
@@ -262,4 +270,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::free(ac_dev, actor_training_buffers);
     lic::free(ac_dev, off_policy_runner);
     lic::free(ac_dev, actor_critic);
+    lic::free(ac_dev, observations_mean);
+    lic::free(ac_dev, observations_std);
 }
