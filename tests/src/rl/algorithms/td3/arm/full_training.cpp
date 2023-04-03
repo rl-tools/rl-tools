@@ -25,8 +25,8 @@ struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE,
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
+using ActorStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 16, lic::nn::activation_functions::RELU, lic::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
+using CriticStructureSpec = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 16, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
 
 using OPTIMIZER_PARAMETERS = typename lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
@@ -48,12 +48,12 @@ using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
 
-constexpr DEVICE::index_t N_STEPS = 150;
+constexpr DEVICE::index_t N_STEPS = 15000;
 constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
 constexpr DEVICE::index_t N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
 DTYPE evaluation_returns[N_EVALUATIONS];
 
-constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = N_STEPS;
+constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 2000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
         DTYPE,
@@ -71,7 +71,7 @@ constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SI
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 
-int train(){
+void train(){
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     device.logger = &logger;
@@ -120,7 +120,9 @@ int train(){
 
     for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
-        if(step_i % 10 == 0){
+        if(step_i % 100 == 0){
+            Serial.printf("step: %d\n", step_i);
+
 //            auto current_time = std::chrono::high_resolution_clock::now();
 //            std::chrono::duration<double> elapsed_seconds = current_time - start_time;
 //            std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
@@ -148,6 +150,7 @@ int train(){
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.mean;
             }
+            Serial.printf("mean return: %f\n", result.mean);
 //            std::cout << "Mean return: " << result.mean << std::endl;
         }
     }
