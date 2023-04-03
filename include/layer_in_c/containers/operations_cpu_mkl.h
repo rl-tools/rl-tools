@@ -8,6 +8,7 @@
 #include <mkl.h>
 
 namespace layer_in_c{
+#ifndef LAYER_IN_C_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
     template<typename DEV_SPEC, typename SPEC>
     void malloc(devices::CPU_MKL<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
 #ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
@@ -29,5 +30,6 @@ namespace layer_in_c{
 #endif
         mkl_free(matrix._data);
     }
+#endif
 }
 #endif

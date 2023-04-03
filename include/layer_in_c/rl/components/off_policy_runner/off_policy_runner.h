@@ -102,7 +102,7 @@ namespace layer_in_c::rl::components{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY>;
+        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
         using REPLAY_BUFFER_TYPE = ReplayBuffer<REPLAY_BUFFER_SPEC>;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         static constexpr TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;

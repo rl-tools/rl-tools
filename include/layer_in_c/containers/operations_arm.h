@@ -5,7 +5,7 @@
 #include <cstring> // formemcpy
 namespace layer_in_c{
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
-    LAYER_IN_C_FUNCTION_PLACEMENT void copy_view(devices::ARM<TARGET_DEV_SPEC>& target_device, devices::ARM<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    void copy_view(devices::ARM<TARGET_DEV_SPEC>& target_device, devices::ARM<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         using TARGET_DEVICE = devices::ARM<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;

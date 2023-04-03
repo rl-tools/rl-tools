@@ -33,14 +33,20 @@ namespace layer_in_c {
     void set_state(DEVICE& dev, UI& ui, const STATE& state){
         // dummy implementation for the case where no ui should be used
     }
+
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename RNG>
     bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         typename ENVIRONMENT::State state = eval_state.state;
 
+#ifndef LAYER_IN_C_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
         MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
         MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
+#else
+        MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+        MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
+#endif
         malloc(device, observation);
         malloc(device, observation_normalized);
         malloc(device, action);

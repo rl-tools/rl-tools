@@ -9,7 +9,7 @@
 #include <layer_in_c/containers.h>
 
 namespace layer_in_c::nn_models::mlp {
-    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct StructureSpecification{
         using T = T_T;
         using TI = T_TI;
@@ -21,6 +21,7 @@ namespace layer_in_c::nn_models::mlp {
         static constexpr auto OUTPUT_ACTIVATION_FUNCTION = T_OUTPUT_ACTIVATION_FUNCTION;
         static constexpr T_TI BATCH_SIZE = T_BATCH_SIZE;
 
+        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
     };
@@ -38,7 +39,7 @@ namespace layer_in_c::nn_models::mlp {
             && SPEC_1::OUTPUT_ACTIVATION_FUNCTION == SPEC_2::OUTPUT_ACTIVATION_FUNCTION;
 
 
-    template <typename T_STRUCTURE_SPEC, typename T_PARAMETER_TYPE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template <typename T_STRUCTURE_SPEC, typename T_PARAMETER_TYPE>
     struct Specification{
         using STRUCTURE_SPEC = T_STRUCTURE_SPEC;
         using S = STRUCTURE_SPEC;
@@ -50,7 +51,7 @@ namespace layer_in_c::nn_models::mlp {
         static constexpr TI HIDDEN_DIM = S::HIDDEN_DIM;
         static constexpr TI OUTPUT_DIM = S::OUTPUT_DIM;
         static constexpr TI BATCH_SIZE = S::BATCH_SIZE;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        using CONTAINER_TYPE_TAG = typename S::CONTAINER_TYPE_TAG;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = S::ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = typename S::MEMORY_LAYOUT;
 

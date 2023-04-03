@@ -94,8 +94,14 @@ namespace layer_in_c {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = typename MODEL_SPEC::T;
-        MatrixDynamic<matrix::Specification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> layer_output_tick;
-        MatrixDynamic<matrix::Specification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>> layer_output_tock;
+        using TICK_TOCK_SPEC = matrix::Specification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>;
+#ifndef LAYER_IN_C_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+        MatrixDynamic<TICK_TOCK_SPEC> layer_output_tick;
+        MatrixDynamic<TICK_TOCK_SPEC> layer_output_tock;
+#else
+        MatrixStatic<TICK_TOCK_SPEC> layer_output_tick;
+        MatrixStatic<TICK_TOCK_SPEC> layer_output_tock;
+#endif
         malloc(device, layer_output_tick);
         malloc(device, layer_output_tock);
         evaluate_memless(device, network, input, output, layer_output_tick, layer_output_tock);

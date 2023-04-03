@@ -23,6 +23,8 @@ namespace layer_in_c{
     void free(DEVICE& device, MatrixStatic<SPEC>& matrix){
         // free is a no-op for statically allocated matrices
     }
+
+#ifndef LAYER_IN_C_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, MatrixDynamic<SPEC>& matrix){
 #ifdef LAYER_IN_C_DEBUG_CONTAINER_CHECK_MALLOC
@@ -45,6 +47,7 @@ namespace layer_in_c{
         delete matrix._data;
         matrix._data = nullptr;
     }
+#endif
 
     template<typename SPEC>
     LAYER_IN_C_FUNCTION_PLACEMENT typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
@@ -461,7 +464,7 @@ namespace layer_in_c{
     }
 
     template <typename DEVICE, typename SPEC>
-    typename SPEC::T clamp(DEVICE& device, layer_in_c::Matrix<SPEC>& m, typename SPEC::T lower, typename SPEC::T upper){
+    void clamp(DEVICE& device, layer_in_c::Matrix<SPEC>& m, typename SPEC::T lower, typename SPEC::T upper){
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
                 set(m, row_i, col_i, math::clamp<typename SPEC::T>(typename DEVICE::SPEC::MATH(), get(m, row_i, col_i), lower, upper));

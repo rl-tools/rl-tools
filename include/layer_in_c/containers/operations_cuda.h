@@ -8,6 +8,7 @@
 #include <cuda.h>
 
 namespace layer_in_c{
+#ifndef LAYER_IN_C_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
     template<typename DEV_SPEC, typename SPEC>
     void malloc(devices::CUDA<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
         /* for checking the pitch
@@ -34,6 +35,7 @@ namespace layer_in_c{
         cudaFree(matrix._data);
         check_status(device);
     }
+#endif
     namespace containers::cuda::kernels {
         template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
         __global__ void
