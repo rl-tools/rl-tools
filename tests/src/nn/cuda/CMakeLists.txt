@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_CUDA_ARCHITECTURES 75)
-message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
 project(test_layer_in_c_nn_cuda CUDA)
 
 set(CMAKE_CUDA_STANDARD 17)
@@ -28,6 +26,7 @@ target_link_libraries(
         GTest::gtest_main
         cublas
 )
+set_target_properties(test_nn_cuda_basics PROPERTIES CUDA_ARCHITECTURES ${LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES})
 LAYER_IN_C_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
 gtest_discover_tests(test_nn_cuda_basics)
 

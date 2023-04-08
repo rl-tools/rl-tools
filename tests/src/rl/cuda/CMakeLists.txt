@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_CUDA_ARCHITECTURES 75)
-message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
 project(test_layer_in_c_rl_cuda CUDA)
 
 find_package(CUDAToolkit REQUIRED)
@@ -35,6 +33,7 @@ target_link_libraries(
         CUDA::cublas
         HighFive
 )
+set_target_properties(test_rl_cuda PROPERTIES CUDA_ARCHITECTURES ${LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES})
 LAYER_IN_C_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_cuda)
 gtest_discover_tests(test_rl_cuda)
@@ -52,6 +51,7 @@ target_link_libraries(
         HighFive
         tensorboard_logger
 )
+set_target_properties(test_rl_cuda_td3_full_training PROPERTIES CUDA_ARCHITECTURES ${LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES})
 LAYER_IN_C_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda_td3_full_training)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_cuda_td3_full_training)
 gtest_discover_tests(test_rl_cuda_td3_full_training)
@@ -69,6 +69,7 @@ target_link_libraries(
         HighFive
         tensorboard_logger
 )
+set_target_properties(test_rl_cuda_environments_multirotor PROPERTIES CUDA_ARCHITECTURES ${LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES})
 LAYER_IN_C_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda_environments_multirotor)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_cuda_environments_multirotor)
 gtest_discover_tests(test_rl_cuda_environments_multirotor)

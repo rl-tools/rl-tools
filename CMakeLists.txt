@@ -54,6 +54,7 @@ function(LAYER_IN_C_TARGET_LINK_BLAS target)
 endfunction()
 
 if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
+    set(LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES "all")
     add_compile_definitions(LAYER_IN_C_BACKEND_ENABLE_CUDA)
 endif()
 
