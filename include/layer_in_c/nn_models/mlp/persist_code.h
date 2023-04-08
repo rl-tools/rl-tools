@@ -39,7 +39,7 @@ namespace layer_in_c{
         ss << STRUCTURE_SPEC::INPUT_DIM << ", " << STRUCTURE_SPEC::OUTPUT_DIM << ", " << STRUCTURE_SPEC::NUM_LAYERS << ", " << STRUCTURE_SPEC::HIDDEN_DIM << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>() << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<STRUCTURE_SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
-        ss << ind << "1, true, layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
+        ss << ind << "1, layer_in_c::MatrixDynamicTag, true, layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
         ss << ind << "    using SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>; \n";
         ss << ind << "    " << (const_declaration ? "const " : "") << "layer_in_c::nn_models::mlp::NeuralNetwork<SPEC> mlp = {";
         ss << "input_layer::layer, ";

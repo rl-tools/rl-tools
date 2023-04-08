@@ -50,6 +50,7 @@ namespace layer_in_c {
             << SPEC::OUTPUT_DIM << ", "
             << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
             << get_type_string(typename SPEC::PARAMETER_TYPE()) << ", "
+            << "layer_in_c::MatrixDynamicTag" << ", "
             << 1 << ", "
             << "true, "
             << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"

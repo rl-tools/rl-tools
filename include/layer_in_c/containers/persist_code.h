@@ -75,7 +75,7 @@ namespace layer_in_c{
         }
         ss << "};\n";
         ss << ind << "    using CONTAINER_SPEC = layer_in_c::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "layer_in_c::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>;\n";
-        ss << ind << "    using CONTAINER_TYPE = layer_in_c::Matrix<CONTAINER_SPEC>;\n";
+        ss << ind << "    using CONTAINER_TYPE = layer_in_c::MatrixDynamic<CONTAINER_SPEC>;\n";
         ss << ind << "    " << (const_declaration ? "const " : "") << "CONTAINER_TYPE container = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};

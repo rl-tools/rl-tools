@@ -82,7 +82,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
     using DTYPE = float;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = lic::nn_models::mlp::InferenceSpecification<lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
+    using SPEC = lic::nn_models::mlp::InferenceSpecification<lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, lic::MatrixDynamicTag, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
     lic::nn_models::mlp::NeuralNetwork<SPEC> mlp;
     lic::malloc(device, mlp);
     lic::init_weights(device, mlp, rng);
@@ -99,7 +99,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = lic::nn_models::mlp::AdamSpecification<lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
+    using SPEC = lic::nn_models::mlp::AdamSpecification<lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, lic::MatrixDynamicTag, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
     lic::nn_models::mlp::NeuralNetworkAdam<SPEC> mlp;
     lic::malloc(device, mlp);
     lic::init_weights(device, mlp, rng);
@@ -118,7 +118,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     constexpr typename DEVICE::index_t BATCH_SIZE = 10;
     DEVICE device;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    using STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1, lic::MatrixDynamicTag, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
     using SPEC = lic::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>;
     lic::nn_models::mlp::NeuralNetwork<SPEC> mlp;
     lic::malloc(device, mlp);

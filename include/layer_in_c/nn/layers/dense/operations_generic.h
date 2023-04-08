@@ -114,7 +114,6 @@ namespace layer_in_c{
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         using SPEC = LAYER_SPEC;
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
-        using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < SPEC::OUTPUT_DIM; output_i++) {

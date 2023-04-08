@@ -59,7 +59,9 @@ namespace layer_in_c::devices{
 namespace layer_in_c{
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::CPU<DEV_SPEC>& device, TI size){
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
         device.malloc_counter += size;
+#endif
     }
 }
 

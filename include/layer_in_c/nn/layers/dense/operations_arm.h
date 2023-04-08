@@ -21,7 +21,6 @@ namespace layer_in_c{
         // static_assert(BATCH_SIZE == 1);
         using DEVICE = devices::ARM<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
-        using TI = typename DEVICE::index_t;
         {
 
             T *weights_row;

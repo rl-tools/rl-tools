@@ -426,31 +426,31 @@ target_link_libraries(
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_components_replay_buffer)
 gtest_discover_tests(test_rl_components_replay_buffer)
 
-## Container tests
-#add_executable(
-#        test_container_persist_code_store
-#        src/container/persist_code_store.cpp
-#)
-#target_link_libraries(
-#        test_container_persist_code_store
-#        layer_in_c
-#        GTest::gtest_main
-#)
-#LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_container_persist_code_store)
-#gtest_discover_tests(test_container_persist_code_store)
-#
-## Container tests
-#add_executable(
-#        test_container_persist_code_load
-#        src/container/persist_code_load.cpp
-#)
-#target_link_libraries(
-#        test_container_persist_code_load
-#        layer_in_c
-#        GTest::gtest_main
-#)
-#LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_container_persist_code_load)
-#gtest_discover_tests(test_container_persist_code_load)
+# Container tests
+add_executable(
+        test_container_persist_code_store
+        src/container/persist_code_store.cpp
+)
+target_link_libraries(
+        test_container_persist_code_store
+        layer_in_c
+        GTest::gtest_main
+)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_container_persist_code_store)
+gtest_discover_tests(test_container_persist_code_store)
+
+# Container tests
+add_executable(
+        test_container_persist_code_load
+        src/container/persist_code_load.cpp
+)
+target_link_libraries(
+        test_container_persist_code_load
+        layer_in_c
+        GTest::gtest_main
+)
+LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_container_persist_code_load)
+gtest_discover_tests(test_container_persist_code_load)
 
 # ARM tests
 add_executable(

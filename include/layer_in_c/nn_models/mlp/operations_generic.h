@@ -117,7 +117,6 @@ namespace layer_in_c {
         static_assert(TEMP_SPEC::ROWS == BATCH_SIZE);
         static_assert(TEMP_SPEC::COLS == MODEL_SPEC::HIDDEN_DIM);
 
-        using T = typename MODEL_SPEC::T;
         forward(network.input_layer, input, layer_output_tick);
         for (typename DEVICE::index_t layer_i = 0; layer_i < MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             if(layer_i % 2 == 0){
@@ -226,8 +225,6 @@ namespace layer_in_c {
     void forward_backward_mse(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, const Matrix<TARGET_SPEC>& target, nn_models::mlp::NeuralNetworkBuffersForwardBackward<BUFFER_MODEL_SPEC> buffers, typename MODEL_SPEC::T loss_weight = 1) {
         static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == INPUT_SPEC::ROWS);
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, TARGET_SPEC>);
-        using T = typename MODEL_SPEC::T;
-        using TI = typename MODEL_SPEC::TI;
         forward(device, network, input);
         nn::loss_functions::d_mse_d_x(device, network.output_layer.output, target, buffers.d_output, loss_weight);
         backward(device, network, input, buffers.d_output, buffers.d_input, buffers);
