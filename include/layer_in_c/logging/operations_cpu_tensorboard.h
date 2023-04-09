@@ -6,10 +6,9 @@
 #include "operations_cpu.h"
 namespace layer_in_c{
     template <typename DEVICE>
-    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, std::string name){
+    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, std::string logs_dir, std::string name){
         assert(logger != nullptr);// "Cannot construct TensorBoard logger on null device");
         utils::assert_exit(device, device.logger == logger, "Device logger and passed logger are not the same");
-        std::string logs_dir = "logs";
         if (!std::filesystem::is_directory(logs_dir.c_str()) || !std::filesystem::exists(logs_dir.c_str())) {
             std::filesystem::create_directory(logs_dir.c_str());
         }

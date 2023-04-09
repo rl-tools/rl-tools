@@ -30,8 +30,8 @@ namespace lic = layer_in_c;
 #include <layer_in_c/rl/components/running_normalizer/persist.h>
 #include <layer_in_c/rl/utils/evaluation.h>
 
-#include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
+#include <CLI/CLI.hpp>
 
 
 namespace parameters = parameters_0;
@@ -63,10 +63,19 @@ constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
-const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
 
 // --------------- changed for cuda training -----------------
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
+int main(int argc, char** argv){
+    std::string actor_checkpoints_dir_stub = "checkpoints";
+    std::string logs_dir = "logs";
+    {
+        CLI::App app;
+        app.add_option("--checkpoints", actor_checkpoints_dir_stub, "path to the checkpoint directory");
+        app.add_option("--logs", logs_dir, "path to the logs directory");
+        CLI11_PARSE(app, argc, argv);
+    }
+    std::string actor_checkpoints_dir = actor_checkpoints_dir_stub + "/ppo_ant";
+    std::cout << "Saving actor checkpoints to: " << actor_checkpoints_dir << std::endl;
 // -------------------------------------------------------
     for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
         using penv = parameters::environment<double, TI>;
@@ -180,7 +189,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         lic::copy(device_gpu, device, ppo_gpu, ppo);
         // -------------------------------------------------------
         device.logger = &logger;
-        lic::construct(device, device.logger, run_name);
+        lic::construct(device, device.logger, logs_dir, run_name);
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
@@ -198,7 +207,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
             lic::copy(device, device_gpu, ppo, ppo_gpu);
             // -------------------------------------------------------
             if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
-                std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
+                std::filesystem::path actor_output_dir = std::filesystem::path(actor_checkpoints_dir) / run_name;
                 try {
                     std::filesystem::create_directories(actor_output_dir);
                 }
@@ -325,4 +334,5 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO_CUDA){
         // -------------------------------------------------------
     }
 
+    return 0;
 }
