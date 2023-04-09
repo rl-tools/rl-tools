@@ -56,7 +56,6 @@ using TI = typename DEVICE::index_t;
 
 
 constexpr TI BASE_SEED = 600;
-constexpr TI NUM_RUNS = 100;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
 constexpr bool ENABLE_EVALUATION = true;
 constexpr TI NUM_EVALUATION_EPISODES = 10;
@@ -69,24 +68,26 @@ int main(int argc, char** argv){
     std::string actor_checkpoints_dir_stub = "checkpoints";
     std::string logs_dir = "logs";
     TI job_seed = 0;
+    TI num_runs = 1;
     {
         CLI::App app;
         app.add_option("--checkpoints", actor_checkpoints_dir_stub, "path to the checkpoint directory");
         app.add_option("--logs", logs_dir, "path to the logs directory");
         app.add_option("--seed", job_seed, "seed for this job");
+        app.add_option("--runs", num_runs, "number of runs with different seeds");
         CLI11_PARSE(app, argc, argv);
     }
     std::string actor_checkpoints_dir = actor_checkpoints_dir_stub + "/ppo_ant";
     std::cout << "Saving actor checkpoints to: " << actor_checkpoints_dir << std::endl;
 // -------------------------------------------------------
-    for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
+    for(TI run_i = 0; run_i < num_runs; ++run_i){
         using penv = parameters::environment<double, TI>;
         using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
         // -------------- added for cuda training ----------------
         using ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE = lic::rl::components::on_policy_runner::CollectionEvaluationBuffer<prl::ON_POLICY_RUNNER_SPEC>;
         using PPO_TRAINING_HYBRID_BUFFER_TYPE = lic::rl::algorithms::ppo::TrainingBuffersHybrid<prl::PPO_SPEC>;
         // -------------------------------------------------------
-        TI seed = BASE_SEED + job_seed * NUM_RUNS + run_i;
+        TI seed = BASE_SEED + job_seed * num_runs + run_i;
         std::stringstream run_name_ss;
         run_name_ss << "ppo_ant_" + std::to_string(seed);
         if(prl::PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
