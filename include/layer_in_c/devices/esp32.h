@@ -1,3 +1,5 @@
+#ifndef LAYER_IN_C_DEVICES_ESP32_H
+#define LAYER_IN_C_DEVICES_ESP32_H
 #include <layer_in_c/utils/generic/typing.h>
 #include "devices.h"
 
@@ -30,37 +32,23 @@ namespace layer_in_c::devices{
             static constexpr Type TYPE = Type::logging;
         };
     }
+    template <typename T_SPEC>
+    struct ESP32: Device<T_SPEC>, esp32::Base{
+        template <typename OTHER_DEVICE>
+        static constexpr bool compatible = OTHER_DEVICE::DEVICE == DeviceId::ESP32;
+        using SPEC = T_SPEC;
+        typename SPEC::LOGGING* logger = nullptr;
+#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
+        index_t malloc_counter = 0;
+#endif
+    };
     namespace esp32{
         template <typename T_SPEC>
-        struct Generic: Device<T_SPEC>, esp32::Base{
-            template <typename OTHER_DEVICE>
-            static constexpr bool compatible = OTHER_DEVICE::DEVICE == DeviceId::ESP32;
-            using SPEC = T_SPEC;
-            typename SPEC::LOGGING* logger = nullptr;
-#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
-            index_t malloc_counter = 0;
-#endif
-        };
+        struct Generic: ESP32<T_SPEC>{};
         template <typename T_SPEC>
-        struct DSP: Device<T_SPEC>, esp32::Base{
-            template <typename OTHER_DEVICE>
-            static constexpr bool compatible = OTHER_DEVICE::DEVICE == DeviceId::ESP32;
-            using SPEC = T_SPEC;
-            typename SPEC::LOGGING* logger = nullptr;
-#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
-            index_t malloc_counter = 0;
-#endif
-        };
+        struct DSP: ESP32<T_SPEC>{};
         template <typename T_SPEC>
-        struct OPT: Device<T_SPEC>, esp32::Base{
-            template <typename OTHER_DEVICE>
-            static constexpr bool compatible = OTHER_DEVICE::DEVICE == DeviceId::ESP32;
-            using SPEC = T_SPEC;
-            typename SPEC::LOGGING* logger = nullptr;
-#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
-            index_t malloc_counter = 0;
-#endif
-        };
+        struct OPT: ESP32<T_SPEC>{};
     }
 
     using DefaultESP32Specification = esp32::Specification<math::ESP32, random::ESP32, logging::ESP32>;
@@ -76,3 +64,5 @@ namespace layer_in_c{
 #endif
 }
 
+
+#endif
