@@ -9,6 +9,7 @@ namespace layer_in_c {
         template <typename DEV_SPEC>
         struct Device{
         };
+        // todo: deprecate the global device id and move it to the cpu devices which sometimes need compatibility checks
         enum class DeviceId{
             Generic,
             Dummy,
@@ -18,7 +19,8 @@ namespace layer_in_c {
             CPU_ACCELERATE,
             CPU_TENSORBOARD,
             CUDA,
-            ARM
+            ARM,
+            ESP32
         };
         enum class Type {
             math,
