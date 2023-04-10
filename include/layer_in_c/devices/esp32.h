@@ -6,11 +6,17 @@
 #include <cstddef>
 namespace layer_in_c::devices{
     namespace esp32{
-        template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
+        enum class Hardware{
+            DEFAULT,
+            ORIG,
+            C3
+        };
+        template <typename T_MATH, typename T_RANDOM, typename T_LOGGING, Hardware T_HARDWARE>
         struct Specification{
             using MATH = T_MATH;
             using RANDOM = T_RANDOM;
             using LOGGING = T_LOGGING;
+            static constexpr Hardware HARDWARE = T_HARDWARE;
         };
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::ESP32;
@@ -51,8 +57,9 @@ namespace layer_in_c::devices{
         struct OPT: ESP32<T_SPEC>{};
     }
 
-    using DefaultESP32Specification = esp32::Specification<math::ESP32, random::ESP32, logging::ESP32>;
-    using DefaultESP32 = esp32::OPT<DefaultESP32Specification>;
+    template <esp32::Hardware T_HARDWARE = esp32::Hardware::DEFAULT>
+    using DefaultESP32Specification = esp32::Specification<math::ESP32, random::ESP32, logging::ESP32, T_HARDWARE>;
+    using DefaultESP32 = esp32::OPT<DefaultESP32Specification<>>;
 }
 
 namespace layer_in_c{

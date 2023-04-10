@@ -56,7 +56,7 @@ using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
 
-constexpr DEVICE::index_t N_STEPS = 150000;
+constexpr DEVICE::index_t N_STEPS = 10000;
 constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
 constexpr DEVICE::index_t N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
 DTYPE evaluation_returns[N_EVALUATIONS];

@@ -13,6 +13,7 @@ namespace layer_in_c{
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
         static_assert(decltype(layer.weights.parameters)::COL_PITCH == 1);
         static_assert(decltype(layer.biases.parameters)::COL_PITCH == 1);
+        static_assert(DEV_SPEC::HARDWARE == devices::esp32::Hardware::ORIG || DEV_SPEC::HARDWARE == devices::esp32::Hardware::C3);
 
         using DEVICE = devices::esp32::DSP<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
@@ -25,7 +26,14 @@ namespace layer_in_c{
         dspm::Mat weights_mat(layer.weights.parameters._data, LAYER_SPEC::OUTPUT_DIM, LAYER_SPEC::INPUT_DIM);
         dspm::Mat output_mat(output._data, LAYER_SPEC::OUTPUT_DIM, 1);
 
-        dspm_mult_f32_ae32(layer.weights.parameters._data, input._data, output._data, LAYER_SPEC::OUTPUT_DIM, LAYER_SPEC::INPUT_DIM, 1);
+        if constexpr(DEV_SPEC::HARDWARE == devices::esp32::Hardware::ORIG){
+            dspm_mult_f32_ae32(layer.weights.parameters._data, input._data, output._data, LAYER_SPEC::OUTPUT_DIM, LAYER_SPEC::INPUT_DIM, 1);
+        }
+        else{
+            if constexpr(DEV_SPEC::HARDWARE == devices::esp32::Hardware::C3){
+                dspm_mult_f32_ansi(layer.weights.parameters._data, input._data, output._data, LAYER_SPEC::OUTPUT_DIM, LAYER_SPEC::INPUT_DIM, 1);
+            }
+        }
 
         for(TI i = 0; i < BATCH_SIZE; i++){
             for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
