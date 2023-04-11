@@ -84,6 +84,9 @@ namespace layer_in_c{
         init_weights(device, actor_critic.actor   , rng);
         init_weights(device, actor_critic.critic_1, rng);
         init_weights(device, actor_critic.critic_2, rng);
+        zero_gradient(device, actor_critic.actor);
+        zero_gradient(device, actor_critic.critic_1);
+        zero_gradient(device, actor_critic.critic_2);
         reset_optimizer_state(device, actor_critic.actor, optimizer);
         reset_optimizer_state(device, actor_critic.critic_1, optimizer);
         reset_optimizer_state(device, actor_critic.critic_2, optimizer);

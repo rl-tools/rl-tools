@@ -20,6 +20,11 @@ namespace layer_in_c {
     void free(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
         free(device, rb.data);
     }
+    template <typename DEVICE, typename SPEC>
+    void init(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
+        rb.full = false;
+        rb.position = 0;
+    }
     template <typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC>
     LAYER_IN_C_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const bool terminated, const bool truncated) {
         // todo: change to memcpy?

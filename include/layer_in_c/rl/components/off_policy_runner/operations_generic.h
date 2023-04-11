@@ -88,6 +88,7 @@ namespace layer_in_c{
     void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT envs[SPEC::N_ENVIRONMENTS]) {
         set_all(device, runner.truncated, true);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
+            init(device, runner.replay_buffers[env_i]);
             runner.envs[env_i] = envs[env_i];
         }
 #ifdef LAYER_IN_C_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT

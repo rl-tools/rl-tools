@@ -7,7 +7,7 @@ namespace lic = layer_in_c;
 #include <layer_in_c/nn/layers/dense/operations_arm/opt.h>
 //#include <layer_in_c/nn/layers/dense/operations_arm/dsp.h>
 #include <layer_in_c/nn/operations_generic.h>
-using DEVICE = lic::devices::arm::OPT<lic::devices::DefaultARMSpecification>;
+using DEVICE = lic::devices::arm::Generic<lic::devices::DefaultARMSpecification>;
 
 #include <layer_in_c/rl/environments/operations_generic.h>
 #include <layer_in_c/nn_models/operations_generic.h>
@@ -63,7 +63,7 @@ constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
 constexpr DEVICE::index_t N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
 DTYPE evaluation_returns[N_EVALUATIONS];
 
-constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 4000;
+constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 10000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
         DTYPE,
