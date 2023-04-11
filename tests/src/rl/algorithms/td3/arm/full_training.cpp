@@ -22,7 +22,7 @@ using DEVICE = lic::devices::arm::OPT<lic::devices::DefaultARMSpecification>;
 using DTYPE = float;
 using CONTAINER_TYPE_TAG = lic::MatrixDynamicTag;
 using CONTAINER_TYPE_TAG_CRITIC = lic::MatrixStaticTag;
-using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = lic::MatrixDynamicTag;
+using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = lic::MatrixStaticTag;
 using CONTAINER_TYPE_TAG_TRAINING_BUFFERS = lic::MatrixDynamicTag;
 
 using PENDULUM_SPEC = lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>;
@@ -77,7 +77,11 @@ using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specifica
         0,
         CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER
  >;
+#ifdef LAYER_IN_C_DEPLOYMENT_ARDUINO
+EXTMEM lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
+#else
 lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
+#endif
 ActorCriticType actor_critic;
 
 const DTYPE STATE_TOLERANCE = 0.00001;

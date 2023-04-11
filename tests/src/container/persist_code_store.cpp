@@ -16,7 +16,7 @@ namespace lic = layer_in_c;
 #include <filesystem>
 
 
-constexpr bool const_declaration = false;
+constexpr bool const_declaration = true;
 
 
 TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST){

@@ -107,7 +107,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     lic::reset_forward_state(device, mlp);
     lic::reset_optimizer_state(device, mlp, optimizer);
     lic::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
-    mlp_1::mlp.input_layer = mlp_1::input_layer::layer;
+    lic::copy(device, device, mlp.input_layer, mlp_1::input_layer::layer);
     auto abs_diff = lic::abs_diff(device, mlp, mlp_1::mlp);
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
