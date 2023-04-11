@@ -16,6 +16,8 @@ namespace layer_in_c::devices{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::ARM;
             using index_t = size_t;
+            static constexpr index_t MAX_INDEX = -1;
+
         };
     }
     namespace math{
@@ -44,8 +46,17 @@ namespace layer_in_c::devices{
 #endif
     };
 
+    namespace arm{
+        template <typename T_SPEC>
+        struct Generic: ARM<T_SPEC>{};
+        template <typename T_SPEC>
+        struct DSP: ARM<T_SPEC>{};
+        template <typename T_SPEC>
+        struct OPT: ARM<T_SPEC>{};
+    }
+
     using DefaultARMSpecification = arm::Specification<math::ARM, random::ARM, logging::ARM>;
-    using DefaultARM = ARM<DefaultARMSpecification>;
+    using DefaultARM = arm::OPT<DefaultARMSpecification>;
 }
 
 namespace layer_in_c{

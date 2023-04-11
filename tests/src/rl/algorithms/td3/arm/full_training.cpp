@@ -4,8 +4,10 @@
 
 namespace lic = layer_in_c;
 
+#include <layer_in_c/nn/layers/dense/operations_arm/opt.h>
+//#include <layer_in_c/nn/layers/dense/operations_arm/dsp.h>
 #include <layer_in_c/nn/operations_generic.h>
-using DEVICE = lic::devices::DefaultARM;
+using DEVICE = lic::devices::arm::OPT<lic::devices::DefaultARMSpecification>;
 
 #include <layer_in_c/rl/environments/operations_generic.h>
 #include <layer_in_c/nn_models/operations_generic.h>
@@ -216,3 +218,4 @@ void train(){
     lic::free(device, observations_mean);
     lic::free(device, observations_std);
 }
+
