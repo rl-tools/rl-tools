@@ -6,7 +6,7 @@
 #include <layer_in_c/devices/arm.h>
 
 #include <cmath>
-#include <algorithm>
+//#include <algorithm>
 
 namespace layer_in_c::math {
 
@@ -56,15 +56,18 @@ namespace layer_in_c::math {
     }
     template<typename T>
     T clamp(const devices::math::ARM&, T x, T min, T max){
-        return std::clamp(x, min, max);
+//        return std::clamp(x, min, max);
+        return x < min ? min : (x > max ? max : x);
     }
     template<typename T>
     T min(const devices::math::ARM&, T x, T y){
-        return std::min(x, y);
+//        return std::min(x, y);
+        return x < y ? x : y;
     }
     template<typename T>
     T max(const devices::math::ARM&, T x, T y){
-        return std::max(x, y);
+//        return std::max(x, y);
+        return x > y ? x : y;
     }
     template<typename T>
     T abs(const devices::math::ARM&, T x){

@@ -3,7 +3,6 @@
 
 
 #include <layer_in_c/utils/generic/typing.h>
-#include <limits>
 
 namespace layer_in_c::random{
    devices::random::ARM::index_t default_engine(const devices::random::ARM& dev, devices::random::ARM::index_t seed = 1){
@@ -34,16 +33,16 @@ namespace layer_in_c::random{
        static_assert(utils::typing::is_same_v<RNG, devices::random::ARM::index_t>);
        static_assert(utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, float>);
        next(dev, rng);
-       return (rng / next_max(dev)) * (high - low) + low;
+       return (rng / static_cast<T>(next_max(dev))) * (high - low) + low;
    }
    template<typename T, typename RNG>
    T normal_distribution(const devices::random::ARM& dev, T mean, T std, RNG& rng){
        static_assert(utils::typing::is_same_v<RNG, devices::random::ARM::index_t>);
        static_assert(utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, float>);
        next(dev, rng);
-       T u1 = rng / next_max(dev);
+       T u1 = rng / static_cast<T>(next_max(dev));
        next(dev, rng);
-       T u2 = rng / next_max(dev);
+       T u2 = rng / static_cast<T>(next_max(dev));
        T x = math::sqrt(devices::math::ARM(), -2.0 * math::log(devices::math::ARM(), u1));
        T y = 2.0 * math::PI<T> * u2;
        T z = x * math::cos(devices::math::ARM(), y);
