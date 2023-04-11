@@ -36,7 +36,8 @@ namespace lic = layer_in_c;
 
 namespace parameters = parameters_0;
 
-using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
+//using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
+using LOGGER = lic::devices::logging::CPU;
 
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
 using TI = typename lic::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
@@ -57,10 +58,10 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI BASE_SEED = 600;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-constexpr bool ENABLE_EVALUATION = true;
+constexpr bool ENABLE_EVALUATION = false;
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 
 // --------------- changed for cuda training -----------------
@@ -241,7 +242,7 @@ int main(int argc, char** argv){
                 std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
                 next_evaluation_id++;
             }
-            device.logger->step = on_policy_runner.step;
+            lic::set_step(device, device.logger, on_policy_runner.step);
 
             if(ppo_step_i % 1 == 0){
                 std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;

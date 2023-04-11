@@ -27,8 +27,12 @@ namespace layer_in_c{
         }
     }
     template <typename DEVICE>
-    void add_scalar(DEVICE& device, devices::logging::CPU* logger, const std::string key, const float value, const typename devices::logging::CPU::index_t cadence = 1){
-        //noop
-    }
+    void set_step(DEVICE& device, devices::logging::CPU* logger, typename DEVICE::index_t step){ /* noop */ }
+    template <typename DEVICE>
+    void construct(DEVICE& device, devices::logging::CPU* logger, ...){ /* noop */ }
+    template <typename DEVICE>
+    void add_histogram(DEVICE& device, devices::logging::CPU* logger, ...){ /* noop */ }
+    template <typename DEVICE>
+    void add_scalar(DEVICE& device, devices::logging::CPU* logger, ...){ /* noop */ }
 }
 #endif
