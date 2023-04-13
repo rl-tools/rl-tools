@@ -5,6 +5,6 @@ pwd
 set -e
 while true
 do
-  sudo time nice -n -20 cmake-build-release/tests/src/rl/environments/mujoco/ant/cuda/test_rl_environments_mujoco_ant_training_ppo_cuda 2>> $SCRIPT_DIR/benchmark_results.txt
+  sudo time nice -n -20 $SCRIPT_DIR/build/tests/src/rl/environments/mujoco/ant/cuda/test_rl_environments_mujoco_ant_training_ppo_cuda 2>> $SCRIPT_DIR/benchmark_results.txt
   sleep 1
 done

@@ -41,7 +41,7 @@ function(LAYER_IN_C_TARGET_LINK_BLAS target)
 endfunction()
 
 if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
-    set(LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES "all")
+    set(LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES "native")
     find_package(CUDAToolkit REQUIRED)
     message(STATUS "CUDA version: ${CUDA_VERSION}")
     message(STATUS "CUDA include path: ${CUDA_INCLUDE_DIRS}")
