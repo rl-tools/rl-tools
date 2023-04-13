@@ -28,11 +28,11 @@ namespace layer_in_c{
         using BUFFER = rl::components::on_policy_runner::Dataset<SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        TI prologue_time = 0;
-        TI copy_observations_time = 0;
-        TI evaluate_time = 0;
-        TI copy_back_time = 0;
-        TI epilogue_time = 0;
+//        TI prologue_time = 0;
+//        TI copy_observations_time = 0;
+//        TI evaluate_time = 0;
+//        TI copy_back_time = 0;
+//        TI epilogue_time = 0;
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
             auto actions_mean            = view(device, dataset.actions_mean           , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto actions                 = view(device, dataset.actions                , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
@@ -40,44 +40,44 @@ namespace layer_in_c{
             auto observations_normalized = view(device, dataset.observations_normalized, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
             {
-                auto start = std::chrono::high_resolution_clock::now();
+//                auto start = std::chrono::high_resolution_clock::now();
                 rl::components::on_policy_runner::prologue(device, observations, observations_normalized, runner, observations_mean, observations_std, rng, step_i);
-                auto end = std::chrono::high_resolution_clock::now();
-                prologue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+//                auto end = std::chrono::high_resolution_clock::now();
+//                prologue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
             {
-                auto start = std::chrono::high_resolution_clock::now();
+//                auto start = std::chrono::high_resolution_clock::now();
                 copy(device_evaluation, device, evaluation_buffer_evaluation.observations, observations_normalized);
-                auto end = std::chrono::high_resolution_clock::now();
-                copy_observations_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+//                auto end = std::chrono::high_resolution_clock::now();
+//                copy_observations_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
             {
-                auto start = std::chrono::high_resolution_clock::now();
+//                auto start = std::chrono::high_resolution_clock::now();
                 evaluate(device_evaluation, actor_evaluation, evaluation_buffer_evaluation.observations, evaluation_buffer_evaluation.actions, policy_eval_buffers);
                 cudaDeviceSynchronize();
-                auto end = std::chrono::high_resolution_clock::now();
-                evaluate_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+//                auto end = std::chrono::high_resolution_clock::now();
+//                evaluate_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
             {
 
-                auto start = std::chrono::high_resolution_clock::now();
+//                auto start = std::chrono::high_resolution_clock::now();
                 copy(device, device_evaluation, evaluation_buffer.actions, evaluation_buffer_evaluation.actions);
                 copy(device, device, actions_mean, evaluation_buffer.actions);
-                auto end = std::chrono::high_resolution_clock::now();
-                copy_back_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+//                auto end = std::chrono::high_resolution_clock::now();
+//                copy_back_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
             {
-                auto start = std::chrono::high_resolution_clock::now();
+//                auto start = std::chrono::high_resolution_clock::now();
                 rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, actor.log_std.parameters, rng, step_i);
-                auto end = std::chrono::high_resolution_clock::now();
-                epilogue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+//                auto end = std::chrono::high_resolution_clock::now();
+//                epilogue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
         }
-        std::cout << "prologue_time: " << prologue_time << std::endl;
-        std::cout << "copy_observations_time: " << copy_observations_time << std::endl;
-        std::cout << "evaluate_time: " << evaluate_time << std::endl;
-        std::cout << "copy_back_time: " << copy_back_time << std::endl;
-        std::cout << "epilogue_time: " << epilogue_time << std::endl;
+//        std::cout << "prologue_time: " << prologue_time << std::endl;
+//        std::cout << "copy_observations_time: " << copy_observations_time << std::endl;
+//        std::cout << "evaluate_time: " << evaluate_time << std::endl;
+//        std::cout << "copy_back_time: " << copy_back_time << std::endl;
+//        std::cout << "epilogue_time: " << epilogue_time << std::endl;
 
         // final observation
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){

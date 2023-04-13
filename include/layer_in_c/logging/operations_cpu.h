@@ -28,8 +28,10 @@ namespace layer_in_c{
     }
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::CPU* logger, typename DEVICE::index_t step){ /* noop */ }
+    template <typename DEVICE, typename ARG_1, typename ARG_2>
+    void construct(DEVICE& device, devices::logging::CPU* logger, ARG_1, ARG_2){ /* noop */ }
     template <typename DEVICE>
-    void construct(DEVICE& device, devices::logging::CPU* logger, ...){ /* noop */ }
+    void construct(DEVICE& device, devices::logging::CPU* logger){ /* noop */ }
     template <typename DEVICE>
     void add_histogram(DEVICE& device, devices::logging::CPU* logger, ...){ /* noop */ }
     template <typename DEVICE>

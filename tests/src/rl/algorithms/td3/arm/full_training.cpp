@@ -163,7 +163,7 @@ void train(){
     for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 #ifdef LAYER_IN_C_DEPLOYMENT_ARDUINO
-        if(step_i % 10 == 0){
+        if(step_i % 100 == 0){
             Serial.printf("step: %d\n", step_i);
 #else
         if(step_i % 1000 == 0){

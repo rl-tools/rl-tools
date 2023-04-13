@@ -1,6 +1,5 @@
 
 project(test_rl_environments_mujoco_ant_cuda LANGUAGES CUDA)
-find_package(CUDAToolkit REQUIRED)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD  17)
 set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})

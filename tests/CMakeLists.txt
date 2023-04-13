@@ -56,11 +56,15 @@ add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
 
 add_subdirectory(src/rl/environments/mujoco/ant)
 
-find_package(Eigen3 REQUIRED)
-#find_package(OpenMP REQUIRED)
-find_package(Boost REQUIRED)
 
-#find_package(CUDAToolkit REQUIRED)
+if(LAYER_IN_C_TESTS_ENABLE_EIGEN)
+find_package(Eigen3 REQUIRED)
+endif()
+#find_package(OpenMP REQUIRED)
+if(LAYER_IN_C_TESTS_ENABLE_UI)
+find_package(Boost REQUIRED)
+endif()
+
 
 if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
 #    set(CUTLASS_ENABLE_CUBLAS ON)
@@ -204,7 +208,7 @@ gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
 # RL Algorithm td3 test full training
 add_executable(
         test_rl_algorithms_td3_full_training_debug
-        src/rl/algorithms/td3/full_training.cpp
+        src/rl/algorithms/td3/full_training_test.cpp
 )
 target_link_libraries(
         test_rl_algorithms_td3_full_training_debug
@@ -238,7 +242,7 @@ gtest_discover_tests(test_rl_algorithms_td3_full_training_debug)
 # RL Algorithm td3 test full training
 add_executable(
         test_rl_algorithms_td3_full_training
-        src/rl/algorithms/td3/full_training.cpp
+        src/rl/algorithms/td3/full_training_test.cpp
 )
 target_link_libraries(
         test_rl_algorithms_td3_full_training
@@ -249,6 +253,19 @@ target_link_libraries(
 )
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training)
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
+
+# RL Algorithm td3 test full training standalone
+add_executable(
+        test_rl_algorithms_td3_full_training_standalone
+        src/rl/algorithms/td3/full_training_standalone.cpp
+)
+target_link_libraries(
+        test_rl_algorithms_td3_full_training_standalone
+        PRIVATE
+        layer_in_c
+        tensorboard_logger
+)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training_standalone)
 
 # RL Algorithm td3 test full training dummy dependencies compilation without any deps
 add_executable(
@@ -326,7 +343,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
         tensorboard_logger
-        Boost::headers
+#        Boost::headers
 )
 LAYER_IN_C_TARGET_LINK_BLAS(${TARGET})
 target_include_directories(
@@ -362,6 +379,7 @@ gtest_discover_tests(test_neural_network_conversions)
 
 
 
+if(LAYER_IN_C_TESTS_ENABLE_EIGEN)
 add_executable(
         test_neural_network_benchmark
         src/nn/benchmark.cpp
@@ -376,6 +394,7 @@ target_link_libraries(
 )
 LAYER_IN_C_TARGET_LINK_BLAS(test_neural_network_benchmark)
 gtest_discover_tests(test_neural_network_benchmark)
+endif()
 
 # Multirotor UI test
 if(${LAYER_IN_C_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE})

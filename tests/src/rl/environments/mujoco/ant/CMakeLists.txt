@@ -1,4 +1,7 @@
+
+if(LAYER_IN_C_TESTS_ENABLE_UI)
 find_package(glfw3 REQUIRED)
+endif()
 
 add_executable(
     test_rl_environments_mujoco_ant
@@ -34,6 +37,7 @@ gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_td3)
 
+if(LAYER_IN_C_TESTS_ENABLE_UI)
 add_executable(
         test_rl_environments_mujoco_ant_ui
         ui.cpp
@@ -51,6 +55,7 @@ target_link_libraries(
 gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
 LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_ui)
+endif()
 
 add_executable(
         test_rl_environments_mujoco_ant_evaluation_td3

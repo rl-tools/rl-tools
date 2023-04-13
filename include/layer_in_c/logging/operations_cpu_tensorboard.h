@@ -30,7 +30,7 @@ namespace layer_in_c{
         char buf[sizeof "0000-00-00T00:00:00Z"];
         strftime(buf, sizeof buf, "%FT%TZ", localtime(&now));
 
-        construct(device, logger, std::string(buf));
+        construct(device, logger, std::string("logs"), std::string(buf));
     }
     template <typename DEVICE>
     void destruct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger){

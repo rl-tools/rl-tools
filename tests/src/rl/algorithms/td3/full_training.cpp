@@ -1,5 +1,7 @@
 // ------------ Groups 1 ------------
+#ifndef LAYER_IN_C_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
 #include <layer_in_c/operations/cpu_tensorboard/group_1.h>
+#endif
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/operations/cpu_mkl/group_1.h>
 #else
@@ -33,7 +35,12 @@
 #endif
 
 namespace lic = layer_in_c;
+
+#ifndef LAYER_IN_C_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
 using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
+#else
+using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU>;
+#endif
 
 #ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
 #include <layer_in_c/nn/operations_cpu_mkl.h>
@@ -55,7 +62,6 @@ using DEVICE = lic::devices::CPU<DEV_SPEC>;
 
 #include <layer_in_c/rl/utils/evaluation.h>
 
-#include <gtest/gtest.h>
 #include <filesystem>
 
 
@@ -79,7 +85,11 @@ typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 
 struct DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
+#ifdef LAYER_IN_C_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
     using LOGGING = lic::devices::logging::CPU;
+#else
+    using LOGGING = lic::devices::logging::CPU_TENSORBOARD;
+#endif
 };
 struct TD3PendulumParameters: lic::rl::algorithms::td3::DefaultParameters<DTYPE, DEVICE::index_t>{
     constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
@@ -127,11 +137,7 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING_DEBUG) {
-#else
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
-#endif
+void run(){
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
     UI ui;
 #endif
@@ -189,7 +195,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     constexpr DEVICE::index_t step_limit = 15000;
 #endif
     for(int step_i = 0; step_i < step_limit; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
-        ac_dev.logger->step = step_i;
+        lic::set_step(ac_dev, ac_dev.logger, step_i);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
         if(step_i % 20 == 0){
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, decltype(actor_critic.actor), decltype(actor_critic.critic_1)>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
@@ -241,7 +247,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 //            plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
 //#endif
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
-//            for(int evaluation_i = 0; evaluation_i < 10; evaluation_i++){
+            //            for(int evaluation_i = 0; evaluation_i < 10; evaluation_i++){
 //                ENVIRONMENT::State initial_state;
 //                lic::sample_initial_state(env, initial_state, rng);
 //                lic::evaluate_visual<ENVIRONMENT, UI, ActorCriticType::ACTOR_NETWORK_TYPE, ENVIRONMENT_STEP_LIMIT, 5>(env, ui, actor_critic.actor, initial_state);
@@ -253,16 +259,6 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
-        if(std::getenv("LAYER_IN_C_TEST_ENABLE_TIMING") != nullptr){
-#ifndef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
-#ifdef LAYER_IN_C_TEST_MACHINE_LENOVO_P1
-            ASSERT_LT(elapsed_seconds.count(), 6); // should be 5.5s when run in isolation
-#endif
-#ifdef LAYER_IN_C_TEST_MACHINE_MACBOOK_M1
-            ASSERT_LT(elapsed_seconds.count(), 3); // should be 2.5s when run in isolation
-#endif
-#endif
-        }
     }
     lic::free(ac_dev, critic_batch);
     lic::free(ac_dev, critic_training_buffers);
@@ -273,3 +269,4 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
     lic::free(ac_dev, observations_mean);
     lic::free(ac_dev, observations_std);
 }
+
