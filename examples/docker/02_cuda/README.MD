@@ -6,7 +6,6 @@ cmake --build . --target test_rl_environments_mujoco_ant_training_ppo_cuda -j$(n
 ```
 Moving to the src folder (so that the Ant-v4 env can find the xml file, if it can't be found MuJoCo will segfault)
 ```
-cd /backprop_tools/
-nice -n -20 /build/tests/src/rl/environments/mujoco/ant/cuda/test_rl_environments_mujoco_ant_training_ppo_cuda
+cd /backprop_tools/; nice -n -20 /build/tests/src/rl/environments/mujoco/ant/cuda/test_rl_environments_mujoco_ant_training_ppo_cuda
 tensorboard --logdir logs --bind_all
 ```
