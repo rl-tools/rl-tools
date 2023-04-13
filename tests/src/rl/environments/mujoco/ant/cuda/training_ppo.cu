@@ -82,7 +82,9 @@ int main(int argc, char** argv){
         CLI11_PARSE(app, argc, argv);
     }
     std::string actor_checkpoints_dir = actor_checkpoints_dir_stub + "/ppo_ant";
-    std::cout << "Saving actor checkpoints to: " << actor_checkpoints_dir << std::endl;
+    if (ACTOR_ENABLE_CHECKPOINTS){
+        std::cout << "Saving actor checkpoints to: " << actor_checkpoints_dir << std::endl;
+    }
 // -------------------------------------------------------
     for(TI run_i = 0; run_i < num_runs; ++run_i){
         using penv = parameters::environment<double, TI>;
@@ -247,14 +249,6 @@ int main(int argc, char** argv){
             }
             lic::set_step(device, device.logger, on_policy_runner.step);
 
-            if(ppo_step_i % 1 == 0){
-                std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;
-                T steps_per_second = on_policy_runner.step / training_elapsed.count();
-                std::cout << "PPO step: " << ppo_step_i << " elapsed: " << training_elapsed.count() << "s (" << steps_per_second << " steps/s)" << std::endl;
-//                lic::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
-//                lic::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
-//                lic::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);
-            }
 //            for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
 //                T action_log_std = lic::get(ppo.actor.log_std.parameters, 0, action_i);
 //                std::stringstream topic;
@@ -262,6 +256,7 @@ int main(int argc, char** argv){
 //                lic::add_scalar(device, device.logger, topic.str(), lic::math::exp(DEVICE::SPEC::MATH(), action_log_std));
 //            }
 //            auto start = std::chrono::high_resolution_clock::now();
+            auto training_step_start = std::chrono::high_resolution_clock::now();
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
@@ -301,13 +296,24 @@ int main(int argc, char** argv){
                 // -------------- replaced for cuda training ----------------
                 lic::train_hybrid(device, device_gpu, ppo, ppo_gpu, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, ppo_training_hybrid_buffer_gpu, actor_buffers, critic_buffers, rng);
                 // ----------------------------------------------------------
-                auto end = std::chrono::high_resolution_clock::now();
+//                auto end = std::chrono::high_resolution_clock::now();
 //                std::chrono::duration<T> elapsed = end - start;
 //                std::cout << "Train: " << elapsed.count() << " s" << std::endl;
             }
-            auto end = std::chrono::high_resolution_clock::now();
+//            auto end = std::chrono::high_resolution_clock::now();
 //            std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "Total: " << elapsed.count() << " s" << std::endl;
+            if(ppo_step_i % 1 == 0){
+                auto now = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<T> training_elapsed = now - training_start;
+                std::chrono::duration<T> step_elapsed = now - training_step_start;
+                T steps_per_second_lifetime = on_policy_runner.step / training_elapsed.count();
+                T steps_per_second_current = prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS * prl::ON_POLICY_RUNNER_STEPS_PER_ENV / step_elapsed.count();
+                std::cout << "PPO step: " << std::setw(10) << ppo_step_i << " elapsed: " << std::setw(10) << std::setprecision(2) << training_elapsed.count() << "s (lifetime: " << std::setw(10) << std::setprecision(2) << steps_per_second_lifetime << " steps/s, current: " << std::setw(10) << std::setprecision(2) << steps_per_second_current << " steps/s)" << std::endl;
+//                lic::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
+//                lic::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
+//                lic::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);
+            }
         }
 
         lic::free(device, ppo);
