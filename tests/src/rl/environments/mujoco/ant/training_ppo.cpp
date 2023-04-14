@@ -122,7 +122,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         lic::init(device, observation_normalizer);
         lic::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         device.logger = &logger;
-        lic::construct(device, device.logger, run_name);
+        lic::construct(device, device.logger, std::string("logs"), run_name);
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {

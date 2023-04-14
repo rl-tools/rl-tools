@@ -6,11 +6,11 @@ project(layer_in_c_rl_algorithms_td3_wasm)
 #set(emscripten_system_libs ON)
 add_executable(
         test_rl_algorithms_td3_wasm_full_training
-#        full_training.cpp
-        test.cpp
+        full_training.cpp
+#        test.cpp
 )
-#target_include_directories(
-#        test_rl_algorithms_td3_wasm_full_training
-#        PRIVATE
-#        ../../../../../../include
-#)
+target_link_libraries(
+        test_rl_algorithms_td3_wasm_full_training
+        PRIVATE
+        layer_in_c
+)

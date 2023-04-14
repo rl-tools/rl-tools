@@ -10,9 +10,13 @@ using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #include <layer_in_c/nn_models/operations_generic.h>
 #include <layer_in_c/rl/operations_generic.h>
 
-//#include <layer_in_c/rl/utils/evaluation.h>
+
+#define LAYER_IN_C_ENABLE_EVALUATION
+#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#include <layer_in_c/rl/utils/evaluation.h>
+#endif
 #include <chrono>
-#include <emscripten.h>
+
 
 using DTYPE = float;
 
@@ -91,6 +95,7 @@ int main(){
     lic::rl::components::off_policy_runner::Batch<lic::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
     lic::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
     CRITIC_NETWORK_TYPE::BuffersForwardBackward<ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
     lic::malloc(ac_dev, critic_batch);
     lic::malloc(ac_dev, critic_training_buffers);
     lic::malloc(ac_dev, critic_buffers[0]);
@@ -106,13 +111,19 @@ int main(){
     lic::malloc(ac_dev, actor_buffers[0]);
     lic::malloc(ac_dev, actor_buffers[1]);
 
+    lic::malloc(ac_dev, observations_mean);
+    lic::malloc(ac_dev, observations_std);
+
+    lic::set_all(ac_dev, observations_mean, 0);
+    lic::set_all(ac_dev, observations_std, 0);
+
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
     constexpr DEVICE::index_t step_limit = 15000;
     for(int step_i = 0; step_i < step_limit; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         lic::step(ac_dev, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
-        if(step_i % 1 == 0){
+        if(step_i % 1000 == 0){
             auto current_time = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed_seconds = current_time - start_time;
             std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
@@ -135,10 +146,12 @@ int main(){
                 lic::update_actor_target(ac_dev, actor_critic);
             }
         }
-//        if(step_i % 1000 == 0){
-//            auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<1, ENVIRONMENT_STEP_LIMIT>(), rng, true);
-//            std::cout << "Mean return: " << result.mean << std::endl;
-//        }
+#ifdef LAYER_IN_C_ENABLE_EVALUATION
+        if(step_i % 1000 == 0){
+            auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<1, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, rng, true);
+            std::cout << "Mean return: " << result.mean << std::endl;
+        }
+#endif
     }
     {
         auto current_time = std::chrono::high_resolution_clock::now();
@@ -151,4 +164,6 @@ int main(){
     lic::free(ac_dev, actor_training_buffers);
     lic::free(ac_dev, off_policy_runner);
     lic::free(ac_dev, actor_critic);
+    lic::free(ac_dev, observations_mean);
+    lic::free(ac_dev, observations_std);
 }
