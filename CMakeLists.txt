@@ -50,6 +50,8 @@ if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
     add_compile_definitions(LAYER_IN_C_BACKEND_ENABLE_CUDA)
 endif()
 
+# todo: upgrade tensorboard and highfive to the main lib folder
+
 if(LAYER_IN_C_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     set(MUJOCO_BUILD_EXAMPLES OFF)
     set(MUJOCO_BUILD_SIMULATE OFF)

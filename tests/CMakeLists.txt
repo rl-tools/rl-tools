@@ -51,8 +51,13 @@ include(GoogleTest)
 if(NOT APPLE)
 #    add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
 endif()
+
+if(LAYER_IN_C_ENABLE_HDF5)
 add_subdirectory(lib/highfive EXCLUDE_FROM_ALL)
+endif()
+if(LAYER_IN_C_ENABLE_TENSORBOARD)
 add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
+endif()
 
 add_subdirectory(src/rl/environments/mujoco/ant)
 
@@ -73,6 +78,20 @@ if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
     add_subdirectory(src/rl/cuda)
 endif()
 
+# RL Algorithm td3 test full training standalone
+add_executable(
+        test_rl_algorithms_td3_full_training_standalone
+        src/rl/algorithms/td3/full_training_standalone.cpp
+)
+target_link_libraries(
+        test_rl_algorithms_td3_full_training_standalone
+        PRIVATE
+        layer_in_c
+)
+LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training_standalone)
+target_compile_definitions(test_rl_algorithms_td3_full_training_standalone PRIVATE LAYER_IN_C_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD)
+
+if(LAYER_IN_C_ENABLE_HDF5 AND LAYER_IN_C_ENABLE_TENSORBOARD)
 # Neural Network Test MLP
 add_executable(
         test_neural_network_mlp
@@ -253,19 +272,6 @@ target_link_libraries(
 )
 LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training)
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
-
-# RL Algorithm td3 test full training standalone
-add_executable(
-        test_rl_algorithms_td3_full_training_standalone
-        src/rl/algorithms/td3/full_training_standalone.cpp
-)
-target_link_libraries(
-        test_rl_algorithms_td3_full_training_standalone
-        PRIVATE
-        layer_in_c
-        tensorboard_logger
-)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training_standalone)
 
 # RL Algorithm td3 test full training dummy dependencies compilation without any deps
 add_executable(
@@ -535,3 +541,4 @@ LAYER_IN_C_TARGET_LINK_BLAS(test_rl_components_running_normalizer)
 add_subdirectory(src/rl/algorithms/td3/wasm)
 add_subdirectory(src/rl/algorithms/td3/arm)
 add_subdirectory(src/random)
+endif()

@@ -119,8 +119,13 @@ using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRI
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
+#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
+constexpr DEVICE::index_t STEP_LIMIT = 1000;
+#else
+constexpr DEVICE::index_t STEP_LIMIT = 10000;
+#endif
 
-constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
+constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
 using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
         DTYPE,
@@ -189,12 +194,7 @@ void run(){
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
-    constexpr DEVICE::index_t step_limit = 1000;
-#else
-    constexpr DEVICE::index_t step_limit = 15000;
-#endif
-    for(int step_i = 0; step_i < step_limit; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
+    for(int step_i = 0; step_i < STEP_LIMIT; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         lic::set_step(ac_dev, ac_dev.logger, step_i);
 #ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
         if(step_i % 20 == 0){
