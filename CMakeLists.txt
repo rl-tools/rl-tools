@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.16)
 project(layer_in_c)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+
+message("Build type: ${CMAKE_BUILD_TYPE}")
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+endif()
 message("C++ Compiler: ${CMAKE_CXX_COMPILER}")
 
 option(LAYER_IN_C_ENABLE_TESTS "Build the unit tests when enabled." off)
@@ -11,7 +15,7 @@ option(LAYER_IN_C_ENABLE_TESTS "Build the unit tests when enabled." off)
 option(LAYER_IN_C_BACKEND_ENABLE_MKL "Enable the MKL gemm library, only available on Intel CPUs" OFF)
 option(LAYER_IN_C_BACKEND_ENABLE_ACCELERATE "Enable the Accelerate gemm library, only available on Apple CPUs" OFF)
 option(LAYER_IN_C_BACKEND_ENABLE_CUDA "Enable Nvidia CUDA" OFF)
-option(LAYER_IN_C_BACKEND_ENABLE_MUJOCO "Enable MuJoCo" OFF)
+option(LAYER_IN_C_RL_ENVIRONMENTS_ENABLE_MUJOCO "Enable MuJoCo" OFF)
 
 
 add_library(layer_in_c INTERFACE)

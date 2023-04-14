@@ -9,8 +9,8 @@ add_executable(
 #        full_training.cpp
         test.cpp
 )
-#target_include_directories(
-#        test_rl_algorithms_td3_wasm_full_training
-#        PRIVATE
-#        ../../../../../../include
-#)
+target_link_libraries(
+        test_rl_algorithms_td3_wasm_full_training
+        PRIVATE
+        layer_in_c
+)
