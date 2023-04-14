@@ -115,7 +115,7 @@ int main(){
     lic::malloc(ac_dev, observations_std);
 
     lic::set_all(ac_dev, observations_mean, 0);
-    lic::set_all(ac_dev, observations_std, 0);
+    lic::set_all(ac_dev, observations_std, 1);
 
 
     auto start_time = std::chrono::high_resolution_clock::now();
