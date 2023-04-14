@@ -27,7 +27,7 @@ namespace layer_in_c::devices{
         };
     }
     template <typename T_SPEC>
-    struct Dummy: dummy::Base{
+    struct Dummy: Device<T_SPEC>, dummy::Base{
         template <typename OTHER_DEVICE>
         static constexpr bool compatible = utils::typing::is_same_v<OTHER_DEVICE, Dummy<T_SPEC>>;
         using SPEC = T_SPEC;

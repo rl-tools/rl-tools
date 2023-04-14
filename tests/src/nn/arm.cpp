@@ -6,7 +6,7 @@
 #include <layer_in_c/operations/arm/group_3.h>
 
 #include <layer_in_c/containers/persist_code.h>
-#include <layer_in_c/nn/layers/dense/operations_arm.h>
+#include <layer_in_c/nn/layers/dense/operations_arm/opt.h>
 #include <layer_in_c/nn/layers/dense/operations_cpu.h>
 #include <layer_in_c/nn_models/mlp/operations_cpu.h>
 #include <layer_in_c/nn_models/mlp/operations_generic.h>
@@ -29,7 +29,7 @@ void test_mlp_evaluate() {
     DEVICE device;
     DEVICE_ARM device_arm;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    using STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_HIDDEN_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_HIDDEN_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1, lic::MatrixDynamicTag, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
     using SPEC = lic::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>;
     lic::nn_models::mlp::NeuralNetwork<SPEC> mlp;
     lic::malloc(device, mlp);
@@ -68,7 +68,7 @@ void test_mlp_forward() {
     DEVICE device;
     DEVICE_ARM device_arm;
     auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM());
-    using STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_HIDDEN_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_HIDDEN_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1,  lic::MatrixDynamicTag, true, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
     using SPEC = lic::nn_models::mlp::BackwardGradientSpecification<STRUCTURE_SPEC>;
     using TYPE = lic::nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>;
     using FORWARD_BACKWARD_BUFFERS = typename TYPE::template BuffersForwardBackward<BATCH_SIZE>;
