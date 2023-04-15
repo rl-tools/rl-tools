@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Animated Line Chart with Chart.js</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<canvas id="myChart"></canvas>
+
+<script>
+
+    const ctx = document.getElementById('myChart').getContext('2d');
+
+    const data = {
+        labels: [], // The labels will be added dynamically
+        datasets: [{
+            label: 'Rewards',
+            backgroundColor: 'rgba(255, 0, 0, 0.2)',
+            borderColor: 'red',
+            data: [], // The data will be added dynamically
+            borderWidth: 2,
+            fill: 'start'
+        }]
+    };
+
+    const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+            duration: 0 // Disable the animation initially
+        },
+        scales: {
+            xAxes: [{
+                display: true,
+                gridLines: {
+                    display: false
+                }
+            }],
+            yAxes: [{
+                display: true,
+                gridLines: {
+                    display: false
+                },
+                ticks: {
+                    beginAtZero: true,
+                    suggestedMax: 100 // Set the maximum value for the y-axis
+                }
+            }]
+        }
+    };
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: data,
+        options: options
+    });
+
+    let rewards = [0, 50, 20, 80, 30, 90, 60]; // Sample rewards data
+    let time = 0; // The initial time
+    const interval = setInterval(() => {
+        if (time >= rewards.length) {
+            clearInterval(interval); // Stop the interval once all the data points have been plotted
+            return;
+        }
+
+        chart.data.labels.push(`Time ${time + 1}`);
+        chart.data.datasets[0].data.push(rewards[time]);
+
+        chart.update({
+            duration: 1000, // Set the duration of the animation for the chart update
+            easing: 'easeOutBounce' // Set the easing for the animation for the chart update
+        });
+
+        time++;
+    }, 1000); // Update the chart every second
+
+</script>
+</body>
+</html>

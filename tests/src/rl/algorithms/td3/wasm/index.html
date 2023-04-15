@@ -4,23 +4,82 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BackpropTools: Pendulum-v1 (TD3)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <link rel="stylesheet" href="benchmark.css">
 <script type="module">
+    const returns_chart_ctx = document.getElementById('returns-chart').getContext('2d');
+
+    const data = {
+        labels: [],
+        datasets: [{
+            label: 'Rewards',
+            backgroundColor: 'rgba(255, 0, 0, 0.2)',
+            borderColor: 'red',
+            data: [],
+            borderWidth: 2,
+            fill: 'start'
+        }]
+    };
+
+    const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+            duration: 0
+        },
+        scales: {
+            xAxes: [{
+                display: true,
+                gridLines: {
+                    display: false
+                }
+            }],
+            yAxes: [{
+                display: true,
+                gridLines: {
+                    display: false
+                },
+                ticks: {
+                    beginAtZero: true,
+                    suggestedMax: 100
+                }
+            }]
+        }
+    };
+
+    const returns_chart = new Chart(returns_chart_ctx, {
+        type: 'line',
+        data: data,
+        options: options
+    });
+
+    let rewards = [0, 50, 20, 80, 30, 90, 60];
+    let time = 0;
+    const interval = setInterval(() => {
+        if (time >= rewards.length) {
+            clearInterval(interval);
+            return;
+        }
+
+
+        time++;
+    }, 1000);
+
+    const terminalOutput = document.getElementById("terminal-output");
+    function appendToTerminal(text) {
+        terminalOutput.textContent += text + "\n";
+    }
+    const pendulum = document.getElementById("pendulum");
+    let pendulum_transform_default = getComputedStyle(pendulum).transform;
+    console.log("Default transform: ", pendulum_transform_default)
+
+    function setPendulumAngle(angle) {
+        pendulum.style.transform = `${pendulum_transform_default} rotate(${angle - Math.PI}rad)`;
+    }
+
     let async_main = (async () => {
-        const terminalOutput = document.getElementById("terminal-output");
-        function appendToTerminal(text) {
-            terminalOutput.textContent += text + "\n";
-        }
-        const pendulum = document.getElementById("pendulum");
-        let pendulum_transform_default = getComputedStyle(pendulum).transform;
-        console.log("Default transform: ", pendulum_transform_default)
-
-        function setPendulumAngle(angle) {
-            pendulum.style.transform = `${pendulum_transform_default} rotate(${angle - Math.PI}rad)`;
-        }
-
         const worker = new Worker('training_worker.js', {type: "module"});
         worker.addEventListener("error", (error) => {
             console.error("An error occurred in the Web Worker:", error);
@@ -73,6 +132,12 @@
                         appendToTerminal("Step: " + answer.step);
                     }
                     setPendulumAngle(state[0])
+                    returns_chart.data.labels.push(answer.step);
+                    returns_chart.data.datasets[0].data.push(state[0]);
+                    returns_chart.update({
+                        duration: 1000,
+                        easing: 'easeOutBounce'
+                    });
                 }
             }
             else{
@@ -104,6 +169,9 @@
     </div>
     <div class="controls-container">
         <input type="button" value="Start training" id="training-button">
+    </div>
+    <div class="returns-chart-container">
+        <canvas id="returns-chart"></canvas>
     </div>
     <div id="terminal-container">
         <div id="terminal">
