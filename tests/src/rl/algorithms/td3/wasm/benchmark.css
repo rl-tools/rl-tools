@@ -1,16 +1,59 @@
 body {
+    display: flex;
+    justify-content: center;
+    /*align-items: center;*/
+    height: 100%;
+    min-height: 100vh;
     margin: 0;
-    padding: 0;
-    font-family: monospace;
-    background-color: #000;
+    background-color: #f0f0f0;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+    height: 100%;
+}
+
+.pendulum-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 350px; /* Adjusted height to accommodate full pendulum rotation */
+    position: relative;
+    width: 100%;
+}
+
+.pendulum {
+    position: absolute;
+    top: 50%; /* Position the pendulum at the center of the container */
+    transform-origin: top center;
+    width: 4px;
+    height: 150px;
+    background-color: #333;
+}
+
+.pendulum:before {
+    content: "";
+    position: absolute;
+    bottom: -10px;
+    left: -10px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #333;
 }
 
 #terminal {
+    font-family: monospace;
     padding: 10px;
     color: #00ff00;
     background-color: #000;
+    min-width: 900px;
 }
 
 #terminal-output {
     margin: 0;
 }
+

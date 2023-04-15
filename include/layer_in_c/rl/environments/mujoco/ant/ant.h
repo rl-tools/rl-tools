@@ -33,6 +33,8 @@ namespace layer_in_c::rl::environments::mujoco{
         template <typename SPEC>
         struct State{
             using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            static constexpr TI DIM = SPEC::STATE_DIM_Q + SPEC::STATE_DIM_Q_DOT;
             T q[SPEC::STATE_DIM_Q];
             T q_dot[SPEC::STATE_DIM_Q_DOT];
         };

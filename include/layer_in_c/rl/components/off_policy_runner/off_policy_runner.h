@@ -110,6 +110,7 @@ namespace layer_in_c::rl::components{
 
         off_policy_runner::Buffers<SPEC> buffers;
 
+        // todo: change to "environments"
         ENVIRONMENT envs[N_ENVIRONMENTS];
         off_policy_runner::EpisodeStats<SPEC> episode_stats[N_ENVIRONMENTS];
         REPLAY_BUFFER_TYPE replay_buffers[N_ENVIRONMENTS];

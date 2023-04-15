@@ -6,11 +6,17 @@
     <title>BackpropTools: Pendulum-v1 (TD3)</title>
 </head>
 <body>
+<link rel="stylesheet" href="benchmark.css">
 <script type="module">
     let async_main = (async () => {
         const terminalOutput = document.getElementById("terminal-output");
         function appendToTerminal(text) {
             terminalOutput.textContent += text + "\n";
+        }
+        const pendulum = document.getElementById("pendulum");
+
+        function setPendulumAngle(angle) {
+            pendulum.style.transform = `rotate(${angle - Math.PI}rad)`;
         }
 
         const worker = new Worker('training_worker.js', {type: "module"});
@@ -18,17 +24,17 @@
             console.error("An error occurred in the Web Worker:", error);
         });
 
-        worker.addEventListener("message", (event) => {
-            if (event.data.type) {
-                if(event.data.payload){
-                    appendToTerminal(event.data.type + ": " + JSON.stringify(event.data.payload));
-                }
-                else{
-                    appendToTerminal(event.data.type);
-                }
-            }
-            console.log("Message from worker", event.data);
-        });
+        // worker.addEventListener("message", (event) => {
+        //     if (event.data.type) {
+        //         if(event.data.payload){
+        //             appendToTerminal(event.data.type + ": " + JSON.stringify(event.data.payload));
+        //         }
+        //         else{
+        //             appendToTerminal(event.data.type);
+        //         }
+        //     }
+        //     console.log("Message from worker", event.data);
+        // });
         function sendMessageToWorker(type, payload) {
             return new Promise((resolve, reject) => {
                 const id = Math.random().toString(36); // Generate a unique ID for the message
@@ -39,7 +45,7 @@
                 const handleMessage = (event) => {
                     if (event.data.id === id) {
                         worker.removeEventListener('message', handleMessage);
-                        resolve(event.data.result);
+                        resolve(event.data.payload);
                     }
                 };
 
@@ -49,7 +55,18 @@
 
         await sendMessageToWorker("initialize", {benchmark: false});
         await sendMessageToWorker("initialize_training_state");
-        sendMessageToWorker("full_training");
+        let finished = false;
+        while(!finished){
+            let answer = await sendMessageToWorker("train_one_step");
+            finished = answer.training_finished;
+            let state = answer.state;
+            console.log("Step: ", answer.step, " Finished: ", finished, " State: ", state)
+            if(answer.step % 100 === 0){
+                appendToTerminal("Step: " + answer.step);
+            }
+
+            setPendulumAngle(state[0])
+        }
 
     });
     if (window.Worker) {
@@ -62,8 +79,15 @@
         console.log('Web Workers are not supported in your browser.');
     }
 </script>
-<div id="terminal">
-    <pre id="terminal-output"></pre>
+
+<div class="container">
+    <div class="pendulum-container">
+        <div class="pendulum" id="pendulum"></div>
+    </div>
+    <div id="terminal">
+        <pre id="terminal-output">Terminal Output</pre>
+    </div>
 </div>
+
 </body>
 </html>

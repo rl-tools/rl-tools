@@ -24,8 +24,9 @@ namespace layer_in_c::rl::environments::pendulum {
         using PARAMETERS = T_PARAMETERS;
     };
 
-    template <typename T>
+    template <typename T, typename TI>
     struct State{
+        static constexpr TI DIM = 2;
         T theta;
         T theta_dot;
     };
@@ -38,7 +39,7 @@ namespace layer_in_c::rl::environments{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using State = pendulum::State<typename SPEC::T>;
+        using State = pendulum::State<T, TI>;
         using PARAMETERS = typename SPEC::PARAMETERS;
         static constexpr TI OBSERVATION_DIM = 3;
         static constexpr TI ACTION_DIM = 1;

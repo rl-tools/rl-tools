@@ -54,7 +54,8 @@ struct TrainingConfig{
     using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
 
-    static constexpr DEVICE::index_t STEP_LIMIT = 10000;
+    static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
+    static constexpr DEVICE::index_t STEP_LIMIT = 10000; //2 * N_WARMUP_STEPS;
     static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
     static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
@@ -68,7 +69,6 @@ struct TrainingConfig{
             lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
     >;
     const DTYPE STATE_TOLERANCE = 0.00001;
-    static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
     static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 };
 

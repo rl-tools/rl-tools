@@ -5,6 +5,7 @@ let mode = null;
 let bpt = null;
 let training_state = null;
 let training_finished = false;
+let state_dim = null;
 self.addEventListener("message", async (event) => {
     console.log("Message received from main script");
     if (event.data.type === 'initialize') {
@@ -22,7 +23,9 @@ self.addEventListener("message", async (event) => {
                 destroy_training_state: bpt_emscripten._proxy_destroy_training_state,
                 get_step: bpt_emscripten._proxy_get_step,
                 get_evaluation_count: bpt_emscripten._proxy_get_evaluation_count,
-                get_evaluation_return: bpt_emscripten._proxy_get_evaluation_return
+                get_evaluation_return: bpt_emscripten._proxy_get_evaluation_return,
+                get_state_dim: bpt_emscripten._proxy_get_state_dim,
+                get_state_value: bpt_emscripten._proxy_get_state_value,
             }
         })
 
@@ -32,6 +35,7 @@ self.addEventListener("message", async (event) => {
     if (event.data.type === 'initialize_training_state') {
         console.assert(bpt !== null)
         training_state = bpt.create_training_state();
+        state_dim = bpt.get_state_dim();
         self.postMessage({id: event.data.id, type: 'finished_initializing_training_state'});
         return
     }
@@ -56,6 +60,19 @@ self.addEventListener("message", async (event) => {
         else{
             self.postMessage({id: event.data.id, type: 'finished_training'});
         }
+        return
+    }
+    if (event.data.type === 'train_one_step') {
+        console.assert(training_state !== null)
+        console.assert(!training_finished)
+        let step = bpt.get_step(training_state);
+        training_finished = bpt.training_step(training_state);
+        let state = []
+        for(let i = 0; i < state_dim; i++){
+            let state_value = bpt.get_state_value(training_state, 0, i);
+            state.push(state_value);
+        }
+        self.postMessage({id: event.data.id, type: 'train_one_step', payload: {step: step, training_finished: training_finished, state: state}});
         return
     }
     if (event.data.type === 'reset_training') {
