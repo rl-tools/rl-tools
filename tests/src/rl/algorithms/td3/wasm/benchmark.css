@@ -27,20 +27,22 @@ body {
 
 .pendulum {
     position: absolute;
-    top: 50%; /* Position the pendulum at the center of the container */
+    top: 50%;
+    left: 50%;
     transform-origin: top center;
     width: 4px;
     height: 150px;
     background-color: #333;
+    transform: translateX(-50%);
 }
 
 .pendulum:before {
     content: "";
     position: absolute;
-    bottom: -10px;
-    left: -10px;
-    width: 20px;
-    height: 20px;
+    bottom: -12.5px;
+    left: calc(-12.5px + 2px);
+    width: 25px;
+    height: 25px;
     border-radius: 50%;
     background-color: #333;
 }
@@ -57,3 +59,24 @@ body {
     margin: 0;
 }
 
+.center-circle-inner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #fff;
+}
+
+.center-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #000; /* Change the color if desired */
+}

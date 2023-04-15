@@ -14,9 +14,11 @@
             terminalOutput.textContent += text + "\n";
         }
         const pendulum = document.getElementById("pendulum");
+        let pendulum_transform_default = getComputedStyle(pendulum).transform;
+        console.log("Default transform: ", pendulum_transform_default)
 
         function setPendulumAngle(angle) {
-            pendulum.style.transform = `rotate(${angle - Math.PI}rad)`;
+            pendulum.style.transform = `${pendulum_transform_default} rotate(${angle - Math.PI}rad)`;
         }
 
         const worker = new Worker('training_worker.js', {type: "module"});
@@ -54,19 +56,22 @@
         }
 
         await sendMessageToWorker("initialize", {benchmark: false});
-        await sendMessageToWorker("initialize_training_state");
-        let finished = false;
-        while(!finished){
-            let answer = await sendMessageToWorker("train_one_step");
-            finished = answer.training_finished;
-            let state = answer.state;
-            console.log("Step: ", answer.step, " Finished: ", finished, " State: ", state)
-            if(answer.step % 100 === 0){
-                appendToTerminal("Step: " + answer.step);
-            }
 
-            setPendulumAngle(state[0])
-        }
+
+        // await sendMessageToWorker("initialize_training_state");
+        // let finished = false;
+        // while(!finished){
+        //     let answer = await sendMessageToWorker("train_one_step");
+        //     finished = answer.training_finished;
+        //     let state = answer.state;
+        //     console.log("Step: ", answer.step, " Finished: ", finished, " State: ", state)
+        //     if(answer.step % 100 === 0){
+        //         appendToTerminal("Step: " + answer.step);
+        //     }
+        //
+        //     setPendulumAngle(state[0])
+        // }
+        setPendulumAngle(0)
 
     });
     if (window.Worker) {
@@ -83,9 +88,13 @@
 <div class="container">
     <div class="pendulum-container">
         <div class="pendulum" id="pendulum"></div>
+        <div class="center-circle"></div>
+        <div class="center-circle-inner"></div>
     </div>
-    <div id="terminal">
-        <pre id="terminal-output">Terminal Output</pre>
+    <div id="terminal-container">
+        <div id="terminal">
+            <pre id="terminal-output">Terminal Output</pre>
+        </div>
     </div>
 </div>
 
