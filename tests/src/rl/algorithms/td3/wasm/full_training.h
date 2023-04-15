@@ -59,6 +59,8 @@ struct TrainingConfig{
     static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
     static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
+    static constexpr bool COLLECT_EPISODE_STATS = true;
+    static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
     using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
             DTYPE,
             DEVICE::index_t,
@@ -66,7 +68,9 @@ struct TrainingConfig{
             1,
             REPLAY_BUFFER_CAP,
             ENVIRONMENT_STEP_LIMIT,
-            lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>
+            lic::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
+            COLLECT_EPISODE_STATS,
+            EPISODE_STATS_BUFFER_SIZE
     >;
     const DTYPE STATE_TOLERANCE = 0.00001;
     static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);

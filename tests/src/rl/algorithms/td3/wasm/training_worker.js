@@ -6,6 +6,7 @@ let bpt = null;
 let training_state = null;
 let training_finished = false;
 let state_dim = null;
+let current_episode = null;
 self.addEventListener("message", async (event) => {
     console.log("Message received from main script");
     if (event.data.type === 'initialize') {
@@ -26,6 +27,8 @@ self.addEventListener("message", async (event) => {
                 get_evaluation_return: bpt_emscripten._proxy_get_evaluation_return,
                 get_state_dim: bpt_emscripten._proxy_get_state_dim,
                 get_state_value: bpt_emscripten._proxy_get_state_value,
+                get_episode: bpt_emscripten._proxy_get_episode,
+                get_episode_return: bpt_emscripten._proxy_get_episode_return,
             }
         })
 
@@ -36,6 +39,7 @@ self.addEventListener("message", async (event) => {
         console.assert(bpt !== null)
         training_state = bpt.create_training_state();
         state_dim = bpt.get_state_dim();
+        current_episode = 1;
         self.postMessage({id: event.data.id, type: 'finished_initializing_training_state'});
         return
     }
@@ -72,7 +76,24 @@ self.addEventListener("message", async (event) => {
             let state_value = bpt.get_state_value(training_state, 0, i);
             state.push(state_value);
         }
-        self.postMessage({id: event.data.id, type: 'train_one_step', payload: {step: step, training_finished: training_finished, state: state}});
+        let episode = bpt.get_episode(training_state, 0);
+        let episode_return = null;
+        if(episode !== current_episode){
+            current_episode = episode;
+            episode_return = bpt.get_episode_return(training_state, 0, current_episode - 2); // -2 because it always points to the next episode (-1) and because it has already finished the episode of interest (-1)
+        }
+
+        self.postMessage({
+            id: event.data.id,
+            type: 'train_one_step',
+            payload: {
+                step: step,
+                training_finished: training_finished,
+                state: state,
+                episode: current_episode,
+                episode_return: episode_return
+            }
+        });
         return
     }
     if (event.data.type === 'reset_training') {

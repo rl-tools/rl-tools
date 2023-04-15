@@ -14,6 +14,8 @@ body {
     align-items: center;
     gap: 30px;
     height: 100%;
+    width: 100%;
+    max-width: 900px;
 }
 .returns-chart-container {
     width: 100%;
@@ -21,8 +23,8 @@ body {
 }
 
 .pendulum-container {
-    margin-top: 10vh;
-    margin-bottom: 10vh;
+    margin-top: 5vh;
+    margin-bottom: 5vh;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -85,4 +87,28 @@ body {
     height: 20px;
     border-radius: 50%;
     background-color: #000; /* Change the color if desired */
+}
+
+.controls-container {
+    margin-top: 2vh;
+}
+
+.fancy-button {
+    font-family: "Open Sans", sans-serif;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 20px 40px;
+    border: none;
+    border-radius: 50px;
+    background: linear-gradient(to right, #f95959, #bf3030);
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.fancy-button:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }

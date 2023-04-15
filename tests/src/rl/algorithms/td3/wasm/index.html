@@ -67,9 +67,12 @@
         time++;
     }, 1000);
 
+    const terminalContainer = document.getElementById("terminal-container");
     const terminalOutput = document.getElementById("terminal-output");
     function appendToTerminal(text) {
-        terminalOutput.textContent += text + "\n";
+        if(terminalContainer.style.display !== "none"){
+            terminalOutput.textContent += text + "\n";
+        }
     }
     const pendulum = document.getElementById("pendulum");
     let pendulum_transform_default = getComputedStyle(pendulum).transform;
@@ -127,17 +130,23 @@
                     let answer = await sendMessageToWorker("train_one_step");
                     finished = answer.training_finished;
                     let state = answer.state;
-                    console.log("Step: ", answer.step, " Finished: ", finished, " State: ", state)
-                    if(answer.step % 100 === 0){
-                        appendToTerminal("Step: " + answer.step);
+                    console.log("Step: ", answer.step, " Finished: ", finished, " State: ", state, " Episode: ", answer.episode, " Episode return: ", answer.episode_return)
+                    if(answer.episode_return){
+                        returns_chart.data.labels.push(answer.step);
+                        returns_chart.data.datasets[0].data.push(answer.episode_return);
+                        returns_chart.update({
+                            duration: 10,
+                            easing: 'easeOutBounce'
+                        });
+                    }
+                    if(answer.step % 1 === 0){
+                        let output = "Step: " + answer.step + " Episode: " + answer.episode;
+                        if(answer.episode_return){
+                            output += " Episode return: " + answer.episode_return;
+                        }
+                        appendToTerminal(output);
                     }
                     setPendulumAngle(state[0])
-                    returns_chart.data.labels.push(answer.step);
-                    returns_chart.data.datasets[0].data.push(state[0]);
-                    returns_chart.update({
-                        duration: 1000,
-                        easing: 'easeOutBounce'
-                    });
                 }
             }
             else{
@@ -167,13 +176,13 @@
         <div class="center-circle"></div>
         <div class="center-circle-inner"></div>
     </div>
-    <div class="controls-container">
-        <input type="button" value="Start training" id="training-button">
-    </div>
     <div class="returns-chart-container">
         <canvas id="returns-chart"></canvas>
     </div>
-    <div id="terminal-container">
+    <div class="controls-container">
+        <input class="fancy-button" type="button" value="Start training" id="training-button">
+    </div>
+    <div id="terminal-container" style="display: none;">
         <div id="terminal">
             <pre id="terminal-output">Terminal Output</pre>
         </div>
