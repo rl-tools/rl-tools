@@ -77,10 +77,11 @@
     const pendulum = document.getElementById("pendulum");
     let pendulum_transform_default = getComputedStyle(pendulum).transform;
     console.log("Default transform: ", pendulum_transform_default)
-
     function setPendulumAngle(angle) {
         pendulum.style.transform = `${pendulum_transform_default} rotate(${angle - Math.PI}rad)`;
     }
+
+    const realtime_checkbox = document.getElementById("realtime-checkbox");
 
     let async_main = (async () => {
         const worker = new Worker('training_worker.js', {type: "module"});
@@ -126,7 +127,7 @@
                 document.getElementById("training-button").value = "Stop training";
                 await sendMessageToWorker("initialize_training_state");
                 let finished = false;
-                while(!finished && training){
+                let advance = async () => {
                     let answer = await sendMessageToWorker("train_one_step");
                     finished = answer.training_finished;
                     let state = answer.state;
@@ -148,6 +149,18 @@
                     }
                     setPendulumAngle(state[0])
                 }
+                const target_dt = 0.05;
+                while(!finished && training){
+                    let start = performance.now();
+                    await advance();
+                    let end = performance.now();
+                    let dt = end - start;
+                    let sleep_time = Math.max(0, target_dt - dt);
+                    if(realtime_checkbox.checked){
+                        await new Promise(resolve => setTimeout(resolve, sleep_time * 1000));
+                    }
+                }
+
             }
             else{
                 training = false;
@@ -178,6 +191,13 @@
     </div>
     <div class="returns-chart-container">
         <canvas id="returns-chart"></canvas>
+    </div>
+    <div class="checkbox-container">
+        <label for="realtime-checkbox" class="checkbox-label">
+            <input type="checkbox" id="realtime-checkbox" class="checkbox-input">
+            <span class="checkbox-custom"></span>
+            Realtime
+        </label>
     </div>
     <div class="controls-container">
         <input class="fancy-button" type="button" value="Start training" id="training-button">
