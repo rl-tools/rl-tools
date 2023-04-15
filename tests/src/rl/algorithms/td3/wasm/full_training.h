@@ -7,11 +7,11 @@
 #include <layer_in_c/rl/operations_generic.h>
 
 
-#define LAYER_IN_C_ENABLE_EVALUATION
 #ifdef LAYER_IN_C_ENABLE_EVALUATION
 #include <layer_in_c/rl/utils/evaluation.h>
-#endif
 #include <chrono>
+#endif
+
 
 
 struct TrainingConfig{
@@ -99,7 +99,9 @@ template <typename TRAINING_CONFIG>
 struct TrainingState: CoreTrainingState<TRAINING_CONFIG>{
     using T = typename TRAINING_CONFIG::DTYPE;
     using TI = typename TRAINING_CONFIG::DEVICE::index_t;
+#ifdef LAYER_IN_C_ENABLE_EVALUATION
     std::chrono::high_resolution_clock::time_point start_time;
+#endif
     TI step = 0;
 #ifdef LAYER_IN_C_ENABLE_EVALUATION
     static constexpr TI N_EVALUATIONS = TRAINING_CONFIG::STEP_LIMIT / TRAINING_CONFIG::EVALUATION_INTERVAL;
@@ -139,7 +141,9 @@ void training_init(TRAINING_STATE& ts){
     lic::set_all(ts.device, ts.observations_std, 1);
 
 
+#ifdef LAYER_IN_C_ENABLE_EVALUATION
     ts.start_time = std::chrono::high_resolution_clock::now();
+#endif
     ts.step = 0;
 }
 
@@ -161,11 +165,13 @@ bool training_step(TRAINING_STATE& ts){
     bool finished = false;
     using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
     lic::step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
+#ifdef LAYER_IN_C_ENABLE_EVALUATION
     if(ts.step % 1000 == 0){
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - ts.start_time;
         std::cout << "step_i: " << ts.step << " " << elapsed_seconds.count() << "s" << std::endl;
     }
+#endif
     if(ts.step > TRAINING_CONFIG::N_WARMUP_STEPS){
 
         for(int critic_i = 0; critic_i < 2; critic_i++){
@@ -193,9 +199,11 @@ bool training_step(TRAINING_STATE& ts){
 #endif
     ts.step++;
     if(ts.step > TRAINING_CONFIG::STEP_LIMIT){
+#ifdef LAYER_IN_C_ENABLE_EVALUATION
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - ts.start_time;
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
+#endif
         return true;
     }
     else{

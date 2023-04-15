@@ -1,0 +1,16 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: monospace;
+    background-color: #000;
+}
+
+#terminal {
+    padding: 10px;
+    color: #00ff00;
+    background-color: #000;
+}
+
+#terminal-output {
+    margin: 0;
+}

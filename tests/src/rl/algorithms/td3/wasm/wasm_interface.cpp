@@ -22,12 +22,18 @@ extern "C" {
 
     EMSCRIPTEN_KEEPALIVE
     int proxy_get_evaluation_count(){
+#ifdef LAYER_IN_C_ENABLE_EVALUATION
         return TRAINING_STATE::N_EVALUATIONS;
+#endif
+        return 0;
     }
 
     EMSCRIPTEN_KEEPALIVE
     double proxy_get_evaluation_return(TRAINING_STATE* ts, int index){
+#ifdef LAYER_IN_C_ENABLE_EVALUATION
         return ts->evaluation_returns[index];
+#endif
+        return 0;
     }
 
     EMSCRIPTEN_KEEPALIVE
