@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WASM Struct Example</title>
+</head>
+<body>
+<script src="wasm_interface.js"></script>
+<script>
+    Module.onRuntimeInitialized = async function() {
+        const create_training_state = Module._proxy_create_training_state;
+        const training_step = Module._proxy_training_step;
+        const destroy_training_state = Module._proxy_destroy_training_state;
+
+        const ts = create_training_state();
+        let finished = false;
+        let timer = setInterval(() => {
+            let step = Module._proxy_get_step(ts);
+            if(step % 100 == 0){
+                console.log("step " + step);
+            }
+            finished = training_step(ts);
+            if(finished){
+                clearInterval(timer);
+                let num_evaluations = Module._proxy_get_evaluation_count();
+                for(let i = 0; i < num_evaluations; i++){
+                    let evaluation_return = Module._proxy_get_evaluation_return(ts, i);
+                    console.log("evaluation return[" + i + "]: " + evaluation_return);
+                }
+                destroy_training_state(ts);
+            }
+        }, 1);
+        // while (!finished) {
+        //     finished = training_step(ts);
+        //     console.log("step")
+        // }
+    };
+</script>
+</body>
+</html>

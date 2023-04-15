@@ -54,7 +54,8 @@ struct TrainingConfig{
     using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
 
-    static constexpr DEVICE::index_t STEP_LIMIT = 15000;
+    static constexpr DEVICE::index_t STEP_LIMIT = 10000;
+    static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
     static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
     using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<
@@ -96,9 +97,15 @@ struct CoreTrainingState{
 
 template <typename TRAINING_CONFIG>
 struct TrainingState: CoreTrainingState<TRAINING_CONFIG>{
+    using T = typename TRAINING_CONFIG::DTYPE;
     using TI = typename TRAINING_CONFIG::DEVICE::index_t;
     std::chrono::high_resolution_clock::time_point start_time;
     TI step = 0;
+#ifdef LAYER_IN_C_ENABLE_EVALUATION
+    static constexpr TI N_EVALUATIONS = TRAINING_CONFIG::STEP_LIMIT / TRAINING_CONFIG::EVALUATION_INTERVAL;
+    static_assert(N_EVALUATIONS > 0 && N_EVALUATIONS < 1000000);
+    T evaluation_returns[N_EVALUATIONS];
+#endif
 };
 
 
@@ -178,9 +185,10 @@ bool training_step(TRAINING_STATE& ts){
         }
     }
 #ifdef LAYER_IN_C_ENABLE_EVALUATION
-    if(ts.step % 1000 == 0){
+    if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
         auto result = lic::evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, lic::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.rng, true);
         std::cout << "Mean return: " << result.mean << std::endl;
+        ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.mean;
     }
 #endif
     ts.step++;
