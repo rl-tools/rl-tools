@@ -57,21 +57,32 @@
 
         await sendMessageToWorker("initialize", {benchmark: false});
 
+        let training = false;
+        document.getElementById("training-button").addEventListener("click", async () => {
+            if(!training){
+                training = true;
+                document.getElementById("training-button").value = "Stop training";
+                await sendMessageToWorker("initialize_training_state");
+                let finished = false;
+                while(!finished && training){
+                    let answer = await sendMessageToWorker("train_one_step");
+                    finished = answer.training_finished;
+                    let state = answer.state;
+                    console.log("Step: ", answer.step, " Finished: ", finished, " State: ", state)
+                    if(answer.step % 100 === 0){
+                        appendToTerminal("Step: " + answer.step);
+                    }
+                    setPendulumAngle(state[0])
+                }
+            }
+            else{
+                training = false;
+                document.getElementById("training-button").value = "Start training";
+                await sendMessageToWorker("destroy_training_state");
+            }
+        });
 
-        // await sendMessageToWorker("initialize_training_state");
-        // let finished = false;
-        // while(!finished){
-        //     let answer = await sendMessageToWorker("train_one_step");
-        //     finished = answer.training_finished;
-        //     let state = answer.state;
-        //     console.log("Step: ", answer.step, " Finished: ", finished, " State: ", state)
-        //     if(answer.step % 100 === 0){
-        //         appendToTerminal("Step: " + answer.step);
-        //     }
-        //
-        //     setPendulumAngle(state[0])
-        // }
-        setPendulumAngle(0)
+
 
     });
     if (window.Worker) {
@@ -90,6 +101,9 @@
         <div class="pendulum" id="pendulum"></div>
         <div class="center-circle"></div>
         <div class="center-circle-inner"></div>
+    </div>
+    <div class="controls-container">
+        <input type="button" value="Start training" id="training-button">
     </div>
     <div id="terminal-container">
         <div id="terminal">
