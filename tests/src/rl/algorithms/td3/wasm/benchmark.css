@@ -58,12 +58,14 @@ body {
     background-color: #333;
 }
 
+.terminal-container{
+    width: 100%;
+}
 #terminal {
     font-family: monospace;
     padding: 10px;
     color: #00ff00;
     background-color: #000;
-    min-width: 900px;
 }
 
 #terminal-output {

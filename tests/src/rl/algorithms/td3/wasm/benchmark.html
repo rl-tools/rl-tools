@@ -16,6 +16,9 @@
             terminalOutput.textContent += text + "\n";
         }
     }
+    document.getElementById("copy-to-clipboard-button").addEventListener("click", async () => {
+        await navigator.clipboard.writeText(terminalOutput.textContent);
+    })
 
     let async_main = (async () => {
         const worker = new Worker('training_worker.js', {type: "module"});
@@ -53,7 +56,7 @@
         }
 
         await sendMessageToWorker("initialize", {benchmark: true});
-        while(true){
+        for(let i = 0; i < 10; i++){
             await sendMessageToWorker("initialize_training_state");
             let start = performance.now();
             await sendMessageToWorker("full_training");
@@ -75,9 +78,12 @@
 </script>
 
 <div class="container">
-    <div id="terminal-container">
+    <div class="controls-container" style="margin-top: 20px;">
+        <input class="fancy-button" type="button" value="Copy to clipboard" id="copy-to-clipboard-button">
+    </div>
+    <div id="terminal-container" class="terminal-container">
         <div id="terminal">
-            <pre id="terminal-output">Terminal Output</pre>
+            <pre id="terminal-output"></pre>
         </div>
     </div>
 </div>
