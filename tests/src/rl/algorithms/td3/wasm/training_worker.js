@@ -54,11 +54,11 @@ self.addEventListener("message", async (event) => {
             }
             training_finished = bpt.training_step(training_state);
         }
-        if(mode === 'benchmark') {
+        if(mode !== 'benchmark') {
             let evaluation_returns = []
             let num_evaluations = bpt.get_evaluation_count();
             for(let i = 0; i < num_evaluations; i++){
-                let evaluation_return = bpt.get_evaluation_return(ts, i);
+                let evaluation_return = bpt.get_evaluation_return(training_state, i);
                 evaluation_returns.push(evaluation_return);
             }
             self.postMessage({id: event.data.id, type: 'finished_training', payload: {evaluation_returns: evaluation_returns}});
@@ -109,6 +109,9 @@ self.addEventListener("message", async (event) => {
         console.assert(training_state !== null)
         bpt.destroy_training_state(training_state);
         training_state = null;
+        training_finished = false;
+        state_dim = null;
+        current_episode = null;
         self.postMessage({id: event.data.id, type: 'finished_destroying_training_state'});
         return
     }
