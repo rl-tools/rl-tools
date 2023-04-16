@@ -103,7 +103,7 @@ body {
     padding: 20px 40px;
     border: none;
     border-radius: 50px;
-    background: linear-gradient(to right, #f95959, #bf3030);
+    background: linear-gradient(to right, #6fd0cb, #7DB9B6);
     color: #fff;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     cursor: pointer;
@@ -162,7 +162,7 @@ body {
 }
 
 .checkbox-input:checked ~ .checkbox-custom {
-    background-color: #bf3030;
+    background-color: #7DB9B6;
     box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2), 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
@@ -179,7 +179,7 @@ body {
     padding: 8px 16px;
     border: none;
     border-radius: 25px;
-    background: linear-gradient(to right, #f95959, #bf3030);
+    background: linear-gradient(to right, #6fd0cb, #7DB9B6);
     color: #fff;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     cursor: pointer;
