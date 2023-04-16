@@ -89,17 +89,17 @@
             console.error("An error occurred in the Web Worker:", error);
         });
 
-        // worker.addEventListener("message", (event) => {
-        //     if (event.data.type) {
-        //         if(event.data.payload){
-        //             appendToTerminal(event.data.type + ": " + JSON.stringify(event.data.payload));
-        //         }
-        //         else{
-        //             appendToTerminal(event.data.type);
-        //         }
-        //     }
-        //     console.log("Message from worker", event.data);
-        // });
+        worker.addEventListener("message", (event) => {
+            if (event.data.type) {
+                if(event.data.payload){
+                    appendToTerminal(event.data.type + ": " + JSON.stringify(event.data.payload));
+                }
+                else{
+                    appendToTerminal(event.data.type);
+                }
+            }
+            console.log("Message from worker", event.data);
+        });
         function sendMessageToWorker(type, payload) {
             return new Promise((resolve, reject) => {
                 const id = Math.random().toString(36); // Generate a unique ID for the message

@@ -7,7 +7,7 @@
 #include <layer_in_c/rl/operations_generic.h>
 
 
-#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#ifndef LAYER_IN_C_BENCHMARK
 #include <layer_in_c/rl/utils/evaluation.h>
 #include <chrono>
 #endif
@@ -55,7 +55,11 @@ struct TrainingConfig{
 
 
     static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-    static constexpr DEVICE::index_t STEP_LIMIT = 10000; //2 * N_WARMUP_STEPS;
+#ifndef LAYER_IN_C_STEP_LIMIT
+    static constexpr DEVICE::index_t STEP_LIMIT = 100000; //2 * N_WARMUP_STEPS;
+#else
+    static constexpr DEVICE::index_t STEP_LIMIT = LAYER_IN_C_STEP_LIMIT;
+#endif
     static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
     static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
@@ -103,11 +107,11 @@ template <typename TRAINING_CONFIG>
 struct TrainingState: CoreTrainingState<TRAINING_CONFIG>{
     using T = typename TRAINING_CONFIG::DTYPE;
     using TI = typename TRAINING_CONFIG::DEVICE::index_t;
-#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#ifndef LAYER_IN_C_BENCHMARK
     std::chrono::high_resolution_clock::time_point start_time;
 #endif
     TI step = 0;
-#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#ifndef LAYER_IN_C_BENCHMARK
     static constexpr TI N_EVALUATIONS = TRAINING_CONFIG::STEP_LIMIT / TRAINING_CONFIG::EVALUATION_INTERVAL;
     static_assert(N_EVALUATIONS > 0 && N_EVALUATIONS < 1000000);
     T evaluation_returns[N_EVALUATIONS];
@@ -145,7 +149,7 @@ void training_init(TRAINING_STATE& ts){
     lic::set_all(ts.device, ts.observations_std, 1);
 
 
-#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#ifndef LAYER_IN_C_BENCHMARK
     ts.start_time = std::chrono::high_resolution_clock::now();
 #endif
     ts.step = 0;
@@ -169,7 +173,7 @@ bool training_step(TRAINING_STATE& ts){
     bool finished = false;
     using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
     lic::step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#ifndef LAYER_IN_C_BENCHMARK
     if(ts.step % 1000 == 0){
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - ts.start_time;
@@ -194,7 +198,7 @@ bool training_step(TRAINING_STATE& ts){
             lic::update_actor_target(ts.device, ts.actor_critic);
         }
     }
-#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#ifndef LAYER_IN_C_BENCHMARK
     if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
         auto result = lic::evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, lic::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.rng, true);
         std::cout << "Mean return: " << result.mean << std::endl;
@@ -203,7 +207,7 @@ bool training_step(TRAINING_STATE& ts){
 #endif
     ts.step++;
     if(ts.step > TRAINING_CONFIG::STEP_LIMIT){
-#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#ifndef LAYER_IN_C_BENCHMARK
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - ts.start_time;
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;

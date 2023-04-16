@@ -232,6 +232,7 @@ void run(){
                 lic::update_actor_target(ac_dev, actor_critic);
             }
         }
+#ifndef LAYER_IN_C_DISABLE_EVALUATION
         if(step_i % 1000 == 0){
 //            auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<1, ENVIRONMENT_STEP_LIMIT>(), rng, true);
             auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, rng);
@@ -254,6 +255,7 @@ void run(){
 //            }
 #endif
         }
+#endif
     }
     {
         auto current_time = std::chrono::high_resolution_clock::now();
