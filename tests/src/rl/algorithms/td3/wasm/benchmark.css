@@ -12,14 +12,15 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 30px;
-    height: 100%;
-    width: 100%;
+    gap: 2.5vh;
+    width: 90%;
     max-width: 900px;
 }
 .returns-chart-container {
     width: 100%;
     height: 20vh;
+    min-height: 10em;
+    margin-bottom: 2vh;
 }
 
 .pendulum-container {
@@ -28,7 +29,9 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 350px; /* Adjusted height to accommodate full pendulum rotation */
+    height: 60vw; /* Adjusted height to accommodate full pendulum rotation */
+    min-height: 10em;
+    max-height: 30vh;
     position: relative;
     width: 100%;
 }
@@ -39,7 +42,7 @@ body {
     left: 50%;
     transform-origin: top center;
     width: 4px;
-    height: 150px;
+    height: 50%;
     background-color: #333;
     transform: translateX(-50%);
 }
@@ -113,16 +116,18 @@ body {
 }
 
 .checkbox-container{
-    margin-top: 2vh;
 }
 
 .checkbox-label {
+    font-family: "Open Sans", sans-serif;
+    font-weight: bold;
+    /*text-transform: uppercase;*/
+    /*letter-spacing: 1px;*/
+    font-size: 18px;
     display: inline-block;
     position: relative;
     padding-left: 30px;
     cursor: pointer;
-    font-size: 18px;
-    font-weight: bold;
 }
 
 .checkbox-input {
@@ -164,4 +169,64 @@ body {
 .checkbox-input:checked ~ .checkbox-custom:before {
     transform: translate(-50%, -50%) scale(1);
     background-color: #fff;
+}
+
+.fancy-number-input {
+    font-family: "Open Sans", sans-serif;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 25px;
+    background: linear-gradient(to right, #f95959, #bf3030);
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    outline: none;
+    width: 70px;
+}
+
+.fancy-number-input:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.fancy-number-input:focus {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.fancy-number-input::placeholder {
+    font-family: "Open Sans", sans-serif;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.5);
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.info-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 1em;
+    margin-bottom: 3em;
+}
+
+.info-box{
+    font-family: "Open Sans", sans-serif;
+    padding: 20px 20px;
+    border: none;
+    border-radius: 20px;
+    background: #fff;
+    color: #000000;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    outline: none;
+    width: 100%;
+}
+
+.info-box>h3 {
+    margin: 0 0 0.5em 0;
 }

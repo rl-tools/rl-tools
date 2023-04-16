@@ -8,7 +8,7 @@ let training_finished = false;
 let state_dim = null;
 let current_episode = null;
 self.addEventListener("message", async (event) => {
-    console.log("Message received from main script");
+    console.log("Message received from main script: ", event.data);
     if (event.data.type === 'initialize') {
         console.log("Initializing worker, benchmark: " + event.data.payload.benchmark);
         console.assert(bpt === null)
@@ -37,7 +37,9 @@ self.addEventListener("message", async (event) => {
     }
     if (event.data.type === 'initialize_training_state') {
         console.assert(bpt !== null)
-        training_state = bpt.create_training_state();
+        let seed = event.data.payload && event.data.payload.seed ? event.data.payload.seed : 0;
+        console.log("Using seed: " + seed)
+        training_state = bpt.create_training_state(seed);
         state_dim = bpt.get_state_dim();
         current_episode = 1;
         self.postMessage({id: event.data.id, type: 'finished_initializing_training_state'});

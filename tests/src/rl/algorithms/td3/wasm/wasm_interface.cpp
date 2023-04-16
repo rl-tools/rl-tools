@@ -4,9 +4,9 @@
 using TRAINING_STATE = TrainingState<TrainingConfig>;
 extern "C" {
     EMSCRIPTEN_KEEPALIVE
-    TRAINING_STATE* proxy_create_training_state(){
+    TRAINING_STATE* proxy_create_training_state(int seed){
         TRAINING_STATE* ts = new TRAINING_STATE{};
-        training_init(*ts);
+        training_init(*ts, seed);
         return ts;
     }
 

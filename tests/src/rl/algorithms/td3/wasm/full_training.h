@@ -120,10 +120,12 @@ struct TrainingState: CoreTrainingState<TRAINING_CONFIG>{
 
 
 template <typename TRAINING_STATE>
-void training_init(TRAINING_STATE& ts){
+void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::TRAINING_CONFIG::DEVICE::index_t seed){
     using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
 
     ts.device.logger = &ts.logger;
+
+    ts.rng = lic::random::default_engine(typename TRAINING_CONFIG::DEVICE::SPEC::RANDOM(), seed);
 
     lic::malloc(ts.device, ts.actor_critic);
     lic::init(ts.device, ts.actor_critic, ts.optimizer, ts.rng);
