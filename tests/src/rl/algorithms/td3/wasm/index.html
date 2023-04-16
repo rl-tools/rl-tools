@@ -154,8 +154,9 @@
                     let start = performance.now();
                     await advance();
                     let end = performance.now();
-                    let dt = end - start;
+                    let dt = (end - start) / 1000;
                     let sleep_time = Math.max(0, target_dt - dt);
+                    console.log("Sleeping for ", sleep_time, " seconds")
                     if(realtime_checkbox.checked){
                         await new Promise(resolve => setTimeout(resolve, sleep_time * 1000));
                     }
