@@ -18,8 +18,9 @@ body {
 }
 .returns-chart-container {
     width: 100%;
-    height: 20vh;
+    height: 50vw;
     min-height: 10em;
+    max-height: 30vh;
     margin-bottom: 2vh;
 }
 
@@ -223,7 +224,6 @@ body {
     background: #fff;
     color: #000000;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    cursor: pointer;
     transition: all 0.2s ease-in-out;
     outline: none;
     width: 100%;
