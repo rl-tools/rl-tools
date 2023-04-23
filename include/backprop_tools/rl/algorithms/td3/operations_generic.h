@@ -34,8 +34,8 @@ namespace backprop_tools{
     void malloc(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
         using BUFFERS = rl::algorithms::td3::ActorTrainingBuffers<SPEC>;
         malloc(device, actor_training_buffers.state_action_value_input);
-        actor_training_buffers.observations = bpt::view<DEVICE, typename decltype(actor_training_buffers.state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM>(device, actor_training_buffers.state_action_value_input, 0, 0);
-        actor_training_buffers.actions      = bpt::view<DEVICE, typename decltype(actor_training_buffers.state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM     >(device, actor_training_buffers.state_action_value_input, 0, BUFFERS::OBSERVATION_DIM);
+        actor_training_buffers.observations = view<DEVICE, typename decltype(actor_training_buffers.state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM>(device, actor_training_buffers.state_action_value_input, 0, 0);
+        actor_training_buffers.actions      = view<DEVICE, typename decltype(actor_training_buffers.state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM     >(device, actor_training_buffers.state_action_value_input, 0, BUFFERS::OBSERVATION_DIM);
         malloc(device, actor_training_buffers.state_action_value);
         malloc(device, actor_training_buffers.d_output);
         malloc(device, actor_training_buffers.d_critic_input);

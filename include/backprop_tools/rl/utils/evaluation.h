@@ -105,7 +105,7 @@ namespace backprop_tools {
             results.std += r*r;
         }
         results.mean /= SPEC::N_EPISODES;
-        results.std = bpt::math::sqrt(typename DEVICE::SPEC::MATH(), results.std/SPEC::N_EPISODES - results.mean*results.mean);
+        results.std = math::sqrt(typename DEVICE::SPEC::MATH(), results.std/SPEC::N_EPISODES - results.mean*results.mean);
         return results;
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC>
