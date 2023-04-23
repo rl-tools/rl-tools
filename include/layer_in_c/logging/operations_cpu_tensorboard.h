@@ -38,7 +38,7 @@ namespace layer_in_c{
         delete logger->tb;
     }
     template <typename DEVICE>
-    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, typename DEVICE::index_t step){
+    void set_step(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, typename DEVICE::index_t step){
         device.logger->step = step;
     }
     template <typename DEVICE>

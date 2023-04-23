@@ -32,9 +32,13 @@ namespace layer_in_c{
     void construct(DEVICE& device, devices::logging::CPU* logger, ARG_1, ARG_2){ /* noop */ }
     template <typename DEVICE>
     void construct(DEVICE& device, devices::logging::CPU* logger){ /* noop */ }
-    template <typename DEVICE>
-    void add_histogram(DEVICE& device, devices::logging::CPU* logger, ...){ /* noop */ }
-    template <typename DEVICE>
-    void add_scalar(DEVICE& device, devices::logging::CPU* logger, ...){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename ARG>
+    void add_scalar(DEVICE& device, devices::logging::CPU* logger, TOPIC, ARG){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename ARG, typename CADENCE>
+    void add_scalar(DEVICE& device, devices::logging::CPU* logger, TOPIC, ARG, CADENCE){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN, typename CADENCE>
+    void add_histogram(DEVICE& device, devices::logging::CPU* logger, TOPIC, ARG, ARG_LEN, CADENCE){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN>
+    void add_histogram(DEVICE& device, devices::logging::CPU* logger, TOPIC, ARG, ARG_LEN){ /* noop */ }
 }
 #endif
