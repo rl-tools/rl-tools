@@ -33,12 +33,12 @@ namespace backprop_tools{
     template <typename DEVICE>
     void construct(DEVICE& device, devices::logging::CPU* logger){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename ARG>
-    void add_scalar(DEVICE& device, devices::logging::CPU* logger, TOPIC, ARG){ /* noop */ }
+    void add_scalar(DEVICE& device, devices::logging::CPU* logger, const TOPIC, const ARG){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename ARG, typename CADENCE>
-    void add_scalar(DEVICE& device, devices::logging::CPU* logger, TOPIC, ARG, CADENCE){ /* noop */ }
+    void add_scalar(DEVICE& device, devices::logging::CPU* logger, const TOPIC, const ARG, const CADENCE){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN, typename CADENCE>
-    void add_histogram(DEVICE& device, devices::logging::CPU* logger, TOPIC, ARG, ARG_LEN, CADENCE){ /* noop */ }
+    void add_histogram(DEVICE& device, devices::logging::CPU* logger, const TOPIC, const ARG*, const ARG_LEN, const CADENCE){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN>
-    void add_histogram(DEVICE& device, devices::logging::CPU* logger, TOPIC, ARG, ARG_LEN){ /* noop */ }
+    void add_histogram(DEVICE& device, devices::logging::CPU* logger, const TOPIC, const ARG*, const ARG_LEN){ /* noop */ }
 }
 #endif

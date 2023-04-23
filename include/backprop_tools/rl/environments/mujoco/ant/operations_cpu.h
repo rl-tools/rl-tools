@@ -2,18 +2,26 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_OPERATIONS_CPU_H
 
 #include "ant.h"
+namespace backprop_tools::rl::environments::mujoco::ant{
+    #include "model.h"
+}
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env){
+    void malloc(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env) {
         using TI = typename DEVICE::index_t;
-        char model_path[] = "./lib/gymnasium/gymnasium/envs/mujoco/assets/ant.xml";
-#ifdef BACKPROP_TOOLS_DEBUG_RL_ENVIRONMENTS_MUJOCO_CHECK_INIT
         constexpr typename DEVICE::index_t error_length = 1000;
         char error[error_length] = "Could not load model";
-        env.model = mj_loadXML(model_path, 0, error, error_length);
+        {
+            mjVFS vfs;
+            mj_defaultVFS(&vfs);
+            mj_makeEmptyFileVFS(&vfs, "model.xml", backprop_tools::rl::environments::mujoco::ant::model_xml_len);
+            int file_idx = mj_findFileVFS(&vfs, "model.xml");
+            memcpy(vfs.filedata[file_idx], backprop_tools::rl::environments::mujoco::ant::model_xml, backprop_tools::rl::environments::mujoco::ant::model_xml_len);
+            env.model = mj_loadXML("model.xml", &vfs, error, error_length);
+            mj_deleteFileVFS(&vfs, "model.xml");
+        }
+#ifdef BACKPROP_TOOLS_DEBUG_RL_ENVIRONMENTS_MUJOCO_CHECK_INIT
         utils::assert_exit(device, env.model != nullptr, error);
-#else
-        env.model = mj_loadXML(model_path, 0, 0, 0);
 #endif
         env.data = mj_makeData(env.model);
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q; state_i++){

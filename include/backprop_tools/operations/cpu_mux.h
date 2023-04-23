@@ -1,5 +1,7 @@
 // ------------ Groups 1 ------------
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 #include <backprop_tools/operations/cpu_tensorboard/group_1.h>
+#endif
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 #include <backprop_tools/operations/cpu_mkl/group_1.h>
 namespace backprop_tools{

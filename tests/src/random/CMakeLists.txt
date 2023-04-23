@@ -11,4 +11,4 @@ target_link_libraries(
         GTest::gtest_main
 )
 gtest_discover_tests(test_random_arm)
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_random_arm)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_random_arm)

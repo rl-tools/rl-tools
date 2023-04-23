@@ -42,7 +42,7 @@ namespace backprop_tools{
         device.logger->step = step;
     }
     template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE, typename CADANCE_TYPE>
-    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const VALUE_TYPE value, const CADANCE_TYPE cadence = 1){
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const VALUE_TYPE value, const CADANCE_TYPE cadence){
         if(logger == nullptr){
             return;
         }
@@ -51,8 +51,12 @@ namespace backprop_tools{
             logger->tb->add_scalar(key, logger->step, (float)value);
         }
     }
+    template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE>
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const VALUE_TYPE value){
+        add_scalar(device, logger, key, value, (typename DEVICE::index_t)1);
+    }
     template <typename DEVICE, typename KEY_TYPE, typename T, typename TI, typename CADANCE_TYPE>
-    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const T* values, const TI n_values, const CADANCE_TYPE cadence = 1){
+    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const T* values, const TI n_values, const CADANCE_TYPE cadence = (typename DEVICE::index_t)1){
         if(logger == nullptr){
             return;
         }
@@ -60,6 +64,10 @@ namespace backprop_tools{
         if(logger->step % cadence == 0){
             logger->tb->add_histogram(key, logger->step, values, n_values);
         }
+    }
+    template <typename DEVICE, typename KEY_TYPE, typename T, typename TI>
+    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const T* values, const TI n_values){
+        add_histogram(device, logger, key, values, n_values, (typename DEVICE::index_t)1);
     }
 }
 #endif

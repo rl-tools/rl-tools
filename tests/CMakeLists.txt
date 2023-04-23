@@ -2,17 +2,17 @@ option(BACKPROP_TOOLS_DOWNLOAD_GTEST OFF)
 
 option(BACKPROP_TOOLS_TEST_LOCAL "Local dev" OFF)
 
-option(BACKPROP_TOOLS_TEST_MACHINE_LENOVO_P1 "Flag to enable performance/timing tests" OFF)
-if(BACKPROP_TOOLS_TEST_MACHINE_LENOVO_P1)
-    add_compile_definitions(BACKPROP_TOOLS_TEST_MACHINE_LENOVO_P1)
-endif()
+function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)
+    if(BACKPROP_TOOLS_TEST_MACHINE_LENOVO_P1)
+        target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_TEST_MACHINE_LENOVO_P1)
+    endif()
+    if(BACKPROP_TOOLS_TEST_MACHINE_MACBOOK_M1)
+        target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_TEST_MACHINE_MACBOOK_M1)
+    endif()
+    if(BACKPROP_TOOLS_ENABLE_TENSORBOARD)
+        target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_ENABLE_TENSORBOARD)
+    endif()
 
-option(BACKPROP_TOOLS_TEST_MACHINE_MACBOOK_M1 "Flag to enable performance/timing tests" OFF)
-if(BACKPROP_TOOLS_TEST_MACHINE_MACBOOK_M1)
-    add_compile_definitions(BACKPROP_TOOLS_TEST_MACHINE_MACBOOK_M1)
-endif()
-
-function(BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS TARGET)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         message (STATUS "Adding debug definitions to ${TARGET}")
         target_compile_definitions(${TARGET} PRIVATE -DBACKPROP_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT)
@@ -66,7 +66,7 @@ if(BACKPROP_TOOLS_TESTS_ENABLE_EIGEN)
 find_package(Eigen3 REQUIRED)
 endif()
 #find_package(OpenMP REQUIRED)
-if(BACKPROP_TOOLS_TESTS_ENABLE_UI)
+if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 find_package(Boost REQUIRED)
 endif()
 
@@ -103,7 +103,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-#BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_neural_network_mlp)
+#BACKPROP_TOOLS_ADD_DEFINITIONS(test_neural_network_mlp)
 gtest_discover_tests(test_neural_network_mlp)
 
 # Neural Network Test Full Training MLP
@@ -117,7 +117,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-#BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_neural_network_full_training_mlp)
+#BACKPROP_TOOLS_ADD_DEFINITIONS(test_neural_network_full_training_mlp)
 gtest_discover_tests(test_neural_network_full_training_mlp)
 
 # Neural Network Persistence Test
@@ -131,7 +131,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_neural_network_persistence)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_neural_network_persistence)
 gtest_discover_tests(test_neural_network_persistence)
 
 # RL Environment Pendulum test
@@ -145,7 +145,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_pendulum)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_pendulum)
 gtest_discover_tests(test_rl_environments_pendulum)
 
 
@@ -163,7 +163,7 @@ if(BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
             GTest::gtest_main
             Qt5::Widgets
     )
-    BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_pendulum_render)
+    BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_pendulum_render)
     gtest_discover_tests(test_rl_environments_pendulum_render)
 endif()
 
@@ -177,7 +177,7 @@ target_link_libraries(
         backprop_tools
         GTest::gtest_main
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_off_policy_runner)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_td3_off_policy_runner)
 gtest_discover_tests(test_rl_algorithms_td3_off_policy_runner)
 
 # RL Algorithm td3 test first stage mlp
@@ -191,7 +191,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_first_stage_mlp)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_td3_first_stage_mlp)
 gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
 
 
@@ -221,7 +221,7 @@ if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
     )
     target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
 endif()
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_second_stage_mlp)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_td3_second_stage_mlp)
 gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
 
 # RL Algorithm td3 test full training
@@ -253,7 +253,7 @@ if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
     )
     target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
 endif()
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_td3_full_training_debug)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_td3_full_training_debug)
 target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG)
 gtest_discover_tests(test_rl_algorithms_td3_full_training_debug)
 
@@ -331,7 +331,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_multirotor)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_multirotor_multirotor)
 gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
 
@@ -360,7 +360,7 @@ target_include_directories(
 )
 if(${DEBUG})
     target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG)
-    BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(${TARGET})
+    BACKPROP_TOOLS_ADD_DEFINITIONS(${TARGET})
 endif()
 gtest_discover_tests(${TARGET})
 endfunction()
@@ -420,7 +420,7 @@ target_include_directories(
         PRIVATE
         lib/nlohmann/include
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_multirotor_ui_test)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_multirotor_ui_test)
 gtest_discover_tests(test_rl_environments_multirotor_ui_test)
 endif()
 
@@ -434,7 +434,7 @@ target_link_libraries(
         backprop_tools
         GTest::gtest_main
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_container)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_container)
 gtest_discover_tests(test_container)
 
 add_executable(
@@ -448,7 +448,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_components_replay_buffer)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_components_replay_buffer)
 gtest_discover_tests(test_rl_components_replay_buffer)
 
 # Container tests
@@ -461,7 +461,7 @@ target_link_libraries(
         backprop_tools
         GTest::gtest_main
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_container_persist_code_store)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_container_persist_code_store)
 gtest_discover_tests(test_container_persist_code_store)
 
 ## Container tests
@@ -474,7 +474,7 @@ gtest_discover_tests(test_container_persist_code_store)
 #        backprop_tools
 #        GTest::gtest_main
 #)
-#BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_container_persist_code_load)
+#BACKPROP_TOOLS_ADD_DEFINITIONS(test_container_persist_code_load)
 #gtest_discover_tests(test_container_persist_code_load)
 
 # ARM tests
@@ -487,7 +487,7 @@ target_link_libraries(
         backprop_tools
         GTest::gtest_main
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_nn_arm)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_nn_arm)
 gtest_discover_tests(test_nn_arm)
 
 # On Policy Runner tests
@@ -501,7 +501,7 @@ target_link_libraries(
         GTest::gtest_main
         HighFive
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_components_on_policy_runner)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_components_on_policy_runner)
 gtest_discover_tests(test_rl_components_on_policy_runner)
 
 # PPO tests
@@ -518,7 +518,7 @@ target_link_libraries(
         tensorboard_logger
 )
 gtest_discover_tests(test_rl_algorithms_ppo)
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_algorithms_ppo)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_ppo)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_algorithms_ppo)
 
 
@@ -535,7 +535,7 @@ target_link_libraries(
         tensorboard_logger
 )
 gtest_discover_tests(test_rl_components_running_normalizer)
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_components_running_normalizer)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_components_running_normalizer)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_components_running_normalizer)
 
 add_subdirectory(src/rl/algorithms/td3/wasm)

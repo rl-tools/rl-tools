@@ -1,5 +1,5 @@
 
-if(BACKPROP_TOOLS_TESTS_ENABLE_UI)
+if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 find_package(glfw3 REQUIRED)
 endif()
 
@@ -17,7 +17,7 @@ target_link_libraries(
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant)
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant)
 
 add_executable(
@@ -34,10 +34,10 @@ target_link_libraries(
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3)
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_td3)
 
-if(BACKPROP_TOOLS_TESTS_ENABLE_UI)
+if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 add_executable(
         test_rl_environments_mujoco_ant_ui
         ui.cpp
@@ -53,11 +53,11 @@ target_link_libraries(
         glfw
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_ui)
 endif()
 
-if(BACKPROP_TOOLS_TESTS_ENABLE_UI)
+if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 add_executable(
         test_rl_environments_mujoco_ant_evaluation_td3
         evaluate_actor.cpp
@@ -73,11 +73,11 @@ target_link_libraries(
         glfw
         CLI11::CLI11
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_td3)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_td3)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_td3)
 endif()
 
-if(BACKPROP_TOOLS_TESTS_ENABLE_UI)
+if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 add_executable(
         test_rl_environments_mujoco_ant_evaluation_ppo
         evaluate_actor.cpp
@@ -98,16 +98,16 @@ target_compile_definitions(
         PRIVATE
         -DBACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
 )
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_ppo)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_ppo)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_ppo)
 endif()
 
 add_executable(
-        test_rl_environments_mujoco_ant_training_ppo
-        training_ppo.cpp
+        test_rl_environments_mujoco_ant_training_ppo_test
+        training_ppo_test.cpp
 )
 target_link_libraries(
-        test_rl_environments_mujoco_ant_training_ppo
+        test_rl_environments_mujoco_ant_training_ppo_test
         PRIVATE
         backprop_tools
         GTest::gtest_main
@@ -115,9 +115,44 @@ target_link_libraries(
         tensorboard_logger
         mujoco
 )
-gtest_discover_tests(test_rl_environments_mujoco_ant_training_ppo)
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo)
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo)
+gtest_discover_tests(test_rl_environments_mujoco_ant_training_ppo_test)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo_test)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo_test)
+
+add_executable(
+        test_rl_environments_mujoco_ant_training_ppo_standalone
+        training_ppo_standalone.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_training_ppo_standalone
+        PRIVATE
+        backprop_tools
+        HighFive
+        tensorboard_logger
+        mujoco
+)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo_standalone)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo_standalone)
+
+add_executable(
+        test_rl_environments_mujoco_ant_training_ppo_benchmark
+        training_ppo_standalone.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_training_ppo_benchmark
+        PRIVATE
+        backprop_tools
+        GTest::gtest_main
+        mujoco
+)
+target_compile_definitions(
+        test_rl_environments_mujoco_ant_training_ppo_benchmark
+        PRIVATE
+        -DBACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
+)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo_benchmark)
+target_compile_definitions(test_rl_environments_mujoco_ant_training_ppo_benchmark PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo_benchmark)
 
 add_executable(
         test_rl_environments_mujoco_ant_throughput
@@ -133,7 +168,7 @@ target_link_libraries(
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_throughput)
-BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_throughput)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_throughput)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_throughput)
 
 

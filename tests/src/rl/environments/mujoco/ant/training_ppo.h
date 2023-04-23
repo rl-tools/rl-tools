@@ -1,7 +1,9 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
 #include <backprop_tools/nn_models/operations_cpu.h>
+#ifndef BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
 #include <backprop_tools/nn_models/persist.h>
+#endif
 namespace bpt = backprop_tools;
 #include "parameters_ppo.h"
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
@@ -15,17 +17,25 @@ namespace bpt = backprop_tools;
 #endif
 #include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
 #include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
+#ifndef BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
 #include <backprop_tools/rl/components/running_normalizer/persist.h>
+#endif
 #include <backprop_tools/rl/utils/evaluation.h>
 
-#include <gtest/gtest.h>
+#include <filesystem>
+#ifndef BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
 #include <highfive/H5File.hpp>
+#endif
 
 
 namespace parameters = parameters_0;
 
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
+#else
 using LOGGER = bpt::devices::logging::CPU;
-//using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
+#endif
+
 
 using DEV_SPEC_SUPER = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
 using TI = typename bpt::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
@@ -44,14 +54,22 @@ using TI = typename DEVICE::index_t;
 constexpr TI BASE_SEED = 600;
 constexpr TI NUM_RUNS = 100;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
+#ifdef BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
 constexpr bool ENABLE_EVALUATION = false;
+#else
+constexpr bool ENABLE_EVALUATION = true;
+#endif
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
+#ifdef BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
+#else
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+#endif
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
+void run(){
     for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
         using penv = parameters::environment<double, TI>;
         using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
@@ -151,6 +169,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
                     checkpoint_name = checkpoint_name_ss.str();
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
+#ifndef BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
                 try{
                     auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
                     bpt::save(device, ppo.actor, actor_file.createGroup("actor"));
@@ -159,6 +178,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
                 catch(HighFive::Exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
                 }
+#endif
                 next_checkpoint_id++;
             }
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
