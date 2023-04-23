@@ -1,21 +1,21 @@
-#define LAYER_IN_C_OPERATIONS_CPU_MUX_INCLUDE_CUDA
-#include <layer_in_c/operations/cpu_mux.h>
-#include <layer_in_c/nn/operations_cpu_mux.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
-#include <layer_in_c/nn_models/persist.h>
-namespace lic = layer_in_c;
+#define BACKPROP_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
+#include <backprop_tools/operations/cpu_mux.h>
+#include <backprop_tools/nn/operations_cpu_mux.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
+#include <backprop_tools/nn_models/persist.h>
+namespace lic = backprop_tools;
 #include "../parameters_ppo.h"
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_mkl.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_accelerate.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
 #endif
 #endif
-#include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
@@ -44,7 +44,7 @@ using envp = parameters::environment<double, TI>;
 using rlp = parameters::rl<T, TI, envp::ENVIRONMENT>;
 using STATE = envp::ENVIRONMENT::State;
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA){
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA){
     constexpr TI NUM_ROLLOUT_STEPS = 760;
     constexpr TI NUM_STEPS_PER_ENVIRONMENT = 64;
     constexpr TI NUM_ENVIRONMENTS = 64;

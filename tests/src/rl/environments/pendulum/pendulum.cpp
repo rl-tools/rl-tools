@@ -1,20 +1,20 @@
-#include <layer_in_c/operations/cpu.h>
+#include <backprop_tools/operations/cpu.h>
 
-#include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/environments/operations_cpu.h>
+#include <backprop_tools/rl/environments/environments.h>
+#include <backprop_tools/rl/environments/operations_cpu.h>
 
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 #define DTYPE double
 const DTYPE STATE_TOLERANCE = 0.00001;
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
     using DEVICE = lic::devices::DefaultCPU;
     typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
     typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
     std::string DATA_FILE_PATH = "../multirotor-torch/pendulum.hdf5";
-    const char* data_file_path = std::getenv("LAYER_IN_C_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE");
+    const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE");
     if (data_file_path != NULL){
         DATA_FILE_PATH = std::string(data_file_path);
     }

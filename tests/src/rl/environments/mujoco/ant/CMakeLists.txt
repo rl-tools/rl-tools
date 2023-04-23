@@ -1,5 +1,5 @@
 
-if(LAYER_IN_C_TESTS_ENABLE_UI)
+if(BACKPROP_TOOLS_TESTS_ENABLE_UI)
 find_package(glfw3 REQUIRED)
 endif()
 
@@ -10,15 +10,15 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant)
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant)
+BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant)
 
 add_executable(
         test_rl_environments_mujoco_ant_training_td3
@@ -27,17 +27,17 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_training_td3
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3)
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_td3)
+BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_td3)
 
-if(LAYER_IN_C_TESTS_ENABLE_UI)
+if(BACKPROP_TOOLS_TESTS_ENABLE_UI)
 add_executable(
         test_rl_environments_mujoco_ant_ui
         ui.cpp
@@ -45,7 +45,7 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_ui
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
@@ -53,8 +53,8 @@ target_link_libraries(
         glfw
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_ui)
+BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_ui)
 endif()
 
 add_executable(
@@ -64,7 +64,7 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_evaluation_td3
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
@@ -72,8 +72,8 @@ target_link_libraries(
         glfw
         CLI11::CLI11
 )
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_td3)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_td3)
+BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_td3)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_td3)
 
 add_executable(
         test_rl_environments_mujoco_ant_evaluation_ppo
@@ -82,7 +82,7 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_evaluation_ppo
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
@@ -93,10 +93,10 @@ target_link_libraries(
 target_compile_definitions(
         test_rl_environments_mujoco_ant_evaluation_ppo
         PRIVATE
-        -DLAYER_IN_C_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+        -DBACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
 )
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_ppo)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_ppo)
+BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_ppo)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_ppo)
 
 add_executable(
         test_rl_environments_mujoco_ant_training_ppo
@@ -105,15 +105,15 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_training_ppo
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_training_ppo)
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo)
+BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo)
 
 add_executable(
         test_rl_environments_mujoco_ant_throughput
@@ -122,17 +122,17 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_throughput
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_throughput)
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_throughput)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_throughput)
+BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_throughput)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_throughput)
 
 
-if(LAYER_IN_C_BACKEND_ENABLE_CUDA)
+if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
 add_subdirectory(cuda)
 endif()

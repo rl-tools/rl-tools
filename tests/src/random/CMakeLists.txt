@@ -1,4 +1,4 @@
-project(layer_in_c_random_arm)
+project(backprop_tools_random_arm)
 
 add_executable(
         test_random_arm
@@ -7,8 +7,8 @@ add_executable(
 target_link_libraries(
         test_random_arm
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
 )
 gtest_discover_tests(test_random_arm)
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_random_arm)
+BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_random_arm)

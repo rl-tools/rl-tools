@@ -9,14 +9,14 @@
 #pragma pop_macro("slots")
 namespace plt = matplotlibcpp;
 
-#include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/rl/algorithms/td3/td3.h>
-#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
-#include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/utils/rng_std.h>
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/nn_models/models.h>
+#include <backprop_tools/rl/algorithms/td3/td3.h>
+#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
+#include <backprop_tools/rl/environments/environments.h>
+#include <backprop_tools/utils/rng_std.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 #define DTYPE float
 
 typedef lic::rl::environments::pendulum::Spec<DTYPE, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
@@ -55,7 +55,7 @@ static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCritic
 OFF_POLICY_RUNNER_TYPE off_policy_runners[N_CORES];
 ActorCriticType actor_critics[N_CORES];
 
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
+TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
 
     std::vector<typename DEVICE::index_t> mean_returns_steps;
     std::vector<std::vector<DTYPE>> mean_returns(N_TRAINING_RUNS);

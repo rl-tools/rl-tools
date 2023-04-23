@@ -1,10 +1,10 @@
-#include <layer_in_c/rl/environments/mujoco/ant/ant.h>
+#include <backprop_tools/rl/environments/mujoco/ant/ant.h>
 
-#include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/rl/algorithms/td3/td3.h>
-#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
+#include <backprop_tools/nn_models/models.h>
+#include <backprop_tools/rl/algorithms/td3/td3.h>
+#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
 
-#include <layer_in_c/utils/generic/typing.h>
+#include <backprop_tools/utils/generic/typing.h>
 
 namespace parameters_0{
 
@@ -44,13 +44,13 @@ namespace parameters_0{
         using ACTOR_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
 
         using ACTOR_TARGET_SPEC = lic::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-        using ACTOR_TARGET_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_SPEC>;
+        using ACTOR_TARGET_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_SPEC>;
 
         using CRITIC_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
+        using CRITIC_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
 
-        using CRITIC_TARGET_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_TARGET_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
+        using CRITIC_TARGET_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
+        using CRITIC_TARGET_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
 
         using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, ACTOR_CRITIC_PARAMETERS>;
         using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;

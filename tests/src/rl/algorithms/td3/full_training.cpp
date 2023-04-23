@@ -1,77 +1,77 @@
 // ------------ Groups 1 ------------
-#ifndef LAYER_IN_C_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
-#include <layer_in_c/operations/cpu_tensorboard/group_1.h>
+#ifndef BACKPROP_TOOLS_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
+#include <backprop_tools/operations/cpu_tensorboard/group_1.h>
 #endif
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_1.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/operations/cpu_mkl/group_1.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_1.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/operations/cpu_accelerate/group_1.h>
 #else
-#include <layer_in_c/operations/cpu/group_1.h>
+#include <backprop_tools/operations/cpu/group_1.h>
 #endif
 #endif
 // ------------ Groups 2 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_2.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_2.h>
+#include <backprop_tools/operations/cpu_tensorboard/group_2.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/operations/cpu_mkl/group_2.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_2.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/operations/cpu_accelerate/group_2.h>
 #else
-#include <layer_in_c/operations/cpu/group_2.h>
+#include <backprop_tools/operations/cpu/group_2.h>
 #endif
 #endif
 // ------------ Groups 3 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_3.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_3.h>
+#include <backprop_tools/operations/cpu_tensorboard/group_3.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/operations/cpu_mkl/group_3.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_3.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/operations/cpu_accelerate/group_3.h>
 #else
-#include <layer_in_c/operations/cpu/group_3.h>
+#include <backprop_tools/operations/cpu/group_3.h>
 #endif
 #endif
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
-#ifndef LAYER_IN_C_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
+#ifndef BACKPROP_TOOLS_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
 using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
 #else
 using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU>;
 #endif
 
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/nn/operations_cpu_mkl.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/nn/operations_cpu_mkl.h>
 using DEVICE = lic::devices::CPU_MKL<DEV_SPEC>;
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/nn/operations_cpu_accelerate.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/nn/operations_cpu_accelerate.h>
 using DEVICE = lic::devices::CPU_ACCELERATE<DEV_SPEC>;
 #else
-#include <layer_in_c/nn/operations_generic.h>
+#include <backprop_tools/nn/operations_generic.h>
 using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #endif
 #endif
 
-#include <layer_in_c/rl/environments/operations_generic.h>
-#include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/rl/operations_generic.h>
+#include <backprop_tools/rl/environments/operations_generic.h>
+#include <backprop_tools/nn_models/operations_generic.h>
+#include <backprop_tools/rl/operations_generic.h>
 
 
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
 #include <filesystem>
 
 
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
-#include <layer_in_c/rl/environments/pendulum/ui.h>
-#include <layer_in_c/rl/utils/evaluation_visual.h>
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
+#include <backprop_tools/rl/environments/pendulum/ui.h>
+#include <backprop_tools/rl/utils/evaluation_visual.h>
 #endif
 
 
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
 #include "plot_policy_and_value_function.h"
 #endif
 
@@ -80,12 +80,12 @@ using DTYPE = float;
 
 typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef lic::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 
 struct DEVICE_SPEC: lic::devices::DefaultCPUSpecification {
-#ifdef LAYER_IN_C_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
+#ifdef BACKPROP_TOOLS_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
     using LOGGING = lic::devices::logging::CPU;
 #else
     using LOGGING = lic::devices::logging::CPU_TENSORBOARD;
@@ -108,18 +108,18 @@ using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructure
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
 using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
-using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
 using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
-using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
-using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
+using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
 constexpr DEVICE::index_t STEP_LIMIT = 1000;
 #else
 constexpr DEVICE::index_t STEP_LIMIT = 10000;
@@ -143,7 +143,7 @@ constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SI
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 void run(){
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
     UI ui;
 #endif
     DEVICE::SPEC::LOGGING logger;
@@ -196,13 +196,13 @@ void run(){
 
     for(int step_i = 0; step_i < STEP_LIMIT; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         lic::set_step(ac_dev, ac_dev.logger, step_i);
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
         if(step_i % 20 == 0){
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, decltype(actor_critic.actor), decltype(actor_critic.critic_1)>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
         }
 #endif
         lic::step(ac_dev, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
         lic::set_state(ui, off_policy_runner.state);
 #endif
 
@@ -232,7 +232,7 @@ void run(){
                 lic::update_actor_target(ac_dev, actor_critic);
             }
         }
-#ifndef LAYER_IN_C_DISABLE_EVALUATION
+#ifndef BACKPROP_TOOLS_DISABLE_EVALUATION
         if(step_i % 1000 == 0){
 //            auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<1, ENVIRONMENT_STEP_LIMIT>(), rng, true);
             auto result = lic::evaluate(ac_dev, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, rng);
@@ -244,10 +244,10 @@ void run(){
 //                ASSERT_GT(mean_return, -400);
 //            }
 
-//#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
+//#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
 //            plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
 //#endif
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
             //            for(int evaluation_i = 0; evaluation_i < 10; evaluation_i++){
 //                ENVIRONMENT::State initial_state;
 //                lic::sample_initial_state(env, initial_state, rng);

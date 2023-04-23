@@ -1,12 +1,12 @@
-#include <layer_in_c/operations/cpu.h>
+#include <backprop_tools/operations/cpu.h>
 
 
 #include <gtest/gtest.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 
-TEST(LAYER_IN_C_TEST_CONTAINER, SLICE){
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, SLICE){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE::SPEC::LOGGING logger;
@@ -81,7 +81,7 @@ void test_view(){
     lic::free(device, m_dense);
 
 }
-TEST(LAYER_IN_C_TEST_CONTAINER, VIEW) {
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, VIEW) {
     test_view<10, 10, 10, 1, 5, 5>();
     test_view<10, 10, 20, 2, 5, 5>();
     test_view<15, 13, 100, 3, 3, 2>();
@@ -122,7 +122,7 @@ void test_view_col(){
 
 }
 
-TEST(LAYER_IN_C_TEST_CONTAINER, VIEW_ROW_COL) {
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, VIEW_ROW_COL) {
     test_view_col<10, 10, 10, 1>();
     test_view_col<10, 10, 20, 2>();
     test_view_col<15, 13, 100, 3>();
@@ -150,7 +150,7 @@ void test_is_nan(){
     lic::free(device, m);
 }
 
-TEST(LAYER_IN_C_TEST_CONTAINER, IS_NAN) {
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, IS_NAN) {
     test_is_nan<10, 10, 10, 1>();
     test_is_nan<10, 10, 20, 2>();
     test_is_nan<15, 13, 100, 3>();
@@ -183,14 +183,14 @@ void test_is_finite(){
     lic::free(device, m);
 }
 
-TEST(LAYER_IN_C_TEST_CONTAINER, IS_FINITE) {
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, IS_FINITE) {
     test_is_finite<10, 10, 10, 1>();
     test_is_finite<10, 10, 20, 2>();
     test_is_finite<15, 13, 100, 3>();
     test_is_finite<15, 13, 3, 100>();
 }
 
-TEST(LAYER_IN_C_TEST_CONTAINER, WRAP) {
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, WRAP) {
     using DEVICE = lic::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;

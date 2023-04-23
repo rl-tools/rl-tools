@@ -10,22 +10,22 @@ namespace dynamics_legacy{
 constexpr auto STATE_DIM = dynamics_legacy::STATE_DIM;
 constexpr auto ACTION_DIM = dynamics_legacy::ACTION_DIM;
 
-#include <layer_in_c/operations/cpu.h>
+#include <backprop_tools/operations/cpu.h>
 
-#include <layer_in_c/rl/environments/multirotor/parameters/default.h>
+#include <backprop_tools/rl/environments/multirotor/parameters/default.h>
 
-#include <layer_in_c/rl/environments/multirotor/multirotor.h>
+#include <backprop_tools/rl/environments/multirotor/multirotor.h>
 
-#include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
+#include <backprop_tools/rl/environments/multirotor/operations_cpu.h>
 
-#include <layer_in_c/utils/generic/memcpy.h>
+#include <backprop_tools/utils/generic/memcpy.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 #include <gtest/gtest.h>
 #include <random>
 #include <stdint.h>
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     using DEVICE = lic::devices::DefaultCPU;
 
 

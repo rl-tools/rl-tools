@@ -1,23 +1,23 @@
 // this is a test to check if everything compiles without any dependencies (by replacing the dependency based math functions with dummy implementations)
-#ifdef LAYER_IN_C_OPERATIONS_CPU
-#include <layer_in_c/operations/cpu.h>
+#ifdef BACKPROP_TOOLS_OPERATIONS_CPU
+#include <backprop_tools/operations/cpu.h>
 #else
-#include <layer_in_c/operations/dummy.h>
+#include <backprop_tools/operations/dummy.h>
 #endif
 
-#include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/environments/operations_generic.h>
-#include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/rl/rl.h>
-#include <layer_in_c/rl/operations_generic.h>
+#include <backprop_tools/rl/environments/environments.h>
+#include <backprop_tools/rl/environments/operations_generic.h>
+#include <backprop_tools/nn_models/models.h>
+#include <backprop_tools/nn_models/operations_generic.h>
+#include <backprop_tools/rl/rl.h>
+#include <backprop_tools/rl/operations_generic.h>
 
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 using DTYPE = float;
 
-#ifdef LAYER_IN_C_OPERATIONS_CPU
+#ifdef BACKPROP_TOOLS_OPERATIONS_CPU
 using DEVICE = lic::devices::DefaultCPU;
 using NN_DEVICE = lic::devices::DefaultCPU;
 using AC_DEVICE = lic::devices::DefaultCPU;
@@ -48,13 +48,13 @@ using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructure
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
 using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
-using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
 using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
-using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
-using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
+using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;

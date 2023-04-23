@@ -1,9 +1,9 @@
-#include <layer_in_c/operations/cpu_tensorboard.h>
+#include <backprop_tools/operations/cpu_tensorboard.h>
 
-#include <layer_in_c/rl/environments/mujoco/ant/operations_cpu.h>
-#include <layer_in_c/rl/environments/mujoco/ant/ui.h>
+#include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
+#include <backprop_tools/rl/environments/mujoco/ant/ui.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 #include <chrono>
 #include <iostream>
@@ -20,7 +20,7 @@ namespace TEST_DEFINITIONS{
 }
 
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;

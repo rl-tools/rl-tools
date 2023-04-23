@@ -1,34 +1,34 @@
 // Group 1
-#include <layer_in_c/operations/cpu/group_1.h>
-//#ifdef LAYER_IN_C_BACKEND_ENABLE_CUDA
-//    #include <layer_in_c/operations/cuda/group_1.h>
+#include <backprop_tools/operations/cpu/group_1.h>
+//#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_CUDA
+//    #include <backprop_tools/operations/cuda/group_1.h>
 //#endif
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-    #include <layer_in_c/operations/cpu_mkl/group_1.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+    #include <backprop_tools/operations/cpu_mkl/group_1.h>
 #endif
 
 // Group 2
-#include <layer_in_c/operations/cpu/group_2.h>
-//#ifdef LAYER_IN_C_BACKEND_ENABLE_CUDA
-//#include <layer_in_c/operations/cuda/group_2.h>
+#include <backprop_tools/operations/cpu/group_2.h>
+//#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_CUDA
+//#include <backprop_tools/operations/cuda/group_2.h>
 //#endif
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_2.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/operations/cpu_mkl/group_2.h>
 #endif
 
 // Group 3
-#include <layer_in_c/operations/cpu/group_3.h>
-//#ifdef LAYER_IN_C_BACKEND_ENABLE_CUDA
-//#include <layer_in_c/operations/cuda/group_3.h>
+#include <backprop_tools/operations/cpu/group_3.h>
+//#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_CUDA
+//#include <backprop_tools/operations/cuda/group_3.h>
 //#endif
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_3.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/operations/cpu_mkl/group_3.h>
 #endif
 
-#include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
+#include <backprop_tools/nn_models/operations_generic.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 #include <gtest/gtest.h>
 
@@ -57,7 +57,7 @@ using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<InferenceSpecificatio
 constexpr INDEX_TYPE ITERATIONS = 1;
 constexpr INDEX_TYPE NAIVE_ITERATIONS = 1;
 
-class LAYER_IN_C_NN_DENSE_BENCHMARK : public ::testing::Test
+class BACKPROP_TOOLS_NN_DENSE_BENCHMARK : public ::testing::Test
 {
 protected:
     lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input;
@@ -75,7 +75,7 @@ protected:
     NetworkType::BuffersForwardBackward<BATCH_SIZE> network_buffers;
     NetworkType network_mkl;
     NetworkType::BuffersForwardBackward<BATCH_SIZE> network_mkl_buffers;
-    LAYER_IN_C_NN_DENSE_BENCHMARK(){
+    BACKPROP_TOOLS_NN_DENSE_BENCHMARK(){
         device.logger = &logger;
         lic::malloc(device, input);
         lic::malloc(device, expected_output_input_layer);
@@ -134,7 +134,7 @@ protected:
 
 
 
-TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
+TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
     lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_batch;
     lic::malloc(device, output_batch);
     auto start = std::chrono::high_resolution_clock::now();
@@ -155,10 +155,10 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
 
 #define min(x,y) (((x) < (y)) ? (x) : (y))
 
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/devices/cpu_mkl.h>
-#include <layer_in_c/containers/operations_cpu_mkl.h>
-TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/devices/cpu_mkl.h>
+#include <backprop_tools/containers/operations_cpu_mkl.h>
+TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL) {
     using T = DTYPE;
     int m, n, k;
     T alpha, beta;
@@ -210,11 +210,11 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL) {
 
 }
 
-#include <layer_in_c/nn/operations_cpu_mkl.h>
-#include <layer_in_c/containers/operations_generic.h>
-#include <layer_in_c/utils/generic/typing.h>
+#include <backprop_tools/nn/operations_cpu_mkl.h>
+#include <backprop_tools/containers/operations_generic.h>
+#include <backprop_tools/utils/generic/typing.h>
 
-TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
+TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl;
     device_mkl.logger = &logger;
@@ -242,7 +242,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER) {
     std::cout << "Absolute difference: " << abs_diff << std::endl;
 }
 
-TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
+TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
     std::cout << "Layer batch size: " << decltype(network_mkl.input_layer)::SPEC::BATCH_SIZE << std::endl;
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl;
@@ -271,7 +271,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
     std::cout << "Absolute difference: " << abs_diff << std::endl;
 }
 
-TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
+TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
     std::cout << "Layer batch size: " << decltype(network_mkl.input_layer)::SPEC::BATCH_SIZE << std::endl;
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl;
@@ -296,7 +296,7 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
     std::cout << "Absolute difference: " << abs_diff << std::endl;
 }
 
-TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
+TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
     using DEVICE_MKL = lic::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl;
     device_mkl.logger = device.logger;
@@ -328,9 +328,9 @@ TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
 }
 #endif
 
-//#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
+//#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
 //#include <Accelerate/Accelerate.h>
-//TEST_F(LAYER_IN_C_NN_DENSE_BENCHMARK, ACCELERATE) {
+//TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, ACCELERATE) {
 //    DTYPE *A, *B, *C;
 //    int m, n, k;
 //    DTYPE alpha, beta;

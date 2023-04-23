@@ -1,8 +1,8 @@
-#include <layer_in_c/operations/cpu_tensorboard.h>
+#include <backprop_tools/operations/cpu_tensorboard.h>
 
-#include <layer_in_c/rl/environments/mujoco/ant/operations_cpu.h>
+#include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 #include <chrono>
 #include <iostream>
@@ -19,7 +19,7 @@ namespace TEST_DEFINITIONS{
 }
 
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;
@@ -43,7 +43,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
 
 }
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;
@@ -106,7 +106,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
     ASSERT_LT(acc, 1e-12);
 }
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;

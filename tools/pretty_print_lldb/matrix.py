@@ -5,16 +5,16 @@ import json
 
 # workflow
 # lldb cmake-build-debug/tests/test_rl_algorithms_td3_second_stage_mlp
-# breakpoint set -f include/layer_in_c/containers/operations_generic.h -l 125
+# breakpoint set -f include/backprop_tools/containers/operations_generic.h -l 125
 # run
 # type summary clear
 # command script import tools/pretty_print_lldb/matrix.py
-# type summary add -F matrix.pretty_print_row_major_alignment -x "^layer_in_c::Matrix<layer_in_c::matrix::Specification<"
+# type summary add -F matrix.pretty_print_row_major_alignment -x "^backprop_tools::Matrix<backprop_tools::matrix::Specification<"
 # p m1
 
 
 def decode_row_major(valobj):
-    regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
+    regex = r"^\s*(?:const|\s*)\s*backprop_tools\s*::\s*Matrix\s*<\s*backprop_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*backprop_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
     result = re.match(regex, valobj.type.name)
     if result is None:
         return None
@@ -28,7 +28,7 @@ def decode_row_major(valobj):
         return meta
 
 def decode_fixed(valobj):
-    regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*Fixed\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
+    regex = r"^\s*(?:const|\s*)\s*backprop_tools\s*::\s*Matrix\s*<\s*backprop_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*backprop_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*Fixed\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*(&|\s*)\s*$"
     result = re.match(regex, valobj.type.name)
     if result is None:
         return None
@@ -41,7 +41,7 @@ def decode_fixed(valobj):
         return meta
 
 def pretty_print_row_major_alignment(valobj, internal_dict, options):
-    # regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
+    # regex = r"^\s*(?:const|\s*)\s*backprop_tools\s*::\s*Matrix\s*<\s*backprop_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*backprop_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
     float_ptr = valobj.GetChildMemberWithName("_data")
     float_type = float_ptr.GetType().GetPointeeType()
     target = valobj.GetTarget()
@@ -65,7 +65,7 @@ def pretty_print_row_major_alignment(valobj, internal_dict, options):
         # return float_ptr.Dereference()
 
 def pretty_print_fixed_alignment(valobj, internal_dict, options):
-    # regex = r"^\s*(?:const|\s*)\s*layer_in_c\s*::\s*Matrix\s*<\s*layer_in_c\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*layer_in_c\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
+    # regex = r"^\s*(?:const|\s*)\s*backprop_tools\s*::\s*Matrix\s*<\s*backprop_tools\s*::\s*matrix\s*::\s*Specification\s*<\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*backprop_tools\s*::\s*matrix\s*::\s*layouts\s*::\s*RowMajorAlignment\s*<\s*([^,]+)\s*,\s*([^,]+)\s*>\s*,\s*([^,]+)\s*>\s*>\s*$"
     float_ptr = valobj.GetChildMemberWithName("_data")
     float_type = float_ptr.GetType().GetPointeeType()
     target = valobj.GetTarget()

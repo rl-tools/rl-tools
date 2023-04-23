@@ -1,20 +1,20 @@
-#include <layer_in_c/operations/cpu_mux.h>
-#include <layer_in_c/nn/operations_cpu_mux.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
-#include <layer_in_c/nn_models/persist.h>
-namespace lic = layer_in_c;
+#include <backprop_tools/operations/cpu_mux.h>
+#include <backprop_tools/nn/operations_cpu_mux.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
+#include <backprop_tools/nn_models/persist.h>
+namespace lic = backprop_tools;
 #include "parameters_ppo.h"
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_mkl.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_accelerate.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
 #endif
 #endif
-#include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
@@ -42,7 +42,7 @@ using envp = parameters::environment<double, TI>;
 using rlp = parameters::rl<T, TI, envp::ENVIRONMENT>;
 using STATE = envp::ENVIRONMENT::State;
 
-//TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_SINGLE_CORE){
+//TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_SINGLE_CORE){
 //    constexpr TI NUM_STEPS = 10000;
 //
 //    DEVICE device;
@@ -69,7 +69,7 @@ using STATE = envp::ENVIRONMENT::State;
 //    std::cout << "Single Core Throughput: " << steps_per_second << " steps/s (frameskip: " << envp::ENVIRONMENT::SPEC::PARAMETERS::FRAME_SKIP << " -> " << frames_per_second << " fps)" << std::endl;
 //}
 //
-//TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDENT){
+//TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDENT){
 //    constexpr TI NUM_STEPS_PER_THREAD = 10000;
 //    constexpr TI NUM_THREADS = 16;
 //
@@ -159,7 +159,7 @@ using STATE = envp::ENVIRONMENT::State;
 //    std::mutex mutex;
 //};
 //
-//TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_LOCKSTEP){
+//TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_LOCKSTEP){
 //    constexpr TI NUM_STEPS_PER_THREAD = 100000;
 //    constexpr TI NUM_THREADS = 16;
 //
@@ -225,7 +225,7 @@ using STATE = envp::ENVIRONMENT::State;
 //    }
 //}
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
     constexpr TI NUM_ROLLOUT_STEPS = 760;
     constexpr TI NUM_STEPS_PER_ENVIRONMENT = 64;
     constexpr TI NUM_ENVIRONMENTS = 64;
@@ -299,7 +299,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
     std::cout << "Throughput: " << steps_per_second << " steps/s (frameskip: " << envp::ENVIRONMENT::SPEC::PARAMETERS::FRAME_SKIP << " -> " << frames_per_second << " fps)" << std::endl;
 }
 
-//TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDENT_FORWARD_PASS){
+//TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDENT_FORWARD_PASS){
 //    constexpr TI NUM_STEPS_PER_THREAD = 1000;
 //    constexpr TI NUM_THREADS = 16;
 //    using ACTOR_STRUCTURE_SPEC = lic::nn_models::mlp::StructureSpecification<T, TI, envp::ENVIRONMENT::OBSERVATION_DIM, envp::ENVIRONMENT::ACTION_DIM, 3, 256, lic::nn::activation_functions::ActivationFunction::TANH, lic::nn::activation_functions::IDENTITY>;
@@ -359,7 +359,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
 //    std::cout << "Throughput: " << steps_per_second << " steps/s (frameskip: " << envp::ENVIRONMENT::SPEC::PARAMETERS::FRAME_SKIP << " -> " << frames_per_second << " fps)" << std::endl;
 //}
 //
-//TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWARD_PASS_TAKE_AWAY){
+//TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWARD_PASS_TAKE_AWAY){
 //    constexpr TI NUM_STEPS_PER_ENVIRONMENT = 10000;
 //    constexpr TI NUM_THREADS = 16;
 //    constexpr TI NUM_ENVIRONMENTS = 64;
@@ -465,7 +465,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
 //    std::cout << "Throughput: " << steps_per_second << " steps/s (frameskip: " << envp::ENVIRONMENT::SPEC::PARAMETERS::FRAME_SKIP << " -> " << frames_per_second << " fps) barrier_wait_time_fractions: " << barrier_1_wait_time_fraction << " : " << barrier_2_wait_time_fraction << " evaluation time per step: " << evaluation_time_per_eval << " fraction: " << evaluation_time_fraction << std::endl;
 //}
 //
-//TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWARD_PASS_FIXED_ASSIGNMENT){
+//TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWARD_PASS_FIXED_ASSIGNMENT){
 //    constexpr TI NUM_FULL_STEPS = 100;
 //    constexpr TI NUM_STEPS_PER_ENVIRONMENT = 64;
 //    constexpr TI NUM_THREADS = 16;

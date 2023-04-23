@@ -1,32 +1,32 @@
 // Group 1
-#include <layer_in_c/operations/cuda/group_1.h>
-#include <layer_in_c/operations/cpu/group_1.h>
-#include <layer_in_c/operations/cpu_mkl/group_1.h>
+#include <backprop_tools/operations/cuda/group_1.h>
+#include <backprop_tools/operations/cpu/group_1.h>
+#include <backprop_tools/operations/cpu_mkl/group_1.h>
 
 // Group 2
-#include <layer_in_c/operations/cuda/group_2.h>
-#include <layer_in_c/operations/cpu/group_2.h>
-#include <layer_in_c/operations/cpu_mkl/group_2.h>
+#include <backprop_tools/operations/cuda/group_2.h>
+#include <backprop_tools/operations/cpu/group_2.h>
+#include <backprop_tools/operations/cpu_mkl/group_2.h>
 
 // Group 3
-#include <layer_in_c/operations/cuda/group_3.h>
-#include <layer_in_c/operations/cpu/group_3.h>
-#include <layer_in_c/operations/cpu_mkl/group_3.h>
+#include <backprop_tools/operations/cuda/group_3.h>
+#include <backprop_tools/operations/cpu/group_3.h>
+#include <backprop_tools/operations/cpu_mkl/group_3.h>
 
-#include <layer_in_c/nn/operations_cpu_mkl.h>
-#include <layer_in_c/nn/operations_cuda.h>
-#include <layer_in_c/nn/loss_functions/mse/operations_cuda.h>
-#include <layer_in_c/nn_models/operations_generic.h>
+#include <backprop_tools/nn/operations_cpu_mkl.h>
+#include <backprop_tools/nn/operations_cuda.h>
+#include <backprop_tools/nn/loss_functions/mse/operations_cuda.h>
+#include <backprop_tools/nn_models/operations_generic.h>
 
-#include <layer_in_c/rl/components/replay_buffer/operations_cpu.h>
-#include <layer_in_c/rl/components/replay_buffer/persist.h>
-#include <layer_in_c/rl/components/off_policy_runner/operations_cpu.h>
+#include <backprop_tools/rl/components/replay_buffer/operations_cpu.h>
+#include <backprop_tools/rl/components/replay_buffer/persist.h>
+#include <backprop_tools/rl/components/off_policy_runner/operations_cpu.h>
 
-#include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
+#include <backprop_tools/rl/environments/pendulum/operations_cpu.h>
 
-#include <layer_in_c/rl/components/off_policy_runner/operations_cuda.h>
-#include <layer_in_c/rl/algorithms/td3/operations_cuda.h>
-#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+#include <backprop_tools/rl/components/off_policy_runner/operations_cuda.h>
+#include <backprop_tools/rl/algorithms/td3/operations_cuda.h>
+#include <backprop_tools/rl/algorithms/td3/operations_cpu.h>
 
 #include "../components/replay_buffer.h"
 
@@ -34,9 +34,9 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
-class LAYER_IN_C_RL_CUDA : public ::testing::Test {
+class BACKPROP_TOOLS_RL_CUDA : public ::testing::Test {
 public:
     using DEVICE_CPU = lic::devices::DefaultCPU_MKL;
     using DEVICE_GPU = lic::devices::DefaultCUDA;
@@ -64,11 +64,11 @@ public:
     using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
     using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
     using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-    using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+    using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
     using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
-    using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
-    using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-    using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+    using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+    using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
+    using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
     using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
     using ACTOR_CRITIC_TYPE = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
     using ACTOR_BUFFERS = lic::nn_models::mlp::NeuralNetworkBuffersForwardBackward<lic::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;
@@ -170,7 +170,7 @@ protected:
     }
 };
 
-TEST_F(LAYER_IN_C_RL_CUDA, VIEW_COPY_PROBLEM) {
+TEST_F(BACKPROP_TOOLS_RL_CUDA, VIEW_COPY_PROBLEM) {
 
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
@@ -186,7 +186,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, VIEW_COPY_PROBLEM) {
     ASSERT_LT(lic::sum(device_cpu, batch_cpu_2.actions), EPSILON);
 }
 
-TEST_F(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
+TEST_F(BACKPROP_TOOLS_RL_CUDA, GATHER_BATCH) {
 
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
@@ -215,7 +215,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, GATHER_BATCH) {
     abs_diff_batch += lic::abs_diff(device_cpu, batch_cpu.truncated, batch_cpu_2.truncated);
     ASSERT_FLOAT_EQ(abs_diff_batch, 0);
 }
-TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
+TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
     constexpr DEVICE_CPU::index_t N_STEPS = 5;
 
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
@@ -353,7 +353,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
 }
 
-TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
+TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
     constexpr DEVICE_CPU::index_t N_STEPS = 50;
 
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
@@ -418,7 +418,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
     }
 }
 
-TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
+TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
     using DEVICE_MKL = lic::devices::DefaultCPU_MKL;
     DEVICE_MKL device_mkl;
     constexpr DEVICE_CPU::index_t N_STEPS = 10000;
@@ -480,7 +480,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
     }
 }
 
-TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
+TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
     constexpr DEVICE_CPU::index_t N_STEPS = 50;
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
@@ -510,7 +510,7 @@ TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
 
 }
 
-TEST_F(LAYER_IN_C_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
+TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
     constexpr DEVICE_CPU::index_t N_STEPS = 10000;
     auto rng_cpu = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = lic::random::default_engine(DEVICE_GPU::SPEC::RANDOM());

@@ -1,7 +1,7 @@
-#include <layer_in_c/operations/cpu.h>
+#include <backprop_tools/operations/cpu.h>
 
-#include <layer_in_c/rl/components/replay_buffer/operations_cpu.h>
-#include <layer_in_c/rl/components/replay_buffer/persist.h>
+#include <backprop_tools/rl/components/replay_buffer/operations_cpu.h>
+#include <backprop_tools/rl/components/replay_buffer/persist.h>
 
 #include "replay_buffer.h"
 
@@ -9,10 +9,10 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 
-TEST(LAYER_IN_C_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {
+TEST(BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {
     std::string replay_buffer_path = "test_cuda_replay_buffer.h5";
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;

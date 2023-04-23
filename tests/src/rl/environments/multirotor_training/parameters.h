@@ -1,36 +1,36 @@
-#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/abs_exp.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/squared.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/reward_functions/default.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/dynamics/crazy_flie.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/init/default.h>
-#include <layer_in_c/rl/environments/multirotor/parameters/termination/default.h>
+#include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/abs_exp.h>
+#include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/squared.h>
+#include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/default.h>
+#include <backprop_tools/rl/environments/multirotor/parameters/dynamics/crazy_flie.h>
+#include <backprop_tools/rl/environments/multirotor/parameters/init/default.h>
+#include <backprop_tools/rl/environments/multirotor/parameters/termination/default.h>
 
-#include <layer_in_c/nn_models/models.h>
-#include <layer_in_c/rl/algorithms/td3/td3.h>
-#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
+#include <backprop_tools/nn_models/models.h>
+#include <backprop_tools/rl/algorithms/td3/td3.h>
+#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
 
-#include <layer_in_c/utils/generic/typing.h>
+#include <backprop_tools/utils/generic/typing.h>
 
 namespace parameters_0{
 
     template<typename DEVICE, typename T>
     struct environment{
         using TI = typename DEVICE::index_t;
-        static constexpr auto reward_function = layer_in_c::rl::environments::multirotor::parameters::reward_functions::reward_dr<T>;
-        using REWARD_FUNCTION_CONST = typename layer_in_c::utils::typing::remove_cv_t<decltype(reward_function)>;
-        using REWARD_FUNCTION = typename layer_in_c::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
+        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_dr<T>;
+        using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
+        using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
-        static constexpr layer_in_c::rl::environments::multirotor::Parameters<T, TI, 4, REWARD_FUNCTION> parameters = {
-                layer_in_c::rl::environments::multirotor::parameters::dynamics::crazy_flie<T, TI, REWARD_FUNCTION>,
+        static constexpr backprop_tools::rl::environments::multirotor::Parameters<T, TI, 4, REWARD_FUNCTION> parameters = {
+                backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie<T, TI, REWARD_FUNCTION>,
                 {0.01}, // integration dt
                 {
-                        layer_in_c::rl::environments::multirotor::parameters::init::all_around<T, TI, 4, REWARD_FUNCTION>,
-                        layer_in_c::rl::environments::multirotor::parameters::termination::classic<T, TI, 4, REWARD_FUNCTION>,
+                        backprop_tools::rl::environments::multirotor::parameters::init::all_around<T, TI, 4, REWARD_FUNCTION>,
+                        backprop_tools::rl::environments::multirotor::parameters::termination::classic<T, TI, 4, REWARD_FUNCTION>,
                         reward_function,
                 }
         };
 
-        using PARAMETERS = typename layer_in_c::utils::typing::remove_cv_t<decltype(parameters)>;
+        using PARAMETERS = typename backprop_tools::utils::typing::remove_cv_t<decltype(parameters)>;
 
         using ENVIRONMENT_SPEC = lic::rl::environments::multirotor::Specification<T, typename DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters>;
         using ENVIRONMENT = lic::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
@@ -64,13 +64,13 @@ namespace parameters_0{
         using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
         using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-        using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+        using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
         using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+        using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-        using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+        using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
+        using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
         using ACTOR_CRITIC_SPEC = lic::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, ACTOR_CRITIC_PARAMETERS>;
         using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;

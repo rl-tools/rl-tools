@@ -1,18 +1,18 @@
-#include <layer_in_c/operations/cpu.h>
-#include <layer_in_c/rl/environments/pendulum/pendulum.h>
-#include <layer_in_c/rl/environments/pendulum/operations_generic.h>
-#include <layer_in_c/nn_models/mlp_unconditional_stddev/operations_cpu.h>
-#include <layer_in_c/rl/components/on_policy_runner/on_policy_runner.h>
-#include <layer_in_c/rl/components/on_policy_runner/operations_generic.h>
-#include <layer_in_c/rl/components/on_policy_runner/persist.h>
+#include <backprop_tools/operations/cpu.h>
+#include <backprop_tools/rl/environments/pendulum/pendulum.h>
+#include <backprop_tools/rl/environments/pendulum/operations_generic.h>
+#include <backprop_tools/nn_models/mlp_unconditional_stddev/operations_cpu.h>
+#include <backprop_tools/rl/components/on_policy_runner/on_policy_runner.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_generic.h>
+#include <backprop_tools/rl/components/on_policy_runner/persist.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 
 #include <gtest/gtest.h>
 
 
-TEST(LAYER_IN_C_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
+TEST(BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     using DEVICE = lic::devices::DefaultCPU;
     using T = float;
     using TI = typename DEVICE::index_t;

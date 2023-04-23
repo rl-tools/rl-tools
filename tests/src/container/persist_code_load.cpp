@@ -1,21 +1,21 @@
-#include <layer_in_c/operations/cpu.h>
+#include <backprop_tools/operations/cpu.h>
 
-#include <layer_in_c/containers/persist_code.h>
-#include <layer_in_c/nn/layers/dense/operations_cpu.h>
-#include <layer_in_c/nn_models/mlp/operations_cpu.h>
+#include <backprop_tools/containers/persist_code.h>
+#include <backprop_tools/nn/layers/dense/operations_cpu.h>
+#include <backprop_tools/nn_models/mlp/operations_cpu.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 
 #include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
-#include "../../../data/test_layer_in_c_container_persist_matrix.h"
+#include "../../../data/test_backprop_tools_container_persist_matrix.h"
 
 constexpr bool const_declaration = false;
 
-TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST){
+TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -32,9 +32,9 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST){
     ASSERT_FLOAT_EQ(0, abs_diff);
 }
 
-#include "../../../data/test_layer_in_c_nn_layers_dense_persist_code.h"
+#include "../../../data/test_backprop_tools_nn_layers_dense_persist_code.h"
 
-TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
+TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -47,7 +47,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
-TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
+TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
@@ -75,9 +75,9 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
     ASSERT_FLOAT_EQ(10 + 5 + 2 + 1, abs_diff);
 }
 
-#include "../../../data/test_layer_in_c_nn_models_mlp_persist_code.h"
+#include "../../../data/test_backprop_tools_nn_models_mlp_persist_code.h"
 
-TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
+TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -91,7 +91,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
-TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
+TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -112,7 +112,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
-TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
+TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     constexpr typename DEVICE::index_t BATCH_SIZE = 10;
@@ -139,7 +139,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
 
     std::filesystem::create_directories("data");
     std::ofstream file;
-    file.open ("data/test_layer_in_c_nn_models_mlp_evaluation.h");
+    file.open ("data/test_backprop_tools_nn_models_mlp_evaluation.h");
     file << output;
     file.close();
 

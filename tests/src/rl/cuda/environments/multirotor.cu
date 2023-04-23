@@ -1,21 +1,21 @@
-#include <layer_in_c/operations/cuda/group_1.h>
-#include <layer_in_c/operations/cpu/group_1.h>
-#include <layer_in_c/operations/cuda/group_2.h>
-#include <layer_in_c/operations/cpu/group_2.h>
-#include <layer_in_c/operations/cuda/group_3.h>
-#include <layer_in_c/operations/cpu/group_3.h>
+#include <backprop_tools/operations/cuda/group_1.h>
+#include <backprop_tools/operations/cpu/group_1.h>
+#include <backprop_tools/operations/cuda/group_2.h>
+#include <backprop_tools/operations/cpu/group_2.h>
+#include <backprop_tools/operations/cuda/group_3.h>
+#include <backprop_tools/operations/cpu/group_3.h>
 
 #include "../td3_full_training_parameters_multirotor.h"
 
-#include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
+#include <backprop_tools/rl/environments/multirotor/operations_cpu.h>
 
-#include <layer_in_c/rl/components/off_policy_runner/operations_cuda.h>
-#include <layer_in_c/rl/components/off_policy_runner/operations_cpu.h>
+#include <backprop_tools/rl/components/off_policy_runner/operations_cuda.h>
+#include <backprop_tools/rl/components/off_policy_runner/operations_cpu.h>
 
 
 #include <gtest/gtest.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 using DTYPE = double;
 constexpr DTYPE DIFF_THRESHOLD = lic::utils::typing::is_same_v<DTYPE, float> ? 1e-6 : 1e-10;
@@ -39,7 +39,7 @@ using ACTOR_BATCH_TYPE = lic::rl::components::off_policy_runner::Batch<lic::rl::
 using CRITIC_TRAINING_BUFFERS_TYPE = lic::rl::algorithms::td3::CriticTrainingBuffers<typename rlp::ACTOR_CRITIC_TYPE::SPEC>;
 using ACTOR_TRAINING_BUFFERS_TYPE = lic::rl::algorithms::td3::ActorTrainingBuffers<typename rlp::ACTOR_CRITIC_TYPE::SPEC>;
 
-TEST(LAYER_IN_C_RL_CUDA_ENVIRONMENTS_MULTIROTOR, TEST){
+TEST(BACKPROP_TOOLS_RL_CUDA_ENVIRONMENTS_MULTIROTOR, TEST){
     DEVICE_CPU cpu;
     DEVICE_CUDA cuda;
     p::env::ENVIRONMENT envs[rlp::N_ENVIRONMENTS];

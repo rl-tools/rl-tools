@@ -1,6 +1,6 @@
-#include <layer_in_c/operations/cpu_mux.h>
-#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
-namespace lic = layer_in_c;
+#include <backprop_tools/operations/cpu_mux.h>
+#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
+namespace lic = backprop_tools;
 using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
 using TI = typename lic::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
@@ -11,20 +11,20 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 };
 using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
 
-#include <layer_in_c/nn/operations_cpu_mux.h>
+#include <backprop_tools/nn/operations_cpu_mux.h>
 
 // generic nn_model operations use the specialized layer operations depending on the backend device
-#include <layer_in_c/nn_models/operations_generic.h>
+#include <backprop_tools/nn_models/operations_generic.h>
 // simulation is run on the cpu and the environments functions are required in the off_policy_runner operations included afterwards
-#include <layer_in_c/rl/environments/mujoco/ant/operations_cpu.h>
+#include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
 
-#include <layer_in_c/rl/algorithms/td3/operations_cpu_mux.h>
+#include <backprop_tools/rl/algorithms/td3/operations_cpu_mux.h>
 
 // additional includes for the ui and persisting
-#include <layer_in_c/nn_models/persist.h>
-#include <layer_in_c/rl/components/replay_buffer/persist.h>
+#include <backprop_tools/nn_models/persist.h>
+#include <backprop_tools/rl/components/replay_buffer/persist.h>
 
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
 #include "parameters_td3.h"
 
@@ -56,7 +56,7 @@ constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 10000;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "actor_checkpoints";
 
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_TD3){
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_TD3){
     std::string DATA_FILE_PATH = "learning_curves.h5";
     std::vector<std::vector<DTYPE>> episode_step;
     std::vector<std::vector<DTYPE>> episode_returns;
@@ -148,7 +148,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_TD3){
 
 
         // training
-#ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
+#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
         constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
 #else
         constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP * 100;
@@ -177,7 +177,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_TD3){
                         auto rng1 = lic::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
                         auto rng2 = lic::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
 
-                        if(std::getenv("LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
+                        if(std::getenv("BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
                             auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], optimizer[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
                             auto critic_2_training = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], optimizer[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);});
                             critic_1_training.wait();

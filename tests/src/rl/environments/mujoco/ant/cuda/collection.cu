@@ -1,29 +1,29 @@
-#define LAYER_IN_C_OPERATIONS_CPU_MUX_INCLUDE_CUDA
+#define BACKPROP_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 
-#include <layer_in_c/operations/cpu_mux.h>
-#include <layer_in_c/nn/operations_cpu_mux.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
-#include <layer_in_c/nn_models/persist.h>
+#include <backprop_tools/operations/cpu_mux.h>
+#include <backprop_tools/nn/operations_cpu_mux.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
+#include <backprop_tools/nn_models/persist.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 #include "../parameters_ppo.h"
 
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_mkl.h>
-#include <layer_in_c/rl/components/on_policy_runner/operations_generic_extensions.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_generic_extensions.h>
 
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_accelerate.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
 #endif
 #endif
 
-#include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
@@ -50,7 +50,7 @@ using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
 using T = double;
 using TI = typename DEVICE::index_t;
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
     using penv = parameters::environment<double, TI>;
     using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
     using ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE = lic::rl::components::on_policy_runner::CollectionEvaluationBuffer<prl::ON_POLICY_RUNNER_SPEC>;

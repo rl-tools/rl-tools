@@ -1,5 +1,5 @@
-#include <layer_in_c/nn/nn.h>
-namespace lic = layer_in_c;
+#include <backprop_tools/nn/nn.h>
+namespace lic = backprop_tools;
 
 using DTYPE = double;
 
@@ -26,10 +26,10 @@ protected:
     std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
     std::string model_name = "model_1";
     NeuralNetworkTest(){
-        const char* data_file_path = std::getenv("LAYER_IN_C_TEST_NN_DATA_FILE");
+        const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_NN_DATA_FILE");
         if (data_file_path != NULL){
             DATA_FILE_PATH = std::string(data_file_path);
-//            std::runtime_error("Environment variable LAYER_IN_C_TEST_DATA_DIR not set. Skipping test.");
+//            std::runtime_error("Environment variable BACKPROP_TOOLS_TEST_DATA_DIR not set. Skipping test.");
         }
 
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);

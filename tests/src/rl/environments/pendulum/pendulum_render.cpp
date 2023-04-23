@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
 
-#include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/environments/pendulum/ui.h>
-namespace lic = layer_in_c;
+#include <backprop_tools/rl/environments/environments.h>
+#include <backprop_tools/rl/environments/pendulum/ui.h>
+namespace lic = backprop_tools;
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
 
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_PENDULUM_RENCER, RENDER) {
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_RENCER, RENDER) {
     typedef double T;
     typedef lic::rl::environments::pendulum::Spec<T, lic::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
     typedef lic::rl::environments::Pendulum::CPU<PENDULUM_SPEC> ENVIRONMENT;

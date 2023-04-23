@@ -1,65 +1,65 @@
 // ------------ Groups 1 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_1.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_1.h>
+#include <backprop_tools/operations/cpu_tensorboard/group_1.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/operations/cpu_mkl/group_1.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_1.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/operations/cpu_accelerate/group_1.h>
 #else
-#include <layer_in_c/operations/cpu/group_1.h>
+#include <backprop_tools/operations/cpu/group_1.h>
 #endif
 #endif
 // ------------ Groups 2 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_2.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_2.h>
+#include <backprop_tools/operations/cpu_tensorboard/group_2.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/operations/cpu_mkl/group_2.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_2.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/operations/cpu_accelerate/group_2.h>
 #else
-#include <layer_in_c/operations/cpu/group_2.h>
+#include <backprop_tools/operations/cpu/group_2.h>
 #endif
 #endif
 // ------------ Groups 3 ------------
-#include <layer_in_c/operations/cpu_tensorboard/group_3.h>
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/operations/cpu_mkl/group_3.h>
+#include <backprop_tools/operations/cpu_tensorboard/group_3.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/operations/cpu_mkl/group_3.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/operations/cpu_accelerate/group_3.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/operations/cpu_accelerate/group_3.h>
 #else
-#include <layer_in_c/operations/cpu/group_3.h>
+#include <backprop_tools/operations/cpu/group_3.h>
 #endif
 #endif
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 using DEV_SPEC = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
 
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/nn/operations_cpu_mkl.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/nn/operations_cpu_mkl.h>
 using DEVICE = lic::devices::CPU_MKL<DEV_SPEC>;
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/nn/operations_cpu_accelerate.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/nn/operations_cpu_accelerate.h>
 using DEVICE = lic::devices::CPU_ACCELERATE<DEV_SPEC>;
 #else
-#include <layer_in_c/nn/operations_generic.h>
+#include <backprop_tools/nn/operations_generic.h>
 using DEVICE = lic::devices::CPU<DEV_SPEC>;
 #endif
 #endif
 
 // generic nn_model operations use the specialized layer operations depending on the backend device
-#include <layer_in_c/nn_models/operations_generic.h>
+#include <backprop_tools/nn_models/operations_generic.h>
 // simulation is run on the cpu and the environments functions are required in the off_policy_runner operations included afterwards
-#include <layer_in_c/rl/environments/multirotor/operations_cpu.h>
-#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+#include <backprop_tools/rl/environments/multirotor/operations_cpu.h>
+#include <backprop_tools/rl/algorithms/td3/operations_cpu.h>
 
 // additional includes for the ui and persisting
-#include <layer_in_c/rl/environments/multirotor/ui.h>
-#include <layer_in_c/nn_models/persist.h>
-#include <layer_in_c/rl/components/replay_buffer/persist.h>
+#include <backprop_tools/rl/environments/multirotor/ui.h>
+#include <backprop_tools/nn_models/persist.h>
+#include <backprop_tools/rl/components/replay_buffer/persist.h>
 
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
 #include "parameters.h"
 
@@ -83,10 +83,10 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 constexpr DEVICE::index_t performance_logging_interval = 100;
 constexpr DEVICE::index_t ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
 
-#ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING_DEBUG) {
+#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING_DEBUG) {
 #else
-TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
+TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 #endif
     std::string DATA_FILE_PATH = "learning_curves.h5";
     std::vector<std::vector<DTYPE>> episode_step;
@@ -125,7 +125,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         // environment
         DTYPE ui_speed_factor = 1;
         auto parameters = parameters_environment::parameters;
-#if LAYER_IN_C_ENABLE_MULTIROTOR_UI
+#if BACKPROP_TOOLS_ENABLE_MULTIROTOR_UI
         lic::rl::environments::multirotor::UI<ENVIRONMENT> ui;
     ui.host = "localhost";
     ui.port = "8080";
@@ -173,7 +173,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
 
 
         // training
-#ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
+#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
         constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
 #else
         constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
@@ -202,7 +202,7 @@ TEST(LAYER_IN_C_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
                         std::mt19937 rng1(std::uniform_int_distribution<DEVICE::index_t>()(rng));
                         std::mt19937 rng2(std::uniform_int_distribution<DEVICE::index_t>()(rng));
 
-                        if(std::getenv("LAYER_IN_C_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
+                        if(std::getenv("BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
                             auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], optimizer[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
                             auto critic_2_training = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], optimizer[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);});
                             critic_1_training.wait();

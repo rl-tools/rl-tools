@@ -1,20 +1,20 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-#include <layer_in_c/operations/cpu.h>
+#include <backprop_tools/operations/cpu.h>
 
-#include "layer_in_c/nn_models/persist.h"
-#include "layer_in_c/nn_models/operations_cpu.h"
+#include "backprop_tools/nn_models/persist.h"
+#include "backprop_tools/nn_models/operations_cpu.h"
 
 #include "../utils/utils.h"
 
 #include "default_network_mlp.h"
 #include "../utils/nn_comparison_mlp.h"
 
-#include <layer_in_c/utils/persist.h>
+#include <backprop_tools/utils/persist.h>
 
 #include <random>
-TEST(LAYER_IN_C_NN_PERSIST, Saving) {
+TEST(BACKPROP_TOOLS_NN_PERSIST, Saving) {
 
     NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device;

@@ -1,20 +1,20 @@
 // ------------ Groups 1 ------------
-#include <layer_in_c/operations/cuda/group_1.h>
-#include <layer_in_c/operations/cpu_mkl/group_1.h>
-#include <layer_in_c/operations/cpu_tensorboard/group_1.h>
+#include <backprop_tools/operations/cuda/group_1.h>
+#include <backprop_tools/operations/cpu_mkl/group_1.h>
+#include <backprop_tools/operations/cpu_tensorboard/group_1.h>
 // ------------ Groups 2 ------------
-#include <layer_in_c/operations/cuda/group_2.h>
-#include <layer_in_c/operations/cpu_mkl/group_2.h>
-#include <layer_in_c/operations/cpu_tensorboard/group_2.h>
+#include <backprop_tools/operations/cuda/group_2.h>
+#include <backprop_tools/operations/cpu_mkl/group_2.h>
+#include <backprop_tools/operations/cpu_tensorboard/group_2.h>
 // ------------ Groups 3 ------------
-#include <layer_in_c/operations/cuda/group_3.h>
-#include <layer_in_c/operations/cpu_mkl/group_3.h>
-#include <layer_in_c/operations/cpu_tensorboard/group_3.h>
+#include <backprop_tools/operations/cuda/group_3.h>
+#include <backprop_tools/operations/cpu_mkl/group_3.h>
+#include <backprop_tools/operations/cpu_tensorboard/group_3.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
-#include <layer_in_c/nn/operations_cuda.h>
-#include <layer_in_c/nn/operations_cpu_mkl.h>
+#include <backprop_tools/nn/operations_cuda.h>
+#include <backprop_tools/nn/operations_cpu_mkl.h>
 using DEV_SPEC_INIT = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, lic::devices::logging::CPU_TENSORBOARD>;
 using DEVICE_INIT = lic::devices::CPU<DEV_SPEC_INIT>;
 //using DEVICE = lic::devices::CPU_MKL<DEV_SPEC_INIT>;
@@ -24,12 +24,12 @@ using DEV_SPEC = DEVICE::SPEC;
 #include "td3_full_training_parameters_pendulum.h"
 #include "td3_full_training_parameters_multirotor.h"
 
-#include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/rl/components/off_policy_runner/operations_cuda.h>
-#include <layer_in_c/rl/algorithms/td3/operations_cuda.h>
-#include <layer_in_c/rl/algorithms/td3/operations_generic.h>
+#include <backprop_tools/nn_models/operations_generic.h>
+#include <backprop_tools/rl/components/off_policy_runner/operations_cuda.h>
+#include <backprop_tools/rl/algorithms/td3/operations_cuda.h>
+#include <backprop_tools/rl/algorithms/td3/operations_generic.h>
 
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
 
 #include <gtest/gtest.h>
@@ -44,7 +44,7 @@ using rlp = p::rl<p::env::ENVIRONMENT>;
 
 static_assert(rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-TEST(LAYER_IN_C_RL_CUDA_TD3, TEST_FULL_TRAINING) {
+TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     DEVICE_INIT::SPEC::LOGGING logger;
     DEVICE device;
     DEVICE_INIT device_init;

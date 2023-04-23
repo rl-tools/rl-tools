@@ -1,15 +1,15 @@
-#include <layer_in_c/operations/cpu.h>
-//#include <layer_in_c/operations/dummy.h>
+#include <backprop_tools/operations/cpu.h>
+//#include <backprop_tools/operations/dummy.h>
 
 
-#include <layer_in_c/nn_models/models.h>
+#include <backprop_tools/nn_models/models.h>
 
 
-#include <layer_in_c/nn/operations_cpu.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
+#include <backprop_tools/nn/operations_cpu.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
 
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 #include "../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -55,13 +55,13 @@ std::vector<T> Y_std;
 constexpr typename DEVICE::index_t INPUT_DIM = StructureSpecification::INPUT_DIM;
 constexpr typename DEVICE::index_t OUTPUT_DIM = StructureSpecification::OUTPUT_DIM;
 
-TEST(LAYER_IN_C_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
+TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
     std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
-    const char* data_file_path = std::getenv("LAYER_IN_C_TEST_NN_DATA_FILE");
+    const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_NN_DATA_FILE");
     if (data_file_path != NULL){
         DATA_FILE_PATH = std::string(data_file_path);
-//            std::runtime_error("Environment variable LAYER_IN_C_TEST_DATA_DIR not set. Skipping test.");
+//            std::runtime_error("Environment variable BACKPROP_TOOLS_TEST_DATA_DIR not set. Skipping test.");
     }
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     data_file.getDataSet("data/X_train").read(X_train);

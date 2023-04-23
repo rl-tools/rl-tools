@@ -1,21 +1,21 @@
-#include <layer_in_c/operations/cpu.h>
+#include <backprop_tools/operations/cpu.h>
 
-#include <layer_in_c/rl/environments/operations_cpu.h>
-#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+#include <backprop_tools/rl/environments/operations_cpu.h>
+#include <backprop_tools/rl/algorithms/td3/operations_cpu.h>
 
-#include <layer_in_c/nn_models/persist.h>
-#include <layer_in_c/rl/utils/evaluation.h>
-#include <layer_in_c/utils/generic/memcpy.h>
+#include <backprop_tools/nn_models/persist.h>
+#include <backprop_tools/rl/utils/evaluation.h>
+#include <backprop_tools/utils/generic/memcpy.h>
 
 #include "../../../utils/utils.h"
 #include "../../../utils/nn_comparison_mlp.h"
 
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
-#include <layer_in_c/rl/environments/pendulum/ui.h>
-#include <layer_in_c/rl/utils/evaluation_visual.h>
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
+#include <backprop_tools/rl/environments/pendulum/ui.h>
+#include <backprop_tools/rl/utils/evaluation_visual.h>
 #endif
 
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
 #include "plot_policy_and_value_function.h"
 #endif
 
@@ -23,13 +23,13 @@
 #include <highfive/H5File.hpp>
 
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 std::string get_data_file_path(){
     std::string DATA_FILE_PATH = "../multirotor-torch/model_second_stage.hdf5";
-    const char* data_file_path = std::getenv("LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_DATA_FILE");
+    const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_DATA_FILE");
     if (data_file_path != NULL){
         DATA_FILE_PATH = std::string(data_file_path);
-//            std::runtime_error("Environment variable LAYER_IN_C_TEST_DATA_DIR not set. Skipping test.");
+//            std::runtime_error("Environment variable BACKPROP_TOOLS_TEST_DATA_DIR not set. Skipping test.");
     }
     return DATA_FILE_PATH;
 }
@@ -37,7 +37,7 @@ std::string get_data_file_path(){
 using DEVICE = lic::devices::DefaultCPU;
 typedef lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 using ENVIRONMENT = lic::rl::environments::Pendulum<PENDULUM_SPEC>;
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
 typedef lic::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 ENVIRONMENT env;
@@ -59,20 +59,20 @@ using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructure
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
 using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
-using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
 using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
-using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
-using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
+using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3ParametersCopyTraining>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
+TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
@@ -96,7 +96,7 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) 
 }
 
 //using ReplayBufferSpecCopyTraining = lic::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 1000>;
-using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, 1, 1000, 100, layer_in_c::rl::components::off_policy_runner::DefaultParameters<DTYPE>>;
+using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, 1, 1000, 100, backprop_tools::rl::components::off_policy_runner::DefaultParameters<DTYPE>>;
 using OFF_POLICY_RUNNER_TYPE = lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
 using DEVICE = lic::devices::DefaultCPU;
 typedef OFF_POLICY_RUNNER_TYPE::REPLAY_BUFFER_TYPE ReplayBufferTypeCopyTraining;
@@ -116,7 +116,7 @@ void load(DEVICE& device, ReplayBufferTypeCopyTraining& rb, std::vector<std::vec
     }
     rb.position = batch.size();
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, FP_ACC) {
+TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, FP_ACC) {
     for(int i = 0; i < 1000; i++){
         std::normal_distribution<float> dist;
         auto rng = std::mt19937(0);
@@ -148,8 +148,8 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, FP_ACC) {
 //        std::cout << e << std::endl;
     }
 }
-TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
+TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
     UI ui;
 #endif
     constexpr bool verbose = true;
@@ -492,10 +492,10 @@ TEST(LAYER_IN_C_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 std::cout << "step_i: " << step_i << std::endl;
             }
             auto result = lic::evaluate(device, env, ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<100, 200>(), rng, true);
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("second_stage"), step_i);
 #endif
-#ifdef LAYER_IN_C_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
+#ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
             if(mean_return > -400){
                 while(true){
                     ENVIRONMENT::State initial_state;

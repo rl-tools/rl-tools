@@ -1,26 +1,26 @@
 // Group 1
-#include <layer_in_c/devices/cpu.h>
-#include <layer_in_c/math/operations_cpu.h>
-#include <layer_in_c/random/operations_cpu.h>
-#include <layer_in_c/logging/operations_cpu.h>
-#include <layer_in_c/devices/dummy.h>
-#include <layer_in_c/math/operations_dummy.h>
-#include <layer_in_c/random/operations_dummy.h>
-#include <layer_in_c/logging/operations_dummy.h>
+#include <backprop_tools/devices/cpu.h>
+#include <backprop_tools/math/operations_cpu.h>
+#include <backprop_tools/random/operations_cpu.h>
+#include <backprop_tools/logging/operations_cpu.h>
+#include <backprop_tools/devices/dummy.h>
+#include <backprop_tools/math/operations_dummy.h>
+#include <backprop_tools/random/operations_dummy.h>
+#include <backprop_tools/logging/operations_dummy.h>
 
 // Group 2: depends on logging
-#include <layer_in_c/utils/assert/operations_cpu.h>
-#include <layer_in_c/utils/assert/operations_dummy.h>
+#include <backprop_tools/utils/assert/operations_cpu.h>
+#include <backprop_tools/utils/assert/operations_dummy.h>
 // Group 3: dependent on assert
-#include <layer_in_c/containers/operations_cpu.h>
-#include <layer_in_c/containers/operations_dummy.h>
+#include <backprop_tools/containers/operations_cpu.h>
+#include <backprop_tools/containers/operations_dummy.h>
 
-#include <layer_in_c/nn/operations_cpu.h>
-#include <layer_in_c/utils/generic/typing.h>
+#include <backprop_tools/nn/operations_cpu.h>
+#include <backprop_tools/utils/generic/typing.h>
 
 #include <gtest/gtest.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 using DTYPE = float;
 using index_t = unsigned;
 constexpr index_t OUTER_INPUT_DIM = 10;
@@ -49,7 +49,7 @@ static_assert(lic::utils::typing::is_same_v<LayerSpec1, LayerSpec2>);
 
 
 
-TEST(LAYER_IN_C_NN_MLP_CONVERSIONS, CONVERSIONS) {
+TEST(BACKPROP_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     using Device1 = lic::devices::DefaultDummy;
     using Layer1 = lic::nn::layers::dense::Layer<LayerSpec1>;
 

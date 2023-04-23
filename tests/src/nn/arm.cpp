@@ -1,23 +1,23 @@
-#include <layer_in_c/operations/cpu/group_1.h>
-#include <layer_in_c/operations/arm/group_1.h>
-#include <layer_in_c/operations/cpu/group_2.h>
-#include <layer_in_c/operations/arm/group_2.h>
-#include <layer_in_c/operations/cpu/group_3.h>
-#include <layer_in_c/operations/arm/group_3.h>
+#include <backprop_tools/operations/cpu/group_1.h>
+#include <backprop_tools/operations/arm/group_1.h>
+#include <backprop_tools/operations/cpu/group_2.h>
+#include <backprop_tools/operations/arm/group_2.h>
+#include <backprop_tools/operations/cpu/group_3.h>
+#include <backprop_tools/operations/arm/group_3.h>
 
-#include <layer_in_c/containers/persist_code.h>
-#include <layer_in_c/nn/layers/dense/operations_arm/opt.h>
-#include <layer_in_c/nn/layers/dense/operations_cpu.h>
-#include <layer_in_c/nn_models/mlp/operations_cpu.h>
-#include <layer_in_c/nn_models/mlp/operations_generic.h>
+#include <backprop_tools/containers/persist_code.h>
+#include <backprop_tools/nn/layers/dense/operations_arm/opt.h>
+#include <backprop_tools/nn/layers/dense/operations_cpu.h>
+#include <backprop_tools/nn_models/mlp/operations_cpu.h>
+#include <backprop_tools/nn_models/mlp/operations_generic.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 #include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
-//#include "../../../data/test_layer_in_c_nn_models_mlp_persist_code.h"
+//#include "../../../data/test_backprop_tools_nn_models_mlp_persist_code.h"
 
 constexpr bool const_declaration = false;
 
@@ -48,7 +48,7 @@ void test_mlp_evaluate() {
     auto abs_diff = lic::abs_diff(device, output_orig, output_arm);
 
     ASSERT_LT(abs_diff, 1e-5);
-}TEST(LAYER_IN_C_NN_ARM, TEST_MLP_EVALUATE) {
+}TEST(BACKPROP_TOOLS_NN_ARM, TEST_MLP_EVALUATE) {
     test_mlp_evaluate<double, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_evaluate<double, 1, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_evaluate<double, 13, 1, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
@@ -95,7 +95,7 @@ void test_mlp_forward() {
     ASSERT_LT(abs_diff_network, 1e-5);
 }
 
-TEST(LAYER_IN_C_NN_ARM, TEST_MLP_FORWARD){
+TEST(BACKPROP_TOOLS_NN_ARM, TEST_MLP_FORWARD){
     test_mlp_forward<double, 13, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_forward<double, 1, 4, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_forward<double, 13, 1, 3, 64, lic::nn::activation_functions::ActivationFunction::RELU, lic::nn::activation_functions::ActivationFunction::IDENTITY, 1>();

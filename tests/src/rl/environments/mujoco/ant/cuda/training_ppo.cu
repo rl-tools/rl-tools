@@ -1,34 +1,34 @@
-#define LAYER_IN_C_OPERATIONS_CPU_MUX_INCLUDE_CUDA
-#include <layer_in_c/operations/cpu_mux.h>
+#define BACKPROP_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
+#include <backprop_tools/operations/cpu_mux.h>
 // -------------- added for cuda training ----------------
-#include <layer_in_c/nn/optimizers/adam/operations_cuda.h>
+#include <backprop_tools/nn/optimizers/adam/operations_cuda.h>
 // -------------------------------------------------------
-#include <layer_in_c/nn/operations_cpu_mux.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
-#include <layer_in_c/nn_models/persist.h>
-namespace lic = layer_in_c;
+#include <backprop_tools/nn/operations_cpu_mux.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
+#include <backprop_tools/nn_models/persist.h>
+namespace lic = backprop_tools;
 // --------------- changed for cuda training -----------------
 #include "../parameters_ppo.h"
 // -------------------------------------------------------
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_mkl.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_accelerate.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
 #endif
 #endif
 // -------------- added for cuda training ----------------
-#include <layer_in_c/rl/components/on_policy_runner/operations_generic_extensions.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_generic_extensions.h>
 // -------------------------------------------------------
-#include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
+#include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
 // -------------- added for cuda training ----------------
-#include <layer_in_c/rl/algorithms/ppo/operations_generic_extensions.h>
+#include <backprop_tools/rl/algorithms/ppo/operations_generic_extensions.h>
 // -------------------------------------------------------
-#include <layer_in_c/rl/components/running_normalizer/operations_generic.h>
-#include <layer_in_c/rl/components/running_normalizer/persist.h>
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
+#include <backprop_tools/rl/components/running_normalizer/persist.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
 #include <highfive/H5File.hpp>
 #include <CLI/CLI.hpp>
@@ -36,7 +36,7 @@ namespace lic = layer_in_c;
 
 namespace parameters = parameters_0;
 
-#ifdef LAYER_IN_C_ENABLE_TENSORBOARD
+#ifdef BACKPROP_TOOLS_ENABLE_TENSORBOARD
 using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
 #else
 using LOGGER = lic::devices::logging::CPU;

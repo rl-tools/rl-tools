@@ -1,7 +1,7 @@
-#include <layer_in_c/operations/cpu_mux.h>
-#include <layer_in_c/containers/persist.h>
-#include <layer_in_c/rl/components/running_normalizer/operations_generic.h>
-namespace lic = layer_in_c;
+#include <backprop_tools/operations/cpu_mux.h>
+#include <backprop_tools/containers/persist.h>
+#include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
+namespace lic = backprop_tools;
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
@@ -68,7 +68,7 @@ void test(){
     }
 }
 
-TEST(LAYER_IN_C_RL_COMPONENTS_RUNNING_NORMALIZER, TEST){
+TEST(BACKPROP_TOOLS_RL_COMPONENTS_RUNNING_NORMALIZER, TEST){
     test<double, 100, 10, 10>();
     test<double, 32, 2, 2>();
     test<double, 32, 1, 2>();

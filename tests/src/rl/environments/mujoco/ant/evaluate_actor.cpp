@@ -1,14 +1,14 @@
 
-#include <layer_in_c/operations/cpu_tensorboard.h>
+#include <backprop_tools/operations/cpu_tensorboard.h>
 
-#include <layer_in_c/rl/environments/mujoco/ant/operations_cpu.h>
-#include <layer_in_c/rl/environments/mujoco/ant/ui.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
-#include <layer_in_c/nn_models/persist.h>
+#include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
+#include <backprop_tools/rl/environments/mujoco/ant/ui.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
+#include <backprop_tools/nn_models/persist.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
-#ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
 #include "parameters_ppo.h"
 #else
 #include "parameters_td3.h"
@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
     while(true){
         std::filesystem::path actor_run;
         if(run == ""){
-#ifdef LAYER_IN_C_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
             std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "ppo_ant";
 #else
             std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "td3_ant";

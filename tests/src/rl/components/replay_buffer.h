@@ -1,11 +1,11 @@
-#ifndef LAYER_IN_C_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
-#define LAYER_IN_C_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
+#ifndef BACKPROP_TOOLS_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
+#define BACKPROP_TOOLS_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
 
-#include <layer_in_c/rl/components/replay_buffer/replay_buffer.h>
+#include <backprop_tools/rl/components/replay_buffer/replay_buffer.h>
 
-namespace layer_in_c::test::rl::components::replay_buffer{
+namespace backprop_tools::test::rl::components::replay_buffer{
     template <typename DEVICE, typename SPEC, typename RNG>
-    void sample(DEVICE& device, layer_in_c::rl::components::ReplayBuffer<SPEC>& rb, RNG& rng){
+    void sample(DEVICE& device, backprop_tools::rl::components::ReplayBuffer<SPEC>& rb, RNG& rng){
         using T = typename SPEC::T;
         randn(device, rb.observations, rng);
         randn(device, rb.actions, rng);

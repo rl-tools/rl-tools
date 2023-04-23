@@ -2,28 +2,28 @@ constexpr bool test_full_network = true;
 //constexpr bool test_full_network = false;
 constexpr bool test_first_layer = true;
 //constexpr bool test_first_layer = false;
-#define LAYER_IN_C_FUNCTION_PLACEMENT __device__ __host__
+#define BACKPROP_TOOLS_FUNCTION_PLACEMENT __device__ __host__
 
 // Group 1
-#include <layer_in_c/devices/cpu.h>
-#include <layer_in_c/math/operations_cpu.h>
-#include <layer_in_c/random/operations_cpu.h>
-#include <layer_in_c/logging/operations_cpu.h>
-#include <layer_in_c/devices/cuda.h>
-#include <layer_in_c/math/operations_cuda.h>
-#include <layer_in_c/random/operations_cuda.h>
-#include <layer_in_c/logging/operations_cuda.h>
+#include <backprop_tools/devices/cpu.h>
+#include <backprop_tools/math/operations_cpu.h>
+#include <backprop_tools/random/operations_cpu.h>
+#include <backprop_tools/logging/operations_cpu.h>
+#include <backprop_tools/devices/cuda.h>
+#include <backprop_tools/math/operations_cuda.h>
+#include <backprop_tools/random/operations_cuda.h>
+#include <backprop_tools/logging/operations_cuda.h>
 
 // Group 2: depends on logging
-#include <layer_in_c/utils/assert/operations_cpu.h>
-#include <layer_in_c/utils/assert/operations_cuda.h>
+#include <backprop_tools/utils/assert/operations_cpu.h>
+#include <backprop_tools/utils/assert/operations_cuda.h>
 // Group 3: dependent on assert
-#include <layer_in_c/containers/operations_cpu.h>
-#include <layer_in_c/containers/operations_generic.h>
+#include <backprop_tools/containers/operations_cpu.h>
+#include <backprop_tools/containers/operations_generic.h>
 
-#include <layer_in_c/nn/operations_cuda.h>
-#include <layer_in_c/nn_models/operations_cuda.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
+#include <backprop_tools/nn/operations_cuda.h>
+#include <backprop_tools/nn_models/operations_cuda.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
 
 
 #include "../../utils/utils.h"
@@ -34,11 +34,11 @@ constexpr bool test_first_layer = true;
 #include <chrono>
 #include <highfive/H5File.hpp>
 
-#ifdef LAYER_IN_C_TESTS_NN_CUDA_ENABLE_CUTLASS
+#ifdef BACKPROP_TOOLS_TESTS_NN_CUDA_ENABLE_CUTLASS
 #include "cutlass/gemm/device/gemm.h"
 #endif
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 using DTYPE = double;
 
@@ -65,7 +65,7 @@ DEVICE_CUDA::SPEC::LOGGING logger_cuda;
 DEVICE_CUDA device_cuda(logger_cuda);
 NetworkType_CUDA network_cuda;
 
-//TEST(LAYER_IN_C_NN_MLP_CUDA, FULL_TRAINING) {
+//TEST(BACKPROP_TOOLS_NN_MLP_CUDA, FULL_TRAINING) {
 int main(){
 
     lic::malloc(device_cpu, network_cpu);
@@ -151,7 +151,7 @@ int main(){
 
 
 
-#ifdef LAYER_IN_C_TESTS_NN_CUDA_ENABLE_CUTLASS
+#ifdef BACKPROP_TOOLS_TESTS_NN_CUDA_ENABLE_CUTLASS
     // Speed tests CUTLASS
     {
         constexpr unsigned M = NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM;

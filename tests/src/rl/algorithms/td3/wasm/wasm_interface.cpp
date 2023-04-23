@@ -63,7 +63,7 @@ double proxy_get_episode_return(TRAINING_STATE* ts, int env_index, int episode_i
 
 EMSCRIPTEN_KEEPALIVE
     int proxy_get_evaluation_count(){
-#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#ifdef BACKPROP_TOOLS_ENABLE_EVALUATION
         return TRAINING_STATE::N_EVALUATIONS;
 #endif
         return 0;
@@ -71,7 +71,7 @@ EMSCRIPTEN_KEEPALIVE
 
 EMSCRIPTEN_KEEPALIVE
     double proxy_get_evaluation_return(TRAINING_STATE* ts, int index){
-#ifdef LAYER_IN_C_ENABLE_EVALUATION
+#ifdef BACKPROP_TOOLS_ENABLE_EVALUATION
         return ts->evaluation_returns[index];
 #endif
         return 0;

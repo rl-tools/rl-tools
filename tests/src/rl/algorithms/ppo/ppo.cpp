@@ -1,10 +1,10 @@
-#include <layer_in_c/operations/cpu_mux.h>
-#include <layer_in_c/nn/operations_cpu_mux.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
-namespace lic = layer_in_c;
+#include <backprop_tools/operations/cpu_mux.h>
+#include <backprop_tools/nn/operations_cpu_mux.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
+namespace lic = backprop_tools;
 #include "parameters_rl.h"
-#include <layer_in_c/rl/components/on_policy_runner/operations_generic.h>
-#include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_generic.h>
+#include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
 
 #include <gtest/gtest.h>
 
@@ -20,7 +20,7 @@ using TI = typename DEVICE::index_t;
 
 
 
-TEST(LAYER_IN_C_RL_ALGORITHMS_PPO, TEST){
+TEST(BACKPROP_TOOLS_RL_ALGORITHMS_PPO, TEST){
     using penv = parameters::environment<T, TI>;
     using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
 

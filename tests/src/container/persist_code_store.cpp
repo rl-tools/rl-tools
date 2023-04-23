@@ -1,13 +1,13 @@
-#include <layer_in_c/operations/cpu.h>
-#include <layer_in_c/containers/persist_code.h>
-#include <layer_in_c/nn/optimizers/adam/persist_code.h>
-#include <layer_in_c/nn/parameters/persist_code.h>
-#include <layer_in_c/nn/layers/dense/operations_cpu.h>
-#include <layer_in_c/nn/layers/dense/persist_code.h>
-#include <layer_in_c/nn_models/mlp/operations_cpu.h>
-#include <layer_in_c/nn_models/mlp/persist_code.h>
+#include <backprop_tools/operations/cpu.h>
+#include <backprop_tools/containers/persist_code.h>
+#include <backprop_tools/nn/optimizers/adam/persist_code.h>
+#include <backprop_tools/nn/parameters/persist_code.h>
+#include <backprop_tools/nn/layers/dense/operations_cpu.h>
+#include <backprop_tools/nn/layers/dense/persist_code.h>
+#include <backprop_tools/nn_models/mlp/operations_cpu.h>
+#include <backprop_tools/nn_models/mlp/persist_code.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 
 #include <gtest/gtest.h>
@@ -19,7 +19,7 @@ namespace lic = layer_in_c;
 constexpr bool const_declaration = true;
 
 
-TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST){
+TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -32,14 +32,14 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST){
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;
-    file.open ("data/test_layer_in_c_container_persist_matrix.h");
+    file.open ("data/test_backprop_tools_container_persist_matrix.h");
     file << output;
     file.close();
 
     ASSERT_TRUE(true);
 }
 
-TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
+TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
@@ -63,14 +63,14 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;
-    file.open("data/test_layer_in_c_nn_layers_dense_persist_code.h");
+    file.open("data/test_backprop_tools_nn_layers_dense_persist_code.h");
     file << output;
     file.close();
 
     ASSERT_TRUE(true);
 }
 
-TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
+TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     using DEVICE = lic::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -83,7 +83,7 @@ TEST(LAYER_IN_C_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;
-    file.open ("data/test_layer_in_c_nn_models_mlp_persist_code.h");
+    file.open ("data/test_backprop_tools_nn_models_mlp_persist_code.h");
     file << output;
     file.close();
 

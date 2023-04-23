@@ -1,20 +1,20 @@
-//#define LAYER_IN_C_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
-#define LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
-#include <layer_in_c/operations/arm.h>
+//#define BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+#define BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
+#include <backprop_tools/operations/arm.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
-#include <layer_in_c/nn/layers/dense/operations_arm/opt.h>
-//#include <layer_in_c/nn/layers/dense/operations_arm/dsp.h>
-#include <layer_in_c/nn/operations_generic.h>
+#include <backprop_tools/nn/layers/dense/operations_arm/opt.h>
+//#include <backprop_tools/nn/layers/dense/operations_arm/dsp.h>
+#include <backprop_tools/nn/operations_generic.h>
 using DEVICE = lic::devices::arm::Generic<lic::devices::DefaultARMSpecification>;
 
-#include <layer_in_c/rl/environments/operations_generic.h>
-#include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/rl/operations_generic.h>
+#include <backprop_tools/rl/environments/operations_generic.h>
+#include <backprop_tools/nn_models/operations_generic.h>
+#include <backprop_tools/rl/operations_generic.h>
 
-#include <layer_in_c/rl/utils/evaluation.h>
-#ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
+#include <backprop_tools/rl/utils/evaluation.h>
+#ifndef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
 #include <chrono>
 #include <iostream>
 #endif
@@ -45,13 +45,13 @@ using ACTOR_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<ActorStructure
 using ACTOR_NETWORK_TYPE = lic::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
 using ACTOR_TARGET_NETWORK_SPEC = lic::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
-using ACTOR_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
 using CRITIC_NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
-using CRITIC_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-using CRITIC_TARGET_NETWORK_SPEC = layer_in_c::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
-using CRITIC_TARGET_NETWORK_TYPE = layer_in_c::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
+using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 using TD3_SPEC = lic::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS, CONTAINER_TYPE_TAG>;
 using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
@@ -77,7 +77,7 @@ using OFF_POLICY_RUNNER_SPEC = lic::rl::components::off_policy_runner::Specifica
         0,
         CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER
  >;
-#ifdef LAYER_IN_C_DEPLOYMENT_ARDUINO
+#ifdef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
 EXTMEM lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 #else
 lic::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
@@ -127,8 +127,8 @@ void train(){
     lic::malloc(device, observations_mean);
     lic::malloc(device, observations_std);
 
-#ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
-#ifdef LAYER_IN_C_DEBUG_CONTAINER_COUNT_MALLOC
+#ifndef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
+#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     std::cout << "malloc counter: " << device.malloc_counter << std::endl;
 #endif
 #endif
@@ -140,7 +140,7 @@ void train(){
     lic::set_all(device, observations_std, 1);
 
 
-#ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
+#ifndef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
     auto start_time = std::chrono::high_resolution_clock::now();
     std::cout << "ActorCritic size: " << sizeof(actor_critic) << std::endl;
     std::cout << "ActorCritic.actor size: " << sizeof(actor_critic.actor) << std::endl;
@@ -162,7 +162,7 @@ void train(){
 
     for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         lic::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
-#ifdef LAYER_IN_C_DEPLOYMENT_ARDUINO
+#ifdef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
         if(step_i % 100 == 0){
             Serial.printf("step: %d\n", step_i);
 #else
@@ -196,14 +196,14 @@ void train(){
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.mean;
             }
-#ifdef LAYER_IN_C_DEPLOYMENT_ARDUINO
+#ifdef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
             Serial.printf("mean return: %f\n", result.mean);
 #else
             std::cout << "Mean return: " << result.mean << std::endl;
 #endif
         }
     }
-#ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
+#ifndef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
     {
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;

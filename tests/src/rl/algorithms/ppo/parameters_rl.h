@@ -1,6 +1,6 @@
-#include <layer_in_c/rl/environments/pendulum/operations_cpu.h>
-#include <layer_in_c/rl/algorithms/ppo/ppo.h>
-#include <layer_in_c/rl/components/on_policy_runner/on_policy_runner.h>
+#include <backprop_tools/rl/environments/pendulum/operations_cpu.h>
+#include <backprop_tools/rl/algorithms/ppo/ppo.h>
+#include <backprop_tools/rl/components/on_policy_runner/on_policy_runner.h>
 namespace parameters_0{
     template <typename T, typename TI>
     struct environment{

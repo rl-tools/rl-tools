@@ -1,10 +1,10 @@
-#include <layer_in_c/operations/cpu.h>
+#include <backprop_tools/operations/cpu.h>
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
-#include <layer_in_c/nn/optimizers/adam/operations_generic.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
-#include <layer_in_c/utils/generic/memcpy.h>
+#include <backprop_tools/nn/optimizers/adam/operations_generic.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
+#include <backprop_tools/utils/generic/memcpy.h>
 #include "../utils/utils.h"
 #include <sstream>
 #include <random>
@@ -15,7 +15,7 @@ namespace lic = layer_in_c;
 #include <highfive/H5File.hpp>
 
 #include "default_network_mlp.h"
-#include <layer_in_c/nn_models/persist.h>
+#include <backprop_tools/nn_models/persist.h>
 //#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS
@@ -124,9 +124,9 @@ protected:
 
 constexpr DTYPE BACKWARD_PASS_GRADIENT_TOLERANCE (1e-8);
 #ifndef SKIP_BACKPROP_TESTS
-using LAYER_IN_C_NN_MLP_BACKWARD_PASS = NeuralNetworkTestLoadWeights<NetworkType_1>;
+using BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS = NeuralNetworkTestLoadWeights<NetworkType_1>;
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_weights) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS, input_layer_weights) {
     DTYPE out = abs_diff_matrix(
             network.input_layer.weights.gradient,
             batch_0_input_layer_weights_grad
@@ -137,7 +137,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_weights) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_biases) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS, input_layer_biases) {
     DTYPE out = abs_diff_matrix(
             network.input_layer.biases.gradient,
             batch_0_input_layer_biases_grad.data()
@@ -148,7 +148,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, input_layer_biases) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
     DTYPE out = abs_diff_matrix(
             network.hidden_layers[0].weights.gradient,
             batch_0_hidden_layer_0_weights_grad
@@ -159,7 +159,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_weights) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
     DTYPE out = abs_diff_matrix(
             network.hidden_layers[0].biases.gradient,
             batch_0_hidden_layer_0_biases_grad.data()
@@ -170,7 +170,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, hidden_layer_0_biases) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_weights) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS, output_layer_weights) {
     DTYPE out = abs_diff_matrix(
             network.output_layer.weights.gradient,
             batch_0_output_layer_weights_grad
@@ -181,7 +181,7 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_weights) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_biases) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS, output_layer_biases) {
     DTYPE out = abs_diff_matrix(
             network.output_layer.biases.gradient,
             batch_0_output_layer_biases_grad.data()
@@ -194,9 +194,9 @@ TEST_F(LAYER_IN_C_NN_MLP_BACKWARD_PASS, output_layer_biases) {
 
 
 #ifndef SKIP_ADAM_TESTS
-typedef LAYER_IN_C_NN_MLP_BACKWARD_PASS LAYER_IN_C_NN_MLP_ADAM_UPDATE;
+typedef BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS BACKPROP_TOOLS_NN_MLP_ADAM_UPDATE;
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
     lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> optimizer;
 
@@ -274,9 +274,9 @@ TEST_F(LAYER_IN_C_NN_MLP_ADAM_UPDATE, AdamUpdate) {
 //#endif
 
 #ifndef SKIP_OVERFITTING_TESTS
-class LAYER_IN_C_NN_MLP_OVERFIT_BATCH : public LAYER_IN_C_NN_MLP_BACKWARD_PASS {
+class BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH : public BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS {
 public:
-    LAYER_IN_C_NN_MLP_OVERFIT_BATCH() : LAYER_IN_C_NN_MLP_BACKWARD_PASS(){
+    BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH() : BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS(){
         model_name = "model_2";
     }
 protected:
@@ -287,7 +287,7 @@ protected:
     }
 };
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
     lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>> optimizer;
 
@@ -352,7 +352,7 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     std::vector<DTYPE> losses;
     lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
     constexpr int n_batches = 10;
@@ -441,10 +441,10 @@ TEST_F(LAYER_IN_C_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
 #endif
 #endif
 
-class LAYER_IN_C_NN_MLP_TRAIN_MODEL : public NeuralNetworkTestLoadWeights<NetworkType_3> {
+class BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL : public NeuralNetworkTestLoadWeights<NetworkType_3> {
 public:
     typedef NetworkType_3 NETWORK_TYPE;
-    LAYER_IN_C_NN_MLP_TRAIN_MODEL() : NeuralNetworkTestLoadWeights<NetworkType_3>(){
+    BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL() : NeuralNetworkTestLoadWeights<NetworkType_3>(){
         model_name = "model_3";
     }
 protected:
@@ -456,7 +456,7 @@ protected:
 };
 #ifndef SKIP_TRAINING_TESTS
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
     lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
@@ -549,7 +549,7 @@ TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, TrainModel) {
 #endif
 
 #ifndef SKIP_TESTS
-TEST_F(LAYER_IN_C_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
+TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     lic::nn::optimizers::Adam<lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
     NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device;

@@ -1,11 +1,11 @@
-#include <layer_in_c/operations/cpu.h>
+#include <backprop_tools/operations/cpu.h>
 
 
-#include <layer_in_c/rl/environments/environments.h>
-#include <layer_in_c/rl/components/off_policy_runner/off_policy_runner.h>
+#include <backprop_tools/rl/environments/environments.h>
+#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
 
-#include <layer_in_c/rl/environments/operations_cpu.h>
-#include <layer_in_c/rl/algorithms/td3/operations_cpu.h>
+#include <backprop_tools/rl/environments/operations_cpu.h>
+#include <backprop_tools/rl/algorithms/td3/operations_cpu.h>
 
 #include <gtest/gtest.h>
 
@@ -13,7 +13,7 @@
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
 
-namespace lic = layer_in_c;
+namespace lic = backprop_tools;
 
 using DEVICE = lic::devices::DefaultCPU;
 using ENVIRONMENT_SPEC = lic::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, lic::rl::environments::pendulum::DefaultParameters<DTYPE>>;
@@ -23,7 +23,7 @@ typedef lic::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunne
 
 using PendulumStructureSpecification = lic::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
 
-TEST(LAYER_IN_C_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
+TEST(BACKPROP_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
     using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     typedef lic::nn_models::mlp::AdamSpecification<PendulumStructureSpecification> SPEC;
