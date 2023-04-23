@@ -9,7 +9,7 @@
 #include <backprop_tools/nn_models/operations_cpu.h>
 
 
-namespace lic = backprop_tools;
+namespace bpt = backprop_tools;
 #include "../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -22,7 +22,7 @@ namespace lic = backprop_tools;
 typedef double T;
 
 
-using DEVICE = lic::devices::DefaultCPU;
+using DEVICE = bpt::devices::DefaultCPU;
 //template <typename T_T>
 //struct StructureSpecification{
 //    typedef T_T T;
@@ -30,18 +30,18 @@ using DEVICE = lic::devices::DefaultCPU;
 //    static constexpr typename DEVICE::index_t OUTPUT_DIM = 13;
 //    static constexpr int NUM_LAYERS = 3;
 //    static constexpr int HIDDEN_DIM = 50;
-//    static constexpr lic::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = lic::nn::activation_functions::GELU;
-//    static constexpr lic::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
+//    static constexpr bpt::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = bpt::nn::activation_functions::GELU;
+//    static constexpr bpt::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
 //};
 
 constexpr int batch_size = 32;
-using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY, 1>;
+using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, bpt::nn::activation_functions::GELU, bpt::nn::activation_functions::IDENTITY, 1>;
 
 
-using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTF<T>;
-using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
-using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
+using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T>;
+using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
+using NetworkType = bpt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
 std::vector<std::vector<T>> Y_train;
@@ -79,17 +79,17 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     device.logger = &logger;
     NetworkType network;
     typename NetworkType::Buffers<1> buffers;
-    lic::malloc(device, network);
-    lic::malloc(device, buffers);
+    bpt::malloc(device, network);
+    bpt::malloc(device, buffers);
     std::vector<T> losses;
     std::vector<T> val_losses;
     std::vector<T> epoch_durations;
     constexpr int n_epochs = 3;
     //    this->reset();
-    lic::reset_optimizer_state(device, network, optimizer);
+    bpt::reset_optimizer_state(device, network, optimizer);
 //    typename DEVICE::index_t rng = 2;
     std::mt19937 rng(2);
-    lic::init_weights(device, network, rng);
+    bpt::init_weights(device, network, rng);
 
     int n_iter = X_train.size() / batch_size;
 
@@ -98,34 +98,34 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
         auto epoch_start_time = std::chrono::high_resolution_clock::now();
         for (int batch_i=0; batch_i < n_iter; batch_i++){
             T loss = 0;
-            lic::zero_gradient(device, network);
+            bpt::zero_gradient(device, network);
             for (int sample_i=0; sample_i < batch_size; sample_i++){
                 T input[INPUT_DIM];
                 T output[OUTPUT_DIM];
                 standardise<T,  INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
                 standardise<T, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
-                lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
+                bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
                 input_matrix._data = input;
-                lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
+                bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
                 output_matrix._data = output;
-                lic::forward(device, network, input_matrix);
+                bpt::forward(device, network, input_matrix);
                 T d_loss_d_output[OUTPUT_DIM];
-                lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
+                bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
-                lic::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
-                loss += lic::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
+                bpt::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
+                loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
 
                 T d_input[INPUT_DIM];
-                lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
+                bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
                 d_input_matrix._data = d_input;
-                lic::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, buffers);
+                bpt::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, buffers);
             }
             loss /= batch_size;
             epoch_loss += loss;
 
             //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            lic::update(device, network, optimizer);
+            bpt::update(device, network, optimizer);
             if(batch_i % 1000 == 0){
                 std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
             }
@@ -145,12 +145,12 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
         standardise<T,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
         standardise<T, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
 
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
         input_matrix._data = input;
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, lic::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
         output_matrix._data = output;
-        lic::forward(device, network, input_matrix);
-        val_loss += lic::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, T(1)/batch_size);
+        bpt::forward(device, network, input_matrix);
+        val_loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, T(1)/batch_size);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);

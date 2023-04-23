@@ -1,20 +1,20 @@
 #include <backprop_tools/nn/nn.h>
-namespace lic = backprop_tools;
+namespace bpt = backprop_tools;
 
 using DTYPE = double;
 
 
-using NN_DEVICE = lic::devices::DefaultCPU;
-using StructureSpecification = lic::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::RELU, lic::nn::activation_functions::IDENTITY>;
+using NN_DEVICE = bpt::devices::DefaultCPU;
+using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY>;
 
 using STRUCTURE_SPEC = StructureSpecification;
-using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTF<DTYPE>;
-using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-using NETWORK_SPEC = lic::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC>;
-using NetworkType = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
+using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<DTYPE>;
+using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC>;
+using NetworkType = bpt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
 
-using NETWORK_SPEC_BACKWARD_ONLY = lic::nn_models::mlp::InferenceBackwardSpecification<StructureSpecification>;
-using NetworkTypeBackwardOnly = lic::nn_models::mlp::NeuralNetworkBackward<NETWORK_SPEC_BACKWARD_ONLY>;
+using NETWORK_SPEC_BACKWARD_ONLY = bpt::nn_models::mlp::InferenceBackwardSpecification<StructureSpecification>;
+using NetworkTypeBackwardOnly = bpt::nn_models::mlp::NeuralNetworkBackward<NETWORK_SPEC_BACKWARD_ONLY>;
 
 constexpr typename NN_DEVICE::index_t INPUT_DIM = STRUCTURE_SPEC::INPUT_DIM;
 constexpr typename NN_DEVICE::index_t LAYER_1_DIM = STRUCTURE_SPEC::HIDDEN_DIM;
@@ -53,7 +53,7 @@ protected:
     std::vector<DTYPE> Y_std;
 };
 
-using StructureSpecification_3 = lic::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, lic::nn::activation_functions::GELU, lic::nn::activation_functions::IDENTITY>;
+using StructureSpecification_3 = bpt::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, bpt::nn::activation_functions::GELU, bpt::nn::activation_functions::IDENTITY>;
 
-using NETWORK_SPEC_3 = lic::nn_models::mlp::AdamSpecification<StructureSpecification_3>;
-using NetworkType_3 = lic::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC_3>;
+using NETWORK_SPEC_3 = bpt::nn_models::mlp::AdamSpecification<StructureSpecification_3>;
+using NetworkType_3 = bpt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC_3>;

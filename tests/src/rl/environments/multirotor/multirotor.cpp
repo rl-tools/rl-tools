@@ -20,24 +20,24 @@ constexpr auto ACTION_DIM = dynamics_legacy::ACTION_DIM;
 
 #include <backprop_tools/utils/generic/memcpy.h>
 
-namespace lic = backprop_tools;
+namespace bpt = backprop_tools;
 
 #include <gtest/gtest.h>
 #include <random>
 #include <stdint.h>
 TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
-    using DEVICE = lic::devices::DefaultCPU;
+    using DEVICE = bpt::devices::DefaultCPU;
 
 
     typename DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     device.logger = &logger;
 
-    const auto parameters = lic::rl::environments::multirotor::parameters::default_parameters<DTYPE, typename DEVICE::index_t>;
+    const auto parameters = bpt::rl::environments::multirotor::parameters::default_parameters<DTYPE, typename DEVICE::index_t>;
     using PARAMETERS = decltype(parameters);
     using REWARD_FUNCTION = PARAMETERS::MDP::REWARD_FUNCTION;
-    using SPEC = lic::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, lic::rl::environments::multirotor::StaticParameters>;
-    using ENVIRONMENT = lic::rl::environments::Multirotor<SPEC>;
+    using SPEC = bpt::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, bpt::rl::environments::multirotor::StaticParameters>;
+    using ENVIRONMENT = bpt::rl::environments::Multirotor<SPEC>;
     std::cout << "sizeof state: " << sizeof(ENVIRONMENT::State) << std::endl;
 
 
@@ -52,14 +52,14 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
 //        }
 //        state[3] = 1;
         ENVIRONMENT::State env_state;
-        lic::sample_initial_state(device, env, env_state, rng);
+        bpt::sample_initial_state(device, env, env_state, rng);
         for(int i = 0; i < STATE_DIM; i++){
             state[i] = env_state.state[i];
         }
 
-        lic::utils::memcpy(env_state.state, state, STATE_DIM);
-        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, ACTION_DIM>> env_action;
-        lic::malloc(device, env_action);
+        bpt::utils::memcpy(env_state.state, state, STATE_DIM);
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, ACTION_DIM>> env_action;
+        bpt::malloc(device, env_action);
 
         for(COUNTER_TYPE substep_i = 0; substep_i < 100; substep_i++){
             DTYPE action[ACTION_DIM];
@@ -69,7 +69,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
             constexpr DTYPE action_min = 0;
             constexpr DTYPE action_max = 2000;
             for(COUNTER_TYPE action_i = 0; action_i < ACTION_DIM; action_i++){
-                action[action_i] = 1000 + lic::math::clamp<DTYPE>(typename DEVICE::SPEC::MATH(), action_distribution(rng) * 500, action_min, action_max);
+                action[action_i] = 1000 + bpt::math::clamp<DTYPE>(typename DEVICE::SPEC::MATH(), action_distribution(rng) * 500, action_min, action_max);
             }
             for(COUNTER_TYPE action_i = 0; action_i < ACTION_DIM; action_i++){
                 set(env_action, 0, action_i, (action[action_i] - action_min) / (action_max - action_min) * 2 - 1);
@@ -87,7 +87,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
 
 
             // Env based
-            lic::step(device, env, env_state, env_action, env_next_state);
+            bpt::step(device, env, env_state, env_action, env_next_state);
 
             DTYPE acc = 0;
             for(COUNTER_TYPE state_i = 0; state_i < STATE_DIM; state_i++){
@@ -101,7 +101,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
             }
             env_state = env_next_state;
         }
-        lic::free(device, env_action);
+        bpt::free(device, env_action);
 
     }
 

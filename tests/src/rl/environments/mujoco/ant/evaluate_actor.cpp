@@ -6,7 +6,7 @@
 #include <backprop_tools/nn_models/operations_cpu.h>
 #include <backprop_tools/nn_models/persist.h>
 
-namespace lic = backprop_tools;
+namespace bpt = backprop_tools;
 
 #ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
 #include "parameters_ppo.h"
@@ -22,7 +22,7 @@ namespace lic = backprop_tools;
 #include <CLI/CLI.hpp>
 
 namespace TEST_DEFINITIONS{
-    using DEVICE = lic::devices::DefaultCPU_TENSORBOARD;
+    using DEVICE = bpt::devices::DefaultCPU_TENSORBOARD;
     using T = double;
     using TI = typename DEVICE::index_t;
     namespace parameter_set = parameters_0;
@@ -31,9 +31,9 @@ namespace TEST_DEFINITIONS{
     struct ENVIRONMENT_EVALUATION_PARAMETERS: parameters_environment::ENVIRONMENT_SPEC::PARAMETERS{
         constexpr static TI FRAME_SKIP = 5; // for smoother playback
     };
-    using ENVIRONMENT_EVALUATION_SPEC = lic::rl::environments::mujoco::ant::Specification<T, TI, ENVIRONMENT_EVALUATION_PARAMETERS>;
-    using ENVIRONMENT = lic::rl::environments::mujoco::Ant<ENVIRONMENT_EVALUATION_SPEC>;
-    using UI = lic::rl::environments::mujoco::ant::UI<ENVIRONMENT>;
+    using ENVIRONMENT_EVALUATION_SPEC = bpt::rl::environments::mujoco::ant::Specification<T, TI, ENVIRONMENT_EVALUATION_PARAMETERS>;
+    using ENVIRONMENT = bpt::rl::environments::mujoco::Ant<ENVIRONMENT_EVALUATION_SPEC>;
+    using UI = bpt::rl::environments::mujoco::ant::UI<ENVIRONMENT>;
 
     using parameters_rl = parameter_set::rl<T, TI, ENVIRONMENT>;
     constexpr TI MAX_EPISODE_LENGTH = 1000;
@@ -50,17 +50,17 @@ int main(int argc, char** argv) {
     ENVIRONMENT env;
     UI ui;
     parameters_rl::ACTOR_TYPE actor;
-    lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-    lic::MatrixDynamic<lic::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     typename ENVIRONMENT::State state, next_state;
-    auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
-    lic::malloc(dev, env);
-    lic::malloc(dev, actor);
-    lic::malloc(dev, action);
-    lic::malloc(dev, observation);
+    bpt::malloc(dev, env);
+    bpt::malloc(dev, actor);
+    bpt::malloc(dev, action);
+    bpt::malloc(dev, observation);
 
-    lic::init(dev, env, ui);
+    bpt::init(dev, env, ui);
     while(true){
         std::filesystem::path actor_run;
         if(run == ""){
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
         {
             try{
                 auto data_file = HighFive::File(actor_checkpoints.back(), HighFive::File::ReadOnly);
-                lic::load(dev, actor, data_file.getGroup("actor"));
+                bpt::load(dev, actor, data_file.getGroup("actor"));
             }
             catch(HighFive::FileException& e){
                 std::cout << "Failed to load actor from " << actor_checkpoints.back() << std::endl;
@@ -103,16 +103,16 @@ int main(int argc, char** argv) {
             }
         }
 
-        lic::sample_initial_state(dev, env, state, rng);
+        bpt::sample_initial_state(dev, env, state, rng);
         T reward_acc = 0;
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
-            lic::observe(dev, env, state, observation);
-            lic::evaluate(dev, actor, observation, action);
-            T dt = lic::step(dev, env, state, action, next_state);
-            bool terminated_flag = lic::terminated(dev, env, next_state, rng);
-            reward_acc += lic::reward(dev, env, state, action, next_state);
-            lic::set_state(dev, ui, state);
+            bpt::observe(dev, env, state, observation);
+            bpt::evaluate(dev, actor, observation, action);
+            T dt = bpt::step(dev, env, state, action, next_state);
+            bool terminated_flag = bpt::terminated(dev, env, next_state, rng);
+            reward_acc += bpt::reward(dev, env, state, action, next_state);
+            bpt::set_state(dev, ui, state);
             state = next_state;
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> diff = end-start;

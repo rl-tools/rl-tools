@@ -2,7 +2,7 @@
 #include <backprop_tools/nn/operations_cpu_mux.h>
 #include <backprop_tools/nn_models/operations_cpu.h>
 #include <backprop_tools/nn_models/persist.h>
-namespace lic = backprop_tools;
+namespace bpt = backprop_tools;
 #include "parameters_ppo.h"
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
@@ -24,19 +24,19 @@ namespace lic = backprop_tools;
 
 namespace parameters = parameters_0;
 
-using LOGGER = lic::devices::logging::CPU;
-//using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
+using LOGGER = bpt::devices::logging::CPU;
+//using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
 
-using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
-using TI = typename lic::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
+using DEV_SPEC_SUPER = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
+using TI = typename bpt::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
+    struct HINTS: bpt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
 
-using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -85,8 +85,8 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         DEVICE device;
         prl::ACTOR_OPTIMIZER actor_optimizer;
         prl::CRITIC_OPTIMIZER critic_optimizer;
-        auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
-        auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
+        auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
+        auto evaluation_rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
         prl::PPO_TYPE ppo;
         prl::PPO_BUFFERS_TYPE ppo_buffers;
         prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
@@ -95,46 +95,46 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
-        lic::rl::components::RunningNormalizer<lic::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
+        bpt::rl::components::RunningNormalizer<bpt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
         penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
         bool ui = false;
         TI next_checkpoint_id = 0;
         TI next_evaluation_id = 0;
 
-        lic::malloc(device, ppo);
-        lic::malloc(device, ppo_buffers);
-        lic::malloc(device, on_policy_runner_dataset);
-        lic::malloc(device, on_policy_runner);
-        lic::malloc(device, actor_eval_buffers);
-        lic::malloc(device, actor_buffers);
-        lic::malloc(device, critic_buffers);
-        lic::malloc(device, critic_buffers_gae);
-        lic::malloc(device, observation_normalizer);
+        bpt::malloc(device, ppo);
+        bpt::malloc(device, ppo_buffers);
+        bpt::malloc(device, on_policy_runner_dataset);
+        bpt::malloc(device, on_policy_runner);
+        bpt::malloc(device, actor_eval_buffers);
+        bpt::malloc(device, actor_buffers);
+        bpt::malloc(device, critic_buffers);
+        bpt::malloc(device, critic_buffers_gae);
+        bpt::malloc(device, observation_normalizer);
         for(auto& env : envs){
-            lic::malloc(device, env);
+            bpt::malloc(device, env);
         }
-        lic::malloc(device, evaluation_env);
+        bpt::malloc(device, evaluation_env);
 
         auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
         auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
 
-        lic::init(device, on_policy_runner, envs, rng);
-        lic::init(device, observation_normalizer);
-        lic::init(device, ppo, actor_optimizer, critic_optimizer, rng);
+        bpt::init(device, on_policy_runner, envs, rng);
+        bpt::init(device, observation_normalizer);
+        bpt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         device.logger = &logger;
-        lic::construct(device, device.logger, std::string("logs"), run_name);
+        bpt::construct(device, device.logger, std::string("logs"), run_name);
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
-                lic::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+                bpt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
+                bpt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
             }
             std::cout << "Observation means: " << std::endl;
-            lic::print(device, observation_normalizer.mean);
+            bpt::print(device, observation_normalizer.mean);
             std::cout << "Observation std: " << std::endl;
-            lic::print(device, observation_normalizer.std);
-            lic::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
+            bpt::print(device, observation_normalizer.std);
+            bpt::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
         }
         for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
             if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
@@ -153,8 +153,8 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
                 try{
                     auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
-                    lic::save(device, ppo.actor, actor_file.createGroup("actor"));
-                    lic::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
+                    bpt::save(device, ppo.actor, actor_file.createGroup("actor"));
+                    bpt::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
                 }
                 catch(HighFive::Exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
@@ -162,65 +162,65 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_PPO){
                 next_checkpoint_id++;
             }
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
-                auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, evaluation_rng);
-                lic::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
-                lic::add_scalar(device, device.logger, "evaluation/return/std", result.std);
-                lic::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
+                auto result = bpt::evaluate(device, evaluation_env, ui, ppo.actor, bpt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, evaluation_rng);
+                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
+                bpt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
+                bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
                 std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
                 next_evaluation_id++;
             }
-            lic::set_step(device, device.logger, on_policy_runner.step);
+            bpt::set_step(device, device.logger, on_policy_runner.step);
 
             if(ppo_step_i % 1 == 0){
                 std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;
                 std::cout << "PPO step: " << ppo_step_i << " elapsed: " << training_elapsed.count() << "s" << std::endl;
-                lic::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
-                lic::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
-                lic::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);
+                bpt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
+                bpt::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
+                bpt::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);
             }
             for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
-                T action_log_std = lic::get(ppo.actor.log_std.parameters, 0, action_i);
+                T action_log_std = bpt::get(ppo.actor.log_std.parameters, 0, action_i);
                 std::stringstream topic;
                 topic << "actor/action_std/" << action_i;
-                lic::add_scalar(device, device.logger, topic.str(), lic::math::exp(DEVICE::SPEC::MATH(), action_log_std));
+                bpt::add_scalar(device, device.logger, topic.str(), bpt::math::exp(DEVICE::SPEC::MATH(), action_log_std));
             }
             auto start = std::chrono::high_resolution_clock::now();
-            lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
+            bpt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
             if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
-                lic::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+                bpt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
                 for(TI state_i = 0; state_i < penv::ENVIRONMENT::OBSERVATION_DIM; state_i++){
-                    lic::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));
-                    lic::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
+                    bpt::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));
+                    bpt::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
                 }
             }
-            lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_dataset.observations));
-            lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_dataset.observations));
-            lic::add_scalar(device, device.logger, "opr/action/mean", lic::mean(device, on_policy_runner_dataset.actions));
-            lic::add_scalar(device, device.logger, "opr/action/std", lic::std(device, on_policy_runner_dataset.actions));
-            lic::add_scalar(device, device.logger, "opr/rewards/mean", lic::mean(device, on_policy_runner_dataset.rewards));
-            lic::add_scalar(device, device.logger, "opr/rewards/std", lic::std(device, on_policy_runner_dataset.rewards));
+            bpt::add_scalar(device, device.logger, "opr/observation/mean", bpt::mean(device, on_policy_runner_dataset.observations));
+            bpt::add_scalar(device, device.logger, "opr/observation/std", bpt::std(device, on_policy_runner_dataset.observations));
+            bpt::add_scalar(device, device.logger, "opr/action/mean", bpt::mean(device, on_policy_runner_dataset.actions));
+            bpt::add_scalar(device, device.logger, "opr/action/std", bpt::std(device, on_policy_runner_dataset.actions));
+            bpt::add_scalar(device, device.logger, "opr/rewards/mean", bpt::mean(device, on_policy_runner_dataset.rewards));
+            bpt::add_scalar(device, device.logger, "opr/rewards/std", bpt::std(device, on_policy_runner_dataset.rewards));
             evaluate(device, ppo.critic, on_policy_runner_dataset_all_observations, on_policy_runner_dataset.all_values, critic_buffers_gae);
-            lic::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
-            lic::train(device, ppo, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
+            bpt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
+            bpt::train(device, ppo, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
 
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "Total: " << elapsed.count() << " s" << std::endl;
         }
 
-        lic::free(device, ppo);
-        lic::free(device, ppo_buffers);
-        lic::free(device, on_policy_runner_dataset);
-        lic::free(device, on_policy_runner);
-        lic::free(device, actor_eval_buffers);
-        lic::free(device, actor_buffers);
-        lic::free(device, critic_buffers);
-        lic::free(device, critic_buffers_gae);
-        lic::free(device, observation_normalizer);
+        bpt::free(device, ppo);
+        bpt::free(device, ppo_buffers);
+        bpt::free(device, on_policy_runner_dataset);
+        bpt::free(device, on_policy_runner);
+        bpt::free(device, actor_eval_buffers);
+        bpt::free(device, actor_buffers);
+        bpt::free(device, critic_buffers);
+        bpt::free(device, critic_buffers_gae);
+        bpt::free(device, observation_normalizer);
         for(auto& env : envs){
-            lic::free(device, env);
+            bpt::free(device, env);
         }
-        lic::free(device, evaluation_env);
+        bpt::free(device, evaluation_env);
     }
 
 }

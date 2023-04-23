@@ -12,7 +12,7 @@
 #include <backprop_tools/rl/utils/evaluation.h>
 #include <backprop_tools/nn_models/persist.h>
 
-namespace lic = backprop_tools;
+namespace bpt = backprop_tools;
 
 using DTYPE = float;
 #include "../multirotor_training/parameters.h"
@@ -22,7 +22,7 @@ using DTYPE = float;
 #include <thread>
 #include <highfive/H5File.hpp>
 
-using DEVICE = lic::devices::DefaultCPU;
+using DEVICE = bpt::devices::DefaultCPU;
 
 namespace parameter_set = parameters_0;
 
@@ -35,25 +35,25 @@ using parameters_rl = parameter_set::rl<DEVICE, DTYPE, ENVIRONMENT>;
 //TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_UI, TEST_UI) {
 //    DEVICE::SPEC::LOGGING logger;
 //    DEVICE device(logger);
-//    lic::rl::environments::multirotor::UI<ENVIRONMENT> ui;
+//    bpt::rl::environments::multirotor::UI<ENVIRONMENT> ui;
 //    ui.host = "localhost";
 //    ui.port = "8080";
-////    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::all_around<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
+////    parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::all_around<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
 //    auto parameters = parameters_environment::parameters;
 //    ENVIRONMENT env({parameters});
 //    ENVIRONMENT::State state, next_state;
 //    std::mt19937 rng(0);
-//    lic::init(device, env, ui);
-//    lic::sample_initial_state(device, env, state, rng);
+//    bpt::init(device, env, ui);
+//    bpt::sample_initial_state(device, env, state, rng);
 //    for(int i = 0; i < 100; i++){
 //        DTYPE action[4];
 //        action[0] = 1.0;
 //        action[1] = 0.0;
 //        action[2] = 0.0;
 //        action[3] = 0.0;
-//        lic::step(device, env, state, action, next_state);
+//        bpt::step(device, env, state, action, next_state);
 //        state = next_state;
-//        lic::set_state(device, ui, state);
+//        bpt::set_state(device, ui, state);
 ////        std::this_thread::sleep_for(std::chrono::milliseconds((int)(1000 * parameters.integration.dt)));
 //        std::this_thread::sleep_for(std::chrono::milliseconds((int)(100)));
 //    }
@@ -71,18 +71,18 @@ std::string get_actor_file_path(){
 //TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_ACTOR) {
 //    DEVICE::SPEC::LOGGING logger;
 //    DEVICE device(logger);
-//    lic::rl::environments::multirotor::UI<ENVIRONMENT> ui;
+//    bpt::rl::environments::multirotor::UI<ENVIRONMENT> ui;
 //    ui.host = "localhost";
 //    ui.port = "8080";
-////    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::all_around<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
+////    parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::all_around<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
 //    auto parameters = parameters_environment::parameters;
 //    ENVIRONMENT env({parameters});
 //    ENVIRONMENT::State state, next_state;
 //    std::mt19937 rng(0);
-//    lic::init(device, env, ui);
+//    bpt::init(device, env, ui);
 //
 //    parameters_rl::ACTOR_NETWORK_TYPE actor;
-//    lic::malloc(device, actor);
+//    bpt::malloc(device, actor);
 //
 //    std::string actor_output_path = get_actor_file_path();
 ////    if(!std::filesystem::exists(actor_output_path)){
@@ -91,25 +91,25 @@ std::string get_actor_file_path(){
 ////    }
 //    {
 //        auto actor_file = HighFive::File(actor_output_path, HighFive::File::ReadOnly);
-//        lic::load(device, actor, actor_file.getGroup("actor"));
+//        bpt::load(device, actor, actor_file.getGroup("actor"));
 //    }
 //
 //
 //
 //    for(DEVICE::index_t episode_i = 0; episode_i < 1; episode_i++){
-//        lic::sample_initial_state(device, env, state, rng);
-//        lic::rl::utils::evaluation::State<DTYPE, typename ENVIRONMENT::State> eval_state;
+//        bpt::sample_initial_state(device, env, state, rng);
+//        bpt::rl::utils::evaluation::State<DTYPE, typename ENVIRONMENT::State> eval_state;
 //        eval_state.state = state;
 //        for (DEVICE::index_t i = 0; i < 100; i++) {
-//            if(lic::evaluate_step(device, env, ui, actor, eval_state)){
+//            if(bpt::evaluate_step(device, env, ui, actor, eval_state)){
 //                break;
 //            }
 //            std::this_thread::sleep_for(std::chrono::milliseconds((int)(parameters.integration.dt * 5000)));
 //        }
-////        DTYPE r = lic::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor), decltype(rng), parameters_rl::ENVIRONMENT_STEP_LIMIT, true>(device, env, ui, actor, 1, rng);
+////        DTYPE r = bpt::evaluate<DEVICE, ENVIRONMENT, decltype(ui), decltype(actor), decltype(rng), parameters_rl::ENVIRONMENT_STEP_LIMIT, true>(device, env, ui, actor, 1, rng);
 //        std::cout << "return: " << eval_state.episode_return << std::endl;
 //    }
-//    lic::free(device, actor);
+//    bpt::free(device, actor);
 //}
 std::string get_replay_buffer_file_path(){
     std::string DATA_FILE_PATH = "./replay_buffer.h5";
@@ -124,7 +124,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_REPLAY_BUFFER) {
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     device.logger = &logger;
-//    parameters.mdp.init = lic::rl::environments::multirotor::parameters::init::all_around<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
+//    parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::all_around<DTYPE, DEVICE::index_t, 4, REWARD_FUNCTION>;
     auto parameters = parameters_environment::parameters;
     std::mt19937 rng(0);
 
@@ -184,7 +184,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_REPLAY_BUFFER) {
     constexpr DTYPE GRID_SPACING = 1;
 
     ENVIRONMENT envs[TRAJECTORY_COUNT] = {parameters};
-    lic::rl::environments::multirotor::UI<ENVIRONMENT> uis[TRAJECTORY_COUNT];
+    bpt::rl::environments::multirotor::UI<ENVIRONMENT> uis[TRAJECTORY_COUNT];
     DEVICE::index_t current_trajectory[TRAJECTORY_COUNT];
     for(DEVICE::index_t trajectory_i = 0; trajectory_i < TRAJECTORY_COUNT; trajectory_i++){
         current_trajectory[trajectory_i] = trajectory_i;
@@ -194,7 +194,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_REPLAY_BUFFER) {
         uis[trajectory_i].origin[0] = ((trajectory_i / GRID_WIDTH - ((GRID_WIDTH-1) / 2.0)) * GRID_SPACING);
         uis[trajectory_i].origin[1] = (trajectory_i % GRID_WIDTH - ((GRID_WIDTH-1) / 2.0)) * GRID_SPACING;
         uis[trajectory_i].origin[2] = 0;
-        lic::init(device, envs[trajectory_i], uis[trajectory_i]);
+        bpt::init(device, envs[trajectory_i], uis[trajectory_i]);
     }
 
     DEVICE::index_t current_global_trajectory = TRAJECTORY_COUNT;
@@ -219,7 +219,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_UI, LOAD_REPLAY_BUFFER) {
             for(DEVICE::index_t i = 0; i < ENVIRONMENT::State::DIM; i++){
                 state.state[i] = observation[i];
             }
-            lic::set_state(device, ui, state);
+            bpt::set_state(device, ui, state);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds((int)(10)));
     }

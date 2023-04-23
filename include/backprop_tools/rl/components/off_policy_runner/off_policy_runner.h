@@ -4,7 +4,7 @@
 // Please include the file containing the environments operations before including this file
 #include <backprop_tools/rl/components/replay_buffer/replay_buffer.h>
 
-namespace lic = backprop_tools;
+namespace bpt = backprop_tools;
 
 
 /* requirements
