@@ -57,6 +57,7 @@ BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_ui)
 endif()
 
+if(BACKPROP_TOOLS_TESTS_ENABLE_UI)
 add_executable(
         test_rl_environments_mujoco_ant_evaluation_td3
         evaluate_actor.cpp
@@ -74,7 +75,9 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_td3)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_td3)
+endif()
 
+if(BACKPROP_TOOLS_TESTS_ENABLE_UI)
 add_executable(
         test_rl_environments_mujoco_ant_evaluation_ppo
         evaluate_actor.cpp
@@ -97,6 +100,7 @@ target_compile_definitions(
 )
 BACKPROP_TOOLS_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_evaluation_ppo)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_evaluation_ppo)
+endif()
 
 add_executable(
         test_rl_environments_mujoco_ant_training_ppo

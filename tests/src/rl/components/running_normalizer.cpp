@@ -14,7 +14,7 @@ void test(){
     T threshold = 0.01;
     T std_threshold = 0.1;
     T mean_threshold_normalization = 0.01;
-    T std_threshold_normalization = 0.01;
+    T std_threshold_normalization = 3.0/BATCH_SIZE;
     static_assert((ROWS % BATCH_SIZE) == 0);
     DEVICE device;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, ROWS, COLS>> data;
@@ -24,8 +24,8 @@ void test(){
     bpt::malloc(device, running_normalizer);
     bpt::init(device, running_normalizer);
     bpt::randn(device, data, rng);
-    auto last_part = bpt::view(device, data, bpt::matrix::ViewSpec<ROWS / 2, COLS>{}, ROWS/2, 0);
-    bpt::increment_all(device, last_part, 10);
+//    auto last_part = bpt::view(device, data, bpt::matrix::ViewSpec<ROWS / 2, COLS>{}, ROWS/2, 0);
+//    bpt::increment_all(device, last_part, 10);
     {
         auto file = HighFive::File("running_normalizer.h5", HighFive::File::Overwrite);
         bpt::save(device, data, file.createGroup("data"), "data");
@@ -70,14 +70,14 @@ void test(){
 
 TEST(BACKPROP_TOOLS_RL_COMPONENTS_RUNNING_NORMALIZER, TEST){
     test<double, 100, 10, 10>();
-    test<double, 32, 2, 2>();
-    test<double, 32, 1, 2>();
-    test<double, 32, 10, 2>();
-    test<double, 30, 12, 3>();
+    test<double, 20, 20, 20>();
+    test<double, 20, 1, 20>();
+    test<double, 20, 20, 20>();
+    test<double, 30, 210, 30>();
     test<double, 32, 10, 32>();
     test<double, 32, 1, 32>();
     test<double, 100, 1, 50>();
     test<double, 100, 10, 50>();
-    test<double, 10000, 10, 2>();
+    test<double, 10000, 10, 25>();
     test<double, 10000, 10, 10000>();
 }

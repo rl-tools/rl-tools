@@ -41,18 +41,18 @@ namespace backprop_tools{
     void set_step(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, typename DEVICE::index_t step){
         device.logger->step = step;
     }
-    template <typename DEVICE>
-    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const std::string key, const float value, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
+    template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE, typename CADANCE_TYPE>
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const VALUE_TYPE value, const CADANCE_TYPE cadence = 1){
         if(logger == nullptr){
             return;
         }
         std::lock_guard<std::mutex> lock(logger->mutex);
         if(logger->step % cadence == 0){
-            logger->tb->add_scalar(key, logger->step, value);
+            logger->tb->add_scalar(key, logger->step, (float)value);
         }
     }
-    template <typename DEVICE, typename T, typename TI>
-    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const std::string key, const T* values, const TI n_values, const typename devices::logging::CPU_TENSORBOARD::index_t cadence = 1){
+    template <typename DEVICE, typename KEY_TYPE, typename T, typename TI, typename CADANCE_TYPE>
+    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const T* values, const TI n_values, const CADANCE_TYPE cadence = 1){
         if(logger == nullptr){
             return;
         }
