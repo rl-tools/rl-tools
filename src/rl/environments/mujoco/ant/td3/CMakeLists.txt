@@ -1,0 +1,14 @@
+add_executable(
+        test_rl_environments_mujoco_ant_training_td3_standalone
+        standalone.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_training_td3_standalone
+        PRIVATE
+        backprop_tools
+        HighFive
+        tensorboard_logger
+        mujoco
+)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3_standalone)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_td3_standalone)

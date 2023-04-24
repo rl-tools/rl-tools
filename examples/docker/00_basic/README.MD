@@ -3,7 +3,7 @@ You can verify the lack of dependencies in the [Dockerfile](Dockerfile) used for
 ```
 cd backprop_tools/examples/docker/00_basic
 ```
-Build the docker image (tagged as backprop_tools:basic)
+Build the docker image (tagged as `backprop_tools:basic`)
 ```
 ./build.sh
 ```

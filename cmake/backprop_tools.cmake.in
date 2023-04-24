@@ -1,0 +1,5 @@
+add_library(backprop_tools::backprop_tools SHARED IMPORTED)
+
+set_target_properties(backprop_tools::backprop_tools PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "@CMAKE_CURRENT_SOURCE_DIR@/include"
+)

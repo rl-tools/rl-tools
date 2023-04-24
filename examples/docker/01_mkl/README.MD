@@ -2,11 +2,11 @@ Change to the current directory
 ```
 cd backprop_tools/examples/docker/01_mkl
 ```
-Build the docker image (saved as backprop_tools:mkl)
+Build the docker image (saved as `backprop_tools:mkl`)
 ```
 ./build.sh
 ```
-Run a docker container based on the image just built (exposing port 6006 for tensorboard and mounting the source code from the host in readonly mode)
+Run a docker container based on the image just built (exposing port `6006` for tensorboard and mounting the source code from the host in readonly mode)
 ```
 docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly --cap-add=sys_nice backprop_tools:mkl
 ```
@@ -26,3 +26,4 @@ Execute the built binary with a high priority
 ```
 nice -n -20 ./tests/test_rl_algorithms_td3_full_training_standalone
 ```
+You can observe the training using the browser on your host machine to access Tensorboard at `http://localhost:6006/

@@ -1,0 +1,43 @@
+add_subdirectory(ppo)
+add_subdirectory(td3)
+
+if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
+    add_executable(
+            rl_environments_mujoco_ant_evaluation_td3
+            evaluate_actor.cpp
+    )
+    target_link_libraries(
+            rl_environments_mujoco_ant_evaluation_td3
+            PRIVATE
+            backprop_tools
+            HighFive
+            mujoco
+            glfw
+            CLI11::CLI11
+    )
+    BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_evaluation_td3)
+    BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_mujoco_ant_evaluation_td3)
+endif()
+
+if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
+    add_executable(
+            rl_environments_mujoco_ant_evaluation_ppo
+            evaluate_actor.cpp
+    )
+    target_link_libraries(
+            rl_environments_mujoco_ant_evaluation_ppo
+            PRIVATE
+            backprop_tools
+            HighFive
+            mujoco
+            glfw
+            CLI11::CLI11
+    )
+    target_compile_definitions(
+            rl_environments_mujoco_ant_evaluation_ppo
+            PRIVATE
+            -DBACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+    )
+    BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_evaluation_ppo)
+    BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_mujoco_ant_evaluation_ppo)
+endif()

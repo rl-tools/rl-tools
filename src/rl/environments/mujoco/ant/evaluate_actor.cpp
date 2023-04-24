@@ -1,5 +1,5 @@
 
-#include <backprop_tools/operations/cpu_tensorboard.h>
+#include <backprop_tools/operations/cpu.h>
 
 #include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
 #include <backprop_tools/rl/environments/mujoco/ant/ui.h>
@@ -10,20 +10,21 @@
 namespace bpt = backprop_tools;
 
 #ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
-#include "parameters_ppo.h"
+#include "ppo/parameters.h"
 #else
-#include "parameters_td3.h"
+#include "td3/parameters.h"
 #endif
 
 #include <chrono>
 #include <iostream>
 #include <filesystem>
 #include <algorithm>
+#include <thread>
 #include <highfive/H5File.hpp>
 #include <CLI/CLI.hpp>
 
 namespace TEST_DEFINITIONS{
-    using DEVICE = bpt::devices::DefaultCPU_TENSORBOARD;
+    using DEVICE = bpt::devices::DefaultCPU;
     using T = double;
     using TI = typename DEVICE::index_t;
     namespace parameter_set = parameters_0;

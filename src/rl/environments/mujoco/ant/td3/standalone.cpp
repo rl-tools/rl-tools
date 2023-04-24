@@ -1,4 +1,4 @@
-#include "training_td3.h"
+#include "training.h"
 
 int main(){
     run();

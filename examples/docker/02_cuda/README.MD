@@ -3,7 +3,7 @@
 cd backprop_tools/examples/docker/02_cuda
 ```
 ### Building the environment
-Build the docker container (based on an NVIDIA cuda ubuntu image) installing Intel MKL as well as a recent version of CMake. The image is tagged as backprop_tools:cuda
+Build the docker container (based on an NVIDIA cuda ubuntu image) installing Intel MKL as well as a recent version of CMake. The image is tagged as `backprop_tools:cuda`
 ```
 ./build.sh
 ```
@@ -28,3 +28,4 @@ Execute the built binary with a high priority
 ```
 nice -n -20 /build/tests/src/rl/environments/mujoco/ant/cuda/test_rl_environments_mujoco_ant_training_ppo_cuda
 ```
+You can observe the training using the browser on your host machine to access Tensorboard at `http://localhost:6006/

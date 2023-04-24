@@ -57,6 +57,9 @@ endif()
 # todo: upgrade tensorboard and highfive to the main lib folder
 
 if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
+    if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
+        find_package(glfw3 REQUIRED)
+    endif()
     set(MUJOCO_BUILD_EXAMPLES OFF)
     set(MUJOCO_BUILD_SIMULATE OFF)
     set(MUJOCO_BUILD_TESTS OFF)
@@ -70,3 +73,11 @@ if (BACKPROP_TOOLS_ENABLE_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/backprop_tools.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/backprop_toolsConfig.cmake"
+        @ONLY
+)
+
+add_subdirectory(src)
