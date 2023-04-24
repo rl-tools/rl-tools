@@ -13,7 +13,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
     using DEVICE = bpt::devices::DefaultCPU;
     typedef bpt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
     typedef bpt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
-    std::string DATA_FILE_PATH = "../multirotor-torch/pendulum.hdf5";
+    std::string DATA_FILE_PATH = "./data_test/pendulum.hdf5";
     const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE");
     if (data_file_path != NULL){
         DATA_FILE_PATH = std::string(data_file_path);

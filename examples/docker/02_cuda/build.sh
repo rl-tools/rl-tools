@@ -1,1 +1,1 @@
-docker build -f Dockerfile -t backprop_tools:cuda .
+docker build -f Dockerfile -t backprop_tools:cuda . $@

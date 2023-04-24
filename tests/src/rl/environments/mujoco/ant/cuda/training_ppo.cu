@@ -36,7 +36,7 @@ namespace bpt = backprop_tools;
 
 namespace parameters = parameters_0;
 
-#ifdef BACKPROP_TOOLS_ENABLE_TENSORBOARD
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
 #else
 using LOGGER = bpt::devices::logging::CPU;
@@ -61,10 +61,15 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI BASE_SEED = 600;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
+#if !defined(BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+constexpr bool ENABLE_EVALUATION = true;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+#else
 constexpr bool ENABLE_EVALUATION = false;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
+#endif
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 
 // --------------- changed for cuda training -----------------

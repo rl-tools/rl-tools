@@ -68,6 +68,7 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 #include <highfive/H5File.hpp>
 #include <thread>
 #include <future>
+#include <filesystem>
 
 using DTYPE = float;
 
@@ -285,10 +286,21 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             }
         }
         // 300000 steps: 28s on M1
+        std::filesystem::path data_output_dir = "data_test";
         {
-            std::string actor_output_path = "actor.h5";
+            try {
+                if (std::filesystem::create_directories(data_output_dir)) {
+                    std::cout << "Directories created successfully: " << data_output_dir << std::endl;
+                } else {
+                    std::cout << "Directories already exist or failed to create: " << data_output_dir << std::endl;
+                }
+            } catch (const std::filesystem::filesystem_error& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+            }
+        }
+        {
             try{
-                auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+                auto actor_file = HighFive::File(data_output_dir / "actor.h5", HighFive::File::Overwrite);
                 bpt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
             }
             catch(HighFive::Exception& e){
@@ -296,7 +308,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
             }
         }
         {
-            std::string rb_output_path = "replay_buffer.h5";
+            std::filesystem::path rb_output_path = data_output_dir / "replay_buffer.h5";
             try{
                 auto actor_file = HighFive::File(rb_output_path, HighFive::File::Overwrite);
                 auto replay_buffer_group = actor_file.createGroup("replay_buffer");

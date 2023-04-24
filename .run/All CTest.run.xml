@@ -1,12 +1,12 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="All CTest" type="CTestRunConfiguration" factoryName="CTestRun" PROGRAM_PARAMS="--extra-verbose" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$CMakeCurrentLocalGenerationDir$" PASS_PARENT_ENVS_2="true" CONFIG_NAME="Debug" RUN_PATH="$CTestCurrentExecutableName$" EXPLICIT_BUILD_TARGET_NAME="all" TEST_MODE="PATTERN">
     <envs>
-      <env name="BACKPROP_TOOLS_TEST_NN_DATA_FILE" value="$PROJECT_DIR$/../model-learning/data.hdf5" />
-      <env name="BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FIRST_STAGE_DATA_FILE" value="$PROJECT_DIR$/../multirotor-torch/model_first_stage.hdf5" />
-      <env name="BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_DATA_FILE" value="$PROJECT_DIR$/../multirotor-torch/model_second_stage.hdf5" />
-      <env name="BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_UI_ACTOR_FILE_PATH" value="$PROJECT_DIR$/actor.h5" />
-      <env name="BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE" value="$PROJECT_DIR$/../multirotor-torch/pendulum.hdf5" />
-      <env name="BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_UI_REPLAY_BUFFER_FILE_PATH" value="$PROJECT_DIR$/replay_buffer.h5" />
+      <env name="BACKPROP_TOOLS_TEST_NN_DATA_FILE" value="$PROJECT_DIR$/../backprop_tools/data_test/model-learning/data.hdf5" />
+      <env name="BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FIRST_STAGE_DATA_FILE" value="$PROJECT_DIR$/../backprop_tools/data_test/model_first_stage.hdf5" />
+      <env name="BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_DATA_FILE" value="$PROJECT_DIR$/../backprop_tools/data_test/model_second_stage.hdf5" />
+      <env name="BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_UI_ACTOR_FILE_PATH" value="$PROJECT_DIR$/../backprop_tools/data_test/actor.h5" />
+      <env name="BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_UI_REPLAY_BUFFER_FILE_PATH" value="$PROJECT_DIR$/../backprop_tools/data_test/replay_buffer.h5" />
+      <env name="BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE" value="$PROJECT_DIR$/../backprop_tools/data_test/pendulum.hdf5" />
     </envs>
     <method v="2">
       <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />

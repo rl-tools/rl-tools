@@ -14,7 +14,7 @@
 
 namespace bpt = backprop_tools;
 std::string get_data_file_path(){
-    std::string DATA_FILE_PATH = "../multirotor-torch/model_first_stage.hdf5";
+    std::string DATA_FILE_PATH = "./data_test/model_first_stage.hdf5";
     const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FIRST_STAGE_DATA_FILE");
     if (data_file_path != NULL){
         DATA_FILE_PATH = std::string(data_file_path);

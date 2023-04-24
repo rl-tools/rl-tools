@@ -57,7 +57,7 @@ constexpr typename DEVICE::index_t OUTPUT_DIM = StructureSpecification::OUTPUT_D
 
 TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
-    std::string DATA_FILE_PATH = "../model-learning/data.hdf5";
+    std::string DATA_FILE_PATH = "./data_test/data.hdf5";
     const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_NN_DATA_FILE");
     if (data_file_path != NULL){
         DATA_FILE_PATH = std::string(data_file_path);
