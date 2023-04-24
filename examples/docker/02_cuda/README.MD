@@ -10,8 +10,8 @@ Build the docker container (based on an NVIDIA cuda ubuntu image) installing Int
 ### Running the container and configuring BackpropTools
 Run the container in interactive mode, mounting the source code from the host in readonly mode. We expose port 6006 for tensorboard and allow the sys_nice capability to be able to run the tests with a high priority
 ```
-mkdir checkpoints
-docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly --cap-add=sys_nice --mount type=bind,source=$(pwd)/checkpoints,target=/build/checkpoints --runtime=nvidia --gpus all backprop_tools:cuda
+mkdir /tmp/backprop_tools_checkpoints
+docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly --cap-add=sys_nice --mount type=bind,source=/tmp/backprop_tools_checkpoints,target=/build/checkpoints --runtime=nvidia --gpus all backprop_tools:cuda
 ```
 Configure the BackpropTools using CMake
 ```
