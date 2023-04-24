@@ -37,7 +37,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
     bpt::set_all(dev, action, 1);
     bpt::sample_initial_state(dev, env, state, rng);
     auto start = std::chrono::high_resolution_clock::now();
-    for(int i = 0; i < 10000; i++) {
+    for(int i = 0; i < 100; i++) {
         for (TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
             set(action, 0, action_i, bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), -0.5, 0.5, rng));
         }

@@ -1,6 +1,6 @@
 #include "training_ppo.h"
 
 int main(){
-    run();
+    run<10>();
     return 0;
 }

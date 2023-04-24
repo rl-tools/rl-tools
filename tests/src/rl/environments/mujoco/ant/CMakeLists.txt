@@ -21,11 +21,11 @@ BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant)
 
 add_executable(
-        test_rl_environments_mujoco_ant_training_td3
-        training_td3.cpp
+        test_rl_environments_mujoco_ant_training_td3_test
+        training_td3_test.cpp
 )
 target_link_libraries(
-        test_rl_environments_mujoco_ant_training_td3
+        test_rl_environments_mujoco_ant_training_td3_test
         PRIVATE
         backprop_tools
         GTest::gtest_main
@@ -33,9 +33,29 @@ target_link_libraries(
         tensorboard_logger
         mujoco
 )
-gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3)
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_td3)
+gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3_test)
+target_compile_definitions(
+        test_rl_environments_mujoco_ant_training_td3_test
+        PRIVATE
+        -DBACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST
+)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3_test)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_td3_test)
+
+add_executable(
+        test_rl_environments_mujoco_ant_training_td3_standalone
+        training_td3_standalone.cpp
+)
+target_link_libraries(
+        test_rl_environments_mujoco_ant_training_td3_standalone
+        PRIVATE
+        backprop_tools
+        HighFive
+        tensorboard_logger
+        mujoco
+)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3_standalone)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_td3_standalone)
 
 if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 add_executable(

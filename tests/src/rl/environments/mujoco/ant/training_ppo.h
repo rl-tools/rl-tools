@@ -69,6 +69,7 @@ constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
 
+template <typename DEVICE::index_t NUM_RUNS, typename DEVICE::index_t NUM_STEPS = 2500>
 void run(){
     for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
         using penv = parameters::environment<double, TI>;
@@ -154,7 +155,7 @@ void run(){
             bpt::print(device, observation_normalizer.std);
             bpt::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
         }
-        for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
+        for(TI ppo_step_i = 0; ppo_step_i < NUM_STEPS; ppo_step_i++) {
             if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
                 std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
                 try {

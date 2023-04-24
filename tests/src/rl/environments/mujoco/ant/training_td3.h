@@ -28,7 +28,6 @@ using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 
 #include "parameters_td3.h"
 
-#include <gtest/gtest.h>
 #include <iostream>
 #include <highfive/H5File.hpp>
 #include <filesystem>
@@ -55,8 +54,19 @@ constexpr DEVICE::index_t DETERMINISTIC_EVALUATION_INTERVAL = 10000;
 constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 10000;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "actor_checkpoints";
 
+#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
+constexpr DEVICE::index_t STEP_LIMIT = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
+#else
+#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST
+constexpr DEVICE::index_t STEP_LIMIT = 30000;
+#else
+constexpr DEVICE::index_t STEP_LIMIT = parameters_rl::REPLAY_BUFFER_CAP * 100;
+#endif
+#endif
+constexpr DEVICE::index_t NUM_RUNS = 1;
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_TD3){
+
+void run(){
     std::string DATA_FILE_PATH = "learning_curves.h5";
     std::vector<std::vector<DTYPE>> episode_step;
     std::vector<std::vector<DTYPE>> episode_returns;
@@ -65,7 +75,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_TD3){
     std::vector<std::vector<DTYPE>> eval_step;
     std::vector<std::vector<DTYPE>> eval_return;
 
-    for(typename DEVICE::index_t run_i = 0; run_i < 1; run_i++){
+    for(typename DEVICE::index_t run_i = 0; run_i < NUM_RUNS; run_i++){
         std::string run_name;
         {
             auto now = std::chrono::system_clock::now();
@@ -148,12 +158,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, TRAINING_TD3){
 
 
         // training
-#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
-        constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
-#else
-        constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP * 100;
-#endif
-        for(int step_i = 0; step_i < step_limit; step_i++){
+        for(int step_i = 0; step_i < STEP_LIMIT; step_i++){
             auto step_start = std::chrono::high_resolution_clock::now();
             device.logger->step = step_i;
             bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
