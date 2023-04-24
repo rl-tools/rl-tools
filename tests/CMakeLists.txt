@@ -19,18 +19,10 @@ option(BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE "Multirotor UI"
 set(INSTALL_GTEST OFF CACHE BOOL "")
 set(BUILD_GMOCK OFF CACHE BOOL "")
 add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)
-add_subdirectory(lib/cli11 EXCLUDE_FROM_ALL)
 include(GoogleTest)
 
 if(NOT APPLE)
 #    add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
-endif()
-
-if(BACKPROP_TOOLS_ENABLE_HDF5)
-add_subdirectory(lib/highfive EXCLUDE_FROM_ALL)
-endif()
-if(BACKPROP_TOOLS_ENABLE_TENSORBOARD)
-add_subdirectory(lib/tensorboard EXCLUDE_FROM_ALL)
 endif()
 
 add_subdirectory(src/rl/environments/mujoco/ant)

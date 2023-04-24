@@ -1,4 +1,4 @@
-#include "training_ppo.h"
+#include "training.h"
 
 int main(){
     run<10>();

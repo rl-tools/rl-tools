@@ -26,7 +26,7 @@ target_link_libraries(
 target_compile_definitions(
         rl_environments_mujoco_ant_training_ppo_benchmark
         PRIVATE
-        -DBACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
+        -DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_training_ppo_benchmark)
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_benchmark PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)

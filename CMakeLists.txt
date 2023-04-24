@@ -54,7 +54,17 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
     add_compile_definitions(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
 endif()
 
-# todo: upgrade tensorboard and highfive to the main lib folder
+if(BACKPROP_TOOLS_ENABLE_CLI11)
+    add_subdirectory(external/cli11 EXCLUDE_FROM_ALL)
+endif()
+
+if(BACKPROP_TOOLS_ENABLE_HDF5)
+    add_subdirectory(external/highfive EXCLUDE_FROM_ALL)
+endif()
+
+if(BACKPROP_TOOLS_ENABLE_TENSORBOARD)
+    add_subdirectory(external/tensorboard EXCLUDE_FROM_ALL)
+endif()
 
 if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
@@ -64,7 +74,7 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     set(MUJOCO_BUILD_SIMULATE OFF)
     set(MUJOCO_BUILD_TESTS OFF)
     set(MUJOCO_TEST_PYTHON_UTIL OFF)
-    add_subdirectory(lib/mujoco)
+    add_subdirectory(external/mujoco)
 endif()
 
 function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)
@@ -76,6 +86,9 @@ function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)
     endif()
     if(BACKPROP_TOOLS_ENABLE_TENSORBOARD)
         target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_ENABLE_TENSORBOARD)
+    endif()
+    if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+        target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
     endif()
 
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")

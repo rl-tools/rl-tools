@@ -8,7 +8,7 @@
 #include <backprop_tools/nn_models/persist.h>
 namespace bpt = backprop_tools;
 // --------------- changed for cuda training -----------------
-#include "../parameters_ppo.h"
+#include "../parameters.h"
 // -------------------------------------------------------
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
@@ -36,7 +36,7 @@ namespace bpt = backprop_tools;
 
 namespace parameters = parameters_0;
 
-#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
 #else
 using LOGGER = bpt::devices::logging::CPU;
@@ -61,7 +61,7 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI BASE_SEED = 600;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-#if !defined(BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 constexpr bool ENABLE_EVALUATION = true;
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 #else
