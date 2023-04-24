@@ -1,5 +1,5 @@
 <div align="center">
-  <center><h1>BackpropTools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h1></center>
+  <center><h1><span style="color:#7DB9B6">BackpropTools</span>: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h1></center>
 </div>
 
 <div align="center">
@@ -7,7 +7,7 @@
 </div>
 
 <div align="center">
-    Trained on a 2020 MacBook Pro (M1) using BackpropTools PPO
+    Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">BackpropTools</span> PPO
 </div>
 
 ## Naming Convention
