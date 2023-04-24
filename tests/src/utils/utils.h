@@ -9,7 +9,7 @@ void standardise(const T input[DIM], const T mean[DIM], const T std[DIM], T outp
     }
 }
 template <typename T, typename SPEC>
-T abs_diff_matrix(const layer_in_c::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
+T abs_diff_matrix(const backprop_tools::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
     T acc = 0;
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
@@ -20,7 +20,7 @@ T abs_diff_matrix(const layer_in_c::Matrix<SPEC> A, const std::vector<std::vecto
 }
 
 template <typename T, typename SPEC>
-T abs_diff_matrix(layer_in_c::Matrix<SPEC> A, const T* B) {
+T abs_diff_matrix(backprop_tools::Matrix<SPEC> A, const T* B) {
     T acc = 0;
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
@@ -40,7 +40,7 @@ T abs_diff_vector(const T A[N_ROWS], const T B[N_ROWS]) {
 }
 
 template <typename T, typename SPEC>
-void assign(layer_in_c::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
+void assign(backprop_tools::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
             set(A, i, j, B[i][j]);

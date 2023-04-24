@@ -1,13 +1,13 @@
 import re
 import gdb
 
-# layer_in_c::Matrix<layer_in_c::matrix::Specification<([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*, layer_in_c::matrix::layouts::RowMajorAlignment<([^,]+)\s*,\s*([^(,)]+)>\s*,\s*([^,]+)>\s>
+# backprop_tools::Matrix<backprop_tools::matrix::Specification<([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*, backprop_tools::matrix::layouts::RowMajorAlignment<([^,]+)\s*,\s*([^(,)]+)>\s*,\s*([^,]+)>\s>
 class MatrixPrinter:
     def __init__(self, val):
         self.val = val
     def to_string(self):
 
-        regex = re.search("layer_in_c::Matrix<layer_in_c::matrix::Specification<.+$")
+        regex = re.search("backprop_tools::Matrix<backprop_tools::matrix::Specification<.+$")
         result = regex.match(str(self.val.type))
         if result is None:
             return f"This is a Matrix with type: {str(self.val.type)}"
@@ -24,7 +24,7 @@ class MatrixPrinter:
 #         super().__init__('Matrix printer')
 #     def __call__(self, val):
 #         lookup_tag = val.type.tag
-#         regex = re.compile("^layer_in_c::Matrix<layer_in_c::matrix::Specification<.+$")
+#         regex = re.compile("^backprop_tools::Matrix<backprop_tools::matrix::Specification<.+$")
 #         if regex.match(lookup_tag):
 #             return MatrixPrinter(val)
 #         return None
@@ -33,7 +33,7 @@ def matrix_printer_lookup(val):
     lookup_tag = val.type.tag
     if lookup_tag is None:
         return None
-    regex = re.compile("^layer_in_c::Matrix<layer_in_c::matrix::Specification<.+$")
+    regex = re.compile("^backprop_tools::Matrix<backprop_tools::matrix::Specification<.+$")
     if regex.match(lookup_tag):
         return MatrixPrinter(val)
     return None

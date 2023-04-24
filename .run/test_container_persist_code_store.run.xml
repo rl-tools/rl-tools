@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="test_container_persist_code_store" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$ContentRoot$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_container_persist_code_store" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_container_persist_code_store" TEST_MODE="SUITE_TEST">
+  <configuration default="false" name="test_container_persist_code_store" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$ContentRoot$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="backprop_tools" TARGET_NAME="test_container_persist_code_store" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="backprop_tools" RUN_TARGET_NAME="test_container_persist_code_store" TEST_MODE="SUITE_TEST">
     <method v="2">
       <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       <option name="BeforeTestRunTask" enabled="true" />

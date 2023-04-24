@@ -2,12 +2,12 @@
 #define QUATERNION_HELPER_H
 #include "general_helper.h"
 
-#ifndef LAYER_IN_C_FUNCTION_PLACEMENT
-#define LAYER_IN_C_FUNCTION_PLACEMENT
+#ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
+#define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 
 template <typename T>
-LAYER_IN_C_FUNCTION_PLACEMENT void quaternion_derivative(const T q[4], const T omega[3], T q_dot[4]) {
+BACKPROP_TOOLS_FUNCTION_PLACEMENT void quaternion_derivative(const T q[4], const T omega[3], T q_dot[4]) {
     // FLOPS: 3 (MAC) * 4 + 4 = 16
     q_dot[0] = -q[1]*omega[0] - q[2]*omega[1] - q[3]*omega[2];
     q_dot[1] =  q[0]*omega[0] + q[2]*omega[2] - q[3]*omega[1];
@@ -18,7 +18,7 @@ LAYER_IN_C_FUNCTION_PLACEMENT void quaternion_derivative(const T q[4], const T o
 
 
 template <typename T>
-LAYER_IN_C_FUNCTION_PLACEMENT void rotate_vector_by_quaternion(const T q[4], const T v[3], T v_out[3]) {
+BACKPROP_TOOLS_FUNCTION_PLACEMENT void rotate_vector_by_quaternion(const T q[4], const T v[3], T v_out[3]) {
 //    v_out[0] = q[0]*(q[0]*v[0] + q[2]*v[2] - q[3]*v[1]) + q[2]*(q[1]*v[1] + q[0]*v[2] - q[2]*v[0]) - q[3]*(q[0]*v[1] + q[3]*v[0] - q[1]*v[2]) - q[1]*(-q[1]*v[0] - q[2]*v[1] - q[3]*v[2]);
 //    v_out[1] = q[0]*(q[0]*v[1] + q[3]*v[0] - q[1]*v[2]) + q[3]*(q[0]*v[0] + q[2]*v[2] - q[3]*v[1]) - q[1]*(q[1]*v[1] + q[0]*v[2] - q[2]*v[0]) - q[2]*(-q[1]*v[0] - q[2]*v[1] - q[3]*v[2]);
 //    v_out[2] = q[0]*(q[1]*v[1] + q[0]*v[2] - q[2]*v[0]) + q[1]*(q[0]*v[1] + q[3]*v[0] - q[1]*v[2]) - q[2]*(q[0]*v[0] + q[2]*v[2] - q[3]*v[1]) - q[3]*(-q[1]*v[0] - q[2]*v[1] - q[3]*v[2]);

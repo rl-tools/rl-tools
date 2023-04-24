@@ -1,34 +1,34 @@
-#define LAYER_IN_C_OPERATIONS_CPU_MUX_INCLUDE_CUDA
-#include <layer_in_c/operations/cpu_mux.h>
+#define BACKPROP_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
+#include <backprop_tools/operations/cpu_mux.h>
 // -------------- added for cuda training ----------------
-#include <layer_in_c/nn/optimizers/adam/operations_cuda.h>
+#include <backprop_tools/nn/optimizers/adam/operations_cuda.h>
 // -------------------------------------------------------
-#include <layer_in_c/nn/operations_cpu_mux.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
-#include <layer_in_c/nn_models/persist.h>
-namespace lic = layer_in_c;
+#include <backprop_tools/nn/operations_cpu_mux.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
+#include <backprop_tools/nn_models/persist.h>
+namespace bpt = backprop_tools;
 // --------------- changed for cuda training -----------------
 #include "../parameters_ppo.h"
 // -------------------------------------------------------
-#ifdef LAYER_IN_C_BACKEND_ENABLE_MKL
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_mkl.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#ifdef LAYER_IN_C_BACKEND_ENABLE_ACCELERATE
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu_accelerate.h>
+#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
-#include <layer_in_c/rl/components/on_policy_runner/operations_cpu.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
 #endif
 #endif
 // -------------- added for cuda training ----------------
-#include <layer_in_c/rl/components/on_policy_runner/operations_generic_extensions.h>
+#include <backprop_tools/rl/components/on_policy_runner/operations_generic_extensions.h>
 // -------------------------------------------------------
-#include <layer_in_c/rl/algorithms/ppo/operations_generic.h>
+#include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
 // -------------- added for cuda training ----------------
-#include <layer_in_c/rl/algorithms/ppo/operations_generic_extensions.h>
+#include <backprop_tools/rl/algorithms/ppo/operations_generic_extensions.h>
 // -------------------------------------------------------
-#include <layer_in_c/rl/components/running_normalizer/operations_generic.h>
-#include <layer_in_c/rl/components/running_normalizer/persist.h>
-#include <layer_in_c/rl/utils/evaluation.h>
+#include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
+#include <backprop_tools/rl/components/running_normalizer/persist.h>
+#include <backprop_tools/rl/utils/evaluation.h>
 
 #include <highfive/H5File.hpp>
 #include <CLI/CLI.hpp>
@@ -36,24 +36,24 @@ namespace lic = layer_in_c;
 
 namespace parameters = parameters_0;
 
-#ifdef LAYER_IN_C_ENABLE_TENSORBOARD
-using LOGGER = lic::devices::logging::CPU_TENSORBOARD;
+#ifdef BACKPROP_TOOLS_ENABLE_TENSORBOARD
+using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
 #else
-using LOGGER = lic::devices::logging::CPU;
+using LOGGER = bpt::devices::logging::CPU;
 #endif
 
-using DEV_SPEC_SUPER = lic::devices::cpu::Specification<lic::devices::math::CPU, lic::devices::random::CPU, LOGGER>;
-using TI = typename lic::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
+using DEV_SPEC_SUPER = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
+using TI = typename bpt::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: lic::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
+    struct HINTS: bpt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
 
-using DEVICE = lic::DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 // -------------- added for cuda training ----------------
-using DEVICE_GPU = lic::DEVICE_FACTORY_GPU<lic::devices::DefaultCUDASpecification>;
+using DEVICE_GPU = bpt::DEVICE_FACTORY_GPU<bpt::devices::DefaultCUDASpecification>;
 // -------------------------------------------------------
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -90,8 +90,8 @@ int main(int argc, char** argv){
         using penv = parameters::environment<double, TI>;
         using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
         // -------------- added for cuda training ----------------
-        using ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE = lic::rl::components::on_policy_runner::CollectionEvaluationBuffer<prl::ON_POLICY_RUNNER_SPEC>;
-        using PPO_TRAINING_HYBRID_BUFFER_TYPE = lic::rl::algorithms::ppo::TrainingBuffersHybrid<prl::PPO_SPEC>;
+        using ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE = bpt::rl::components::on_policy_runner::CollectionEvaluationBuffer<prl::ON_POLICY_RUNNER_SPEC>;
+        using PPO_TRAINING_HYBRID_BUFFER_TYPE = bpt::rl::algorithms::ppo::TrainingBuffersHybrid<prl::PPO_SPEC>;
         // -------------------------------------------------------
         TI seed = BASE_SEED + job_seed * num_runs + run_i;
         std::stringstream run_name_ss;
@@ -126,8 +126,8 @@ int main(int argc, char** argv){
         // -------------------------------------------------------
         prl::ACTOR_OPTIMIZER actor_optimizer;
         prl::CRITIC_OPTIMIZER critic_optimizer;
-        auto rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
-        auto evaluation_rng = lic::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
+        auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
+        auto evaluation_rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
         prl::PPO_TYPE ppo;
         // -------------- added for cuda training ----------------
         prl::PPO_TYPE ppo_gpu;
@@ -138,8 +138,8 @@ int main(int argc, char** argv){
         // -------------- added for cuda training ----------------
         ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE on_policy_runner_collection_eval_buffer_gpu, on_policy_runner_collection_eval_buffer_cpu;
         PPO_TRAINING_HYBRID_BUFFER_TYPE ppo_training_hybrid_buffer_cpu, ppo_training_hybrid_buffer_gpu;
-        lic::MatrixDynamic<lic::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::OBSERVATION_DIM>> gae_all_observations;
-        lic::MatrixDynamic<lic::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, 1>> gae_all_values;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::OBSERVATION_DIM>> gae_all_observations;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, 1>> gae_all_values;
         // -------------------------------------------------------
         // -------------- replaced for cuda training ----------------
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;
@@ -147,7 +147,7 @@ int main(int argc, char** argv){
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
-        lic::rl::components::RunningNormalizer<lic::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
+        bpt::rl::components::RunningNormalizer<bpt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
         penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
         bool ui = false;
@@ -155,65 +155,65 @@ int main(int argc, char** argv){
         TI next_evaluation_id = 0;
 
         // -------------- added for cuda training ----------------
-        lic::init(device_gpu);
+        bpt::init(device_gpu);
         // -------------------------------------------------------
-        lic::malloc(device, ppo);
-        lic::malloc(device, ppo_buffers);
-        lic::malloc(device, on_policy_runner_dataset);
+        bpt::malloc(device, ppo);
+        bpt::malloc(device, ppo_buffers);
+        bpt::malloc(device, on_policy_runner_dataset);
         // -------------- added for cuda training ----------------
-        lic::malloc(device, on_policy_runner_collection_eval_buffer_cpu);
-        lic::malloc(device, ppo_training_hybrid_buffer_cpu);
+        bpt::malloc(device, on_policy_runner_collection_eval_buffer_cpu);
+        bpt::malloc(device, ppo_training_hybrid_buffer_cpu);
         // -------------------------------------------------------
-        lic::malloc(device, on_policy_runner);
-        lic::malloc(device, actor_eval_buffers);
+        bpt::malloc(device, on_policy_runner);
+        bpt::malloc(device, actor_eval_buffers);
         // ------------- removed for cuda training ---------------
-//        lic::malloc(device, actor_buffers);
-//        lic::malloc(device, critic_buffers);
-//        lic::malloc(device, critic_buffers_gae);
+//        bpt::malloc(device, actor_buffers);
+//        bpt::malloc(device, critic_buffers);
+//        bpt::malloc(device, critic_buffers_gae);
         // -------------------------------------------------------
-        lic::malloc(device, observation_normalizer);
+        bpt::malloc(device, observation_normalizer);
         for(auto& env : envs){
-            lic::malloc(device, env);
+            bpt::malloc(device, env);
         }
-        lic::malloc(device, evaluation_env);
+        bpt::malloc(device, evaluation_env);
         // -------------- added for cuda training ----------------
-        lic::malloc(device_gpu, actor_buffers);
-        lic::malloc(device_gpu, critic_buffers);
-        lic::malloc(device_gpu, critic_buffers_gae);
-        lic::malloc(device_gpu, ppo_gpu);
-        lic::malloc(device_gpu, on_policy_runner_collection_eval_buffer_gpu);
-        lic::malloc(device_gpu, ppo_training_hybrid_buffer_gpu);
-        lic::malloc(device_gpu, actor_eval_buffers_gpu);
-        lic::malloc(device_gpu, gae_all_observations);
-        lic::malloc(device_gpu, gae_all_values);
+        bpt::malloc(device_gpu, actor_buffers);
+        bpt::malloc(device_gpu, critic_buffers);
+        bpt::malloc(device_gpu, critic_buffers_gae);
+        bpt::malloc(device_gpu, ppo_gpu);
+        bpt::malloc(device_gpu, on_policy_runner_collection_eval_buffer_gpu);
+        bpt::malloc(device_gpu, ppo_training_hybrid_buffer_gpu);
+        bpt::malloc(device_gpu, actor_eval_buffers_gpu);
+        bpt::malloc(device_gpu, gae_all_observations);
+        bpt::malloc(device_gpu, gae_all_values);
         // -------------------------------------------------------
 
         auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
         auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
 
-        lic::init(device, on_policy_runner, envs, rng);
-        lic::init(device, observation_normalizer);
-        lic::init(device, ppo, actor_optimizer, critic_optimizer, rng);
+        bpt::init(device, on_policy_runner, envs, rng);
+        bpt::init(device, observation_normalizer);
+        bpt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         // -------------- added for cuda training ----------------
-        lic::copy(device_gpu, device, ppo_gpu, ppo);
+        bpt::copy(device_gpu, device, ppo_gpu, ppo);
         // -------------------------------------------------------
         device.logger = &logger;
-        lic::construct(device, device.logger, logs_dir, run_name);
+        bpt::construct(device, device.logger, logs_dir, run_name);
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                lic::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
-                lic::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+                bpt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
+                bpt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
             }
             std::cout << "Observation means: " << std::endl;
-            lic::print(device, observation_normalizer.mean);
+            bpt::print(device, observation_normalizer.mean);
             std::cout << "Observation std: " << std::endl;
-            lic::print(device, observation_normalizer.std);
-            lic::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
+            bpt::print(device, observation_normalizer.std);
+            bpt::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
         }
         for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
             // -------------- added for cuda training ----------------
-            lic::copy(device, device_gpu, ppo, ppo_gpu);
+            bpt::copy(device, device_gpu, ppo, ppo_gpu);
             // -------------------------------------------------------
             if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
                 std::filesystem::path actor_output_dir = std::filesystem::path(actor_checkpoints_dir) / run_name;
@@ -231,8 +231,8 @@ int main(int argc, char** argv){
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
                 try{
                     auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
-                    lic::save(device, ppo.actor, actor_file.createGroup("actor"));
-                    lic::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
+                    bpt::save(device, ppo.actor, actor_file.createGroup("actor"));
+                    bpt::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
                 }
                 catch(HighFive::Exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
@@ -240,41 +240,41 @@ int main(int argc, char** argv){
                 next_checkpoint_id++;
             }
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
-                auto result = lic::evaluate(device, evaluation_env, ui, ppo.actor, lic::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, evaluation_rng);
-//                lic::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
-//                lic::add_scalar(device, device.logger, "evaluation/return/std", result.std);
-                lic::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
+                auto result = bpt::evaluate(device, evaluation_env, ui, ppo.actor, bpt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, evaluation_rng);
+//                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
+//                bpt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
+                bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
                 std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
                 next_evaluation_id++;
             }
-            lic::set_step(device, device.logger, on_policy_runner.step);
+            bpt::set_step(device, device.logger, on_policy_runner.step);
 
 //            for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
-//                T action_log_std = lic::get(ppo.actor.log_std.parameters, 0, action_i);
+//                T action_log_std = bpt::get(ppo.actor.log_std.parameters, 0, action_i);
 //                std::stringstream topic;
 //                topic << "actor/action_std/" << action_i;
-//                lic::add_scalar(device, device.logger, topic.str(), lic::math::exp(DEVICE::SPEC::MATH(), action_log_std));
+//                bpt::add_scalar(device, device.logger, topic.str(), bpt::math::exp(DEVICE::SPEC::MATH(), action_log_std));
 //            }
 //            auto start = std::chrono::high_resolution_clock::now();
             auto training_step_start = std::chrono::high_resolution_clock::now();
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                lic::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, observation_normalizer.mean, observation_normalizer.std, rng);
+                bpt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, observation_normalizer.mean, observation_normalizer.std, rng);
                 // ----------------------------------------------------------
                 if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
-                    lic::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+                    bpt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
                     for(TI state_i = 0; state_i < penv::ENVIRONMENT::OBSERVATION_DIM; state_i++){
-//                        lic::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));
-//                        lic::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
+//                        bpt::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));
+//                        bpt::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
                     }
                 }
-//                lic::add_scalar(device, device.logger, "opr/observation/mean", lic::mean(device, on_policy_runner_dataset.observations));
-//                lic::add_scalar(device, device.logger, "opr/observation/std", lic::std(device, on_policy_runner_dataset.observations));
-//                lic::add_scalar(device, device.logger, "opr/action/mean", lic::mean(device, on_policy_runner_dataset.actions));
-//                lic::add_scalar(device, device.logger, "opr/action/std", lic::std(device, on_policy_runner_dataset.actions));
-//                lic::add_scalar(device, device.logger, "opr/rewards/mean", lic::mean(device, on_policy_runner_dataset.rewards));
-//                lic::add_scalar(device, device.logger, "opr/rewards/std", lic::std(device, on_policy_runner_dataset.rewards));
+//                bpt::add_scalar(device, device.logger, "opr/observation/mean", bpt::mean(device, on_policy_runner_dataset.observations));
+//                bpt::add_scalar(device, device.logger, "opr/observation/std", bpt::std(device, on_policy_runner_dataset.observations));
+//                bpt::add_scalar(device, device.logger, "opr/action/mean", bpt::mean(device, on_policy_runner_dataset.actions));
+//                bpt::add_scalar(device, device.logger, "opr/action/std", bpt::std(device, on_policy_runner_dataset.actions));
+//                bpt::add_scalar(device, device.logger, "opr/rewards/mean", bpt::mean(device, on_policy_runner_dataset.rewards));
+//                bpt::add_scalar(device, device.logger, "opr/rewards/std", bpt::std(device, on_policy_runner_dataset.rewards));
 //                auto end = std::chrono::high_resolution_clock::now();
 //                std::chrono::duration<T> elapsed = end - start;
 //                std::cout << "Rollout: " << elapsed.count() << " s" << std::endl;
@@ -286,7 +286,7 @@ int main(int argc, char** argv){
                 evaluate(device_gpu, ppo_gpu.critic, gae_all_observations, gae_all_values, critic_buffers_gae);
                 copy(device, device_gpu, on_policy_runner_dataset.all_values, gae_all_values);
                 // ----------------------------------------------------------
-                lic::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
+                bpt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
 //                auto end = std::chrono::high_resolution_clock::now();
 //                std::chrono::duration<T> elapsed = end - start;
 //                std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
@@ -294,7 +294,7 @@ int main(int argc, char** argv){
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                lic::train_hybrid(device, device_gpu, ppo, ppo_gpu, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, ppo_training_hybrid_buffer_gpu, actor_buffers, critic_buffers, rng);
+                bpt::train_hybrid(device, device_gpu, ppo, ppo_gpu, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, ppo_training_hybrid_buffer_gpu, actor_buffers, critic_buffers, rng);
                 // ----------------------------------------------------------
 //                auto end = std::chrono::high_resolution_clock::now();
 //                std::chrono::duration<T> elapsed = end - start;
@@ -310,41 +310,41 @@ int main(int argc, char** argv){
                 T steps_per_second_lifetime = on_policy_runner.step / training_elapsed.count();
                 T steps_per_second_current = prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS * prl::ON_POLICY_RUNNER_STEPS_PER_ENV / step_elapsed.count();
                 std::cout << "PPO step: " << std::setw(10) << ppo_step_i << " elapsed: " << std::setw(10) << std::setprecision(2) << training_elapsed.count() << "s (lifetime: " << std::setw(10) << std::setprecision(2) << steps_per_second_lifetime << " steps/s, current: " << std::setw(10) << std::setprecision(2) << steps_per_second_current << " steps/s)" << std::endl;
-//                lic::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
-//                lic::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
-//                lic::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);
+//                bpt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
+//                bpt::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
+//                bpt::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);
             }
         }
 
-        lic::free(device, ppo);
-        lic::free(device, ppo_buffers);
-        lic::free(device, on_policy_runner_dataset);
+        bpt::free(device, ppo);
+        bpt::free(device, ppo_buffers);
+        bpt::free(device, on_policy_runner_dataset);
         // -------------- added for cuda training ----------------
-        lic::free(device, on_policy_runner_collection_eval_buffer_cpu);
-        lic::free(device, ppo_training_hybrid_buffer_cpu);
+        bpt::free(device, on_policy_runner_collection_eval_buffer_cpu);
+        bpt::free(device, ppo_training_hybrid_buffer_cpu);
         // -------------------------------------------------------
-        lic::free(device, on_policy_runner);
-        lic::free(device, actor_eval_buffers);
+        bpt::free(device, on_policy_runner);
+        bpt::free(device, actor_eval_buffers);
         // ------------- removed for cuda training ---------------
-//        lic::free(device, actor_buffers);
-//        lic::free(device, critic_buffers);
-//        lic::free(device, critic_buffers_gae);
+//        bpt::free(device, actor_buffers);
+//        bpt::free(device, critic_buffers);
+//        bpt::free(device, critic_buffers_gae);
         // -------------------------------------------------------
-        lic::free(device, observation_normalizer);
+        bpt::free(device, observation_normalizer);
         for(auto& env : envs){
-            lic::free(device, env);
+            bpt::free(device, env);
         }
-        lic::free(device, evaluation_env);
+        bpt::free(device, evaluation_env);
         // -------------- added for cuda training ----------------
-        lic::free(device_gpu, actor_buffers);
-        lic::free(device_gpu, critic_buffers);
-        lic::free(device_gpu, critic_buffers_gae);
-        lic::free(device_gpu, ppo_gpu);
-        lic::free(device_gpu, on_policy_runner_collection_eval_buffer_gpu);
-        lic::free(device_gpu, ppo_training_hybrid_buffer_gpu);
-        lic::free(device_gpu, actor_eval_buffers_gpu);
-        lic::free(device_gpu, gae_all_observations);
-        lic::free(device_gpu, gae_all_values);
+        bpt::free(device_gpu, actor_buffers);
+        bpt::free(device_gpu, critic_buffers);
+        bpt::free(device_gpu, critic_buffers_gae);
+        bpt::free(device_gpu, ppo_gpu);
+        bpt::free(device_gpu, on_policy_runner_collection_eval_buffer_gpu);
+        bpt::free(device_gpu, ppo_training_hybrid_buffer_gpu);
+        bpt::free(device_gpu, actor_eval_buffers_gpu);
+        bpt::free(device_gpu, gae_all_observations);
+        bpt::free(device_gpu, gae_all_values);
         // -------------------------------------------------------
     }
 

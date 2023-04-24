@@ -14,9 +14,9 @@
     const data = {
         labels: [],
         datasets: [{
-            label: 'Rewards',
-            backgroundColor: 'rgba(255, 0, 0, 0.2)',
-            borderColor: 'red',
+            label: 'Return',
+            backgroundColor: '#6fd0cb',
+            borderColor: '#7DB9B6',
             data: [],
             borderWidth: 2,
             fill: 'start'
@@ -82,6 +82,7 @@
     }
 
     const realtime_checkbox = document.getElementById("realtime-checkbox");
+    const seed_input = document.getElementById("seed-input");
 
     let async_main = (async () => {
         const worker = new Worker('training_worker.js', {type: "module"});
@@ -89,17 +90,17 @@
             console.error("An error occurred in the Web Worker:", error);
         });
 
-        // worker.addEventListener("message", (event) => {
-        //     if (event.data.type) {
-        //         if(event.data.payload){
-        //             appendToTerminal(event.data.type + ": " + JSON.stringify(event.data.payload));
-        //         }
-        //         else{
-        //             appendToTerminal(event.data.type);
-        //         }
-        //     }
-        //     console.log("Message from worker", event.data);
-        // });
+        worker.addEventListener("message", (event) => {
+            if (event.data.type) {
+                if(event.data.payload){
+                    appendToTerminal(event.data.type + ": " + JSON.stringify(event.data.payload));
+                }
+                else{
+                    appendToTerminal(event.data.type);
+                }
+            }
+            console.log("Message from worker", event.data);
+        });
         function sendMessageToWorker(type, payload) {
             return new Promise((resolve, reject) => {
                 const id = Math.random().toString(36); // Generate a unique ID for the message
@@ -125,7 +126,16 @@
             if(!training){
                 training = true;
                 document.getElementById("training-button").value = "Stop training";
-                await sendMessageToWorker("initialize_training_state");
+                returns_chart.data.labels = [];
+                returns_chart.data.datasets[0].data = [];
+                returns_chart.update();
+
+                let seed = parseInt(seed_input.value);
+                if(isNaN(seed)){
+                    seed = 0;
+                }
+
+                await sendMessageToWorker("initialize_training_state", {seed: seed});
                 let finished = false;
                 let advance = async () => {
                     let answer = await sendMessageToWorker("train_one_step");
@@ -154,8 +164,9 @@
                     let start = performance.now();
                     await advance();
                     let end = performance.now();
-                    let dt = end - start;
+                    let dt = (end - start) / 1000;
                     let sleep_time = Math.max(0, target_dt - dt);
+                    console.log("Sleeping for ", sleep_time, " seconds")
                     if(realtime_checkbox.checked){
                         await new Promise(resolve => setTimeout(resolve, sleep_time * 1000));
                     }
@@ -199,10 +210,19 @@
             Realtime
         </label>
     </div>
+    <div>
+        <input id="seed-input" class="fancy-number-input" type="number" placeholder="seed">
+    </div>
     <div class="controls-container">
         <input class="fancy-button" type="button" value="Start training" id="training-button">
     </div>
-    <div id="terminal-container" style="display: none;">
+    <div class="info-container">
+        <div class="info-box">
+            <h3><span style="color: #7DB9B6">BackpropTools</span>: The Fastest Deep Reinforcement Learning Library for Continuous Control That Runs Everywhere</h3>
+            In the previous example the Pendulum-v1 swingup is trained directly in your browser using the TD3 deep reinforcement learning algorithm. BackpropTools is a pure C++ header-only, dependency free deep supervised- and reinforcmeent learning library that runs on a broad variety of devices (as e.g. your browser). To run it in a browser the C++ code is compiled to WASM which can be called from JavaScript. For more information read the paper [link] and/or the source code [link].
+        </div>
+    </div>
+    <div id="terminal-container" class="terminal-container" style="display: none;">
         <div id="terminal">
             <pre id="terminal-output">Terminal Output</pre>
         </div>

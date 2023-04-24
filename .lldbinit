@@ -1,7 +1,7 @@
 # probably requires enabling execution of project .lldbinit files in ~/.lldbinit:
 # echo "settings set target.load-cwd-lldbinit true" >> ~/.lldbinit
 command script import tools/pretty_print_lldb/matrix.py
-type summary add -F matrix.pretty_print_row_major_alignment -x "^layer_in_c::Matrix<layer_in_c::matrix::Specification<[^<]+layer_in_c::matrix::layouts::RowMajorAlignment<[^>]+>[^>]+>[^>]*>$"
-type summary add -F matrix.pretty_print_fixed_alignment -x "^layer_in_c::Matrix<layer_in_c::matrix::Specification<[^<]+layer_in_c::matrix::layouts::Fixed<[^>]+>[^>]+>[^>]*>$"
-# type synthetic add --python-class matrix.PrettyPrintRowMajorAlignment -x "^layer_in_c::Matrix<layer_in_c::matrix::Specification<[^<]+layer_in_c::matrix::layouts::RowMajorAlignment<[^>]+>[^>]+>[^>]*>$"
+type summary add -F matrix.pretty_print_row_major_alignment -x "^backprop_tools::Matrix<backprop_tools::matrix::Specification<[^<]+backprop_tools::matrix::layouts::RowMajorAlignment<[^>]+>[^>]+>[^>]*>$"
+type summary add -F matrix.pretty_print_fixed_alignment -x "^backprop_tools::Matrix<backprop_tools::matrix::Specification<[^<]+backprop_tools::matrix::layouts::Fixed<[^>]+>[^>]+>[^>]*>$"
+# type synthetic add --python-class matrix.PrettyPrintRowMajorAlignment -x "^backprop_tools::Matrix<backprop_tools::matrix::Specification<[^<]+backprop_tools::matrix::layouts::RowMajorAlignment<[^>]+>[^>]+>[^>]*>$"
 

@@ -29,12 +29,12 @@ void plot_policy_and_value_function(ACTOR& a, CRITIC& c, std::string dir, int st
             xticks[theta_dot_i] = theta_dot;
             typename ENVIRONMENT::State state = {theta, theta_dot};
             T critic_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
-            lic::observe(env, state, critic_input);
+            bpt::observe(env, state, critic_input);
             T max_value = -std::numeric_limits<T>::infinity();
             T max_value_action = 0;
             for(T action=-1; action<=1; action+=0.1){
                 critic_input[ENVIRONMENT::OBSERVATION_DIM] = action;
-                T value = lic::evaluate(c, critic_input);
+                T value = bpt::evaluate(c, critic_input);
                 if(value > max_value){
                     max_value = value;
                     max_value_action = action;
@@ -47,7 +47,7 @@ void plot_policy_and_value_function(ACTOR& a, CRITIC& c, std::string dir, int st
                 }
             }
             state_values[theta_i][theta_dot_i] = max_value;
-            state_actions[theta_i][theta_dot_i] = lic::evaluate(a, critic_input);
+            state_actions[theta_i][theta_dot_i] = bpt::evaluate(a, critic_input);
         }
     }
     for(typename DEVICE::index_t i=0; i<H; i++){

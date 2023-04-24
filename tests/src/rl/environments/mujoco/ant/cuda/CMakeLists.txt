@@ -13,17 +13,17 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_throughput_cuda
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
         mujoco
         CUDA::cublas
 )
-set_target_properties(test_rl_environments_mujoco_ant_throughput_cuda PROPERTIES CUDA_ARCHITECTURES ${LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES})
+set_target_properties(test_rl_environments_mujoco_ant_throughput_cuda PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 gtest_discover_tests(test_rl_environments_mujoco_ant_throughput_cuda)
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_throughput_cuda)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_throughput_cuda)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_throughput_cuda)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_throughput_cuda)
 
 
 
@@ -34,16 +34,16 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_training_ppo_cuda
         PRIVATE
-        layer_in_c
+        backprop_tools
         HighFive
         tensorboard_logger
         mujoco
         CUDA::cublas
         CLI11::CLI11
 )
-set_target_properties(test_rl_environments_mujoco_ant_training_ppo_cuda PROPERTIES CUDA_ARCHITECTURES ${LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES})
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo_cuda)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo_cuda)
+set_target_properties(test_rl_environments_mujoco_ant_training_ppo_cuda PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo_cuda)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_training_ppo_cuda)
 
 add_executable(
         test_rl_environments_mujoco_ant_collection_cuda
@@ -52,14 +52,14 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_collection_cuda
         PRIVATE
-        layer_in_c
+        backprop_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
         mujoco
         CUDA::cublas
 )
-set_target_properties(test_rl_environments_mujoco_ant_collection_cuda PROPERTIES CUDA_ARCHITECTURES ${LAYER_IN_C_BACKEND_CUDA_ARCHITECTURES})
+set_target_properties(test_rl_environments_mujoco_ant_collection_cuda PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 gtest_discover_tests(test_rl_environments_mujoco_ant_collection_cuda)
-LAYER_IN_C_TESTS_ADD_DEBUG_DEFINITIONS(test_rl_environments_mujoco_ant_collection_cuda)
-LAYER_IN_C_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_collection_cuda)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_collection_cuda)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant_collection_cuda)

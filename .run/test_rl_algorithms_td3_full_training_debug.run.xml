@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="test_rl_algorithms_td3_full_training_debug" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$ContentRoot$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="layer_in_c" TARGET_NAME="test_rl_algorithms_td3_full_training_debug" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="layer_in_c" RUN_TARGET_NAME="test_rl_algorithms_td3_full_training_debug" TEST_MODE="SUITE_TEST">
+  <configuration default="false" name="test_rl_algorithms_td3_full_training_debug" type="CMakeGoogleTestRunConfigurationType" factoryName="Google Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$ContentRoot$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="backprop_tools" TARGET_NAME="test_rl_algorithms_td3_full_training_debug" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="backprop_tools" RUN_TARGET_NAME="test_rl_algorithms_td3_full_training_debug" TEST_MODE="SUITE_TEST">
     <envs>
-      <env name="LAYER_IN_C_TEST_ENABLE_TIMING" value="1" />
+      <env name="BACKPROP_TOOLS_TEST_ENABLE_TIMING" value="1" />
     </envs>
     <method v="2">
       <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />

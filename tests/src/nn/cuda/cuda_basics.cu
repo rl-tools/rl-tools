@@ -1,128 +1,128 @@
 // Group 1
-#include <layer_in_c/operations/cpu/group_1.h>
-#include <layer_in_c/operations/cuda/group_1.h>
+#include <backprop_tools/operations/cpu/group_1.h>
+#include <backprop_tools/operations/cuda/group_1.h>
 
 // Group 2
-#include <layer_in_c/operations/cpu/group_2.h>
-#include <layer_in_c/operations/cuda/group_2.h>
+#include <backprop_tools/operations/cpu/group_2.h>
+#include <backprop_tools/operations/cuda/group_2.h>
 
 // Group 3
-#include <layer_in_c/operations/cpu/group_3.h>
-#include <layer_in_c/operations/cuda/group_3.h>
+#include <backprop_tools/operations/cpu/group_3.h>
+#include <backprop_tools/operations/cuda/group_3.h>
 
-#include <layer_in_c/nn/operations_cuda.h>
-#include <layer_in_c/nn/loss_functions/mse/operations_cuda.h>
-#include <layer_in_c/nn_models/operations_generic.h>
-#include <layer_in_c/nn_models/operations_cpu.h>
+#include <backprop_tools/nn/operations_cuda.h>
+#include <backprop_tools/nn/loss_functions/mse/operations_cuda.h>
+#include <backprop_tools/nn_models/operations_generic.h>
+#include <backprop_tools/nn_models/operations_cpu.h>
 
-namespace lic = layer_in_c;
+namespace bpt = backprop_tools;
 
 #include <gtest/gtest.h>
 
 template <typename T, typename TI, TI DIM_1, TI DIM_2, TI OFFSET_1, TI OFFSET_2, TI ALIGNMENT_1, TI ALIGNMENT_2, TI DIM_3, TI DIM_4, TI OFFSET_3, TI OFFSET_4, TI ALIGNMENT_3, TI ALIGNMENT_4>
 void COPY_CONTAINER() {
-    using DEVICE_CPU = lic::devices::DefaultCPU;
-    using DEVICE_CUDA = lic::devices::DefaultCUDA;
+    using DEVICE_CPU = bpt::devices::DefaultCPU;
+    using DEVICE_CUDA = bpt::devices::DefaultCUDA;
 
     DEVICE_CUDA device_cuda;
     DEVICE_CPU device_cpu;
 
     {
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu;
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_1, DIM_2>> matrix_cuda;
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu2;
-        lic::malloc(device_cpu, matrix_cpu);
-        lic::malloc(device_cuda, matrix_cuda);
-        lic::malloc(device_cpu, matrix_cpu2);
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_1, DIM_2>> matrix_cuda;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu2;
+        bpt::malloc(device_cpu, matrix_cpu);
+        bpt::malloc(device_cuda, matrix_cuda);
+        bpt::malloc(device_cpu, matrix_cpu2);
 
-        lic::set_all(device_cpu, matrix_cpu, 1337.0f);
+        bpt::set_all(device_cpu, matrix_cpu, 1337.0f);
 
-        lic::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
-        lic::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
-        auto diff = lic::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
+        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
+        bpt::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
+        auto diff = bpt::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 0.0f);
-        lic::free(device_cpu, matrix_cpu);
-        lic::free(device_cuda, matrix_cuda);
-        lic::free(device_cpu, matrix_cpu2);
+        bpt::free(device_cpu, matrix_cpu);
+        bpt::free(device_cuda, matrix_cuda);
+        bpt::free(device_cpu, matrix_cpu2);
     }
     {
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2, lic::matrix::layouts::RowMajorAlignment<DEVICE_CPU::index_t, ALIGNMENT_1>>> matrix_cpu;
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_1, DIM_2>> matrix_cuda;
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu2;
-        lic::malloc(device_cpu, matrix_cpu);
-        lic::malloc(device_cuda, matrix_cuda);
-        lic::malloc(device_cpu, matrix_cpu2);
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2, bpt::matrix::layouts::RowMajorAlignment<DEVICE_CPU::index_t, ALIGNMENT_1>>> matrix_cpu;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_1, DIM_2>> matrix_cuda;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu2;
+        bpt::malloc(device_cpu, matrix_cpu);
+        bpt::malloc(device_cuda, matrix_cuda);
+        bpt::malloc(device_cpu, matrix_cpu2);
 
-        lic::set_all(device_cpu, matrix_cpu, 1337.0f);
+        bpt::set_all(device_cpu, matrix_cpu, 1337.0f);
 
-        lic::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
-        lic::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
-        auto diff = lic::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
+        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
+        bpt::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
+        auto diff = bpt::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 0.0f);
-        lic::free(device_cpu, matrix_cpu);
-        lic::free(device_cuda, matrix_cuda);
-        lic::free(device_cpu, matrix_cpu2);
+        bpt::free(device_cpu, matrix_cpu);
+        bpt::free(device_cuda, matrix_cuda);
+        bpt::free(device_cpu, matrix_cpu2);
     }
 
     {
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu;
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_1, DIM_2, lic::matrix::layouts::RowMajorAlignment<DEVICE_CPU::index_t, ALIGNMENT_2>>> matrix_cuda;
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu2;
-        lic::malloc(device_cpu, matrix_cpu);
-        lic::malloc(device_cuda, matrix_cuda);
-        lic::malloc(device_cpu, matrix_cpu2);
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_1, DIM_2, bpt::matrix::layouts::RowMajorAlignment<DEVICE_CPU::index_t, ALIGNMENT_2>>> matrix_cuda;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu2;
+        bpt::malloc(device_cpu, matrix_cpu);
+        bpt::malloc(device_cuda, matrix_cuda);
+        bpt::malloc(device_cpu, matrix_cpu2);
 
-        lic::set_all(device_cpu, matrix_cpu, 1337.0f);
+        bpt::set_all(device_cpu, matrix_cpu, 1337.0f);
 
-        lic::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
+        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
         static_assert(DIM_1 > OFFSET_1);
         static_assert(DIM_2 > OFFSET_2);
         increment(matrix_cpu, OFFSET_1, OFFSET_2, 17);
-        lic::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
-        auto diff = lic::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
+        bpt::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
+        auto diff = bpt::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 17.0f);
-        lic::free(device_cpu, matrix_cpu);
-        lic::free(device_cuda, matrix_cuda);
-        lic::free(device_cpu, matrix_cpu2);
+        bpt::free(device_cpu, matrix_cpu);
+        bpt::free(device_cuda, matrix_cuda);
+        bpt::free(device_cpu, matrix_cpu2);
     }
     {
         static_assert(DIM_3 >= DIM_1);
         static_assert(DIM_4 >= DIM_2);
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu;
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_3, DIM_4, lic::matrix::layouts::RowMajorAlignment<DEVICE_CPU::index_t, ALIGNMENT_3>>> matrix_cuda_data;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu;
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_3, DIM_4, bpt::matrix::layouts::RowMajorAlignment<DEVICE_CPU::index_t, ALIGNMENT_3>>> matrix_cuda_data;
         static_assert(OFFSET_3 < DIM_3);
         static_assert(OFFSET_4 < DIM_4);
-        auto matrix_cuda = lic::view<DEVICE_CUDA, typename decltype(matrix_cuda_data)::SPEC, DIM_1, DIM_2>(device_cuda, matrix_cuda_data, OFFSET_3, OFFSET_4);
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_1, DIM_2, lic::matrix::layouts::RowMajorAlignment<DEVICE_CPU::index_t, ALIGNMENT_4>>> matrix_cuda2;
+        auto matrix_cuda = bpt::view<DEVICE_CUDA, typename decltype(matrix_cuda_data)::SPEC, DIM_1, DIM_2>(device_cuda, matrix_cuda_data, OFFSET_3, OFFSET_4);
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, DIM_1, DIM_2, bpt::matrix::layouts::RowMajorAlignment<DEVICE_CPU::index_t, ALIGNMENT_4>>> matrix_cuda2;
 
-        lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu2;
-        lic::malloc(device_cpu, matrix_cpu);
-        lic::malloc(device_cuda, matrix_cuda);
-        lic::malloc(device_cuda, matrix_cuda2);
-        lic::malloc(device_cpu, matrix_cpu2);
+        bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, DIM_1, DIM_2>> matrix_cpu2;
+        bpt::malloc(device_cpu, matrix_cpu);
+        bpt::malloc(device_cuda, matrix_cuda);
+        bpt::malloc(device_cuda, matrix_cuda2);
+        bpt::malloc(device_cpu, matrix_cpu2);
 
-        auto rng = lic::random::default_engine(decltype(device_cpu)::SPEC::RANDOM());
+        auto rng = bpt::random::default_engine(decltype(device_cpu)::SPEC::RANDOM());
 
         for(DEVICE_CPU::index_t row_i = 0; row_i < decltype(matrix_cpu)::SPEC::ROWS; row_i++){
             for(DEVICE_CPU::index_t col_i = 0; col_i < decltype(matrix_cpu)::SPEC::COLS; col_i++){
-                set(matrix_cpu, row_i, col_i, lic::random::normal_distribution(decltype(device_cpu)::SPEC::RANDOM(), (T)0, (T)1, rng));
+                set(matrix_cpu, row_i, col_i, bpt::random::normal_distribution(decltype(device_cpu)::SPEC::RANDOM(), (T)0, (T)1, rng));
             }
         }
 
-        lic::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
+        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
         increment(matrix_cpu, OFFSET_1, OFFSET_2, 17);
-        lic::copy(device_cuda, device_cuda, matrix_cuda2, matrix_cuda);
-        lic::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda2);
-        auto diff = lic::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
+        bpt::copy(device_cuda, device_cuda, matrix_cuda2, matrix_cuda);
+        bpt::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda2);
+        auto diff = bpt::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 17.0f);
-        lic::free(device_cpu, matrix_cpu);
-        lic::free(device_cuda, matrix_cuda);
-        lic::free(device_cuda, matrix_cuda2);
-        lic::free(device_cpu, matrix_cpu2);
+        bpt::free(device_cpu, matrix_cpu);
+        bpt::free(device_cuda, matrix_cuda);
+        bpt::free(device_cuda, matrix_cuda2);
+        bpt::free(device_cpu, matrix_cpu2);
     }
 }
 
-TEST(LAYER_IN_C_NN_CUDA, COPY_CONTAINER){
+TEST(BACKPROP_TOOLS_NN_CUDA, COPY_CONTAINER){
 /*
 template <typename T, typename TI, TI DIM_1, TI DIM_2, TI OFFSET_1, TI OFFSET_2, TI ALIGNMENT_1, TI ALIGNMENT_2, TI DIM_3, TI DIM_4, TI OFFSET_3, TI OFFSET_4, TI ALIGNMENT_3, TI ALIGNMENT_4>
     julia code to generate fuzzing calls
@@ -195,105 +195,105 @@ template <typename T, typename TI, TI DIM_1, TI DIM_2, TI OFFSET_1, TI OFFSET_2,
 }
 
 
-TEST(LAYER_IN_C_NN_CUDA, COPYING_VIEWS){
-    using DEVICE_CPU = lic::devices::DefaultCPU;
-    using DEVICE_CUDA = lic::devices::DefaultCUDA;
+TEST(BACKPROP_TOOLS_NN_CUDA, COPYING_VIEWS){
+    using DEVICE_CPU = bpt::devices::DefaultCPU;
+    using DEVICE_CUDA = bpt::devices::DefaultCUDA;
 
     DEVICE_CUDA device_cuda;
     DEVICE_CPU device_cpu;
     using DTYPE = float;
     {
-        auto rng = lic::random::default_engine(decltype(device_cpu)::SPEC::RANDOM());
-        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data;
-        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_2;
-        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_3;
-        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_3_orig;
-        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_4;
-        lic::MatrixDynamic<lic::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cuda_data;
-        lic::malloc(device_cpu, matrix_cpu_data);
-        lic::malloc(device_cpu, matrix_cpu_data_2);
-        lic::malloc(device_cpu, matrix_cpu_data_3);
-        lic::malloc(device_cpu, matrix_cpu_data_3_orig);
-        lic::malloc(device_cpu, matrix_cpu_data_4);
-        lic::malloc(device_cuda, matrix_cuda_data);
+        auto rng = bpt::random::default_engine(decltype(device_cpu)::SPEC::RANDOM());
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data;
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_2;
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_3;
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_3_orig;
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cpu_data_4;
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE_CPU::index_t, 100, 100>> matrix_cuda_data;
+        bpt::malloc(device_cpu, matrix_cpu_data);
+        bpt::malloc(device_cpu, matrix_cpu_data_2);
+        bpt::malloc(device_cpu, matrix_cpu_data_3);
+        bpt::malloc(device_cpu, matrix_cpu_data_3_orig);
+        bpt::malloc(device_cpu, matrix_cpu_data_4);
+        bpt::malloc(device_cuda, matrix_cuda_data);
 
-        auto matrix_cpu_view = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data)::SPEC, 50, 50>(device_cuda, matrix_cpu_data, 25, 25);
-        auto matrix_cpu_view_2 = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_2)::SPEC, 50, 50>(device_cuda, matrix_cpu_data_2, 25, 25);
-        auto matrix_cpu_view_3 = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_3)::SPEC, 50, 50>(device_cuda, matrix_cpu_data_3, 25, 25);
-        auto matrix_cuda_view = lic::view<DEVICE_CUDA, typename decltype(matrix_cuda_data)::SPEC, 50, 50>(device_cuda, matrix_cuda_data, 25, 25);
+        auto matrix_cpu_view = bpt::view<DEVICE_CUDA, typename decltype(matrix_cpu_data)::SPEC, 50, 50>(device_cuda, matrix_cpu_data, 25, 25);
+        auto matrix_cpu_view_2 = bpt::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_2)::SPEC, 50, 50>(device_cuda, matrix_cpu_data_2, 25, 25);
+        auto matrix_cpu_view_3 = bpt::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_3)::SPEC, 50, 50>(device_cuda, matrix_cpu_data_3, 25, 25);
+        auto matrix_cuda_view = bpt::view<DEVICE_CUDA, typename decltype(matrix_cuda_data)::SPEC, 50, 50>(device_cuda, matrix_cuda_data, 25, 25);
 
-        auto matrix_cpu_view_alt        = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data       )::SPEC, 40, 5>(device_cuda, matrix_cpu_data       ,  5, 5);
-        auto matrix_cpu_view_3_alt      = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_3     )::SPEC, 40, 5>(device_cuda, matrix_cpu_data_3     ,  5, 5);
-        auto matrix_cpu_view_3_alt_orig = lic::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_3_orig)::SPEC, 40, 5>(device_cuda, matrix_cpu_data_3_orig,  5, 5);
+        auto matrix_cpu_view_alt        = bpt::view<DEVICE_CUDA, typename decltype(matrix_cpu_data       )::SPEC, 40, 5>(device_cuda, matrix_cpu_data       ,  5, 5);
+        auto matrix_cpu_view_3_alt      = bpt::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_3     )::SPEC, 40, 5>(device_cuda, matrix_cpu_data_3     ,  5, 5);
+        auto matrix_cpu_view_3_alt_orig = bpt::view<DEVICE_CUDA, typename decltype(matrix_cpu_data_3_orig)::SPEC, 40, 5>(device_cuda, matrix_cpu_data_3_orig,  5, 5);
 
 
         {
-            lic::randn(device_cpu, matrix_cpu_data, rng);
-            lic::randn(device_cpu, matrix_cpu_data_2, rng);
-            lic::randn(device_cpu, matrix_cpu_data_3, rng);
-            lic::copy(device_cpu, device_cpu, matrix_cpu_data_3_orig, matrix_cpu_data_3);
-            lic::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data_2);
-            lic::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view);
-            lic::copy(device_cpu, device_cuda, matrix_cpu_data_3, matrix_cuda_data);
-            DTYPE abs_diff = lic::abs_diff(device_cpu, matrix_cpu_view, matrix_cpu_view_3);
+            bpt::randn(device_cpu, matrix_cpu_data, rng);
+            bpt::randn(device_cpu, matrix_cpu_data_2, rng);
+            bpt::randn(device_cpu, matrix_cpu_data_3, rng);
+            bpt::copy(device_cpu, device_cpu, matrix_cpu_data_3_orig, matrix_cpu_data_3);
+            bpt::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data_2);
+            bpt::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view);
+            bpt::copy(device_cpu, device_cuda, matrix_cpu_data_3, matrix_cuda_data);
+            DTYPE abs_diff = bpt::abs_diff(device_cpu, matrix_cpu_view, matrix_cpu_view_3);
             EXPECT_LT(abs_diff, 1e-5);
         }
         {
-            lic::randn(device_cpu, matrix_cpu_data, rng);
-            lic::randn(device_cpu, matrix_cpu_data_2, rng);
-            lic::randn(device_cpu, matrix_cpu_data_3, rng);
-            lic::copy(device_cpu, device_cpu, matrix_cpu_data_3_orig, matrix_cpu_data_3);
-            lic::copy(device_cpu, device_cpu, matrix_cpu_view_3, matrix_cpu_view);
+            bpt::randn(device_cpu, matrix_cpu_data, rng);
+            bpt::randn(device_cpu, matrix_cpu_data_2, rng);
+            bpt::randn(device_cpu, matrix_cpu_data_3, rng);
+            bpt::copy(device_cpu, device_cpu, matrix_cpu_data_3_orig, matrix_cpu_data_3);
+            bpt::copy(device_cpu, device_cpu, matrix_cpu_view_3, matrix_cpu_view);
 
-            DTYPE abs_diff_3_orig = lic::abs_diff(device_cpu, matrix_cpu_view_3_alt, matrix_cpu_view_3_alt_orig);
+            DTYPE abs_diff_3_orig = bpt::abs_diff(device_cpu, matrix_cpu_view_3_alt, matrix_cpu_view_3_alt_orig);
             EXPECT_LT(abs_diff_3_orig, 1e-5);
 
-            lic::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data);
-            lic::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_2);
+            bpt::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data);
+            bpt::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_2);
 
-            lic::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
-            DTYPE abs_diff = lic::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
+            bpt::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
+            DTYPE abs_diff = bpt::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
             EXPECT_GT(abs_diff, 1e-5);
 
-            lic::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_3);
-            lic::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
-            abs_diff = lic::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
+            bpt::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_3);
+            bpt::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
+            abs_diff = bpt::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
             EXPECT_LT(abs_diff, 1e-5);
         }
 
 
 
-        lic::free(device_cpu, matrix_cpu_data);
-        lic::free(device_cpu, matrix_cpu_data_2);
-        lic::free(device_cpu, matrix_cpu_data_3);
-        lic::free(device_cpu, matrix_cpu_data_4);
-        lic::free(device_cuda, matrix_cuda_data);
+        bpt::free(device_cpu, matrix_cpu_data);
+        bpt::free(device_cpu, matrix_cpu_data_2);
+        bpt::free(device_cpu, matrix_cpu_data_3);
+        bpt::free(device_cpu, matrix_cpu_data_4);
+        bpt::free(device_cuda, matrix_cuda_data);
     }
 }
 namespace copy{
     using DTYPE = float;
-    using DEVICE_CPU = lic::devices::DefaultCPU;
-    using DEVICE_CUDA = lic::devices::DefaultCUDA;
+    using DEVICE_CPU = bpt::devices::DefaultCPU;
+    using DEVICE_CUDA = bpt::devices::DefaultCUDA;
 
     constexpr DEVICE_CPU::index_t BATCH_SIZE = 100;
     constexpr DEVICE_CPU::index_t HIDDEN_DIM = BATCH_SIZE;
 
-    template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
-    using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, BATCH_SIZE>;
+    template <typename T, typename TI, bpt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
+    using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
-    using OPTIMIZER = lic::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-    template <typename T, typename TI, lic::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
-    using NNSPEC = lic::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    template <typename T, typename TI, bpt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
+    using NNSPEC = bpt::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>>;
 
     constexpr DEVICE_CPU::index_t ITERATIONS = 1;
     constexpr DEVICE_CPU::index_t NAIVE_ITERATIONS = 1;
 }
 
 
-TEST(LAYER_IN_C_NN_CUDA, COPY) {
-    using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<copy::NNSPEC<copy::DTYPE, copy::DEVICE_CPU::index_t, lic::nn::activation_functions::RELU>>;
-    using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<copy::NNSPEC<copy::DTYPE, copy::DEVICE_CUDA::index_t, lic::nn::activation_functions::RELU>>;
+TEST(BACKPROP_TOOLS_NN_CUDA, COPY) {
+    using NetworkTypeCPU = bpt::nn_models::mlp::NeuralNetworkAdam<copy::NNSPEC<copy::DTYPE, copy::DEVICE_CPU::index_t, bpt::nn::activation_functions::RELU>>;
+    using NetworkTypeCUDA = bpt::nn_models::mlp::NeuralNetworkAdam<copy::NNSPEC<copy::DTYPE, copy::DEVICE_CUDA::index_t, bpt::nn::activation_functions::RELU>>;
     copy::OPTIMIZER optimizer;
     copy::DEVICE_CPU::SPEC::LOGGING cpu_logger;
     copy::DEVICE_CUDA::SPEC::LOGGING cuda_logger;
@@ -304,97 +304,97 @@ TEST(LAYER_IN_C_NN_CUDA, COPY) {
     NetworkTypeCPU network_cpu;
     NetworkTypeCPU network_cpu_2;
     NetworkTypeCUDA network_cuda;
-    lic::malloc(device_cpu, network_cpu);
-    lic::malloc(device_cpu, network_cpu_2);
-    lic::malloc(device_cuda, network_cuda);
+    bpt::malloc(device_cpu, network_cpu);
+    bpt::malloc(device_cpu, network_cpu_2);
+    bpt::malloc(device_cuda, network_cuda);
 
-    auto rng = lic::random::default_engine(copy::DEVICE_CPU::SPEC::RANDOM());
+    auto rng = bpt::random::default_engine(copy::DEVICE_CPU::SPEC::RANDOM());
 
-    lic::init_weights(device_cpu, network_cpu, rng);
-    lic::init_weights(device_cpu, network_cpu_2, rng);
-    lic::zero_gradient(device_cpu, network_cpu);
-    lic::zero_gradient(device_cpu, network_cpu_2);
-    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
-    lic::reset_optimizer_state(device_cpu, network_cpu_2, optimizer);
-    lic::reset_forward_state(device_cpu, network_cpu);
-    lic::reset_forward_state(device_cpu, network_cpu_2);
-    auto cpu_network_diff = lic::abs_diff(device_cpu, network_cpu, network_cpu_2);
+    bpt::init_weights(device_cpu, network_cpu, rng);
+    bpt::init_weights(device_cpu, network_cpu_2, rng);
+    bpt::zero_gradient(device_cpu, network_cpu);
+    bpt::zero_gradient(device_cpu, network_cpu_2);
+    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    bpt::reset_optimizer_state(device_cpu, network_cpu_2, optimizer);
+    bpt::reset_forward_state(device_cpu, network_cpu);
+    bpt::reset_forward_state(device_cpu, network_cpu_2);
+    auto cpu_network_diff = bpt::abs_diff(device_cpu, network_cpu, network_cpu_2);
     std::cout << "CPU network diff: " << cpu_network_diff << std::endl;
     ASSERT_GT(cpu_network_diff, 0);
 
-    lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
-    lic::copy(device_cpu, device_cuda, network_cpu_2, network_cuda);
-    auto cpu_network_diff_round_trip = lic::abs_diff(device_cpu, network_cpu, network_cpu_2);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::copy(device_cpu, device_cuda, network_cpu_2, network_cuda);
+    auto cpu_network_diff_round_trip = bpt::abs_diff(device_cpu, network_cpu, network_cpu_2);
     std::cout << "CPU network round-trip: " << cpu_network_diff_round_trip << std::endl;
     ASSERT_FLOAT_EQ(cpu_network_diff_round_trip, 0);
 
     increment(network_cpu.hidden_layers[0].weights.parameters, 0, 50, 5);
 
-    cpu_network_diff = lic::abs_diff(device_cpu, network_cpu, network_cpu_2);
+    cpu_network_diff = bpt::abs_diff(device_cpu, network_cpu, network_cpu_2);
     std::cout << "CPU network diff: " << cpu_network_diff << std::endl;
     ASSERT_FLOAT_EQ(cpu_network_diff, 5);
 
-    lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
-    lic::copy(device_cpu, device_cuda, network_cpu_2, network_cuda);
-    cpu_network_diff_round_trip = lic::abs_diff(device_cpu, network_cpu, network_cpu_2);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::copy(device_cpu, device_cuda, network_cpu_2, network_cuda);
+    cpu_network_diff_round_trip = bpt::abs_diff(device_cpu, network_cpu, network_cpu_2);
     ASSERT_FLOAT_EQ(cpu_network_diff_round_trip, 0);
     std::cout << "CPU network round-trip: " << cpu_network_diff_round_trip << std::endl;
 
-    lic::free(device_cpu, network_cpu);
-    lic::free(device_cpu, network_cpu_2);
-    lic::free(device_cuda, network_cuda);
+    bpt::free(device_cpu, network_cpu);
+    bpt::free(device_cpu, network_cpu_2);
+    bpt::free(device_cuda, network_cuda);
 }
 
 template <typename T, typename TI, TI BATCH_SIZE, TI ITERATIONS>
 void GEMM() {
-    using DEVICE_CPU = lic::devices::DefaultCPU;
-    using DEVICE_CUDA = lic::devices::DefaultCUDA;
+    using DEVICE_CPU = bpt::devices::DefaultCPU;
+    using DEVICE_CUDA = bpt::devices::DefaultCUDA;
 
     constexpr DEVICE_CPU::index_t HIDDEN_DIM = BATCH_SIZE;
 
-    constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
-    using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::RELU, BATCH_SIZE>;
+    constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
+    using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, bpt::nn::activation_functions::RELU, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<T>;
-    using OPTIMIZER = lic::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
-    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER = bpt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using NNSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
-    std::cout << "GEMM<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
-    using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
-    using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
+    std::cout << "GEMM<" << (bpt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
+    using NetworkTypeCPU = bpt::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
+    using NetworkTypeCUDA = bpt::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
     DEVICE_CPU::SPEC::LOGGING cpu_logger;
     DEVICE_CUDA::SPEC::LOGGING cuda_logger;
     DEVICE_CPU device_cpu;
     device_cpu.logger = &cpu_logger;
     DEVICE_CUDA device_cuda;
     device_cuda.logger = &cuda_logger;
-    lic::init(device_cuda);
+    bpt::init(device_cuda);
     NetworkTypeCPU network_cpu;
     typename NetworkTypeCPU::template Buffers<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
     typename NetworkTypeCUDA::template Buffers<BATCH_SIZE> network_cuda_buffers;
     OPTIMIZER optimizer;
-    lic::malloc(device_cpu, network_cpu);
-    lic::malloc(device_cpu, network_cpu_buffers);
-    lic::malloc(device_cuda, network_cuda);
-    lic::malloc(device_cuda, network_cuda_buffers);
+    bpt::malloc(device_cpu, network_cpu);
+    bpt::malloc(device_cpu, network_cpu_buffers);
+    bpt::malloc(device_cuda, network_cuda);
+    bpt::malloc(device_cuda, network_cuda_buffers);
 
-    auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
-    lic::init_weights(device_cpu, network_cpu, rng);
-    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
-    lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::init_weights(device_cpu, network_cpu, rng);
+    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
-    lic::malloc(device_cpu, input_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cpu;
-    lic::malloc(device_cpu, output_first_layer_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda_cpu;
-    lic::malloc(device_cpu, output_first_layer_cuda_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
+    bpt::malloc(device_cpu, input_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cpu;
+    bpt::malloc(device_cpu, output_first_layer_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda_cpu;
+    bpt::malloc(device_cpu, output_first_layer_cuda_cpu);
 
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
-            set(input_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
@@ -429,19 +429,19 @@ void GEMM() {
 //    }
 
 
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
-    lic::malloc(device_cuda, input_cuda);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda;
-    lic::malloc(device_cuda, output_first_layer_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
+    bpt::malloc(device_cuda, input_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda;
+    bpt::malloc(device_cuda, output_first_layer_cuda);
 
-    lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);
+    bpt::copy(device_cuda, device_cpu, input_cuda, input_cpu);
 
-    lic::evaluate(device_cpu, network_cpu.input_layer, input_cpu, output_first_layer_cpu);
-    lic::evaluate(device_cuda, network_cuda.input_layer, input_cuda, output_first_layer_cuda);
+    bpt::evaluate(device_cpu, network_cpu.input_layer, input_cpu, output_first_layer_cpu);
+    bpt::evaluate(device_cuda, network_cuda.input_layer, input_cuda, output_first_layer_cuda);
     cudaDeviceSynchronize();
 
-    lic::copy(device_cpu, device_cuda, output_first_layer_cuda_cpu, output_first_layer_cuda);
-    auto evaluation_diff = lic::abs_diff(device_cpu, output_first_layer_cuda_cpu, output_first_layer_cpu)/(BATCH_SIZE * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM);
+    bpt::copy(device_cpu, device_cuda, output_first_layer_cuda_cpu, output_first_layer_cuda);
+    auto evaluation_diff = bpt::abs_diff(device_cpu, output_first_layer_cuda_cpu, output_first_layer_cpu)/(BATCH_SIZE * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM);
 
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM <= 10){
 //        std::cout << "cpu output:" << std::endl;
@@ -480,7 +480,7 @@ void GEMM() {
 //    }
 
     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
-    auto threshold = (lic::utils::typing::is_same_v<T, float> ? 1e-6 : 1e-15);
+    auto threshold = (bpt::utils::typing::is_same_v<T, float> ? 1e-6 : 1e-15);
     if(evaluation_diff > threshold){
         ASSERT_LT(evaluation_diff, threshold);
     }
@@ -490,14 +490,14 @@ void GEMM() {
         auto start = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < ITERATIONS; ++i)
         {
-            lic::evaluate(device_cuda, network_cuda.input_layer, input_cuda, output_first_layer_cuda);
+            bpt::evaluate(device_cuda, network_cuda.input_layer, input_cuda, output_first_layer_cuda);
             cudaDeviceSynchronize();
         }
         auto end = std::chrono::high_resolution_clock::now();
         std::cout << "CUDA evaluation time: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((T)ITERATIONS) << "us" << std::endl;
     }
 }
-TEST(LAYER_IN_C_NN_CUDA, GEMM) {
+TEST(BACKPROP_TOOLS_NN_CUDA, GEMM) {
     using DEFAULT_DTYPE = float;
     GEMM<DEFAULT_DTYPE, unsigned int, 1, 1>();
     GEMM<DEFAULT_DTYPE, unsigned int, 2, 1>();
@@ -513,52 +513,52 @@ TEST(LAYER_IN_C_NN_CUDA, GEMM) {
 
 template <typename T, typename TI, TI BATCH_SIZE, TI ITERATIONS>
 void FORWARD() {
-    using DEVICE_CPU = lic::devices::DefaultCPU;
-    using DEVICE_CUDA = lic::devices::DefaultCUDA;
+    using DEVICE_CPU = bpt::devices::DefaultCPU;
+    using DEVICE_CUDA = bpt::devices::DefaultCUDA;
 
     constexpr DEVICE_CPU::index_t HIDDEN_DIM = BATCH_SIZE;
 
-    constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
-    using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, lic::nn::activation_functions::RELU, BATCH_SIZE>;
+    constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
+    using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, bpt::nn::activation_functions::RELU, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<T>;
-    using OPTIMIZER = lic::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
-    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER = bpt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using NNSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
-    std::cout << "FORWARD<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
-    using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
-    using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
+    std::cout << "FORWARD<" << (bpt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
+    using NetworkTypeCPU = bpt::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
+    using NetworkTypeCUDA = bpt::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
     DEVICE_CPU::SPEC::LOGGING cpu_logger;
     DEVICE_CUDA::SPEC::LOGGING cuda_logger;
     DEVICE_CPU device_cpu;
     DEVICE_CUDA device_cuda;
     device_cpu.logger = &cpu_logger;
     device_cuda.logger = &cuda_logger;
-    lic::init(device_cuda);
+    bpt::init(device_cuda);
     NetworkTypeCPU network_cpu;
     typename NetworkTypeCPU::template Buffers<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
     typename NetworkTypeCPU::template Buffers<BATCH_SIZE> network_cuda_buffers;
-    lic::malloc(device_cpu, network_cpu);
-    lic::malloc(device_cpu, network_cpu_buffers);
-    lic::malloc(device_cuda, network_cuda);
-    lic::malloc(device_cpu, network_cuda_buffers);
+    bpt::malloc(device_cpu, network_cpu);
+    bpt::malloc(device_cpu, network_cpu_buffers);
+    bpt::malloc(device_cuda, network_cuda);
+    bpt::malloc(device_cpu, network_cuda_buffers);
 
-    auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
-    lic::init_weights(device_cpu, network_cpu, rng);
-    lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::init_weights(device_cpu, network_cpu, rng);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
-    lic::malloc(device_cpu, input_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
-    lic::malloc(device_cpu, output_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
-    lic::malloc(device_cpu, output_cuda_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
+    bpt::malloc(device_cpu, input_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
+    bpt::malloc(device_cpu, output_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
+    bpt::malloc(device_cpu, output_cuda_cpu);
 
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
-            set(input_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
@@ -593,19 +593,19 @@ void FORWARD() {
 //    }
 
 
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
-    lic::malloc(device_cuda, input_cuda);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
-    lic::malloc(device_cuda, output_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
+    bpt::malloc(device_cuda, input_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
+    bpt::malloc(device_cuda, output_cuda);
 
-    lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);
+    bpt::copy(device_cuda, device_cpu, input_cuda, input_cpu);
 
-    lic::forward(device_cpu, network_cpu, input_cpu);
-    lic::forward(device_cuda, network_cuda, input_cuda);
+    bpt::forward(device_cpu, network_cpu, input_cpu);
+    bpt::forward(device_cuda, network_cuda, input_cuda);
     cudaDeviceSynchronize();
 
-    lic::copy(device_cpu, device_cuda, output_cuda_cpu, network_cuda.output_layer.output);
-    auto evaluation_diff = lic::abs_diff(device_cpu, output_cuda_cpu, network_cpu.output_layer.output)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
+    bpt::copy(device_cpu, device_cuda, output_cuda_cpu, network_cuda.output_layer.output);
+    auto evaluation_diff = bpt::abs_diff(device_cpu, output_cuda_cpu, network_cpu.output_layer.output)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
 //        std::cout << "cpu output:" << std::endl;
@@ -644,7 +644,7 @@ void FORWARD() {
 //    }
 
     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
-    auto threshold = (lic::utils::typing::is_same_v<T, float> ? 1e-7 : 1e-15);
+    auto threshold = (bpt::utils::typing::is_same_v<T, float> ? 1e-7 : 1e-15);
     if(evaluation_diff > threshold){
         ASSERT_LT(evaluation_diff, threshold);
     }
@@ -654,7 +654,7 @@ void FORWARD() {
         auto start = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < ITERATIONS; ++i)
         {
-            lic::evaluate(device_cuda, network_cuda.input_layer, input_cuda, output_cuda);
+            bpt::evaluate(device_cuda, network_cuda.input_layer, input_cuda, output_cuda);
             cudaDeviceSynchronize();
         }
         auto end = std::chrono::high_resolution_clock::now();
@@ -662,7 +662,7 @@ void FORWARD() {
     }
 }
 
-TEST(LAYER_IN_C_NN_CUDA, FORWARD) {
+TEST(BACKPROP_TOOLS_NN_CUDA, FORWARD) {
     FORWARD<float, unsigned int, 1, 1>();
     FORWARD<float, unsigned int, 2, 1>();
     FORWARD<float, unsigned int, 32, 1>();
@@ -677,26 +677,26 @@ TEST(LAYER_IN_C_NN_CUDA, FORWARD) {
 
 template <typename T, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
 void BACKWARD() {
-    using DEVICE_CPU = lic::devices::DefaultCPU;
-    using DEVICE_CUDA = lic::devices::DefaultCUDA;
+    using DEVICE_CPU = bpt::devices::DefaultCPU;
+    using DEVICE_CUDA = bpt::devices::DefaultCUDA;
 
-    constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
-    using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, lic::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
+    constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
+    using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, bpt::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<T>;
-    using OPTIMIZER = lic::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
-    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER = bpt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using NNSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
-    std::cout << "BACKWARD<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
-    using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
-    using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
+    std::cout << "BACKWARD<" << (bpt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
+    using NetworkTypeCPU = bpt::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
+    using NetworkTypeCUDA = bpt::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
     DEVICE_CPU::SPEC::LOGGING cpu_logger;
     DEVICE_CUDA::SPEC::LOGGING cuda_logger;
     DEVICE_CPU device_cpu;
     DEVICE_CUDA device_cuda;
     device_cpu.logger = &cpu_logger;
     device_cuda.logger = &cuda_logger;
-    lic::init(device_cuda);
+    bpt::init(device_cuda);
     NetworkTypeCPU network_cpu;
     NetworkTypeCPU network_cpu_pre;
     NetworkTypeCPU network_cuda_cpu;
@@ -704,37 +704,37 @@ void BACKWARD() {
     NetworkTypeCUDA network_cuda;
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cuda_buffers;
     OPTIMIZER optimizer;
-    lic::malloc(device_cpu, network_cpu);
-    lic::malloc(device_cpu, network_cpu_pre);
-    lic::malloc(device_cpu, network_cuda_cpu);
-    lic::malloc(device_cpu, network_cpu_buffers);
-    lic::malloc(device_cuda, network_cuda);
-    lic::malloc(device_cuda, network_cuda_buffers);
+    bpt::malloc(device_cpu, network_cpu);
+    bpt::malloc(device_cpu, network_cpu_pre);
+    bpt::malloc(device_cpu, network_cuda_cpu);
+    bpt::malloc(device_cpu, network_cpu_buffers);
+    bpt::malloc(device_cuda, network_cuda);
+    bpt::malloc(device_cuda, network_cuda_buffers);
 
-    auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
-    lic::init_weights(device_cpu, network_cpu, rng);
-    lic::zero_gradient(device_cpu, network_cpu);
-    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
-    lic::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
+    bpt::init_weights(device_cpu, network_cpu, rng);
+    bpt::zero_gradient(device_cpu, network_cpu);
+    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    bpt::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
 
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
-    lic::malloc(device_cpu, input_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
-    lic::malloc(device_cpu, output_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cpu;
-    lic::malloc(device_cpu, output_target_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
-    lic::malloc(device_cpu, output_cuda_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
+    bpt::malloc(device_cpu, input_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
+    bpt::malloc(device_cpu, output_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cpu;
+    bpt::malloc(device_cpu, output_target_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
+    bpt::malloc(device_cpu, output_cuda_cpu);
 
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
-            set(input_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::OUTPUT_DIM; input_i++){
-            set(output_target_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(output_target_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
@@ -768,29 +768,29 @@ void BACKWARD() {
 //        std::cout << std::endl;
 //    }
 
-    lic::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
-    lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
 
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
-    lic::malloc(device_cuda, input_cuda);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
-    lic::malloc(device_cuda, output_cuda);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
-    lic::malloc(device_cuda, output_target_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
+    bpt::malloc(device_cuda, input_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
+    bpt::malloc(device_cuda, output_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
+    bpt::malloc(device_cuda, output_target_cuda);
 
-    lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);
-    lic::copy(device_cuda, device_cpu, output_target_cuda, output_target_cpu);
+    bpt::copy(device_cuda, device_cpu, input_cuda, input_cpu);
+    bpt::copy(device_cuda, device_cpu, output_target_cuda, output_target_cpu);
 
-    lic::zero_gradient(device_cpu, network_cpu);
-    lic::zero_gradient(device_cuda, network_cuda);
-    lic::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
-    lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
+    bpt::zero_gradient(device_cpu, network_cpu);
+    bpt::zero_gradient(device_cuda, network_cuda);
+    bpt::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
+    bpt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
     cudaDeviceSynchronize();
 
-    lic::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
-    auto evaluation_diff_pre = lic::abs_diff(device_cpu, network_cuda_cpu, network_cpu_pre)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
-    auto evaluation_diff = lic::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
+    bpt::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
+    auto evaluation_diff_pre = bpt::abs_diff(device_cpu, network_cuda_cpu, network_cpu_pre)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
+    auto evaluation_diff = bpt::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
 //        std::cout << "cpu output:" << std::endl;
@@ -829,7 +829,7 @@ void BACKWARD() {
 //    }
 
     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
-    auto threshold = (lic::utils::typing::is_same_v<T, float> ? 1e-6 : 1e-14);
+    auto threshold = (bpt::utils::typing::is_same_v<T, float> ? 1e-6 : 1e-14);
     if(evaluation_diff > threshold){
         ASSERT_LT(evaluation_diff, threshold);
     }
@@ -839,7 +839,7 @@ void BACKWARD() {
         auto start = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < ITERATIONS; ++i)
         {
-            lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
+            bpt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
             cudaDeviceSynchronize();
         }
         auto end = std::chrono::high_resolution_clock::now();
@@ -847,7 +847,7 @@ void BACKWARD() {
     }
 }
 
-TEST(LAYER_IN_C_NN_CUDA, BACKWARD) {
+TEST(BACKPROP_TOOLS_NN_CUDA, BACKWARD) {
     using DEFAULT_DTYPE = float;
     BACKWARD<DEFAULT_DTYPE, unsigned int,    1, 1, 1, 1, 1>();
     BACKWARD<DEFAULT_DTYPE, unsigned int,    1, 256,  10, 100, 1>();
@@ -864,26 +864,26 @@ TEST(LAYER_IN_C_NN_CUDA, BACKWARD) {
 
 template <typename T, typename TI, TI BATCH_SIZE, TI INPUT_DIM, TI HIDDEN_DIM, TI OUTPUT_DIM, TI ITERATIONS>
 void ADAM_UPDATE() {
-    using DEVICE_CPU = lic::devices::DefaultCPU;
-    using DEVICE_CUDA = lic::devices::DefaultCUDA;
+    using DEVICE_CPU = bpt::devices::DefaultCPU;
+    using DEVICE_CUDA = bpt::devices::DefaultCUDA;
 
-    constexpr auto ACTIVATION_FUNCTION = lic::nn::activation_functions::IDENTITY;
-    using StructureSpecification = lic::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, lic::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
+    constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
+    using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, bpt::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = lic::nn::optimizers::adam::DefaultParametersTorch<T>;
-    using OPTIMIZER = lic::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
-    using NNSpecification = lic::nn_models::mlp::AdamSpecification<StructureSpecification>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER = bpt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using NNSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
-    std::cout << "BACKWARD<" << (lic::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
-    using NetworkTypeCPU = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
-    using NetworkTypeCUDA = lic::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
+    std::cout << "BACKWARD<" << (bpt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
+    using NetworkTypeCPU = bpt::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
+    using NetworkTypeCUDA = bpt::nn_models::mlp::NeuralNetworkAdam<NNSpecification>;
     DEVICE_CPU::SPEC::LOGGING cpu_logger;
     DEVICE_CUDA::SPEC::LOGGING cuda_logger;
     DEVICE_CPU device_cpu;
     device_cpu.logger = &cpu_logger;
     DEVICE_CUDA device_cuda;
     device_cuda.logger = &cuda_logger;
-    lic::init(device_cuda);
+    bpt::init(device_cuda);
     NetworkTypeCPU network_cpu;
     NetworkTypeCPU network_cpu_pre;
     NetworkTypeCPU network_cuda_cpu;
@@ -891,37 +891,37 @@ void ADAM_UPDATE() {
     NetworkTypeCUDA network_cuda;
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cuda_buffers;
     OPTIMIZER optimizer;
-    lic::malloc(device_cpu, network_cpu);
-    lic::malloc(device_cpu, network_cpu_pre);
-    lic::malloc(device_cpu, network_cuda_cpu);
-    lic::malloc(device_cpu, network_cpu_buffers);
-    lic::malloc(device_cuda, network_cuda);
-    lic::malloc(device_cuda, network_cuda_buffers);
+    bpt::malloc(device_cpu, network_cpu);
+    bpt::malloc(device_cpu, network_cpu_pre);
+    bpt::malloc(device_cpu, network_cuda_cpu);
+    bpt::malloc(device_cpu, network_cpu_buffers);
+    bpt::malloc(device_cuda, network_cuda);
+    bpt::malloc(device_cuda, network_cuda_buffers);
 
-    auto rng = lic::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
+    auto rng = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
-    lic::init_weights(device_cpu, network_cpu, rng);
-    lic::zero_gradient(device_cpu, network_cpu);
-    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
-    lic::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
+    bpt::init_weights(device_cpu, network_cpu, rng);
+    bpt::zero_gradient(device_cpu, network_cpu);
+    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    bpt::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
 
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
-    lic::malloc(device_cpu, input_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
-    lic::malloc(device_cpu, output_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cpu;
-    lic::malloc(device_cpu, output_target_cpu);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
-    lic::malloc(device_cpu, output_cuda_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
+    bpt::malloc(device_cpu, input_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cpu;
+    bpt::malloc(device_cpu, output_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cpu;
+    bpt::malloc(device_cpu, output_target_cpu);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda_cpu;
+    bpt::malloc(device_cpu, output_cuda_cpu);
 
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
-            set(input_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::OUTPUT_DIM; input_i++){
-            set(output_target_cpu, batch_i, input_i, lic::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(output_target_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
@@ -955,33 +955,33 @@ void ADAM_UPDATE() {
 //        std::cout << std::endl;
 //    }
 
-    lic::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
-    lic::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
 
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
-    lic::malloc(device_cuda, input_cuda);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
-    lic::malloc(device_cuda, output_cuda);
-    lic::MatrixDynamic<lic::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
-    lic::malloc(device_cuda, output_target_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
+    bpt::malloc(device_cuda, input_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
+    bpt::malloc(device_cuda, output_cuda);
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
+    bpt::malloc(device_cuda, output_target_cuda);
 
-    lic::copy(device_cuda, device_cpu, input_cuda, input_cpu);
-    lic::copy(device_cuda, device_cpu, output_target_cuda, output_target_cpu);
+    bpt::copy(device_cuda, device_cpu, input_cuda, input_cpu);
+    bpt::copy(device_cuda, device_cpu, output_target_cuda, output_target_cpu);
 
-    lic::zero_gradient(device_cpu, network_cpu);
-    lic::zero_gradient(device_cuda, network_cuda);
-    lic::reset_optimizer_state(device_cpu, network_cpu, optimizer);
-    lic::reset_optimizer_state(device_cuda, network_cuda, optimizer);
-    lic::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
-    lic::update(device_cpu, network_cpu, optimizer);
-    lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
-    lic::update(device_cuda, network_cuda, optimizer);
+    bpt::zero_gradient(device_cpu, network_cpu);
+    bpt::zero_gradient(device_cuda, network_cuda);
+    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    bpt::reset_optimizer_state(device_cuda, network_cuda, optimizer);
+    bpt::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
+    bpt::update(device_cpu, network_cpu, optimizer);
+    bpt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
+    bpt::update(device_cuda, network_cuda, optimizer);
     cudaDeviceSynchronize();
 
-    lic::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
-    auto evaluation_diff_pre = lic::abs_diff(device_cpu, network_cuda_cpu, network_cpu_pre)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
-    auto evaluation_diff = lic::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
+    bpt::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
+    auto evaluation_diff_pre = bpt::abs_diff(device_cpu, network_cuda_cpu, network_cpu_pre)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
+    auto evaluation_diff = bpt::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
 //        std::cout << "cpu output:" << std::endl;
@@ -1020,7 +1020,7 @@ void ADAM_UPDATE() {
 //    }
 
     std::cout << "Evaluation diff: " << evaluation_diff << std::endl;
-    auto threshold = (lic::utils::typing::is_same_v<T, float> ? 1e-6 : 1e-14);
+    auto threshold = (bpt::utils::typing::is_same_v<T, float> ? 1e-6 : 1e-14);
     if(evaluation_diff > threshold){
         ASSERT_LT(evaluation_diff, threshold);
     }
@@ -1030,8 +1030,8 @@ void ADAM_UPDATE() {
         auto start = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < ITERATIONS; ++i)
         {
-            lic::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
-            lic::update(device_cuda, network_cuda, optimizer);
+            bpt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
+            bpt::update(device_cuda, network_cuda, optimizer);
             cudaDeviceSynchronize();
         }
         auto end = std::chrono::high_resolution_clock::now();
@@ -1039,7 +1039,7 @@ void ADAM_UPDATE() {
     }
 }
 
-TEST(LAYER_IN_C_NN_CUDA, ADAM_UPDATE) {
+TEST(BACKPROP_TOOLS_NN_CUDA, ADAM_UPDATE) {
     using DEFAULT_DTYPE = float;
     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    1, 256,  10, 100, 1>();
     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    2, 256,  10, 100, 1>();
