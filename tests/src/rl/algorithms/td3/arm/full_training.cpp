@@ -61,7 +61,9 @@ using ActorCriticType = lic::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 constexpr DEVICE::index_t N_STEPS = 10000;
 constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
 constexpr DEVICE::index_t N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
+#ifndef LAYER_IN_C_DISABLE_EVALUATION
 DTYPE evaluation_returns[N_EVALUATIONS];
+#endif
 
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 10000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
@@ -191,6 +193,7 @@ void train(){
                 lic::update_actor_target(device, actor_critic);
             }
         }
+#ifndef LAYER_IN_C_DISABLE_EVALUATION
         if(step_i % EVALUATION_INTERVAL == 0){
             auto result = lic::evaluate(device, envs[0], ui, actor_critic.actor, lic::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, rng);
             if(N_EVALUATIONS > 0){
@@ -202,6 +205,7 @@ void train(){
             std::cout << "Mean return: " << result.mean << std::endl;
 #endif
         }
+#endif
     }
 #ifndef LAYER_IN_C_DEPLOYMENT_ARDUINO
     {
