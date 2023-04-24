@@ -1,4 +1,5 @@
 ```
+cd backprop_tools/examples/docker/03_wasm
 ./build.sh
 docker run --rm -it -p 8000:8000 --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly backprop_tools:wasm
 cp -r /backprop_tools/tests/src/rl/algorithms/td3/wasm/static .

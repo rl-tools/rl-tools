@@ -1,3 +1,7 @@
+### Go to the current directory
+```
+cd backprop_tools/examples/docker/02_cuda
+```
 ### Building the environment
 Build the docker container (based on an NVIDIA cuda ubuntu image) installing Intel MKL as well as a recent version of CMake
 ```

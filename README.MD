@@ -14,12 +14,21 @@
 We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `CAMEL_CASE` for compile-time constants. 
 
 ## Getting Started
-The most deterministic way to get started using BackpropTools is to use Docker. Mandatory prerequesites for this is:
+### Docker
+#### Mandatory
+The most deterministic way to get started using BackpropTools is to use Docker. Mandatory prerequesite for this is:
 1. Docker is installed ([official installation instructions](https://docs.docker.com/engine/install/))
- 
+
+#### Optional 
 Furthermore, if you want to use GPU acceleration you need the NVIDIA Docker runtime to be able to acceess the GPU from within the container
 2. NVIDIA Container Toolkit ([official installation instructions](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html))
-3. An up to date NVIDIA driver (in the examples we are using CUDA 12.x hence a driver >=525.60.13 is required)
+3. An up to date NVIDIA driver
+   - In the examples we are e.g. using CUDA 11.x hence a driver >= 450.80.02 is required
+
+For each example we provide a readme file with a handful of commands to build the container, start it and to build and run the code inside. In our view this is prefarable to hiding the commands in a script because by exposing them the user can understand the different steps, has more agency and can directly start tinkering with the code.
+
+Once these prequesites are installed you can continue with the instructions for the particular examples [here](examples/README.MD).
+
 
 
 ## CLion
