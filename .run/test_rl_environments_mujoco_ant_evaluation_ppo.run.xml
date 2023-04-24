@@ -1,9 +1,4 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="test_rl_environments_mujoco_ant_evaluation_ppo" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$ContentRoot$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="backprop_tools" TARGET_NAME="test_rl_environments_mujoco_ant_evaluation_ppo" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="backprop_tools" RUN_TARGET_NAME="test_rl_environments_mujoco_ant_evaluation_ppo">
-    <method v="2">
-      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
-    </method>
-  </configuration>
   <configuration default="false" name="test_rl_environments_mujoco_ant_evaluation_ppo" type="CMakeRunConfiguration" factoryName="Application" nameIsGenerated="true" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$ContentRoot$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="backprop_tools" TARGET_NAME="test_rl_environments_mujoco_ant_evaluation_ppo" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="backprop_tools" RUN_TARGET_NAME="test_rl_environments_mujoco_ant_evaluation_ppo">
     <method v="2">
       <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />

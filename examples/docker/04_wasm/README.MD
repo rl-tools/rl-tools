@@ -12,11 +12,11 @@ docker run --rm -it -p 8000:8000 --mount type=bind,source=$(cd ../../..; pwd),ta
 ```
 Copy the static files needed for the website
 ```
-cp -r /backprop_tools/tests/src/rl/algorithms/td3/wasm/static .
+cp -r /backprop_tools/src/rl/environments/pendulum/td3/wasm/static .
 ```
 Build the WASM code (which is placed in the static directory where the other files of the website expect it)
 ```
-BACKPROP_TOOLS_INCLUDE_DIR=/backprop_tools/include BACKPROP_TOOLS_BUILD_DIR=/build/static/build /backprop_tools/tests/src/rl/algorithms/td3/wasm/build.sh
+BACKPROP_TOOLS_INCLUDE_DIR=/backprop_tools/include BACKPROP_TOOLS_BUILD_DIR=/build/static/build /backprop_tools/src/rl/environments/pendulum/td3/wasm/build.sh
 ```
 Run a basic http server to serve the website
 ```

@@ -1,16 +1,9 @@
-project(backprop_tools_rl_algorithms_td3_wasm)
-#set(CMAKE_CXX_STANDARD 17)
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s WASM=1")
-#set(CMAKE_EXECUTABLE_SUFFIX ".html")
-#set(CMAKE_EXECUTABLE_SUFFIX_FLAG "")
-#set(emscripten_system_libs ON)
 add_executable(
-        test_rl_algorithms_td3_wasm_full_training
-#        full_training.cpp
+        rl_environments_pendulum_td3_wasm_training_test
         test.cpp
 )
 target_link_libraries(
-        test_rl_algorithms_td3_wasm_full_training
+        rl_environments_pendulum_td3_wasm_training_test
         PRIVATE
         backprop_tools
 )

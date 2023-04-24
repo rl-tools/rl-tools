@@ -26,7 +26,7 @@ using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 
 #include <backprop_tools/rl/utils/evaluation.h>
 
-#include "parameters_td3.h"
+#include "parameters.h"
 
 #include <iostream>
 #include <highfive/H5File.hpp>

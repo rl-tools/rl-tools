@@ -12,7 +12,7 @@ RUN apt-get install -y libhdf5-dev libboost-all-dev
 RUN apt-get install -y protobuf-compiler libprotobuf-dev
 RUN apt-get install -y python3 python3-pip
 RUN pip3 install --upgrade pip
-RUN pip3 install tensorboard
+RUN pip3 install tensorboard==2.12.2
 #RUN apt-get install -y clang
 RUN echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main" >> /etc/apt/sources.list.d/llvm.list \
     && echo "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main" >> /etc/apt/sources.list.d/llvm.list
