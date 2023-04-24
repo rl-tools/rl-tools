@@ -520,5 +520,9 @@ namespace backprop_tools{
             }
         }
     }
+    template <typename DEVICE, typename MEAN_SPEC, typename STD_SPEC, typename INPUT_SPEC>
+    void normalize(DEVICE& device, Matrix<MEAN_SPEC>& mean, Matrix<STD_SPEC>& std, Matrix<INPUT_SPEC>& m){
+        normalize(device, mean, std, m, m);
+    }
 }
 #endif
