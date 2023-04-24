@@ -2,9 +2,9 @@
   <center><h1>BackpropTools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h1></center>
 </div>
 
-<p align="center">
+<div align="center">
   <img src="https://backprop.tools/backprop_tools_mujoco_ant_ppo.gif" alt="animated" />
-</p>
+</div>
 
 <div align="center">
     Trained on a 2020 MacBook Pro (M1) using BackpropTools PPO
