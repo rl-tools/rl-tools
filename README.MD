@@ -1,3 +1,5 @@
+# BackpropTools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control
+
 ## BackpropTools PPO: Mujoco Ant-v4
 Training on a 2020 MacBook Pro (M1)
 
