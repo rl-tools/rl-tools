@@ -3,7 +3,7 @@
 </div>
 
 <div align="center">
-  <img src="https://github.com/BackpropTools/media/blob/master/backprop_tools_mujoco_ant_ppo.gif" alt="animated" width='900'/>
+  <img src="https://github.com/BackpropTools/media/blob/master/backprop_tools_mujoco_ant_ppo.gif" alt="animated" width='600'/>
 </div>
 
 <div align="center">
