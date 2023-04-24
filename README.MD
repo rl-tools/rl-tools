@@ -1,11 +1,14 @@
-# BackpropTools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control
-
-## BackpropTools PPO: Mujoco Ant-v4
-Training on a 2020 MacBook Pro (M1)
+<div align="center">
+  <center><h1>BackpropTools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h1></center>
+</div>
 
 <p align="center">
   <img src="https://backprop.tools/backprop_tools_mujoco_ant_ppo.gif" alt="animated" />
 </p>
+
+<div align="center">
+    Trained on a 2020 MacBook Pro (M1) using BackpropTools PPO
+</div>
 
 ## Naming Convention
 We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `CAMEL_CASE` for compile-time constants. 
