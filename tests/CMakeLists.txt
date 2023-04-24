@@ -44,18 +44,6 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
     add_subdirectory(src/rl/cuda)
 endif()
 
-# RL Algorithm td3 test full training standalone
-add_executable(
-        test_rl_algorithms_td3_full_training_standalone
-        src/rl/algorithms/td3/full_training_standalone.cpp
-)
-target_link_libraries(
-        test_rl_algorithms_td3_full_training_standalone
-        PRIVATE
-        backprop_tools
-)
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training_standalone)
-target_compile_definitions(test_rl_algorithms_td3_full_training_standalone PRIVATE BACKPROP_TOOLS_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD)
 
 if(BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPROP_TOOLS_ENABLE_TENSORBOARD)
 # Neural Network Test MLP
@@ -504,7 +492,5 @@ gtest_discover_tests(test_rl_components_running_normalizer)
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_components_running_normalizer)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_components_running_normalizer)
 
-add_subdirectory(src/rl/algorithms/td3/wasm)
-add_subdirectory(src/rl/algorithms/td3/arm)
 add_subdirectory(src/random)
 endif()

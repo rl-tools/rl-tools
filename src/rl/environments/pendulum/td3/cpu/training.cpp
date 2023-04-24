@@ -1,5 +1,5 @@
 // ------------ Groups 1 ------------
-#ifndef BACKPROP_TOOLS_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 #include <backprop_tools/operations/cpu_tensorboard/group_1.h>
 #endif
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
@@ -36,7 +36,7 @@
 
 namespace bpt = backprop_tools;
 
-#ifndef BACKPROP_TOOLS_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
 #else
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU>;
@@ -85,10 +85,10 @@ typedef bpt::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 
 struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
-#ifdef BACKPROP_TOOLS_TESTS_RL_ALGORITHMS_TD3_FULL_TRAINING_STANDALONE_BASIC_DISABLE_TENSORBOARD
-    using LOGGING = bpt::devices::logging::CPU;
-#else
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
     using LOGGING = bpt::devices::logging::CPU_TENSORBOARD;
+#else
+    using LOGGING = bpt::devices::logging::CPU;
 #endif
 };
 struct TD3PendulumParameters: bpt::rl::algorithms::td3::DefaultParameters<DTYPE, DEVICE::index_t>{

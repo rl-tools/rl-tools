@@ -1,5 +1,5 @@
 //#define BACKPROP_TOOLS_DISABLE_EVALUATION
-#include "full_training.cpp"
+#include "training.cpp"
 int main(){
     run();
 

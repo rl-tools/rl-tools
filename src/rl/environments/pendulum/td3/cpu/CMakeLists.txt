@@ -1,0 +1,12 @@
+# RL Algorithm td3 test full training standalone
+add_executable(
+        rl_environments_pendulum_td3_training_standalone
+        standalone.cpp
+)
+target_link_libraries(
+        rl_environments_pendulum_td3_training_standalone
+        PRIVATE
+        backprop_tools
+)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_pendulum_td3_training_standalone)
+target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_TD3_TRAINING_STANDALONE_DISABLE_TENSORBOARD)

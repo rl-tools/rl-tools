@@ -13,13 +13,13 @@ docker run --rm -it --mount type=bind,source=$(cd ../../..; pwd),target=/backpro
 ```
 Configure the BackpropTools using CMake
 ```
-cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_ENABLE_TESTS:BOOL=ON
+cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release
 ```
 Build the test_rl_algorithms_td3_full_training_standalone target which trains the Pendulum-v1 environment using TD3 on the CPU
 ```
-cmake --build . --target test_rl_algorithms_td3_full_training_standalone -j$(nproc)
+cmake --build . --target rl_environments_pendulum_td3_training_standalone -j$(nproc)
 ```
 Run the built binary
 ```
-./tests/test_rl_algorithms_td3_full_training_standalone
+./src/rl/environments/pendulum/td3/cpu/rl_environments_pendulum_td3_training_standalone
 ```
