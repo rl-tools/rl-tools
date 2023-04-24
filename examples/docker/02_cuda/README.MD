@@ -33,4 +33,4 @@ Execute the built binary with a high priority
 ```
 nice -n -20 /build/src/rl/environments/mujoco/ant/ppo/cuda/rl_environments_mujoco_ant_training_ppo_cuda 
 ```
-You can observe the training using the browser on your host machine to access Tensorboard at `http://localhost:6006/
+You can observe the training using the browser on your host machine to access Tensorboard at `http://localhost:6006/`. If you didn't configure the `BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK` flag you can use the checkpoints saved during the training to playback the policy as described in [03_mujoco_ui](../03_mujoco_ui/README.MD).
