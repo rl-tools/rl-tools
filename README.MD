@@ -3,7 +3,9 @@
 ## BackpropTools PPO: Mujoco Ant-v4
 Training on a 2020 MacBook Pro (M1)
 
-![BackpropTools: Mujoco Ant-v4 PPO](https://backprop.tools/backprop_tools_mujoco_ant_ppo.gif)
+<p align="center">
+  <img src="https://backprop.tools/backprop_tools_mujoco_ant_ppo.gif" alt="animated" />
+</p>
 
 ## Naming Convention
 We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `CAMEL_CASE` for compile-time constants. 
