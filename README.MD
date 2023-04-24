@@ -1,3 +1,5 @@
+## BackpropTools PPO: Mujoco Ant-v4
+Training on a 2020 MacBook Pro (M1)
 ![BackpropTools: Mujoco Ant-v4 PPO](https://backprop.tools/backprop_tools_mujoco_ant_ppo.gif)
 
 ## Naming Convention
