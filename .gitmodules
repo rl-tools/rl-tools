@@ -25,3 +25,18 @@
 [submodule "tests/lib/cli11"]
 	path = tests/lib/cli11
 	url = https://github.com/CLIUtils/CLI11.git
+[submodule "external/mujoco"]
+	path = external/mujoco
+	url = https://github.com/deepmind/mujoco.git
+[submodule "external/gymnasium"]
+	path = external/gymnasium
+	url = https://github.com/Farama-Foundation/Gymnasium.git
+[submodule "external/cli11"]
+	path = external/cli11
+	url = https://github.com/CLIUtils/CLI11.git
+[submodule "external/tensorboard"]
+	path = external/tensorboard
+	url = https://github.com/RustingSword/tensorboard_logger.git
+[submodule "external/highfive"]
+	path = external/highfive
+	url = https://github.com/BlueBrain/HighFive.git
