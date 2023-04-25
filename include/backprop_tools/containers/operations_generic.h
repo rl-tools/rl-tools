@@ -134,6 +134,14 @@ namespace backprop_tools{
         inline bool is_finite(DEVICE dev, bool a, T c){
             return a && math::is_finite(dev, c);
         }
+        template<typename DEVICE, typename T>
+        inline T max(DEVICE dev, T a, T c){
+            return math::max(dev, a, c);
+        }
+        template<typename DEVICE, typename T>
+        inline T min(DEVICE dev, T a, T c){
+            return math::min(dev, a, c);
+        }
     }
     template<typename DEVICE, typename SPEC>
     auto view_transpose(DEVICE& device, Matrix<SPEC>& target){
@@ -358,6 +366,20 @@ namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     bool is_finite(DEVICE& device, const Matrix<SPEC>& m){
         return reduce_unary<DEVICE, SPEC, bool, containers::vectorization::operators::is_finite<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, true);
+    }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T max(DEVICE& device, const Matrix<SPEC>& m){
+        static_assert(SPEC::ROWS > 0 && SPEC::COLS > 0);
+        using T = typename SPEC::T;
+        T init = get(m, 0, 0);
+        return reduce_unary<DEVICE, SPEC, T, containers::vectorization::operators::max<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, init);
+    }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T min(DEVICE& device, const Matrix<SPEC>& m){
+        static_assert(SPEC::ROWS > 0 && SPEC::COLS > 0);
+        using T = typename SPEC::T;
+        T init = get(m, 0, 0);
+        return reduce_unary<DEVICE, SPEC, T, containers::vectorization::operators::min<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, init);
     }
     template<typename TARGET_DEVICE, typename SPEC, typename T>
     void assign(TARGET_DEVICE& target_device, Matrix<SPEC>& target, const T* source, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){

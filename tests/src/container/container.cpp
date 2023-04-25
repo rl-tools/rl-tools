@@ -204,3 +204,58 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, WRAP) {
         ASSERT_FLOAT_EQ(get(m, 0, i), test[i]);
     }
 }
+
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, MIN_DETERMINISTIC) {
+    using DEVICE = bpt::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    constexpr int DIM = 11;
+    DEVICE device;
+    T test[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    auto m = bpt::wrap<DEVICE, T, DIM>(device, test);
+    bpt::print(device, m);
+    T min = bpt::min(device, m);
+    ASSERT_FLOAT_EQ(min, 1);
+}
+
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, MAX_DETERMINISTIC) {
+    using DEVICE = bpt::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    constexpr int DIM = 11;
+    DEVICE device;
+    T test[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    auto m = bpt::wrap<DEVICE, T, DIM>(device, test);
+    bpt::print(device, m);
+    T max = bpt::max(device, m);
+    ASSERT_FLOAT_EQ(max, 11);
+}
+
+template <int ROWS, int COLS>
+void test_max_stochastic(){
+    using DEVICE = bpt::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    constexpr int DIM = 11;
+    DEVICE device;
+    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, ROWS, COLS>> m;
+    bpt::malloc(device, m);
+    for(TI test_i = 0; test_i < 10; test_i++){
+        bpt::randn(device, m, rng);
+        T max = bpt::max(device, m);
+        for(TI row_i = 0; row_i < ROWS; row_i++){
+            for(TI col_i = 0; col_i < COLS; col_i++){
+                ASSERT_TRUE(get(m, row_i, col_i) <= max);
+            }
+        }
+    }
+}
+
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, MAX_STOCHASTIC) {
+    test_max_stochastic<10, 10>();
+    test_max_stochastic<10, 1000>();
+    test_max_stochastic<1, 1>();
+    test_max_stochastic<1, 10>();
+    test_max_stochastic<10, 1>();
+}

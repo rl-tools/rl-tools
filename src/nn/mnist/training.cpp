@@ -103,7 +103,7 @@ int main(){
             auto input = bpt::row(device, x_val, sample_i);
             bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
             bpt::forward(device, network, input);
-//            val_loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, T(1)/BATCH_SIZE);
+            val_loss += bpt::nn::loss_functions::(device, network.output_layer.output, output_matrix, T(1)/BATCH_SIZE);
         }
         val_loss /= DATASET_SIZE_VAL;
     }
