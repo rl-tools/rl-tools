@@ -1,4 +1,4 @@
-#include "full_training.cpp"
+#include "training.h"
 
 int main(){
     while(true){

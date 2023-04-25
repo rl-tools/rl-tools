@@ -1,1 +1,1 @@
-docker build -f Dockerfile -t backprop_tools:cuda-ui . $@
+docker build -f Dockerfile -t backprop_tools:mujoco_ui . $@
