@@ -546,5 +546,79 @@ namespace backprop_tools{
     void normalize(DEVICE& device, Matrix<MEAN_SPEC>& mean, Matrix<STD_SPEC>& std, Matrix<INPUT_SPEC>& m){
         normalize(device, mean, std, m, m);
     }
+    template <typename DEVICE, typename SPEC_INPUT, typename SPEC_OUTPUT>
+    void argmax_row_wise(DEVICE& device, Matrix<SPEC_INPUT>& input, Matrix<SPEC_OUTPUT>& output){
+        static_assert(SPEC_INPUT::ROWS == SPEC_OUTPUT::ROWS);
+        static_assert(SPEC_OUTPUT::COLS == 1);
+        using T = typename SPEC_INPUT::T;
+        using TI = typename DEVICE::index_t;
+
+        for(TI row_i = 0; row_i < SPEC_INPUT::ROWS; row_i++){
+            T max = 0;
+            TI argmax = 0;
+            for(TI col_i = 0; col_i < SPEC_INPUT::COLS; col_i++){
+                if(col_i == 0){
+                    max = get(input, row_i, col_i);
+                    argmax = col_i;
+                }
+                else{
+                    T value = get(input, row_i, col_i);
+                    if(value > max){
+                        max = value;
+                        argmax = col_i;
+                    }
+                }
+            }
+            set(output, row_i, 0, argmax);
+        }
+    }
+    template <typename DEVICE, typename SPEC_INPUT>
+    typename DEVICE::index_t argmax_row(DEVICE& device, Matrix<SPEC_INPUT>& input){
+        static_assert(SPEC_INPUT::ROWS == 1);
+        using T = typename SPEC_INPUT::T;
+        using TI = typename DEVICE::index_t;
+        MatrixStatic<matrix::Specification<TI, TI, 1, 1>> output;
+        malloc(device, output);
+        argmax_row_wise(device, input, output);
+        return get(output, 0, 0);
+    }
+
+    template <typename DEVICE, typename SPEC_INPUT, typename SPEC_OUTPUT>
+    void argmax_col_wise(DEVICE& device, Matrix<SPEC_INPUT>& input, Matrix<SPEC_OUTPUT>& output){
+        static_assert(SPEC_INPUT::ROWS == SPEC_OUTPUT::ROWS);
+        static_assert(SPEC_OUTPUT::COLS == 1);
+        using T = typename SPEC_INPUT::T;
+        using TI = typename DEVICE::index_t;
+
+        for(TI col_i = 0; col_i < SPEC_INPUT::COLS; col_i++){
+            T max = 0;
+            TI argmax = 0;
+            for(TI row_i = 0; row_i < SPEC_INPUT::ROWS; row_i++){
+                if(col_i == 0){
+                    max = get(input, row_i, col_i);
+                    argmax = row_i;
+                }
+                else{
+                    T value = get(input, row_i, col_i);
+                    if(value > max){
+                        max = value;
+                        argmax = row_i;
+                    }
+                }
+            }
+            set(output, col_i, 0, argmax);
+        }
+    }
+
+    template <typename DEVICE, typename SPEC_INPUT>
+    typename DEVICE::index_t argmax_col(DEVICE& device, Matrix<SPEC_INPUT>& input){
+        static_assert(SPEC_INPUT::COL == 1);
+        using T = typename SPEC_INPUT::T;
+        using TI = typename DEVICE::index_t;
+        MatrixStatic<matrix::Specification<TI, TI, 1, 1>> output;
+        malloc(device, output);
+        argmax_col_wise(device, input, output);
+        return get(output, 0, 0);
+    }
 }
 #endif

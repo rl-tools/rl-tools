@@ -226,7 +226,7 @@ namespace backprop_tools {
         static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == INPUT_SPEC::ROWS);
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, TARGET_SPEC>);
         forward(device, network, input);
-        nn::loss_functions::d_mse_d_x(device, network.output_layer.output, target, buffers.d_output, loss_weight);
+        nn::loss_functions::mse::gradient(device, network.output_layer.output, target, buffers.d_output, loss_weight);
         backward(device, network, input, buffers.d_output, buffers.d_input, buffers);
     }
 

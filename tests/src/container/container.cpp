@@ -251,11 +251,66 @@ void test_max_stochastic(){
         }
     }
 }
-
 TEST(BACKPROP_TOOLS_TEST_CONTAINER, MAX_STOCHASTIC) {
     test_max_stochastic<10, 10>();
     test_max_stochastic<10, 1000>();
     test_max_stochastic<1, 1>();
     test_max_stochastic<1, 10>();
     test_max_stochastic<10, 1>();
+}
+
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, ARGMAX_DETERMINISTIC) {
+    using DEVICE = bpt::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    constexpr int DIM = 11;
+    DEVICE device;
+    {
+        T test[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+        auto m = bpt::wrap<DEVICE, T, DIM>(device, test);
+        bpt::print(device, m);
+        TI am = bpt::argmax_row(device, m);
+        ASSERT_FLOAT_EQ(am, 10);
+    }
+    {
+        T test[] = {1, 2, 3, 4, 50, 6, 7, 8, 9, 10, 11};
+        auto m = bpt::wrap<DEVICE, T, DIM>(device, test);
+        bpt::print(device, m);
+        TI am = bpt::argmax_row(device, m);
+        ASSERT_FLOAT_EQ(am, 4);
+    }
+}
+
+template <int ROWS, int COLS>
+void test_argmax_stochastic(){
+    using DEVICE = bpt::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    constexpr int DIM = 11;
+    DEVICE device;
+    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, ROWS, COLS>> m;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, ROWS, 1>> am;
+    bpt::malloc(device, m);
+    bpt::malloc(device, am);
+    for(TI test_i = 0; test_i < 10; test_i++){
+        bpt::randn(device, m, rng);
+        bpt::argmax_row_wise(device, m, am);
+        for(TI row_i = 0; row_i < ROWS; row_i++){
+            T row_max = get(m, row_i, get(am, row_i, 0));
+            for(TI col_i = 0; col_i < COLS; col_i++){
+                if(!(get(m, row_i, col_i) <= row_max)){
+                    bpt::print(device, m);
+                }
+                ASSERT_TRUE(get(m, row_i, col_i) <= row_max);
+            }
+        }
+    }
+}
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, ARGMAX_STOCHASTIC) {
+    test_argmax_stochastic<10, 10>();
+    test_argmax_stochastic<10, 1000>();
+    test_argmax_stochastic<1, 1>();
+    test_argmax_stochastic<1, 10>();
+    test_argmax_stochastic<10, 1>();
 }

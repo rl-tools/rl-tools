@@ -19,7 +19,7 @@ with h5py.File("mnist.hdf5", "w") as f:
 
         images_np = np.stack(image_list)
         images_np = images_np.reshape((images_np.shape[0], -1))
-        labels_np = np.stack(label_list)
+        labels_np = np.array(label_list, dtype=np.uint64).reshape((-1, 1))
         g = f.create_group(split)
         g.create_dataset("inputs", data=images_np)
         g.create_dataset("labels", data=labels_np)
