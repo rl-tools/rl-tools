@@ -20,7 +20,7 @@ Build the nn_mnist_training target which trains to classify the MNIST digit data
 ```
 cmake --build . --target nn_mnist_training -j$(nproc)
 ```
-Run the built binary. This will train a fully connected neural network with two hidden layers of 50 neurons with ReLU activations each. The input are flattened `28*28=784` dimensional images from the MNIST handwritten digit dataset.
+Run the built binary. This will train a fully connected neural network with two hidden layers of 50 neurons with ReLU activations each. The input are flattened `28*28=784` dimensional images from the MNIST handwritten digit dataset. After the epoch we classify and print a number of examples from the held-out validation set on the console. The input is displayed using ASCII art which consists of the predicted class (digit) of the trained classifier.
 ```
 BACKPROP_TOOLS_NN_MNIST_DATA_FILE=mnist.hdf5 ./src/nn/mnist/nn_mnist_training
 ```
