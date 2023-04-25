@@ -1,1 +1,2 @@
-add_subdirectory(rl/environments)
+add_subdirectory(nn)
+add_subdirectory(rl)

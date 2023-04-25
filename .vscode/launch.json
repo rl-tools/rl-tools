@@ -16,6 +16,15 @@
             "program": "tests/src/rl/environments/mujoco/ant/training_curve_from_tb.py",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "examples.docker.00_basic_mnist.fetch_and_convert_mnist",
+            "type": "python",
+            "request": "launch",
+            "program": "fetch_and_convert_mnist.py",
+            "cwd": "${workspaceFolder}/examples/docker/00_basic_mnist",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
