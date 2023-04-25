@@ -22,6 +22,7 @@ constexpr TI NUM_LAYERS = 3;
 constexpr TI HIDDEN_DIM = 50;
 constexpr TI DATASET_SIZE_TRAIN = 60000;
 constexpr TI DATASET_SIZE_VAL = 10000;
+constexpr TI VALIDATION_LIMIT = 50;
 using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, 1>;
 
 using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T>;
@@ -109,7 +110,7 @@ int main(){
 
         T val_loss = 0;
         T accuracy = 0;
-        for (int sample_i=0; sample_i < DATASET_SIZE_VAL; sample_i++){
+        for (int sample_i=0; sample_i < VALIDATION_LIMIT; sample_i++){
             auto input = bpt::row(device, x_val, sample_i);
             auto output = bpt::row(device, y_val, sample_i);
 
@@ -123,15 +124,11 @@ int main(){
                 }
                 std::cout << std::endl;
             }
-            bpt::logging::text(device, device.logger, "val sample i:", sample_i, "predicted label:", predicted_label);
             accuracy += predicted_label == bpt::get(output, 0, 0);
-            if(sample_i >= 20){
-                break;
-            }
         }
         val_loss /= DATASET_SIZE_VAL;
-        accuracy /= DATASET_SIZE_VAL;
-        bpt::logging::text(device, device.logger, "acc:", accuracy);
+        accuracy /= VALIDATION_LIMIT;
+        bpt::logging::text(device, device.logger, "Validation accuracy: ", accuracy);
     }
     return 0;
 }

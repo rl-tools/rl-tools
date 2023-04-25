@@ -13,6 +13,8 @@ FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update
 RUN apt-get install -y cmake build-essential
+RUN apt-get install -y libhdf5-dev libboost-all-dev
+RUN apt-get install -y protobuf-compiler libprotobuf-dev
 RUN mkdir build
 COPY --from=BUILD /mnist.hdf5 /build/mnist.hdf5
 WORKDIR /build
