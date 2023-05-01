@@ -10,8 +10,7 @@
 </div>
 
 <div align="center">
-  <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_training.gif" alt="animated" height='400'/>
-  <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_inference.gif" alt="animated" height='200'/>
+  <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_inference.gif" alt="animated" height='300'/>
 </div>
 
 
