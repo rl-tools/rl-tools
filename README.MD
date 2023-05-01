@@ -1,19 +1,20 @@
 <div align="center">
   <center><h1><span style="color:#7DB9B6">BackpropTools</span>: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h1></center>
 </div>
+<div align="center">
+    Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">BackpropTools</span> PPO
+</div>
 
 <div align="center">
   <img src="https://github.com/BackpropTools/media/blob/master/backprop_tools_mujoco_ant_ppo.gif" alt="animated" width='600'/>
 </div>
 
 <div align="center">
-  <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_training.gif" alt="animated" width='600'/>
-  <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_inference.gif" alt="animated" width='600'/>
+  <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_training.gif" alt="animated" height='400'/>
+  <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_inference.gif" alt="animated" height='400'/>
 </div>
 
-<div align="center">
-    Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">BackpropTools</span> PPO
-</div>
+
 
 
 
