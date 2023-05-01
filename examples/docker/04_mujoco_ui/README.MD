@@ -1,6 +1,6 @@
 ### Go to the current directory
 ```
-cd backprop_tools/examples/docker/03_cuda
+cd backprop_tools/examples/docker/04_cuda
 ```
 ### Building the environment
 This docker image builds on top of the `backprop_tools:cuda` which is built in [02_cuda](../02_cuda/README.MD) and tagged as `backprop_tools:mujoco_ui`
