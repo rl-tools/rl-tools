@@ -1,6 +1,6 @@
 Change to the current directory
 ```
-cd backprop_tools/examples/docker/01_mkl
+cd backprop_tools/examples/docker/02_mkl
 ```
 Build the docker image (saved as `backprop_tools:mkl`)
 ```
