@@ -10,8 +10,7 @@
     Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">BackpropTools</span> PPO
 </div>
 
-## Naming Convention
-We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `CAMEL_CASE` for compile-time constants. 
+
 
 ## Getting Started
 ### Docker
@@ -67,3 +66,6 @@ CUDA_PATH=/opt/cuda-12.1 MKL_ROOT=/opt/intel/oneapi/mkl/2023.1.0 cmake .. \
 -DBACKPROP_TOOLS_TESTS_ENABLE_EIGEN:BOOL=ON
 cmake --build . -j$(nproc)
 ```
+
+## Naming Convention
+We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `CAMEL_CASE` for compile-time constants. 
