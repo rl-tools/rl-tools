@@ -8,7 +8,7 @@
 </br>
 
 <div align="center">
-  <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_inference.gif" alt="animated" height='300'/>
+  <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_inference.gif" alt="animated" width='600'/>
 </div>
 <div align="center">
     Both trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">BackpropTools</span> PPO
