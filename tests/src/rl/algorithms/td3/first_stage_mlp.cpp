@@ -231,7 +231,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         }
         bpt::set(target, 0, 0, 1);
         bpt::evaluate(device, actor_critic.critic_1, input, output);
-        loss += bpt::nn::loss_functions::mse(device, output, target);
+        loss += bpt::nn::loss_functions::mse::evaluate(device, output, target);
 
         bpt::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
         std::cout << "output: " << bpt::get(actor_critic.critic_1.output_layer.output, 0, 0) << std::endl;

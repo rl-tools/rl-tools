@@ -368,7 +368,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                    DTYPE desired_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
 //                    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> desired_action_matrix = {desired_action};
 //                    bpt::evaluate(device, post_actor, observation_matrix, desired_action_matrix);
-//                    diff += bpt::nn::loss_functions::mse(device, current_action_matrix, desired_action_matrix, DTYPE(1)/ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
+//                    diff += bpt::nn::loss_functions::mse::evaluate(device, current_action_matrix, desired_action_matrix, DTYPE(1)/ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
 //                }
 ////                std::cout << "action mse: " << diff << std::endl;
 //            }

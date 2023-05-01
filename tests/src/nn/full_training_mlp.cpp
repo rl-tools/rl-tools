@@ -112,8 +112,8 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
                 T d_loss_d_output[OUTPUT_DIM];
                 bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
-                bpt::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
-                loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
+                bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
+                loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
 
                 T d_input[INPUT_DIM];
                 bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
@@ -150,7 +150,7 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
             bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
             output_matrix._data = output;
             bpt::forward(device, network, input_matrix);
-            val_loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, T(1)/batch_size);
+            val_loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/batch_size);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);

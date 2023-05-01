@@ -241,7 +241,7 @@ namespace backprop_tools{
                 }
                 backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, ppo_buffers.d_batch_observations, actor_buffers);
                 forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
-                T critic_loss = nn::loss_functions::mse(device, ppo.critic.output_layer.output, batch_target_values);
+                T critic_loss = nn::loss_functions::mse::evaluate(device, ppo.critic.output_layer.output, batch_target_values);
                 add_scalar(device, device.logger, "ppo/critic_loss", critic_loss);
                 update(device, ppo.actor, actor_optimizer);
                 update(device, ppo.critic, actor_optimizer); // todo: evaluate switch to critic_optimizer

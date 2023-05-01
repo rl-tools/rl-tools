@@ -77,7 +77,7 @@ protected:
         DTYPE d_loss_d_output[OUTPUT_DIM];
         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t>>> d_loss_d_output_matrix;
         d_loss_d_output_matrix._data = d_loss_d_output;
-        bpt::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix);
+        bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix);
 //        bpt::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output.data, output, d_loss_d_output);
         DTYPE d_input[INPUT_DIM];
         bpt::zero_gradient(device, network);
@@ -225,7 +225,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     DTYPE d_loss_d_output[OUTPUT_DIM];
     bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
     d_loss_d_output_matrix._data = d_loss_d_output;
-    bpt::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix);
+    bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix);
     DTYPE d_input[INPUT_DIM];
     bpt::zero_gradient(device, network);
     bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
@@ -320,8 +320,8 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
             DTYPE d_loss_d_output[OUTPUT_DIM];
             bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix;
             d_loss_d_output_matrix._data = d_loss_d_output;
-            bpt::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, DTYPE(1)/batch_size);
-            loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
+            bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, DTYPE(1)/batch_size);
+            loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
 
             DTYPE d_input[INPUT_DIM];
             bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix;
@@ -379,8 +379,8 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
                 DTYPE d_loss_d_output[OUTPUT_DIM];
                 bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
-                bpt::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, DTYPE(1)/batch_size);
-                loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
+                bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, DTYPE(1)/batch_size);
+                loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
 
                 DTYPE d_input[INPUT_DIM];
                 bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix;
@@ -484,8 +484,8 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
                 DTYPE d_loss_d_output[OUTPUT_DIM];
                 bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
-                bpt::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, DTYPE(1)/batch_size);
-                loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
+                bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, DTYPE(1)/batch_size);
+                loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
 
                 DTYPE d_input[INPUT_DIM];
                 bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix;
@@ -515,7 +515,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
             bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
             output_matrix._data = output;
             bpt::forward(device, network, input_matrix);
-            val_loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
+            val_loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);
@@ -586,8 +586,8 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
                 DTYPE d_loss_d_output[OUTPUT_DIM];
                 bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
-                bpt::nn::loss_functions::d_mse_d_x(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, DTYPE(1)/batch_size);
-                loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
+                bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, DTYPE(1)/batch_size);
+                loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
 
                 DTYPE d_input[INPUT_DIM];
                 bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> d_input_matrix;
@@ -618,7 +618,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
             output_matrix._data = output;
             bpt::forward(device, network, input_matrix);
 //            bpt::forward(device, network, input);
-            val_loss += bpt::nn::loss_functions::mse(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
+            val_loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);
