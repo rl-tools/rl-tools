@@ -1,15 +1,15 @@
 ### This examples shows the most basic example of using BackpropTools without any dependencies.
 You can verify the lack of dependencies in the [Dockerfile](Dockerfile) used for this example.
 ```
-cd backprop_tools/examples/docker/00_basic
+cd backprop_tools/examples/docker/01_basic_rl
 ```
-Build the docker image (tagged as `backprop_tools:basic`)
+Build the docker image (tagged as `backprop_tools:basic_rl`)
 ```
 ./build.sh
 ```
 Run the image just built (mounting the source code from the host in readonly mode)
 ```
-docker run --rm -it --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly backprop_tools:basic
+docker run --rm -it --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly backprop_tools:basic_rl
 ```
 Configure the BackpropTools using CMake
 ```

@@ -22,6 +22,10 @@
 
 
 ## Getting Started
+### Cloning the repository
+```
+git clone https://github.com/BackpropTools/BackpropTools.git
+```
 ### Docker
 #### Mandatory
 The most deterministic way to get started using BackpropTools is to use Docker. Mandatory prerequesite for this is:

@@ -1,6 +1,6 @@
 Change to the current directory
 ```
-cd backprop_tools/examples/docker/03_wasm
+cd backprop_tools/examples/docker/05_wasm
 ```
 Build the docker image (which is tagged as `backprop_tools:wasm`)
 ```
