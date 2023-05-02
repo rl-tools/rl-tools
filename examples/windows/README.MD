@@ -31,6 +31,7 @@ After installing MKL use `CMD.exe` to source the `setvars.bat` (which sets the s
 ```
 C:\Program Files (x86)\Intel\oneAPI\setvars.bat
 ```
+Sourcing MKL is importang because even if CMake can find the libraries during the build, the execution will fail because it can not find the libraries at runtime.
 Now configure the BackpropTools to use MKL:
 ```
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
