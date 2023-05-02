@@ -3,7 +3,7 @@
 #include <backprop_tools/nn_models/operations_cpu.h>
 #include <backprop_tools/nn_models/persist.h>
 namespace bpt = backprop_tools;
-#include "parameters_ppo.h"
+#include "../../../../../src/rl/environments/mujoco/ant/ppo/parameters.h"
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else

@@ -20,7 +20,7 @@ Alternatively: you can enable Tensorboard using the `BACKPROP_TOOLS_ENABLE_TENSO
 cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
 ```
 -->
-Build the test_rl_algorithms_td3_full_training_standalone target which trains the Pendulum-v1 environment using TD3 on the CPU
+Build the rl_algorithms_td3_full_training_standalone target which trains the Pendulum-v1 environment using TD3 on the CPU
 ```
 cmake --build . --target rl_environments_pendulum_td3_training_standalone -j$(nproc)
 ```

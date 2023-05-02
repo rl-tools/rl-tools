@@ -242,6 +242,7 @@ void run(){
             bpt::free(device, env);
         }
         bpt::free(device, evaluation_env);
+        bpt::destruct(device, device.logger);
     }
 
 }

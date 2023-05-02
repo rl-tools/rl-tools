@@ -271,5 +271,7 @@ void run(){
     bpt::free(device, actor_critic);
     bpt::free(device, observations_mean);
     bpt::free(device, observations_std);
+
+    bpt::destruct(device, device.logger);
 }
 

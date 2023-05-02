@@ -24,7 +24,7 @@
 ## Getting Started
 ### Cloning the repository
 ```
-git clone https://github.com/BackpropTools/BackpropTools.git
+git clone --recursive https://github.com/BackpropTools/BackpropTools.git
 ```
 ### Docker
 #### Mandatory

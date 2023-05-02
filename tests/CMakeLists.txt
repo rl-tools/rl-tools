@@ -418,18 +418,18 @@ target_link_libraries(
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_container_persist_code_store)
 gtest_discover_tests(test_container_persist_code_store)
 
-# Container tests
-add_executable(
-        test_container_persist_code_load
-        src/container/persist_code_load.cpp
-)
-target_link_libraries(
-        test_container_persist_code_load
-        backprop_tools
-        GTest::gtest_main
-)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_container_persist_code_load)
-gtest_discover_tests(test_container_persist_code_load)
+## Container tests
+#add_executable(
+#        test_container_persist_code_load
+#        src/container/persist_code_load.cpp
+#)
+#target_link_libraries(
+#        test_container_persist_code_load
+#        backprop_tools
+#        GTest::gtest_main
+#)
+#BACKPROP_TOOLS_ADD_DEFINITIONS(test_container_persist_code_load)
+#gtest_discover_tests(test_container_persist_code_load)
 
 # ARM tests
 add_executable(

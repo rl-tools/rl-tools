@@ -15,7 +15,7 @@ Configure the BackpropTools using CMake
 ```
 cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release
 ```
-Build the test_rl_algorithms_td3_full_training_standalone target which trains the Pendulum-v1 environment using TD3 on the CPU
+Build the rl_algorithms_td3_full_training_standalone target which trains the Pendulum-v1 environment using TD3 on the CPU
 ```
 cmake --build . --target rl_environments_pendulum_td3_training_standalone -j$(nproc)
 ```

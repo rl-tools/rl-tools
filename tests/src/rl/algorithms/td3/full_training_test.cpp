@@ -1,4 +1,4 @@
-#include "full_training.cpp"
+#include "../../../../../src/rl/environments/pendulum/td3/cpu/training.h"
 #include <gtest/gtest.h>
 #ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG
 TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING_DEBUG) {
