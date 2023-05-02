@@ -21,14 +21,16 @@
 
 
 
+## Content
+1. [Getting Started](#getting-started)
+   1. [Cloning the repository](#cloning-the-repository)
+   2. [Docker](#docker)
+   3. [Unix](#unix)
+      1. [Linux](#linux)
+      2. [macOS](#macos)
+   4. [Windows](#windows)
+2. [Naming Convention](#naming-convention)
 ## Getting Started
-### Content
-1. [Cloning the repository](#cloning-the-repository)
-2. [Docker requirements](#docker)
-    1. [Mandatory](#mandatory)
-    2. [Optional](#optional)
-3. [Unix native](#unix)
-4. 
 ### Cloning the repository
 ```
 git clone --recursive https://github.com/BackpropTools/BackpropTools.git
@@ -43,42 +45,8 @@ For maximum performance and malleability for research and development we recomme
 In the case of Linux the dependencies are well-defined in the Dockerfiles of the [Docker examples](examples/docker/README.MD).
 #### macOS
 
-## CLion
-#### Examplary settings for a Intel-based machine with a CUDA-compatible GPU
-CMake options:
-```
--DBACKPROP_TOOLS_ENABLE_TESTS:BOOL=ON
--DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
--DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON
--DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
--DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
--DBACKPROP_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON
--DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
--DBACKPROP_TOOLS_TEST_MACHINE_LENOVO_P1:BOOL=ON
--DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL=ON
--DBACKPROP_TOOLS_TESTS_ENABLE_EIGEN:BOOL=ON
-```
-Environment:
-```
-CUDA_PATH=/opt/cuda-12.1; MKL_ROOT=/opt/intel/oneapi/mkl/2023.1.0/
-```
-
-## Building
-```
-mkdir build
-cd build
-CUDA_PATH=/opt/cuda-12.1 MKL_ROOT=/opt/intel/oneapi/mkl/2023.1.0 cmake .. \
--DBACKPROP_TOOLS_ENABLE_TESTS:BOOL=ON \
--DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON \
--DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON \
--DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON \
--DBACKPROP_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON \
--DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON \
--DBACKPROP_TOOLS_TEST_MACHINE_LENOVO_P1:BOOL=ON \
--DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL=ON \
--DBACKPROP_TOOLS_TESTS_ENABLE_EIGEN:BOOL=ON
-cmake --build . -j$(nproc)
-```
+### Windows
+tbd
 
 ## Naming Convention
 We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `CAMEL_CASE` for compile-time constants. 
