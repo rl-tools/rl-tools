@@ -41,9 +41,7 @@ The most deterministic way to get started using BackpropTools is to use Docker. 
 
 ### Unix
 For maximum performance and malleability for research and development we recommend to run BackpropTools natively on e.g. Linux or macOS. Since BackpropTools itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
-#### Linux
-In the case of Linux the dependencies are well-defined in the Dockerfiles of the [Docker examples](examples/docker/README.MD).
-#### macOS
+[Unix instructions & examples](examples/unix/README.MD)
 
 ### Windows
 tbd
