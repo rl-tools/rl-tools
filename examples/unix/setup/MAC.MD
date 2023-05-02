@@ -10,7 +10,7 @@ Furthermore `cmake` is required to configure the build. On macOS, this can be in
 
 With this setup you can run the basic rl example:
 
-[__01 - Basic RL__](01_basic_rl/README.MD): Dependency-free RL
+[__00 - Basic RL__: Dependency-free RL](../examples/00_BASIC_RL.MD)
 
 ### Extended Requirements
 Note: Tested on macOS Monterey using the specified versions (it is highly likely that it also works with the most recent (minor) versions)
@@ -34,8 +34,6 @@ The MuJoCo UI requires `glfw3` which can be installed on macOS using `brew`:
 brew install glfw@3.3.8
 ```
 
-From here you can continue with the instructions for the following specific examples:
-* [__02 - Accelerate__](02_blas/README.MD): Examples running on CPU but accelerated using Intel MKL
-* [__03 - CUDA__](03_cuda/README.MD): Examples running on the GPU
-* [__04 - MuJoCo UI__](04_mujoco_ui/README.MD): Using checkpoints saved from the previous example to visualize the trained policy in the MuJoCo Simulator
-* [__05 - WASM__](05_wasm/README.MD): Examples running in the browser using WebAssembly
+From here you can continue with the instructions for the accelerated examples:
+
+[__01 - BLAS__: Accelerated RL](../examples/01_BLAS.MD)

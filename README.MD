@@ -22,26 +22,26 @@
 
 
 ## Getting Started
+### Content
+1. [Cloning the repository](#cloning-the-repository)
+2. [Docker requirements](#docker)
+    1. [Mandatory](#mandatory)
+    2. [Optional](#optional)
+3. [Unix native](#unix)
+4. 
 ### Cloning the repository
 ```
 git clone --recursive https://github.com/BackpropTools/BackpropTools.git
 ```
 ### Docker
-#### Mandatory
-The most deterministic way to get started using BackpropTools is to use Docker. Mandatory prerequesite for this is:
-1. Docker is installed ([official installation instructions](https://docs.docker.com/engine/install/))
+The most deterministic way to get started using BackpropTools is to use Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
+[Docker instructions & examples](examples/docker/README.MD)
 
-#### Optional 
-Furthermore, if you want to use GPU acceleration you need the NVIDIA Docker runtime to be able to acceess the GPU from within the container
-1. NVIDIA Container Toolkit ([official installation instructions](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html))
-2. And an up to date NVIDIA driver
-    * In the examples we are e.g. using CUDA 11.x hence a driver >= 450.80.02 is required
-
-For each example we provide a readme file with a handful of commands to build the container, start it and to build and run the code inside. In our view this is prefarable to hiding the commands in a script because by exposing them the user can understand the different steps, has more agency and can directly start tinkering with the code.
-
-Once these prequesites are installed you can continue with the instructions for the particular examples [here](examples/README.MD).
-
-
+### Unix
+For maximum performance and malleability for research and development we recommend to run BackpropTools natively on e.g. Linux or macOS. Since BackpropTools itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
+#### Linux
+In the case of Linux the dependencies are well-defined in the Dockerfiles of the [Docker examples](examples/docker/README.MD).
+#### macOS
 
 ## CLion
 #### Examplary settings for a Intel-based machine with a CUDA-compatible GPU
