@@ -44,7 +44,7 @@ For maximum performance and malleability for research and development we recomme
 [Unix instructions & examples](examples/unix/README.MD)
 
 ### Windows
-tbd
+[Windows instructions & examples](examples/windows/README.MD)
 
 ## Naming Convention
 We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `CAMEL_CASE` for compile-time constants. 
