@@ -12,10 +12,16 @@ message("C++ Compiler: ${CMAKE_CXX_COMPILER}")
 option(BACKPROP_TOOLS_ENABLE_TESTS "Build the unit tests when enabled." off)
 
 # To obtain MKL: sudo apt install intel-oneapi-mkl-devel
+option(BACKPROP_TOOLS_ENABLE_HDF5 "Enable HDF5 to allow persisting data to disk" OFF)
+option(BACKPROP_TOOLS_ENABLE_TENSORBOARD "Enable the Tensorboard logging interface" OFF)
 option(BACKPROP_TOOLS_BACKEND_ENABLE_MKL "Enable the MKL gemm library, only available on Intel CPUs" OFF)
 option(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE "Enable the Accelerate gemm library, only available on Apple CPUs" OFF)
 option(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA "Enable Nvidia CUDA" OFF)
 option(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO "Enable MuJoCo" OFF)
+
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 
 add_library(backprop_tools INTERFACE)
@@ -63,6 +69,7 @@ if(BACKPROP_TOOLS_ENABLE_HDF5)
 endif()
 
 if(BACKPROP_TOOLS_ENABLE_TENSORBOARD)
+	find_package(Protobuf REQUIRED)
     add_subdirectory(external/tensorboard EXCLUDE_FROM_ALL)
 endif()
 
@@ -86,9 +93,6 @@ function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)
     endif()
     if(BACKPROP_TOOLS_ENABLE_TENSORBOARD)
         target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_ENABLE_TENSORBOARD)
-    endif()
-    if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
-        target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
     endif()
 
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")

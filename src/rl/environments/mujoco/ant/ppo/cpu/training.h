@@ -1,7 +1,7 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
 #include <backprop_tools/nn_models/operations_cpu.h>
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 #include <backprop_tools/nn_models/persist.h>
 #endif
 namespace bpt = backprop_tools;
@@ -17,13 +17,15 @@ namespace bpt = backprop_tools;
 #endif
 #include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
 #include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 #include <backprop_tools/rl/components/running_normalizer/persist.h>
 #endif
 #include <backprop_tools/rl/utils/evaluation.h>
 
 #include <filesystem>
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
+#include <sstream>
+#include <string>
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 #include <highfive/H5File.hpp>
 #endif
 
