@@ -6,17 +6,6 @@
 #include "operations_cpu.h"
 namespace backprop_tools{
     namespace logging::tensorboard{
-        std::string sanitize_file_name(const std::string &input) {
-            std::string output = input;
-
-            const std::string invalid_chars = R"(<>:\"/\|?*)";
-
-            std::replace_if(output.begin(), output.end(), [&invalid_chars](const char &c) {
-                return invalid_chars.find(c) != std::string::npos;
-            }, '_');
-
-            return output;
-        }
     }
     template <typename DEVICE>
     void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, std::string logs_dir, std::string name){
@@ -25,7 +14,7 @@ namespace backprop_tools{
         if (!std::filesystem::is_directory(logs_dir.c_str()) || !std::filesystem::exists(logs_dir.c_str())) {
             std::filesystem::create_directory(logs_dir.c_str());
         }
-        std::filesystem::path log_dir = std::filesystem::path(logs_dir) / logging::tensorboard::sanitize_file_name(name);
+        std::filesystem::path log_dir = std::filesystem::path(logs_dir) / name;
         if (!std::filesystem::is_directory(log_dir.c_str()) || !std::filesystem::exists(log_dir.c_str())) {
             std::filesystem::create_directory(log_dir.c_str());
         }

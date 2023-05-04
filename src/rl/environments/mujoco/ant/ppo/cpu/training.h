@@ -64,12 +64,24 @@ constexpr bool ENABLE_EVALUATION = true;
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
-#else
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+#else
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 #endif
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
+
+std::string sanitize_file_name(const std::string &input) {
+    std::string output = input;
+
+    const std::string invalid_chars = R"(<>:\"/\|?*)";
+
+    std::replace_if(output.begin(), output.end(), [&invalid_chars](const char &c) {
+        return invalid_chars.find(c) != std::string::npos;
+    }, '_');
+
+    return output;
+}
 
 template <typename DEVICE::index_t NUM_RUNS, typename DEVICE::index_t NUM_STEPS = 2500>
 void run(){
@@ -99,8 +111,10 @@ void run(){
 
             std::ostringstream oss;
             oss << std::put_time(tm, "%FT%T%z");
-            run_name = oss.str() + "_" + run_name;
+            run_name = sanitize_file_name(oss.str()) + "_" + run_name;
         }
+        std::cout << "Run " << run_i << " of " << NUM_RUNS << " with seed " << seed << " and name " << run_name << std::endl;
+        std::cout << "Checkpoints: " << (ACTOR_ENABLE_CHECKPOINTS ? "enabled" : "disabled") << std::endl;
 
         DEVICE::SPEC::LOGGING logger;
         DEVICE device;
@@ -174,7 +188,7 @@ void run(){
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
                 try{
-                    auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
                     bpt::save(device, ppo.actor, actor_file.createGroup("actor"));
                     bpt::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
                 }

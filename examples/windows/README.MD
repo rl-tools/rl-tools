@@ -107,6 +107,14 @@ In the repository directory:
 conan install . --output-folder=conan_debug --build=missing --settings=build_type=Debug
 conan install . --output-folder=conan_release --build=missing --settings=build_type=Release
 ```
+### VS Code
+* Install the CMake Tools extension
+* `ctrl-shift p` => `CMake: Select Configure Preset` => select the conan debug or release preset
+* `ctrl-shift p` => `CMake: Set Build Preset` => select the build preset in accordance to the configuration preset 
+* `ctrl-shift p` => `CMake: Set Debug Target` => select the desired target e.g. `rl_environments_mujoco_ant_training_ppo_standalone`
+* `ctro-shift p` => `CMake: Debug`
+
+### CLI
 ```
 cmake .. -G "Visual Studio 15 2017" -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
 cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
