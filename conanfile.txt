@@ -1,6 +1,7 @@
 [requires]
 highfive/2.7.1
 protobuf/3.21.9
+glfw/3.3.8
 
 [tool_requires]
 cmake/3.26.3
