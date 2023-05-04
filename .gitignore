@@ -32,3 +32,4 @@
 /.vs
 /out
 /conan
+/CMakeUserPresets.json
