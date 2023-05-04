@@ -8,8 +8,9 @@ target_link_libraries(
         backprop_tools
         HighFive
         tensorboard_logger
-        mujoco
 )
+# todo: link mujoco like this everywhere
+BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_training_ppo_standalone)
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_training_ppo_standalone)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_mujoco_ant_training_ppo_standalone)
 

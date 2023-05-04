@@ -18,10 +18,7 @@ option(BACKPROP_TOOLS_BACKEND_ENABLE_MKL "Enable the MKL gemm library, only avai
 option(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE "Enable the Accelerate gemm library, only available on Apple CPUs" OFF)
 option(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA "Enable Nvidia CUDA" OFF)
 option(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO "Enable MuJoCo" OFF)
-
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+option(BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN "Use HighFive from conan (don't use the submodule from /external)" OFF)
 
 
 add_library(backprop_tools INTERFACE)
@@ -65,12 +62,18 @@ if(BACKPROP_TOOLS_ENABLE_CLI11)
 endif()
 
 if(BACKPROP_TOOLS_ENABLE_HDF5)
-    add_subdirectory(external/highfive EXCLUDE_FROM_ALL)
+    if(BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN)
+        find_package(HighFive REQUIRED)
+    else()
+        add_subdirectory(external/highfive EXCLUDE_FROM_ALL)
+    endif()
 endif()
 
 if(BACKPROP_TOOLS_ENABLE_TENSORBOARD)
 	find_package(Protobuf REQUIRED)
     add_subdirectory(external/tensorboard EXCLUDE_FROM_ALL)
+    get_target_property(library_type tensorboard_logger TYPE)
+    message(STATUS "Tensorboard library type: ${library_type}")
 endif()
 
 if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
@@ -82,6 +85,15 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     set(MUJOCO_BUILD_TESTS OFF)
     set(MUJOCO_TEST_PYTHON_UTIL OFF)
     add_subdirectory(external/mujoco)
+    function (BACKPROP_TOOLS_TARGET_LINK_MUJOCO target)
+        target_link_libraries(${target} PRIVATE mujoco)
+        if(WIN32)
+            add_custom_command(TARGET ${target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:mujoco>
+                    $<TARGET_FILE_DIR:${target}>)
+        endif()
+    endfunction()
 endif()
 
 function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)

@@ -31,3 +31,5 @@
 /build-wasm
 /.vs
 /out
+/conan_debug
+/conan_release

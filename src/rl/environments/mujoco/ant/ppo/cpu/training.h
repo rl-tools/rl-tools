@@ -1,7 +1,7 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
 #include <backprop_tools/nn_models/operations_cpu.h>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 #include <backprop_tools/nn_models/persist.h>
 #endif
 namespace bpt = backprop_tools;
@@ -17,7 +17,7 @@ namespace bpt = backprop_tools;
 #endif
 #include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
 #include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 #include <backprop_tools/rl/components/running_normalizer/persist.h>
 #endif
 #include <backprop_tools/rl/utils/evaluation.h>
@@ -25,7 +25,7 @@ namespace bpt = backprop_tools;
 #include <filesystem>
 #include <sstream>
 #include <string>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 #include <highfive/H5File.hpp>
 #endif
 
@@ -63,7 +63,7 @@ constexpr bool ENABLE_EVALUATION = true;
 #endif
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
-#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 #else
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
@@ -172,7 +172,7 @@ void run(){
                     checkpoint_name = checkpoint_name_ss.str();
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
                 try{
                     auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
                     bpt::save(device, ppo.actor, actor_file.createGroup("actor"));

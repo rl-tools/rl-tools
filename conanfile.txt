@@ -1,0 +1,7 @@
+[requires]
+highfive/2.7.1
+protobuf/3.21.9
+
+[generators]
+CMakeDeps
+CMakeToolchain

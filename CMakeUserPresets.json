@@ -1,0 +1,10 @@
+{
+    "version": 4,
+    "vendor": {
+        "conan": {}
+    },
+    "include": [
+        "C:\\Users\\Jonas.Eschmann\\git\\BackpropTools\\conan\\CMakePresets.json",
+        "C:\\Users\\Jonas.Eschmann\\git\\BackpropTools\\conan_debug\\CMakePresets.json"
+    ]
+}

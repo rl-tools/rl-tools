@@ -5,6 +5,19 @@
 #include <cassert>
 #include "operations_cpu.h"
 namespace backprop_tools{
+    namespace logging::tensorboard{
+        std::string sanitize_file_name(const std::string &input) {
+            std::string output = input;
+
+            const std::string invalid_chars = R"(<>:\"/\|?*)";
+
+            std::replace_if(output.begin(), output.end(), [&invalid_chars](const char &c) {
+                return invalid_chars.find(c) != std::string::npos;
+            }, '_');
+
+            return output;
+        }
+    }
     template <typename DEVICE>
     void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, std::string logs_dir, std::string name){
         assert(logger != nullptr);// "Cannot construct TensorBoard logger on null device");
@@ -12,16 +25,16 @@ namespace backprop_tools{
         if (!std::filesystem::is_directory(logs_dir.c_str()) || !std::filesystem::exists(logs_dir.c_str())) {
             std::filesystem::create_directory(logs_dir.c_str());
         }
-        std::string log_dir = logs_dir + "/" + name;
+        std::filesystem::path log_dir = std::filesystem::path(logs_dir) / logging::tensorboard::sanitize_file_name(name);
         if (!std::filesystem::is_directory(log_dir.c_str()) || !std::filesystem::exists(log_dir.c_str())) {
             std::filesystem::create_directory(log_dir.c_str());
         }
 
-        std::string log_file = log_dir + "/" + std::string("data.tfevents");
-        std::cout << "Logging to " << log_file << std::endl;
+        auto log_file = log_dir / std::string("data.tfevents");
+        std::cout << "Logging to " << log_file.string() << std::endl;
         TensorBoardLoggerOptions opts;
         opts.flush_period_s(1);
-        logger->tb = new TensorBoardLogger(log_file, opts);
+        logger->tb = new TensorBoardLogger(log_file.string(), opts);
     }
     template <typename DEVICE>
     void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger){

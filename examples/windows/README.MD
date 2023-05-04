@@ -31,6 +31,10 @@ After installing MKL use `CMD.exe` to source the `setvars.bat` which sets the se
 ```
 "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
 ```
+Alternatively if you are using PowerShell:
+```
+cmd.exe "/K" '"C:\Program Files (x86)\Intel\oneAPI\setvars.bat" && powershell'
+```
 Now, after moving to the previously created `build` directory, configure the BackpropTools to use MKL:
 Sourcing MKL is importang because even if CMake can find the libraries during the build, the execution will fail because it can not find the libraries at runtime.
 ```
@@ -71,4 +75,48 @@ CMAKE_PREFIX_PATH=C:\Program Files\HDF_Group\HDF5\1.14.0
 #### __Boost__
 Download from e.g. https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_1_82_0.zip
 
+```
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
+```
+
+```
+cmake --build . --config Release --target rl_environments_mujoco_ant_training_ppo_standalone
+```
+
+```
+bin\Release\rl_environments_mujoco_ant_training_ppo_benchmark.exe
+```
+
 #### [NVIDIA CUDA](https://developer.nvidia.com/cuda-downloads) (we tested this on CUDA 12.1)
+
+
+
+## Alternative using VCPKG
+
+```
+ -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake
+```
+
+## Alternative: using conan
+
+```
+conan profile detect --force
+```
+In the repository directory:
+```
+conan install . --output-folder=conan_debug --build=missing --settings=build_type=Debug
+conan install . --output-folder=conan_release --build=missing --settings=build_type=Release
+```
+```
+cmake .. -G "Visual Studio 15 2017" -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
+cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
+```
+```
+cmake --build . --config Release --target rl_environments_mujoco_ant_training_ppo_standalone
+```
+
+Warning: Don't forget to source the MKL location (like described beforehand) before running it
+
+```
+.\bin\Release\rl_environments_mujoco_ant_training_ppo_standalone.exe
+```
