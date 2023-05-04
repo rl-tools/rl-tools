@@ -104,8 +104,8 @@ conan profile detect --force
 ```
 In the repository directory:
 ```
-conan install . --output-folder=conan_debug --build=missing --settings=build_type=Debug
-conan install . --output-folder=conan_release --build=missing --settings=build_type=Release
+conan install . --output-folder=conan --build=missing --settings=build_type=Debug
+conan install . --output-folder=conan --build=missing --settings=build_type=Release
 ```
 ### VS Code
 * Install the CMake Tools extension
@@ -113,6 +113,7 @@ conan install . --output-folder=conan_release --build=missing --settings=build_t
 * `ctrl-shift p` => `CMake: Set Build Preset` => select the build preset in accordance to the configuration preset 
 * `ctrl-shift p` => `CMake: Set Debug Target` => select the desired target e.g. `rl_environments_mujoco_ant_training_ppo_standalone`
 * `ctro-shift p` => `CMake: Debug`
+* Note: Make sure not to build while the target is running (running the executable seems to prevent the file to be overwritten by the linker)
 
 ### CLI
 ```

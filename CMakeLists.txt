@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
+# INTERPROCEDURAL_OPTIMIZATION is enforced when enabled.
+set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
+# Avoid BUILD_SHARED_LIBS getting overridden by an option() in ccd.
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 project(backprop_tools)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -20,6 +24,7 @@ option(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA "Enable Nvidia CUDA" OFF)
 option(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO "Enable MuJoCo" OFF)
 option(BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN "Use HighFive from conan (don't use the submodule from /external)" OFF)
 
+set(BUILD_SHARED_LIBS OFF)
 
 add_library(backprop_tools INTERFACE)
 target_include_directories(backprop_tools INTERFACE include)
@@ -94,6 +99,8 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
                     $<TARGET_FILE_DIR:${target}>)
         endif()
     endfunction()
+    # MuJoCo is build as a shared library and bleeds the configuration to other targets
+    set(BUILD_SHARED_LIBS OFF)
 endif()
 
 function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)

@@ -44,7 +44,7 @@ namespace backprop_tools::rl::environments::mujoco{
     struct Ant{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
-        static_assert(utils::typing::is_same_v<T, mjtNum>);
+        static_assert(backprop_tools::utils::typing::is_same_v<T, mjtNum>);
         using TI = typename SPEC::TI;
         using State = ant::State<SPEC>;
         mjModel* model;

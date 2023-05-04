@@ -1,19 +1,12 @@
 {
-    "version": 3,
-    "vendor": {
-        "conan": {}
-    },
-    "cmakeMinimumRequired": {
-        "major": 3,
-        "minor": 15,
-        "patch": 0
-    },
+    "version": 4,
+    "include": [
+        "conan/CMakePresets.json"
+    ],
     "configurePresets": [
         {
-            "name": "backproptools-conan-debug",
-            "displayName": "'backproptools-conan-debug' config",
-            "description": "'backproptools-conan-debug' configure using 'Visual Studio 17 2022' generator",
-            "generator": "Visual Studio 17 2022",
+            "name": "backprop_tools_mkl_tb_hdf5",
+            "displayName": "backprop_tools: MKL, TensorBoard, HDF5",
             "cacheVariables": {
                 "CMAKE_POLICY_DEFAULT_CMP0091": "NEW",
                 "BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
@@ -22,43 +15,21 @@
                 "BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN:BOOL": "ON",
                 "BACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL": "ON"
             },
-            "toolchainFile": "C:\\Users\\Jonas.Eschmann\\git\\BackpropTools\\conan_debug\\conan_toolchain.cmake",
-            "binaryDir": "C:\\Users\\Jonas.Eschmann\\git\\BackpropTools\\conan_debug"
-        },
-        {
-            "name": "backproptools-conan-release",
-            "displayName": "'backproptools-conan-release' config",
-            "description": "'backproptools-conan-release' configure using 'Visual Studio 17 2022' generator",
-            "generator": "Visual Studio 17 2022",
-            "cacheVariables": {
-                "CMAKE_POLICY_DEFAULT_CMP0091": "NEW",
-                "BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
-                "BACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_HDF5:BOOL": "ON",
-                "BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL": "ON"
-            },
-            "toolchainFile": "C:\\Users\\Jonas.Eschmann\\git\\BackpropTools\\conan_release\\conan_toolchain.cmake",
-            "binaryDir": "C:\\Users\\Jonas.Eschmann\\git\\BackpropTools\\conan_release"
+            "inherits": "conan-default"
         }
     ],
     "buildPresets": [
         {
-            "name": "backproptools-conan-release",
-            "configurePreset": "backproptools-conan-release",
-            "configuration": "Release"
+            "name": "release",
+            "configurePreset": "backprop_tools_mkl_tb_hdf5",
+            "configuration": "Release",
+            "inherits": "conan-release"
         },
         {
-            "name": "backproptools-conan-debug",
-            "configurePreset": "backproptools-conan-debug",
-            "configuration": "Debug"
-        }
-    ],
-    "testPresets": [
-        {
-            "name": "backproptools-conan-release",
-            "configurePreset": "backproptools-conan",
-            "configuration": "Release"
+            "name": "debug",
+            "configurePreset": "backprop_tools_mkl_tb_hdf5",
+            "configuration": "Debug",
+            "inherits": "conan-debug"
         }
     ]
 }
