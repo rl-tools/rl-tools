@@ -2,6 +2,7 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_ANT_H
 
 #include <mujoco/mujoco.h>
+#include <backprop_tools/utils/generic/typing.h>
 
 namespace backprop_tools::rl::environments::mujoco{
     namespace ant{
