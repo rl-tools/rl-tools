@@ -8,6 +8,7 @@
 #include <cmath>
 //#include <algorithm>
 
+
 namespace backprop_tools::math {
 
     template<typename T>
@@ -72,6 +73,10 @@ namespace backprop_tools::math {
     template<typename T>
     T abs(const devices::math::ARM&, T x){
         return std::abs(x);
+    }
+    template<typename T>
+    T nan(const devices::math::ARM&){
+        return nan();
     }
 }
 #endif

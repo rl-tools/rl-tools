@@ -5,6 +5,16 @@
     ],
     "configurePresets": [
         {
+            "name": "backprop_tools_mkl",
+            "displayName": "backprop_tools: MKL",
+            "cacheVariables": {
+                "CMAKE_POLICY_DEFAULT_CMP0091": "NEW",
+                "BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
+                "BACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON"
+            },
+            "inherits": "conan-default"
+        },
+        {
             "name": "backprop_tools_mkl_tb_hdf5",
             "displayName": "backprop_tools: MKL, TensorBoard, HDF5",
             "cacheVariables": {
@@ -19,6 +29,18 @@
         }
     ],
     "buildPresets": [
+        {
+            "name": "release",
+            "configurePreset": "backprop_tools_mkl",
+            "configuration": "Release",
+            "inherits": "conan-release"
+        },
+        {
+            "name": "debug",
+            "configurePreset": "backprop_tools_mkl",
+            "configuration": "Debug",
+            "inherits": "conan-debug"
+        },
         {
             "name": "release",
             "configurePreset": "backprop_tools_mkl_tb_hdf5",

@@ -70,5 +70,9 @@ namespace backprop_tools::math {
     T abs(const devices::math::CPU&, T x){
         return std::abs(x);
     }
+    template<typename T>
+    T nan(const devices::math::CPU&){
+        return nan();
+    }
 }
 #endif

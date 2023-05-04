@@ -164,9 +164,6 @@ namespace backprop_tools::math {
     }
 
 
-
-
-
 //    // CUDA fast
 //
 //    template<typename T>

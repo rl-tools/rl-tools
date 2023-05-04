@@ -68,6 +68,10 @@ namespace backprop_tools::math {
     T abs(const devices::math::Dummy&, T x){
         return x > 0 ? x : -x;
     }
+    template<typename T>
+    T nan(const devices::math::Dummy&){
+        return 0;
+    }
 
 }
 #endif
