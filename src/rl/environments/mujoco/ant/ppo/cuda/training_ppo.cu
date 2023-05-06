@@ -12,10 +12,10 @@ namespace bpt = backprop_tools;
 // --------------- changed for cuda training -----------------
 #include "../parameters.h"
 // -------------------------------------------------------
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
