@@ -120,7 +120,7 @@ namespace backprop_tools::math {
     BACKPROP_TOOLS_FUNCTION_PLACEMENT bool is_nan(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
-            return ::isnanf(x);
+            return ::isnan(x);
         } else {
             return ::isnan(x);
         }
@@ -162,9 +162,6 @@ namespace backprop_tools::math {
             return ::abs(x);
         }
     }
-
-
-
 
 
 //    // CUDA fast

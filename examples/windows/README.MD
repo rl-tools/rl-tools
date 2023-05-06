@@ -4,12 +4,11 @@ Tested on Windows 10 using Visual Studio 2022
 Install the following software:
 * [git](https://git-scm.com/download/win)
   * You can use the default settings for all options
-* [CMake](https://cmake.org/install/)
 * [Visual Studio](https://visualstudio.microsoft.com/)
   * Select the component for Desktop C++ development
   * This installs the required C++ compiler
 
-Using the MinGW based `Git Bash` terminal, clone the repository:
+Using the `Developer Command Prompt for VS XXXX` (which is `CMD.exe` but including the paths to developer tools like CMake)
 ```
 git clone --recursive https://github.com/BackpropTools/BackpropTools.git
 ```
@@ -19,7 +18,7 @@ mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release --target rl_environments_pendulum_td3_training_standalone
-./src/rl/environments/penduolum/td3/cpu/Release/rl_environments_pendulum_td3_training_standalone.exe
+src\rl\environments\pendulum\td3\cpu\Release\rl_environments_pendulum_td3_training_standalone.exe
 ```
 
 
@@ -31,6 +30,10 @@ BLAS library that accelerates matrix multiplications on Intel CPUs
 After installing MKL use `CMD.exe` to source the `setvars.bat` which sets the search paths for the MKL libraries (don't forget to include the quotes):
 ```
 "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+```
+Alternatively if you are using PowerShell:
+```
+cmd.exe "/K" '"C:\Program Files (x86)\Intel\oneAPI\setvars.bat" && powershell'
 ```
 Note: This step needs to be re-done after every restart of the terminal.
 Now, after moving to the previously created `build` directory, configure the BackpropTools to use MKL:
@@ -73,4 +76,64 @@ CMAKE_PREFIX_PATH=C:\Program Files\HDF_Group\HDF5\1.14.0
 #### __Boost__
 Download from e.g. https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_1_82_0.zip
 
+```
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
+```
+
+```
+cmake --build . --config Release --target rl_environments_mujoco_ant_training_ppo_standalone
+```
+
+```
+bin\Release\rl_environments_mujoco_ant_training_ppo_benchmark.exe
+```
+
 #### [NVIDIA CUDA](https://developer.nvidia.com/cuda-downloads) (we tested this on CUDA 12.1)
+
+
+
+## Alternative using VCPKG
+
+```
+ -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake
+```
+
+## Alternative: using conan
+
+```
+conan profile detect --force
+```
+In the repository directory:
+```
+conan install . --output-folder=build_conan --build=missing --settings=build_type=Debug
+conan install . --output-folder=build_conan --build=missing --settings=build_type=Release
+```
+### VS Code
+* Install the CMake Tools extension
+* `ctrl-shift p` => `CMake: Select Configure Preset` => select the conan debug or release preset
+* `ctrl-shift p` => `CMake: Set Build Preset` => select the build preset in accordance to the configuration preset 
+* `ctrl-shift p` => `CMake: Set Debug Target` => select the desired target e.g. `rl_environments_mujoco_ant_training_ppo_standalone`
+* `ctro-shift p` => `CMake: Debug`
+* Note: Make sure not to build while the target is running (running the executable seems to prevent the file to be overwritten by the linker)
+
+### CLI
+```
+cmake .. -G "Visual Studio 15 2017" -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
+cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
+```
+```
+cmake --build . --config Release --target rl_environments_mujoco_ant_training_ppo_standalone
+```
+
+Warning: Don't forget to source the MKL location (like described beforehand) before running it
+
+```
+.\bin\Release\rl_environments_mujoco_ant_training_ppo_standalone.exe
+```
+
+
+### Testing the dependencielessness of the release binaries using Windows Docker containers
+Replace the path with the absolute path to where you unzipped the release archive
+```
+docker run -it --rm -v C:\Users\Jonas.Eschmann\Desktop\backprop_tools-0.1.0-rl_environments_mujoco_ant_ppo_windows_test:C:\app -w C:\app mcr.microsoft.com/windows/nanoserver:ltsc2019 rl_environments_pendulum_td3_training_mkl.exe
+```

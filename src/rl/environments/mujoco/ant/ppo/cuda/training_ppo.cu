@@ -5,15 +5,17 @@
 // -------------------------------------------------------
 #include <backprop_tools/nn/operations_cpu_mux.h>
 #include <backprop_tools/nn_models/operations_cpu.h>
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 #include <backprop_tools/nn_models/persist.h>
+#endif
 namespace bpt = backprop_tools;
 // --------------- changed for cuda training -----------------
 #include "../parameters.h"
 // -------------------------------------------------------
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
@@ -27,16 +29,26 @@ namespace bpt = backprop_tools;
 #include <backprop_tools/rl/algorithms/ppo/operations_generic_extensions.h>
 // -------------------------------------------------------
 #include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 #include <backprop_tools/rl/components/running_normalizer/persist.h>
+#endif
 #include <backprop_tools/rl/utils/evaluation.h>
 
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 #include <highfive/H5File.hpp>
+#endif
+
+#if defined(BACKPROP_TOOLS_ENABLE_CLI11) && !defined(BACKPROP_TOOLS_DISABLE_CLI11)
 #include <CLI/CLI.hpp>
+#endif
+
+
+#include <sstream>
 
 
 namespace parameters = parameters_0;
 
-#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
 #else
 using LOGGER = bpt::devices::logging::CPU;
@@ -60,17 +72,31 @@ using TI = typename DEVICE::index_t;
 
 
 constexpr TI BASE_SEED = 600;
-constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
-constexpr bool ENABLE_EVALUATION = true;
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 #else
-constexpr bool ENABLE_EVALUATION = false;
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
+#endif
+constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
+constexpr bool ENABLE_EVALUATION = true;
+#else
+constexpr bool ENABLE_EVALUATION = false;
 #endif
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
+std::string sanitize_file_name(const std::string &input) {
+    std::string output = input;
+
+    const std::string invalid_chars = R"(<>:\"/\|?*)";
+
+    std::replace_if(output.begin(), output.end(), [&invalid_chars](const char &c) {
+        return invalid_chars.find(c) != std::string::npos;
+    }, '_');
+
+    return output;
+}
 
 // --------------- changed for cuda training -----------------
 int main(int argc, char** argv){
@@ -78,6 +104,7 @@ int main(int argc, char** argv){
     std::string logs_dir = "logs";
     TI job_seed = 0;
     TI num_runs = 1;
+#if defined(BACKPROP_TOOLS_ENABLE_CLI11) && !defined(BACKPROP_TOOLS_DISABLE_CLI11)
     {
         CLI::App app;
         app.add_option("--checkpoints", actor_checkpoints_dir_stub, "path to the checkpoint directory");
@@ -86,6 +113,7 @@ int main(int argc, char** argv){
         app.add_option("--runs", num_runs, "number of runs with different seeds");
         CLI11_PARSE(app, argc, argv);
     }
+#endif
     std::string actor_checkpoints_dir = actor_checkpoints_dir_stub + "/ppo_ant";
     if (ACTOR_ENABLE_CHECKPOINTS){
         std::cout << "Saving actor checkpoints to: " << actor_checkpoints_dir << std::endl;
@@ -122,7 +150,9 @@ int main(int argc, char** argv){
             std::ostringstream oss;
             oss << std::put_time(tm, "%FT%T%z");
             run_name = oss.str() + "_" + run_name;
+            run_name = sanitize_file_name(run_name);
         }
+
 
         DEVICE::SPEC::LOGGING logger;
         DEVICE device;
@@ -220,6 +250,7 @@ int main(int argc, char** argv){
             // -------------- added for cuda training ----------------
             bpt::copy(device, device_gpu, ppo, ppo_gpu);
             // -------------------------------------------------------
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
             if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
                 std::filesystem::path actor_output_dir = std::filesystem::path(actor_checkpoints_dir) / run_name;
                 try {
@@ -235,7 +266,7 @@ int main(int argc, char** argv){
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
                 try{
-                    auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
                     bpt::save(device, ppo.actor, actor_file.createGroup("actor"));
                     bpt::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
                 }
@@ -244,6 +275,7 @@ int main(int argc, char** argv){
                 }
                 next_checkpoint_id++;
             }
+#endif
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
                 auto result = bpt::evaluate(device, evaluation_env, ui, ppo.actor, bpt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, evaluation_rng);
 //                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);

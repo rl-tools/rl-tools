@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
                 }
             }
             std::sort(actor_checkpoints.begin(), actor_checkpoints.end());
-            checkpoint = actor_checkpoints.back();
+            checkpoint = actor_checkpoints.back().string();
         }
 
         std::cout << "Loading actor from " << checkpoint << std::endl;

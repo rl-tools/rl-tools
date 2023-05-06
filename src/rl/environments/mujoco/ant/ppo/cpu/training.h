@@ -1,15 +1,15 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
 #include <backprop_tools/nn_models/operations_cpu.h>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 #include <backprop_tools/nn_models/persist.h>
 #endif
 namespace bpt = backprop_tools;
 #include "../parameters.h"
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
 #include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
@@ -17,7 +17,7 @@ namespace bpt = backprop_tools;
 #endif
 #include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
 #include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 #include <backprop_tools/rl/components/running_normalizer/persist.h>
 #endif
 #include <backprop_tools/rl/utils/evaluation.h>
@@ -25,14 +25,14 @@ namespace bpt = backprop_tools;
 #include <filesystem>
 #include <sstream>
 #include <string>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 #include <highfive/H5File.hpp>
 #endif
 
 
 namespace parameters = parameters_0;
 
-#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK)
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
 #else
 using LOGGER = bpt::devices::logging::CPU;
@@ -56,20 +56,32 @@ using TI = typename DEVICE::index_t;
 constexpr TI BASE_SEED = 600;
 constexpr TI NUM_RUNS = 100;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
 constexpr bool ENABLE_EVALUATION = false;
 #else
 constexpr bool ENABLE_EVALUATION = true;
 #endif
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
-#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
-#else
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+#else
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 #endif
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/ppo_ant";
+
+std::string sanitize_file_name(const std::string &input) {
+    std::string output = input;
+
+    const std::string invalid_chars = R"(<>:\"/\|?*)";
+
+    std::replace_if(output.begin(), output.end(), [&invalid_chars](const char &c) {
+        return invalid_chars.find(c) != std::string::npos;
+    }, '_');
+
+    return output;
+}
 
 template <typename DEVICE::index_t NUM_RUNS, typename DEVICE::index_t NUM_STEPS = 2500>
 void run(){
@@ -99,8 +111,10 @@ void run(){
 
             std::ostringstream oss;
             oss << std::put_time(tm, "%FT%T%z");
-            run_name = oss.str() + "_" + run_name;
+            run_name = sanitize_file_name(oss.str()) + "_" + run_name;
         }
+        std::cout << "Run " << run_i << " of " << NUM_RUNS << " with seed " << seed << " and name " << run_name << std::endl;
+        std::cout << "Checkpoints: " << (ACTOR_ENABLE_CHECKPOINTS ? "enabled" : "disabled") << std::endl;
 
         DEVICE::SPEC::LOGGING logger;
         DEVICE device;
@@ -172,9 +186,9 @@ void run(){
                     checkpoint_name = checkpoint_name_ss.str();
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_BENCHMARK
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
                 try{
-                    auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
                     bpt::save(device, ppo.actor, actor_file.createGroup("actor"));
                     bpt::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
                 }

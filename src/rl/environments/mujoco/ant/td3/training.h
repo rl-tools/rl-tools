@@ -1,7 +1,14 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
 namespace bpt = backprop_tools;
-using DEV_SPEC_SUPER = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
+using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
+#else
+using LOGGER = bpt::devices::logging::CPU;
+#endif
+
+
+using DEV_SPEC_SUPER = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
 using TI = typename bpt::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
     struct HINTS: bpt::rl::components::off_policy_runner::ExecutionHints<TI, 1>{};
@@ -9,6 +16,7 @@ namespace execution_hints{
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
+
 using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 
 #include <backprop_tools/nn/operations_cpu_mux.h>
@@ -21,15 +29,19 @@ using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 #include <backprop_tools/rl/algorithms/td3/operations_cpu_mux.h>
 
 // additional includes for the ui and persisting
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 #include <backprop_tools/nn_models/persist.h>
 #include <backprop_tools/rl/components/replay_buffer/persist.h>
+#endif
 
 #include <backprop_tools/rl/utils/evaluation.h>
 
 #include "parameters.h"
 
 #include <iostream>
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 #include <highfive/H5File.hpp>
+#endif
 #include <filesystem>
 #include <thread>
 #include <future>
@@ -37,6 +49,8 @@ using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 #include <iomanip>
 #include <chrono>
 #include <ctime>
+#include <string>
+#include <sstream>
 
 using DTYPE = float;
 
@@ -48,11 +62,18 @@ using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
 using parameters_rl = parameter_set::rl<DTYPE, typename DEVICE::index_t, ENVIRONMENT>;
 static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
+constexpr bool ENABLE_EVALUATION = false;
+#else
+constexpr bool ENABLE_EVALUATION = true;
+#endif
 constexpr DEVICE::index_t performance_logging_interval = 100;
 constexpr DEVICE::index_t ACTOR_CRITIC_EVALUATION_SYNC_INTERVAL = 100;
 constexpr DEVICE::index_t DETERMINISTIC_EVALUATION_INTERVAL = 10000;
 constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 10000;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "actor_checkpoints";
+const std::string REPLAY_BUFFER_OUTPUT_PATH = "replay_buffer.h5";
+constexpr bool BACKPROP_TOOLS_SAVE_REPLAY_BUFFER = false;
 
 #ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
 constexpr DEVICE::index_t STEP_LIMIT = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
@@ -160,7 +181,7 @@ void run(){
         // training
         for(int step_i = 0; step_i < STEP_LIMIT; step_i++){
             auto step_start = std::chrono::high_resolution_clock::now();
-            device.logger->step = step_i;
+            bpt::set_step(device, device.logger, step_i);
             bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
             if(step_i % 1000 == 0){
                 std::cout << "run_i: " << run_i << " step_i: " << step_i << std::endl;
@@ -265,6 +286,7 @@ void run(){
 //                ASSERT_GT(mean_return, 1000);
 //            }
             }
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
             if(step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
                 std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
                 try {
@@ -276,18 +298,19 @@ void run(){
                 checkpoint_name << "actor_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name.str();
                 try{
-                    auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
                     bpt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
                 }
                 catch(HighFive::Exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
                 }
             }
+#endif
         }
-        {
-            std::string rb_output_path = "replay_buffer.h5";
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+        if constexpr(BACKPROP_TOOLS_SAVE_REPLAY_BUFFER){
             try{
-                auto actor_file = HighFive::File(rb_output_path, HighFive::File::Overwrite);
+                auto actor_file = HighFive::File(REPLAY_BUFFER_OUTPUT_PATH, HighFive::File::Overwrite);
                 auto replay_buffer_group = actor_file.createGroup("replay_buffer");
                 for(typename DEVICE::index_t env_i = 0; env_i < decltype(off_policy_runner)::N_ENVIRONMENTS; env_i++){
                     bpt::save(device, off_policy_runner.replay_buffers[env_i], replay_buffer_group.createGroup(std::to_string(env_i)));
@@ -297,6 +320,7 @@ void run(){
                 std::cout << "Error while saving actor: " << e.what() << std::endl;
             }
         }
+#endif
         bpt::destruct(device, device.logger);
 
         bpt::free(device, actor_critic);
@@ -317,6 +341,7 @@ void run(){
     }
 
 
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
     for(typename DEVICE::index_t run_i = 0; run_i < episode_step.size(); run_i++){
         auto group = data_file.createGroup(std::to_string(run_i));
@@ -326,4 +351,5 @@ void run(){
         group.createDataSet("eval_step", eval_step[run_i]);
         group.createDataSet("eval_return", eval_return[run_i]);
     }
+#endif
 }

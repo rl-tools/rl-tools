@@ -2,14 +2,14 @@
 #if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 #include <backprop_tools/operations/cpu_tensorboard/group_1.h>
 #endif
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_mkl/group_1.h>
 namespace backprop_tools{
     template <typename DEV_SPEC>
     using DEVICE_FACTORY = backprop_tools::devices::CPU_MKL<DEV_SPEC>;
 }
 #else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_accelerate/group_1.h>
 namespace backprop_tools{
     template <typename DEV_SPEC>
@@ -32,10 +32,10 @@ namespace backprop_tools {
 #endif
 // ------------ Groups 2 ------------
 #include <backprop_tools/operations/cpu_tensorboard/group_2.h>
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_mkl/group_2.h>
 #else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_accelerate/group_2.h>
 #else
 #include <backprop_tools/operations/cpu/group_2.h>
@@ -46,10 +46,10 @@ namespace backprop_tools {
 #endif
 // ------------ Groups 3 ------------
 #include <backprop_tools/operations/cpu_tensorboard/group_3.h>
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_mkl/group_3.h>
 #else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_accelerate/group_3.h>
 #else
 #include <backprop_tools/operations/cpu/group_3.h>

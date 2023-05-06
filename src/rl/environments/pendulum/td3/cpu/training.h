@@ -1,59 +1,9 @@
-// ------------ Groups 1 ------------
-#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-#include <backprop_tools/operations/cpu_tensorboard/group_1.h>
-#endif
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/operations/cpu_mkl/group_1.h>
-#else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
-#include <backprop_tools/operations/cpu_accelerate/group_1.h>
-#else
-#include <backprop_tools/operations/cpu/group_1.h>
-#endif
-#endif
-// ------------ Groups 2 ------------
-#include <backprop_tools/operations/cpu_tensorboard/group_2.h>
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/operations/cpu_mkl/group_2.h>
-#else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
-#include <backprop_tools/operations/cpu_accelerate/group_2.h>
-#else
-#include <backprop_tools/operations/cpu/group_2.h>
-#endif
-#endif
-// ------------ Groups 3 ------------
-#include <backprop_tools/operations/cpu_tensorboard/group_3.h>
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/operations/cpu_mkl/group_3.h>
-#else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
-#include <backprop_tools/operations/cpu_accelerate/group_3.h>
-#else
-#include <backprop_tools/operations/cpu/group_3.h>
-#endif
-#endif
-
+#include <backprop_tools/operations/cpu_mux.h>
+#include <backprop_tools/nn/operations_cpu_mux.h>
 namespace bpt = backprop_tools;
 
-#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
-#else
-using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU>;
-#endif
 
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/nn/operations_cpu_mkl.h>
-using DEVICE = bpt::devices::CPU_MKL<DEV_SPEC>;
-#else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
-#include <backprop_tools/nn/operations_cpu_accelerate.h>
-using DEVICE = bpt::devices::CPU_ACCELERATE<DEV_SPEC>;
-#else
-#include <backprop_tools/nn/operations_generic.h>
-using DEVICE = bpt::devices::CPU<DEV_SPEC>;
-#endif
-#endif
+
 
 #include <backprop_tools/rl/environments/operations_generic.h>
 #include <backprop_tools/nn_models/operations_generic.h>
@@ -75,6 +25,19 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 #include "plot_policy_and_value_function.h"
 #endif
 
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
+    using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
+#else
+    using LOGGER = bpt::devices::logging::CPU;
+#endif
+
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
+using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
+using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
+#else
+using DEVICE = bpt::devices::DefaultCPU;
+#endif
+
 
 using DTYPE = float;
 
@@ -84,13 +47,7 @@ typedef bpt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 typedef bpt::rl::environments::pendulum::UI<DTYPE> UI;
 #endif
 
-struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
-#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-    using LOGGING = bpt::devices::logging::CPU_TENSORBOARD;
-#else
-    using LOGGING = bpt::devices::logging::CPU;
-#endif
-};
+
 struct TD3PendulumParameters: bpt::rl::algorithms::td3::DefaultParameters<DTYPE, DEVICE::index_t>{
     constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
@@ -232,7 +189,7 @@ void run(){
                 bpt::update_actor_target(device, actor_critic);
             }
         }
-#ifndef BACKPROP_TOOLS_DISABLE_EVALUATION
+#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_DISABLE_EVALUATION
         if(step_i % 1000 == 0){
 //            auto result = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, ENVIRONMENT_STEP_LIMIT>(), rng, true);
             auto result = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, rng);

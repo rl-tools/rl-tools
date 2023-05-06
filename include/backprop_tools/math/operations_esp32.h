@@ -70,5 +70,9 @@ namespace backprop_tools::math {
     T abs(const devices::math::ESP32&, T x){
         return std::abs(x);
     }
+    template<typename T>
+    T nan(const devices::math::Dummy&){
+        return nan();
+    }
 }
 #endif
