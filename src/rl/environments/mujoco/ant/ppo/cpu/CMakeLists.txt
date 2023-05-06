@@ -1,3 +1,5 @@
+find_package(Threads REQUIRED)
+
 add_executable(
         rl_environments_mujoco_ant_training_ppo_standalone
         standalone.cpp
@@ -6,6 +8,7 @@ target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_standalone
         PRIVATE
         backprop_tools
+        Threads::Threads
 )
 # todo: link mujoco like this everywhere
 BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_training_ppo_standalone)
@@ -23,6 +26,7 @@ target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_blas
         PRIVATE
         backprop_tools
+        Threads::Threads
         HighFive
         tensorboard_logger
 )
