@@ -72,7 +72,7 @@ namespace backprop_tools::math {
     }
     template<typename T>
     T nan(const devices::math::CPU&){
-        return nan();
+        return std::numeric_limits<T>::quiet_NaN();
     }
 }
 #endif

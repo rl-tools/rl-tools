@@ -71,6 +71,17 @@ constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
+std::string sanitize_file_name(const std::string &input) {
+    std::string output = input;
+
+    const std::string invalid_chars = R"(<>:\"/\|?*)";
+
+    std::replace_if(output.begin(), output.end(), [&invalid_chars](const char &c) {
+        return invalid_chars.find(c) != std::string::npos;
+    }, '_');
+
+    return output;
+}
 
 // --------------- changed for cuda training -----------------
 int main(int argc, char** argv){
@@ -122,7 +133,9 @@ int main(int argc, char** argv){
             std::ostringstream oss;
             oss << std::put_time(tm, "%FT%T%z");
             run_name = oss.str() + "_" + run_name;
+            run_name = sanitize_file_name(run_name);
         }
+
 
         DEVICE::SPEC::LOGGING logger;
         DEVICE device;
@@ -235,7 +248,7 @@ int main(int argc, char** argv){
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
                 try{
-                    auto actor_file = HighFive::File(actor_output_path, HighFive::File::Overwrite);
+                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
                     bpt::save(device, ppo.actor, actor_file.createGroup("actor"));
                     bpt::save(device, observation_normalizer, actor_file.createGroup("observation_normalizer"));
                 }

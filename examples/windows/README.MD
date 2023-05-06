@@ -3,12 +3,11 @@
 Install the following software:
 * [git](https://git-scm.com/download/win)
   * You can use the default settings for all options
-* [CMake](https://cmake.org/install/)
 * [Visual Studio](https://visualstudio.microsoft.com/)
   * Select the component for Desktop C++ development
   * This installs the required C++ compiler
 
-Using the MinGW based `Git Bash` terminal, clone the repository:
+Using the `Developer Command Prompt for VS XXXX` (which is `CMD.exe` but including the paths to developer tools like CMake)
 ```
 git clone --recursive https://github.com/BackpropTools/BackpropTools.git
 ```
@@ -18,7 +17,7 @@ mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release --target rl_environments_pendulum_td3_training_standalone
-./src/rl/environments/penduolum/td3/cpu/Release/rl_environments_pendulum_td3_training_standalone.exe
+src\rl\environments\pendulum\td3\cpu\Release\rl_environments_pendulum_td3_training_standalone.exe
 ```
 
 
@@ -128,4 +127,10 @@ Warning: Don't forget to source the MKL location (like described beforehand) bef
 
 ```
 .\bin\Release\rl_environments_mujoco_ant_training_ppo_standalone.exe
+```
+
+
+### Testing the dependencielessness of the release binaries using Windows Docker containers
+```
+docker run -it --rm -v C:\Users\Jonas.Eschmann\Desktop\backprop_tools-0.1.0-rl_environments_mujoco_ant_ppo_windows:C:\app -w C:\app mcr.microsoft.com/windows:ltsc2019 rl_environments_mujoco_ant_training_ppo_standalone.exe
 ```
