@@ -103,8 +103,8 @@ conan profile detect --force
 ```
 In the repository directory:
 ```
-conan install . --output-folder=conan --build=missing --settings=build_type=Debug
-conan install . --output-folder=conan --build=missing --settings=build_type=Release
+conan install . --output-folder=build_conan --build=missing --settings=build_type=Debug
+conan install . --output-folder=build_conan --build=missing --settings=build_type=Release
 ```
 ### VS Code
 * Install the CMake Tools extension
@@ -131,6 +131,7 @@ Warning: Don't forget to source the MKL location (like described beforehand) bef
 
 
 ### Testing the dependencielessness of the release binaries using Windows Docker containers
+Replace the path with the absolute path to where you unzipped the release archive
 ```
-docker run -it --rm -v C:\Users\Jonas.Eschmann\Desktop\backprop_tools-0.1.0-rl_environments_mujoco_ant_ppo_windows:C:\app -w C:\app mcr.microsoft.com/windows:ltsc2019 rl_environments_mujoco_ant_training_ppo_standalone.exe
+docker run -it --rm -v C:\Users\Jonas.Eschmann\Desktop\backprop_tools-0.1.0-rl_environments_mujoco_ant_ppo_windows_test:C:\app -w C:\app mcr.microsoft.com/windows/nanoserver:ltsc2019 rl_environments_pendulum_td3_training_mkl.exe
 ```

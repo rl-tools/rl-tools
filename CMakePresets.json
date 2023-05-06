@@ -1,7 +1,7 @@
 {
     "version": 4,
     "include": [
-        "conan/CMakePresets.json"
+        "build_conan/CMakePresets.json"
     ],
     "configurePresets": [
         {

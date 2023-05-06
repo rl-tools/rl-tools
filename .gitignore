@@ -31,5 +31,5 @@
 /build-wasm
 /.vs
 /out
-/conan
+/build_conan
 /CMakeUserPresets.json
