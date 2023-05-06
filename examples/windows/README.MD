@@ -1,4 +1,5 @@
 ## Windows Examples
+Tested on Windows 10 using Visual Studio 2022
 ### Basic Requirements
 Install the following software:
 * [git](https://git-scm.com/download/win)
@@ -34,8 +35,9 @@ Alternatively if you are using PowerShell:
 ```
 cmd.exe "/K" '"C:\Program Files (x86)\Intel\oneAPI\setvars.bat" && powershell'
 ```
+Note: This step needs to be re-done after every restart of the terminal.
 Now, after moving to the previously created `build` directory, configure the BackpropTools to use MKL:
-Sourcing MKL is importang because even if CMake can find the libraries during the build, the execution will fail because it can not find the libraries at runtime.
+Sourcing MKL is important because even if CMake can find the libraries during the build, the execution will fail because it can not find the libraries at runtime.
 ```
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
 ```

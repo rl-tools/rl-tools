@@ -93,7 +93,7 @@ Execute the built binary
 ```
 
 #### Example: MuJoCo Ant-v4 PPO policy evaluation in the UI
-Configure BackpropTools to enable MuJoCo and the MuJoCo UI (using `-DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL=ON`). Additionally the command line argument parsing library CLI11 (contained as a submodule in /external) is activated
+Configure BackpropTools to enable MuJoCo and the MuJoCo UI (using `-DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL=ON`). Additionally the command line argument parsing library CLI11 (contained as a submodule in `/external`) is activated
 ```
 cmake .. -DCMAKE_BUILD_TYPE=Release $PLATFORM_BLAS_OPTION -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON
 ```
