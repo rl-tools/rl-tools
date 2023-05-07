@@ -1,10 +1,5 @@
-#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_MKL)
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
-#else
-#include <backprop_tools/operations/cpu.h>
-#include <backprop_tools/nn/operations_cpu.h>
-#endif
 namespace bpt = backprop_tools;
 
 
@@ -36,7 +31,7 @@ namespace bpt = backprop_tools;
     using LOGGER = bpt::devices::logging::CPU;
 #endif
 
-#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_MKL)
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
 using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 #else
@@ -194,7 +189,7 @@ void run(){
                 bpt::update_actor_target(device, actor_critic);
             }
         }
-#ifndef BACKPROP_TOOLS_DISABLE_EVALUATION
+#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_DISABLE_EVALUATION
         if(step_i % 1000 == 0){
 //            auto result = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, ENVIRONMENT_STEP_LIMIT>(), rng, true);
             auto result = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, rng);

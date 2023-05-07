@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        {
+            "name": "Generic",
+            "includePath": [
+                "${workspaceFolder}/include"
+            ]
+        }
+    ],
+    "version": 4
+}
