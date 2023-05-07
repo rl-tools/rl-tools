@@ -31,7 +31,9 @@ namespace backprop_tools {
 }
 #endif
 // ------------ Groups 2 ------------
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 #include <backprop_tools/operations/cpu_tensorboard/group_2.h>
+#endif
 #if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_mkl/group_2.h>
 #else
@@ -45,7 +47,9 @@ namespace backprop_tools {
 #include <backprop_tools/operations/cuda/group_2.h>
 #endif
 // ------------ Groups 3 ------------
+#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 #include <backprop_tools/operations/cpu_tensorboard/group_3.h>
+#endif
 #if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_mkl/group_3.h>
 #else
