@@ -25,7 +25,7 @@ Run the built binary. This will train a fully connected neural network with two 
 BACKPROP_TOOLS_NN_MNIST_DATA_FILE=mnist.hdf5 ./src/nn/mnist/nn_mnist_training
 ```
 
-You should see outputs similar to this:
+You should see plenty of outputs similar to this (scroll up to see more):
 ```
                                                         
                                                         

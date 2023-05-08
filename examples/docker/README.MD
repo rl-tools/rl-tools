@@ -1,4 +1,5 @@
 ## Docker Examples
+These examples work best when run on Linux (or MacOS) because the example commands are formatted for unix. We also had success running them on windows using the MinGW shell/Git bash which allows us to use the unix commands (syntax) and e.g. use $(pwd). If you convert the paths to Windows style paths you should also be able to run them in e.g. `CMD.exe`.
 ### Mandatory
 The most deterministic way to get started using BackpropTools is to use Docker. Mandatory prerequesite for this is:
 1. Docker is installed ([official installation instructions](https://docs.docker.com/engine/install/))
