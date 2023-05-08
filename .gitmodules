@@ -49,3 +49,6 @@
 [submodule "embedded_platforms/esp32"]
 	path = embedded_platforms/esp32
 	url = https://github.com/BackpropTools/esp32.git
+[submodule "embedded_platforms/px4/backprop_tools"]
+	path = embedded_platforms/px4/backprop_tools
+	url = https://github.com/BackpropTools/backprop_tools_px4.git
