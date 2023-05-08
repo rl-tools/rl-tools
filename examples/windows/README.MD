@@ -134,7 +134,7 @@ Warning: Don't forget to source the MKL location (like described beforehand) bef
 ### Packaging Release
 The command to create the release binaries is the following (in the previously set up conan_build directory)
 ```
-cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_BUILD_TYPE:STRING=Release -DBACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES:BOOL=ON -DCMAKE_INSTALL_PREFIX:STRING=install
+cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON -DBACKPROP_TOOLS_BUILD_TYPE:STRING=Release -DBACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES:BOOL=ON -DCMAKE_INSTALL_PREFIX:STRING=install
 ```
 ```
 cmake --build . --config Release
@@ -146,5 +146,5 @@ cmake --install .
 ### Testing the dependencielessness of the release binaries using Windows Docker containers
 Replace the path with the absolute path to where you unzipped the release archive
 ```
-docker run -it --rm -v C:\Users\Jonas.Eschmann\Desktop\backprop_tools-0.1.0-rl_environments_mujoco_ant_ppo_windows_test:C:\app -w C:\app mcr.microsoft.com/windows/nanoserver:ltsc2019 rl_environments_pendulum_td3_training_mkl.exe
+docker run -it --rm -v C:\Users\Jonas.Eschmann\git\BackpropTools\build_conan\install\backprop_tools\bin:C:\app -w C:\app mcr.microsoft.com/windows/nanoserver:ltsc2019 rl_environments_pendulum_td3_training_blas.exe
 ```
