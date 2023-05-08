@@ -1,4 +1,10 @@
 ## Windows Examples
+### Content
+* Basic requirements (git, compiler)
+* Extended requirements for accelerated training (Intel MKL, NVIDIA CUDA)
+* Additional requirements for convenience (HDF5 checkpointing, Tensorboard logging), either:
+  * Installation using the conan package manager
+
 Tested on Windows 10 using Visual Studio 2022
 ### Basic Requirements
 Install the following software:
@@ -38,6 +44,11 @@ cmd.exe "/K" '"C:\Program Files (x86)\Intel\oneAPI\setvars.bat" && powershell'
 Note: This step needs to be re-done after every restart of the terminal.
 Now, after moving to the previously created `build` directory, configure the BackpropTools to use MKL:
 Sourcing MKL is important because even if CMake can find the libraries during the build, the execution will fail because it can not find the libraries at runtime.
+For VS code you can alter the link in the start menu entry to contain the sourcing adding `setvars.bat` to the Target field in the same manner as e.g. in the following:
+```
+Target: "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" && "C:\Users\Jonas.Eschmann\AppData\Local\Programs\Microsoft VS Code\Code.exe"
+```
+Instead of using VS code after sourcing the `setvars.bat` in the terminal like described before you can also build it from the cli:
 ```
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
 ```
@@ -49,51 +60,10 @@ And execute the built binary:
 ```
 src\rl\environments\pendulum\td3\cpu\Release\rl_environments_pendulum_td3_training_standalone.exe
 ```
-#### __Protocol Buffers__
-Data exchange format used by Tensorboard
-Clone from: https://github.com/protocolbuffers/protobuf and build from source (tested useing v22.3). After building install it using `cmake --install .` (admin shell required)
+#### [NVIDIA CUDA](https://developer.nvidia.com/cuda-downloads) (we tested this on CUDA 11.8 and 12.1)
 
-```
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
-```
-
-```
-cmake --build . --config Release --target rl_environments_mujoco_ant_training_ppo_benchmark
-```
-
-```
-bin\Release\rl_environments_mujoco_ant_training_ppo_benchmark.exe
-```
-
-#### __HDF5__
-Download from e.g. https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.14/hdf5-1.14.0/bin/windows/hdf5-1.14.0-Std-win10_64-vs17.zip
-and install using  the installer.
-Add the HDF5 installation location to the CMake search path (in the environment variables)
-```
-CMAKE_PREFIX_PATH=C:\Program Files\HDF_Group\HDF5\1.14.0
-```
-
-#### __Boost__
-Download from e.g. https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_1_82_0.zip
-
-```
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
-```
-
-```
-cmake --build . --config Release --target rl_environments_mujoco_ant_training_ppo_standalone
-```
-
-```
-bin\Release\rl_environments_mujoco_ant_training_ppo_benchmark.exe
-```
-
-#### [NVIDIA CUDA](https://developer.nvidia.com/cuda-downloads) (we tested this on CUDA 12.1)
-
-
-
-## Alternative: using conan
-
+### Alternative: using conan
+It is convenient to let conan manage the exact dependency versions. We are using the recently released conan `2.0` to manage all dependencies except Intel MKL and NVIDIA CUDA which should be installed apriori.
 ```
 conan profile detect --force
 ```
@@ -112,7 +82,6 @@ conan install . --output-folder=build_conan --build=missing --settings=build_typ
 
 ### CLI
 ```
-cmake .. -G "Visual Studio 15 2017" -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
 cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
 ```
 ```
@@ -128,11 +97,13 @@ Warning: Don't forget to source the MKL location (like described beforehand) bef
 ### Packaging Release
 The command to create the release binaries is the following (in the previously set up conan_build directory)
 ```
-cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON -DBACKPROP_TOOLS_BUILD_TYPE:STRING=Release -DBACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES:BOOL=ON -DCMAKE_INSTALL_PREFIX:STRING=install
+cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON -DBACKPROP_TOOLS_BUILD_TYPE:STRING=Release -DBACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES:BOOL=ON -DCMAKE_INSTALL_PREFIX:STRING=install
 ```
+The build can take a long time because it compiles and packages the CUDA device code for every CUDA compute capability not only for the one supported by the GPU in the current machine:
 ```
 cmake --build . --config Release
 ```
+This will install the binaries and all dependencies into an `install` subdirectory in the current binary directory e.g. `build_conan` where they can be found under `install/backprop_tools/bin`. This folder can be distributed and should run on any Windows 10 computer independent of any additional dependencies.
 ```
 cmake --install .
 ```
