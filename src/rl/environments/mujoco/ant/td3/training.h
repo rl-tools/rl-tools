@@ -88,6 +88,17 @@ constexpr DEVICE::index_t STEP_LIMIT = parameters_rl::REPLAY_BUFFER_CAP * 100;
 #endif
 constexpr DEVICE::index_t NUM_RUNS = 1;
 
+std::string sanitize_file_name(const std::string &input) {
+    std::string output = input;
+
+    const std::string invalid_chars = R"(<>:\"/\|?*)";
+
+    std::replace_if(output.begin(), output.end(), [&invalid_chars](const char &c) {
+        return invalid_chars.find(c) != std::string::npos;
+    }, '_');
+
+    return output;
+}
 
 void run(){
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
@@ -112,7 +123,7 @@ void run(){
 
             std::ostringstream oss;
             oss << std::put_time(tm, "%FT%T%z");
-            run_name = oss.str();
+            run_name = sanitize_file_name(oss.str());
         }
 
         episode_step.push_back({});
