@@ -70,8 +70,10 @@ constexpr bool ENABLE_EVALUATION = true;
 constexpr DEVICE::index_t performance_logging_interval = 100;
 constexpr DEVICE::index_t ACTOR_CRITIC_EVALUATION_SYNC_INTERVAL = 100;
 constexpr DEVICE::index_t DETERMINISTIC_EVALUATION_INTERVAL = 10000;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 10000;
-const std::string ACTOR_CHECKPOINT_DIRECTORY = "actor_checkpoints";
+const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/td3_ant";
 const std::string REPLAY_BUFFER_OUTPUT_PATH = "replay_buffer.h5";
 constexpr bool BACKPROP_TOOLS_SAVE_REPLAY_BUFFER = false;
 
@@ -88,6 +90,11 @@ constexpr DEVICE::index_t NUM_RUNS = 1;
 
 
 void run(){
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+    if(ACTOR_ENABLE_CHECKPOINTS){
+        std::cout << "Saving checkpoints to: " << ACTOR_CHECKPOINT_DIRECTORY << std::endl;
+    }
+#endif
     std::string DATA_FILE_PATH = "learning_curves.h5";
     std::vector<std::vector<DTYPE>> episode_step;
     std::vector<std::vector<DTYPE>> episode_returns;
@@ -286,17 +293,21 @@ void run(){
 //                ASSERT_GT(mean_return, 1000);
 //            }
             }
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
-            if(step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
+            if(ACTOR_ENABLE_CHECKPOINTS && step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
                 std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
                 try {
                     std::filesystem::create_directories(actor_output_dir);
                 }
                 catch (std::exception& e) {
                 }
-                std::stringstream checkpoint_name;
-                checkpoint_name << "actor_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
-                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name.str();
+                std::string checkpoint_name = "latest.h5";
+                if(!ACTOR_OVERWRITE_CHECKPOINTS){
+                    std::stringstream checkpoint_name_ss;
+                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << (step_i / ACTOR_CHECKPOINT_INTERVAL) << "_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
+                    checkpoint_name = checkpoint_name_ss.str();
+                }
+                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
                 try{
                     auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
                     bpt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
@@ -304,8 +315,28 @@ void run(){
                 catch(HighFive::Exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
                 }
-            }
 #endif
+            }
+//#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+//            if(step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
+//                std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
+//                try {
+//                    std::filesystem::create_directories(actor_output_dir);
+//                }
+//                catch (std::exception& e) {
+//                }
+//                std::stringstream checkpoint_name;
+//                checkpoint_name << "actor_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
+//                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name.str();
+//                try{
+//                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
+//                    bpt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
+//                }
+//                catch(HighFive::Exception& e){
+//                    std::cout << "Error while saving actor: " << e.what() << std::endl;
+//                }
+//            }
+//#endif
         }
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
         if constexpr(BACKPROP_TOOLS_SAVE_REPLAY_BUFFER){
