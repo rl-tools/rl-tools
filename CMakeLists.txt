@@ -126,24 +126,19 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
         endif()
     endfunction()
 
-#    # MuJoCo has its own install instructions which are hard to overwrite so we copy it manually:
-#    if (UNIX)
-#        set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${BACKPROP_TOOLS_INSTALL_PREFIX}/lib/)
-#    else()
-#        set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${BACKPROP_TOOLS_INSTALL_PREFIX}/bin/)
-#    endif()
-#    install(CODE "
-#        message(STATUS \"Copying Mujoco library to: ${MUJOCO_INSTALL_DIR}\")
-#        execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
-#            \"\$<TARGET_FILE:mujoco>\"
-#            \"${MUJOCO_INSTALL_DIR}\"
-#        )
-#    ")
-    if(UNIX)
-        install(TARGETS mujoco LIBRARY DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/lib)
-    else()
-        install(TARGETS mujoco LIBRARY DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
-    endif()
+   # MuJoCo has its own install instructions which are hard to overwrite so we copy it manually:
+   if (UNIX)
+       set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${BACKPROP_TOOLS_INSTALL_PREFIX}/lib/)
+   else()
+       set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${BACKPROP_TOOLS_INSTALL_PREFIX}/bin/)
+   endif()
+   install(CODE "
+       message(STATUS \"Copying Mujoco library to: ${MUJOCO_INSTALL_DIR}\")
+       execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
+           \"\$<TARGET_FILE:mujoco>\"
+           \"${MUJOCO_INSTALL_DIR}\"
+       )
+   ")
 
     # MuJoCo is build as a shared library and bleeds the configuration to other targets
     set(BUILD_SHARED_LIBS OFF)
