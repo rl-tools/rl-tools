@@ -43,3 +43,6 @@
 [submodule "redistributable"]
 	path = redistributable
 	url = https://github.com/BackpropTools/redistributable.git
+[submodule "embedded_platforms/teensy"]
+	path = embedded_platforms/teensy
+	url = https://github.com/BackpropTools/teensy.git
