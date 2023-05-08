@@ -23,7 +23,7 @@
 
 ## Content
 1. [Getting Started](#getting-started)
-   1. [Prebuilt Binaries](#prebuilt-binaries)
+   1. [Running Prebuilt Binaries](#prebuilt-binaries)
    2. [Cloning the Repository](#cloning-the-repository)
    3. [Docker](#docker)
    4. [Unix](#unix)
@@ -32,7 +32,7 @@
    4. [Windows](#windows)
 2. [Naming Convention](#naming-convention)
 ## Getting Started
-### Prebuilt Binaries
+### Running Prebuilt Binaries
 For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/BackpropTools/BackpropTools/releases/) for your platform and run the executables out of the box without installing any dependencies.
 ### Cloning the repository
 ```
