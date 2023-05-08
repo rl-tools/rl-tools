@@ -132,7 +132,6 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     else()
         set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${BACKPROP_TOOLS_INSTALL_PREFIX}/bin/)
     endif()
-    file(MAKE_DIRECTORY ${MUJOCO_INSTALL_DIR})
     install(CODE "
         message(STATUS \"Creating directory if it does not exist: ${MUJOCO_INSTALL_DIR}\")
         file(MAKE_DIRECTORY ${MUJOCO_INSTALL_DIR})

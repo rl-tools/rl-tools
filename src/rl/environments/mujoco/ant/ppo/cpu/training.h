@@ -210,7 +210,7 @@ void run(){
 
             if(ppo_step_i % 1 == 0){
                 std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;
-                std::cout << "PPO step: " << ppo_step_i << " elapsed: " << training_elapsed.count() << "s" << std::endl;
+                std::cout << "PPO step: " << ppo_step_i << " environment step: " << on_policy_runner.step << " elapsed: " << training_elapsed.count() << "s" << std::endl;
                 bpt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
                 bpt::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
                 bpt::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);
