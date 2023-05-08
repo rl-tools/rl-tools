@@ -24,11 +24,14 @@ option(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA "Enable Nvidia CUDA" OFF)
 option(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO "Enable MuJoCo" OFF)
 option(BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN "Use HighFive from conan (don't use the submodule from /external)" OFF)
 option(BACKPROP_TOOLS_BUILD_TYPE "Use \"Release\" to e.g. build fat binaries with code for all CUDA architectures (not just for the GPU found in the machine used to build it)" OFF)
+option(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES "Including redistributables from the redistributable submodule" OFF)
 
 set(BUILD_SHARED_LIBS OFF)
 
 add_library(backprop_tools INTERFACE)
 target_include_directories(backprop_tools INTERFACE include)
+
+set(BACKPROP_TOOLS_INSTALL_PREFIX backprop_tools)
 
 
 # dependencies
@@ -36,6 +39,15 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_MKL)
     find_package(MKL REQUIRED)
     add_compile_definitions(BACKPROP_TOOLS_BACKEND_ENABLE_MKL)
     set(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS ON)
+    if(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
+        if(WIN32)
+            file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/windows/mkl/*.dll")
+            install(FILES ${MKL_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
+        else()
+            file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/linux/mkl/*.so")
+            install(FILES ${MKL_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/lib)
+        endif()
+    endif()
 endif()
 
 if(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE)
@@ -66,6 +78,15 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
     message(STATUS "CUDA include path: ${CUDA_INCLUDE_DIRS}")
     message(STATUS "CUDA libraries: ${CUDA_LIBRARIES}")
     message(STATUS "CUDA cublas library: ${CUDA_CUBLAS_LIBRARIES}")
+    if(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
+        if(WIN32)
+            file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/windows/cuda/*.dll")
+            install(FILES ${CUDA_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
+        else()
+            file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/linux/cuda/*.so")
+            install(FILES ${CUDA_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/lib)
+        endif()
+    endif()
 endif()
 
 if(BACKPROP_TOOLS_ENABLE_CLI11)
@@ -152,11 +173,14 @@ function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)
             if (APPLE)
 #                set_target_properties(${TARGET} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path")
             else()
-                set_target_properties(${TARGET} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "$ORIGIN")
+                set_target_properties(${TARGET} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "$ORIGIN/../lib")
             endif()
         elseif (WIN32)
         endif()
     endif()
+endfunction()
+function(BACKPROP_TOOLS_INSTALL TARGET)
+    install(TARGETS ${TARGET} RUNTIME DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
 endfunction()
 
 
@@ -171,5 +195,12 @@ configure_file(
         "${CMAKE_CURRENT_BINARY_DIR}/backprop_toolsConfig.cmake"
         @ONLY
 )
+
+if(WIN32)
+    if(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
+        file(GLOB MSVC_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/windows/msvc/*.dll")
+        install(FILES ${MSVC_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
+    endif()
+endif()
 
 add_subdirectory(src)

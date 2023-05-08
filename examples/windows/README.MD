@@ -131,6 +131,17 @@ Warning: Don't forget to source the MKL location (like described beforehand) bef
 .\bin\Release\rl_environments_mujoco_ant_training_ppo_standalone.exe
 ```
 
+### Packaging Release
+The command to create the release binaries is the following (in the previously set up conan_build directory)
+```
+cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_BUILD_TYPE:STRING=Release -DBACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES:BOOL=ON -DCMAKE_INSTALL_PREFIX:STRING=install
+```
+```
+cmake --build . --config Release
+```
+```
+cmake --install .
+```
 
 ### Testing the dependencielessness of the release binaries using Windows Docker containers
 Replace the path with the absolute path to where you unzipped the release archive
