@@ -46,3 +46,6 @@
 [submodule "embedded_platforms/teensy"]
 	path = embedded_platforms/teensy
 	url = https://github.com/BackpropTools/teensy.git
+[submodule "embedded_platforms/esp32"]
+	path = embedded_platforms/esp32
+	url = https://github.com/BackpropTools/esp32.git
