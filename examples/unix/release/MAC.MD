@@ -18,5 +18,5 @@ cmake --install .
 ```
 
 ```
-(cd install/backprop_tools && tar -czvf backprop_tools-0.1.0-macos_arm64.tar.gz *)
+(cd install/backprop_tools && tar -czvf backprop_tools-0.1.0-macos-arm64.tar.gz *)
 ```
