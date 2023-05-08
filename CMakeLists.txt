@@ -121,12 +121,10 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     function (BACKPROP_TOOLS_TARGET_LINK_MUJOCO target)
         target_link_libraries(${target} PRIVATE mujoco)
         if(WIN32)
-            add_custom_command(TARGET ${target} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    $<TARGET_FILE:mujoco>
-                    $<TARGET_FILE_DIR:${target}>)
+            add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:mujoco> $<TARGET_FILE_DIR:${target}>)
         endif()
     endfunction()
+    install(TARGETS mujoco RUNTIME DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
     # MuJoCo is build as a shared library and bleeds the configuration to other targets
     set(BUILD_SHARED_LIBS OFF)
 endif()
