@@ -52,3 +52,6 @@
 [submodule "embedded_platforms/px4/backprop_tools"]
 	path = embedded_platforms/px4/backprop_tools
 	url = https://github.com/BackpropTools/backprop_tools_px4.git
+[submodule "embedded_platforms/crazyflie/firmware"]
+	path = embedded_platforms/crazyflie/firmware
+	url = https://github.com/BackpropTools/crazyflie-firmware.git
