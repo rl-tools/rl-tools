@@ -92,12 +92,6 @@ bin\Release\rl_environments_mujoco_ant_training_ppo_benchmark.exe
 
 
 
-## Alternative using VCPKG
-
-```
- -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake
-```
-
 ## Alternative: using conan
 
 ```
