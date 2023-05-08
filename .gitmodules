@@ -40,3 +40,6 @@
 [submodule "external/highfive"]
 	path = external/highfive
 	url = https://github.com/BlueBrain/HighFive.git
+[submodule "redistributable"]
+	path = redistributable
+	url = https://github.com/BackpropTools/redistributable.git
