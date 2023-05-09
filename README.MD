@@ -23,7 +23,7 @@
 
 ## Content
 1. [Getting Started](#getting-started)
-   1. [Running Prebuilt Binaries](#prebuilt-binaries)
+   1. [Running Prebuilt Binaries](#running-prebuilt-binaries)
    2. [Cloning the Repository](#cloning-the-repository)
    3. [Docker](#docker)
    4. [Unix](#unix)
@@ -50,4 +50,4 @@ For maximum performance and malleability for research and development we recomme
 [Windows instructions & examples](examples/windows/README.MD)
 
 ## Naming Convention
-We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `CAMEL_CASE` for compile-time constants. 
+We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `SNAKE_CASE` for compile-time constants. 

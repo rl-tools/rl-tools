@@ -42,7 +42,7 @@
 	url = https://github.com/BlueBrain/HighFive.git
 [submodule "redistributable"]
 	path = redistributable
-	url = https://github.com/BackpropTools/redistributable.git
+	url = https://gitlab.com/backprop_tools/backprop_tools_redistributable.git
 [submodule "embedded_platforms/teensy"]
 	path = embedded_platforms/teensy
 	url = https://github.com/BackpropTools/teensy.git

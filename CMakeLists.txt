@@ -33,6 +33,42 @@ target_include_directories(backprop_tools INTERFACE include)
 
 set(BACKPROP_TOOLS_INSTALL_PREFIX backprop_tools)
 
+if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
+    if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
+        find_package(glfw3 REQUIRED)
+    endif()
+    set(MUJOCO_BUILD_EXAMPLES OFF)
+    set(MUJOCO_BUILD_SIMULATE OFF)
+    set(MUJOCO_BUILD_TESTS OFF)
+    set(MUJOCO_TEST_PYTHON_UTIL OFF)
+    add_subdirectory(external/mujoco EXCLUDE_FROM_ALL)
+    #    set_property(TARGET mujoco PROPERTY EXCLUDE_FROM_ALL TRUE)
+    function (BACKPROP_TOOLS_TARGET_LINK_MUJOCO target)
+        target_link_libraries(${target} PRIVATE mujoco)
+        if(WIN32)
+            add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:mujoco> $<TARGET_FILE_DIR:${target}>)
+        endif()
+    endfunction()
+
+    # MuJoCo has its own install instructions which are hard to overwrite so we copy it manually:
+    if (UNIX)
+        set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${BACKPROP_TOOLS_INSTALL_PREFIX}/lib/)
+    else()
+        set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${BACKPROP_TOOLS_INSTALL_PREFIX}/bin/)
+    endif()
+    install(CODE "
+        message(STATUS \"Creating directory if it does not exist: ${MUJOCO_INSTALL_DIR}\")
+        file(MAKE_DIRECTORY ${MUJOCO_INSTALL_DIR})
+        message(STATUS \"Copying Mujoco library to: ${MUJOCO_INSTALL_DIR}\")
+        execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
+            \"\$<TARGET_FILE:mujoco>\"
+            \"${MUJOCO_INSTALL_DIR}\"
+        )
+    ")
+
+    # MuJoCo is build as a shared library and bleeds the configuration to other targets
+    set(BUILD_SHARED_LIBS OFF)
+endif()
 
 # dependencies
 if(BACKPROP_TOOLS_BACKEND_ENABLE_MKL)
@@ -41,10 +77,10 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_MKL)
     set(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS ON)
     if(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
         if(WIN32)
-            file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/windows/mkl/*.dll")
+            file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/mkl/*.dll")
             install(FILES ${MKL_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
         else()
-            file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/linux/mkl/*.so")
+            file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/mkl/*.so")
             install(FILES ${MKL_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/lib)
         endif()
     endif()
@@ -80,10 +116,11 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
     message(STATUS "CUDA cublas library: ${CUDA_CUBLAS_LIBRARIES}")
     if(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
         if(WIN32)
-            file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/windows/cuda/*.dll")
+            file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/cuda/*.dll")
             install(FILES ${CUDA_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
         else()
-            file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/linux/cuda/*.so")
+            file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/cuda/*.so.[0-9]*")
+            message(STATUS "CUDA redistributables: ${CUDA_REDISTRIBUTABLES}")
             install(FILES ${CUDA_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/lib)
         endif()
     endif()
@@ -107,43 +144,6 @@ if(BACKPROP_TOOLS_ENABLE_TENSORBOARD)
     add_subdirectory(external/tensorboard EXCLUDE_FROM_ALL)
     get_target_property(library_type tensorboard_logger TYPE)
     message(STATUS "Tensorboard library type: ${library_type}")
-endif()
-
-if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
-    if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
-        find_package(glfw3 REQUIRED)
-    endif()
-    set(MUJOCO_BUILD_EXAMPLES OFF)
-    set(MUJOCO_BUILD_SIMULATE OFF)
-    set(MUJOCO_BUILD_TESTS OFF)
-    set(MUJOCO_TEST_PYTHON_UTIL OFF)
-    add_subdirectory(external/mujoco EXCLUDE_FROM_ALL)
-#    set_property(TARGET mujoco PROPERTY EXCLUDE_FROM_ALL TRUE)
-    function (BACKPROP_TOOLS_TARGET_LINK_MUJOCO target)
-        target_link_libraries(${target} PRIVATE mujoco)
-        if(WIN32)
-            add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:mujoco> $<TARGET_FILE_DIR:${target}>)
-        endif()
-    endfunction()
-
-    # MuJoCo has its own install instructions which are hard to overwrite so we copy it manually:
-    if (UNIX)
-        set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${BACKPROP_TOOLS_INSTALL_PREFIX}/lib/)
-    else()
-        set(MUJOCO_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/${BACKPROP_TOOLS_INSTALL_PREFIX}/bin/)
-    endif()
-    install(CODE "
-        message(STATUS \"Creating directory if it does not exist: ${MUJOCO_INSTALL_DIR}\")
-        file(MAKE_DIRECTORY ${MUJOCO_INSTALL_DIR})
-        message(STATUS \"Copying Mujoco library to: ${MUJOCO_INSTALL_DIR}\")
-        execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
-            \"\$<TARGET_FILE:mujoco>\"
-            \"${MUJOCO_INSTALL_DIR}\"
-        )
-    ")
-
-    # MuJoCo is build as a shared library and bleeds the configuration to other targets
-    set(BUILD_SHARED_LIBS OFF)
 endif()
 
 function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)
@@ -213,11 +213,13 @@ configure_file(
 
 if(WIN32)
     if(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
-        file(GLOB MSVC_REDISTRIBUTABLES "${CMAKE_SOURCE_DIR}/redistributable/windows/msvc/*.dll")
+        file(GLOB MSVC_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/msvc/*.dll")
         install(FILES ${MSVC_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
     endif()
 elseif(APPLE)
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/docs/macos/readme.txt" DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/docs)
+elseif(UNIX)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/docs/linux/readme.txt" DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/docs)
 endif()
 
 add_subdirectory(src)
