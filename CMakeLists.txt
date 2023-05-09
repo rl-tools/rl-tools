@@ -80,7 +80,10 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_MKL)
             file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/mkl/*.dll")
             install(FILES ${MKL_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
         else()
-            file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/mkl/*.so")
+            file(GLOB MKL_REDISTRIBUTABLES
+                "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/mkl/*.so"
+                "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/mkl/*.so.[0-9]*"
+            )
             install(FILES ${MKL_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/lib)
         endif()
     endif()
@@ -119,7 +122,10 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
             file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/cuda/*.dll")
             install(FILES ${CUDA_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
         else()
-            file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/cuda/*.so.[0-9]*")
+            file(GLOB CUDA_REDISTRIBUTABLES
+                "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/cuda/*.so"
+                "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/linux/cuda/*.so.[0-9]*"
+            )
             message(STATUS "CUDA redistributables: ${CUDA_REDISTRIBUTABLES}")
             install(FILES ${CUDA_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/lib)
         endif()
