@@ -218,15 +218,17 @@ configure_file(
         @ONLY
 )
 
-if(WIN32)
-    if(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
+if(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/readme.txt" DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/docs)
+    if(WIN32)
         file(GLOB MSVC_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/msvc/*.dll")
         install(FILES ${MSVC_REDISTRIBUTABLES} DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/bin)
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/windows/readme_windows.txt" DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/docs)
+    elseif(APPLE)
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/macos/readme_mac.txt" DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/docs)
+    elseif(UNIX)
+        install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/linux/readme_linux.txt" DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/docs)
     endif()
-elseif(APPLE)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/macos/readme.txt" DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/docs)
-elseif(UNIX)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/release/linux/readme.txt" DESTINATION ${BACKPROP_TOOLS_INSTALL_PREFIX}/docs)
 endif()
 
 add_subdirectory(src)
