@@ -4,8 +4,9 @@ docker build -t backprop_tools:release_linux .
 ```
 ```
 mkdir install
-docker run --rm -it --mount type=bind,source=$(cd ../../../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/install,target=/install -v $(pwd)/build.sh:/build.sh:ro backprop_tools:release_linux /build.sh /install
-```
+docker run --rm -it --mount type=bind,source=$(cd ../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/install,target=/install -v $(pwd)/build.sh:/build.sh:ro backprop_tools:release_linux
+/build.sh /install
+````
 
 #### Testing the release
 #### Headless
@@ -21,7 +22,6 @@ xhost +local:docker
 ```
 ```
 docker run --rm -it -e DISPLAY=$DISPLAY --device=/dev/dri -v /tmp/.X11-unix:/tmp/.X11-unix --mount type=bind,source=$(pwd)/install,target=/install --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints,readonly backprop_tools:release_linux_ui /install/backprop_tools/bin/rl_environments_mujoco_ant_evaluation_ppo
-```
 ```
 
 ### For debugging the release process: Using a native machine to create the release
