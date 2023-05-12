@@ -19,8 +19,8 @@ jobs:
 
       - name: Create Build Environment
         run: |
-          apt-get update
-          apt-get install -y libhdf5-dev libboost-all-dev protobuf-compiler libprotobuf-dev cmake
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev libboost-all-dev protobuf-compiler libprotobuf-dev cmake
 
       - name: Configure CMake
         run: |
