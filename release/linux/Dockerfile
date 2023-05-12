@@ -37,10 +37,10 @@ RUN apt-get install -y libglfw3-dev
 # Conan
 RUN pip3 install conan==2.0.4
 # Glfw dependencies (copied from conan error message when they were not installed)
-RUN apt install -y libxcomposite-dev libxcursor-dev libxdamage-dev libxfixes-dev libxi-dev libxinerama-dev libxkbfile-dev libxmuu-dev libxres-dev libxss-dev libxtst-dev libxv-dev libxvmc-dev libxxf86vm-dev libxcb-render0-dev libxcb-render-util0-dev libxcb-xkb-dev libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-xinerama0-dev libxcb-dri3-dev uuid-dev libxcb-cursor-dev
-RUN apt install -y libxcb-util-dev libxcb-util0-dev
-RUN apt install -y pkg-config
-ENV CONAN_CMAKE_GENERATOR_PRESETS=None
+RUN apt-get install -y libxcomposite-dev libxcursor-dev libxdamage-dev libxfixes-dev libxi-dev libxinerama-dev libxkbfile-dev libxmuu-dev libxres-dev libxss-dev libxtst-dev libxv-dev libxvmc-dev libxxf86vm-dev libxcb-render0-dev libxcb-render-util0-dev libxcb-xkb-dev libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-sync-dev libxcb-xfixes0-dev libxcb-xinerama0-dev libxcb-dri3-dev uuid-dev libxcb-cursor-dev
+RUN apt-get install -y libxcb-util-dev libxcb-util0-dev
+RUN apt-get install -y pkg-config
+RUN apt-get install -y libx11-xcb-dev libfontenc-dev libice-dev libsm-dev libxaw7-dev libxmu-dev libxpm-dev libxt-dev
 
 RUN mkdir build
 WORKDIR /build

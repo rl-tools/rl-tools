@@ -3,7 +3,6 @@
 docker build -t backprop_tools:release_linux .
 ```
 ```
-mkdir install
 docker run --rm -it --mount type=bind,source=$(cd ../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/install,target=/install -v $(pwd)/build.sh:/build.sh:ro backprop_tools:release_linux
 /build.sh /install
 ````
