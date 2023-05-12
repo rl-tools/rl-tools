@@ -55,3 +55,6 @@
 [submodule "embedded_platforms/crazyflie/firmware"]
 	path = embedded_platforms/crazyflie/firmware
 	url = https://github.com/BackpropTools/crazyflie-firmware.git
+[submodule "src/rl/environments/pendulum/td3/wasm/static/media"]
+	path = src/rl/environments/pendulum/td3/wasm/static/media
+	url = https://github.com/BackpropTools/media.git

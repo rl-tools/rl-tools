@@ -24,6 +24,18 @@ body {
     margin-bottom: 2vh;
 }
 
+.github-container {
+    margin-top: 5vh;
+    margin-bottom: 5vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 10em;
+    max-height: 30vh;
+    position: relative;
+    width: 100%;
+}
+
 .pendulum-container {
     margin-top: 5vh;
     margin-bottom: 5vh;
