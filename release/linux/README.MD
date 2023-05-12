@@ -1,4 +1,30 @@
-### Using a native machine to create the release
+### Recommended: Using docker to create the release
+```
+docker build -t backprop_tools:release_linux .
+```
+```
+mkdir install
+docker run --rm -it --mount type=bind,source=$(cd ../../../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/install,target=/install -v $(pwd)/build.sh:/build.sh:ro backprop_tools:release_linux /build.sh /install
+```
+
+#### Testing the release
+#### Headless
+```
+docker run --rm -it -w / --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints --mount type=bind,source=$(pwd)/install,target=/install --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 /install/backprop_tools/bin/rl_environments_mujoco_ant_training_ppo_cuda_full 
+```
+#### With UI
+```
+docker build -f Dockerfile_ui -t backprop_tools:release_linux_ui .
+```
+```
+xhost +local:docker
+```
+```
+docker run --rm -it -e DISPLAY=$DISPLAY --device=/dev/dri -v /tmp/.X11-unix:/tmp/.X11-unix --mount type=bind,source=$(pwd)/install,target=/install --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints,readonly backprop_tools:release_linux_ui /install/backprop_tools/bin/rl_environments_mujoco_ant_evaluation_ppo
+```
+```
+
+### For debugging the release process: Using a native machine to create the release
 Optional: Set up using clang (which speeds up MuJoCo a bit)
 ```
 sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-16 100
@@ -40,24 +66,3 @@ docker run --rm -it -w /bpt/bin -v $(pwd)/install/backprop_tools:/bpt --cap-add=
 ````
 
 
-### Using docker to create the release
-```
-docker build -t backprop_tools:release_linux .
-```
-```
-mkdir install
-docker run --rm -it --mount type=bind,source=$(cd ../../../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/install,target=/install -v $(pwd)/build.sh:/build.sh:ro backprop_tools:release_linux /build.sh /install
-```
-
-#### Testing the release
-#### Headless
-```
-docker run --rm -it -w / --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints --mount type=bind,source=$(pwd)/install,target=/install --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 /install/backprop_tools/bin/rl_environments_mujoco_ant_training_ppo_cuda_full 
-```
-#### With UI
-```
-xhost +local:docker
-```
-```
-docker run --rm -it -e DISPLAY=$DISPLAY --device=/dev/dri -v /tmp/.X11-unix:/tmp/.X11-unix --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/install,target=/install --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints,readonly ubuntu:20.04
-```
