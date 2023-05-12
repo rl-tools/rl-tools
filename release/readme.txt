@@ -1,5 +1,5 @@
 This release of BackpropTools contains binaries for the training and evaluation of PPO and TD3 deep reinforcement learning agents in the MujoCo Ant-v4 and the Gym Pendulum-v1 environments.
-Pendulum-v1 (TD3:
+Pendulum-v1 (TD3):
     rl_environments_pendulum_td3_training_standalone:
         - Training of the Pendulum-v1 without dependecies
     rl_environments_pendulum_td3_training_blas
@@ -13,13 +13,13 @@ MuJoCo Ant-v4 (PPO):
     rl_environments_mujoco_ant_training_ppo_standalone:
         - Training of the MuJoCo Ant-v4 without dependecies
     rl_environments_mujoco_ant_training_ppo_blas
-        - Accelerated Training of the MuJoCo Ant-v4 using the CPU (BLAS, e.g. Intel MKL or Apple Accelerate), with Tensorboard loggin and checkpointing
+        - Accelerated Training of the MuJoCo Ant-v4 using the CPU (BLAS, e.g. Intel MKL or Apple Accelerate), with Tensorboard loggin and checkpointing. The run can be aborted when the agent reaches > 3000 return at which point the agent already learned a decent walking gait (and the checkpoints are saved regularly so that the gait can be inspected using rl_environments_mujoco_ant_evaluation_ppo). If the training is run for longer the agent should reach returns in excess of > 5000-6000 which represents a state of the art gait (kind of jumping).
     rl_environments_mujoco_ant_training_ppo_cuda_standalone
         - Training of the MuJoCo Ant-v4 accelerated using the GPU with CUDA but no other dependencies
     rl_environments_mujoco_ant_training_ppo_cuda_benchmark
         - Same as rl_environments_mujoco_ant_training_ppo_cuda_standalone but without evaluation episodes (and BLAS, except for Windows)
     rl_environments_mujoco_ant_training_ppo_cuda_full
-        - Same as rl_environments_mujoco_ant_training_ppo_cuda_standalone but with BLAS, Tensorboard logging and checkpointing
+        - Same as rl_environments_mujoco_ant_training_ppo_cuda_standalone but with BLAS, Tensorboard logging and checkpointing. The run can be aborted when the agent reaches > 3000 return at which point the agent already learned a decent walking gait (and the checkpoints are saved regularly so that the gait can be inspected using rl_environments_mujoco_ant_evaluation_ppo). If the training is run for longer the agent should reach returns in excess of > 5000-6000 which represents a state of the art gait (kind of jumping).
     rl_environments_mujoco_ant_evaluation_ppo
         - This executable allows for deterministic evaluation of the checkpoints of agents trained with rl_environments_mujoco_ant_training_ppo_blas or rl_environments_mujoco_ant_training_ppo_cuda_full. This executable automatically loads the latest checkpoint of the latest run from the checkpoints folder in the current working directory.
 
@@ -28,7 +28,7 @@ MuJoCo Ant-v4 (TD3):
     rl_environments_mujoco_ant_training_td3_standalone:
         - Training of the MuJoCo Ant-v4 without dependencies
     rl_environments_mujoco_ant_training_td3_blas:
-        - Training of the MuJoCo Ant-v4 accelerated using the CPU (BLAS, e.g. Intel MKL or Apple Accelerate) including Tensorboard logging and checkpointing
+        - Training of the MuJoCo Ant-v4 accelerated using the CPU (BLAS, e.g. Intel MKL or Apple Accelerate) including Tensorboard logging and checkpointing. The run can be aborted when the agent reaches > 3000 return at which point the agent already learned a decent walking gait (and the checkpoints are saved regularly so that the gait can be inspected using rl_environments_mujoco_ant_evaluation_ppo). If the training is run for longer the agent should reach returns in excess of > 5000-6000 which represents a state of the art gait (kind of jumping).
     rl_environments_mujoco_ant_evaluation_td3:
         - This executable allows for deterministic evaluation of the checkpoints of agents trained with rl_environments_mujoco_ant_training_td3_blas. This executable automatically loads the latest checkpoint of the latest run from the checkpoints folder in the current working directory.
 

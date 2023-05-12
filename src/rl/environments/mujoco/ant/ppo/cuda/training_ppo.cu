@@ -346,7 +346,7 @@ int main(int argc, char** argv){
                 std::chrono::duration<T> step_elapsed = now - training_step_start;
                 T steps_per_second_lifetime = on_policy_runner.step / training_elapsed.count();
                 T steps_per_second_current = prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS * prl::ON_POLICY_RUNNER_STEPS_PER_ENV / step_elapsed.count();
-                std::cout << "PPO step: " << std::setw(10) << ppo_step_i << "environment step: " << std::setw(10) << on_policy_runner.step << " elapsed: " << std::setw(10) << std::setprecision(2) << training_elapsed.count() << "s (lifetime: " << std::setw(10) << std::setprecision(2) << steps_per_second_lifetime << " steps/s, current: " << std::setw(10) << std::setprecision(2) << steps_per_second_current << " steps/s)" << std::endl;
+                std::cout << "PPO step: " << std::setw(10) << ppo_step_i << " environment step: " << std::setw(10) << on_policy_runner.step << " elapsed: " << std::setw(10) << std::setprecision(2) << training_elapsed.count() << "s (lifetime: " << std::setw(10) << std::setprecision(2) << steps_per_second_lifetime << " steps/s, current: " << std::setw(10) << std::setprecision(2) << steps_per_second_current << " steps/s)" << std::endl;
 //                bpt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
 //                bpt::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
 //                bpt::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);
