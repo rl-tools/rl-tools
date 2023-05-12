@@ -15,6 +15,7 @@ jobs:
 
       - name: Create Build Environment
         run: git submodule update --init --recursive
+        continue-on-error: true
 
       - name: Create Build Environment
         run: |
