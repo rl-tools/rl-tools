@@ -17,6 +17,11 @@ jobs:
         run: git submodule update --init --recursive
         continue-on-error: true
 
+      - name: Check
+        run: |
+          ls external/highfive
+          ls external/mujoco
+
       - name: Create Build Environment
         run: |
           sudo apt-get update
