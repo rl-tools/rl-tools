@@ -14,9 +14,12 @@ jobs:
         continue-on-error: true
 
       - name: Create Build Environment
+        run: git submodule update --init --recursive
+
+      - name: Create Build Environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libhdf5-dev libboost-all-dev protobuf-compiler libprotobuf-dev cmake
+          apt-get update
+          apt-get install -y libhdf5-dev libboost-all-dev protobuf-compiler libprotobuf-dev cmake
 
       - name: Configure CMake
         run: |
