@@ -52,12 +52,12 @@ git clone --recursive https://github.com/BackpropTools/BackpropTools.git
 The most deterministic way to get started using BackpropTools not only for replication of the results but for modifying the code is using Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
 [Docker instructions & examples](examples/docker/README.MD)
 
-## Native (development)
-### Unix (Linux & macOS)
+### Native (development)
+#### Unix (Linux & macOS)
 For maximum performance and malleability for research and development we recommend to run BackpropTools natively on e.g. Linux or macOS. Since BackpropTools itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
 [Unix instructions & examples](examples/unix/README.MD)
 
-### Windows
+#### Windows
 [Windows instructions & examples](examples/windows/README.MD)
 
 ## Naming Convention
