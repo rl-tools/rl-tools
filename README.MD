@@ -44,7 +44,7 @@ The Linux binaries can also be run under WSL2 on Windows 10 (even including GPU 
 When running the Linux binaries on a headless version of Ubuntu (e.g. inside Docker or WSL) the training should work out of the box but additional dependencies are required for running the MuJoCo user interface to visualize the policy after training. The instructions to install the aforementioned dependencies is in the `readme_linux.txt` of the Linux release. 
 
 ### Cloning the repository
-To build the examples from source first the repository should be cloned (including all git submodules):
+To build the examples from source (either in Docker or natively), first the repository should be cloned (including all git submodules):
 ```
 git clone --recursive https://github.com/BackpropTools/BackpropTools.git
 ```
