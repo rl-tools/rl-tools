@@ -49,7 +49,7 @@ To build the examples from source first the repository should be cloned (includi
 git clone --recursive https://github.com/BackpropTools/BackpropTools.git
 ```
 ### Docker
-The most deterministic way to get started using BackpropTools is to use Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
+The most deterministic way to get started using BackpropTools not only for replication of the results but for modifying the code is using Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
 [Docker instructions & examples](examples/docker/README.MD)
 
 ### Unix (Linux & macOS)
