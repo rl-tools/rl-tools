@@ -56,6 +56,7 @@ using LOGGER = bpt::devices::logging::CPU;
 
 using DEV_SPEC_SUPER = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
 using TI = typename bpt::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
+constexpr TI NUM_RUNS = 1;
 namespace execution_hints{
     struct HINTS: bpt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
 }
@@ -103,7 +104,6 @@ int main(int argc, char** argv){
     std::string actor_checkpoints_dir_stub = "checkpoints";
     std::string logs_dir = "logs";
     TI job_seed = 0;
-    TI num_runs = 1;
 #if defined(BACKPROP_TOOLS_ENABLE_CLI11) && !defined(BACKPROP_TOOLS_DISABLE_CLI11)
     {
         CLI::App app;
@@ -119,14 +119,14 @@ int main(int argc, char** argv){
         std::cout << "Saving actor checkpoints to: " << actor_checkpoints_dir << std::endl;
     }
 // -------------------------------------------------------
-    for(TI run_i = 0; run_i < num_runs; ++run_i){
+    for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
         using penv = parameters::environment<double, TI>;
         using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
         // -------------- added for cuda training ----------------
         using ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE = bpt::rl::components::on_policy_runner::CollectionEvaluationBuffer<prl::ON_POLICY_RUNNER_SPEC>;
         using PPO_TRAINING_HYBRID_BUFFER_TYPE = bpt::rl::algorithms::ppo::TrainingBuffersHybrid<prl::PPO_SPEC>;
         // -------------------------------------------------------
-        TI seed = BASE_SEED + job_seed * num_runs + run_i;
+        TI seed = BASE_SEED + job_seed * NUM_RUNS + run_i;
         std::stringstream run_name_ss;
         run_name_ss << "ppo_ant_" + std::to_string(seed);
         if(prl::PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){

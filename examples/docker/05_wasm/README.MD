@@ -1,10 +1,10 @@
 Change to the current directory
 ```
-cd backprop_tools/examples/docker/05_wasm
+cd examples/docker/05_wasm
 ```
 Build the docker image (which is tagged as `backprop_tools:wasm`)
 ```
-./build.sh
+docker build -f Dockerfile -t backprop_tools:wasm .
 ```
 Run the image just built (exposing port 8000 for the web server and mounting the source code from the host in readonly mode)
 ```

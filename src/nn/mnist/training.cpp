@@ -128,7 +128,7 @@ int main(){
         }
         val_loss /= DATASET_SIZE_VAL;
         accuracy /= VALIDATION_LIMIT;
-        bpt::logging::text(device, device.logger, "Validation accuracy: ", accuracy);
+        bpt::logging::text(device, device.logger, "Validation accuracy: ", accuracy * 100, "%", "");
     }
     return 0;
 }

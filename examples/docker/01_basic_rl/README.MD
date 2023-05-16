@@ -1,11 +1,11 @@
 ### This examples shows the most basic example of using BackpropTools without any dependencies.
 You can verify the lack of dependencies in the [Dockerfile](Dockerfile) used for this example.
 ```
-cd backprop_tools/examples/docker/01_basic_rl
+cd examples/docker/01_basic_rl
 ```
 Build the docker image (tagged as `backprop_tools:basic_rl`)
 ```
-./build.sh
+docker build -f Dockerfile -t backprop_tools:basic_rl .
 ```
 Run the image just built (mounting the source code from the host in readonly mode)
 ```

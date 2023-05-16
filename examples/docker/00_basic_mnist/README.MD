@@ -2,11 +2,11 @@
 #### Here we are training a fully connected neural network to classify the MNIST handwritten digit dataset to reach > 90% accuracy
 You can verify the lack of dependencies in the [Dockerfile](Dockerfile) used for this example.
 ```
-cd backprop_tools/examples/docker/00_basic_mnist
+cd examples/docker/00_basic_mnist
 ```
 Build the docker image (tagged as `backprop_tools:basic_mnist`)
 ```
-./build.sh
+docker build -f Dockerfile -t backprop_tools:basic_mnist .
 ```
 Run the image just built (mounting the source code from the host in readonly mode)
 ```

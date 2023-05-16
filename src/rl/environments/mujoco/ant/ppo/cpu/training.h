@@ -54,7 +54,8 @@ using TI = typename DEVICE::index_t;
 
 
 constexpr TI BASE_SEED = 600;
-constexpr TI NUM_RUNS = 100;
+constexpr DEVICE::index_t NUM_RUNS = 1;
+constexpr DEVICE::index_t NUM_STEPS = 2500;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
 #if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
 constexpr bool ENABLE_EVALUATION = false;
@@ -83,7 +84,6 @@ std::string sanitize_file_name(const std::string &input) {
     return output;
 }
 
-template <typename DEVICE::index_t NUM_RUNS, typename DEVICE::index_t NUM_STEPS = 2500>
 void run(){
     for(TI run_i = 0; run_i < NUM_RUNS; ++run_i){
         using penv = parameters::environment<double, TI>;

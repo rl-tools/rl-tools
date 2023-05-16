@@ -1,6 +1,6 @@
 #include "training.h"
 
 int main(){
-    run<10>();
+    run();
     return 0;
 }

@@ -1,10 +1,10 @@
 Change to the current directory
 ```
-cd backprop_tools/examples/docker/02_mkl
+cd examples/docker/02_mkl
 ```
 Build the docker image (saved as `backprop_tools:mkl`)
 ```
-./build.sh
+docker build -f Dockerfile -t backprop_tools:mkl .
 ```
 Run a docker container based on the image just built (exposing port `6006` for tensorboard and mounting the source code from the host in readonly mode)
 ```
