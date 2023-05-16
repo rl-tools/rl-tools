@@ -6,30 +6,28 @@ Build the docker image (saved as `backprop_tools:mkl`)
 ```
 docker build -f Dockerfile -t backprop_tools:mkl .
 ```
-Run a docker container based on the image just built (exposing port `6006` for tensorboard and mounting the source code from the host in readonly mode)
+Run a docker container based on the image just built (exposing port `6006` for Tensorboard and mounting the source code from the host in readonly mode)
 ```
 docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly --cap-add=sys_nice backprop_tools:mkl
 ```
-Configure the BackpropTools using CMake
+Configure BackpropTools using CMake
 ```
-cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
+cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
 ```
-<!--
-Alternatively: you can enable Tensorboard using the `BACKPROP_TOOLS_ENABLE_TENSORBOARD` flag (which might slow down the training)
+Building the targets
 ```
-cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
+cmake --build . -j$(nproc)
 ```
--->
-Build the rl_algorithms_td3_full_training_standalone target which trains the Pendulum-v1 environment using TD3 on the CPU
+Execute the built binary that uses MKL (indicated by the `_blas`) with a high priority
 ```
-cmake --build . --target rl_environments_pendulum_td3_training_standalone -j$(nproc)
+nice -n -20 ./src/rl/environments/pendulum/td3/cpu/rl_environments_pendulum_td3_training_blas
 ```
-Optional: Start tensorboard in the background
+Alternatively: You can run the binary including Tensorboard logging (which might slow down the training). For that start tensorboard in the background first:
 ```
 tensorboard --logdir logs --bind_all 2> /dev/null > /dev/null &
 ```
-Execute the built binary with a high priority
+Then run the executable:
 ```
-nice -n -20 ./src/rl/environments/pendulum/td3/cpu/rl_environments_pendulum_td3_training_standalone
+nice -n -20 ./src/rl/environments/pendulum/td3/cpu/rl_environments_pendulum_td3_training_blas_tensorboard
 ```
 You can observe the training using the browser on your host machine to access Tensorboard at `http://localhost:6006/

@@ -20,6 +20,6 @@ RUN apt-get update && apt-get install -y software-properties-common lsb-release
 RUN apt-get clean all
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
 RUN apt-add-repository "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
-RUN apt-get update && apt-get install -y cmake
+RUN apt-get update && apt-get install -y cmake git # git is required for MuJoCo (it uses "findOrFetch" in its CMakeLists.txt)
 RUN mkdir build
 WORKDIR /build
