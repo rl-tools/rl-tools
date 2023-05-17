@@ -22,17 +22,17 @@
 
 
 ## Content
-1. [Citing](#citing)
-2. [Getting Started](#getting-started)
-  1. [Running Prebuilt Binaries](#running-prebuilt-binaries)
-  2. [Cloning the Repository](#cloning-the-repository)
-  3. [Docker](#docker)
-  4. [Native](#native-(development))
-    1. [Unix](#unix)
-      1. [Linux](#linux)
-      2. [macOS](#macos)
-    2. [Windows](#windows)
-3. [Naming Convention](#naming-convention)
+- [Citing](#citing)
+- [Getting Started](#getting-started)
+  - [Running Prebuilt Binaries](#running-prebuilt-binaries)
+  - [Cloning the Repository](#cloning-the-repository)
+  - [Docker](#docker)
+  - [Native](#native-(development))
+  - [Unix](#unix)
+    - [Linux](#linux)
+    - [macOS](#macos)
+  - [Windows](#windows)
+- [Naming Convention](#naming-convention)
 ## Citing
 When using BackpropTools in an academic work please cite our publication using the following Bibtex citation:
 ```
