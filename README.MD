@@ -71,12 +71,12 @@ For maximum performance and malleability for research and development we recomme
 
 ## Embedded Platforms
 ### Inference & Training
-- [iOS](embedded_platforms/ios)
-- [teensy](embedded_platforms/teensy)
+- [iOS](https://github.com/BackpropTools/iOS)
+- [teensy](https://github.com/BackpropTools/teensy)
 ### Inference
-- [CrazyFlie](embedded_platforms/crazyflie/firmware)
-- [ESP32](embedded_platforms/esp32)
-- [PX4](embedded_platforms/px4/backprop_tools)
+- [CrazyFlie](embedded_platforms/crazyflie)
+- [ESP32](https://github.com/BackpropTools/esp32)
+- [PX4](https://github.com/BackpropTools/backprop_tools_px4)
 
 ## Naming Convention
 We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `SNAKE_CASE` for compile-time constants. 
