@@ -31,7 +31,7 @@
     - [Unix](#unix)
       - [Linux](#linux)
       - [macOS](#macos)
-  - [Windows](#windows)
+    - [Windows](#windows)
 - [Naming Convention](#naming-convention)
 ## Citing
 When using BackpropTools in an academic work please cite our publication using the following Bibtex citation:
