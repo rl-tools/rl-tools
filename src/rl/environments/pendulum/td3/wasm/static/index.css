@@ -244,3 +244,11 @@ body {
 .info-box>h3 {
     margin: 0 0 0.5em 0;
 }
+
+.mujoco-ant-gif {
+    width: 100%;
+    height: 240px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
