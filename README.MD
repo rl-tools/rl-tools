@@ -32,6 +32,7 @@
       - [Linux](#linux)
       - [macOS](#macos)
     - [Windows](#windows)
+- [Embedded Platforms](#embedded-platforms)
 - [Naming Convention](#naming-convention)
 ## Citing
 When using BackpropTools in an academic work please cite our publication using the following Bibtex citation:
@@ -67,6 +68,15 @@ For maximum performance and malleability for research and development we recomme
 
 #### Windows
 [Windows instructions & examples](examples/windows/README.MD)
+
+## Embedded Platforms
+### Inference & Training
+- [iOS](embedded_platforms/ios)
+- [teensy](embedded_platforms/teensy)
+### Inference
+- [CrazyFlie](embedded_platforms/crazyflie/firmware)
+- [ESP32](embedded_platforms/esp32)
+- [PX4](embedded_platforms/px4/backprop_tools)
 
 ## Naming Convention
 We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `SNAKE_CASE` for compile-time constants. 
