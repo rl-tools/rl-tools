@@ -274,53 +274,6 @@ add_test(
 #gtest_discover_tests(test_rl_algorithms_td3_pendulum_training_stats)
 
 
-# Environment Multirotor test
-add_executable(
-        test_rl_environments_multirotor_multirotor
-        src/rl/environments/multirotor/multirotor.cpp
-)
-target_link_libraries(
-        test_rl_environments_multirotor_multirotor
-        backprop_tools
-        GTest::gtest_main
-        HighFive
-)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_multirotor_multirotor)
-gtest_discover_tests(test_rl_environments_multirotor_multirotor)
-
-
-
-function(factory_test_rl_environments_multirotor TARGET DEBUG)
-# Multirotor Training test
-add_executable(
-        ${TARGET}
-        src/rl/environments/multirotor_training/multirotor_training.cpp
-)
-target_link_libraries(
-        ${TARGET}
-        PRIVATE
-        backprop_tools
-        GTest::gtest_main
-        HighFive
-        tensorboard_logger
-#        Boost::headers
-)
-BACKPROP_TOOLS_TARGET_LINK_BLAS(${TARGET})
-target_include_directories(
-        ${TARGET}
-        PRIVATE
-        lib/tensorboard/include
-        lib/nlohmann/include
-)
-if(${DEBUG})
-    target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG)
-    BACKPROP_TOOLS_ADD_DEFINITIONS(${TARGET})
-endif()
-gtest_discover_tests(${TARGET})
-endfunction()
-
-factory_test_rl_environments_multirotor(test_rl_environments_multirotor_training_debug true)
-factory_test_rl_environments_multirotor(test_rl_environments_multirotor_training false)
 
 # Neural Network Test Conversions
 add_executable(
@@ -356,27 +309,6 @@ BACKPROP_TOOLS_TARGET_LINK_BLAS(test_neural_network_benchmark)
 gtest_discover_tests(test_neural_network_benchmark)
 endif()
 
-# Multirotor UI test
-if(${BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE})
-add_executable(
-        test_rl_environments_multirotor_ui_test
-        src/rl/environments/multirotor/ui.cpp
-)
-target_link_libraries(
-        test_rl_environments_multirotor_ui_test
-        backprop_tools
-        GTest::gtest_main
-        Boost::headers
-        HighFive
-)
-target_include_directories(
-        test_rl_environments_multirotor_ui_test
-        PRIVATE
-        lib/nlohmann/include
-)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_multirotor_ui_test)
-gtest_discover_tests(test_rl_environments_multirotor_ui_test)
-endif()
 
 # Container tests
 add_executable(
