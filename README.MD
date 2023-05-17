@@ -28,7 +28,7 @@
   - [Cloning the Repository](#cloning-the-repository)
   - [Docker](#docker)
   - [Native](#native)
-    - [Unix](#unix-linux-macos)
+    - [Unix](#unix-linux-and-macos)
     - [Windows](#windows)
 - [Embedded Platforms](#embedded-platforms)
 - [Naming Convention](#naming-convention)
@@ -60,7 +60,7 @@ The most deterministic way to get started using <span style="color:#7DB9B6">Back
 
 ### Native
 In comparison to running the release binaries or building from source in Docker, the native setup heavily depends on the configuration of the machine it is run on (installed packages, overwritten defaults etc.). Hence we provide guidelines on how to setup the environment for research and development of <span style="color:#7DB9B6">BackpropTools</span> that should run on the default configuration of the particular platform but might not work out of the box if it has been customized.  
-#### Unix (Linux & macOS)
+#### Unix (Linux and macOS)
 For maximum performance and malleability for research and development we recommend to run <span style="color:#7DB9B6">BackpropTools</span> natively on e.g. Linux or macOS. Since <span style="color:#7DB9B6">BackpropTools</span> itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
 [Unix instructions & examples](examples/unix/README.MD)
 
