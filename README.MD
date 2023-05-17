@@ -28,7 +28,7 @@
   - [Cloning the Repository](#cloning-the-repository)
   - [Docker](#docker)
   - [Native](#native)
-    - [Unix](#unix-linux-and-macos)
+    - [Unix (Linux and macOS)](#unix-linux-and-macos)
     - [Windows](#windows)
 - [Embedded Platforms](#embedded-platforms)
 - [Naming Convention](#naming-convention)
