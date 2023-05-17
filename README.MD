@@ -56,12 +56,13 @@ To build the examples from source (either in Docker or natively), first the repo
 git clone --recursive https://github.com/BackpropTools/BackpropTools.git
 ```
 ### Docker
-The most deterministic way to get started using BackpropTools not only for replication of the results but for modifying the code is using Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
+The most deterministic way to get started using <span style="color:#7DB9B6">BackpropTools</span> not only for replication of the results but for modifying the code is using Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
 [Docker instructions & examples](examples/docker/README.MD)
 
 ### Native
+In comparison to running the release binaries or building from source in Docker, the native setup heavily depends on the configuration of the machine it is run on (installed packages, overwritten defaults etc.). Hence we provide guidelines on how to setup the environment for research and development of <span style="color:#7DB9B6">BackpropTools</span> that should run on the default configuration of the particular platform but might not work out of the box if it has been customized.  
 #### Unix (Linux & macOS)
-For maximum performance and malleability for research and development we recommend to run BackpropTools natively on e.g. Linux or macOS. Since BackpropTools itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
+For maximum performance and malleability for research and development we recommend to run <span style="color:#7DB9B6">BackpropTools</span> natively on e.g. Linux or macOS. Since <span style="color:#7DB9B6">BackpropTools</span> itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
 [Unix instructions & examples](examples/unix/README.MD)
 
 #### Windows
