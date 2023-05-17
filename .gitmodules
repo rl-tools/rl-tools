@@ -58,3 +58,6 @@
 [submodule "src/rl/environments/pendulum/td3/wasm/static/media"]
 	path = src/rl/environments/pendulum/td3/wasm/static/media
 	url = https://github.com/BackpropTools/media.git
+[submodule "embedded_platforms/ios"]
+	path = embedded_platforms/ios
+	url = https://github.com/BackpropTools/iOS.git
