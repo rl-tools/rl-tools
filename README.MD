@@ -22,15 +22,22 @@
 
 
 ## Content
-1. [Getting Started](#getting-started)
-   1. [Running Prebuilt Binaries](#running-prebuilt-binaries)
-   2. [Cloning the Repository](#cloning-the-repository)
-   3. [Docker](#docker)
-   4. [Unix](#unix)
+1. [Citing](#citing)
+2. [Getting Started](#getting-started)
+  1. [Running Prebuilt Binaries](#running-prebuilt-binaries)
+  2. [Cloning the Repository](#cloning-the-repository)
+  3. [Docker](#docker)
+  4. [Native](#native-(development))
+    1. [Unix](#unix)
       1. [Linux](#linux)
       2. [macOS](#macos)
-   4. [Windows](#windows)
-2. [Naming Convention](#naming-convention)
+    2. [Windows](#windows)
+3. [Naming Convention](#naming-convention)
+## Citing
+When using BackpropTools in an academic work please cite our publication using the following Bibtex citation:
+```
+Bibtex tbd
+```
 ## Getting Started
 ### Running Prebuilt Binaries
 For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/BackpropTools/BackpropTools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
