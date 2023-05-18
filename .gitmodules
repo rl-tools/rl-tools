@@ -37,17 +37,11 @@
 [submodule "external/gymnasium"]
 	path = external/gymnasium
 	url = https://github.com/Farama-Foundation/Gymnasium.git
-[submodule "tests/lib/highfive"]
-	path = tests/lib/highfive
-	url = https://github.com/BlueBrain/HighFive.git
 
 # Test dependencies
 [submodule "tests/lib/matplotlib"]
 	path = tests/lib/matplotlib
 	url = https://github.com/lava/matplotlib-cpp.git
-[submodule "tests/lib/tensorboard"]
-	path = tests/lib/tensorboard
-	url = https://github.com/RustingSword/tensorboard_logger.git
 [submodule "tests/lib/googletest"]
 	path = tests/lib/googletest
 	url = https://github.com/google/googletest.git
