@@ -22,7 +22,6 @@ using DEVICE = bpt::devices::DefaultCUDA;
 using DEV_SPEC = DEVICE::SPEC;
 
 #include "td3_full_training_parameters_pendulum.h"
-#include "td3_full_training_parameters_multirotor.h"
 
 #include <backprop_tools/nn_models/operations_generic.h>
 #include <backprop_tools/rl/components/off_policy_runner/operations_cuda.h>
@@ -38,8 +37,7 @@ using DEV_SPEC = DEVICE::SPEC;
 using DTYPE = float;
 
 
-using p = parameters_multirotor_0<DEVICE, DTYPE>;
-//using p = parameters_pendulum_0<DEVICE, DTYPE>;
+using p = parameters_pendulum_0<DEVICE, DTYPE>;
 using rlp = p::rl<p::env::ENVIRONMENT>;
 
 static_assert(rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -101,10 +99,10 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 
     bpt::init(device_init, actor_critic_init, optimizer, rng_init);
     bpt::copy(device, device_init, actor_critic, actor_critic_init);
-    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
-        auto parameters = p::env::parameters;
-        envs[i].parameters = parameters;
-    }
+//    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
+//        auto parameters = p::env::parameters;
+//        envs[i].parameters = parameters;
+//    }
     bpt::init(device_init, off_policy_runner_init, envs);
     bpt::copy(device, device_init, off_policy_runner, off_policy_runner_init);
     cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(rlp::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
@@ -194,7 +192,6 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         // 90s, 15x of CPU BLAS => todo: investigate individual kernel timings
         // on device rollout: 24s, 6x of CPU BLAS => todo: investigate individual kernel timings
         // no device sync: 14s, 2.5x of CPU BLAS => todo: investigate individual kernel timings
-        // multirotor no device sync: 500k 140s, 2x of CPU BLAS => todo: investigate individual kernel timings
 
     }
     bpt::free(device, critic_batch);

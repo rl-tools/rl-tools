@@ -53,20 +53,3 @@ BACKPROP_TOOLS_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda_td3_full_trainin
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_cuda_td3_full_training)
 gtest_discover_tests(test_rl_cuda_td3_full_training)
 
-add_executable(
-        test_rl_cuda_environments_multirotor
-        environments/multirotor.cu
-)
-target_link_libraries(
-        test_rl_cuda_environments_multirotor
-        PRIVATE
-        backprop_tools
-        GTest::gtest_main
-        CUDA::cublas
-        HighFive
-        tensorboard_logger
-)
-set_target_properties(test_rl_cuda_environments_multirotor PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
-BACKPROP_TOOLS_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda_environments_multirotor)
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_cuda_environments_multirotor)
-gtest_discover_tests(test_rl_cuda_environments_multirotor)
