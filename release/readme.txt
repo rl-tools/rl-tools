@@ -33,7 +33,7 @@ MuJoCo Ant-v4 (TD3):
         - This executable allows for deterministic evaluation of the checkpoints of agents trained with rl_environments_mujoco_ant_training_td3_blas. This executable automatically loads the latest checkpoint of the latest run from the checkpoints folder in the current working directory.
 
 Notes:
-- MuJoCo appears to require a CPU that supports the AVX extension (hence might not work in virtual machines)
+- MuJoCo appears to require a CPU that supports the AVX extension when running on x86_64 CPUs (hence might not work in virtual machines)
 - To run the training with CUDA support a CUDA installation is NOT required (just a NVIDIA driver of version > 460).
 - Note on checkpoints and logs: The checkpoints and logs will be placed into a "checkpoints" and "logs" folder inside the current working directory.
 Tensorboard logs can be inspected (after installing tensorboard using e.g. "pip3 install tensorboard") by "python3 -m tensorboard.main --logdir logs" in the same workind directory as the executables were run from.
