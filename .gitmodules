@@ -1,45 +1,4 @@
-[submodule "tests/lib/highfive"]
-	path = tests/lib/highfive
-	url = https://github.com/BlueBrain/HighFive.git
-[submodule "tests/lib/matplotlib"]
-	path = tests/lib/matplotlib
-	url = https://github.com/lava/matplotlib-cpp.git
-[submodule "tests/lib/tensorboard"]
-	path = tests/lib/tensorboard
-	url = https://github.com/RustingSword/tensorboard_logger.git
-[submodule "tests/lib/googletest"]
-	path = tests/lib/googletest
-	url = https://github.com/google/googletest.git
-[submodule "tests/lib/nlohmann"]
-	path = tests/lib/nlohmann
-	url = https://github.com/nlohmann/json.git
-[submodule "tests/lib/cutlass"]
-	path = tests/lib/cutlass
-	url = https://github.com/NVIDIA/cutlass.git
-[submodule "lib/mujoco"]
-	path = lib/mujoco
-	url = https://github.com/jonas-eschmann/mujoco.git
-[submodule "lib/gymnasium"]
-	path = lib/gymnasium
-	url = https://github.com/Farama-Foundation/Gymnasium.git
-[submodule "tests/lib/cli11"]
-	path = tests/lib/cli11
-	url = https://github.com/CLIUtils/CLI11.git
-[submodule "external/mujoco"]
-	path = external/mujoco
-	url = https://github.com/deepmind/mujoco.git
-[submodule "external/gymnasium"]
-	path = external/gymnasium
-	url = https://github.com/Farama-Foundation/Gymnasium.git
-[submodule "external/cli11"]
-	path = external/cli11
-	url = https://github.com/CLIUtils/CLI11.git
-[submodule "external/tensorboard"]
-	path = external/tensorboard
-	url = https://github.com/BackpropTools/tensorboard_logger.git
-[submodule "external/highfive"]
-	path = external/highfive
-	url = https://github.com/BlueBrain/HighFive.git
+# BackpropTools components
 [submodule "redistributable"]
 	path = redistributable
 	url = https://gitlab.com/backprop_tools/backprop_tools_redistributable.git
@@ -61,3 +20,41 @@
 [submodule "embedded_platforms/ios"]
 	path = embedded_platforms/ios
 	url = https://github.com/BackpropTools/iOS.git
+
+# Dependencies
+[submodule "external/cli11"]
+	path = external/cli11
+	url = https://github.com/CLIUtils/CLI11.git
+[submodule "external/tensorboard"]
+	path = external/tensorboard
+	url = https://github.com/BackpropTools/tensorboard_logger.git
+[submodule "external/highfive"]
+	path = external/highfive
+	url = https://github.com/BlueBrain/HighFive.git
+[submodule "external/mujoco"]
+	path = external/mujoco
+	url = https://github.com/deepmind/mujoco.git
+[submodule "external/gymnasium"]
+	path = external/gymnasium
+	url = https://github.com/Farama-Foundation/Gymnasium.git
+[submodule "tests/lib/highfive"]
+	path = tests/lib/highfive
+	url = https://github.com/BlueBrain/HighFive.git
+
+# Test dependencies
+[submodule "tests/lib/matplotlib"]
+	path = tests/lib/matplotlib
+	url = https://github.com/lava/matplotlib-cpp.git
+[submodule "tests/lib/tensorboard"]
+	path = tests/lib/tensorboard
+	url = https://github.com/RustingSword/tensorboard_logger.git
+[submodule "tests/lib/googletest"]
+	path = tests/lib/googletest
+	url = https://github.com/google/googletest.git
+[submodule "tests/lib/nlohmann"]
+	path = tests/lib/nlohmann
+	url = https://github.com/nlohmann/json.git
+[submodule "tests/lib/cutlass"]
+	path = tests/lib/cutlass
+	url = https://github.com/NVIDIA/cutlass.git
+
