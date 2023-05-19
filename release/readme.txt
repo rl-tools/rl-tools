@@ -36,6 +36,6 @@ Notes:
 - MuJoCo appears to require a CPU that supports the AVX extension when running on x86_64 CPUs (hence might not work in virtual machines)
 - To run the training with CUDA support a CUDA installation is NOT required (just a NVIDIA driver of version > 460).
 - Note on checkpoints and logs: The checkpoints and logs will be placed into a "checkpoints" and "logs" folder inside the current working directory.
-Tensorboard logs can be inspected (after installing tensorboard using e.g. "pip3 install tensorboard") by "python3 -m tensorboard.main --logdir logs" in the same workind directory as the executables were run from.
+Tensorboard logs can be inspected (after installing tensorboard using e.g. "pip3 install tensorboard") by "python3 -m tensorboard.main --logdir logs" in the same working directory as the executables were run from.
 
 

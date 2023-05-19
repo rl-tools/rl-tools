@@ -23,3 +23,29 @@ Run the built binary
 ```
 ./src/rl/environments/pendulum/td3/cpu/rl_environments_pendulum_td3_training_standalone
 ```
+
+Expected output:
+```
+Mean return: -1269.58
+step_i: 1000 3.93819s
+Mean return: -1674.61
+step_i: 2000 8.39101s
+Mean return: -1411.22
+step_i: 3000 12.849s
+Mean return: -1329.09
+step_i: 4000 17.3239s
+Mean return: -1031.09
+step_i: 5000 21.789s
+Mean return: -452.913
+step_i: 6000 26.2582s
+Mean return: -318.911
+step_i: 7000 30.719s
+Mean return: -167.269
+step_i: 8000 35.1831s
+Mean return: -94.4109
+step_i: 9000 39.6544s
+Mean return: -211.826
+total time: 44.1208s
+```
+
+We can see that the policy learned to swing up the pendulum by the mean return increasing to approximately -200.
