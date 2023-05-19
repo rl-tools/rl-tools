@@ -4,7 +4,7 @@ cd examples/docker/02_mkl
 ```
 Build the docker image (saved as `backprop_tools:mkl`)
 ```
-docker build -f Dockerfile -t backprop_tools:mkl .
+docker build -f Dockerfile -t backprop_tools:mkl . --no-cache
 ```
 Run a docker container based on the image just built (exposing port `6006` for Tensorboard and mounting the source code from the host in readonly mode)
 ```

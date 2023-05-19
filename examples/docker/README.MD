@@ -12,7 +12,7 @@ Furthermore, if you want to use GPU acceleration you need the NVIDIA Docker runt
 
 For each example we provide a readme file with a handful of commands to build the container, start it and to build and run the code inside. In our view this is prefarable to hiding the commands in a script because by exposing them the user can understand the different steps, has more agency and can directly start tinkering with the code.
 
-Note: If the building of the Docker image fails it might be because there are old, cached image layers that include outdated repository links. In this case you should used `docker build` with the `--no-cache` flag to force a rebuild of all layers.
+[//]: # (Note: If the building of the Docker image fails it might be because there are old, cached image layers that include outdated repository links. In this case you should used `docker build` with the `--no-cache` flag to force a rebuild of all layers.)
 
 Once these prequesites are installed you can continue with the instructions for the particular examples:
 

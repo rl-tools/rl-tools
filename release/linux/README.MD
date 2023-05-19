@@ -1,6 +1,6 @@
 ### Recommended: Using docker to create the release
 ```
-docker build -t backprop_tools:release_linux .
+docker build -t backprop_tools:release_linux . --no-cache
 ```
 ```
 docker run --rm -it --mount type=bind,source=$(cd ../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/install,target=/install -v $(pwd)/build.sh:/build.sh:ro backprop_tools:release_linux
@@ -14,7 +14,7 @@ docker run --rm -it -w / --mount type=bind,source=$(pwd)/checkpoints,target=/che
 ```
 #### With UI
 ```
-docker build -f Dockerfile_ui -t backprop_tools:release_linux_ui .
+docker build -f Dockerfile_ui -t backprop_tools:release_linux_ui . --no-cache
 ```
 ```
 xhost +local:docker

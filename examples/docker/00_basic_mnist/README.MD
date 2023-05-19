@@ -6,7 +6,7 @@ cd examples/docker/00_basic_mnist
 ```
 Build the docker image (tagged as `backprop_tools:basic_mnist`)
 ```
-docker build -f Dockerfile -t backprop_tools:basic_mnist .
+docker build -f Dockerfile -t backprop_tools:basic_mnist . --no-cache
 ```
 Run the image just built (mounting the source code from the host in readonly mode)
 ```

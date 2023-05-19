@@ -5,7 +5,7 @@ cd examples/docker/01_basic_rl
 ```
 Build the docker image (tagged as `backprop_tools:basic_rl`)
 ```
-docker build -f Dockerfile -t backprop_tools:basic_rl .
+docker build -f Dockerfile -t backprop_tools:basic_rl . --no-cache
 ```
 Run the image just built (mounting the source code from the host in readonly mode)
 ```

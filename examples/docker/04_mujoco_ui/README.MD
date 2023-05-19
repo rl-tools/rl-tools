@@ -5,7 +5,7 @@ cd examples/docker/04_mujoco_ui
 ### Building the environment
 Build the docker image and tag it as `backprop_tools:mujoco_ui`
 ```
-docker build -f Dockerfile -t backprop_tools:mujoco_ui .
+docker build -f Dockerfile -t backprop_tools:mujoco_ui . --no-cache
 ```
 ### Running the container and configuring BackpropTools
 ```

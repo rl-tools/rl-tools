@@ -5,7 +5,7 @@ cd examples/docker/03_cuda
 ### Building the environment
 Build the docker container (based on an NVIDIA cuda ubuntu image) installing Intel MKL as well as a recent version of CMake. The image is tagged as `backprop_tools:cuda`
 ```
-docker build -f Dockerfile -t backprop_tools:cuda .
+docker build -f Dockerfile -t backprop_tools:cuda . --no-cache
 ```
 ### Running the container and configuring BackpropTools
 Run the container in interactive mode, mounting the source code from the host in readonly mode. We expose port 6006 for tensorboard and allow the sys_nice capability to be able to run the tests with a high priority

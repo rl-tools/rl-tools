@@ -3,7 +3,7 @@
 cd src/rl/environments/pendulum/td3/wasm
 ```
 ```
-docker build -f ../../../../../../examples/docker/05_wasm/Dockerfile -t backprop_tools:wasm_build .
+docker build -f ../../../../../../examples/docker/05_wasm/Dockerfile -t backprop_tools:wasm_build . --no-cache
 ```
 ```
 docker run --rm -it -p 8000:8000 --mount type=bind,source=$(cd ../../../../../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/static/build,target=/build backprop_tools:wasm
