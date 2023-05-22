@@ -61,7 +61,7 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 
 #include <backprop_tools/rl/utils/evaluation.h>
 
-#include "../parameters.h"
+#include "parameters.h"
 
 #include <gtest/gtest.h>
 #include <iostream>
