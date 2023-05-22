@@ -49,8 +49,28 @@ using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
 using parameters_rl = parameter_set::rl<DEVICE, DTYPE, ENVIRONMENT>;
 static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-constexpr DEVICE::index_t performance_logging_interval = 100;
-constexpr DEVICE::index_t ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
+using TI = typename bpt::DEVICE_FACTORY<DEV_SPEC>::index_t;
+constexpr TI performance_logging_interval = 100;
+constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
+constexpr TI BASE_SEED = 100;
+constexpr TI NUM_RUNS = 1;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50000;
+constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
+const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
+
+
+std::string sanitize_file_name(const std::string &input){
+    std::string output = input;
+
+    const std::string invalid_chars = R"(<>:\"/\|?*)";
+
+    std::replace_if(output.begin(), output.end(), [&invalid_chars](const char &c) {
+        return invalid_chars.find(c) != std::string::npos;
+    }, '_');
+
+    return output;
+}
 
 int main(){
     std::string DATA_FILE_PATH = "learning_curves.h5";
@@ -61,7 +81,23 @@ int main(){
     std::vector<std::vector<DTYPE>> eval_step;
     std::vector<std::vector<DTYPE>> eval_return;
 
-    for(typename DEVICE::index_t run_i = 0; run_i < 1; run_i++){
+    for(typename DEVICE::index_t run_i = 0; run_i < NUM_RUNS; run_i++){
+        TI seed = BASE_SEED + run_i;
+        std::stringstream run_name_ss;
+        run_name_ss << "ppo_ant_" + std::to_string(seed);
+        std::string run_name = run_name_ss.str();
+        {
+            auto now = std::chrono::system_clock::now();
+            auto local_time = std::chrono::system_clock::to_time_t(now);
+            std::tm* tm = std::localtime(&local_time);
+
+            std::ostringstream oss;
+            oss << std::put_time(tm, "%FT%T%z");
+            run_name = sanitize_file_name(oss.str()) + "_" + run_name;
+        }
+        std::cout << "Run " << run_i << " of " << NUM_RUNS << " with seed " << seed << " and name " << run_name << std::endl;
+        std::cout << "Checkpoints: " << (ACTOR_ENABLE_CHECKPOINTS ? "enabled" : "disabled") << std::endl;
+
         episode_step.push_back({});
         episode_returns.push_back({});
         episode_steps.push_back({});
@@ -138,12 +174,37 @@ int main(){
 
 
         // training
-#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
+#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
         constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
 #else
         constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
 #endif
         for(int step_i = 0; step_i < step_limit; step_i++){
+            if(ACTOR_ENABLE_CHECKPOINTS && (step_i % ACTOR_CHECKPOINT_INTERVAL == 0)){
+                std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
+                try {
+                    std::filesystem::create_directories(actor_output_dir);
+                }
+                catch (std::exception& e) {
+                }
+                std::string checkpoint_name = "latest.h5";
+                if(!ACTOR_OVERWRITE_CHECKPOINTS){
+                    std::stringstream checkpoint_name_ss;
+                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
+                    checkpoint_name = checkpoint_name_ss.str();
+                }
+                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
+#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+                std::cout << "Saving actor checkpoint " << actor_output_path << std::endl;
+                try{
+                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
+                    bpt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
+                }
+                catch(HighFive::Exception& e){
+                    std::cout << "Error while saving actor: " << e.what() << std::endl;
+                }
+#endif
+            }
             auto step_start = std::chrono::high_resolution_clock::now();
             device.logger->step = step_i;
             bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
