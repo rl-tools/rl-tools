@@ -39,10 +39,10 @@ namespace TEST_DEFINITIONS{
 int main(int argc, char** argv) {
     using namespace TEST_DEFINITIONS;
     CLI::App app;
-    std::string run = "", checkpoint = "";
+    std::string arg_run = "", arg_checkpoint = "";
     DEVICE::index_t startup_timeout = 0;
-    app.add_option("--run", run, "path to the run's directory");
-    app.add_option("--checkpoint", checkpoint, "path to the checkpoint");
+    app.add_option("--run", arg_run, "path to the run's directory");
+    app.add_option("--checkpoint", arg_checkpoint, "path to the checkpoint");
     app.add_option("--timeout", startup_timeout, "time to wait after first render");
 
     CLI11_PARSE(app, argc, argv);
@@ -65,6 +65,8 @@ int main(int argc, char** argv) {
     ui.port = "8080";
     bpt::init(dev, env, ui);
     DEVICE::index_t episode_i = 0;
+    std::string run = arg_run;
+    std::string checkpoint = arg_checkpoint;
     while(true){
         std::filesystem::path actor_run;
         if(run == "" && checkpoint == ""){
@@ -112,6 +114,12 @@ int main(int argc, char** argv) {
                 std::cout << "Error: " << e.what() << std::endl;
                 continue;
             }
+        }
+        if(arg_checkpoint == ""){
+            checkpoint = "";
+        }
+        if(arg_run == ""){
+            run = "";
         }
 
         bpt::sample_initial_state(dev, env, state, rng);
