@@ -3,36 +3,3 @@ NVIDIA CUBLAS: 11.8
 Intel oneMKL: 2023.1
 
 These binaries should be mostly OS independent. They were built using Ubuntu 20.04 hence all distributions that have a libstdc++ that corresponds to gcc 9.3 should be able to run them. We have tested them successfully on Ubuntu 22.04 and a recent Arch Linux setup.
-
-For the MuJoCo UI additional packages might be required when running in a headless distribution like inside Docker or WSL
-
-# The following dependencies are all included in the Desktop versions of Ubuntu 20.04 and 22.04
-apt-get update && apt-get install -y \
-libxcb-shape0 \
-libxcb-randr0 \
-libxcb-keysyms1 \
-libxcb-keysyms1 \
-libxcb-icccm4 \
-libxcb-xkb1 \
-libxvmc1 \
-libxv1 \
-libxtst6 \
-libxss1 \
-libxres1 \
-libxrender1 \
-libxrandr2 \
-libxpm4 \
-libxmu6 \
-libxkbfile1 \
-libxinerama1 \
-libxi6 \
-libxdamage1 \
-libxcursor1 \
-libxcomposite1 \
-libxaw7 \
-libfontenc1 \
-libxmuu1 \
-libgl1
-
-# These dependencies are not in the Desktop requirements of the Ubuntu 20.04 and 22.04
-apt-get update && apt-get install -y libxcb-cursor0 libxcb-xinerama0
