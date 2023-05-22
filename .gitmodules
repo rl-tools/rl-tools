@@ -55,3 +55,6 @@
 	path = tests/lib/cutlass
 	url = https://github.com/NVIDIA/cutlass.git
 
+[submodule "external/json"]
+	path = external/json
+	url = https://github.com/nlohmann/json.git

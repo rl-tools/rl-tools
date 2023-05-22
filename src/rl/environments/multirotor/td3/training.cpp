@@ -61,7 +61,7 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 
 #include <backprop_tools/rl/utils/evaluation.h>
 
-#include "parameters.h"
+#include "../parameters.h"
 
 #include <gtest/gtest.h>
 #include <iostream>
@@ -84,11 +84,7 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 constexpr DEVICE::index_t performance_logging_interval = 100;
 constexpr DEVICE::index_t ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
 
-#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING_DEBUG) {
-#else
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
-#endif
+int main(){
     std::string DATA_FILE_PATH = "learning_curves.h5";
     std::vector<std::vector<DTYPE>> episode_step;
     std::vector<std::vector<DTYPE>> episode_returns;
@@ -349,4 +345,5 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, TEST_FULL_TRAINING) {
         group.createDataSet("eval_step", eval_step[run_i]);
         group.createDataSet("eval_return", eval_return[run_i]);
     }
+    return 0;
 }
