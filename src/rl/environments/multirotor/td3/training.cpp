@@ -43,13 +43,13 @@ using DTYPE = float;
 
 namespace parameter_set = parameters_0;
 
-using parameters_environment = parameter_set::environment<DEVICE, DTYPE>;
+using TI = typename DEVICE::index_t;
+using parameters_environment = parameter_set::environment<DTYPE, TI>;
 using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
 
-using parameters_rl = parameter_set::rl<DEVICE, DTYPE, ENVIRONMENT>;
+using parameters_rl = parameter_set::rl<DTYPE, TI, ENVIRONMENT>;
 static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-using TI = typename bpt::DEVICE_FACTORY<DEV_SPEC>::index_t;
 constexpr TI performance_logging_interval = 100;
 constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
 constexpr TI BASE_SEED = 100;
@@ -153,7 +153,7 @@ int main(){
         using CRITIC_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
         bpt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batches[2];
         bpt::rl::algorithms::td3::CriticTrainingBuffers<parameters_rl::ActorCriticType::SPEC> critic_training_buffers[2];
-        parameters_rl::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
+        parameters_rl::CRITIC_TYPE::BuffersForwardBackward<> critic_buffers[2];
         bpt::malloc(device, critic_batches[0]);
         bpt::malloc(device, critic_batches[1]);
         bpt::malloc(device, critic_training_buffers[0]);
@@ -164,8 +164,8 @@ int main(){
         using ACTOR_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
         bpt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
         bpt::rl::algorithms::td3::ActorTrainingBuffers<parameters_rl::ActorCriticType::SPEC> actor_training_buffers;
-        parameters_rl::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
-        parameters_rl::ACTOR_NETWORK_TYPE::Buffers<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
+        parameters_rl::ACTOR_TYPE::Buffers<> actor_buffers[2];
+        parameters_rl::ACTOR_TYPE::Buffers<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
         bpt::malloc(device, actor_batch);
         bpt::malloc(device, actor_training_buffers);
         bpt::malloc(device, actor_buffers[0]);
@@ -214,7 +214,7 @@ int main(){
             if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                 if(step_i >= parameters_rl::N_WARMUP_STEPS_CRITIC){
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
-                        auto train_critic = [&device, &actor_critic, &off_policy_runner](parameters_rl::CRITIC_NETWORK_TYPE& critic, decltype(critic_batches[0])& critic_batch, decltype(optimizer[0])& optimizer, decltype(actor_buffers[0])& actor_buffers, decltype(critic_buffers[0])& critic_buffers, decltype(critic_training_buffers[0])& critic_training_buffers, decltype(rng)& rng){
+                        auto train_critic = [&device, &actor_critic, &off_policy_runner](parameters_rl::CRITIC_TYPE& critic, decltype(critic_batches[0])& critic_batch, decltype(optimizer[0])& optimizer, decltype(actor_buffers[0])& actor_buffers, decltype(critic_buffers[0])& critic_buffers, decltype(critic_training_buffers[0])& critic_training_buffers, decltype(rng)& rng){
                             auto gather_batch_start = std::chrono::high_resolution_clock::now();
                             bpt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                             bpt::gather_batch(device, off_policy_runner, critic_batch, rng);
