@@ -1,43 +1,11 @@
-// ------------ Groups 1 ------------
-#include <backprop_tools/operations/cpu_tensorboard/group_1.h>
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/operations/cpu_mkl/group_1.h>
-#else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
-#include <backprop_tools/operations/cpu_accelerate/group_1.h>
-#else
-#include <backprop_tools/operations/cpu/group_1.h>
-#endif
-#endif
-// ------------ Groups 2 ------------
-#include <backprop_tools/operations/cpu_tensorboard/group_2.h>
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/operations/cpu_mkl/group_2.h>
-#else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
-#include <backprop_tools/operations/cpu_accelerate/group_2.h>
-#else
-#include <backprop_tools/operations/cpu/group_2.h>
-#endif
-#endif
-// ------------ Groups 3 ------------
-#include <backprop_tools/operations/cpu_tensorboard/group_3.h>
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/operations/cpu_mkl/group_3.h>
-#else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
-#include <backprop_tools/operations/cpu_accelerate/group_3.h>
-#else
-#include <backprop_tools/operations/cpu/group_3.h>
-#endif
-#endif
+#include <backprop_tools/operations/cpu_mux.h>
 
 namespace bpt = backprop_tools;
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 #include <backprop_tools/nn/operations_cpu_mkl.h>
-using DEVICE = bpt::devices::CPU_MKL<DEV_SPEC>;
+using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 #else
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
 #include <backprop_tools/nn/operations_cpu_accelerate.h>

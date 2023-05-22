@@ -11,9 +11,9 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPRO
                 nlohmann_json::nlohmann_json
         )
         BACKPROP_TOOLS_TARGET_LINK_BLAS(${TARGET})
+        BACKPROP_TOOLS_ADD_DEFINITIONS(${TARGET})
         if(${DEBUG})
             target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG)
-            BACKPROP_TOOLS_ADD_DEFINITIONS(${TARGET})
         endif()
     endfunction()
 
