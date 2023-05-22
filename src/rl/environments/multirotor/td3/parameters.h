@@ -8,16 +8,15 @@
 #include <backprop_tools/utils/generic/typing.h>
 
 namespace parameters{
-    template<typename DEVICE, typename T, typename ENVIRONMENT>
+    template<typename T, typename TI, typename ENVIRONMENT>
     struct rl{
-        using TI = typename DEVICE::index_t;
-        struct ACTOR_CRITIC_PARAMETERS: bpt::rl::algorithms::td3::DefaultParameters<T, typename DEVICE::index_t>{
-            static constexpr typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
-            static constexpr typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
-            static constexpr typename DEVICE::index_t CRITIC_TRAINING_INTERVAL = 10;
-            static constexpr typename DEVICE::index_t ACTOR_TRAINING_INTERVAL = 20;
-            static constexpr typename DEVICE::index_t CRITIC_TARGET_UPDATE_INTERVAL = 10;
-            static constexpr typename DEVICE::index_t ACTOR_TARGET_UPDATE_INTERVAL = 20;
+        struct ACTOR_CRITIC_PARAMETERS: bpt::rl::algorithms::td3::DefaultParameters<T, TI>{
+            static constexpr TI ACTOR_BATCH_SIZE = 256;
+            static constexpr TI CRITIC_BATCH_SIZE = 256;
+            static constexpr TI CRITIC_TRAINING_INTERVAL = 10;
+            static constexpr TI ACTOR_TRAINING_INTERVAL = 20;
+            static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 10;
+            static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 20;
             static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.25;
             static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
             static constexpr bool IGNORE_TERMINATION = false;
@@ -32,19 +31,19 @@ namespace parameters{
 
         using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
         using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-        using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
-        using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
+        using ACTOR_SPEC = bpt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
+        using ACTOR_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
 
-        using ACTOR_TARGET_NETWORK_SPEC = bpt::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-        using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+        using ACTOR_TARGET_SPEC = bpt::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
+        using ACTOR_TARGET_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_SPEC>;
 
-        using CRITIC_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+        using CRITIC_SPEC = bpt::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
+        using CRITIC_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
 
-        using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+        using CRITIC_TARGET_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
+        using CRITIC_TARGET_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
 
-        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, ACTOR_CRITIC_PARAMETERS>;
+        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, ACTOR_CRITIC_PARAMETERS>;
         using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr TI N_ENVIRONMENTS = 1;

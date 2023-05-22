@@ -128,9 +128,9 @@ int main(){
         auto parameters = parameters_environment::parameters;
 #if BACKPROP_TOOLS_ENABLE_MULTIROTOR_UI
         bpt::rl::environments::multirotor::UI<ENVIRONMENT> ui;
-    ui.host = "localhost";
-    ui.port = "8080";
-    bpt::init(device, env, ui);
+        ui.host = "localhost";
+        ui.port = "8080";
+        bpt::init(device, env, ui);
 #else
         bool ui = false;
 #endif

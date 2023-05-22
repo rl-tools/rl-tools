@@ -96,6 +96,10 @@ namespace backprop_tools::rl::environments::multirotor {
 
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
+    void malloc(DEVICE, rl::environments::Multirotor<SPEC>){
+
+    }
+    template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state){
         for(typename DEVICE::index_t i = 0; i < utils::typing::remove_reference<decltype(env)>::type::STATE_DIM; i++){
             state.state[i] = 0;

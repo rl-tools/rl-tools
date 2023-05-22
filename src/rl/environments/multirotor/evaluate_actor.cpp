@@ -1,10 +1,9 @@
 #include <backprop_tools/operations/cpu.h>
 
-#include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
-#include <backprop_tools/rl/environments/mujoco/ant/ui.h>
+#include <backprop_tools/rl/environments/multirotor/operations_cpu.h>
+#include <backprop_tools/rl/environments/multirotor/ui.h>
 #include <backprop_tools/nn_models/operations_cpu.h>
 #include <backprop_tools/nn_models/persist.h>
-#include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
 
 namespace bpt = backprop_tools;
 
@@ -28,15 +27,11 @@ namespace TEST_DEFINITIONS{
     using TI = typename DEVICE::index_t;
     namespace parameter_set = parameters_0;
 
-    using parameters_environment = parameter_set::environment<T, TI>;
-    struct ENVIRONMENT_EVALUATION_PARAMETERS: parameters_environment::ENVIRONMENT_SPEC::PARAMETERS{
-        constexpr static TI FRAME_SKIP = 5; // for smoother playback
-    };
-    using ENVIRONMENT_EVALUATION_SPEC = bpt::rl::environments::mujoco::ant::Specification<T, TI, ENVIRONMENT_EVALUATION_PARAMETERS>;
-    using ENVIRONMENT = bpt::rl::environments::mujoco::Ant<ENVIRONMENT_EVALUATION_SPEC>;
-    using UI = bpt::rl::environments::mujoco::ant::UI<ENVIRONMENT>;
+    using penv = parameter_set::environment<T, TI>;
+    using ENVIRONMENT = penv::ENVIRONMENT;
+    using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
 
-    using parameters_rl = parameter_set::rl<T, TI, ENVIRONMENT>;
+    using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
     constexpr TI MAX_EPISODE_LENGTH = 1000;
 }
 
@@ -53,30 +48,30 @@ int main(int argc, char** argv) {
     CLI11_PARSE(app, argc, argv);
     DEVICE dev;
     ENVIRONMENT env;
+    env.parameters = penv::parameters;
     UI ui;
-    parameters_rl::ACTOR_TYPE actor;
+    typename prl::ACTOR_TYPE actor;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     typename ENVIRONMENT::State state, next_state;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
-    bpt::rl::components::RunningNormalizer<bpt::rl::components::running_normalizer::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
 
     bpt::malloc(dev, env);
     bpt::malloc(dev, actor);
     bpt::malloc(dev, action);
     bpt::malloc(dev, observation);
-    bpt::malloc(dev, observation_normalizer);
 
+    ui.host = "localhost";
+    ui.port = "8080";
     bpt::init(dev, env, ui);
-    bpt::init(dev, observation_normalizer);
     DEVICE::index_t episode_i = 0;
     while(true){
         std::filesystem::path actor_run;
         if(run == "" && checkpoint == ""){
 #ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
-            std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "ppo_ant";
+            std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "multirotor_ppo";
 #else
-            std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "td3_ant";
+            std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "multirotor_td3";
 #endif
             std::vector<std::filesystem::path> actor_runs;
 
@@ -124,7 +119,6 @@ int main(int argc, char** argv) {
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             bpt::observe(dev, env, state, observation);
-            bpt::normalize(dev, observation_normalizer.mean, observation_normalizer.std, observation);
             bpt::evaluate(dev, actor, observation, action);
             T dt = bpt::step(dev, env, state, action, next_state);
             bool terminated_flag = bpt::terminated(dev, env, next_state, rng);

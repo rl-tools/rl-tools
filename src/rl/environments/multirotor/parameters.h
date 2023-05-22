@@ -6,9 +6,8 @@
 #include <backprop_tools/rl/environments/multirotor/parameters/termination/default.h>
 
 namespace parameters{
-    template<typename DEVICE, typename T>
+    template<typename T, typename TI>
     struct environment{
-        using TI = typename DEVICE::index_t;
         static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_dr<T>;
         using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
@@ -25,7 +24,7 @@ namespace parameters{
 
         using PARAMETERS = typename backprop_tools::utils::typing::remove_cv_t<decltype(parameters)>;
 
-        using ENVIRONMENT_SPEC = bpt::rl::environments::multirotor::Specification<T, typename DEVICE::index_t, PARAMETERS, bpt::rl::environments::multirotor::StaticParameters>;
+        using ENVIRONMENT_SPEC = bpt::rl::environments::multirotor::Specification<T, TI, PARAMETERS, bpt::rl::environments::multirotor::StaticParameters>;
         using ENVIRONMENT = bpt::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     };
 
