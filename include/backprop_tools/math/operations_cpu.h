@@ -74,5 +74,11 @@ namespace backprop_tools::math {
     T nan(const devices::math::CPU&){
         return std::numeric_limits<T>::quiet_NaN();
     }
+    template<typename T>
+    T fast_tanh(const devices::math::CPU& dev, T x) {
+        x = clamp(dev, x, -3.0f, 3.0f);
+        T x_squared = x * x;
+        return x * (27 + x_squared) / (27 + 9 * x_squared);
+    }
 }
 #endif

@@ -10,10 +10,11 @@ namespace backprop_tools::nn::activation_functions {
         RELU,
         GELU,
         TANH,
+        FAST_TANH,
         SIGMOID
     };
     template<enum ActivationFunction F>
-    constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == SIGMOID;
+    constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == FAST_TANH || F == SIGMOID;
 }
 namespace backprop_tools {
     template<typename DEVICE, typename T, nn::activation_functions::ActivationFunction F>
@@ -33,6 +34,9 @@ namespace backprop_tools {
         }
         else if constexpr(F == TANH){
             return math::tanh(DEVICE(), x);
+        }
+        else if constexpr(F == FAST_TANH){
+            return math::fast_tanh(DEVICE(), x);
         }
         else if constexpr(F == SIGMOID){
             return (T)1 / ((T)1 + math::exp(DEVICE(), -x));
@@ -61,6 +65,10 @@ namespace backprop_tools {
         }
         else if constexpr(F == TANH){
             T a = math::tanh(DEVICE(), x);
+            return (T)1 - a * a;
+        }
+        else if constexpr(F == FAST_TANH){
+            T a = math::fast_tanh(DEVICE(), x);
             return (T)1 - a * a;
         }
         else if constexpr(F == SIGMOID){

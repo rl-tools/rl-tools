@@ -144,7 +144,7 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
         static_assert(OBS_SPEC::ROWS == 1);
-        add_scalar(device, device.logger, "quaternion_w", state.state[3]);
+//        add_scalar(device, device.logger, "quaternion_w", state.state[3], 1000);
         if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::Normal){
             static_assert(OBS_SPEC::COLS == ENVIRONMENT::STATE_DIM);
             for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::STATE_DIM; i++){

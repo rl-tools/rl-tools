@@ -162,6 +162,12 @@ namespace backprop_tools::math {
             return ::abs(x);
         }
     }
+    template<typename T>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT T fast_tanh(const devices::math::CUDA& dev, T x) {
+        x = clamp(dev, x, -3.0f, 3.0f);
+        T x_squared = x * x;
+        return x * (27 + x_squared) / (27 + 9 * x_squared);
+    }
 
 
 //    // CUDA fast

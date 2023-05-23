@@ -12,6 +12,7 @@ namespace backprop_tools {
                           ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU ||
                           ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::GELU ||
                           ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::TANH ||
+                          ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::FAST_TANH ||
                           ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::SIGMOID);
 
             if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::IDENTITY){
@@ -20,6 +21,8 @@ namespace backprop_tools {
                 return "backprop_tools::nn::activation_functions::ActivationFunction::RELU";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::TANH){
                 return "backprop_tools::nn::activation_functions::ActivationFunction::TANH";
+            } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::FAST_TANH){
+                return "backprop_tools::nn::activation_functions::ActivationFunction::FAST_TANH";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::SIGMOID){
                 return "backprop_tools::nn::activation_functions::ActivationFunction::SIGMOID";
             }
