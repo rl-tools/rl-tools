@@ -66,6 +66,9 @@ constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
 
 
+using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<parameters_rl::ACTOR_STRUCTURE_SPEC>>;
+
+
 std::string sanitize_file_name(const std::string &input){
     std::string output = input;
 
@@ -206,10 +209,15 @@ int main(){
                 }
 #endif
                 {
+                    // Since checkpointing a full Adam model to code (including gradients and moments of the weights and biases currently does not work)
+                    ACTOR_CHECKPOINT_TYPE actor_checkpoint;
+                    bpt::malloc(device, actor_checkpoint);
+                    bpt::copy(device, device, actor_checkpoint, actor_critic.actor);
                     std::filesystem::path actor_output_path_code = actor_output_dir / (checkpoint_name + ".h");
-                    auto output = bpt::save(device, actor_critic.actor, std::string("actor"));
+                    auto output = bpt::save(device, actor_checkpoint, std::string("actor"), true);
                     std::ofstream actor_output_file(actor_output_path_code);
                     actor_output_file << output;
+                    bpt::free(device, actor_checkpoint);
                 }
             }
             auto step_start = std::chrono::high_resolution_clock::now();

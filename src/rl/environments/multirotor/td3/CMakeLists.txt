@@ -20,3 +20,11 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPRO
     factory_test_rl_environments_multirotor(rl_environments_multirotor_training_td3_debug true)
     factory_test_rl_environments_multirotor(rl_environments_multirotor_training_td3 false)
 endif()
+
+
+add_executable(rl_environments_multirotor_training_checkpoint_test evaluation.cpp)
+target_link_libraries(
+        rl_environments_multirotor_training_checkpoint_test
+        PRIVATE
+        backprop_tools
+)

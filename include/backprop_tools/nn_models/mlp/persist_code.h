@@ -58,7 +58,7 @@ namespace backprop_tools{
         return {ss_header.str(), ss.str()};
     }
     template<typename DEVICE, typename SPEC>
-    std::string save(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, bool const_declaration = false, typename DEVICE::index_t indent = 0) {
+    std::string save(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, bool const_declaration = true, typename DEVICE::index_t indent = 0) {
         auto code = save_split(device, network, name, const_declaration, indent);
         return code.header + code.body;
     }

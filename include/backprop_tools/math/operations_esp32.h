@@ -76,7 +76,7 @@ namespace backprop_tools::math {
     }
     template<typename T>
     T fast_tanh(const devices::math::ESP32& dev, T x) {
-        x = clamp(dev, x, -3.0f, 3.0f);
+        x = clamp(dev, x, -(T)3.0, (T)3.0);
         T x_squared = x * x;
         return x * (27 + x_squared) / (27 + 9 * x_squared);
     }
