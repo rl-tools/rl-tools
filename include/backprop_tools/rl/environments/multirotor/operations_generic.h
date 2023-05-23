@@ -140,13 +140,71 @@ namespace backprop_tools{
         }
 //        printf("initial state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
     }
-    template<typename DEVICE, typename SPEC, typename OBS_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, Matrix<OBS_SPEC>& observation){
+    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == ENVIRONMENT::STATE_DIM);
-        for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::STATE_DIM; i++){
-            set(observation, 0, i, state.state[i]);
+        add_scalar(device, device.logger, "quaternion_w", state.state[3]);
+        if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::Normal){
+            static_assert(OBS_SPEC::COLS == ENVIRONMENT::STATE_DIM);
+            for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::STATE_DIM; i++){
+                set(observation, 0, i, state.state[i]);
+            }
+            if constexpr(SPEC::STATIC_PARAMETERS::ENFORCE_POSITIVE_QUATERNION){
+                if(get(observation, 0, 3) < 0){
+                    for(typename DEVICE::index_t observation_i = 3; observation_i < 7; observation_i++){
+                        set(observation, 0, observation_i, -get(observation, 0, observation_i));
+                    }
+                }
+            }
+            else{
+                if constexpr(SPEC::STATIC_PARAMETERS::RANDOMIZE_QUATERNION_SIGN){
+                    if(random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), 0, 1, rng) == 0){
+                        for(typename DEVICE::index_t observation_i = 3; observation_i < 7; observation_i++){
+                            set(observation, 0, observation_i, -get(observation, 0, observation_i));
+                        }
+                    }
+                }
+            }
+        }
+        else{
+            if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::DoubleQuaternion){
+                static_assert(OBS_SPEC::COLS == (ENVIRONMENT::STATE_DIM + 4));
+                for(typename DEVICE::index_t i = 0; i < 3; i++){
+                    set(observation, 0, i, state.state[i]);
+                }
+                typename SPEC::T sign = state.state[3] > 0 ? 1 : -1;
+                for(typename DEVICE::index_t i = 3; i < 7; i++){
+//                    set(observation, 0, i+0,   state.state[i]);
+                    set(observation, 0, i+0,   sign * state.state[i]);
+                    set(observation, 0, i+4, - sign * state.state[i]);
+//                    set(observation, 0, i+4, 0);
+                }
+                for(typename DEVICE::index_t i = 7; i < 13; i++){
+                    set(observation, 0, i+4, state.state[i]);
+                }
+            }
+            else{
+                if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::RotationMatrix){
+                    static_assert(OBS_SPEC::COL_PITCH == 1); // so that we can use the quaternion_to_rotation_matrix function
+                    for(typename DEVICE::index_t i = 0; i < 3; i++){
+                        set(observation, 0, i, state.state[i]);
+                    }
+                    const typename SPEC::T* q = &state.state[3];
+                    set(observation, 0, 3 + 0, (1 - 2*q[2]*q[2] - 2*q[3]*q[3]));
+                    set(observation, 0, 3 + 1, (    2*q[1]*q[2] - 2*q[0]*q[3]));
+                    set(observation, 0, 3 + 2, (    2*q[1]*q[3] + 2*q[0]*q[2]));
+                    set(observation, 0, 3 + 3, (    2*q[1]*q[2] + 2*q[0]*q[3]));
+                    set(observation, 0, 3 + 4, (1 - 2*q[1]*q[1] - 2*q[3]*q[3]));
+                    set(observation, 0, 3 + 5, (    2*q[2]*q[3] - 2*q[0]*q[1]));
+                    set(observation, 0, 3 + 6, (    2*q[1]*q[3] - 2*q[0]*q[2]));
+                    set(observation, 0, 3 + 7, (    2*q[2]*q[3] + 2*q[0]*q[1]));
+                    set(observation, 0, 3 + 8, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]));
+                    for(typename DEVICE::index_t i = 7; i < 13; i++){
+                        set(observation, 0, i-4+9, state.state[i]);
+                    }
+                }
+            }
         }
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC>

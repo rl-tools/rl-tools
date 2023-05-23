@@ -2,8 +2,10 @@
 #define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_PERSIST_CODE_H
 
 #include "adam.h"
+#include <backprop_tools/nn/parameters/persist_code.h>
 
 #include <string>
+
 namespace backprop_tools{
     std::string get_type_string(nn::parameters::Adam p){
         return "backprop_tools::nn::parameters::Adam";

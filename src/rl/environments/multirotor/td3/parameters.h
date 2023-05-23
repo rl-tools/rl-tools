@@ -19,6 +19,7 @@ namespace parameters{
             static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 20;
             static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.25;
             static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
+            static constexpr T GAMMA = 0.999;
             static constexpr bool IGNORE_TERMINATION = false;
         };
 
@@ -27,7 +28,7 @@ namespace parameters{
         };
 
         using ACTOR_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::TANH, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
-        using CRITIC_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 256, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
+        using CRITIC_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
 
         using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
         using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
@@ -47,8 +48,8 @@ namespace parameters{
         using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr TI N_ENVIRONMENTS = 1;
-        static constexpr TI REPLAY_BUFFER_CAP = 250000;
-        static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
+        static constexpr TI REPLAY_BUFFER_CAP = 1000000;
+        static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
         using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, OFF_POLICY_RUNNER_PARAMETERS, true, 1000>;
 
         static constexpr TI N_WARMUP_STEPS_CRITIC = 15000;

@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H
 #include "layer.h"
+#include <backprop_tools/containers/persist_code.h>
 #include <sstream>
 
 namespace backprop_tools {

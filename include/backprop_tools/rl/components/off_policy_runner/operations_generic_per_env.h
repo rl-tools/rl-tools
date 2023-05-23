@@ -34,7 +34,7 @@ namespace backprop_tools::rl::components::off_policy_runner{
             set(runner->episode_return, 0, env_i, 0);
         }
         auto observation = view<DEVICE, typename decltype(runner->buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner->buffers.observations, env_i, 0);
-        observe(device, env, state, observation);
+        observe(device, env, state, observation, rng);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void epilogue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
@@ -57,7 +57,7 @@ namespace backprop_tools::rl::components::off_policy_runner{
 
         T reward_value = reward(device, env, state, action, next_state);
 
-        observe(device, env, next_state, next_observation);
+        observe(device, env, next_state, next_observation, rng);
 
         bool terminated_flag = terminated(device, env, next_state, rng);
         increment(runner->episode_step, 0, env_i, 1);

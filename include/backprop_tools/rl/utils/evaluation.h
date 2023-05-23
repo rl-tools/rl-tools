@@ -50,7 +50,7 @@ namespace backprop_tools {
         malloc(device, observation);
         malloc(device, observation_normalized);
         malloc(device, action);
-        observe(device, env, state, observation);
+        observe(device, env, state, observation, rng);
         normalize(device, observation_mean, observation_std, observation, observation_normalized);
 
         evaluate(device, policy, observation_normalized, action);

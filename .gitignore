@@ -34,3 +34,5 @@
 /out
 /build_conan
 /CMakeUserPresets.json
+
+/checkpoints

@@ -1,4 +1,5 @@
-
+#ifndef BACKPROP_TOOLS_PERSIST_CODE_H
+#define BACKPROP_TOOLS_PERSIST_CODE_H
 
 namespace backprop_tools::persist{
     struct Code{
@@ -6,3 +7,5 @@ namespace backprop_tools::persist{
         std::string body;
     };
 }
+
+#endif

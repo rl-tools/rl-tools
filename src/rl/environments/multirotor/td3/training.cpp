@@ -25,6 +25,7 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 // additional includes for the ui and persisting
 #include <backprop_tools/rl/environments/multirotor/ui.h>
 #include <backprop_tools/nn_models/persist.h>
+#include <backprop_tools/nn_models/persist_code.h>
 #include <backprop_tools/rl/components/replay_buffer/persist.h>
 
 #include <backprop_tools/rl/utils/evaluation.h>
@@ -52,8 +53,13 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 
 constexpr TI performance_logging_interval = 100;
 constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
-constexpr TI BASE_SEED = 100;
+constexpr TI BASE_SEED = 101;
 constexpr TI NUM_RUNS = 1;
+#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
+constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
+#else
+constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP * 100;
+#endif
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50000;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
@@ -112,7 +118,7 @@ int main(){
         auto& run_eval_step = eval_step.back();
         auto& run_eval_return = eval_return.back();
 
-        std::mt19937 rng(run_i);
+        auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
 
         // device
         typename DEVICE::SPEC::LOGGING logger;
@@ -174,11 +180,6 @@ int main(){
 
 
         // training
-#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
-        constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
-#else
-        constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
-#endif
         for(int step_i = 0; step_i < step_limit; step_i++){
             if(ACTOR_ENABLE_CHECKPOINTS && (step_i % ACTOR_CHECKPOINT_INTERVAL == 0)){
                 std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
@@ -190,20 +191,26 @@ int main(){
                 std::string checkpoint_name = "latest.h5";
                 if(!ACTOR_OVERWRITE_CHECKPOINTS){
                     std::stringstream checkpoint_name_ss;
-                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << step_i << ".h5";
+                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << step_i;
                     checkpoint_name = checkpoint_name_ss.str();
                 }
-                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
-                std::cout << "Saving actor checkpoint " << actor_output_path << std::endl;
+                std::filesystem::path actor_output_path_hdf5 = actor_output_dir / (checkpoint_name + ".h5");
+                std::cout << "Saving actor checkpoint " << actor_output_path_hdf5 << std::endl;
                 try{
-                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
+                    auto actor_file = HighFive::File(actor_output_path_hdf5.string(), HighFive::File::Overwrite);
                     bpt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
                 }
                 catch(HighFive::Exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
                 }
 #endif
+                {
+                    std::filesystem::path actor_output_path_code = actor_output_dir / (checkpoint_name + ".h");
+                    auto output = bpt::save(device, actor_critic.actor, std::string("actor"));
+                    std::ofstream actor_output_file(actor_output_path_code);
+                    actor_output_file << output;
+                }
             }
             auto step_start = std::chrono::high_resolution_clock::now();
             device.logger->step = step_i;
@@ -225,8 +232,8 @@ int main(){
                             auto critic_training_end = std::chrono::high_resolution_clock::now();
                             bpt::add_scalar(device, device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
                         };
-                        std::mt19937 rng1(std::uniform_int_distribution<DEVICE::index_t>()(rng));
-                        std::mt19937 rng2(std::uniform_int_distribution<DEVICE::index_t>()(rng));
+                        decltype(rng) rng1(std::uniform_int_distribution<DEVICE::index_t>()(rng));
+                        decltype(rng) rng2(std::uniform_int_distribution<DEVICE::index_t>()(rng));
 
                         if(std::getenv("BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
                             auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], optimizer[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
@@ -300,10 +307,12 @@ int main(){
             auto step_end = std::chrono::high_resolution_clock::now();
             bpt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % 1000 == 0){
-                auto results = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, true);
+                auto results = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, false);
                 std::cout << "Mean return: " << results.mean << std::endl;
                 run_eval_step.push_back(step_i);
                 run_eval_return.push_back(results.mean);
+                bpt::add_scalar(device, device.logger, "evaluation/return_mean", results.mean);
+                bpt::add_scalar(device, device.logger, "evaluation/return_std", results.std);
 
 //            if(step_i > 250000){
 //                ASSERT_GT(mean_return, 1000);

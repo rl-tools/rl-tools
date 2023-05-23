@@ -92,7 +92,9 @@ int main(int argc, char** argv) {
             std::vector<std::filesystem::path> actor_checkpoints;
             for (const auto& checkpoint : std::filesystem::directory_iterator(actor_run)) {
                 if (checkpoint.is_regular_file()) {
-                    actor_checkpoints.push_back(checkpoint.path());
+                    if(checkpoint.path().extension() == ".h5" || checkpoint.path().extension() == ".hdf5"){
+                        actor_checkpoints.push_back(checkpoint.path());
+                    }
                 }
             }
             std::sort(actor_checkpoints.begin(), actor_checkpoints.end());
@@ -126,7 +128,7 @@ int main(int argc, char** argv) {
         T reward_acc = 0;
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
-            bpt::observe(dev, env, state, observation);
+            bpt::observe(dev, env, state, observation, rng);
             bpt::evaluate(dev, actor, observation, action);
             T dt = bpt::step(dev, env, state, action, next_state);
             bool terminated_flag = bpt::terminated(dev, env, next_state, rng);

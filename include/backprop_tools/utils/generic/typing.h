@@ -71,6 +71,9 @@ namespace backprop_tools::utils::typing {
     template<class T, class F>
     struct conditional<false, T, F> { using type = F; };
 
+    template< bool B, class T, class F >
+    using conditional_t = typename conditional<B,T,F>::type;
+
 }
 
 #define backprop_tools_static_warn(x, ...) ((void) warn_if<x>())

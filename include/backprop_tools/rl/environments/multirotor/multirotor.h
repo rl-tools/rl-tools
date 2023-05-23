@@ -46,7 +46,24 @@ namespace backprop_tools::rl::environments::multirotor {
         Integration integration;
         MDP mdp;
     };
-    struct StaticParameters{};
+
+
+    enum class StateType{
+        Normal
+    };
+    enum class ObservationType{
+        Normal,
+        DoubleQuaternion,
+        RotationMatrix
+    };
+
+    struct StaticParametersDefault{
+        static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
+        static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
+        static constexpr StateType STATE_TYPE = StateType::Normal;
+        static constexpr ObservationType OBSERVATION_TYPE = ObservationType::Normal;
+    };
+
     template <typename T_T, typename T_TI, typename T_PARAMETERS, typename T_STATIC_PARAMETERS>
     struct Specification{
         using T = T_T;
@@ -55,12 +72,12 @@ namespace backprop_tools::rl::environments::multirotor {
         using STATIC_PARAMETERS = T_STATIC_PARAMETERS;
     };
 
-    template <typename T, typename TI, TI STATE_DIM>
-    struct State{
-        static constexpr TI DIM = STATE_DIM;
+
+    template <typename T, typename TI>
+    struct StateNormal{
+        static constexpr TI DIM = 13;
         T state[DIM];
     };
-
 }
 
 namespace backprop_tools::rl::environments{
@@ -72,9 +89,13 @@ namespace backprop_tools::rl::environments{
         static constexpr TI STATE_DIM = 13;
         static constexpr TI ACTION_DIM = 4;
 
-        static constexpr bool REQUIRES_OBSERVATION = false;
-        static constexpr TI OBSERVATION_DIM = STATE_DIM;
-        using State = multirotor::State<T, TI, STATE_DIM>;
+        static constexpr multirotor::StateType STATE_TYPE = SPEC::STATIC_PARAMETERS::STATE_TYPE;
+        static constexpr multirotor::ObservationType OBSERVATION_TYPE = SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE;
+
+        static constexpr TI OBSERVATION_DIM = OBSERVATION_TYPE == multirotor::ObservationType::Normal ? STATE_DIM : (OBSERVATION_TYPE == multirotor::ObservationType::DoubleQuaternion ? (13 + 4) : (13 - 4 + 9));
+        using State = utils::typing::conditional_t<
+                STATE_TYPE == multirotor::StateType::Normal,
+                multirotor::StateNormal<T, TI>, multirotor::StateNormal<T, TI>>;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         typename SPEC::PARAMETERS parameters;
     };

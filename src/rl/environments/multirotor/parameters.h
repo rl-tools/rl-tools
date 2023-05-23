@@ -24,7 +24,14 @@ namespace parameters{
 
         using PARAMETERS = typename backprop_tools::utils::typing::remove_cv_t<decltype(parameters)>;
 
-        using ENVIRONMENT_SPEC = bpt::rl::environments::multirotor::Specification<T, TI, PARAMETERS, bpt::rl::environments::multirotor::StaticParameters>;
+        struct ENVIRONMENT_STATIC_PARAMETERS: bpt::rl::environments::multirotor::StaticParametersDefault{
+            static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
+            static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
+            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::Normal;
+            static constexpr bpt::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = bpt::rl::environments::multirotor::ObservationType::RotationMatrix;
+        };
+
+        using ENVIRONMENT_SPEC = bpt::rl::environments::multirotor::Specification<T, TI, PARAMETERS, ENVIRONMENT_STATIC_PARAMETERS>;
         using ENVIRONMENT = bpt::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     };
 
