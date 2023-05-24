@@ -214,9 +214,45 @@ int main(){
                     bpt::malloc(device, actor_checkpoint);
                     bpt::copy(device, device, actor_checkpoint, actor_critic.actor);
                     std::filesystem::path actor_output_path_code = actor_output_dir / (checkpoint_name + ".h");
-                    auto output = bpt::save(device, actor_checkpoint, std::string("actor"), true);
+                    auto actor_weights = bpt::save(device, actor_checkpoint, std::string("backprop_tools::checkpoint::actor"), true);
                     std::ofstream actor_output_file(actor_output_path_code);
-                    actor_output_file << output;
+                    actor_output_file << actor_weights;
+                    {
+                        parameters_environment::ENVIRONMENT::State state;
+//                        while true
+//                            q = rand(UnitQuaternion); angle = acos((q * [0, 0, 1])[3])
+//                            if angle / pi * 180 < 20
+//                                break
+//                            end
+//                        end
+                        state.state[ 0 + 0] = 0.1;
+                        state.state[ 0 + 1] = 0.1;
+                        state.state[ 0 + 2] = 0.1;
+                        state.state[ 3 + 0] = 0.924297;
+                        state.state[ 3 + 1] = 0.0688265;
+                        state.state[ 3 + 2] = 0.0552117;
+                        state.state[ 3 + 3] = -0.371335;
+                        state.state[ 7 + 0] = 1;
+                        state.state[ 7 + 1] = 2;
+                        state.state[ 7 + 2] = 3;
+                        state.state[10 + 0] = 1;
+                        state.state[10 + 1] = 2;
+                        state.state[10 + 2] = 3;
+                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::State::DIM>> state_flat = {state.state};
+                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::OBSERVATION_DIM>> observation;
+                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::ACTION_DIM>> action;
+                        bpt::malloc(device, observation);
+                        bpt::malloc(device, action);
+                        auto rng_copy = rng;
+                        bpt::observe(device, envs[0], state, observation, rng_copy);
+//                        bpt::evaluate(device, actor_critic.actor, observation, action);
+                        bpt::evaluate(device, actor_checkpoint, observation, action);
+                        actor_output_file << "\n" << bpt::save(device, state_flat, std::string("backprop_tools::checkpoint::state"), true);
+                        actor_output_file << "\n" << bpt::save(device, observation, std::string("backprop_tools::checkpoint::observation"), true);
+                        actor_output_file << "\n" << bpt::save(device, action, std::string("backprop_tools::checkpoint::action"), true);
+                        bpt::free(device, observation);
+                        bpt::free(device, action);
+                    }
                     bpt::free(device, actor_checkpoint);
                 }
             }
