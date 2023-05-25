@@ -49,12 +49,10 @@ namespace backprop_tools::rl::environments::multirotor {
         torque[1] = 0;
         torque[2] = 0;
         // flops: N*23 => 4 * 23 = 92
-        for(typename DEVICE::index_t i_rotor = 0; i_rotor < N; i_rotor++) {
+        for(typename DEVICE::index_t i_rotor = 0; i_rotor < N; i_rotor++){
             // flops: 3 + 1 + 3 + 3 + 3 + 4 + 6 = 23
             T rpm = rpms[i_rotor];
-            T thrust_magnitude =
-                    params.dynamics.thrust_constants[0] * rpm * rpm + params.dynamics.thrust_constants[1] * rpm +
-                    params.dynamics.thrust_constants[2];
+            T thrust_magnitude = params.dynamics.thrust_constants[0] + params.dynamics.thrust_constants[1] * rpm + params.dynamics.thrust_constants[2] * rpm * rpm;
             T rotor_thrust[3];
             utils::vector_operations::scalar_multiply<DEVICE, T, 3>(params.dynamics.rotor_thrust_directions[i_rotor], thrust_magnitude, rotor_thrust);
             utils::vector_operations::add_accumulate<DEVICE, T, 3>(rotor_thrust, thrust);

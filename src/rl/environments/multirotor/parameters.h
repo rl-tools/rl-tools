@@ -8,7 +8,7 @@
 namespace parameters{
     template<typename T, typename TI>
     struct environment{
-        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_dr<T>;
+        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_263<T>;
         using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
@@ -17,6 +17,7 @@ namespace parameters{
                 {0.01}, // integration dt
                 {
                         backprop_tools::rl::environments::multirotor::parameters::init::all_around<T, TI, 4, REWARD_FUNCTION>,
+//                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
                         backprop_tools::rl::environments::multirotor::parameters::termination::classic<T, TI, 4, REWARD_FUNCTION>,
                         reward_function,
                 }

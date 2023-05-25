@@ -32,7 +32,7 @@ namespace TEST_DEFINITIONS{
     using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
 
     using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
-    constexpr TI MAX_EPISODE_LENGTH = 1000;
+    constexpr TI MAX_EPISODE_LENGTH = 200;
 }
 
 

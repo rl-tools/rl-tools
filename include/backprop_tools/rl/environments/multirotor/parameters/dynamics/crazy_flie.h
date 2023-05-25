@@ -47,12 +47,12 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             },
             // thrust constants
             {
-                    3.16e-10,
-                    0,
-                    0
+                    5.48e-4,
+                    1.03e-6,
+                    2.13e-11
             },
             // torque constant
-            0.025126582278481014,
+            0.005964552, // 7.9379e-6/3.25e-4 (this is relative to the resulting thrust from the thrust curve)
             // mass vehicle
             0.027,
             // gravity
@@ -60,42 +60,61 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             // J
             {
                     {
-                            7.7e-6,
+                            0.000016572,
                             0.0000000000000000000000000000000000000000,
                             0.0000000000000000000000000000000000000000
                     },
                     {
                             0.0000000000000000000000000000000000000000,
-                            7.7e-6,
+                            0.000016572,
                             0.0000000000000000000000000000000000000000
                     },
                     {
                             0.0000000000000000000000000000000000000000,
                             0.0000000000000000000000000000000000000000,
-                            1.1935e-5
+                            0.000029262
                     }
             },
             // J_inv
             {
                     {
-                            1.2987e5,
+                            60342.7,
                             0.0000000000000000000000000000000000000000,
                             0.0000000000000000000000000000000000000000
                     },
                     {
                             0.0000000000000000000000000000000000000000,
-                            1.2987e5,
+                            60342.7,
                             0.0000000000000000000000000000000000000000
                     },
                     {
                             0.0000000000000000000000000000000000000000,
                             0.0000000000000000000000000000000000000000,
-                            5.16796e5
+                            34174.0
                     }
             },
             // action limit
-            {0, 21702},
+            {0, 65535},
     };
 
 }
+/*
+Some calculations
+
+ Bitcraze:
+ J = [0.000016572 0 0; 0 0.000016572 0; 0 0 0.000029262]; J_inv = inv(J)
+ thrust_curve = [5.48e-4, 1.03e-6, 2.13e-11]
+ max_rpm = 65535;
+
+
+ using LinearAlgebra
+ rotor_1_pos = [0.028, -0.028, 0];
+ rotor_2_pos = [-0.028, -0.028, 0];
+ rotor_3_pos = [-0.028, 0.028, 0];
+ rotor_4_pos = [0.028, 0.028, 0];
+ max_thrust_magnitude = thrust_curve[1] + thrust_curve[2] * max_rpm + thrust_curve[3] * max_rpm^2;
+ max_thrust_vector = [0, 0, max_thrust_magnitude];
+ max_torque = cross(rotor_3_pos, max_thrust_vector) + cross(rotor_4_pos, max_thrust_vector);
+ max_angular_acceleration = J_inv * max_torque
+ */
 
