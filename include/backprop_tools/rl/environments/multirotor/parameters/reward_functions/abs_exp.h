@@ -9,6 +9,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     template<typename T>
     struct AbsExp{
         T scale;
+        T scale_inner;
         T position;
         T orientation;
         T linear_velocity;
@@ -47,7 +48,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, params.action_baseline, action_diff);
         T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         T weighted_abs_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.linear_acceleration * linear_acc_cost + params.angular_acceleration * angular_acc_cost + params.action * action_cost;
-        T r = math::exp(typename DEVICE::SPEC::MATH(), -weighted_abs_cost);
+        T r = math::exp(typename DEVICE::SPEC::MATH(), -params.scale_inner*weighted_abs_cost);
         constexpr TI cadence = 991;
         {
             add_scalar(device, device.logger, "reward/orientation_cost", orientation_cost, cadence);
