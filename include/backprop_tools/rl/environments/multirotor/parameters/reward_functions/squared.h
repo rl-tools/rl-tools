@@ -26,19 +26,19 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         T quaternion_w = state.state[3];
         T orientation_cost = math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
         T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.state);
-        position_cost *= position_cost;
+//        position_cost *= position_cost;
         T linear_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4]);
-        linear_vel_cost *= linear_vel_cost;
+//        linear_vel_cost *= linear_vel_cost;
         T angular_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4+3]);
-        angular_vel_cost *= angular_vel_cost;
+//        angular_vel_cost *= angular_vel_cost;
         T linear_acc[3];
         utils::vector_operations::sub<DEVICE, T, 3>(&next_state.state[7], &state.state[7], linear_acc);
         T linear_acc_cost = utils::vector_operations::norm<DEVICE, T, 3>(linear_acc) / env.parameters.integration.dt;
-        linear_acc_cost *= linear_acc_cost;
+//        linear_acc_cost *= linear_acc_cost;
         T angular_acc[3];
         utils::vector_operations::sub<DEVICE, T, 3>(&next_state.state[7+3], &state.state[7+3], angular_acc);
         T angular_acc_cost = utils::vector_operations::norm<DEVICE, T, 3>(angular_acc) / env.parameters.integration.dt;
-        angular_acc_cost *= angular_acc_cost;
+//        angular_acc_cost *= angular_acc_cost;
 
         T action_diff[ACTION_DIM];
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, utils::vector_operations::mean<DEVICE, T, ACTION_DIM>(action), action_diff);

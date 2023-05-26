@@ -20,7 +20,7 @@ namespace parameters{
             static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.25;
             static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
             static constexpr T GAMMA = 0.99;
-            static constexpr bool IGNORE_TERMINATION = false;
+            static constexpr bool IGNORE_TERMINATION = true;
         };
 
         struct OFF_POLICY_RUNNER_PARAMETERS: bpt::rl::components::off_policy_runner::DefaultParameters<T>{
