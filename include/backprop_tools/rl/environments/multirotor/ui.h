@@ -41,10 +41,21 @@ namespace backprop_tools::rl::environments::multirotor {
                 {orientation[2][0], orientation[2][1], orientation[2][2]}
         };
         message["data"]["data"]["rotor_states"] = std::vector<nlohmann::json>{
-                {"rpm", 0},
-                {"rpm", 0},
-                {"rpm", 0},
-                {"rpm", 0}
+                {"power", 0},
+                {"power", 0},
+                {"power", 0},
+                {"power", 0},
+        };
+        return message;
+    }
+    template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
+    nlohmann::json state_message(DEVICE& dev, rl::environments::multirotor::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
+        auto message = state_message(dev, ui, state);
+        message["data"]["data"]["rotor_states"] = std::vector<nlohmann::json>{
+                {{"power", get(action, 0, 0)}},
+                {{"power", get(action, 0, 1)}},
+                {{"power", get(action, 0, 2)}},
+                {{"power", get(action, 0, 3)}},
         };
         return message;
     }
@@ -54,10 +65,10 @@ namespace backprop_tools::rl::environments::multirotor {
         message["channel"] = "addDrone";
         message["data"]["id"] = ui.id;
         message["data"]["origin"] = {ui.origin[0], ui.origin[1], ui.origin[2]};
-        message["data"]["data"]["mass"] = env.parameters.dynamics.mass;
-        message["data"]["data"]["rotors"] = std::vector<nlohmann::json>();
+        message["data"]["model"]["mass"] = env.parameters.dynamics.mass;
+        message["data"]["model"]["rotors"] = std::vector<nlohmann::json>();
         for(typename DEVICE::index_t i = 0; i < 4; i++){
-            message["data"]["data"]["rotors"].push_back({
+            message["data"]["model"]["rotors"].push_back({
                 {"thrust_curve", {
                     {"factor_1", 1}
                 }},
@@ -71,7 +82,7 @@ namespace backprop_tools::rl::environments::multirotor {
                 }},
             });
         }
-        message["data"]["data"]["imu"] = {
+        message["data"]["model"]["imu"] = {
             {"pose", {
                 {"orientation", {
                     {1, 0, 0},
@@ -81,7 +92,7 @@ namespace backprop_tools::rl::environments::multirotor {
                 {"position", {0, 0, 0}}
             }}
         };
-        message["data"]["data"]["gravity"] = { 0.0, 0.0, -9.81};
+        message["data"]["model"]["gravity"] = { 0.0, 0.0, -9.81};
         return message;
     }
 }
@@ -117,6 +128,19 @@ namespace backprop_tools{
 
         if (ui.ws.is_open()) {
             ui.ws.write(net::buffer(state_message(dev, ui, state).dump()));
+        }
+        else{
+            std::cerr << "Error: websocket is not open" << std::endl;
+        }
+    }
+    template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
+    void set_state(DEVICE& dev, rl::environments::multirotor::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
+        static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
+        static_assert(ACTION_SPEC::ROWS == 1);
+        using namespace rl::environments::multirotor;
+
+        if (ui.ws.is_open()) {
+            ui.ws.write(net::buffer(state_message(dev, ui, state, action).dump()));
         }
         else{
             std::cerr << "Error: websocket is not open" << std::endl;

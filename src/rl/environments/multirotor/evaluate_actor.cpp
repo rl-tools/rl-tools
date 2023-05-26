@@ -32,7 +32,7 @@ namespace TEST_DEFINITIONS{
     using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
 
     using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
-    constexpr TI MAX_EPISODE_LENGTH = 200;
+    constexpr TI MAX_EPISODE_LENGTH = 1000;
 }
 
 
@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
             T dt = bpt::step(dev, env, state, action, next_state);
             bool terminated_flag = bpt::terminated(dev, env, next_state, rng);
             reward_acc += bpt::reward(dev, env, state, action, next_state);
-            bpt::set_state(dev, ui, state);
+            bpt::set_state(dev, ui, state, action);
             state = next_state;
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> diff = end-start;
@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
                 for(int timeout_step_i = 0; timeout_step_i < startup_timeout; timeout_step_i++){
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                     if(timeout_step_i % 100 == 0){
-                        bpt::set_state(dev, ui, state);
+                        bpt::set_state(dev, ui, state, action);
                     }
                 }
             }
