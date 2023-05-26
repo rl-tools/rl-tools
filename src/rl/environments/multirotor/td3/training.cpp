@@ -339,6 +339,7 @@ int main(){
                             mean_steps /= num_episodes;
 
                             bpt::add_scalar(device, device.logger, "episode/return", mean_return);
+                            bpt::add_scalar(device, device.logger, "episode/return_per_step", mean_return/mean_steps);
                             bpt::add_scalar(device, device.logger, "episode/length", mean_steps);
                             run_episode_step.push_back(step_i);
                             run_episode_returns.push_back(mean_return);

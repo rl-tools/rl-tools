@@ -78,11 +78,11 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     constexpr Squared<T> reward_squraed_2 = {
             1, // scale
             0, // constant
-            1, // position
-            1, // orientation
-            0.1, // linear_velocity
-            0.1, // angular_velocity
-            0.01, // linear_acceleration
+            100, // position
+            10, // orientation
+            1, // linear_velocity
+            1, // angular_velocity
+            0.1, // linear_acceleration
             0.0001, // angular_acceleration
             0, // action_baseline
             0, // action

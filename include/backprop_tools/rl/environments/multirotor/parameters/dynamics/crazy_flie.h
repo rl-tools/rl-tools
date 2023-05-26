@@ -49,7 +49,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             {
                     0,
                     0,
-                    2.885227e-11
+                    2.885227e-11 * 1.33
             },
             // torque constant
 //            0.025126582278481014,
@@ -95,7 +95,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
                     }
             },
             // action limit
-            0.01, // T, RPM time constant
+            0.02, // T, RPM time constant
             {20000, 65535},
     };
 
@@ -104,7 +104,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
 Some calculations
 
  Bitcraze:
- J = [7.7e-6 0 0; 0 7.7e-6 0; 0 0 1.1935e-5]; J_inv = inv(J)
+ J = [17.7e-6 0 0; 0 17.7e-6 0; 0 0 2.4935e-5]; J_inv = inv(J)
  thrust_curve = [0, 0, 2.885227e-11]
  max_rpm = 56000;
 
