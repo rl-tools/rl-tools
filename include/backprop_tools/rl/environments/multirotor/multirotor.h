@@ -18,6 +18,7 @@ namespace backprop_tools::rl::environments::multirotor {
             T gravity[3];
             T J[3][3];
             T J_inv[3][3];
+            T rpm_time_constant;
             ActionLimit action_limit;
         };
         struct Integration{
@@ -49,7 +50,8 @@ namespace backprop_tools::rl::environments::multirotor {
 
 
     enum class StateType{
-        Normal
+        Normal,
+        RPM
     };
     enum class ObservationType{
         Normal,
@@ -78,6 +80,11 @@ namespace backprop_tools::rl::environments::multirotor {
         static constexpr TI DIM = 13;
         T state[DIM];
     };
+    template <typename T, typename TI>
+    struct StateRPM{
+        static constexpr TI DIM = 13 + 4;
+        T state[DIM];
+    };
 }
 
 namespace backprop_tools::rl::environments{
@@ -86,16 +93,16 @@ namespace backprop_tools::rl::environments{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using REWARD_FUNCTION = typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION;
-        static constexpr TI STATE_DIM = 13;
+//        static constexpr TI STATE_DIM = 13;
         static constexpr TI ACTION_DIM = 4;
 
         static constexpr multirotor::StateType STATE_TYPE = SPEC::STATIC_PARAMETERS::STATE_TYPE;
         static constexpr multirotor::ObservationType OBSERVATION_TYPE = SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE;
 
-        static constexpr TI OBSERVATION_DIM = OBSERVATION_TYPE == multirotor::ObservationType::Normal ? STATE_DIM : (OBSERVATION_TYPE == multirotor::ObservationType::DoubleQuaternion ? (13 + 4) : (13 - 4 + 9));
+        static constexpr TI OBSERVATION_DIM = OBSERVATION_TYPE == multirotor::ObservationType::Normal ? 13 : (OBSERVATION_TYPE == multirotor::ObservationType::DoubleQuaternion ? (13 + 4) : (13 - 4 + 9));
         using State = utils::typing::conditional_t<
                 STATE_TYPE == multirotor::StateType::Normal,
-                multirotor::StateNormal<T, TI>, multirotor::StateNormal<T, TI>>;
+                multirotor::StateNormal<T, TI>, multirotor::StateRPM<T, TI>>;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         typename SPEC::PARAMETERS parameters;
     };

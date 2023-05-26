@@ -11,6 +11,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         10,
         0,
         0,
+        0,
+        0,
         -1,
         1.0/2 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
@@ -21,7 +23,9 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             10,
             10,
             0,
-            0,
+            0.1,
+            0.1,
+            0.01,
             -1,
             0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
@@ -33,6 +37,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         5,
         0.5,
         0.005,
+        0,
+        0,
         -1,
         1.0/2 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
@@ -44,6 +50,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         0,
         0,
         0.01,
+        0,
+        0,
         0,
         1.0/2.0
     };

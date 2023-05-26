@@ -25,7 +25,7 @@ namespace backprop_tools::rl::environments::multirotor {
             const T state[STATE_DIM],
 
             // action
-            const T rpms[N],
+            const T action[N],
 
             T state_change[STATE_DIM]
             // state change
@@ -51,7 +51,16 @@ namespace backprop_tools::rl::environments::multirotor {
         // flops: N*23 => 4 * 23 = 92
         for(typename DEVICE::index_t i_rotor = 0; i_rotor < N; i_rotor++){
             // flops: 3 + 1 + 3 + 3 + 3 + 4 + 6 = 23
-            T rpm = rpms[i_rotor];
+            T rpm;
+            if constexpr(STATE_DIM == 13){
+                rpm = action[i_rotor];
+            }
+            else{
+                T *rpm_change_rate = &state_change[13];
+                const T *rpms = &state[13];
+                rpm = rpms[i_rotor];
+                rpm_change_rate[i_rotor] = (action[i_rotor] - rpm) * 1/params.dynamics.rpm_time_constant;
+            }
             T thrust_magnitude = params.dynamics.thrust_constants[0] + params.dynamics.thrust_constants[1] * rpm + params.dynamics.thrust_constants[2] * rpm * rpm;
             T rotor_thrust[3];
             utils::vector_operations::scalar_multiply<DEVICE, T, 3>(params.dynamics.rotor_thrust_directions[i_rotor], thrust_magnitude, rotor_thrust);
@@ -59,6 +68,8 @@ namespace backprop_tools::rl::environments::multirotor {
 
             utils::vector_operations::scalar_multiply_accumulate<DEVICE, T, 3>(params.dynamics.rotor_torque_directions[i_rotor], thrust_magnitude * params.dynamics.torque_constant, torque);
             utils::vector_operations::cross_product_accumulate<DEVICE, T>(params.dynamics.rotor_positions[i_rotor], rotor_thrust, torque);
+
+
         }
 
         // linear_velocity_global
@@ -99,15 +110,22 @@ namespace backprop_tools{
     }
     template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state){
-        for(typename DEVICE::index_t i = 0; i < utils::typing::remove_reference<decltype(env)>::type::STATE_DIM; i++){
+        using STATE = typename rl::environments::Multirotor<SPEC>::State;
+        for(typename DEVICE::index_t i = 0; i < STATE::DIM; i++){
             state.state[i] = 0;
         }
         state.state[3] = 1;
+        if constexpr(STATE::DIM == 17){
+            for(typename DEVICE::index_t i = 0; i < 4; i++){
+                state.state[13 + i] = env.parameters.dynamics.action_limit.min;
+            }
+        }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state, RNG& rng){
         typename DEVICE::SPEC::MATH math_dev;
         typename DEVICE::SPEC::RANDOM random_dev;
+        using MULTIROTOR_TYPE = rl::environments::Multirotor<SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         for(TI i = 0; i < 3; i++){
@@ -136,16 +154,22 @@ namespace backprop_tools{
         for(TI i = 0; i < 3; i++){
             state.state[10+i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_angular_velocity, env.parameters.mdp.init.max_angular_velocity, rng);
         }
+        if constexpr(MULTIROTOR_TYPE::State::DIM == 17){
+            for(TI i = 0; i < 4; i++){
+                state.state[13+i] = random::uniform_real_distribution(random_dev, env.parameters.dynamics.action_limit.min, env.parameters.dynamics.action_limit.max, rng);
+            }
+        }
 //        printf("initial state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
+        using STATE = typename ENVIRONMENT::State;
         static_assert(OBS_SPEC::ROWS == 1);
 //        add_scalar(device, device.logger, "quaternion_w", state.state[3], 1000);
         if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::Normal){
-            static_assert(OBS_SPEC::COLS == ENVIRONMENT::STATE_DIM);
-            for(typename DEVICE::index_t i = 0; i < ENVIRONMENT::STATE_DIM; i++){
+            static_assert(OBS_SPEC::COLS == 13);
+            for(typename DEVICE::index_t i = 0; i < 13; i++){
                 set(observation, 0, i, state.state[i]);
             }
             if constexpr(SPEC::STATIC_PARAMETERS::ENFORCE_POSITIVE_QUATERNION){
@@ -167,7 +191,7 @@ namespace backprop_tools{
         }
         else{
             if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::DoubleQuaternion){
-                static_assert(OBS_SPEC::COLS == (ENVIRONMENT::STATE_DIM + 4));
+                static_assert(OBS_SPEC::COLS == 17);
                 for(typename DEVICE::index_t i = 0; i < 3; i++){
                     set(observation, 0, i, state.state[i]);
                 }
@@ -207,7 +231,8 @@ namespace backprop_tools{
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::Multirotor<SPEC>::State& next_state) {
-        constexpr auto STATE_DIM = rl::environments::Multirotor<SPEC>::STATE_DIM;
+        using STATE = typename rl::environments::Multirotor<SPEC>::State;
+        constexpr auto STATE_DIM = STATE::DIM;
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         static_assert(ACTION_SPEC::ROWS == 1);
         static_assert(ACTION_SPEC::COLS == ACTION_DIM);
