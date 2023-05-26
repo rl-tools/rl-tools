@@ -19,14 +19,14 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 
     template<typename T>
     constexpr AbsExp<T> reward_1 = {
-            10,
-            10,
-            10,
-            0,
-            0.1,
-            0.1,
-            0.01,
-            -1,
+            10, // scale
+            10, // position
+            10, // orientation
+            0, // linear velocity
+            0.1, // angular velocity
+            0.1, // linear acceleration
+            0.01, // angular acceleration
+            -1, // action baseline
             0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
 
