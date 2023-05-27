@@ -33,6 +33,7 @@ namespace TEST_DEFINITIONS{
 
     using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
     constexpr TI MAX_EPISODE_LENGTH = 1000;
+    constexpr bool RANDOMIZE_DOMAIN_PARAMETERS = true;
 }
 
 
@@ -127,6 +128,25 @@ int main(int argc, char** argv) {
 
         bpt::sample_initial_state(dev, env, state, rng);
         T reward_acc = 0;
+        env.parameters = penv::parameters;
+        if(RANDOMIZE_DOMAIN_PARAMETERS){
+            T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), 0.5, 1.5, rng);
+//            T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), 0.5, 1.5, rng);
+            T J_factor = 5;
+            T max_rpm_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), 0.8, 1.2, rng);
+            std::cout << "Randomizing domain parameters" << std::endl;
+            std::cout << "Mass factor: " << mass_factor << std::endl;
+            std::cout << "J factor: " << J_factor << std::endl;
+            std::cout << "Max RPM factor: " << max_rpm_factor << std::endl;
+            env.parameters.dynamics.mass *= mass_factor;
+            env.parameters.dynamics.J[0][0] *= J_factor;
+            env.parameters.dynamics.J[1][1] *= J_factor;
+            env.parameters.dynamics.J[2][2] *= J_factor;
+            env.parameters.dynamics.J_inv[0][0] /= J_factor;
+            env.parameters.dynamics.J_inv[1][1] /= J_factor;
+            env.parameters.dynamics.J_inv[2][2] /= J_factor;
+            env.parameters.dynamics.action_limit.max *= max_rpm_factor;
+        }
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             bpt::observe(dev, env, state, observation, rng);

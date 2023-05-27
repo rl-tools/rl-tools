@@ -48,7 +48,7 @@ namespace parameters{
         using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr TI N_ENVIRONMENTS = 1;
-        static constexpr TI REPLAY_BUFFER_CAP = 1000000;
+        static constexpr TI REPLAY_BUFFER_CAP = 10000000;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
         using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, OFF_POLICY_RUNNER_PARAMETERS, true, 1000>;
 
