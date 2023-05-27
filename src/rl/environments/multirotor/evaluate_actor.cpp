@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
         bpt::sample_initial_state(dev, env, state, rng);
         T reward_acc = 0;
         env.parameters = penv::parameters;
-        if(RANDOMIZE_DOMAIN_PARAMETERS){
+        if(RANDOMIZE_DOMAIN_PARAMETERS && episode_i % 2 == 0){
             T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)1.5, rng);
             T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)5.0, rng);
             T max_rpm_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
@@ -145,6 +145,9 @@ int main(int argc, char** argv) {
             env.parameters.dynamics.J_inv[1][1] /= J_factor;
             env.parameters.dynamics.J_inv[2][2] /= J_factor;
             env.parameters.dynamics.action_limit.max *= max_rpm_factor;
+        }
+        else{
+            std::cout << "Using nominal domain parameters" << std::endl;
         }
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();

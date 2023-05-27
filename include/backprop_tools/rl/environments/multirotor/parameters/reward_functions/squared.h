@@ -8,6 +8,7 @@
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{
     template<typename T>
     struct Squared{
+        bool non_negative;
         T scale;
         T constant;
         T position;
@@ -78,7 +79,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         }
         add_scalar(device, device.logger, "reward/weighted_abs_cost", weighted_abs_cost, cadence);
 
-        return -weighted_abs_cost + params.constant;
+        T reward = -params.scale * weighted_abs_cost + params.constant;
+        return reward > 0 || !params.non_negative ? reward : 0;
     }
 }
 
