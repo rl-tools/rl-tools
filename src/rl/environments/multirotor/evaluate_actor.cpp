@@ -130,10 +130,9 @@ int main(int argc, char** argv) {
         T reward_acc = 0;
         env.parameters = penv::parameters;
         if(RANDOMIZE_DOMAIN_PARAMETERS){
-            T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), 0.5, 1.5, rng);
-//            T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), 0.5, 1.5, rng);
-            T J_factor = 5;
-            T max_rpm_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), 0.8, 1.2, rng);
+            T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)1.5, rng);
+            T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)5.0, rng);
+            T max_rpm_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
             std::cout << "Randomizing domain parameters" << std::endl;
             std::cout << "Mass factor: " << mass_factor << std::endl;
             std::cout << "J factor: " << J_factor << std::endl;
