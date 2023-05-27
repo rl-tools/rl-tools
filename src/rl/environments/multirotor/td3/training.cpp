@@ -149,7 +149,8 @@ int main(){
         bpt::malloc(device, actor_critic);
         bpt::init(device, actor_critic, optimizer, rng);
 
-        bpt::rl::components::OffPolicyRunner<parameters_rl::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
+        parameters_rl::OFF_POLICY_RUNNER_TYPE off_policy_runner;
+        off_policy_runner.parameters = parameters_rl::off_policy_runner_parameters;
         bpt::malloc(device, off_policy_runner);
 
         ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
@@ -254,6 +255,15 @@ int main(){
                         bpt::free(device, action);
                     }
                     bpt::free(device, actor_checkpoint);
+                }
+            }
+            if(step_i != 0 && step_i % 250000 == 0){
+                off_policy_runner.parameters.exploration_noise *= 0.5;
+                off_policy_runner.parameters.exploration_noise < 0.05 ? 0.05 : off_policy_runner.parameters.exploration_noise;
+                bpt::add_scalar(device, device.logger, "off_policy_runner/exploration_noise", off_policy_runner.parameters.exploration_noise);
+
+                for (auto& env : envs) {
+//                    env.parameters.mdp.reward.position += 5;
                 }
             }
             auto step_start = std::chrono::high_resolution_clock::now();

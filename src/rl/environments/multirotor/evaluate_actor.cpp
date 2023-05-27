@@ -150,6 +150,10 @@ int main(int argc, char** argv) {
             auto start = std::chrono::high_resolution_clock::now();
             bpt::observe(dev, env, state, observation, rng);
             bpt::evaluate(dev, actor, observation, action);
+//            for(TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++){
+//                increment(action, 0, action_i, bpt::random::normal_distribution(DEVICE::SPEC::RANDOM(), (T)0, (T)(T)prl::OFF_POLICY_RUNNER_PARAMETERS::EXPLORATION_NOISE, rng));
+//            }
+            bpt::clamp(dev, action, (T)-1, (T)1);
             T dt = bpt::step(dev, env, state, action, next_state);
             bool terminated_flag = bpt::terminated(dev, env, next_state, rng);
             reward_acc += bpt::reward(dev, env, state, action, next_state);

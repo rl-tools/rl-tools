@@ -19,6 +19,11 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         T action_baseline;
         T action;
     };
+    template<typename T, typename TI, TI T_N_MODES>
+    struct AbsExpMultiModal{
+        static constexpr TI N_MODES = T_N_MODES;
+        AbsExp<T> modes[N_MODES];
+    };
     template<typename DEVICE, typename SPEC, typename T, typename ACTION_SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::AbsExp<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state) {
         using TI = typename DEVICE::index_t;
@@ -79,6 +84,14 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         add_scalar(device, device.logger, "reward/weighted_abs_cost", weighted_abs_cost, cadence);
 
         return r * params.scale;
+    }
+    template<typename DEVICE, typename SPEC, typename T, typename ACTION_SPEC, typename TI, TI N_MODES>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::AbsExpMultiModal<T, TI, N_MODES>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state) {
+        T acc = 0;
+        for(TI mode_i=0; mode_i < N_MODES; mode_i++){
+            acc += reward(device, env, params.modes[mode_i], state, action, next_state);
+        }
+        return acc;
     }
 }
 

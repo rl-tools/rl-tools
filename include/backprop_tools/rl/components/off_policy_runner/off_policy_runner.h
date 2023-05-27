@@ -21,7 +21,11 @@ namespace backprop_tools::rl::components::off_policy_runner {
     };
     template<typename T>
     struct DefaultParameters{
-        static constexpr T EXPLORATION_NOISE = 0.1;
+        T exploration_noise;
+    };
+    template<typename T>
+    DefaultParameters<T> default_parameters{
+        0.1 // exploration_noise
     };
     template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS, T_TI T_REPLAY_BUFFER_CAPACITY, T_TI T_STEP_LIMIT, typename T_PARAMETERS, bool T_COLLECT_EPISODE_STATS = false, T_TI T_EPISODE_STATS_BUFFER_SIZE = 0, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification{
@@ -100,6 +104,7 @@ namespace backprop_tools::rl::components{
     template<typename T_SPEC>
     struct OffPolicyRunner {
         using SPEC = T_SPEC;
+        using PARAMETERS = typename SPEC::PARAMETERS;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
@@ -108,6 +113,7 @@ namespace backprop_tools::rl::components{
         static constexpr TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
+        PARAMETERS parameters;
         off_policy_runner::Buffers<SPEC> buffers;
 
         // todo: change to "environments"

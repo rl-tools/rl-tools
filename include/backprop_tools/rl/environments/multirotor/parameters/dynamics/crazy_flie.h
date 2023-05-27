@@ -107,7 +107,7 @@ Some calculations
  J = [7.7e-6 0 0; 0 7.7e-6 0; 0 0 1.1935e-5]; J_inv = inv(J)
  thrust_curve = [0, 0, 3.16e-10]
  max_rpm =  21702.1;
- weight = 0.027;
+ mass = 0.027;
 
 
  using LinearAlgebra
@@ -119,6 +119,8 @@ Some calculations
  max_thrust_vector = [0, 0, max_thrust_magnitude];
  max_torque = cross(rotor_3_pos, max_thrust_vector) + cross(rotor_4_pos, max_thrust_vector);
  max_angular_acceleration = J_inv * max_torque
- thrust_to_weight = max_thrust_magnitude * 4 / weight / 9.81
+ thrust_to_weight = max_thrust_magnitude * 4 / mass / 9.81
+ hovering_rpm = sqrt(mass * 9.81 / 4 / thrust_curve[3])
+ hovering_level = hovering_rpm / max_rpm * 2 - 1;
  */
 
