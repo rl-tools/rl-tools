@@ -49,13 +49,13 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             {
                     0,
                     0,
-                    2.885227e-11 * 1.33
+                    3.16e-10
             },
             // torque constant
-//            0.025126582278481014,
-            0.005964552,
+            0.025126582278481014,
+//            0.005964552,
             // mass vehicle
-            0.033,
+            0.027,
             // gravity
             {0, 0, -9.81},
             // J
@@ -96,7 +96,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             },
             // action limit
             0.02, // T, RPM time constant
-            {20000, 65535},
+            {0, 21702.1},
     };
 
 }
@@ -104,9 +104,10 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
 Some calculations
 
  Bitcraze:
- J = [17.7e-6 0 0; 0 17.7e-6 0; 0 0 2.4935e-5]; J_inv = inv(J)
- thrust_curve = [0, 0, 2.885227e-11]
- max_rpm = 56000;
+ J = [7.7e-6 0 0; 0 7.7e-6 0; 0 0 1.1935e-5]; J_inv = inv(J)
+ thrust_curve = [0, 0, 3.16e-10]
+ max_rpm =  21702.1;
+ weight = 0.027;
 
 
  using LinearAlgebra
@@ -118,5 +119,6 @@ Some calculations
  max_thrust_vector = [0, 0, max_thrust_magnitude];
  max_torque = cross(rotor_3_pos, max_thrust_vector) + cross(rotor_4_pos, max_thrust_vector);
  max_angular_acceleration = J_inv * max_torque
+ thrust_to_weight = max_thrust_magnitude * 4 / weight / 9.81
  */
 

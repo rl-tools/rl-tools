@@ -17,6 +17,19 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         -1,
         1.0/2 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
+    template<typename T>
+    constexpr AbsExp<T> reward_old_but_gold = {
+            10, // scale
+            1, // scale inner
+            1, // position
+            5, // orientation
+            0.5, // linear velocity
+            0.005, // angular velocity
+            0, // linear acceleration
+            0, // angular acceleration
+            -1, // action baseline
+            0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
+    };
 
     template<typename T>
     constexpr AbsExp<T> reward_1 = {
@@ -69,7 +82,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         0.1, // linear_velocity
         0.01, // angular_velocity
         0.01, // linear_acceleration
-        0.0001, // angular_acceleration
+        0.01, // angular_acceleration
         0, // action_baseline
         0, // action
     };
@@ -83,7 +96,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             1, // linear_velocity
             1, // angular_velocity
             0.1, // linear_acceleration
-            0.0001, // angular_acceleration
+            0.1, // angular_acceleration
             0, // action_baseline
             0, // action
     };

@@ -19,3 +19,20 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPRO
     BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_evaluation_td3)
     BACKPROP_TOOLS_INSTALL(rl_environments_multirotor_evaluation_td3)
 endif()
+
+
+if(BACKPROP_TOOLS_ENABLE_JSON AND BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_ENABLE_UI)
+find_package(Threads)
+add_executable(
+        rl_environments_multirotor_comparison
+        comparison.cpp
+)
+target_link_libraries(
+        rl_environments_multirotor_comparison
+        PRIVATE
+        backprop_tools
+        nlohmann_json::nlohmann_json
+        Threads::Threads
+)
+endif()
+

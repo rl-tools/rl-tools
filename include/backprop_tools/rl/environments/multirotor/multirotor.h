@@ -1,6 +1,8 @@
 #ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_MULTIROTOR_H
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_MULTIROTOR_H
 
+#include <backprop_tools/utils/generic/typing.h>
+
 namespace backprop_tools::rl::environments::multirotor {
     template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
     struct Parameters {
