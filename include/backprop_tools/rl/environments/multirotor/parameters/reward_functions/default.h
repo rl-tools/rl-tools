@@ -37,7 +37,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             10, // scale
             1, // scale inner
             1, // position
-            5, // orientation
+            0, // orientation
             0.5, // linear velocity
             0.005, // angular velocity
             0, // linear acceleration
