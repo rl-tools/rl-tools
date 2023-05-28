@@ -262,9 +262,11 @@ int main(){
                 off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.05 ? 0.05 : off_policy_runner.parameters.exploration_noise;
                 bpt::add_scalar(device, device.logger, "off_policy_runner/exploration_noise", off_policy_runner.parameters.exploration_noise);
 
-                for (auto& env : envs) {
-//                    env.parameters.mdp.reward.position += 5;
-                }
+//                if(step_i <= 2000000){
+//                    for (auto& env : off_policy_runner.envs) {
+//                        env.parameters.mdp.reward.scale *= 2;
+//                    }
+//                }
             }
             auto step_start = std::chrono::high_resolution_clock::now();
             device.logger->step = step_i;
@@ -361,7 +363,7 @@ int main(){
 
             auto step_end = std::chrono::high_resolution_clock::now();
             bpt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
-            if(step_i % 1000 == 0){
+            if(step_i % 10000 == 0){
                 auto results = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, false);
                 std::cout << "Mean return: " << results.mean << std::endl;
                 run_eval_step.push_back(step_i);

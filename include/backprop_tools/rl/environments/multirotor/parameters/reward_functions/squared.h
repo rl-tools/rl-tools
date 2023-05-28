@@ -24,22 +24,22 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::Squared<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state) {
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
-        T quaternion_w = state.state[3];
-        T orientation_cost = math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
+//        T q_sq = state.state[3] * state.state[3] + state.state[4] * state.state[4] + state.state[5] * state.state[5] + state.state[6] * state.state[6];
+        T orientation_cost = 1 - state.state[3] * state.state[3]; //math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
         T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.state);
-//        position_cost *= position_cost;
+        position_cost *= position_cost;
         T linear_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4]);
-//        linear_vel_cost *= linear_vel_cost;
+        linear_vel_cost *= linear_vel_cost;
         T angular_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4+3]);
-//        angular_vel_cost *= angular_vel_cost;
+        angular_vel_cost *= angular_vel_cost;
         T linear_acc[3];
         utils::vector_operations::sub<DEVICE, T, 3>(&next_state.state[7], &state.state[7], linear_acc);
         T linear_acc_cost = utils::vector_operations::norm<DEVICE, T, 3>(linear_acc) / env.parameters.integration.dt;
-//        linear_acc_cost *= linear_acc_cost;
+        linear_acc_cost *= linear_acc_cost;
         T angular_acc[3];
         utils::vector_operations::sub<DEVICE, T, 3>(&next_state.state[7+3], &state.state[7+3], angular_acc);
         T angular_acc_cost = utils::vector_operations::norm<DEVICE, T, 3>(angular_acc) / env.parameters.integration.dt;
-//        angular_acc_cost *= angular_acc_cost;
+        angular_acc_cost *= angular_acc_cost;
 
         T action_diff[ACTION_DIM];
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, utils::vector_operations::mean<DEVICE, T, ACTION_DIM>(action), action_diff);
@@ -78,8 +78,10 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             add_scalar(device, device.logger, "reward_share/action", params.action * action_cost / weighted_abs_cost, cadence);
         }
         add_scalar(device, device.logger, "reward/weighted_abs_cost", weighted_abs_cost, cadence);
+        T scaled_weighted_abs_cost = params.scale * weighted_abs_cost;
+        add_scalar(device, device.logger, "reward/scaled_weighted_abs_cost", scaled_weighted_abs_cost, cadence);
 
-        T reward = -params.scale * weighted_abs_cost + params.constant;
+        T reward = -scaled_weighted_abs_cost + params.constant;
         return reward > 0 || !params.non_negative ? reward : 0;
     }
 }

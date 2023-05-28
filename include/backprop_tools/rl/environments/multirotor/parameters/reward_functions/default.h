@@ -133,16 +133,31 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     template<typename T>
     constexpr Squared<T> reward_squraed_2 = {
             false, // non-negative
-            0.01, // scale
+            0.001, // scale
             1, // constant
             10, // position
             10, // orientation
-            1, // linear_velocity
-            1, // angular_velocity
+            0.1, // linear_velocity
+            0.1, // angular_velocity
             0.1, // linear_acceleration
-            0.01, // angular_acceleration
+            0.001, // angular_acceleration
             0.33, // action baseline
             20, // action
+    };
+
+    template<typename T>
+    constexpr Squared<T> reward_squraed_3 = {
+            false, // non-negative
+            0.1, // scale
+            1, // constant
+            10, // position
+            10, // orientation
+            0, // linear_velocity
+            0, // angular_velocity
+            0, // linear_acceleration
+            0, // angular_acceleration
+            0.33, // action baseline
+            0, // action
     };
 }
 #endif
