@@ -3,6 +3,7 @@
 
 #include "../../multirotor.h"
 #include "abs_exp.h"
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE (-0.26)
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{
     template<typename T>
     constexpr AbsExp<T> reward_263 = {
@@ -14,7 +15,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         0,
         0,
         0,
-        -1,
+        BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE,
         1.0/2 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
     template<typename T>
@@ -27,7 +28,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0.005, // angular velocity
             0, // linear acceleration
             0, // angular acceleration
-            -1, // action baseline
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
             0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
 
@@ -41,7 +42,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0.005, // angular velocity
             0, // linear acceleration
             0, // angular acceleration
-            0.33, // action baseline
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
             1 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
 
@@ -56,7 +57,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0.005, // angular velocity
             0, // linear acceleration
             0, // angular acceleration
-            0.33, // action baseline
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
             0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
         },
         AbsExp<T>{
@@ -68,7 +69,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0.005, // angular velocity
             0, // linear acceleration
             0, // angular acceleration
-            0.33, // action baseline
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
             1 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
         }
     };
@@ -83,7 +84,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0.1, // angular velocity
             1, // linear acceleration
             0.5, // angular acceleration
-            -1, // action baseline
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
             0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
 
@@ -97,7 +98,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         0.005,
         0,
         0,
-        -1,
+        BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE,
         1.0/2 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
 
@@ -111,7 +112,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         0.01,
         0,
         0,
-        0,
+        BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE,
         1.0/2.0
     };
 
@@ -126,7 +127,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         0.01, // angular_velocity
         0.01, // linear_acceleration
         0.01, // angular_acceleration
-        0, // action_baseline
+        BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
         0, // action
     };
 
@@ -141,7 +142,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0.1, // angular_velocity
             0.1, // linear_acceleration
             0.001, // angular_acceleration
-            0.33, // action baseline
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
             20, // action
     };
 
@@ -156,7 +157,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0, // angular_velocity
             0, // linear_acceleration
             0, // angular_acceleration
-            0.33, // action baseline
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
             0, // action
     };
 }
