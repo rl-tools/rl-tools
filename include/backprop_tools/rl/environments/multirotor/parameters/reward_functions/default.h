@@ -51,7 +51,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             1, // scale
             1, // scale inner
             1, // position
-            5, // orientation
+            1, // orientation
             0.5, // linear velocity
             0.005, // angular velocity
             0, // linear acceleration
@@ -62,14 +62,14 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         AbsExp<T>{
             1, // scale
             1, // scale inner
-            10, // position
-            5, // orientation
+            1, // position
+            1, // orientation
             0.5, // linear velocity
             0.005, // angular velocity
             0, // linear acceleration
             0, // angular acceleration
             0.33, // action baseline
-            2 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
+            3 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
         }
     };
 

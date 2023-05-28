@@ -34,7 +34,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 //        printf("state reward: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
 
         T quaternion_w = state.state[3];
-        T orientation_cost = math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
+        T orientation_cost = 1 - state.state[3] * state.state[3]; //math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
+//        T orientation_cost = math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
         T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.state);
         T linear_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4]);
         T angular_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(&state.state[3+4+3]);
@@ -90,13 +91,13 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::AbsExpMultiModal<T, TI, N_MODES>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state) {
         T acc = 0;
         for(TI mode_i=0; mode_i < N_MODES; mode_i++){
-            T output = reward(device, env, params.modes[mode_i], state, action, next_state);
+            T output = reward(device, env, params.modes[mode_i], state, action, next_state, mode_i==0);
             if(mode_i == 0){
                 add_scalar(device, device.logger, "reward_mode/0", output, 991);
             }
             else{
                 if(mode_i == 1){
-                    add_scalar(device, device.logger, "reward_mode/1", output, 991, false);
+                    add_scalar(device, device.logger, "reward_mode/1", output, 991);
                 }
             }
             acc += output;
