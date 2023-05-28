@@ -8,7 +8,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::termination{
         true,           // enable
 //        2.0944,            // angle
         0.6,            // position
-        1000,         // linear velocity
-        1000 // angular velocity
+        10,         // linear velocity
+        10 // angular velocity
     };
 }

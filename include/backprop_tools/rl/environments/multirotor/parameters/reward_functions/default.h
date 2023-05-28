@@ -34,12 +34,12 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 
     template<typename T>
     constexpr AbsExp<T> reward_old_but_gold_1 = {
-            10, // scale
+            1, // scale
             1, // scale inner
             1, // position
             0, // orientation
             0.5, // linear velocity
-            0.005, // angular velocity
+            0.5, // angular velocity
             0, // linear acceleration
             0, // angular acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
@@ -52,21 +52,21 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             1, // scale
             1, // scale inner
             1, // position
-            1, // orientation
+            0, // orientation
             0.5, // linear velocity
-            0.005, // angular velocity
+            0.5, // angular velocity
             0, // linear acceleration
             0, // angular acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
-            0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
+            1 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
         },
         AbsExp<T>{
             10, // scale
             1, // scale inner
-            1, // position
-            1, // orientation
+            10, // position
+            2, // orientation
             0.5, // linear velocity
-            0.005, // angular velocity
+            0.5, // angular velocity
             0, // linear acceleration
             0, // angular acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline

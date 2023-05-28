@@ -258,7 +258,7 @@ int main(){
                 }
             }
             if(step_i != 0 && step_i % 500000 == 0){
-                off_policy_runner.parameters.exploration_noise *= 0.75;
+                off_policy_runner.parameters.exploration_noise *= 0.5;
                 off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.05 ? 0.05 : off_policy_runner.parameters.exploration_noise;
                 bpt::add_scalar(device, device.logger, "off_policy_runner/exploration_noise", off_policy_runner.parameters.exploration_noise);
 
@@ -327,6 +327,7 @@ int main(){
                     bpt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
 
                     bpt::gather_batch(device, off_policy_runner, actor_batch, rng);
+                    // this is undefined (takes the state action value of the previous step (there should be some evaluate() on the collected batch
                     DTYPE actor_value = bpt::mean(device, actor_training_buffers.state_action_value);
                     bpt::add_scalar(device, device.logger, "actor_value", actor_value, 100);
 
