@@ -16,7 +16,7 @@ namespace parameters{
         using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
         static constexpr backprop_tools::rl::environments::multirotor::Parameters<T, TI, 4, REWARD_FUNCTION> parameters = {
-                backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie<T, TI, REWARD_FUNCTION>,
+                backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie_high_inertia<T, TI, REWARD_FUNCTION>,
                 {0.01}, // integration dt
                 {
                         backprop_tools::rl::environments::multirotor::parameters::init::all_around<T, TI, 4, REWARD_FUNCTION>,

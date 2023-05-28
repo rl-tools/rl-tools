@@ -3,7 +3,7 @@
 
 namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
     template<typename T, typename TI, typename REWARD_FUNCTION>
-    constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie = {
+    constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_low_inertia = {
             // Rotor positions
             {
                     {
@@ -98,13 +98,115 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             0.01, // T, RPM time constant
             {0, 21702.1},
     };
+    template<typename T, typename TI, typename REWARD_FUNCTION>
+    constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_high_inertia = {
+            // Rotor positions
+            {
+                    {
+                            0.028,
+                            -0.028,
+                            0
+
+                    },
+                    {
+                            -0.028,
+                            -0.028,
+                            0
+
+                    },
+                    {
+                            -0.028,
+                            0.028,
+                            0
+
+                    },
+                    {
+                            0.028,
+                            0.028,
+                            0
+
+                    },
+            },
+            // Rotor thrust directions
+            {
+                    {0, 0, 1},
+                    {0, 0, 1},
+                    {0, 0, 1},
+                    {0, 0, 1},
+            },
+            // Rotor torque directions
+            {
+                    {0, 0, -1},
+                    {0, 0, +1},
+                    {0, 0, -1},
+                    {0, 0, +1},
+            },
+            // thrust constants
+            {
+                    0,
+                    0,
+                    3.16e-10
+            },
+            // torque constant
+//            0.025126582278481014,
+            0.005964552,
+            // mass vehicle
+            0.027,
+            // gravity
+            {0, 0, -9.81},
+            // J
+            {
+                    {
+                            7.7e-5,
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            7.7e-5,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000,
+                            1.1935e-4
+                    }
+            },
+            // J_inv
+            {
+                    {
+                            1.2987e4,
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            1.2987e4,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000,
+                            8378.72
+                    }
+            },
+            // action limit
+            0.01, // T, RPM time constant
+            {0, 21702.1},
+    };
 
 }
 /*
 Some calculations
 
- Bitcraze:
+ Low inertia:
  J = [7.7e-6 0 0; 0 7.7e-6 0; 0 0 1.1935e-5]; J_inv = inv(J)
+ thrust_curve = [0, 0, 3.16e-10]
+ max_rpm =  21702.1;
+ mass = 0.027;
+
+ High inertia:
+ J = [7.7e-5 0 0; 0 7.7e-5 0; 0 0 1.1935e-4]; J_inv = inv(J)
  thrust_curve = [0, 0, 3.16e-10]
  max_rpm =  21702.1;
  mass = 0.027;
