@@ -6,12 +6,12 @@
 #endif
 
 namespace backprop_tools::utils::integrators{
-    template<typename T, typename PARAMETER_TYPE, auto STATE_DIM, auto ACTION_DIM, auto DYNAMICS>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void euler(const PARAMETER_TYPE& params, const T state[STATE_DIM], const T action[ACTION_DIM], const T dt, T next_state[STATE_DIM]) {
+    template<typename DEVICE, typename T, typename PARAMETER_TYPE, auto STATE_DIM, auto ACTION_DIM, auto DYNAMICS>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void euler(DEVICE& device, const PARAMETER_TYPE& params, const T state[STATE_DIM], const T action[ACTION_DIM], const T dt, T next_state[STATE_DIM]) {
         T dfdt[STATE_DIM];
-        DYNAMICS(params, state, action, dfdt);
-        utils::vector_operations::scalar_multiply<STATE_DIM>(dfdt, dt, next_state);
-        utils::vector_operations::add_accumulate<STATE_DIM>(state, next_state);
+        DYNAMICS(device, params, state, action, dfdt);
+        utils::vector_operations::scalar_multiply<DEVICE, T, STATE_DIM>(dfdt, dt, next_state);
+        utils::vector_operations::add_accumulate<DEVICE, T, STATE_DIM>(state, next_state);
     }
 
     template<typename DEVICE, typename T, typename PARAMETER_TYPE, auto STATE_DIM, auto ACTION_DIM, auto DYNAMICS>

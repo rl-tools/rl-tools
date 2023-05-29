@@ -284,6 +284,7 @@ namespace backprop_tools{
             action_scaled[action_i] = get(action, 0, action_i) * half_range + env.parameters.dynamics.action_limit.min + half_range;
         }
         utils::integrators::rk4<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE_DIM, ACTION_DIM, typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION>>(device, env.parameters, state.state, action_scaled, env.parameters.integration.dt, next_state.state);
+//        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE_DIM, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE_DIM, ACTION_DIM, typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION>>(device, env.parameters, state.state, action_scaled, env.parameters.integration.dt, next_state.state);
         typename SPEC::T quaternion_norm = 0;
         for(typename DEVICE::index_t state_i = 3; state_i < 3+4; state_i++){
             quaternion_norm += next_state.state[state_i] * next_state.state[state_i];
