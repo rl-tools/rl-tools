@@ -258,8 +258,14 @@ int main(){
                 }
             }
             if(step_i != 0 && step_i % 500000 == 0){
-                off_policy_runner.parameters.exploration_noise *= 0.5;
+//                off_policy_runner.parameters.exploration_noise *= 0.5;
+                actor_critic.target_next_action_noise_std *= 0.5;
+                actor_critic.target_next_action_noise_clip *= 0.5;
                 off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.05 ? 0.05 : off_policy_runner.parameters.exploration_noise;
+                actor_critic.target_next_action_noise_std = actor_critic.target_next_action_noise_std < 0.05 ? 0.05 : actor_critic.target_next_action_noise_std;
+                actor_critic.target_next_action_noise_clip = actor_critic.target_next_action_noise_clip < 0.15 ? 0.15 : actor_critic.target_next_action_noise_clip;
+                bpt::add_scalar(device, device.logger, "td3/target_next_action_noise_std", actor_critic.target_next_action_noise_std);
+                bpt::add_scalar(device, device.logger, "td3/target_next_action_noise_clip", actor_critic.target_next_action_noise_clip);
                 bpt::add_scalar(device, device.logger, "off_policy_runner/exploration_noise", off_policy_runner.parameters.exploration_noise);
 
 //                if(step_i <= 2000000){

@@ -94,6 +94,9 @@ namespace backprop_tools::rl::algorithms::td3 {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
+        T target_next_action_noise_std = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD;
+        T target_next_action_noise_clip = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP;
+
         typename SPEC::ACTOR_NETWORK_TYPE actor;
         typename SPEC::ACTOR_TARGET_NETWORK_TYPE actor_target;
 

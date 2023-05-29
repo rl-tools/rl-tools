@@ -2,7 +2,7 @@
 #include <backprop_tools/nn_models/mlp/operations_cpu.h>
 namespace bpt = backprop_tools;
 
-#include "/home/jonas/phd/projects/rl_for_control/backprop_tools_multirotor/checkpoints/multirotor_td3/2023-05-28T19_03_08-0400_ppo_ant_101/actor_000000000800000.h"
+#include "/home/jonas/phd/projects/rl_for_control/backprop_tools_multirotor/checkpoints/multirotor_td3/2023-05-28T23_17_05-0400_ppo_ant_101/actor_000000001500000.h"
 
 #include <iostream>
 
@@ -25,5 +25,6 @@ int main(){
     for(int i = 0; i < ACTOR_TYPE::SPEC::OUTPUT_DIM; i++){
         acc += std::abs(bpt::get(output, 0, i) - bpt::get(bpt::checkpoint::action::container, 0, i));
     }
+    std::cout << "acc: " << acc << std::endl;
     return 0;
 }

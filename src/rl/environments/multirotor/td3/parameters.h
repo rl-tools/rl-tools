@@ -17,8 +17,8 @@ namespace parameters{
             static constexpr TI ACTOR_TRAINING_INTERVAL = 20;
             static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 10;
             static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 20;
-            static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.25;
-            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
+            static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 1.0;
+            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
             static constexpr T GAMMA = 0.99;
             static constexpr bool IGNORE_TERMINATION = false;
         };
