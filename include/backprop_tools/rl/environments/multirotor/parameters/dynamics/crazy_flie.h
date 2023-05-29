@@ -287,7 +287,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
                     }
             },
             // action limit
-            0.04, // T, RPM time constant
+            0.03, // T, RPM time constant
             {0, 21702.1},
     };
     template<typename T, typename TI, typename REWARD_FUNCTION>

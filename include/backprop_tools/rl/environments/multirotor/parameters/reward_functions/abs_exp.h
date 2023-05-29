@@ -91,7 +91,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::AbsExpMultiModal<T, TI, N_MODES>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
         T acc = 0;
         for(TI mode_i=0; mode_i < N_MODES; mode_i++){
-            T output = reward(device, env, params.modes[mode_i], state, action, next_state, mode_i==0);
+            T output = reward(device, env, params.modes[mode_i], state, action, next_state, rng, mode_i==0);
             if(mode_i == 0){
                 add_scalar(device, device.logger, "reward_mode/0", output, 991);
             }
