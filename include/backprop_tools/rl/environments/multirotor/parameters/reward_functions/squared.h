@@ -11,6 +11,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         bool non_negative;
         T scale;
         T constant;
+        T termination_penalty;
         T position;
         T orientation;
         T linear_velocity;
@@ -20,8 +21,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         T action_baseline;
         T action;
     };
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::Squared<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state) {
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::Squared<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
 //        T q_sq = state.state[3] * state.state[3] + state.state[4] * state.state[4] + state.state[5] * state.state[5] + state.state[6] * state.state[6];
@@ -81,8 +82,16 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         T scaled_weighted_abs_cost = params.scale * weighted_abs_cost;
         add_scalar(device, device.logger, "reward/scaled_weighted_abs_cost", scaled_weighted_abs_cost, cadence);
 
-        T reward = -scaled_weighted_abs_cost + params.constant;
-        return reward > 0 || !params.non_negative ? reward : 0;
+        bool terminated_flag = terminated(device, env, next_state, rng);
+
+        if(terminated_flag){
+            return params.termination_penalty;
+        }
+        else{
+            T reward = -scaled_weighted_abs_cost + params.constant;
+            return reward > 0 || !params.non_negative ? reward : 0;
+        }
+
     }
 }
 

@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
             bpt::evaluate(dev, actor, observation, action);
             T dt = bpt::step(dev, env, state, action, next_state);
             bool terminated_flag = bpt::terminated(dev, env, next_state, rng);
-            reward_acc += bpt::reward(dev, env, state, action, next_state);
+            reward_acc += bpt::reward(dev, env, state, action, next_state, rng);
             bpt::set_state(dev, ui, state);
             state = next_state;
             auto end = std::chrono::high_resolution_clock::now();

@@ -55,7 +55,7 @@ namespace backprop_tools::rl::components::off_policy_runner{
         }
         step(device, env, state, action, next_state);
 
-        T reward_value = reward(device, env, state, action, next_state);
+        T reward_value = reward(device, env, state, action, next_state, rng);
 
         observe(device, env, next_state, next_observation, rng);
 

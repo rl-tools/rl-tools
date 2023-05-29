@@ -60,7 +60,7 @@ namespace backprop_tools {
         typename ENVIRONMENT::State next_state;
         T dt = step(device, env, state, action, next_state);
         set_state(device, ui, state);
-        T r = reward(device, env, state, action, next_state);
+        T r = reward(device, env, state, action, next_state, rng);
         state = next_state;
         eval_state.episode_return += r;
         eval_state.state = state;

@@ -107,6 +107,7 @@ namespace backprop_tools::rl::environments{
                 multirotor::StateNormal<T, TI>, multirotor::StateRPM<T, TI>>;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         typename SPEC::PARAMETERS parameters;
+        typename SPEC::PARAMETERS::Dynamics current_dynamics;
     };
 }
 

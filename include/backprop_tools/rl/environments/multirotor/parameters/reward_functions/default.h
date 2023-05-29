@@ -131,10 +131,11 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     };
 
     template<typename T>
-    constexpr Squared<T> reward_squraed_1 = {
+    constexpr Squared<T> reward_squared_1 = {
         false, // non-negative
         0.01, // scale
         300, // constant
+        0, // termination penalty
         1, // position
         1, // orientation
         0.1, // linear_velocity
@@ -146,10 +147,11 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     };
 
     template<typename T>
-    constexpr Squared<T> reward_squraed_2 = {
+    constexpr Squared<T> reward_squared_2 = {
             false, // non-negative
             0.001, // scale
             1, // constant
+            0, // termination penalty
             10, // position
             10, // orientation
             0.1, // linear_velocity
@@ -161,10 +163,26 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     };
 
     template<typename T>
-    constexpr Squared<T> reward_squraed_3 = {
+    constexpr Squared<T> reward_squared_3 = {
             false, // non-negative
             0.1, // scale
             1, // constant
+            0, // termination penalty
+            10, // position
+            10, // orientation
+            0, // linear_velocity
+            0, // angular_velocity
+            0, // linear_acceleration
+            0, // angular_acceleration
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
+            0, // action
+    };
+    template<typename T>
+    constexpr Squared<T> reward_squared_4 = {
+            false, // non-negative
+            0.1, // scale
+            0, // constant
+            -100, // termination penalty
             10, // position
             10, // orientation
             0, // linear_velocity

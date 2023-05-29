@@ -2,7 +2,6 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_OPERATIONS_GENERIC_H
 
 #include "multirotor.h"
-#include "parameters/reward_functions/reward_functions.h"
 
 #include <backprop_tools/utils/generic/vector_operations.h>
 #include "quaternion_helper.h"
@@ -109,7 +108,7 @@ namespace backprop_tools{
 
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state){
+    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state){
         using STATE = typename rl::environments::Multirotor<SPEC>::State;
         for(typename DEVICE::index_t i = 0; i < STATE::DIM; i++){
             state.state[i] = 0;
@@ -120,9 +119,10 @@ namespace backprop_tools{
                 state.state[13 + i] = env.parameters.dynamics.action_limit.min;
             }
         }
+        env.current_dynamics = env.parameters.dynamics;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state, RNG& rng){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state, RNG& rng){
         typename DEVICE::SPEC::MATH math_dev;
         typename DEVICE::SPEC::RANDOM random_dev;
         using MULTIROTOR_TYPE = rl::environments::Multirotor<SPEC>;
@@ -159,6 +159,16 @@ namespace backprop_tools{
                 state.state[13+i] = random::uniform_real_distribution(random_dev, env.parameters.dynamics.action_limit.min, env.parameters.dynamics.action_limit.max, rng);
             }
         }
+        env.current_dynamics = env.parameters.dynamics;
+        T J_factor = random::uniform_real_distribution(random_dev, (T)0.5, (T)5, rng);
+        env.current_dynamics.J[0][0] *= J_factor;
+        env.current_dynamics.J[1][1] *= J_factor;
+        env.current_dynamics.J[2][2] *= J_factor;
+        env.current_dynamics.J_inv[0][0] /= J_factor;
+        env.current_dynamics.J_inv[1][1] /= J_factor;
+        env.current_dynamics.J_inv[2][2] /= J_factor;
+        T mass_factor = random::uniform_real_distribution(random_dev, (T)0.5, (T)2, rng);
+        env.current_dynamics.mass *= mass_factor;
 //        printf("initial state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
@@ -285,10 +295,6 @@ namespace backprop_tools{
 
         return env.parameters.integration.dt;
     }
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state) {
-        return rl::environments::multirotor::parameters::reward_functions::reward(device, env, env.parameters.mdp.reward, state, action, next_state);
-    }
 
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, RNG& rng){
@@ -312,10 +318,13 @@ namespace backprop_tools{
         }
         return false;
     }
-
-
-
-
-
 }
+#include "parameters/reward_functions/reward_functions.h"
+namespace backprop_tools{
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
+        return rl::environments::multirotor::parameters::reward_functions::reward(device, env, env.parameters.mdp.reward, state, action, next_state, rng);
+    }
+}
+
 #endif
