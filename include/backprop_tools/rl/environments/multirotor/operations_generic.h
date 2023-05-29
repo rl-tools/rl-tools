@@ -128,11 +128,19 @@ namespace backprop_tools{
         using MULTIROTOR_TYPE = rl::environments::Multirotor<SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        for(TI i = 0; i < 3; i++){
-            state.state[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_position, env.parameters.mdp.init.max_position, rng);
+        bool guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < env.parameters.mdp.init.guidance;
+        if(!guidance){
+            for(TI i = 0; i < 3; i++){
+                state.state[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_position, env.parameters.mdp.init.max_position, rng);
+            }
+        }
+        else{
+            for(TI i = 0; i < 3; i++){
+                state.state[i] = 0;
+            }
         }
         // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
-        if(env.parameters.mdp.init.max_angle > 0 && (random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) > env.parameters.mdp.init.guidance)){
+        if(env.parameters.mdp.init.max_angle > 0 && !guidance){
             T u[3];
             for(TI i = 0; i < 3; i++){
                 u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
