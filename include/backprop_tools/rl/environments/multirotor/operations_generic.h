@@ -165,6 +165,11 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
         using STATE = typename ENVIRONMENT::State;
+        using T = typename SPEC::T;
+        constexpr T position_noise_std = 0.003;
+        constexpr T orientation_noise_std = 0.001;
+        constexpr T linear_velocity_noise = 0.01;
+        constexpr T angular_velocity_noise = 0.003;
         static_assert(OBS_SPEC::ROWS == 1);
 //        add_scalar(device, device.logger, "quaternion_w", state.state[3], 1000);
         if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::Normal){
@@ -188,6 +193,19 @@ namespace backprop_tools{
                     }
                 }
             }
+            for(typename DEVICE::index_t i = 0; i < 3; i++){
+                increment(observation, 0, i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, position_noise_std, rng));
+            }
+            for(typename DEVICE::index_t i = 3; i < 7; i++){
+                increment(observation, 0, i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, orientation_noise_std, rng));
+            }
+            for(typename DEVICE::index_t i = 7; i < 10; i++){
+                increment(observation, 0, i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, linear_velocity_noise, rng));
+            }
+            for(typename DEVICE::index_t i = 10; i < 13; i++){
+                increment(observation, 0, i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, angular_velocity_noise, rng));
+            }
+
         }
         else{
             if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::DoubleQuaternion){
@@ -224,6 +242,19 @@ namespace backprop_tools{
                     set(observation, 0, 3 + 8, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]));
                     for(typename DEVICE::index_t i = 7; i < 13; i++){
                         set(observation, 0, i-4+9, state.state[i]);
+                    }
+
+                    for(typename DEVICE::index_t i = 0; i < 3; i++){
+                        increment(observation, 0, i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, position_noise_std, rng));
+                    }
+                    for(typename DEVICE::index_t i = 3; i < 12; i++){
+                        increment(observation, 0, i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, orientation_noise_std, rng));
+                    }
+                    for(typename DEVICE::index_t i = 12; i < 15; i++){
+                        increment(observation, 0, i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, linear_velocity_noise, rng));
+                    }
+                    for(typename DEVICE::index_t i = 15; i < 18; i++){
+                        increment(observation, 0, i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, angular_velocity_noise, rng));
                     }
                 }
             }

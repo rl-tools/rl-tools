@@ -96,7 +96,103 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             },
             // action limit
             0.01, // T, RPM time constant
-            {10000, 21702.1},
+            {0, 21702.1},
+    };
+    template<typename T, typename TI, typename REWARD_FUNCTION>
+    constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_medium_inertia = {
+            // Rotor positions
+            {
+                    {
+                            0.028,
+                            -0.028,
+                            0
+
+                    },
+                    {
+                            -0.028,
+                            -0.028,
+                            0
+
+                    },
+                    {
+                            -0.028,
+                            0.028,
+                            0
+
+                    },
+                    {
+                            0.028,
+                            0.028,
+                            0
+
+                    },
+            },
+            // Rotor thrust directions
+            {
+                    {0, 0, 1},
+                    {0, 0, 1},
+                    {0, 0, 1},
+                    {0, 0, 1},
+            },
+            // Rotor torque directions
+            {
+                    {0, 0, -1},
+                    {0, 0, +1},
+                    {0, 0, -1},
+                    {0, 0, +1},
+            },
+            // thrust constants
+            {
+                    0,
+                    0,
+                    3.16e-10
+            },
+            // torque constant
+//            0.025126582278481014,
+            0.005964552,
+            // mass vehicle
+            0.027,
+            // gravity
+            {0, 0, -9.81},
+            // J
+            {
+                    {
+                            1.6e-5,
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            1.6e-5,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000,
+                            2.9e-5
+                    }
+            },
+            // J_inv
+            {
+                    {
+                            62500.0,
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            62500.0,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000,
+                            34482.8
+                    }
+            },
+            // action limit
+            0.01, // T, RPM time constant
+            {0, 21702.1},
     };
     template<typename T, typename TI, typename REWARD_FUNCTION>
     constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_high_inertia = {
@@ -192,7 +288,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             },
             // action limit
             0.01, // T, RPM time constant
-            {10000, 21702.1},
+            {0, 21702.1},
     };
     template<typename T, typename TI, typename REWARD_FUNCTION>
     constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_very_high_inertia = {
@@ -288,7 +384,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             },
             // action limit
             0.01, // T, RPM time constant
-            {10000, 21702.1},
+            {0, 21702.1},
     };
 
 }
@@ -297,6 +393,12 @@ Some calculations
 
  Low inertia:
  J = [7.7e-6 0 0; 0 7.7e-6 0; 0 0 1.1935e-5]; J_inv = inv(J)
+ thrust_curve = [0, 0, 3.16e-10]
+ max_rpm =  21702.1;
+ mass = 0.027;
+
+ Medium  inertia:
+ J = [16e-6 0 0; 0 16e-6 0; 0 0 29e-6]; J_inv = inv(J)
  thrust_curve = [0, 0, 3.16e-10]
  max_rpm =  21702.1;
  mass = 0.027;
@@ -325,7 +427,8 @@ Some calculations
  max_angular_acceleration = J_inv * max_torque
  thrust_to_weight = max_thrust_magnitude * 4 / mass / 9.81
  hovering_rpm = sqrt(mass * 9.81 / 4 / thrust_curve[3])
- min_rpm = sqrt(mass * 9.81 / 2 / 4 / thrust_curve[3])
+# min_rpm = sqrt(mass * 9.81 / 2 / 4 / thrust_curve[3])
+ min_rpm = 0
  hovering_level = (hovering_rpm - min_rpm) / (max_rpm - min_rpm) * 2 - 1;
  */
 

@@ -3,7 +3,7 @@
 
 #include "../../multirotor.h"
 #include "abs_exp.h"
-#define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE (-0.26)
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE (0.334)
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{
     template<typename T>
     constexpr AbsExp<T> reward_263 = {
@@ -44,6 +44,20 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0, // angular acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
             1 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
+    };
+
+    template<typename T>
+    constexpr AbsExp<T> reward_old_but_gold_2 = {
+            1, // scale
+            0.1, // scale inner
+            0, // position
+            5, // orientation
+            0.5, // linear velocity
+            0.5, // angular velocity
+            0.5, // linear acceleration
+            0.05, // angular acceleration
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
+            0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
 
     template<typename T, typename TI>
