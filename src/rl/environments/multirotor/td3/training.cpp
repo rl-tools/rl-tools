@@ -42,7 +42,7 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 using DTYPE = float;
 
 
-namespace parameter_set = parameters_0;
+namespace parameter_set = parameters_fast_learning;
 
 using TI = typename DEVICE::index_t;
 using parameters_environment = parameter_set::environment<DTYPE, TI>;

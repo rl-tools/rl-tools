@@ -59,7 +59,11 @@ namespace parameters{
     };
 }
 
-namespace parameters_0{
+namespace parameters_fast_learning{
     using parameters::rl;
-    using parameters::environment;
+    using parameters_fast_learning::environment;
+}
+namespace parameters_sim2real{
+    using parameters::rl;
+    using parameters_sim2real::environment;
 }

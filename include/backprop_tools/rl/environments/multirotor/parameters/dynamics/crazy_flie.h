@@ -3,6 +3,102 @@
 
 namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
     template<typename T, typename TI, typename REWARD_FUNCTION>
+    constexpr typename ParametersBase <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_old = {
+            // Rotor positions
+            {
+                    {
+                            0.028,
+                            -0.028,
+                            0
+
+                    },
+                    {
+                            -0.028,
+                            -0.028,
+                            0
+
+                    },
+                    {
+                            -0.028,
+                            0.028,
+                            0
+
+                    },
+                    {
+                            0.028,
+                            0.028,
+                            0
+
+                    },
+            },
+            // Rotor thrust directions
+            {
+                    {0, 0, 1},
+                    {0, 0, 1},
+                    {0, 0, 1},
+                    {0, 0, 1},
+            },
+            // Rotor torque directions
+            {
+                    {0, 0, -1},
+                    {0, 0, +1},
+                    {0, 0, -1},
+                    {0, 0, +1},
+            },
+            // thrust constants
+            {
+                    0,
+                    0,
+                    3.16e-10
+            },
+            // torque constant
+            0.025126582278481014,
+            // mass vehicle
+            0.027,
+            // gravity
+            {0, 0, -9.81},
+            // J
+            {
+                    {
+                            7.7e-6,
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            7.7e-6,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000,
+                            1.1935e-5
+                    }
+            },
+            // J_inv
+            {
+                    {
+                            1.2987e5,
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            1.2987e5,
+                            0.0000000000000000000000000000000000000000
+                    },
+                    {
+                            0.0000000000000000000000000000000000000000,
+                            0.0000000000000000000000000000000000000000,
+                            5.16796e5
+                    }
+            },
+            // T, RPM time constant
+            0.01,
+            // action limit
+            {0, 21702},
+    };
+    template<typename T, typename TI, typename REWARD_FUNCTION>
     constexpr typename ParametersBase <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_low_inertia = {
             // Rotor positions
             {
