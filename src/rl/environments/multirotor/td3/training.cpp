@@ -253,6 +253,7 @@ int main(){
                         actor_output_file << "\n" << bpt::save(device, state_flat, std::string("backprop_tools::checkpoint::state"), true);
                         actor_output_file << "\n" << bpt::save(device, observation, std::string("backprop_tools::checkpoint::observation"), true);
                         actor_output_file << "\n" << bpt::save(device, action, std::string("backprop_tools::checkpoint::action"), true);
+                        bpt::free(device, state_flat);
                         bpt::free(device, observation);
                         bpt::free(device, action);
                     }

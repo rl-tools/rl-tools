@@ -321,15 +321,15 @@ namespace backprop_tools{
                 if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::RotationMatrix){
                     static_assert(OBS_SPEC::COLS == 18);
                     const typename SPEC::T* q = state.orientation;
-                    set(observation, 0, 3 + 0, (1 - 2*q[2]*q[2] - 2*q[3]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, 3 + 1, (    2*q[1]*q[2] - 2*q[0]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, 3 + 2, (    2*q[1]*q[3] + 2*q[0]*q[2]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, 3 + 3, (    2*q[1]*q[2] + 2*q[0]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, 3 + 4, (1 - 2*q[1]*q[1] - 2*q[3]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, 3 + 5, (    2*q[2]*q[3] - 2*q[0]*q[1]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, 3 + 6, (    2*q[1]*q[3] - 2*q[0]*q[2]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, 3 + 7, (    2*q[2]*q[3] + 2*q[0]*q[1]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, 3 + 8, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    set(observation, 0, current_observation_i + 0, (1 - 2*q[2]*q[2] - 2*q[3]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    set(observation, 0, current_observation_i + 1, (    2*q[1]*q[2] - 2*q[0]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    set(observation, 0, current_observation_i + 2, (    2*q[1]*q[3] + 2*q[0]*q[2]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    set(observation, 0, current_observation_i + 3, (    2*q[1]*q[2] + 2*q[0]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    set(observation, 0, current_observation_i + 4, (1 - 2*q[1]*q[1] - 2*q[3]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    set(observation, 0, current_observation_i + 5, (    2*q[2]*q[3] - 2*q[0]*q[1]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    set(observation, 0, current_observation_i + 6, (    2*q[1]*q[3] - 2*q[0]*q[2]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    set(observation, 0, current_observation_i + 7, (    2*q[2]*q[3] + 2*q[0]*q[1]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    set(observation, 0, current_observation_i + 8, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
                     current_observation_i += 9;
                 }
             }
@@ -384,7 +384,7 @@ namespace backprop_tools{
                 if(
                     math::abs(typename DEVICE::SPEC::MATH(), state.position[i]) > env.parameters.mdp.termination.position_threshold ||
                     math::abs(typename DEVICE::SPEC::MATH(), state.linear_velocity[i]) > env.parameters.mdp.termination.linear_velocity_threshold ||
-                    math::abs(typename DEVICE::SPEC::MATH(), state.angular_velocity[i]) > env.parameters.mdp.termination.linear_velocity_threshold
+                    math::abs(typename DEVICE::SPEC::MATH(), state.angular_velocity[i]) > env.parameters.mdp.termination.angular_velocity_threshold
                 ){
                     return true;
                 }
@@ -408,8 +408,8 @@ namespace backprop_tools{
         set(flat_state, 0, 8, state.linear_velocity[1]);
         set(flat_state, 0, 9, state.linear_velocity[2]);
         set(flat_state, 0, 10, state.angular_velocity[0]);
-        set(flat_state, 0, 10, state.angular_velocity[1]);
-        set(flat_state, 0, 10, state.angular_velocity[2]);
+        set(flat_state, 0, 11, state.angular_velocity[1]);
+        set(flat_state, 0, 12, state.angular_velocity[2]);
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC>
     static void deserialize(DEVICE& device, typename rl::environments::multirotor::StateBase<T, TI>& state, Matrix<SPEC>& flat_state){

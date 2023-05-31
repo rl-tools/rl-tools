@@ -33,7 +33,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 
 //        printf("state reward: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
 
-        T orientation_cost = 1 - state.orientation[3] * state.orientation[3]; //math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
+        T orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
 //        T orientation_cost = math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
         T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.position);
         T linear_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.linear_velocity);
