@@ -226,24 +226,26 @@ int main(){
 //                                break
 //                            end
 //                        end
-                        state.state[ 0 + 0] = 0.1;
-                        state.state[ 0 + 1] = 0.1;
-                        state.state[ 0 + 2] = 0.1;
-                        state.state[ 3 + 0] = 0.924297;
-                        state.state[ 3 + 1] = 0.0688265;
-                        state.state[ 3 + 2] = 0.0552117;
-                        state.state[ 3 + 3] = -0.371335;
-                        state.state[ 7 + 0] = 1;
-                        state.state[ 7 + 1] = 2;
-                        state.state[ 7 + 2] = 3;
-                        state.state[10 + 0] = 1;
-                        state.state[10 + 1] = 2;
-                        state.state[10 + 2] = 3;
-                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::State::DIM>> state_flat = {state.state};
+                        state.position[0] = 0.1;
+                        state.position[1] = 0.1;
+                        state.position[2] = 0.1;
+                        state.orientation[0] = 0.924297;
+                        state.orientation[1] = 0.0688265;
+                        state.orientation[2] = 0.0552117;
+                        state.orientation[3] = -0.371335;
+                        state.linear_velocity[0] = 1;
+                        state.linear_velocity[1] = 2;
+                        state.linear_velocity[2] = 3;
+                        state.angular_velocity[0] = 1;
+                        state.angular_velocity[1] = 2;
+                        state.angular_velocity[2] = 3;
+                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, decltype(state)::DIM>> state_flat;
                         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::OBSERVATION_DIM>> observation;
                         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::ACTION_DIM>> action;
+                        bpt::malloc(device, state_flat);
                         bpt::malloc(device, observation);
                         bpt::malloc(device, action);
+                        bpt::serialize(device, state, state_flat);
                         auto rng_copy = rng;
                         bpt::observe(device, envs[0], state, observation, rng_copy);
 //                        bpt::evaluate(device, actor_critic.actor, observation, action);

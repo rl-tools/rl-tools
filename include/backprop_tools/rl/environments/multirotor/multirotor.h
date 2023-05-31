@@ -5,7 +5,7 @@
 
 namespace backprop_tools::rl::environments::multirotor {
     template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
-    struct Parameters {
+    struct ParametersBase{
         struct Dynamics{
             struct ActionLimit{
                 T min;
@@ -41,18 +41,36 @@ namespace backprop_tools::rl::environments::multirotor {
                 T linear_velocity_threshold;
                 T angular_velocity_threshold;
             };
+            struct ObservationNoise{
+                T position;
+                T orientation;
+                T linear_velocity;
+                T angular_velocity;
+            };
             Initialization init;
-            Termination termination;
             REWARD_FUNCTION reward;
+            ObservationNoise observation_noise;
+            Termination termination;
         };
         Dynamics dynamics;
         Integration integration;
         MDP mdp;
     };
+    template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
+    struct ParametersDomainRandomization: ParametersBase<T, TI, N, T_REWARD_FUNCTION>{
+        struct UnivariateGaussian{
+            T mean;
+            T std;
+        };
+        struct DomainRandomization{
+            UnivariateGaussian J_factor;
+            UnivariateGaussian mass_factor;
+        };
+    };
 
 
     enum class StateType{
-        Normal,
+        Base,
         RPM
     };
     enum class ObservationType{
@@ -64,7 +82,7 @@ namespace backprop_tools::rl::environments::multirotor {
     struct StaticParametersDefault{
         static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
         static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
-        static constexpr StateType STATE_TYPE = StateType::Normal;
+        static constexpr StateType STATE_TYPE = StateType::Base;
         static constexpr ObservationType OBSERVATION_TYPE = ObservationType::Normal;
     };
 
@@ -76,16 +94,18 @@ namespace backprop_tools::rl::environments::multirotor {
         using STATIC_PARAMETERS = T_STATIC_PARAMETERS;
     };
 
-
     template <typename T, typename TI>
-    struct StateNormal{
+    struct StateBase{
         static constexpr TI DIM = 13;
-        T state[DIM];
+        T position[3];
+        T orientation[4];
+        T linear_velocity[3];
+        T angular_velocity[3];
     };
     template <typename T, typename TI>
-    struct StateRPM{
-        static constexpr TI DIM = 13 + 4;
-        T state[DIM];
+    struct StateRPM: StateBase<T, TI>{
+        static constexpr TI DIM = StateBase<T, TI>::DIM + 4;
+        T rpm[4];
     };
 }
 
@@ -102,9 +122,7 @@ namespace backprop_tools::rl::environments{
         static constexpr multirotor::ObservationType OBSERVATION_TYPE = SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE;
 
         static constexpr TI OBSERVATION_DIM = OBSERVATION_TYPE == multirotor::ObservationType::Normal ? 13 : (OBSERVATION_TYPE == multirotor::ObservationType::DoubleQuaternion ? (13 + 4) : (13 - 4 + 9));
-        using State = utils::typing::conditional_t<
-                STATE_TYPE == multirotor::StateType::Normal,
-                multirotor::StateNormal<T, TI>, multirotor::StateRPM<T, TI>>;
+        using State = utils::typing::conditional_t<STATE_TYPE == multirotor::StateType::Base, multirotor::StateBase<T, TI>, multirotor::StateRPM<T, TI>>;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         typename SPEC::PARAMETERS parameters;
         typename SPEC::PARAMETERS::Dynamics current_dynamics;

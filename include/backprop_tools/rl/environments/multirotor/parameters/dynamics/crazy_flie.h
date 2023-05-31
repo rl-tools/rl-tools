@@ -3,7 +3,7 @@
 
 namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
     template<typename T, typename TI, typename REWARD_FUNCTION>
-    constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_low_inertia = {
+    constexpr typename ParametersBase <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_low_inertia = {
             // Rotor positions
             {
                     {
@@ -99,7 +99,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             {0, 21702.1},
     };
     template<typename T, typename TI, typename REWARD_FUNCTION>
-    constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_medium_inertia = {
+    constexpr typename ParametersBase <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_medium_inertia = {
             // Rotor positions
             {
                     {
@@ -195,7 +195,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             {0, 21702.1},
     };
     template<typename T, typename TI, typename REWARD_FUNCTION>
-    constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_high_inertia = {
+    constexpr typename ParametersBase <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_high_inertia = {
             // Rotor positions
             {
                     {
@@ -291,7 +291,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
             {0, 21702.1},
     };
     template<typename T, typename TI, typename REWARD_FUNCTION>
-    constexpr typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_very_high_inertia = {
+    constexpr typename ParametersBase <T, TI, TI(4), REWARD_FUNCTION>::Dynamics crazy_flie_very_high_inertia = {
             // Rotor positions
             {
                     {
