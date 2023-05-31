@@ -168,15 +168,15 @@ namespace backprop_tools{
             }
         }
         env.current_dynamics = env.parameters.dynamics;
-        T J_factor = random::uniform_real_distribution(random_dev, (T)0.5, (T)2, rng);
-        env.current_dynamics.J[0][0] *= J_factor;
-        env.current_dynamics.J[1][1] *= J_factor;
-        env.current_dynamics.J[2][2] *= J_factor;
-        env.current_dynamics.J_inv[0][0] /= J_factor;
-        env.current_dynamics.J_inv[1][1] /= J_factor;
-        env.current_dynamics.J_inv[2][2] /= J_factor;
-        T mass_factor = random::uniform_real_distribution(random_dev, (T)0.5, (T)1.5, rng);
-        env.current_dynamics.mass *= mass_factor;
+//        T J_factor = random::uniform_real_distribution(random_dev, (T)0.5, (T)2, rng);
+//        env.current_dynamics.J[0][0] *= J_factor;
+//        env.current_dynamics.J[1][1] *= J_factor;
+//        env.current_dynamics.J[2][2] *= J_factor;
+//        env.current_dynamics.J_inv[0][0] /= J_factor;
+//        env.current_dynamics.J_inv[1][1] /= J_factor;
+//        env.current_dynamics.J_inv[2][2] /= J_factor;
+//        T mass_factor = random::uniform_real_distribution(random_dev, (T)0.5, (T)1.5, rng);
+//        env.current_dynamics.mass *= mass_factor;
 //        printf("initial state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
@@ -185,7 +185,7 @@ namespace backprop_tools{
         using STATE = typename ENVIRONMENT::State;
         using T = typename SPEC::T;
         constexpr T position_noise_std = 0.003;
-        constexpr T orientation_noise_std = 0.001;
+        constexpr T orientation_noise_std = 0.100;
         constexpr T linear_velocity_noise = 0.01;
         constexpr T angular_velocity_noise = 0.003;
         static_assert(OBS_SPEC::ROWS == 1);
