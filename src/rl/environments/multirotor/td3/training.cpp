@@ -42,7 +42,7 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 using DTYPE = float;
 
 
-namespace parameter_set = parameters_fast_learning;
+namespace parameter_set = parameters_0;
 
 using TI = typename DEVICE::index_t;
 using parameters_environment = parameter_set::environment<DTYPE, TI>;
@@ -245,7 +245,8 @@ int main(){
                         bpt::malloc(device, state_flat);
                         bpt::malloc(device, observation);
                         bpt::malloc(device, action);
-                        bpt::serialize(device, state, state_flat);
+//                        bpt::serialize(device, state, state_flat);
+                        bpt::set_all(device, state_flat, 0);
                         auto rng_copy = rng;
                         bpt::observe(device, envs[0], state, observation, rng_copy);
 //                        bpt::evaluate(device, actor_critic.actor, observation, action);
@@ -261,9 +262,9 @@ int main(){
                 }
             }
             if(step_i != 0 && step_i % 500000 == 0){
-                off_policy_runner.parameters.exploration_noise *= 0.5;
-                actor_critic.target_next_action_noise_std *= 0.5;
-                actor_critic.target_next_action_noise_clip *= 0.5;
+//                off_policy_runner.parameters.exploration_noise *= 0.5;
+//                actor_critic.target_next_action_noise_std *= 0.5;
+//                actor_critic.target_next_action_noise_clip *= 0.5;
                 off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.05 ? 0.05 : off_policy_runner.parameters.exploration_noise;
                 actor_critic.target_next_action_noise_std = actor_critic.target_next_action_noise_std < 0.05 ? 0.05 : actor_critic.target_next_action_noise_std;
                 actor_critic.target_next_action_noise_clip = actor_critic.target_next_action_noise_clip < 0.15 ? 0.15 : actor_critic.target_next_action_noise_clip;

@@ -32,9 +32,9 @@ namespace backprop_tools::rl::environments::multirotor {
         nlohmann::json message;
         message["channel"] = "setDroneState";
         message["data"]["id"] = ui.id;
-        message["data"]["data"]["pose"]["position"] = {state.state[0], state.state[1], state.state[2]};
+        message["data"]["data"]["pose"]["position"] = {state.position[0], state.position[1], state.position[2]};
         typename ENVIRONMENT::T orientation[3][3];
-        quaternion_to_rotation_matrix<DEVICE, typename ENVIRONMENT::T>(&state.state[3], orientation);
+        quaternion_to_rotation_matrix<DEVICE, typename ENVIRONMENT::T>(state.orientation, orientation);
         message["data"]["data"]["pose"]["orientation"] = {
                 {orientation[0][0], orientation[0][1], orientation[0][2]},
                 {orientation[1][0], orientation[1][1], orientation[1][2]},

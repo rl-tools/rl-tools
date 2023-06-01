@@ -8,9 +8,6 @@ project(backprop_tools)
 set(CMAKE_CXX_STANDARD 17)
 
 message("Build type: ${CMAKE_BUILD_TYPE}")
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-endif()
 message("C++ Compiler: ${CMAKE_CXX_COMPILER}")
 
 option(BACKPROP_TOOLS_ENABLE_TESTS "Build the unit tests when enabled." off)
@@ -26,6 +23,11 @@ option(BACKPROP_TOOLS_ENABLE_JSON "Enable JSON (used in the multirotor UI)" OFF)
 option(BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN "Use HighFive from conan (don't use the submodule from /external)" OFF)
 option(BACKPROP_TOOLS_BUILD_TYPE "Use \"Release\" to e.g. build fat binaries with code for all CUDA architectures (not just for the GPU found in the machine used to build it)" OFF)
 option(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES "Including redistributables from the redistributable submodule" OFF)
+option(BACKPROP_TOOLS_DISABLE_LTO "Disable link-time optimization" OFF)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT BACKPROP_TOOLS_DISABLE_LTO)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+endif()
 
 set(BUILD_SHARED_LIBS OFF)
 

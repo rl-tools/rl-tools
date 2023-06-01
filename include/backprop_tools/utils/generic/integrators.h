@@ -15,7 +15,6 @@ namespace backprop_tools::utils::integrators{
 
     template<typename DEVICE, typename T, typename PARAMETER_TYPE, typename STATE, auto ACTION_DIM, auto DYNAMICS>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void rk4(DEVICE& device, const PARAMETER_TYPE& params, const STATE& state, const T action[ACTION_DIM], const T dt, STATE& next_state) {
-        using namespace vector_operations;
         STATE& k1 = next_state; //[STATE_DIM];
 
         // flops: 157
@@ -49,7 +48,7 @@ namespace backprop_tools::utils::integrators{
 
 
         {
-            T k4;
+            STATE k4;
             add_accumulate(device, state, var);
             // flops: 157
             DYNAMICS(device, params, var, action, k4);
