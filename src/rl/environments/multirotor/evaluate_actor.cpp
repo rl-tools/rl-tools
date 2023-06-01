@@ -33,7 +33,7 @@ namespace TEST_DEFINITIONS{
 
     using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
     constexpr TI MAX_EPISODE_LENGTH = 1000;
-    constexpr bool RANDOMIZE_DOMAIN_PARAMETERS = true;
+    constexpr bool RANDOMIZE_DOMAIN_PARAMETERS = false;
 }
 
 

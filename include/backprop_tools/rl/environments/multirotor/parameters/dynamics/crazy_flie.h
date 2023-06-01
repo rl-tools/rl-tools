@@ -94,7 +94,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
                     }
             },
             // T, RPM time constant
-            0.01,
+            0.08,
             // action limit
             {0, 21702},
     };

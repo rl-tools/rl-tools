@@ -249,14 +249,16 @@ namespace backprop_tools{
         }
         // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
         if(env.parameters.mdp.init.max_angle > 0 && !guidance){
-            T u[3];
-            for(TI i = 0; i < 3; i++){
-                u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
-            }
-            state.orientation[0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*math::PI<T>*u[1]);
-            state.orientation[1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
-            state.orientation[2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
-            state.orientation[3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
+            do{
+                T u[3];
+                for(TI i = 0; i < 3; i++){
+                    u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
+                }
+                state.orientation[0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*math::PI<T>*u[1]);
+                state.orientation[1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
+                state.orientation[2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
+                state.orientation[3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
+            } while(2*math::acos(math_dev, state.orientation[0]) > env.parameters.mdp.init.max_angle);
         }
         else{
             state.orientation[0] = 1;

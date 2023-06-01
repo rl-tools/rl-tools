@@ -53,7 +53,7 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 
 constexpr TI performance_logging_interval = 100;
 constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
-constexpr TI BASE_SEED = 103;
+constexpr TI BASE_SEED = 403;
 constexpr TI NUM_RUNS = 100;
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
 constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
@@ -106,6 +106,7 @@ int main(){
         }
         std::cout << "Run " << run_i << " of " << NUM_RUNS << " with seed " << seed << " and name " << run_name << std::endl;
         std::cout << "Checkpoints: " << (ACTOR_ENABLE_CHECKPOINTS ? "enabled" : "disabled") << std::endl;
+        std::cout << "Observation dim: " << parameters_environment::ENVIRONMENT::OBSERVATION_DIM << " action dim: " << parameters_environment::ENVIRONMENT::ACTION_DIM << std::endl;
 
         episode_step.push_back({});
         episode_returns.push_back({});
