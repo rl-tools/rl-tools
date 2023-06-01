@@ -71,7 +71,8 @@ namespace backprop_tools::rl::environments::multirotor {
 
     enum class StateType{
         Base,
-        RPM
+        BaseRotors,
+        BaseRotorsHistory,
     };
     enum class ObservationType{
         Normal,
@@ -79,11 +80,13 @@ namespace backprop_tools::rl::environments::multirotor {
         RotationMatrix
     };
 
+    template <typename TI>
     struct StaticParametersDefault{
         static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
         static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
         static constexpr StateType STATE_TYPE = StateType::Base;
         static constexpr ObservationType OBSERVATION_TYPE = ObservationType::Normal;
+        static constexpr TI ACTION_HISTORY_LENGTH = 0;
     };
 
     template <typename T_T, typename T_TI, typename T_PARAMETERS, typename T_STATIC_PARAMETERS>
@@ -103,9 +106,15 @@ namespace backprop_tools::rl::environments::multirotor {
         T angular_velocity[3];
     };
     template <typename T, typename TI>
-    struct StateRPM: StateBase<T, TI>{
+    struct StateBaseRotors: StateBase<T, TI>{
         static constexpr TI DIM = StateBase<T, TI>::DIM + 4;
         T rpm[4];
+    };
+    template <typename T, typename TI, TI T_HISTORY_LENGTH>
+    struct StateBaseRotorsHistory: StateBaseRotors<T, TI>{
+        static constexpr TI HISTORY_LENGTH = T_HISTORY_LENGTH;
+        static constexpr TI DIM = StateBaseRotors<T, TI>::DIM + HISTORY_LENGTH * 4;
+        T action_history[HISTORY_LENGTH][4];
     };
 }
 
@@ -121,8 +130,19 @@ namespace backprop_tools::rl::environments{
         static constexpr multirotor::StateType STATE_TYPE = SPEC::STATIC_PARAMETERS::STATE_TYPE;
         static constexpr multirotor::ObservationType OBSERVATION_TYPE = SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE;
 
-        static constexpr TI OBSERVATION_DIM = OBSERVATION_TYPE == multirotor::ObservationType::Normal ? 13 : (OBSERVATION_TYPE == multirotor::ObservationType::DoubleQuaternion ? (13 + 4) : (13 - 4 + 9));
-        using State = utils::typing::conditional_t<STATE_TYPE == multirotor::StateType::Base, multirotor::StateBase<T, TI>, multirotor::StateRPM<T, TI>>;
+        static constexpr TI OBSERVATION_DIM_BASE = 3 + 3 + 3;
+        static constexpr TI OBSERVATION_DIM_ORIENTATION = OBSERVATION_TYPE == multirotor::ObservationType::Normal ? 4 : (OBSERVATION_TYPE == multirotor::ObservationType::DoubleQuaternion ? (2*4) : (9));
+        static constexpr TI OBSERVATION_DIM_ACTION_HISTORY = (STATE_TYPE == multirotor::StateType::BaseRotorsHistory) * ACTION_DIM * SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
+        static constexpr TI OBSERVATION_DIM = OBSERVATION_DIM_BASE + OBSERVATION_DIM_ORIENTATION + OBSERVATION_DIM_ACTION_HISTORY;
+        using State = utils::typing::conditional_t<
+            STATE_TYPE == multirotor::StateType::Base,
+            multirotor::StateBase<T, TI>,
+            utils::typing::conditional_t<
+                STATE_TYPE == multirotor::StateType::BaseRotors,
+                multirotor::StateBaseRotors<T, TI>,
+                multirotor::StateBaseRotorsHistory<T, TI, SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH>
+            >
+        >;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         typename SPEC::PARAMETERS parameters;
         typename SPEC::PARAMETERS::Dynamics current_dynamics;

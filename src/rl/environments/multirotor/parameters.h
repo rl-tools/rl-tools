@@ -21,6 +21,7 @@ namespace parameters_sim2real{
                 {0.01}, // integration dt
                 {
                         backprop_tools::rl::environments::multirotor::parameters::init::all_around<T, TI, 4, REWARD_FUNCTION>,
+//                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
                         reward_function,
                         {   // Observation noise
                                 0, // position
@@ -28,19 +29,18 @@ namespace parameters_sim2real{
                                 0, // linear_velocity
                                 0, // angular_velocity
                         },
-//                        backprop_tools::rl::environments::multirotor::parameters::init::all_around_simplified<T, TI, 4, REWARD_FUNCTION>,
-//                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
-                        backprop_tools::rl::environments::multirotor::parameters::termination::classic<T, TI, 4, REWARD_FUNCTION>
+                        backprop_tools::rl::environments::multirotor::parameters::termination::fast_learning<T, TI, 4, REWARD_FUNCTION>
                 }
         };
 
         using PARAMETERS = typename backprop_tools::utils::typing::remove_cv_t<decltype(parameters)>;
 
-        struct ENVIRONMENT_STATIC_PARAMETERS: bpt::rl::environments::multirotor::StaticParametersDefault{
+        struct ENVIRONMENT_STATIC_PARAMETERS: bpt::rl::environments::multirotor::StaticParametersDefault<TI>{
             static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
             static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
-            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::RPM;
+            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::BaseRotorsHistory;
             static constexpr bpt::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = bpt::rl::environments::multirotor::ObservationType::RotationMatrix;
+            static constexpr TI ACTION_HISTORY_LENGTH = 0;
         };
 
         using ENVIRONMENT_SPEC = bpt::rl::environments::multirotor::Specification<T, TI, PARAMETERS, ENVIRONMENT_STATIC_PARAMETERS>;
@@ -80,7 +80,7 @@ namespace parameters_fast_learning{
 
         using PARAMETERS = typename backprop_tools::utils::typing::remove_cv_t<decltype(parameters)>;
 
-        struct ENVIRONMENT_STATIC_PARAMETERS: bpt::rl::environments::multirotor::StaticParametersDefault{
+        struct ENVIRONMENT_STATIC_PARAMETERS: bpt::rl::environments::multirotor::StaticParametersDefault<TI>{
             static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
             static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
             static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::Base;
