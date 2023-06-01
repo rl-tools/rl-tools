@@ -53,12 +53,12 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 
 constexpr TI performance_logging_interval = 100;
 constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
-constexpr TI BASE_SEED = 101;
-constexpr TI NUM_RUNS = 1;
+constexpr TI BASE_SEED = 103;
+constexpr TI NUM_RUNS = 100;
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
 constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
 #else
-constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP * 100;
+constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
 #endif
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50000;
@@ -127,7 +127,7 @@ int main(){
         typename DEVICE::SPEC::LOGGING logger;
         DEVICE device;
         device.logger = &logger;
-        bpt::construct(device, device.logger);
+        bpt::construct(device, device.logger, std::string("logs"), run_name);
 
         // optimizer
         parameters_rl::OPTIMIZER optimizer[2];
@@ -265,19 +265,19 @@ int main(){
 //                off_policy_runner.parameters.exploration_noise *= 0.5;
 //                actor_critic.target_next_action_noise_std *= 0.5;
 //                actor_critic.target_next_action_noise_clip *= 0.5;
-                off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.05 ? 0.05 : off_policy_runner.parameters.exploration_noise;
-                actor_critic.target_next_action_noise_std = actor_critic.target_next_action_noise_std < 0.05 ? 0.05 : actor_critic.target_next_action_noise_std;
-                actor_critic.target_next_action_noise_clip = actor_critic.target_next_action_noise_clip < 0.15 ? 0.15 : actor_critic.target_next_action_noise_clip;
+//                off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.05 ? 0.05 : off_policy_runner.parameters.exploration_noise;
+//                actor_critic.target_next_action_noise_std = actor_critic.target_next_action_noise_std < 0.05 ? 0.05 : actor_critic.target_next_action_noise_std;
+//                actor_critic.target_next_action_noise_clip = actor_critic.target_next_action_noise_clip < 0.15 ? 0.15 : actor_critic.target_next_action_noise_clip;
                 bpt::add_scalar(device, device.logger, "td3/target_next_action_noise_std", actor_critic.target_next_action_noise_std);
                 bpt::add_scalar(device, device.logger, "td3/target_next_action_noise_clip", actor_critic.target_next_action_noise_clip);
                 bpt::add_scalar(device, device.logger, "off_policy_runner/exploration_noise", off_policy_runner.parameters.exploration_noise);
 
 
-                if(step_i > 1000000){
-                    for (auto& env : off_policy_runner.envs) {
-                        env.parameters.mdp.reward.angular_acceleration = 0.01;
-                    }
-                }
+//                if(step_i > 1000000){
+//                    for (auto& env : off_policy_runner.envs) {
+//                        env.parameters.mdp.reward.angular_acceleration = 0.01;
+//                    }
+//                }
 //                if(step_i <= 2000000){
 //                    for (auto& env : off_policy_runner.envs) {
 //                        env.parameters.mdp.reward.scale *= 2;
