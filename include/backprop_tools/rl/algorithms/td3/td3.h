@@ -52,16 +52,18 @@ namespace backprop_tools::rl::algorithms::td3 {
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = ASYMMETRIC_OBSERVATIONS ? SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
-        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
+        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM_PRIVILEGED + ACTION_DIM>> state_action_value_input;
         template<typename SPEC::TI DIM>
         using STATE_ACTION_VALUE_VIEW = typename decltype(state_action_value_input)::template VIEW<BATCH_SIZE, DIM>;
-        STATE_ACTION_VALUE_VIEW<OBSERVATION_DIM> observations;
+        STATE_ACTION_VALUE_VIEW<OBSERVATION_DIM_PRIVILEGED> observations;
         STATE_ACTION_VALUE_VIEW<ACTION_DIM> actions;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> state_action_value;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> d_output;
-        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> d_critic_input;
+        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM_PRIVILEGED + ACTION_DIM>> d_critic_input;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_actor_output;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_actor_input;
     };
@@ -73,14 +75,16 @@ namespace backprop_tools::rl::algorithms::td3 {
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = ASYMMETRIC_OBSERVATIONS ? SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
 
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> target_next_action_noise;
-        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> next_state_action_value_input;
+        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM_PRIVILEGED + ACTION_DIM>> next_state_action_value_input;
         template<typename SPEC::TI DIM>
         using NEXT_STATE_ACTION_VALUE_VIEW = typename decltype(next_state_action_value_input)::template VIEW<BATCH_SIZE, DIM>;
-        NEXT_STATE_ACTION_VALUE_VIEW<OBSERVATION_DIM> next_observations;
+        NEXT_STATE_ACTION_VALUE_VIEW<OBSERVATION_DIM_PRIVILEGED> next_observations;
         NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM> next_actions;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> action_value;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_action_value;

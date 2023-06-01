@@ -39,6 +39,8 @@ namespace backprop_tools::rl::components::off_policy_runner {
         static constexpr bool COLLECT_EPISODE_STATS = T_COLLECT_EPISODE_STATS;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = T_EPISODE_STATS_BUFFER_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : ENVIRONMENT::OBSERVATION_DIM;
     };
 
     template<typename SPEC>
@@ -47,8 +49,10 @@ namespace backprop_tools::rl::components::off_policy_runner {
         using TI = typename SPEC::TI;
 
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observations;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> observations_privileged;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>> actions;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> next_observations;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> next_observations_privileged;
     };
 
 
@@ -68,17 +72,22 @@ namespace backprop_tools::rl::components::off_policy_runner {
 
         static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = ASYMMETRIC_OBSERVATIONS ? SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 2*OBSERVATION_DIM + ACTION_DIM>> observations_actions_next_observations;
+        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM + OBSERVATION_DIM + SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, DATA_DIM>> observations_actions_next_observations;
 
         template<typename SPEC::TI DIM>
         using OANO_VIEW = typename decltype(observations_actions_next_observations)::template VIEW<BATCH_SIZE, DIM>;
 
         OANO_VIEW<OBSERVATION_DIM> observations;
+        OANO_VIEW<OBSERVATION_DIM_PRIVILEGED> observations_privileged;
         OANO_VIEW<ACTION_DIM> actions;
-        OANO_VIEW<OBSERVATION_DIM + ACTION_DIM> observations_and_actions;
+        OANO_VIEW<OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
         OANO_VIEW<OBSERVATION_DIM> next_observations;
+        OANO_VIEW<OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
 
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, BATCH_SIZE>> rewards;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<bool, TI, 1, BATCH_SIZE>> terminated;
@@ -107,9 +116,9 @@ namespace backprop_tools::rl::components{
         using PARAMETERS = typename SPEC::PARAMETERS;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
-        using REPLAY_BUFFER_TYPE = ReplayBuffer<REPLAY_BUFFER_SPEC>;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
+        using REPLAY_BUFFER_TYPE = ReplayBuffer<REPLAY_BUFFER_SPEC>;
         static constexpr TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 

@@ -33,8 +33,12 @@ namespace backprop_tools::rl::components::off_policy_runner{
             set(runner->episode_step, 0, env_i, 0);
             set(runner->episode_return, 0, env_i, 0);
         }
-        auto observation = view<DEVICE, typename decltype(runner->buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner->buffers.observations, env_i, 0);
-        observe(device, env, state, observation, rng);
+        auto observation            = view<DEVICE, typename decltype(runner->buffers.observations           )::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM           >(device, runner->buffers.observations           , env_i, 0);
+        auto observation_privileged = view<DEVICE, typename decltype(runner->buffers.observations_privileged)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED>(device, runner->buffers.observations_privileged, env_i, 0);
+        observe           (device, env, state, observation           , rng);
+        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
+            observe_privileged(device, env, state, observation_privileged, rng);
+        }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void epilogue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
@@ -42,8 +46,10 @@ namespace backprop_tools::rl::components::off_policy_runner{
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         using PARAMETERS = typename SPEC::PARAMETERS;
-        auto observation = view<DEVICE, typename decltype(runner->buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner->buffers.observations, env_i, 0);
-        auto next_observation = view<DEVICE, typename decltype(runner->buffers.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, runner->buffers.next_observations, env_i, 0);
+        auto observation            = view<DEVICE, typename decltype(runner->buffers.observations           )::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM           >(device, runner->buffers.observations           , env_i, 0);
+        auto observation_privileged = view<DEVICE, typename decltype(runner->buffers.observations_privileged)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED>(device, runner->buffers.observations_privileged, env_i, 0);
+        auto next_observation            = view<DEVICE, typename decltype(runner->buffers.observations           )::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM           >(device, runner->buffers.next_observations           , env_i, 0);
+        auto next_observation_privileged = view<DEVICE, typename decltype(runner->buffers.observations_privileged)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED>(device, runner->buffers.next_observations_privileged, env_i, 0);
         auto action = view<DEVICE, typename decltype(runner->buffers.actions)::SPEC, 1, ENVIRONMENT::ACTION_DIM>(device, runner->buffers.actions, env_i, 0);
         auto& env = runner->envs[env_i];
         auto& state = get(runner->states, 0, env_i);
@@ -57,7 +63,10 @@ namespace backprop_tools::rl::components::off_policy_runner{
 
         T reward_value = reward(device, env, state, action, next_state, rng);
 
-        observe(device, env, next_state, next_observation, rng);
+        observe           (device, env, next_state, next_observation           , rng);
+        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS) {
+            observe_privileged(device, env, next_state, next_observation_privileged, rng);
+        }
 
         bool terminated_flag = terminated(device, env, next_state, rng);
         increment(runner->episode_step, 0, env_i, 1);
@@ -65,7 +74,7 @@ namespace backprop_tools::rl::components::off_policy_runner{
         auto episode_step_i = get(runner->episode_step, 0, env_i);
         bool truncated = terminated_flag || episode_step_i == SPEC::STEP_LIMIT;
         set(runner->truncated, 0, env_i, truncated);
-        add(device, runner->replay_buffers[env_i], observation, action, reward_value, next_observation, terminated_flag, truncated);
+        add(device, runner->replay_buffers[env_i], observation, observation_privileged, action, reward_value, next_observation, next_observation_privileged, terminated_flag, truncated);
 
         // state progression needs to come after the addition to the replay buffer because "observation" can point to the memory of runner_state.state (in the case of REQUIRES_OBSERVATION=false)
         state = next_state;

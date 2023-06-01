@@ -375,6 +375,10 @@ namespace backprop_tools{
             current_observation_i += 1;
         }
     }
+    template<typename DEVICE, typename T, typename TI, typename SPEC, typename OBS_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateBase<T, TI>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+        observe(device, env, state, observation, rng);
+    }
     template<typename DEVICE, typename T_H, typename TI_H, TI_H HISTORY_LENGTH, typename SPEC, typename OBS_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateBaseRotorsHistory<T_H, TI_H, HISTORY_LENGTH>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         using MULTIROTOR = rl::environments::Multirotor<SPEC>;
@@ -388,6 +392,20 @@ namespace backprop_tools{
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
                 set(action_history_observation, 0, step_i*MULTIROTOR::ACTION_DIM + action_i, state.action_history[step_i][action_i]);
             }
+        }
+    }
+    template<typename DEVICE, typename T_S, typename TI_S, typename SPEC, typename OBS_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateBaseRotors<T_S, TI_S>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+        using MULTIROTOR = rl::environments::Multirotor<SPEC>;
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == MULTIROTOR::OBSERVATION_DIM_PRIVILEGED);
+        auto base_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION>{}, 0, 0);
+        observe(device, env, state, base_observation, rng);
+        for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
+            T action_value = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min)/(env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min);
+            set(observation, 0, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION + action_i, action_value);
         }
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename ACTION_SPEC>

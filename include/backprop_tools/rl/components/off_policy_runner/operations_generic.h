@@ -14,6 +14,15 @@ namespace backprop_tools{
         malloc(device, buffers.observations);
         malloc(device, buffers.actions);
         malloc(device, buffers.next_observations);
+
+        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
+            malloc(device, buffers.observations_privileged);
+            malloc(device, buffers.next_observations_privileged);
+        }
+        else{
+            buffers.observations_privileged = buffers.observations;
+            buffers.next_observations_privileged = buffers.next_observations;
+        }
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::off_policy_runner::EpisodeStats<SPEC>& episode_stats) {
@@ -40,10 +49,13 @@ namespace backprop_tools{
         using DATA_SPEC = typename decltype(batch.observations_actions_next_observations)::SPEC;
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         malloc(device, batch.observations_actions_next_observations);
-        batch.observations             = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                    >(device, batch.observations_actions_next_observations, 0, 0);
-        batch.actions                  = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::     ACTION_DIM                    >(device, batch.observations_actions_next_observations, 0, BATCH::OBSERVATION_DIM);
-        batch.next_observations        = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                    >(device, batch.observations_actions_next_observations, 0, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM);
-        batch.observations_and_actions = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM + BATCH::ACTION_DIM>(device, batch.observations_actions_next_observations, 0, 0);
+        typename DEVICE::index_t offset = 0;
+        batch.observations                 = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                               >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
+        batch.observations_and_actions     = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>(device, batch.observations_actions_next_observations, 0, offset);
+        batch.observations_privileged      = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM_PRIVILEGED                    >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
+        batch.actions                      = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::     ACTION_DIM                               >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::ACTION_DIM;
+        batch.next_observations            = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM                               >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
+        batch.next_observations_privileged = view<DEVICE, DATA_SPEC, BATCH_SIZE, BATCH::OBSERVATION_DIM_PRIVILEGED                    >(device, batch.observations_actions_next_observations, 0, offset); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
 
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
@@ -76,10 +88,12 @@ namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC>& batch) {
         free(device, batch.observations_actions_next_observations);
-        batch.observations.            _data = nullptr;
-        batch.actions.                 _data = nullptr;
-        batch.next_observations.       _data = nullptr;
-        batch.observations_and_actions._data = nullptr;
+        batch.observations.                _data = nullptr;
+        batch.observations_privileged.     _data = nullptr;
+        batch.observations_and_actions.    _data = nullptr;
+        batch.actions.                     _data = nullptr;
+        batch.next_observations.           _data = nullptr;
+        batch.next_observations_privileged._data = nullptr;
         free(device, batch.rewards);
         free(device, batch.terminated);
         free(device, batch.truncated);
@@ -104,12 +118,12 @@ namespace backprop_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS>
-        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers) {
+        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers){
             evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
         }
 
         template<typename DEVICE, typename SPEC, typename RNG>
-        void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
+        void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng){
             using TI = typename DEVICE::index_t;
             for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
                 epilogue_per_env(device, &runner, rng, env_i);
@@ -117,7 +131,7 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng) {
+    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng){
 #ifdef BACKPROP_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
 #endif
@@ -142,17 +156,29 @@ namespace backprop_tools{
         typename DEVICE::index_t sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
         typename DEVICE::index_t sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, sample_index_max, rng);
 
-        auto observation_target = view<DEVICE, typename decltype(batch.observations)::SPEC, 1, SPEC::OBSERVATION_DIM>(device, batch.observations, batch_step_i, 0);
-        auto observation_source = view<DEVICE, typename decltype(replay_buffer.observations)::SPEC, 1, SPEC::OBSERVATION_DIM>(device, replay_buffer.observations, sample_index, 0);
+        auto observation_target = row(device, batch.observations, batch_step_i);
+        auto observation_source = row(device, replay_buffer.observations, sample_index);
         copy(device, device, observation_target, observation_source);
 
-        auto action_target = view<DEVICE, typename decltype(batch.actions)::SPEC, 1, SPEC::ACTION_DIM>(device, batch.actions, batch_step_i, 0);
-        auto action_source = view<DEVICE, typename decltype(replay_buffer.actions)::SPEC, 1, SPEC::ACTION_DIM>(device, replay_buffer.actions, sample_index, 0);
+        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
+            auto observation_privileged_target = row(device, batch.observations_privileged        , batch_step_i);
+            auto observation_privileged_source = row(device, replay_buffer.observations_privileged, sample_index);
+            copy(device, device, observation_privileged_target, observation_privileged_source);
+        }
+
+        auto action_target = row(device, batch.actions, batch_step_i);
+        auto action_source = row(device, replay_buffer.actions, sample_index);
         copy(device, device, action_target, action_source);
 
-        auto next_observation_target = view<DEVICE, typename decltype(batch.next_observations)::SPEC, 1, SPEC::OBSERVATION_DIM>(device, batch.next_observations, batch_step_i, 0);
-        auto next_observation_source = view<DEVICE, typename decltype(replay_buffer.next_observations)::SPEC, 1, SPEC::OBSERVATION_DIM>(device, replay_buffer.next_observations, sample_index, 0);
+        auto next_observation_target = row(device, batch.next_observations, batch_step_i);
+        auto next_observation_source = row(device, replay_buffer.next_observations, sample_index);
         copy(device, device, next_observation_target, next_observation_source);
+
+        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
+            auto next_observation_privileged_target = row(device, batch.next_observations_privileged        , batch_step_i);
+            auto next_observation_privileged_source = row(device, replay_buffer.next_observations_privileged, sample_index);
+            copy(device, device, next_observation_privileged_target, next_observation_privileged_source);
+        }
 
         set(batch.rewards, 0, batch_step_i, get(replay_buffer.rewards, sample_index, 0));
         set(batch.terminated, 0, batch_step_i, get(replay_buffer.terminated, sample_index, 0));
@@ -166,7 +192,7 @@ namespace backprop_tools{
         using RUNNER = rl::components::OffPolicyRunner<SPEC>;
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
-            typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution( typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, SPEC::N_ENVIRONMENTS - 1, rng);
+            typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, SPEC::N_ENVIRONMENTS - 1, rng);
             auto& replay_buffer = runner.replay_buffers[env_i];
             gather_batch<DEVICE, typename RUNNER::REPLAY_BUFFER_SPEC, BATCH_SPEC, RNG, DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
         }

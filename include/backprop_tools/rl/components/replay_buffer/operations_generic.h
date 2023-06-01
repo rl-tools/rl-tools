@@ -9,12 +9,15 @@ namespace backprop_tools {
     void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
         using DATA_SPEC = typename decltype(rb.data)::SPEC;
         malloc(device, rb.data);
-        rb.observations      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>(device, rb.data, 0, 0);
-        rb.actions           = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::ACTION_DIM     >(device, rb.data, 0, SPEC::OBSERVATION_DIM);
-        rb.rewards           = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                    >(device, rb.data, 0, SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM);
-        rb.next_observations = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM>(device, rb.data, 0, SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM + 1);
-        rb.terminated        = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                    >(device, rb.data, 0, SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM);
-        rb.truncated         = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                    >(device, rb.data, 0, SPEC::OBSERVATION_DIM + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM + 1);
+        typename DEVICE::index_t offset = 0;
+        rb.observations                 = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
+        rb.observations_privileged      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM_PRIVILEGED : SPEC::OBSERVATION_DIM;
+        rb.actions                      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::ACTION_DIM                >(device, rb.data, 0, offset); offset += SPEC::ACTION_DIM;
+        rb.rewards                      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                               >(device, rb.data, 0, offset); offset += 1;
+        rb.next_observations            = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
+        rb.next_observations_privileged = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM_PRIVILEGED : SPEC::OBSERVATION_DIM;
+        rb.terminated                   = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                               >(device, rb.data, 0, offset); offset += 1;
+        rb.truncated                    = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                               >(device, rb.data, 0, offset);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
@@ -25,12 +28,16 @@ namespace backprop_tools {
         rb.full = false;
         rb.position = 0;
     }
-    template <typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const bool terminated, const bool truncated) {
+    template <typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename OBSERVATION_PRIVILEGED_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC, typename NEXT_OBSERVATION_PRIVILEGED_SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
         // todo: change to memcpy?
         for(typename DEVICE::index_t i = 0; i < SPEC::OBSERVATION_DIM; i++) {
             set(buffer.observations, buffer.position, i, get(observation, 0, i));
             set(buffer.next_observations, buffer.position, i, get(next_observation, 0, i));
+        }
+        for(typename DEVICE::index_t i = 0; i < SPEC::OBSERVATION_DIM_PRIVILEGED; i++) {
+            set(buffer.observations_privileged, buffer.position, i, get(observation_privileged, 0, i));
+            set(buffer.next_observations_privileged, buffer.position, i, get(next_observation_privileged, 0, i));
         }
         for(typename DEVICE::index_t i = 0; i < SPEC::ACTION_DIM; i++) {
             set(buffer.actions, buffer.position, i, get(action, 0, i));
@@ -55,9 +62,11 @@ namespace backprop_tools {
     typename SPEC_1::T abs_diff(DEVICE& device, rl::components::ReplayBuffer<SPEC_1>& b1, rl::components::ReplayBuffer<SPEC_2>& b2) {
         typename SPEC_1::T acc = 0;
         acc += abs_diff(device, b1.observations, b2.observations);
+        acc += abs_diff(device, b1.observations_privileged, b2.observations_privileged);
         acc += abs_diff(device, b1.actions, b2.actions);
         acc += abs_diff(device, b1.rewards, b2.rewards);
         acc += abs_diff(device, b1.next_observations, b2.next_observations);
+        acc += abs_diff(device, b1.next_observations_privileged, b2.next_observations_privileged);
         acc += abs_diff(device, b1.terminated, b2.terminated);
         acc += abs_diff(device, b1.truncated, b2.truncated);
         return acc;
