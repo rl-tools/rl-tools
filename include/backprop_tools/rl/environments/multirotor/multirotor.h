@@ -35,8 +35,8 @@ namespace backprop_tools::rl::environments::multirotor{
                 T max_linear_velocity;
                 T max_angular_velocity;
                 bool relative_rpm; //(specification from -1 to 1)
-                T min_rpm; // -1 for default limit when relative_rpm is true
-                T max_rpm; //  1 for default limit when relative_rpm is true
+                T min_rpm; // -1 for default limit when relative_rpm is true, -1 if relative_rpm is false
+                T max_rpm; //  1 for default limit when relative_rpm is true, -1 if relative_rpm is false
             };
             struct Termination{
                 bool enabled = false;

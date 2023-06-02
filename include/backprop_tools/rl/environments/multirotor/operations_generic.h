@@ -277,8 +277,21 @@ namespace backprop_tools{
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBaseRotors<T, TI>& state, RNG& rng){
         sample_initial_state(device, env, (typename rl::environments::multirotor::StateBase<T, TI>&)state, rng);
-        T min_rpm = (env.parameters.mdp.init.min_rpm + 1)/2 * (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) + env.parameters.dynamics.action_limit.min;
-        T max_rpm = (env.parameters.mdp.init.max_rpm + 1)/2 * (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) + env.parameters.dynamics.action_limit.min;
+        T min_rpm, max_rpm;
+        if(env.parameters.mdp.init.relative_rpm){
+            min_rpm = (env.parameters.mdp.init.min_rpm + 1)/2 * (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) + env.parameters.dynamics.action_limit.min;
+            max_rpm = (env.parameters.mdp.init.max_rpm + 1)/2 * (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) + env.parameters.dynamics.action_limit.min;
+        }
+        else{
+            min_rpm = env.parameters.mdp.init.min_rpm < 0 ? env.parameters.dynamics.action_limit.min : env.parameters.mdp.init.min_rpm;
+            max_rpm = env.parameters.mdp.init.max_rpm < 0 ? env.parameters.dynamics.action_limit.max : env.parameters.mdp.init.max_rpm;
+            if(max_rpm > env.parameters.dynamics.action_limit.max){
+                max_rpm = env.parameters.dynamics.action_limit.max;
+            }
+            if(min_rpm > max_rpm){
+                min_rpm = max_rpm;
+            }
+        }
         for(TI i = 0; i < 4; i++){
             state.rpm[i] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), min_rpm, max_rpm, rng);
         }
@@ -552,9 +565,6 @@ namespace backprop_tools{
         state.rpm[2] = get(flat_state, 0, 15);
         state.rpm[3] = get(flat_state, 0, 16);
     }
-
-
-
 }
 #include "parameters/reward_functions/reward_functions.h"
 namespace backprop_tools{

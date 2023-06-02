@@ -94,7 +94,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
                     }
             },
             // T, RPM time constant
-            0.08,
+            0.15,
             // action limit
             {0, 21702},
     };
@@ -526,5 +526,16 @@ Some calculations
 # min_rpm = sqrt(mass * 9.81 / 2 / 4 / thrust_curve[3])
  min_rpm = 0
  hovering_level = (hovering_rpm - min_rpm) / (max_rpm - min_rpm) * 2 - 1;
+ */
+/*
+ * first principles (box inertia)
+using LinearAlgebra
+a = norm([0.028, 0.028, 0])
+b = norm([0.028, -0.028, 0])
+c = b /15
+m = 0.027
+Ixx = (1/12)m*(b^2 + c^2)
+Iyy = (1/12)m*(a^2 + c^2)
+Izz = (1/12)m*(a^2 + b^2)
  */
 
