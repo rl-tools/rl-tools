@@ -50,9 +50,13 @@ namespace backprop_tools::rl::environments::multirotor{
                 T linear_velocity;
                 T angular_velocity;
             };
+            struct ActionNoise{
+                T normalized_rpm; // std of additive gaussian noise onto the normalized action (-1, 1)
+            };
             Initialization init;
             REWARD_FUNCTION reward;
             ObservationNoise observation_noise;
+            ActionNoise action_noise;
             Termination termination;
         };
         Dynamics dynamics;

@@ -130,7 +130,8 @@ int main(int argc, char** argv) {
         T reward_acc = 0;
         env.parameters = penv::parameters;
         if(INIT_SIMPLE){
-            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<T, TI, 4, penv::REWARD_FUNCTION>;
+//            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<T, TI, 4, penv::REWARD_FUNCTION>;
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_bigger_angle<T, TI, 4, penv::REWARD_FUNCTION>;
         }
         if(DEACTIVATE_OBSERVATION_NOISE){
             env.parameters.mdp.observation_noise.position = 0;
@@ -173,7 +174,7 @@ int main(int argc, char** argv) {
 //                increment(action, 0, action_i, bpt::random::normal_distribution(DEVICE::SPEC::RANDOM(), (T)0, (T)(T)prl::OFF_POLICY_RUNNER_PARAMETERS::EXPLORATION_NOISE, rng));
 //            }
             bpt::clamp(dev, action, (T)-1, (T)1);
-            T dt = bpt::step(dev, env, state, action, next_state);
+            T dt = bpt::step(dev, env, state, action, next_state, rng);
             bool terminated_flag = bpt::terminated(dev, env, next_state, rng);
             reward_acc += bpt::reward(dev, env, state, action, next_state, rng);
             bpt::set_state(dev, ui, state, action);

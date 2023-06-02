@@ -16,21 +16,43 @@ namespace backprop_tools::rl::environments::multirotor::parameters::init{
             +1,  // max rpm
     };
     template<typename T, typename TI, TI ACTION_DIM, typename REWARD_FUNCTION>
-    constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization all_around_orientation_only = {
+    constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization orientation_all_around = {
             0.1, // guidance
             0,   // position
-            1,   // orientation
+            3.14,   // orientation
             0,   // linear velocity
             0,   // angular velocity
             true,// relative rpm
-            -1,  // min rpm
-            +1,  // max rpm
+            0,  // min rpm
+            0,  // max rpm
     };
     template<typename T, typename TI, TI ACTION_DIM, typename REWARD_FUNCTION>
     constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization orientation_small_angle = {
             0.1, // guidance
             0,   // position
-            10/180*3.14,   // orientation
+            10.0/180.0*3.14,   // orientation
+            0,   // linear velocity
+            0,   // angular velocity
+            true,// relative rpm
+            0,  // min rpm
+            0,  // max rpm
+    };
+    template<typename T, typename TI, TI ACTION_DIM, typename REWARD_FUNCTION>
+    constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization orientation_big_angle = {
+            0.1, // guidance
+            0,   // position
+            20.0/180.0 * 3.14,   // orientation
+            0,   // linear velocity
+            0,   // angular velocity
+            true,// relative rpm
+            0,  // min rpm
+            0,  // max rpm
+    };
+    template<typename T, typename TI, TI ACTION_DIM, typename REWARD_FUNCTION>
+    constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization orientation_bigger_angle = {
+            0.1, // guidance
+            0,   // position
+            45.0/180.0 * 3.14,   // orientation
             0,   // linear velocity
             0,   // angular velocity
             true,// relative rpm

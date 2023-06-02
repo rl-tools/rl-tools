@@ -258,7 +258,7 @@ namespace backprop_tools{
                 state.orientation[1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
                 state.orientation[2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
                 state.orientation[3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
-            } while(2*math::acos(math_dev, state.orientation[0]) > env.parameters.mdp.init.max_angle);
+            } while(math::abs(math_dev, 2*math::acos(math_dev, state.orientation[0])) > env.parameters.mdp.init.max_angle);
         }
         else{
             state.orientation[0] = 1;
@@ -460,19 +460,23 @@ namespace backprop_tools{
         }
     }
     // todo: make state const again
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::Multirotor<SPEC>::State& next_state) {
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
         using STATE = typename rl::environments::Multirotor<SPEC>::State;
+        using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr auto STATE_DIM = STATE::DIM;
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         static_assert(ACTION_SPEC::ROWS == 1);
         static_assert(ACTION_SPEC::COLS == ACTION_DIM);
-        typename SPEC::T action_scaled[ACTION_DIM];
+        T action_scaled[ACTION_DIM];
 
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            typename SPEC::T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
-            action_scaled[action_i] = get(action, 0, action_i) * half_range + env.parameters.dynamics.action_limit.min + half_range;
+            T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
+            T action_noisy = get(action, 0, action_i);
+            action_noisy += random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.action_noise.normalized_rpm, rng);
+            action_noisy = math::clamp(typename DEVICE::SPEC::MATH(), action_noisy, -(T)1, (T)1);
+            action_scaled[action_i] = action_noisy * half_range + env.parameters.dynamics.action_limit.min + half_range;
 //            state.rpm[action_i] = action_scaled[action_i];
         }
         utils::integrators::rk4<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM>>(device, env.parameters, state, action_scaled, env.parameters.integration.dt, next_state);

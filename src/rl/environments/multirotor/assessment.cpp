@@ -20,6 +20,7 @@ namespace bpt = backprop_tools;
 #include <thread>
 #include <highfive/H5File.hpp>
 #include <CLI/CLI.hpp>
+#include <tuple>
 
 namespace TEST_DEFINITIONS{
     using DEVICE = bpt::devices::DefaultCPU;
@@ -40,21 +41,84 @@ namespace TEST_DEFINITIONS{
 
 namespace variations {
     using namespace TEST_DEFINITIONS;
-    namespace init {
+    namespace init{
         template <typename RNG>
         void variation_0(ENVIRONMENT& env, RNG& rng){
             env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<T, TI, 4, penv::REWARD_FUNCTION>;
         }
-
+        template <typename RNG>
+        void variation_1(ENVIRONMENT& env, RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_small_angle<T, TI, 4, penv::REWARD_FUNCTION>;
+        }
+        template <typename RNG>
+        void variation_2(ENVIRONMENT& env, RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_big_angle<T, TI, 4, penv::REWARD_FUNCTION>;
+        }
+        template <typename RNG>
+        void variation_3(ENVIRONMENT& env, RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_bigger_angle<T, TI, 4, penv::REWARD_FUNCTION>;
+        }
+        template <typename RNG>
+        void variation_4(ENVIRONMENT& env, RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_all_around<T, TI, 4, penv::REWARD_FUNCTION>;
+        }
     }
     namespace observation_noise{
-        template <typename RNG>
-        void variation_0(ENVIRONMENT& env, RNG& rng){
-            env.parameters.mdp.observation_noise.position = 0;
-            env.parameters.mdp.observation_noise.orientation = 0;
-            env.parameters.mdp.observation_noise.linear_velocity = 0;
-            env.parameters.mdp.observation_noise.angular_velocity = 0;
-
+        namespace position{
+            template <typename RNG>
+            void variation_0(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.position = 0.01;
+            }
+            template <typename RNG>
+            void variation_1(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.position = 0.02;
+            }
+            template <typename RNG>
+            void variation_2(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.position = 0.04;
+            }
+        }
+        namespace orientation{
+            template <typename RNG>
+            void variation_0(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.orientation = 0.01;
+            }
+            template <typename RNG>
+            void variation_1(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.orientation = 0.02;
+            }
+            template <typename RNG>
+            void variation_2(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.orientation = 0.04;
+            }
+        }
+        namespace linear_velocity{
+            template <typename RNG>
+            void variation_0(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.linear_velocity = 0.01;
+            }
+            template <typename RNG>
+            void variation_1(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.linear_velocity = 0.02;
+            }
+            template <typename RNG>
+            void variation_2(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.linear_velocity = 0.04;
+            }
+        }
+        namespace angular_velocity{
+            template <typename RNG>
+            void variation_0(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.angular_velocity = 0.01;
+            }
+            template <typename RNG>
+            void variation_1(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.angular_velocity = 0.02;
+            }
+            template <typename RNG>
+            void variation_2(ENVIRONMENT& env, RNG& rng){
+                env.parameters.mdp.observation_noise.angular_velocity = 0.04;
+            }
         }
     }
     namespace dynamics{
@@ -137,11 +201,11 @@ void load_actor(DEVICE& device, std::string arg_run, std::string arg_checkpoint,
 
 
 template <typename DEVICE, auto VARIATION, typename RNG>
-typename TEST_DEFINITIONS::T assess(DEVICE& device, typename TEST_DEFINITIONS::prl::ACTOR_TYPE& actor, RNG& rng){
+std::tuple<typename TEST_DEFINITIONS::T, typename TEST_DEFINITIONS::T> assess(DEVICE& device, typename TEST_DEFINITIONS::prl::ACTOR_TYPE& actor, RNG& rng){
     using namespace TEST_DEFINITIONS;
+    constexpr bool REALTIME = false;
 
     ENVIRONMENT env;
-    env.parameters = penv::parameters;
     UI ui;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
@@ -153,11 +217,16 @@ typename TEST_DEFINITIONS::T assess(DEVICE& device, typename TEST_DEFINITIONS::p
 
     ui.host = "localhost";
     ui.port = "8080";
-    bpt::init(device, env, ui);
-    typename DEVICE::index_t episode_i = 0;
-    while(true){
-        T reward_acc = 0;
+    if(REALTIME){
+        bpt::init(device, env, ui);
+    }
+    T total_rewards = 0;
+    T total_steps = 0;
+    constexpr TI NUM_EPISODES = 100;
+    for(TI episode_i = 0; episode_i < NUM_EPISODES; episode_i++){
         env.parameters = penv::parameters;
+        VARIATION(env, rng);
+        T reward_acc = 0;
         bpt::sample_initial_state(device, env, state, rng);
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
@@ -167,23 +236,31 @@ typename TEST_DEFINITIONS::T assess(DEVICE& device, typename TEST_DEFINITIONS::p
 //                increment(action, 0, action_i, bpt::random::normal_distribution(DEVICE::SPEC::RANDOM(), (T)0, (T)(T)prl::OFF_POLICY_RUNNER_PARAMETERS::EXPLORATION_NOISE, rng));
 //            }
             bpt::clamp(device, action, (T)-1, (T)1);
-            T dt = bpt::step(device, env, state, action, next_state);
+            T dt = bpt::step(device, env, state, action, next_state, rng);
             bool terminated_flag = bpt::terminated(device, env, next_state, rng);
-            reward_acc += bpt::reward(device, env, state, action, next_state, rng);
-            bpt::set_state(device, ui, state, action);
+            T reward = bpt::reward(device, env, state, action, next_state, rng);
+            if(std::isnan(reward)){
+                std::cout << "NAN reward" << std::endl;
+            }
+            reward_acc += reward;
             state = next_state;
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> diff = end-start;
-            std::this_thread::sleep_for(std::chrono::milliseconds((int)((dt - diff.count())*1000)));
+            if(REALTIME){
+                bpt::set_state(device, ui, state, action);
+                std::this_thread::sleep_for(std::chrono::milliseconds((int)((dt - diff.count())*1000)));
+            }
             if(terminated_flag || step_i == (MAX_EPISODE_LENGTH - 1)){
-                std::cout << "Episode terminated after " << step_i << " steps with reward " << reward_acc << std::endl;
+//                std::cout << "Episode terminated after " << step_i << " steps with reward " << reward_acc << std::endl;
+                total_rewards += reward_acc;
+                total_steps += step_i + 1;
                 break;
             }
         }
-        episode_i++;
     }
     bpt::free(device, action);
     bpt::free(device, observation);
+    return {total_rewards / NUM_EPISODES, total_steps / NUM_EPISODES};
 }
 
 int main(int argc, char** argv) {
@@ -203,8 +280,74 @@ int main(int argc, char** argv) {
     load_actor(device, arg_run, arg_checkpoint, actor);
     auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 10);
 
-
-    assess<DEVICE, variations::init::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+//    {
+//        auto stats = assess<DEVICE, variations::init::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+//        std::cout << "init.variation_0 (simple): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+//    }
+//    {
+//        auto stats = assess<DEVICE, variations::init::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+//        std::cout << "init.variation_1 (orientation small): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+//    }
+//    {
+//        auto stats = assess<DEVICE, variations::init::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+//        std::cout << "init.variation_2 (orientation big): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+//    }
+//    {
+//        auto stats = assess<DEVICE, variations::init::variation_3<decltype(rng)>, decltype(rng)>(device, actor, rng);
+//        std::cout << "init.variation_3 (orientation bigger): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+//    }
+//    {
+//        auto stats = assess<DEVICE, variations::init::variation_4<decltype(rng)>, decltype(rng)>(device, actor, rng);
+//        std::cout << "init.variation_4 (orientation all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+//    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::position::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.position.variation_0 (orientation all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::position::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.position.variation_1 (orientation all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::position::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.position.variation_2 (orientation all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::orientation::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.orientation.variation_0 (orientation all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::orientation::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.orientation.variation_1 (orientation all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::orientation::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.orientation.variation_2 (orientation all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::angular_velocity::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.angular_velocity.variation_0 (angular_velocity all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::angular_velocity::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.angular_velocity.variation_1 (angular_velocity all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::angular_velocity::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.angular_velocity.variation_2 (angular_velocity all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::linear_velocity::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.linear_velocity.variation_0 (linear_velocity all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::linear_velocity::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.linear_velocity.variation_1 (linear_velocity all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
+    {
+        auto stats = assess<DEVICE, variations::observation_noise::linear_velocity::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        std::cout << "observation_noise.linear_velocity.variation_2 (linear_velocity all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
+    }
 
     bpt::free(device, actor);
 }

@@ -30,6 +30,9 @@ namespace parameters_sim2real{
                                 0, // linear_velocity
                                 0, // angular_velocity
                         },
+                        {   // Action noise
+                                0, // std of additive gaussian noise onto the normalized action (-1, 1)
+                        },
                         backprop_tools::rl::environments::multirotor::parameters::termination::fast_learning<T, TI, 4, REWARD_FUNCTION>
                 }
         };
