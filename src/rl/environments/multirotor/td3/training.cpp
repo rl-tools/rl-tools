@@ -58,7 +58,7 @@ constexpr TI NUM_RUNS = 100;
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
 constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
 #else
-constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
+constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP * 2;
 #endif
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50000;
@@ -240,17 +240,24 @@ int main(){
                         state.angular_velocity[0] = 1;
                         state.angular_velocity[1] = 2;
                         state.angular_velocity[2] = 3;
+                        if(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotorsHistory){
+                            for(TI step_i = 0; step_i < parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH; step_i++){
+                                for(TI action_i = 0; action_i < parameters_environment::ENVIRONMENT::ACTION_DIM; action_i++){
+                                    state.action_history[step_i][action_i] = ((DTYPE)(step_i * parameters_environment::ENVIRONMENT::ACTION_DIM + action_i))/(parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH * parameters_environment::ENVIRONMENT::ACTION_DIM) * 2 - 1;
+                                }
+                            }
+                        }
                         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, decltype(state)::DIM>> state_flat;
                         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::OBSERVATION_DIM>> observation;
                         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::ACTION_DIM>> action;
                         bpt::malloc(device, state_flat);
                         bpt::malloc(device, observation);
                         bpt::malloc(device, action);
-//                        bpt::serialize(device, state, state_flat);
+                        bpt::serialize(device, state, state_flat);
                         bpt::set_all(device, state_flat, 0);
                         auto rng_copy = rng;
                         bpt::observe(device, envs[0], state, observation, rng_copy);
-//                        bpt::evaluate(device, actor_critic.actor, observation, action);
+                        bpt::evaluate(device, actor_critic.actor, observation, action);
                         bpt::evaluate(device, actor_checkpoint, observation, action);
                         actor_output_file << "\n" << bpt::save(device, state_flat, std::string("backprop_tools::checkpoint::state"), true);
                         actor_output_file << "\n" << bpt::save(device, observation, std::string("backprop_tools::checkpoint::observation"), true);
@@ -258,6 +265,33 @@ int main(){
                         bpt::free(device, state_flat);
                         bpt::free(device, observation);
                         bpt::free(device, action);
+                    }
+                    {
+                        actor_output_file << "#include <backprop_tools/rl/environments/multirotor/multirotor.h>\n";
+                        actor_output_file << "namespace backprop_tools::checkpoint::environment{\n";
+                        static_assert(parameters_environment::ENVIRONMENT::OBSERVATION_TYPE != bpt::rl::environments::multirotor::ObservationType::DoubleQuaternion);
+                        if constexpr(parameters_environment::ENVIRONMENT::OBSERVATION_TYPE == bpt::rl::environments::multirotor::ObservationType::Normal){
+                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = backprop_tools::rl::environments::multirotor::ObservationType::Normal;\n";
+                        }
+                        if constexpr(parameters_environment::ENVIRONMENT::OBSERVATION_TYPE == bpt::rl::environments::multirotor::ObservationType::RotationMatrix){
+                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = backprop_tools::rl::environments::multirotor::ObservationType::RotationMatrix;\n";
+                        }
+
+                        static_assert(parameters_environment::ENVIRONMENT::STATE_TYPE != bpt::rl::environments::multirotor::StateType::Base);
+                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::Base){
+                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::Base;\n";
+                        }
+                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotors){
+                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::BaseRotors;\n";
+                        }
+                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotorsHistory){
+                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::StateType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::BaseRotorsHistory;\n";
+                            actor_output_file << "    " << "constexpr int ACTION_HISTORY_LENGTH = " << parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH << ";\n";
+                        }
+                        else{
+                            actor_output_file << "    " << "constexpr int ACTION_HISTORY_LENGTH = " << 0 << ";\n";
+                        }
+                        actor_output_file << "}\n";
                     }
                     bpt::free(device, actor_checkpoint);
                 }

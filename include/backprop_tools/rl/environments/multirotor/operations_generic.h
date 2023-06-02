@@ -552,22 +552,56 @@ namespace backprop_tools{
         static_assert(SPEC::COLS == STATE::DIM);
         auto state_base_flat = view(device, flat_state, matrix::ViewSpec<1, 13>{}, 0, 0);
         serialize(device, (rl::environments::multirotor::StateBase<T, TI>&)state, state_base_flat);
-        set(flat_state, 0, 13, state.rpm[0]);
-        set(flat_state, 0, 14, state.rpm[1]);
-        set(flat_state, 0, 15, state.rpm[2]);
-        set(flat_state, 0, 16, state.rpm[3]);
+        constexpr TI offset = rl::environments::multirotor::StateBase<T, TI>::DIM;
+        set(flat_state, 0, offset + 0, state.rpm[0]);
+        set(flat_state, 0, offset + 1, state.rpm[1]);
+        set(flat_state, 0, offset + 2, state.rpm[2]);
+        set(flat_state, 0, offset + 3, state.rpm[3]);
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC>
     static void deserialize(DEVICE& device, typename rl::environments::multirotor::StateBaseRotors<T, TI>& state, Matrix<SPEC>& flat_state){
         using STATE = typename rl::environments::multirotor::StateBaseRotors<T, TI>;
         static_assert(SPEC::ROWS == 1);
         static_assert(SPEC::COLS == STATE::DIM);
+        constexpr TI OFFSET = rl::environments::multirotor::StateBase<T, TI>::DIM;
+        auto state_base_rotors_flat = view(device, flat_state, matrix::ViewSpec<1, OFFSET>{}, 0, 0);
+        deserialize(device, (rl::environments::multirotor::StateBase<T, TI>&)state, state_base_rotors_flat);
+        state.rpm[0] = get(flat_state, 0, OFFSET + 0);
+        state.rpm[1] = get(flat_state, 0, OFFSET + 1);
+        state.rpm[2] = get(flat_state, 0, OFFSET + 2);
+        state.rpm[3] = get(flat_state, 0, OFFSET + 3);
+    }
+    template<typename DEVICE, typename T_S, typename TI_S, TI_S HISTORY_LENGTH, typename SPEC>
+    static void serialize(DEVICE& device, typename rl::environments::multirotor::StateBaseRotorsHistory<T_S, TI_S, HISTORY_LENGTH>& state, Matrix<SPEC>& flat_state){
+        using STATE = typename rl::environments::multirotor::StateBaseRotorsHistory<T_S, TI_S, HISTORY_LENGTH>;
+        using TI = typename DEVICE::index_t;
+        static_assert(SPEC::ROWS == 1);
+        static_assert(SPEC::COLS == STATE::DIM);
+        constexpr TI OFFSET = rl::environments::multirotor::StateBaseRotors<T_S, TI_S>::DIM;
+        auto state_base_flat = view(device, flat_state, matrix::ViewSpec<1, OFFSET>{}, 0, 0);
+        serialize(device, (rl::environments::multirotor::StateBaseRotors<T_S, TI_S>&)state, state_base_flat);
+        for(TI step_i = 0; step_i < HISTORY_LENGTH; ++step_i){
+            set(flat_state, 0, OFFSET + step_i * 4 + 0, state.action_history[step_i][0]);
+            set(flat_state, 0, OFFSET + step_i * 4 + 1, state.action_history[step_i][1]);
+            set(flat_state, 0, OFFSET + step_i * 4 + 2, state.action_history[step_i][2]);
+            set(flat_state, 0, OFFSET + step_i * 4 + 3, state.action_history[step_i][3]);
+        }
+    }
+    template<typename DEVICE, typename T_S, typename TI_S, TI_S HISTORY_LENGTH, typename SPEC>
+    static void deserialize(DEVICE& device, typename rl::environments::multirotor::StateBaseRotorsHistory<T_S, TI_S, HISTORY_LENGTH>& state, Matrix<SPEC>& flat_state){
+        using STATE = typename rl::environments::multirotor::StateBaseRotors<T_S, TI_S>;
+        using TI = typename DEVICE::index_t;
+        static_assert(SPEC::ROWS == 1);
+        static_assert(SPEC::COLS == STATE::DIM);
         auto state_base_flat = view(device, flat_state, matrix::ViewSpec<1, 13>{}, 0, 0);
-        deserialize(device, (rl::environments::multirotor::StateBase<T, TI>&)state, state_base_flat);
-        state.rpm[0] = get(flat_state, 0, 13);
-        state.rpm[1] = get(flat_state, 0, 14);
-        state.rpm[2] = get(flat_state, 0, 15);
-        state.rpm[3] = get(flat_state, 0, 16);
+        deserialize(device, (rl::environments::multirotor::StateBaseRotors<T_S, TI_S>&)state, state_base_flat);
+        constexpr TI offset = rl::environments::multirotor::StateBaseRotors<T_S, TI_S>::DIM;
+        for(TI step_i = 0; step_i < HISTORY_LENGTH; ++step_i){
+            state.rpm_history[step_i][0] = get(flat_state, 0, offset + step_i * 4 + 0);
+            state.rpm_history[step_i][1] = get(flat_state, 0, offset + step_i * 4 + 1);
+            state.rpm_history[step_i][2] = get(flat_state, 0, offset + step_i * 4 + 2);
+            state.rpm_history[step_i][3] = get(flat_state, 0, offset + step_i * 4 + 3);
+        }
     }
 }
 #include "parameters/reward_functions/reward_functions.h"

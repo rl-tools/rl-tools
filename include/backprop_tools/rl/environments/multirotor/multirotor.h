@@ -134,12 +134,14 @@ namespace backprop_tools::rl::environments{
 //        static constexpr TI STATE_DIM = 13;
         static constexpr TI ACTION_DIM = 4;
 
+        static constexpr TI ACTION_HISTORY_LENGTH = SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
+
         static constexpr multirotor::StateType STATE_TYPE = SPEC::STATIC_PARAMETERS::STATE_TYPE;
         static constexpr multirotor::ObservationType OBSERVATION_TYPE = SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE;
 
         static constexpr TI OBSERVATION_DIM_BASE = 3 + 3 + 3;
         static constexpr TI OBSERVATION_DIM_ORIENTATION = OBSERVATION_TYPE == multirotor::ObservationType::Normal ? 4 : (OBSERVATION_TYPE == multirotor::ObservationType::DoubleQuaternion ? (2*4) : (9));
-        static constexpr TI OBSERVATION_DIM_ACTION_HISTORY = (STATE_TYPE == multirotor::StateType::BaseRotorsHistory) * ACTION_DIM * SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
+        static constexpr TI OBSERVATION_DIM_ACTION_HISTORY = (STATE_TYPE == multirotor::StateType::BaseRotorsHistory) * ACTION_DIM * ACTION_HISTORY_LENGTH;
         static constexpr TI OBSERVATION_DIM = OBSERVATION_DIM_BASE + OBSERVATION_DIM_ORIENTATION + OBSERVATION_DIM_ACTION_HISTORY;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = STATE_TYPE == multirotor::StateType::Base ? 0 : OBSERVATION_DIM_BASE + OBSERVATION_DIM_ORIENTATION + ACTION_DIM;
         using State = utils::typing::conditional_t<

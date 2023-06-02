@@ -59,11 +59,11 @@ namespace backprop_tools::rl::components::off_policy_runner{
             T action_noisy = get(action, 0, i) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T) 0, runner->parameters.exploration_noise, rng);
             set(action, 0, i, math::clamp<T>(typename DEVICE::SPEC::MATH(), action_noisy, -1, 1));
         }
-        step(device, env, state, action, next_state);
+        step(device, env, state, action, next_state, rng);
 
         T reward_value = reward(device, env, state, action, next_state, rng);
 
-        observe           (device, env, next_state, next_observation           , rng);
+        observe(device, env, next_state, next_observation, rng);
         if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS) {
             observe_privileged(device, env, next_state, next_observation_privileged, rng);
         }

@@ -58,7 +58,7 @@ namespace backprop_tools {
             set(action, 0, action_i, math::clamp<T>(typename DEVICE::SPEC::MATH(), get(action, 0, action_i), -1, 1));
         }
         typename ENVIRONMENT::State next_state;
-        T dt = step(device, env, state, action, next_state);
+        T dt = step(device, env, state, action, next_state, rng);
         set_state(device, ui, state);
         T r = reward(device, env, state, action, next_state, rng);
         state = next_state;
