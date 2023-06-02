@@ -34,6 +34,7 @@ namespace TEST_DEFINITIONS{
     using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
     constexpr TI MAX_EPISODE_LENGTH = 1000;
     constexpr bool RANDOMIZE_DOMAIN_PARAMETERS = false;
+    constexpr bool INIT_SIMPLE = true;
 }
 
 
@@ -126,9 +127,11 @@ int main(int argc, char** argv) {
             run = "";
         }
 
-        bpt::sample_initial_state(dev, env, state, rng);
         T reward_acc = 0;
         env.parameters = penv::parameters;
+        if(INIT_SIMPLE){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<T, TI, 4, penv::REWARD_FUNCTION>;
+        }
         if(RANDOMIZE_DOMAIN_PARAMETERS && episode_i % 2 == 0){
             T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)1.5, rng);
             T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)5.0, rng);
@@ -149,6 +152,7 @@ int main(int argc, char** argv) {
         else{
             std::cout << "Using nominal domain parameters" << std::endl;
         }
+        bpt::sample_initial_state(dev, env, state, rng);
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             bpt::observe(dev, env, state, observation, rng);

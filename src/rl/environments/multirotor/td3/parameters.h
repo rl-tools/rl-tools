@@ -56,7 +56,6 @@ namespace parameters{
             0.5
         };
 
-
         static constexpr TI N_WARMUP_STEPS_CRITIC = 15000;
         static constexpr TI N_WARMUP_STEPS_ACTOR = 30000;
     };
@@ -72,5 +71,5 @@ namespace parameters_sim2real{
 }
 
 
-//namespace parameters_0 = parameters_sim2real;
-namespace parameters_0 = parameters_fast_learning;
+namespace parameters_0 = parameters_sim2real;
+//namespace parameters_0 = parameters_fast_learning;

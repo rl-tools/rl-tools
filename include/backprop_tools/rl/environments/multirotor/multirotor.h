@@ -3,7 +3,7 @@
 
 #include <backprop_tools/utils/generic/typing.h>
 
-namespace backprop_tools::rl::environments::multirotor {
+namespace backprop_tools::rl::environments::multirotor{
     template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
     struct ParametersBase{
         struct Dynamics{
@@ -34,6 +34,9 @@ namespace backprop_tools::rl::environments::multirotor {
                 T max_angle;
                 T max_linear_velocity;
                 T max_angular_velocity;
+                bool relative_rpm; //(specification from -1 to 1)
+                T min_rpm; // -1 for default limit when relative_rpm is true
+                T max_rpm; //  1 for default limit when relative_rpm is true
             };
             struct Termination{
                 bool enabled = false;

@@ -277,8 +277,10 @@ namespace backprop_tools{
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBaseRotors<T, TI>& state, RNG& rng){
         sample_initial_state(device, env, (typename rl::environments::multirotor::StateBase<T, TI>&)state, rng);
+        T min_rpm = (env.parameters.mdp.init.min_rpm + 1)/2 * (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) + env.parameters.dynamics.action_limit.min;
+        T max_rpm = (env.parameters.mdp.init.max_rpm + 1)/2 * (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) + env.parameters.dynamics.action_limit.min;
         for(TI i = 0; i < 4; i++){
-            state.rpm[i] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), env.parameters.dynamics.action_limit.min, env.parameters.dynamics.action_limit.max, rng);
+            state.rpm[i] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), min_rpm, max_rpm, rng);
         }
     }
     template<typename DEVICE, typename T, typename TI, TI HISTORY_LENGTH, typename SPEC, typename RNG>

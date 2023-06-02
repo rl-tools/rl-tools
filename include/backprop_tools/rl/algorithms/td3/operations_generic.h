@@ -34,8 +34,8 @@ namespace backprop_tools{
     void malloc(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
         using BUFFERS = rl::algorithms::td3::ActorTrainingBuffers<SPEC>;
         malloc(device, actor_training_buffers.state_action_value_input);
-        actor_training_buffers.observations = view<DEVICE, typename decltype(actor_training_buffers.state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM_PRIVILEGED>(device, actor_training_buffers.state_action_value_input, 0, 0);
-        actor_training_buffers.actions      = view<DEVICE, typename decltype(actor_training_buffers.state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM            >(device, actor_training_buffers.state_action_value_input, 0, BUFFERS::OBSERVATION_DIM_PRIVILEGED);
+        actor_training_buffers.observations = view(device, actor_training_buffers.state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM_PRIVILEGED>{}, 0, 0);
+        actor_training_buffers.actions      = view(device, actor_training_buffers.state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::OBSERVATION_DIM_PRIVILEGED);
         malloc(device, actor_training_buffers.state_action_value);
         malloc(device, actor_training_buffers.d_output);
         malloc(device, actor_training_buffers.d_critic_input);
@@ -59,8 +59,8 @@ namespace backprop_tools{
         using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
         malloc(device, critic_training_buffers.target_next_action_noise);
         malloc(device, critic_training_buffers.next_state_action_value_input);
-        critic_training_buffers.next_observations = view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM_PRIVILEGED>(device, critic_training_buffers.next_state_action_value_input, 0, 0);
-        critic_training_buffers.next_actions      = view<DEVICE, typename decltype(critic_training_buffers.next_state_action_value_input)::SPEC, BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM                >(device, critic_training_buffers.next_state_action_value_input, 0, BUFFERS::OBSERVATION_DIM_PRIVILEGED);
+        critic_training_buffers.next_observations = view(device, critic_training_buffers.next_state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM_PRIVILEGED>{}, 0, 0);
+        critic_training_buffers.next_actions      = view(device, critic_training_buffers.next_state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::OBSERVATION_DIM_PRIVILEGED);
         malloc(device, critic_training_buffers.action_value);
         malloc(device, critic_training_buffers.target_action_value);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
