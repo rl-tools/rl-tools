@@ -52,7 +52,6 @@ int main(int argc, char** argv) {
     DEVICE dev;
     ENVIRONMENT env;
     env.parameters = penv::parameters;
-    env.parameters.dynamics.rpm_time_constant = 0.01;
     UI ui;
     typename prl::ACTOR_TYPE actor;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;

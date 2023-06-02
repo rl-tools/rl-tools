@@ -39,14 +39,17 @@ namespace TEST_DEFINITIONS{
 }
 
 namespace variations {
+    using namespace TEST_DEFINITIONS;
     namespace init {
-        void variation_0(TEST_DEFINITIONS::ENVIRONMENT& env){
+        template <typename RNG>
+        void variation_0(ENVIRONMENT& env, RNG& rng){
             env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<T, TI, 4, penv::REWARD_FUNCTION>;
         }
 
     }
     namespace observation_noise{
-        void variation_0(TEST_DEFINITIONS::ENVIRONMENT& env){
+        template <typename RNG>
+        void variation_0(ENVIRONMENT& env, RNG& rng){
             env.parameters.mdp.observation_noise.position = 0;
             env.parameters.mdp.observation_noise.orientation = 0;
             env.parameters.mdp.observation_noise.linear_velocity = 0;
@@ -55,7 +58,8 @@ namespace variations {
         }
     }
     namespace dynamics{
-        void variation_0(TEST_DEFINITIONS::ENVIRONMENT& env){
+        template <typename RNG>
+        void variation_0(ENVIRONMENT& env, RNG& rng){
 //            T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)1.5, rng);
 //            T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)5.0, rng);
 //            T max_rpm_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
@@ -82,15 +86,7 @@ namespace variations {
 }
 
 template <typename DEVICE>
-void load_actor(DEVICE& device, int argc, char** argv, typename TEST_DEFINITIONS::prl::ACTOR_TYPE& actor){
-    CLI::App app;
-    std::string arg_run = "", arg_checkpoint = "";
-    typename DEVICE::index_t startup_timeout = 0;
-    app.add_option("--run", arg_run, "path to the run's directory");
-    app.add_option("--checkpoint", arg_checkpoint, "path to the checkpoint");
-    app.add_option("--timeout", startup_timeout, "time to wait after first render");
-
-    CLI11_PARSE(app, argc, argv);
+void load_actor(DEVICE& device, std::string arg_run, std::string arg_checkpoint, typename TEST_DEFINITIONS::prl::ACTOR_TYPE& actor){
 
     std::string run = arg_run;
     std::string checkpoint = arg_checkpoint;
@@ -130,69 +126,51 @@ void load_actor(DEVICE& device, int argc, char** argv, typename TEST_DEFINITIONS
 
     std::cout << "Loading actor from " << checkpoint << std::endl;
     {
-        try{
-            auto data_file = HighFive::File(checkpoint, HighFive::File::ReadOnly);
-            bpt::load(device, actor, data_file.getGroup("actor"));
+        auto data_file = HighFive::File(checkpoint, HighFive::File::ReadOnly);
+        bpt::load(device, actor, data_file.getGroup("actor"));
 #ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
-            bpt::load(device, observation_normalizer.mean, data_file.getGroup("observation_normalizer"), "mean");
-            bpt::load(device, observation_normalizer.std, data_file.getGroup("observation_normalizer"), "std");
+        bpt::load(device, observation_normalizer.mean, data_file.getGroup("observation_normalizer"), "mean");
+        bpt::load(device, observation_normalizer.std, data_file.getGroup("observation_normalizer"), "std");
 #endif
-        }
-        catch(HighFive::FileException& e){
-            std::cout << "Failed to load actor from " << checkpoint << std::endl;
-            std::cout << "Error: " << e.what() << std::endl;
-            continue;
-        }
-    }
-    if(arg_checkpoint == ""){
-        checkpoint = "";
-    }
-    if(arg_run == ""){
-        run = "";
     }
 }
 
-int main(int argc, char** argv) {
-    using namespace TEST_DEFINITIONS;
 
-    DEVICE dev;
-    typename prl::ACTOR_TYPE actor;
-    load_actor(dev, argc, argv, actor);
+template <typename DEVICE, auto VARIATION, typename RNG>
+typename TEST_DEFINITIONS::T assess(DEVICE& device, typename TEST_DEFINITIONS::prl::ACTOR_TYPE& actor, RNG& rng){
+    using namespace TEST_DEFINITIONS;
 
     ENVIRONMENT env;
     env.parameters = penv::parameters;
-    env.parameters.dynamics.rpm_time_constant = 0.01;
     UI ui;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     typename ENVIRONMENT::State state, next_state;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
-    bpt::malloc(dev, env);
-    bpt::malloc(dev, actor);
-    bpt::malloc(dev, action);
-    bpt::malloc(dev, observation);
+    bpt::malloc(device, env);
+    bpt::malloc(device, action);
+    bpt::malloc(device, observation);
 
     ui.host = "localhost";
     ui.port = "8080";
-    bpt::init(dev, env, ui);
-    DEVICE::index_t episode_i = 0;
+    bpt::init(device, env, ui);
+    typename DEVICE::index_t episode_i = 0;
     while(true){
         T reward_acc = 0;
         env.parameters = penv::parameters;
-        bpt::sample_initial_state(dev, env, state, rng);
+        bpt::sample_initial_state(device, env, state, rng);
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
-            bpt::observe(dev, env, state, observation, rng);
-            bpt::evaluate(dev, actor, observation, action);
+            bpt::observe(device, env, state, observation, rng);
+            bpt::evaluate(device, actor, observation, action);
 //            for(TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++){
 //                increment(action, 0, action_i, bpt::random::normal_distribution(DEVICE::SPEC::RANDOM(), (T)0, (T)(T)prl::OFF_POLICY_RUNNER_PARAMETERS::EXPLORATION_NOISE, rng));
 //            }
-            bpt::clamp(dev, action, (T)-1, (T)1);
-            T dt = bpt::step(dev, env, state, action, next_state);
-            bool terminated_flag = bpt::terminated(dev, env, next_state, rng);
-            reward_acc += bpt::reward(dev, env, state, action, next_state, rng);
-            bpt::set_state(dev, ui, state, action);
+            bpt::clamp(device, action, (T)-1, (T)1);
+            T dt = bpt::step(device, env, state, action, next_state);
+            bool terminated_flag = bpt::terminated(device, env, next_state, rng);
+            reward_acc += bpt::reward(device, env, state, action, next_state, rng);
+            bpt::set_state(device, ui, state, action);
             state = next_state;
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> diff = end-start;
@@ -204,5 +182,30 @@ int main(int argc, char** argv) {
         }
         episode_i++;
     }
+    bpt::free(device, action);
+    bpt::free(device, observation);
+}
+
+int main(int argc, char** argv) {
+    using namespace TEST_DEFINITIONS;
+
+    CLI::App app;
+    std::string arg_run = "", arg_checkpoint = "";
+    typename DEVICE::index_t startup_timeout = 0;
+    app.add_option("--run", arg_run, "path to the run's directory");
+    app.add_option("--checkpoint", arg_checkpoint, "path to the checkpoint");
+
+    CLI11_PARSE(app, argc, argv);
+
+    DEVICE device;
+    typename prl::ACTOR_TYPE actor;
+    bpt::malloc(device, actor);
+    load_actor(device, arg_run, arg_checkpoint, actor);
+    auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 10);
+
+
+    assess<DEVICE, variations::init::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+
+    bpt::free(device, actor);
 }
 
