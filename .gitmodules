@@ -2,24 +2,9 @@
 [submodule "redistributable"]
 	path = redistributable
 	url = https://gitlab.com/backprop_tools/backprop_tools_redistributable.git
-[submodule "embedded_platforms/teensy"]
-	path = embedded_platforms/teensy
-	url = https://github.com/BackpropTools/teensy.git
-[submodule "embedded_platforms/esp32"]
-	path = embedded_platforms/esp32
-	url = https://github.com/BackpropTools/esp32.git
-[submodule "embedded_platforms/px4/backprop_tools"]
-	path = embedded_platforms/px4/backprop_tools
-	url = https://github.com/BackpropTools/backprop_tools_px4.git
-[submodule "embedded_platforms/crazyflie/firmware"]
-	path = embedded_platforms/crazyflie/firmware
-	url = https://github.com/BackpropTools/crazyflie-firmware.git
 [submodule "src/rl/environments/pendulum/td3/wasm/static/media"]
 	path = src/rl/environments/pendulum/td3/wasm/static/media
 	url = https://github.com/BackpropTools/media.git
-[submodule "embedded_platforms/ios"]
-	path = embedded_platforms/ios
-	url = https://github.com/BackpropTools/iOS.git
 
 # Dependencies
 [submodule "external/cli11"]
