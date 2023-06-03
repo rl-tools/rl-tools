@@ -296,10 +296,11 @@ namespace backprop_tools{
             state.rpm[i] = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), min_rpm, max_rpm, rng);
         }
     }
-    template<typename DEVICE, typename T, typename TI, TI HISTORY_LENGTH, typename SPEC, typename RNG>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBaseRotorsHistory<T, TI, HISTORY_LENGTH>& state, RNG& rng){
+    template<typename DEVICE, typename T_S, typename TI_S, TI_S HISTORY_LENGTH, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBaseRotorsHistory<T_S, TI_S, HISTORY_LENGTH>& state, RNG& rng){
         using MULTIROTOR = rl::environments::Multirotor<SPEC>;
-        sample_initial_state(device, env, (typename rl::environments::multirotor::StateBaseRotors<T, TI>&)state, rng);
+        using TI = typename DEVICE::index_t;
+        sample_initial_state(device, env, (typename rl::environments::multirotor::StateBaseRotors<T_S, TI_S>&)state, rng);
         for(TI step_i = 0; step_i < HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
                 state.action_history[step_i][action_i] = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min) / (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) * 2 - 1;
@@ -419,7 +420,7 @@ namespace backprop_tools{
         auto base_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION>{}, 0, 0);
         observe(device, env, state, base_observation, rng);
         for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-            T action_value = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min)/(env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min);
+            T action_value = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min)/(env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) * 2 - 1;
             set(observation, 0, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION + action_i, action_value);
         }
     }

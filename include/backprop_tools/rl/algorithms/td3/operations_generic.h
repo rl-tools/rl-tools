@@ -34,8 +34,8 @@ namespace backprop_tools{
     void malloc(DEVICE& device, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& actor_training_buffers){
         using BUFFERS = rl::algorithms::td3::ActorTrainingBuffers<SPEC>;
         malloc(device, actor_training_buffers.state_action_value_input);
-        actor_training_buffers.observations = view(device, actor_training_buffers.state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM_PRIVILEGED>{}, 0, 0);
-        actor_training_buffers.actions      = view(device, actor_training_buffers.state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::OBSERVATION_DIM_PRIVILEGED);
+        actor_training_buffers.observations = view(device, actor_training_buffers.state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::CRITIC_OBSERVATION_DIM>{}, 0, 0);
+        actor_training_buffers.actions      = view(device, actor_training_buffers.state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM);
         malloc(device, actor_training_buffers.state_action_value);
         malloc(device, actor_training_buffers.d_output);
         malloc(device, actor_training_buffers.d_critic_input);
@@ -59,8 +59,8 @@ namespace backprop_tools{
         using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
         malloc(device, critic_training_buffers.target_next_action_noise);
         malloc(device, critic_training_buffers.next_state_action_value_input);
-        critic_training_buffers.next_observations = view(device, critic_training_buffers.next_state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::OBSERVATION_DIM_PRIVILEGED>{}, 0, 0);
-        critic_training_buffers.next_actions      = view(device, critic_training_buffers.next_state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::OBSERVATION_DIM_PRIVILEGED);
+        critic_training_buffers.next_observations = view(device, critic_training_buffers.next_state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::CRITIC_OBSERVATION_DIM>{}, 0, 0);
+        critic_training_buffers.next_actions      = view(device, critic_training_buffers.next_state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM);
         malloc(device, critic_training_buffers.action_value);
         malloc(device, critic_training_buffers.target_action_value);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
@@ -188,9 +188,8 @@ namespace backprop_tools{
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
         static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
         static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
-        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = ASYMMETRIC_OBSERVATIONS ? SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : SPEC::ENVIRONMENT::OBSERVATION_DIM;
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+        static_assert(SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM == ACTION_DIM);
 
         zero_gradient(device, actor_critic.actor);
         forward(device, actor_critic.actor, batch.observations, training_buffers.actions);
@@ -199,7 +198,7 @@ namespace backprop_tools{
         forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value);
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward(device, critic, training_buffers.state_action_value_input, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
-        auto d_actor_output = view(device, training_buffers.d_critic_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, OBSERVATION_DIM_PRIVILEGED);
+        auto d_actor_output = view(device, training_buffers.d_critic_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM);
         backward(device, actor_critic.actor, batch.observations, d_actor_output, training_buffers.d_actor_input, actor_buffers);
 
         update(device, actor_critic.actor, optimizer);

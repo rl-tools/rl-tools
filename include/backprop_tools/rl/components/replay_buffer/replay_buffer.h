@@ -1,13 +1,15 @@
 #ifndef BACKPROP_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER
 #define BACKPROP_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER
 namespace backprop_tools::rl::components::replay_buffer{
-    template<typename T_T, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, T_TI T_ACTION_DIM, T_TI T_CAPACITY, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template<typename T_T, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_ACTION_DIM, T_TI T_CAPACITY, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
         static constexpr TI OBSERVATION_DIM = T_OBSERVATION_DIM;
-        static constexpr bool ASYMMETRIC_OBSERVATIONS = T_OBSERVATION_DIM_PRIVILEGED > 0;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = T_ASYMMETRIC_OBSERVATIONS && T_OBSERVATION_DIM_PRIVILEGED > 0;
+        static_assert(ASYMMETRIC_OBSERVATIONS == T_ASYMMETRIC_OBSERVATIONS, "ASYMMETRIC_OBSERVATIONS set but not available in the environment");
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ASYMMETRIC_OBSERVATIONS ? T_OBSERVATION_DIM_PRIVILEGED : OBSERVATION_DIM;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = ASYMMETRIC_OBSERVATIONS ? T_OBSERVATION_DIM_PRIVILEGED : 0;
         static constexpr TI ACTION_DIM = T_ACTION_DIM;
         static constexpr TI CAPACITY = T_CAPACITY;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
@@ -22,7 +24,7 @@ namespace backprop_tools::rl::components {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI CAPACITY = SPEC::CAPACITY;
-        static constexpr TI DATA_COLS = SPEC::OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED + 1 + 1;
+        static constexpr TI DATA_COLS = SPEC::OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + SPEC::ACTION_DIM + 1 + SPEC::OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + 1 + 1;
 
         // mem
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::CAPACITY, DATA_COLS>> data;

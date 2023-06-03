@@ -64,7 +64,7 @@ constexpr TI BASE_SEED = 403;
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
 constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
 #else
-constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP * 2;
+constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
 #endif
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50000;
@@ -238,26 +238,27 @@ int main(){
 //                                break
 //                            end
 //                        end
-                        state.position[0] = 0.1;
-                        state.position[1] = 0.1;
-                        state.position[2] = 0.1;
-                        state.orientation[0] = 0.924297;
-                        state.orientation[1] = 0.0688265;
-                        state.orientation[2] = 0.0552117;
-                        state.orientation[3] = -0.371335;
-                        state.linear_velocity[0] = 1;
-                        state.linear_velocity[1] = 2;
-                        state.linear_velocity[2] = 3;
-                        state.angular_velocity[0] = 1;
-                        state.angular_velocity[1] = 2;
-                        state.angular_velocity[2] = 3;
-                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotorsHistory){
-                            for(TI step_i = 0; step_i < parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH; step_i++){
-                                for(TI action_i = 0; action_i < parameters_environment::ENVIRONMENT::ACTION_DIM; action_i++){
-                                    state.action_history[step_i][action_i] = ((DTYPE)(step_i * parameters_environment::ENVIRONMENT::ACTION_DIM + action_i))/(parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH * parameters_environment::ENVIRONMENT::ACTION_DIM) * 2 - 1;
-                                }
-                            }
-                        }
+//                        state.position[0] = 0.1;
+//                        state.position[1] = 0.1;
+//                        state.position[2] = 0.1;
+//                        state.orientation[0] = 0.924297;
+//                        state.orientation[1] = 0.0688265;
+//                        state.orientation[2] = 0.0552117;
+//                        state.orientation[3] = -0.371335;
+//                        state.linear_velocity[0] = 1;
+//                        state.linear_velocity[1] = 2;
+//                        state.linear_velocity[2] = 3;
+//                        state.angular_velocity[0] = 1;
+//                        state.angular_velocity[1] = 2;
+//                        state.angular_velocity[2] = 3;
+//                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotorsHistory){
+//                            for(TI step_i = 0; step_i < parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH; step_i++){
+//                                for(TI action_i = 0; action_i < parameters_environment::ENVIRONMENT::ACTION_DIM; action_i++){
+//                                    state.action_history[step_i][action_i] = ((DTYPE)(step_i * parameters_environment::ENVIRONMENT::ACTION_DIM + action_i))/(parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH * parameters_environment::ENVIRONMENT::ACTION_DIM) * 2 - 1;
+//                                }
+//                            }
+//                        }
+                        bpt::sample_initial_state(device, envs[0], state, rng);
                         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, decltype(state)::DIM>> state_flat;
                         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::OBSERVATION_DIM>> observation;
                         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::ACTION_DIM>> action;
@@ -288,7 +289,6 @@ int main(){
                             actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = backprop_tools::rl::environments::multirotor::ObservationType::RotationMatrix;\n";
                         }
 
-                        static_assert(parameters_environment::ENVIRONMENT::STATE_TYPE != bpt::rl::environments::multirotor::StateType::Base);
                         if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::Base){
                             actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::Base;\n";
                         }

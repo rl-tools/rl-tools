@@ -11,11 +11,11 @@ namespace backprop_tools {
         malloc(device, rb.data);
         typename DEVICE::index_t offset = 0;
         rb.observations                 = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
-        rb.observations_privileged      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM_PRIVILEGED : SPEC::OBSERVATION_DIM;
+        rb.observations_privileged      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, rb.data, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
         rb.actions                      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::ACTION_DIM                >(device, rb.data, 0, offset); offset += SPEC::ACTION_DIM;
         rb.rewards                      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                               >(device, rb.data, 0, offset); offset += 1;
         rb.next_observations            = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
-        rb.next_observations_privileged = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM_PRIVILEGED : SPEC::OBSERVATION_DIM;
+        rb.next_observations_privileged = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, rb.data, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
         rb.terminated                   = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                               >(device, rb.data, 0, offset); offset += 1;
         rb.truncated                    = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                               >(device, rb.data, 0, offset);
     }

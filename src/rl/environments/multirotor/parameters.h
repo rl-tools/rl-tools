@@ -25,13 +25,13 @@ namespace parameters_sim2real{
 //                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
                         reward_function,
                         {   // Observation noise
-                                0, // position
-                                0, // orientation
-                                0, // linear_velocity
-                                0, // angular_velocity
+                            0, // position
+                            0, // orientation
+                            0, // linear_velocity
+                            0, // angular_velocity
                         },
                         {   // Action noise
-                                0, // std of additive gaussian noise onto the normalized action (-1, 1)
+                            0, // std of additive gaussian noise onto the normalized action (-1, 1)
                         },
                         backprop_tools::rl::environments::multirotor::parameters::termination::fast_learning<T, TI, 4, REWARD_FUNCTION>
                 }
@@ -80,6 +80,9 @@ namespace parameters_fast_learning{
                             0, // orientation
                             0, // linear_velocity
                             0, // angular_velocity
+                        },
+                        {   // Action noise
+                            0, // std of additive gaussian noise onto the normalized action (-1, 1)
                         },
 //                        backprop_tools::rl::environments::multirotor::parameters::init::all_around_simplified<T, TI, 4, REWARD_FUNCTION>,
 //                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,

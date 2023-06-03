@@ -27,7 +27,7 @@ namespace backprop_tools::rl::components::off_policy_runner {
     DefaultParameters<T> default_parameters{
         0.1 // exploration_noise
     };
-    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS, T_TI T_REPLAY_BUFFER_CAPACITY, T_TI T_STEP_LIMIT, typename T_PARAMETERS, bool T_COLLECT_EPISODE_STATS = false, T_TI T_EPISODE_STATS_BUFFER_SIZE = 0, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_REPLAY_BUFFER_CAPACITY, T_TI T_STEP_LIMIT, typename T_PARAMETERS, bool T_COLLECT_EPISODE_STATS = false, T_TI T_EPISODE_STATS_BUFFER_SIZE = 0, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
@@ -39,12 +39,15 @@ namespace backprop_tools::rl::components::off_policy_runner {
         static constexpr bool COLLECT_EPISODE_STATS = T_COLLECT_EPISODE_STATS;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = T_EPISODE_STATS_BUFFER_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-        static constexpr bool ASYMMETRIC_OBSERVATIONS = ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = T_ASYMMETRIC_OBSERVATIONS && ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0;
+        static_assert(ASYMMETRIC_OBSERVATIONS == T_ASYMMETRIC_OBSERVATIONS, "ASYMMETRIC_OBSERVATIONS requested but not available in the environment");
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : ENVIRONMENT::OBSERVATION_DIM;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : 0;
     };
 
     template<typename SPEC>
     struct Buffers{
+        // todo: make the buffer exploit the observation = observation_priviliged to save memory in the case of symmetric observations
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
@@ -72,22 +75,22 @@ namespace backprop_tools::rl::components::off_policy_runner {
 
         static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
-        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = ASYMMETRIC_OBSERVATIONS ? SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : OBSERVATION_DIM;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::ASYMMETRIC_OBSERVATIONS;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = SPEC::OBSERVATION_DIM_PRIVILEGED;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
-        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM + OBSERVATION_DIM + SPEC::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED;
+        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM + OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, DATA_DIM>> observations_actions_next_observations;
 
         template<typename SPEC::TI DIM>
         using OANO_VIEW = typename decltype(observations_actions_next_observations)::template VIEW<BATCH_SIZE, DIM>;
 
         OANO_VIEW<OBSERVATION_DIM> observations;
-        OANO_VIEW<OBSERVATION_DIM_PRIVILEGED> observations_privileged;
+        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> observations_privileged;
         OANO_VIEW<ACTION_DIM> actions;
-        OANO_VIEW<OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
+        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
         OANO_VIEW<OBSERVATION_DIM> next_observations;
-        OANO_VIEW<OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
+        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
 
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, BATCH_SIZE>> rewards;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<bool, TI, 1, BATCH_SIZE>> terminated;
@@ -117,7 +120,7 @@ namespace backprop_tools::rl::components{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
-        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
+        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED, SPEC::ASYMMETRIC_OBSERVATIONS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
         using REPLAY_BUFFER_TYPE = ReplayBuffer<REPLAY_BUFFER_SPEC>;
         static constexpr TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;

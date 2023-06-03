@@ -130,8 +130,8 @@ int main(int argc, char** argv) {
         T reward_acc = 0;
         env.parameters = penv::parameters;
         if(INIT_SIMPLE){
-//            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<T, TI, 4, penv::REWARD_FUNCTION>;
-            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_bigger_angle<T, TI, 4, penv::REWARD_FUNCTION>;
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<T, TI, 4, penv::REWARD_FUNCTION>;
+//            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_bigger_angle<T, TI, 4, penv::REWARD_FUNCTION>;
         }
         if(DEACTIVATE_OBSERVATION_NOISE){
             env.parameters.mdp.observation_noise.position = 0;

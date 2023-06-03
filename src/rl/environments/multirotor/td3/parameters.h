@@ -26,7 +26,8 @@ namespace parameters{
         };
 
 
-        static constexpr TI CRITIC_OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0 ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : ENVIRONMENT::OBSERVATION_DIM;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = false;
+        static constexpr TI CRITIC_OBSERVATION_DIM = ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : ENVIRONMENT::OBSERVATION_DIM;
         using ACTOR_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::TANH, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
         using CRITIC_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, CRITIC_OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
 
@@ -48,9 +49,9 @@ namespace parameters{
         using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr TI N_ENVIRONMENTS = 1;
-        static constexpr TI REPLAY_BUFFER_CAP = 5000000;
+        static constexpr TI REPLAY_BUFFER_CAP = 500000;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
-        using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, true, 1000>;
+        using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, true, 1000>;
         using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
         static constexpr bpt::rl::components::off_policy_runner::DefaultParameters<T> off_policy_runner_parameters = {
             0.5
@@ -71,5 +72,5 @@ namespace parameters_sim2real{
 }
 
 
-namespace parameters_0 = parameters_sim2real;
-//namespace parameters_0 = parameters_fast_learning;
+//namespace parameters_0 = parameters_sim2real;
+namespace parameters_0 = parameters_fast_learning;
