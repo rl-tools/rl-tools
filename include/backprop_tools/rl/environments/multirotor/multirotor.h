@@ -130,6 +130,7 @@ namespace backprop_tools::rl::environments{
     struct Multirotor{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        using PARAMETERS = typename SPEC::PARAMETERS;
         using REWARD_FUNCTION = typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION;
 //        static constexpr TI STATE_DIM = 13;
         static constexpr TI ACTION_DIM = 4;
