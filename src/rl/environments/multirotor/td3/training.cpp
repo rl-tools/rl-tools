@@ -23,7 +23,7 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 #include <backprop_tools/rl/algorithms/td3/operations_cpu.h>
 
 // additional includes for the ui and persisting
-#include <backprop_tools/rl/environments/multirotor/ui.h>
+//#include <backprop_tools/rl/environments/multirotor/ui.h>
 #include <backprop_tools/nn_models/persist.h>
 #include <backprop_tools/nn_models/persist_code.h>
 #include <backprop_tools/rl/components/replay_buffer/persist.h>
