@@ -42,9 +42,14 @@ namespace parameters_sim2real{
         struct ENVIRONMENT_STATIC_PARAMETERS: bpt::rl::environments::multirotor::StaticParametersDefault<TI>{
             static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
             static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
-            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::BaseRotorsHistory;
-            static constexpr bpt::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = bpt::rl::environments::multirotor::ObservationType::RotationMatrix;
+#if defined(ENABLE_MULTI_CONFIG)
+            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = JOB_ID % 2 == 0 ? bpt::rl::environments::multirotor::StateType::BaseRotorsHistory : bpt::rl::environments::multirotor::StateType::BaseRotors;
             static constexpr TI ACTION_HISTORY_LENGTH = 48;
+#else
+            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::BaseRotorsHistory;
+            static constexpr TI ACTION_HISTORY_LENGTH = 0;
+#endif
+            static constexpr bpt::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = bpt::rl::environments::multirotor::ObservationType::RotationMatrix;
         };
 
         using ENVIRONMENT_SPEC = bpt::rl::environments::multirotor::Specification<T, TI, PARAMETERS, ENVIRONMENT_STATIC_PARAMETERS>;

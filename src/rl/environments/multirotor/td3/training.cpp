@@ -96,6 +96,9 @@ int main(){
         TI seed = BASE_SEED + run_i;
         std::stringstream run_name_ss;
         run_name_ss << "ppo_ant_" + std::to_string(seed);
+#if defined(ENABLE_MULTI_CONFIG)
+        run_name_ss << "[" << JOB_ID << "]";
+#endif
         std::string run_name = run_name_ss.str();
         {
             auto now = std::chrono::system_clock::now();
@@ -212,6 +215,7 @@ int main(){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
                 }
 #endif
+#if !defined(ENABLE_MULTI_CONFIG)
                 {
                     // Since checkpointing a full Adam model to code (including gradients and moments of the weights and biases currently does not work)
                     ACTOR_CHECKPOINT_TYPE actor_checkpoint;
@@ -242,7 +246,7 @@ int main(){
                         state.angular_velocity[0] = 1;
                         state.angular_velocity[1] = 2;
                         state.angular_velocity[2] = 3;
-                        if(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotorsHistory){
+                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotorsHistory){
                             for(TI step_i = 0; step_i < parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH; step_i++){
                                 for(TI action_i = 0; action_i < parameters_environment::ENVIRONMENT::ACTION_DIM; action_i++){
                                     state.action_history[step_i][action_i] = ((DTYPE)(step_i * parameters_environment::ENVIRONMENT::ACTION_DIM + action_i))/(parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH * parameters_environment::ENVIRONMENT::ACTION_DIM) * 2 - 1;
@@ -297,6 +301,7 @@ int main(){
                     }
                     bpt::free(device, actor_checkpoint);
                 }
+#endif
             }
             if(step_i != 0 && step_i % 500000 == 0){
 //                off_policy_runner.parameters.exploration_noise *= 0.5;
