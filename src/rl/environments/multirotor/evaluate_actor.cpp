@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
             std::cout << "Using nominal domain parameters" << std::endl;
         }
         if(INJECT_EXPLORATION_NOISE){
-            env.parameters.mdp.action_noise.normalized_rpm = 0.5;
+            env.parameters.mdp.action_noise.normalized_rpm = 0.1;
         }
         bpt::sample_initial_state(dev, env, state, rng);
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){

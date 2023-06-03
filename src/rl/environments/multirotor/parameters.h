@@ -22,13 +22,14 @@ namespace parameters_sim2real{
                 {
 //                        backprop_tools::rl::environments::multirotor::parameters::init::all_around_orientation_only<T, TI, 4, REWARD_FUNCTION>,
                         backprop_tools::rl::environments::multirotor::parameters::init::orientation_bigger_angle<T, TI, 4, REWARD_FUNCTION>,
+//                        backprop_tools::rl::environments::multirotor::parameters::init::orientation_all_around<T, TI, 4, REWARD_FUNCTION>,
 //                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
                         reward_function,
                         {   // Observation noise
-                            0, // position
-                            0, // orientation
-                            0, // linear_velocity
-                            0, // angular_velocity
+                            0.01, // position
+                            0.01, // orientation
+                            0.02, // linear_velocity
+                            0.02, // angular_velocity
                         },
                         {   // Action noise
                             0, // std of additive gaussian noise onto the normalized action (-1, 1)
