@@ -32,7 +32,6 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 
 #include "parameters.h"
 
-#include <gtest/gtest.h>
 #include <iostream>
 #include <highfive/H5File.hpp>
 #include <thread>
