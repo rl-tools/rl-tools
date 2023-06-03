@@ -32,6 +32,8 @@ using DEVICE = bpt::devices::CPU<DEV_SPEC>;
 
 #include "parameters.h"
 
+#include "../assessment/full_assessment.h"
+
 #include <iostream>
 #include <highfive/H5File.hpp>
 #include <thread>
@@ -61,6 +63,7 @@ constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP * 2;
 #endif
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50000;
+constexpr TI ASSESSMENT_INTERVAL = 100000;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
 
@@ -323,6 +326,9 @@ int main(){
             bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
             if(step_i % 1000 == 0){
                 std::cout << "run_i: " << run_i << " step_i: " << step_i << std::endl;
+            }
+            if(step_i % ASSESSMENT_INTERVAL == 0){
+                full_assessment<DEVICE, ENVIRONMENT, parameters_rl::ACTOR_TYPE>(device, actor_critic.actor, parameters_environment::parameters, true);
             }
             if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                 if(step_i >= parameters_rl::N_WARMUP_STEPS_CRITIC){
