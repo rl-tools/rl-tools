@@ -40,110 +40,115 @@ namespace TEST_DEFINITIONS{
 }
 
 namespace variations {
-    using namespace TEST_DEFINITIONS;
+    template <typename T_ENVIRONMENT, typename T_RNG>
+    struct Specification{
+        using ENVIRONMENT = T_ENVIRONMENT;
+        using RNG = T_RNG;
+    };
     namespace init{
-        template <typename RNG>
-        void variation_0(ENVIRONMENT& env, RNG& rng){
-            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<T, TI, 4, penv::REWARD_FUNCTION>;
+        template <typename DEVICE, typename SPEC>
+        void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<typename SPEC::ENVIRONMENT::T, typename DEVICE::index_t, 4, typename SPEC::ENVIRONMENT::REWARD_FUNCTION>;
         }
-        template <typename RNG>
-        void variation_1(ENVIRONMENT& env, RNG& rng){
-            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_small_angle<T, TI, 4, penv::REWARD_FUNCTION>;
+        template <typename DEVICE, typename SPEC>
+        void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_small_angle<typename SPEC::ENVIRONMENT::T, typename DEVICE::index_t, 4, typename SPEC::ENVIRONMENT::REWARD_FUNCTION>;
         }
-        template <typename RNG>
-        void variation_2(ENVIRONMENT& env, RNG& rng){
-            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_big_angle<T, TI, 4, penv::REWARD_FUNCTION>;
+        template <typename DEVICE, typename SPEC>
+        void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_big_angle<typename SPEC::ENVIRONMENT::T, typename DEVICE::index_t, 4, typename SPEC::ENVIRONMENT::REWARD_FUNCTION>;
         }
-        template <typename RNG>
-        void variation_3(ENVIRONMENT& env, RNG& rng){
-            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_bigger_angle<T, TI, 4, penv::REWARD_FUNCTION>;
+        template <typename DEVICE, typename SPEC>
+        void variation_3(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_bigger_angle<typename SPEC::ENVIRONMENT::T, typename DEVICE::index_t, 4, typename SPEC::ENVIRONMENT::REWARD_FUNCTION>;
         }
-        template <typename RNG>
-        void variation_4(ENVIRONMENT& env, RNG& rng){
-            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_biggest_angle<T, TI, 4, penv::REWARD_FUNCTION>;
+        template <typename DEVICE, typename SPEC>
+        void variation_4(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_biggest_angle<typename SPEC::ENVIRONMENT::T, typename DEVICE::index_t, 4, typename SPEC::ENVIRONMENT::REWARD_FUNCTION>;
         }
-        template <typename RNG>
-        void variation_5(ENVIRONMENT& env, RNG& rng){
-            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_all_around<T, TI, 4, penv::REWARD_FUNCTION>;
+        template <typename DEVICE, typename SPEC>
+        void variation_5(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_all_around<typename SPEC::ENVIRONMENT::T, typename DEVICE::index_t, 4, typename SPEC::ENVIRONMENT::REWARD_FUNCTION>;
         }
     }
     namespace observation_noise{
         namespace position{
-            template <typename RNG>
-            void variation_0(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.position = 0.05;
             }
-            template <typename RNG>
-            void variation_1(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.position = 0.1;
             }
-            template <typename RNG>
-            void variation_2(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.position = 0.2;
             }
         }
         namespace orientation{
-            template <typename RNG>
-            void variation_0(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.orientation = 0.05;
             }
-            template <typename RNG>
-            void variation_1(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.orientation = 0.1;
             }
-            template <typename RNG>
-            void variation_2(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.orientation = 0.2;
             }
         }
         namespace linear_velocity{
-            template <typename RNG>
-            void variation_0(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.linear_velocity = 0.05;
             }
-            template <typename RNG>
-            void variation_1(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.linear_velocity = 0.1;
             }
-            template <typename RNG>
-            void variation_2(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.linear_velocity = 0.2;
             }
         }
         namespace angular_velocity{
-            template <typename RNG>
-            void variation_0(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.angular_velocity = 0.1;
             }
-            template <typename RNG>
-            void variation_1(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.angular_velocity = 0.5;
             }
-            template <typename RNG>
-            void variation_2(ENVIRONMENT& env, RNG& rng){
+            template <typename DEVICE, typename SPEC>
+            void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
                 env.parameters.mdp.observation_noise.angular_velocity = 1;
             }
         }
     }
     namespace action_noise{
-        template <typename RNG>
-        void variation_0(ENVIRONMENT& env, RNG& rng){
+        template <typename DEVICE, typename SPEC>
+        void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
             env.parameters.mdp.action_noise.normalized_rpm = 0.1;
         }
-        template <typename RNG>
-        void variation_1(ENVIRONMENT& env, RNG& rng){
+        template <typename DEVICE, typename SPEC>
+        void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
             env.parameters.mdp.action_noise.normalized_rpm = 0.2;
         }
-        template <typename RNG>
-        void variation_2(ENVIRONMENT& env, RNG& rng){
+        template <typename DEVICE, typename SPEC>
+        void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
             env.parameters.mdp.action_noise.normalized_rpm = 0.5;
         }
     }
     namespace dynamics{
         namespace inertia{
-            template <typename RNG>
-            void variation_0(ENVIRONMENT& env, RNG& rng){
-                T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T J_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
                 env.parameters.dynamics.J[0][0] *= J_factor;
                 env.parameters.dynamics.J[1][1] *= J_factor;
                 env.parameters.dynamics.J[2][2] *= J_factor;
@@ -151,9 +156,10 @@ namespace variations {
                 env.parameters.dynamics.J_inv[1][1] /= J_factor;
                 env.parameters.dynamics.J_inv[2][2] /= J_factor;
             }
-            template <typename RNG>
-            void variation_1(ENVIRONMENT& env, RNG& rng){
-                T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)2, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T J_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.5, (T)2, rng);
                 env.parameters.dynamics.J[0][0] *= J_factor;
                 env.parameters.dynamics.J[1][1] *= J_factor;
                 env.parameters.dynamics.J[2][2] *= J_factor;
@@ -161,9 +167,10 @@ namespace variations {
                 env.parameters.dynamics.J_inv[1][1] /= J_factor;
                 env.parameters.dynamics.J_inv[2][2] /= J_factor;
             }
-            template <typename RNG>
-            void variation_2(ENVIRONMENT& env, RNG& rng){
-                T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.2, (T)5, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T J_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.2, (T)5, rng);
                 env.parameters.dynamics.J[0][0] *= J_factor;
                 env.parameters.dynamics.J[1][1] *= J_factor;
                 env.parameters.dynamics.J[2][2] *= J_factor;
@@ -173,53 +180,62 @@ namespace variations {
             }
         }
         namespace mass{
-            template <typename RNG>
-            void variation_0(ENVIRONMENT& env, RNG& rng){
-                T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T mass_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
                 env.parameters.dynamics.mass *= mass_factor;
             }
-            template <typename RNG>
-            void variation_1(ENVIRONMENT& env, RNG& rng){
-                T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.7, (T)1.5, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T mass_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.7, (T)1.5, rng);
                 env.parameters.dynamics.mass *= mass_factor;
             }
-            template <typename RNG>
-            void variation_2(ENVIRONMENT& env, RNG& rng){
-                T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)2, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T mass_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.5, (T)2, rng);
                 env.parameters.dynamics.mass *= mass_factor;
             }
         }
         namespace max_rpm{
-            template <typename RNG>
-            void variation_0(ENVIRONMENT& env, RNG& rng){
-                T max_rpm_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T max_rpm_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
                 env.parameters.dynamics.action_limit.max *= max_rpm_factor;
             }
-            template <typename RNG>
-            void variation_1(ENVIRONMENT& env, RNG& rng){
-                T max_rpm_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.7, (T)1.5, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T max_rpm_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.7, (T)1.5, rng);
                 env.parameters.dynamics.action_limit.max *= max_rpm_factor;
             }
-            template <typename RNG>
-            void variation_2(ENVIRONMENT& env, RNG& rng){
-                T max_rpm_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)2, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T max_rpm_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.5, (T)2, rng);
                 env.parameters.dynamics.action_limit.max *= max_rpm_factor;
             }
         }
         namespace rpm_time_constant{
-            template <typename RNG>
-            void variation_0(ENVIRONMENT& env, RNG& rng){
-                T rpm_time_constant_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_0(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T rpm_time_constant_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
                 env.parameters.dynamics.rpm_time_constant *= rpm_time_constant_factor;
             }
-            template <typename RNG>
-            void variation_1(ENVIRONMENT& env, RNG& rng){
-                T rpm_time_constant_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.7, (T)1.5, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_1(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T rpm_time_constant_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.7, (T)1.5, rng);
                 env.parameters.dynamics.rpm_time_constant *= rpm_time_constant_factor;
             }
-            template <typename RNG>
-            void variation_2(ENVIRONMENT& env, RNG& rng){
-                T rpm_time_constant_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)2, rng);
+            template <typename DEVICE, typename SPEC>
+            void variation_2(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
+                using T = typename SPEC::ENVIRONMENT::T;
+                T rpm_time_constant_factor = bpt::random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0.5, (T)2, rng);
                 env.parameters.dynamics.rpm_time_constant *= rpm_time_constant_factor;
             }
         }
@@ -312,7 +328,7 @@ std::tuple<typename TEST_DEFINITIONS::T, typename TEST_DEFINITIONS::T> assess(DE
             bpt::observe(device, env, state, observation, rng);
             bpt::evaluate(device, actor, observation, action);
 //            for(TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++){
-//                increment(action, 0, action_i, bpt::random::normal_distribution(DEVICE::SPEC::RANDOM(), (T)0, (T)(T)prl::OFF_POLICY_RUNNER_PARAMETERS::EXPLORATION_NOISE, rng));
+//                increment(action, 0, action_i, bpt::random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, (T)(T)prl::OFF_POLICY_RUNNER_PARAMETERS::EXPLORATION_NOISE, rng));
 //            }
             bpt::clamp(device, action, (T)-1, (T)1);
             T dt = bpt::step(device, env, state, action, next_state, rng);
@@ -358,137 +374,139 @@ int main(int argc, char** argv) {
     bpt::malloc(device, actor);
     load_actor(device, arg_run, arg_checkpoint, actor);
     auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 10);
+    
+    using VARIATION_SPEC = variations::Specification<penv::ENVIRONMENT, decltype(rng)>;
 
     {
-        auto stats = assess<DEVICE, variations::init::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::init::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "init.variation_0 (simple): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::init::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::init::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "init.variation_1 (orientation small): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::init::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::init::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "init.variation_2 (orientation big): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::init::variation_3<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::init::variation_3<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "init.variation_3 (orientation bigger): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::init::variation_4<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::init::variation_4<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "init.variation_3 (orientation biggest): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::init::variation_5<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::init::variation_5<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "init.variation_4 (orientation all around): mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::position::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::position::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.position.variation_0: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::position::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::position::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.position.variation_1: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::position::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::position::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.position.variation_2: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::orientation::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::orientation::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.orientation.variation_0: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::orientation::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::orientation::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.orientation.variation_1: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::orientation::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::orientation::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.orientation.variation_2: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::linear_velocity::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::linear_velocity::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.linear_velocity.variation_0: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::linear_velocity::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::linear_velocity::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.linear_velocity.variation_1: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::linear_velocity::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::linear_velocity::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.linear_velocity.variation_2: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::angular_velocity::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::angular_velocity::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.angular_velocity.variation_0: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::angular_velocity::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::angular_velocity::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.angular_velocity.variation_1: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::observation_noise::angular_velocity::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::observation_noise::angular_velocity::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "observation_noise.angular_velocity.variation_2: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::action_noise::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::action_noise::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "action_noise.variation_0: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::action_noise::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::action_noise::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "action_noise.variation_1: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::action_noise::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::action_noise::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "action_noise.variation_2: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::inertia::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::inertia::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::inertia::variation_0: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::inertia::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::inertia::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::inertia::variation_1: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::inertia::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::inertia::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::inertia::variation_2: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::mass::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::mass::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::mass::variation_0: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::mass::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::mass::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::mass::variation_1: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::mass::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::mass::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::mass::variation_2: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::max_rpm::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::max_rpm::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::max_rpm::variation_0: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::max_rpm::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::max_rpm::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::max_rpm::variation_1: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::max_rpm::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::max_rpm::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::max_rpm::variation_2: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::rpm_time_constant::variation_0<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::rpm_time_constant::variation_0<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::rpm_time_constant::variation_0: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::rpm_time_constant::variation_1<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::rpm_time_constant::variation_1<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::rpm_time_constant::variation_1: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
     {
-        auto stats = assess<DEVICE, variations::dynamics::rpm_time_constant::variation_2<decltype(rng)>, decltype(rng)>(device, actor, rng);
+        auto stats = assess<DEVICE, variations::dynamics::rpm_time_constant::variation_2<DEVICE, VARIATION_SPEC>, decltype(rng)>(device, actor, rng);
         std::cout << "variations::dynamics::rpm_time_constant::variation_2: mean return: " << std::get<0>(stats) << " mean steps: " << std::get<1>(stats) <<  std::endl;
     }
 
