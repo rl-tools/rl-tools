@@ -55,7 +55,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         T weighted_abs_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.linear_acceleration * linear_acc_cost + params.angular_acceleration * angular_acc_cost + params.action * action_cost;
         T r = math::exp(typename DEVICE::SPEC::MATH(), -params.scale_inner*weighted_abs_cost);
         constexpr TI cadence = 991;
-        if(log_components){
+        if(false && log_components){
             add_scalar(device, device.logger, "reward/orientation_cost", orientation_cost, cadence);
             add_scalar(device, device.logger, "reward/position_cost", position_cost, cadence);
             add_scalar(device, device.logger, "reward/linear_vel_cost", linear_vel_cost, cadence);
