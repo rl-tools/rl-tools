@@ -21,7 +21,7 @@ endif()
 if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPROP_TOOLS_ENABLE_TENSORBOARD AND BACKPROP_TOOLS_ENABLE_JSON AND BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_ENABLE_UI)
     add_executable(
             rl_environments_multirotor_assessment_td3
-            assessment.cpp
+            assessment/assessment.cpp
     )
     target_link_libraries(
             rl_environments_multirotor_assessment_td3
