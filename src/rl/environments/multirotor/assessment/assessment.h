@@ -1,4 +1,4 @@
-template <typename DEVICE, typename SPEC, typename ACTOR_TYPE, auto VARIATION, typename RNG>
+template <typename DEVICE, typename SPEC, typename ACTOR_TYPE, auto VARIATION_0, auto VARIATION_1, auto VARIATION_2, typename RNG>
 std::tuple<typename SPEC::T, typename SPEC::T> assess(DEVICE& device, ACTOR_TYPE& actor, typename SPEC::ENVIRONMENT::PARAMETERS nominal_parameters, RNG& rng){
     using T = typename SPEC::T;
     using TI = typename DEVICE::index_t;
@@ -18,7 +18,9 @@ std::tuple<typename SPEC::T, typename SPEC::T> assess(DEVICE& device, ACTOR_TYPE
     constexpr TI NUM_EPISODES = 100;
     for(TI episode_i = 0; episode_i < NUM_EPISODES; episode_i++){
         env.parameters = nominal_parameters;
-        VARIATION(env, rng);
+        VARIATION_0(env, rng);
+        VARIATION_1(env, rng);
+        VARIATION_2(env, rng);
         T reward_acc = 0;
         bpt::sample_initial_state(device, env, state, rng);
         for(int step_i = 0; step_i < SPEC::MAX_EPISODE_LENGTH; step_i++){
