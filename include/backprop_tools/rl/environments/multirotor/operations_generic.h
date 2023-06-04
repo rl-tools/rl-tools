@@ -252,9 +252,19 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateLatentEmpty<T, TI>& state, RNG& rng){ }
+    template<typename DEVICE, typename T, typename TI, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateLatentRandomForce<T, TI>& state, RNG& rng){
+        state.force[0] = 0;
+        state.force[1] = 0;
+        state.force[2] = 0;
+    }
+    template<typename DEVICE, typename T, typename TI, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBase<T, TI>& state, RNG& rng){
         typename DEVICE::SPEC::MATH math_dev;
         typename DEVICE::SPEC::RANDOM random_dev;
+        using STATE = typename rl::environments::multirotor::StateBase<T, TI>;
+        sample_initial_state(device, env, (typename STATE::LATENT_STATE&)state, rng);
         bool guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < env.parameters.mdp.init.guidance;
         if(!guidance){
             for(TI i = 0; i < 3; i++){
