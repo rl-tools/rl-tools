@@ -16,7 +16,7 @@ namespace parameters_sim2real{
         using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
-        static constexpr backprop_tools::rl::environments::multirotor::ParametersBase<T, TI, 4, REWARD_FUNCTION> parameters = {
+        static constexpr backprop_tools::rl::environments::multirotor::ParametersDomainRandomization<T, TI, 4, REWARD_FUNCTION> parameters = {
                 backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie_old<T, TI, REWARD_FUNCTION>,
                 {0.01}, // integration dt
                 {
@@ -35,7 +35,14 @@ namespace parameters_sim2real{
                             0, // std of additive gaussian noise onto the normalized action (-1, 1)
                         },
                         backprop_tools::rl::environments::multirotor::parameters::termination::fast_learning<T, TI, 4, REWARD_FUNCTION>
+                },
+                {
+                        0, // UnivariateGaussian J_factor;
+                        0, // UnivariateGaussian mass_factor;
+//                        0.027 * 9.81 / 10 // UnivariateGaussian random_force;
+                        0
                 }
+
         };
 
         using PARAMETERS = typename backprop_tools::utils::typing::remove_cv_t<decltype(parameters)>;
@@ -70,7 +77,7 @@ namespace parameters_fast_learning{
         using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
-        static constexpr backprop_tools::rl::environments::multirotor::ParametersBase<T, TI, 4, REWARD_FUNCTION> parameters = {
+        static constexpr backprop_tools::rl::environments::multirotor::ParametersDomainRandomization<T, TI, 4, REWARD_FUNCTION> parameters = {
                 backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie_old<T, TI, REWARD_FUNCTION>,
                 {0.01}, // integration dt
                 {
@@ -88,6 +95,12 @@ namespace parameters_fast_learning{
 //                        backprop_tools::rl::environments::multirotor::parameters::init::all_around_simplified<T, TI, 4, REWARD_FUNCTION>,
 //                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
                         backprop_tools::rl::environments::multirotor::parameters::termination::fast_learning<T, TI, 4, REWARD_FUNCTION>
+                },
+                {
+                            0, // UnivariateGaussian J_factor;
+                            0, // UnivariateGaussian mass_factor;
+//                            0.027 * 9.81 / 10 // UnivariateGaussian random_force;
+                            0
                 }
         };
 

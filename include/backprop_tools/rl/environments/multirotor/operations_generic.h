@@ -88,6 +88,14 @@ namespace backprop_tools{
 
 namespace backprop_tools::rl::environments::multirotor {
     template<typename DEVICE, typename T, typename TI, typename PARAMETERS, auto N>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics( DEVICE& device, const PARAMETERS& params, const StateLatentEmpty<T, TI>& state, const T action[N], StateBase<T, TI>& state_change ) { }
+    template<typename DEVICE, typename T, typename TI, typename PARAMETERS, auto N>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics( DEVICE& device, const PARAMETERS& params, const StateLatentRandomForce<T, TI>& state, const T action[N], StateBase<T, TI>& state_change ){
+        state_change.linear_velocity[0] += state.random_force[0] / params.dynamics.mass;
+        state_change.linear_velocity[1] += state.random_force[1] / params.dynamics.mass;
+        state_change.linear_velocity[2] += state.random_force[2] / params.dynamics.mass;
+    }
+    template<typename DEVICE, typename T, typename TI, typename PARAMETERS, auto N>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(
             DEVICE& device,
             const PARAMETERS& params,
@@ -98,6 +106,7 @@ namespace backprop_tools::rl::environments::multirotor {
             // state change
             StateBase<T, TI>& state_change
     ) {
+        using STATE = StateBase<T, TI>;
 
         T thrust[3];
         T torque[3];
@@ -148,6 +157,7 @@ namespace backprop_tools::rl::environments::multirotor {
         // flops: 9
         utils::vector_operations::matrix_vector_product<DEVICE, T, 3, 3>(params.dynamics.J_inv, vector, state_change.angular_velocity);
         // total flops: (quadrotor): 92 + 16 + 21 + 4 + 9 + 6 + 9 = 157
+        multirotor_dynamics<DEVICE, T, TI, PARAMETERS, N>(device, params, (const typename STATE::LATENT_STATE&)state, action, state_change);
     }
     template<typename DEVICE, typename T, typename TI, typename PARAMETERS, auto N>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(
@@ -197,8 +207,17 @@ namespace backprop_tools{
         env.current_dynamics = env.parameters.dynamics;
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC>
+    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateLatentEmpty<T, TI>& state){ }
+    template<typename DEVICE, typename T, typename TI, typename SPEC>
+    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateLatentRandomForce<T, TI>& state){
+        state.force[0] = 0;
+        state.force[1] = 0;
+        state.force[2] = 0;
+    }
+    template<typename DEVICE, typename T, typename TI, typename SPEC>
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBase<T, TI>& state){
         using STATE = typename rl::environments::Multirotor<SPEC>::State;
+        initial_state(device, env, (typename STATE::LATENT_STATE&)state);
         for(typename DEVICE::index_t i = 0; i < 3; i++){
             state.position[i] = 0;
         }

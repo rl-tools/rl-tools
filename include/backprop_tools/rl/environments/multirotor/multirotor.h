@@ -72,10 +72,16 @@ namespace backprop_tools::rl::environments::multirotor{
         struct DomainRandomization{
             UnivariateGaussian J_factor;
             UnivariateGaussian mass_factor;
+            UnivariateGaussian random_force;
         };
+        DomainRandomization domain_randomization;
     };
 
 
+    enum class LatentStateType{
+        Empty,
+        RandomForce
+    };
     enum class StateType{
         Base,
         BaseRotors,
@@ -91,6 +97,7 @@ namespace backprop_tools::rl::environments::multirotor{
     struct StaticParametersDefault{
         static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
         static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
+        static constexpr LatentStateType LATENT_STATE_TYPE = LatentStateType::Empty;
         static constexpr StateType STATE_TYPE = StateType::Base;
         static constexpr ObservationType OBSERVATION_TYPE = ObservationType::Normal;
         static constexpr TI ACTION_HISTORY_LENGTH = 0;
@@ -105,22 +112,37 @@ namespace backprop_tools::rl::environments::multirotor{
     };
 
     template <typename T, typename TI>
-    struct StateBase{
-        static constexpr TI DIM = 13;
+    struct StateLatentEmpty {
+        static constexpr TI DIM = 0;
+    };
+
+    template <typename T, typename TI>
+    struct StateLatentRandomForce {
+        static constexpr TI DIM = 3;
+        T force[3];
+    };
+
+    template <typename T, typename TI, typename T_LATENT_STATE = StateLatentEmpty<T, TI>>
+    struct StateBase: T_LATENT_STATE{
+        using LATENT_STATE = T_LATENT_STATE;
+        static constexpr TI PARENT_DIM = LATENT_STATE::DIM;
+        static constexpr TI DIM = PARENT_DIM + 13;
         T position[3];
         T orientation[4];
         T linear_velocity[3];
         T angular_velocity[3];
     };
-    template <typename T, typename TI>
-    struct StateBaseRotors: StateBase<T, TI>{
-        static constexpr TI DIM = StateBase<T, TI>::DIM + 4;
+    template <typename T, typename TI, typename LATENT_STATE = StateLatentEmpty<T, TI>>
+    struct StateBaseRotors: StateBase<T, TI, LATENT_STATE>{
+        static constexpr TI PARENT_DIM = StateBase<T, TI>::DIM;
+        static constexpr TI DIM = PARENT_DIM + 4;
         T rpm[4];
     };
-    template <typename T, typename TI, TI T_HISTORY_LENGTH>
-    struct StateBaseRotorsHistory: StateBaseRotors<T, TI>{
+    template <typename T, typename TI, TI T_HISTORY_LENGTH, typename LATENT_STATE = StateLatentEmpty<T, TI>>
+    struct StateBaseRotorsHistory: StateBaseRotors<T, TI, LATENT_STATE>{
         static constexpr TI HISTORY_LENGTH = T_HISTORY_LENGTH;
-        static constexpr TI DIM = StateBaseRotors<T, TI>::DIM + HISTORY_LENGTH * 4;
+        static constexpr TI PARENT_DIM = StateBaseRotors<T, TI>::DIM;
+        static constexpr TI DIM = PARENT_DIM + HISTORY_LENGTH * 4;
         T action_history[HISTORY_LENGTH][4];
     };
 }
@@ -137,6 +159,7 @@ namespace backprop_tools::rl::environments{
 
         static constexpr TI ACTION_HISTORY_LENGTH = SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
 
+        static constexpr multirotor::LatentStateType LATENT_STATE_TYPE = SPEC::STATIC_PARAMETERS::LATENT_STATE_TYPE;
         static constexpr multirotor::StateType STATE_TYPE = SPEC::STATIC_PARAMETERS::STATE_TYPE;
         static constexpr multirotor::ObservationType OBSERVATION_TYPE = SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE;
 
@@ -145,13 +168,18 @@ namespace backprop_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM_ACTION_HISTORY = (STATE_TYPE == multirotor::StateType::BaseRotorsHistory) * ACTION_DIM * ACTION_HISTORY_LENGTH;
         static constexpr TI OBSERVATION_DIM = OBSERVATION_DIM_BASE + OBSERVATION_DIM_ORIENTATION + OBSERVATION_DIM_ACTION_HISTORY;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = STATE_TYPE == multirotor::StateType::Base ? 0 : OBSERVATION_DIM_BASE + OBSERVATION_DIM_ORIENTATION + ACTION_DIM;
+        using LatentState = utils::typing::conditional_t<
+            LATENT_STATE_TYPE == multirotor::LatentStateType::Empty,
+            multirotor::StateLatentEmpty<T, TI>,
+            multirotor::StateLatentRandomForce<T, TI>
+        >;
         using State = utils::typing::conditional_t<
             STATE_TYPE == multirotor::StateType::Base,
-            multirotor::StateBase<T, TI>,
+            multirotor::StateBase<T, TI, LatentState>,
             utils::typing::conditional_t<
                 STATE_TYPE == multirotor::StateType::BaseRotors,
-                multirotor::StateBaseRotors<T, TI>,
-                multirotor::StateBaseRotorsHistory<T, TI, SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH>
+                multirotor::StateBaseRotors<T, TI, LatentState>,
+                multirotor::StateBaseRotorsHistory<T, TI, SPEC::STATIC_PARAMETERS::ACTION_HISTORY_LENGTH, LatentState>
             >
         >;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
