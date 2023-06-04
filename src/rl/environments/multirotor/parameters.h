@@ -38,6 +38,7 @@ namespace parameters_sim2real{
                 },
                 typename PARAMETERS_TYPE::Disturbances{
                         typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 20} // random_force;
+//                        typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} // random_force;
                 }
 
         };

@@ -116,7 +116,7 @@ int main(){
         }
         std::cout << "Run " << run_i << " of " << NUM_RUNS << " with seed " << seed << " and name " << run_name << std::endl;
         std::cout << "Checkpoints: " << (ACTOR_ENABLE_CHECKPOINTS ? "enabled" : "disabled") << std::endl;
-        std::cout << "Observation dim: " << parameters_environment::ENVIRONMENT::OBSERVATION_DIM << " action dim: " << parameters_environment::ENVIRONMENT::ACTION_DIM << std::endl;
+        std::cout << "Observation dim: " << parameters_environment::ENVIRONMENT::OBSERVATION_DIM << " privileged: " << parameters_environment::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED << " action dim: " << parameters_environment::ENVIRONMENT::ACTION_DIM << std::endl;
 
         episode_step.push_back({});
         episode_returns.push_back({});
