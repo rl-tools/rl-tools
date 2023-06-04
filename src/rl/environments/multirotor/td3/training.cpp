@@ -290,7 +290,7 @@ int main(){
                         }
 
                         if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::Base){
-                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::Base;\n";
+                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::StateType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::Base;\n";
                         }
                         if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotors){
                             actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::BaseRotors;\n";
