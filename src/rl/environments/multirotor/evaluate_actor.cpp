@@ -148,7 +148,8 @@ int main(int argc, char** argv) {
             T mass_factor = 1;
             T J_factor = 1;
             T max_rpm_factor = 1;
-            T rpm_time_constant_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)1.0, (T)2, rng);
+//            T rpm_time_constant_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)1.0, (T)2, rng);
+            T rpm_time_constant_factor = 1;
             std::cout << "Randomizing domain parameters" << std::endl;
             std::cout << "Mass factor: " << mass_factor << std::endl;
             std::cout << "J factor: " << J_factor << std::endl;
