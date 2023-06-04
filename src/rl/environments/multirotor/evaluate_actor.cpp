@@ -37,6 +37,7 @@ namespace TEST_DEFINITIONS{
     constexpr bool INIT_SIMPLE = true;
     constexpr bool DEACTIVATE_OBSERVATION_NOISE = true;
     constexpr bool INJECT_EXPLORATION_NOISE = true;
+    constexpr bool DISABLE_DISTURBANCES = true;
 }
 
 
@@ -168,6 +169,10 @@ int main(int argc, char** argv) {
         }
         if(INJECT_EXPLORATION_NOISE){
             env.parameters.mdp.action_noise.normalized_rpm = 0.1;
+        }
+        if(DISABLE_DISTURBANCES){
+            env.parameters.disturbances.random_force.mean = 0;
+            env.parameters.disturbances.random_force.std = 0;
         }
         bpt::sample_initial_state(dev, env, state, rng);
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
