@@ -92,11 +92,11 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     constexpr AbsExpMultiModal<T, TI, 3> reward_mm = {
         // + position
         AbsExp<T>{
-            10, // scale
+            20, // scale
             1, // scale inner
-            1, // position
+            5, // position
             1, // orientation
-            10, // linear velocity
+            5, // linear velocity
             0, // angular velocity
             0, // linear acceleration
             0.01, // angular acceleration

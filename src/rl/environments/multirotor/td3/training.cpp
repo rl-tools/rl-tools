@@ -310,7 +310,7 @@ int main(){
             }
             if(step_i != 0 && step_i % 100000 == 0){
 //                constexpr DTYPE decay = 0.96;
-                constexpr DTYPE decay = 0.5;
+                constexpr DTYPE decay = 0.75;
                 off_policy_runner.parameters.exploration_noise *= decay;
 //                actor_critic.target_next_action_noise_std *= decay;
 //                actor_critic.target_next_action_noise_clip *= decay;
