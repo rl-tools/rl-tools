@@ -33,6 +33,7 @@ namespace TEST_DEFINITIONS{
 
     using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
     constexpr TI MAX_EPISODE_LENGTH = 1000;
+    constexpr bool SAME_CONFIG_AS_IN_TRAINING = true;
     constexpr bool RANDOMIZE_DOMAIN_PARAMETERS = true;
     constexpr bool INIT_SIMPLE = true;
     constexpr bool DEACTIVATE_OBSERVATION_NOISE = true;
@@ -131,17 +132,17 @@ int main(int argc, char** argv) {
 
         T reward_acc = 0;
         env.parameters = penv::parameters;
-        if(INIT_SIMPLE){
+        if(!SAME_CONFIG_AS_IN_TRAINING && INIT_SIMPLE){
             env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<T, TI, 4, penv::REWARD_FUNCTION>;
 //            env.parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::orientation_bigger_angle<T, TI, 4, penv::REWARD_FUNCTION>;
         }
-        if(DEACTIVATE_OBSERVATION_NOISE){
+        if(!SAME_CONFIG_AS_IN_TRAINING && DEACTIVATE_OBSERVATION_NOISE){
             env.parameters.mdp.observation_noise.position = 0;
             env.parameters.mdp.observation_noise.orientation = 0;
             env.parameters.mdp.observation_noise.linear_velocity = 0;
             env.parameters.mdp.observation_noise.angular_velocity = 0;
         }
-        if(RANDOMIZE_DOMAIN_PARAMETERS && episode_i % 2 == 0){
+        if(!SAME_CONFIG_AS_IN_TRAINING && RANDOMIZE_DOMAIN_PARAMETERS && episode_i % 2 == 0){
 //            T mass_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)1.5, rng);
 //            T J_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.5, (T)5.0, rng);
 //            T max_rpm_factor = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), (T)0.8, (T)1.2, rng);
@@ -168,10 +169,10 @@ int main(int argc, char** argv) {
         else{
             std::cout << "Using nominal domain parameters" << std::endl;
         }
-        if(INJECT_EXPLORATION_NOISE){
+        if(!SAME_CONFIG_AS_IN_TRAINING && INJECT_EXPLORATION_NOISE){
             env.parameters.mdp.action_noise.normalized_rpm = 0.1;
         }
-        if(DISABLE_DISTURBANCES){
+        if(!SAME_CONFIG_AS_IN_TRAINING && DISABLE_DISTURBANCES){
             env.parameters.disturbances.random_force.mean = 0;
             env.parameters.disturbances.random_force.std = 0;
         }
