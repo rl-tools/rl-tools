@@ -33,11 +33,11 @@ namespace TEST_DEFINITIONS{
 
     using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
     constexpr TI MAX_EPISODE_LENGTH = 1000;
-    constexpr bool SAME_CONFIG_AS_IN_TRAINING = true;
-    constexpr bool RANDOMIZE_DOMAIN_PARAMETERS = true;
-    constexpr bool INIT_SIMPLE = true;
+    constexpr bool SAME_CONFIG_AS_IN_TRAINING = false;
+    constexpr bool RANDOMIZE_DOMAIN_PARAMETERS = false;
+    constexpr bool INIT_SIMPLE = false;
     constexpr bool DEACTIVATE_OBSERVATION_NOISE = true;
-    constexpr bool INJECT_EXPLORATION_NOISE = true;
+    constexpr bool INJECT_EXPLORATION_NOISE = false;
     constexpr bool DISABLE_DISTURBANCES = false;
 }
 
