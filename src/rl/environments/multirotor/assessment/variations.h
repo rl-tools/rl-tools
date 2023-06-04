@@ -209,7 +209,8 @@ namespace variations {
 
     template <typename DEVICE, typename SPEC>
     void base(typename SPEC::ENVIRONMENT& env, typename SPEC::RNG& rng){
-        action_noise::variation_2<DEVICE, SPEC>(env, rng);
+        action_noise::variation_0<DEVICE, SPEC>(env, rng);
+        init::variation_1<DEVICE, SPEC>(env, rng);
     }
 
 }
