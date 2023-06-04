@@ -372,7 +372,7 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename OBS_SPEC, typename LATENT_STATE, typename RNG>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& state, Matrix<OBS_SPEC>& observation, RNG& rng, bool privileged = false){
         using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
         static_assert(OBS_SPEC::ROWS == 1);
         using STATE = typename ENVIRONMENT::State;
@@ -385,7 +385,8 @@ namespace backprop_tools{
         // Position
         TI current_observation_i = 0;
         for(TI i = 0; i < 3; i++){
-            set(observation, 0, current_observation_i, state.position[i] + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.position, rng));
+            T noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.position, rng) : 0;
+            set(observation, 0, current_observation_i, state.position[i] + noise);
             current_observation_i += 1;
         }
 
@@ -393,7 +394,8 @@ namespace backprop_tools{
         if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::Normal){
             static_assert(OBS_SPEC::COLS == 13);
             for(TI i = 0; i < 4; i++){
-                set(observation, 0, current_observation_i, state.orientation[i] + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                T noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                set(observation, 0, current_observation_i, state.orientation[i] + noise);
                 current_observation_i += 1;
             }
             if constexpr(SPEC::STATIC_PARAMETERS::ENFORCE_POSITIVE_QUATERNION){
@@ -429,15 +431,25 @@ namespace backprop_tools{
                 if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::RotationMatrix){
                     static_assert(OBS_SPEC::COLS == 18);
                     const typename SPEC::T* q = state.orientation;
-                    set(observation, 0, current_observation_i + 0, (1 - 2*q[2]*q[2] - 2*q[3]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, current_observation_i + 1, (    2*q[1]*q[2] - 2*q[0]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, current_observation_i + 2, (    2*q[1]*q[3] + 2*q[0]*q[2]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, current_observation_i + 3, (    2*q[1]*q[2] + 2*q[0]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, current_observation_i + 4, (1 - 2*q[1]*q[1] - 2*q[3]*q[3]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, current_observation_i + 5, (    2*q[2]*q[3] - 2*q[0]*q[1]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, current_observation_i + 6, (    2*q[1]*q[3] - 2*q[0]*q[2]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, current_observation_i + 7, (    2*q[2]*q[3] + 2*q[0]*q[1]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
-                    set(observation, 0, current_observation_i + 8, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng));
+                    T noise;
+                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    set(observation, 0, current_observation_i + 0, (1 - 2*q[2]*q[2] - 2*q[3]*q[3]) + noise);
+                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    set(observation, 0, current_observation_i + 1, (    2*q[1]*q[2] - 2*q[0]*q[3]) + noise);
+                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    set(observation, 0, current_observation_i + 2, (    2*q[1]*q[3] + 2*q[0]*q[2]) + noise);
+                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    set(observation, 0, current_observation_i + 3, (    2*q[1]*q[2] + 2*q[0]*q[3]) + noise);
+                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    set(observation, 0, current_observation_i + 4, (1 - 2*q[1]*q[1] - 2*q[3]*q[3]) + noise);
+                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    set(observation, 0, current_observation_i + 5, (    2*q[2]*q[3] - 2*q[0]*q[1]) + noise);
+                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    set(observation, 0, current_observation_i + 6, (    2*q[1]*q[3] - 2*q[0]*q[2]) + noise);
+                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    set(observation, 0, current_observation_i + 7, (    2*q[2]*q[3] + 2*q[0]*q[1]) + noise);
+                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    set(observation, 0, current_observation_i + 8, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]) + noise);
                     current_observation_i += 9;
                 }
             }
@@ -445,19 +457,21 @@ namespace backprop_tools{
 
         // Linear Velocity
         for(TI i = 0; i < 3; i++){
-            set(observation, 0, current_observation_i, state.linear_velocity[i] + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.linear_velocity, rng));
+            T noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.linear_velocity, rng) : 0;
+            set(observation, 0, current_observation_i, state.linear_velocity[i] + noise);
             current_observation_i += 1;
         }
 
         // Angular Velocity
         for(TI i = 0; i < 3; i++){
-            set(observation, 0, current_observation_i, state.angular_velocity[i] + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.angular_velocity, rng));
+            T noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.angular_velocity, rng) : 0;
+            set(observation, 0, current_observation_i, state.angular_velocity[i] + noise);
             current_observation_i += 1;
         }
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename OBS_SPEC, typename LATENT_STATE, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-        observe(device, env, state, observation, rng);
+        observe(device, env, state, observation, rng, true);
     }
     template<typename DEVICE, typename T_H, typename TI_H, TI_H HISTORY_LENGTH, typename SPEC, typename OBS_SPEC, typename LATENT_STATE, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateBaseRotorsHistory<T_H, TI_H, HISTORY_LENGTH, LATENT_STATE>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
@@ -466,7 +480,7 @@ namespace backprop_tools{
         static_assert(OBS_SPEC::COLS == MULTIROTOR::OBSERVATION_DIM);
         using TI = typename DEVICE::index_t;
         auto base_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION>{}, 0, 0);
-        observe(device, env, (rl::environments::multirotor::StateBaseRotors<T_H, TI_H, LATENT_STATE>&)state, base_observation, rng);
+        observe_privileged(device, env, (rl::environments::multirotor::StateBaseRotors<T_H, TI_H, LATENT_STATE>&)state, base_observation, rng);
         auto action_history_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_ACTION_HISTORY>{}, 0, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION);
         for(TI step_i = 0; step_i < HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){

@@ -17,11 +17,11 @@ namespace parameters_sim2real{
 
         using PARAMETERS_TYPE = backprop_tools::rl::environments::multirotor::ParametersDisturbances<T, TI, 4, REWARD_FUNCTION>;
         static constexpr PARAMETERS_TYPE parameters = {
-                backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie_old<T, TI, REWARD_FUNCTION>,
+                backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie_old_reduced_inertia<T, TI, REWARD_FUNCTION>,
                 {0.01}, // integration dt
                 {
 //                        backprop_tools::rl::environments::multirotor::parameters::init::all_around_orientation_only<T, TI, 4, REWARD_FUNCTION>,
-                        backprop_tools::rl::environments::multirotor::parameters::init::all_around<T, TI, 4, REWARD_FUNCTION>,
+                        backprop_tools::rl::environments::multirotor::parameters::init::orientation_bigger_angle<T, TI, 4, REWARD_FUNCTION>,
 //                        backprop_tools::rl::environments::multirotor::parameters::init::orientation_all_around<T, TI, 4, REWARD_FUNCTION>,
 //                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
                         reward_function,
@@ -52,7 +52,7 @@ namespace parameters_sim2real{
             static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = JOB_ID % 2 == 0 ? bpt::rl::environments::multirotor::StateType::BaseRotorsHistory : bpt::rl::environments::multirotor::StateType::BaseRotors;
             static constexpr TI ACTION_HISTORY_LENGTH = 48;
 #else
-            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::Base;
+            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::BaseRotors;
             static constexpr TI ACTION_HISTORY_LENGTH = 0;
 #endif
             static constexpr bpt::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = bpt::rl::environments::multirotor::ObservationType::RotationMatrix;
