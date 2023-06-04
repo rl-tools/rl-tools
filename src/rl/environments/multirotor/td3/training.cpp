@@ -258,25 +258,25 @@ int main(){
 //                                }
 //                            }
 //                        }
-                        bpt::sample_initial_state(device, envs[0], state, rng);
-                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, decltype(state)::DIM>> state_flat;
-                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::OBSERVATION_DIM>> observation;
-                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::ACTION_DIM>> action;
-                        bpt::malloc(device, state_flat);
-                        bpt::malloc(device, observation);
-                        bpt::malloc(device, action);
-                        bpt::serialize(device, state, state_flat);
-                        bpt::set_all(device, state_flat, 0);
-                        auto rng_copy = rng;
-                        bpt::observe(device, envs[0], state, observation, rng_copy);
-                        bpt::evaluate(device, actor_critic.actor, observation, action);
-                        bpt::evaluate(device, actor_checkpoint, observation, action);
-                        actor_output_file << "\n" << bpt::save(device, state_flat, std::string("backprop_tools::checkpoint::state"), true);
-                        actor_output_file << "\n" << bpt::save(device, observation, std::string("backprop_tools::checkpoint::observation"), true);
-                        actor_output_file << "\n" << bpt::save(device, action, std::string("backprop_tools::checkpoint::action"), true);
-                        bpt::free(device, state_flat);
-                        bpt::free(device, observation);
-                        bpt::free(device, action);
+//                        bpt::sample_initial_state(device, envs[0], state, rng);
+//                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, decltype(state)::DIM>> state_flat;
+//                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::OBSERVATION_DIM>> observation;
+//                        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, 1, parameters_environment::ENVIRONMENT::ACTION_DIM>> action;
+//                        bpt::malloc(device, state_flat);
+//                        bpt::malloc(device, observation);
+//                        bpt::malloc(device, action);
+//                        bpt::serialize(device, state, state_flat);
+//                        bpt::set_all(device, state_flat, 0);
+//                        auto rng_copy = rng;
+//                        bpt::observe(device, envs[0], state, observation, rng_copy);
+//                        bpt::evaluate(device, actor_critic.actor, observation, action);
+//                        bpt::evaluate(device, actor_checkpoint, observation, action);
+//                        actor_output_file << "\n" << bpt::save(device, state_flat, std::string("backprop_tools::checkpoint::state"), true);
+//                        actor_output_file << "\n" << bpt::save(device, observation, std::string("backprop_tools::checkpoint::observation"), true);
+//                        actor_output_file << "\n" << bpt::save(device, action, std::string("backprop_tools::checkpoint::action"), true);
+//                        bpt::free(device, state_flat);
+//                        bpt::free(device, observation);
+//                        bpt::free(device, action);
                     }
                     {
                         actor_output_file << "#include <backprop_tools/rl/environments/multirotor/multirotor.h>\n";
@@ -335,12 +335,12 @@ int main(){
             }
             auto step_start = std::chrono::high_resolution_clock::now();
             device.logger->step = step_i;
+            if(step_i % ASSESSMENT_INTERVAL == 0){
+                full_assessment<DEVICE, ENVIRONMENT, parameters_rl::ACTOR_TYPE>(device, actor_critic.actor, parameters_environment::parameters, true);
+            }
             bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
             if(step_i % 1000 == 0){
                 std::cout << "run_i: " << run_i << " step_i: " << step_i << std::endl;
-            }
-            if(step_i % ASSESSMENT_INTERVAL == 0){
-                full_assessment<DEVICE, ENVIRONMENT, parameters_rl::ACTOR_TYPE>(device, actor_critic.actor, parameters_environment::parameters, true);
             }
             if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                 if(step_i >= parameters_rl::N_WARMUP_STEPS_CRITIC){

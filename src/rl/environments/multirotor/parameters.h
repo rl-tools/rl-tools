@@ -16,7 +16,8 @@ namespace parameters_sim2real{
         using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
-        static constexpr backprop_tools::rl::environments::multirotor::ParametersDomainRandomization<T, TI, 4, REWARD_FUNCTION> parameters = {
+        using PARAMETERS_TYPE = backprop_tools::rl::environments::multirotor::ParametersDisturbances<T, TI, 4, REWARD_FUNCTION>;
+        static constexpr PARAMETERS_TYPE parameters = {
                 backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie_old<T, TI, REWARD_FUNCTION>,
                 {0.01}, // integration dt
                 {
@@ -36,11 +37,8 @@ namespace parameters_sim2real{
                         },
                         backprop_tools::rl::environments::multirotor::parameters::termination::fast_learning<T, TI, 4, REWARD_FUNCTION>
                 },
-                {
-                        0, // UnivariateGaussian J_factor;
-                        0, // UnivariateGaussian mass_factor;
-//                        0.027 * 9.81 / 10 // UnivariateGaussian random_force;
-                        0
+                typename PARAMETERS_TYPE::Disturbances{
+                        typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 10} // random_force;
                 }
 
         };
@@ -50,6 +48,7 @@ namespace parameters_sim2real{
         struct ENVIRONMENT_STATIC_PARAMETERS: bpt::rl::environments::multirotor::StaticParametersDefault<TI>{
             static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
             static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
+            static constexpr bpt::rl::environments::multirotor::LatentStateType LATENT_STATE_TYPE = bpt::rl::environments::multirotor::LatentStateType::RandomForce;
 #if defined(ENABLE_MULTI_CONFIG)
             static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = JOB_ID % 2 == 0 ? bpt::rl::environments::multirotor::StateType::BaseRotorsHistory : bpt::rl::environments::multirotor::StateType::BaseRotors;
             static constexpr TI ACTION_HISTORY_LENGTH = 48;
@@ -77,7 +76,8 @@ namespace parameters_fast_learning{
         using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
-        static constexpr backprop_tools::rl::environments::multirotor::ParametersDomainRandomization<T, TI, 4, REWARD_FUNCTION> parameters = {
+        using PARAMETERS_TYPE = backprop_tools::rl::environments::multirotor::ParametersDisturbances<T, TI, 4, REWARD_FUNCTION>;
+        static constexpr PARAMETERS_TYPE parameters = {
                 backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie_old<T, TI, REWARD_FUNCTION>,
                 {0.01}, // integration dt
                 {
@@ -96,11 +96,8 @@ namespace parameters_fast_learning{
 //                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
                         backprop_tools::rl::environments::multirotor::parameters::termination::fast_learning<T, TI, 4, REWARD_FUNCTION>
                 },
-                {
-                            0, // UnivariateGaussian J_factor;
-                            0, // UnivariateGaussian mass_factor;
-//                            0.027 * 9.81 / 10 // UnivariateGaussian random_force;
-                            0
+                typename PARAMETERS_TYPE::Disturbances{
+                        typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 10} // random_force;
                 }
         };
 

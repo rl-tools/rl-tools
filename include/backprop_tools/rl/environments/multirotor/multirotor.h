@@ -64,15 +64,26 @@ namespace backprop_tools::rl::environments::multirotor{
         MDP mdp;
     };
     template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
-    struct ParametersDomainRandomization: ParametersBase<T, TI, N, T_REWARD_FUNCTION>{
-        struct UnivariateGaussian{
-            T mean;
-            T std;
+    struct ParametersDisturbances: ParametersBase<T, TI, N, T_REWARD_FUNCTION> {
+        struct Disturbances{
+            struct UnivariateGaussian{
+                T mean;
+                T std;
+            };
+            UnivariateGaussian random_force;
         };
+        Disturbances disturbances;
+    };
+
+    template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
+    struct ParametersDomainRandomization: ParametersBase<T, TI, N, T_REWARD_FUNCTION>{
         struct DomainRandomization{
+            struct UnivariateGaussian{
+                T mean;
+                T std;
+            };
             UnivariateGaussian J_factor;
             UnivariateGaussian mass_factor;
-            UnivariateGaussian random_force;
         };
         DomainRandomization domain_randomization;
     };
@@ -122,7 +133,7 @@ namespace backprop_tools::rl::environments::multirotor{
         T force[3];
     };
 
-    template <typename T, typename TI, typename T_LATENT_STATE = StateLatentEmpty<T, TI>>
+    template <typename T, typename TI, typename T_LATENT_STATE>
     struct StateBase: T_LATENT_STATE{
         using LATENT_STATE = T_LATENT_STATE;
         static constexpr TI PARENT_DIM = LATENT_STATE::DIM;
@@ -132,16 +143,16 @@ namespace backprop_tools::rl::environments::multirotor{
         T linear_velocity[3];
         T angular_velocity[3];
     };
-    template <typename T, typename TI, typename LATENT_STATE = StateLatentEmpty<T, TI>>
+    template <typename T, typename TI, typename LATENT_STATE>
     struct StateBaseRotors: StateBase<T, TI, LATENT_STATE>{
-        static constexpr TI PARENT_DIM = StateBase<T, TI>::DIM;
+        static constexpr TI PARENT_DIM = StateBase<T, TI, LATENT_STATE>::DIM;
         static constexpr TI DIM = PARENT_DIM + 4;
         T rpm[4];
     };
-    template <typename T, typename TI, TI T_HISTORY_LENGTH, typename LATENT_STATE = StateLatentEmpty<T, TI>>
+    template <typename T, typename TI, TI T_HISTORY_LENGTH, typename LATENT_STATE>
     struct StateBaseRotorsHistory: StateBaseRotors<T, TI, LATENT_STATE>{
         static constexpr TI HISTORY_LENGTH = T_HISTORY_LENGTH;
-        static constexpr TI PARENT_DIM = StateBaseRotors<T, TI>::DIM;
+        static constexpr TI PARENT_DIM = StateBaseRotors<T, TI, LATENT_STATE>::DIM;
         static constexpr TI DIM = PARENT_DIM + HISTORY_LENGTH * 4;
         T action_history[HISTORY_LENGTH][4];
     };
