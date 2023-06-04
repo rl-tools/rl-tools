@@ -11,7 +11,7 @@ namespace parameters_sim2real{
     struct environment{
 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_old_but_gold_4<T>;
 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_mm<T, TI>;
-        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::position_only<T>;
+        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::position_action_only<T>;
         using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
@@ -53,7 +53,7 @@ namespace parameters_sim2real{
             static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = JOB_ID % 2 == 0 ? bpt::rl::environments::multirotor::StateType::BaseRotorsHistory : bpt::rl::environments::multirotor::StateType::BaseRotors;
             static constexpr TI ACTION_HISTORY_LENGTH = 48;
 #else
-            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::BaseRotors;
+            static constexpr bpt::rl::environments::multirotor::StateType STATE_TYPE = bpt::rl::environments::multirotor::StateType::Base;
             static constexpr TI ACTION_HISTORY_LENGTH = 0;
 #endif
             static constexpr bpt::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = bpt::rl::environments::multirotor::ObservationType::RotationMatrix;
