@@ -100,7 +100,7 @@ int main(){
     for(typename DEVICE::index_t run_i = 0; run_i < NUM_RUNS; run_i++){
         TI seed = BASE_SEED + run_i;
         std::stringstream run_name_ss;
-        run_name_ss << "ppo_ant_" + std::to_string(seed);
+        run_name_ss << "multirotor_td3_" + std::to_string(seed);
 #if defined(ENABLE_MULTI_CONFIG)
         run_name_ss << "[" << JOB_ID << "]";
 #endif

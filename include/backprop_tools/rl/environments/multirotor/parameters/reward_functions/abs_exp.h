@@ -98,6 +98,11 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
                 if(mode_i == 1){
                     add_scalar(device, device.logger, "reward_mode/1", output, 991);
                 }
+                else{
+                    if(mode_i == 2){
+                        add_scalar(device, device.logger, "reward_mode/2", output, 991);
+                    }
+                }
             }
             acc += output;
         }
