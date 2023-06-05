@@ -60,8 +60,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::init{
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_LINEAR_VELOCITY,   // linear velocity
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_ANGULAR_VELOCITY,   // angular velocity
             true,// relative rpm
-            -0.1,  // min rpm
-            +0.1,  // max rpm
+            0,  // min rpm
+            0,  // max rpm
     };
     template<typename T, typename TI, TI ACTION_DIM, typename REWARD_FUNCTION>
     constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization orientation_biggest_angle = {
