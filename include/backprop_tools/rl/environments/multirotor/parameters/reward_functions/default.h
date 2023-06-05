@@ -132,10 +132,10 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     constexpr AbsExp<T> position_action_only_3 = {
             10, // scale
             1, // scale inner
-            4, // position
+            3, // position
             0, // orientation
             0, // linear velocity
-            0.01, // angular velocity
+            0.02, // angular velocity
             0, // linear acceleration
             0, // angular acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
