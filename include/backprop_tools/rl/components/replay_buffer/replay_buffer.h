@@ -15,6 +15,12 @@ namespace backprop_tools::rl::components::replay_buffer{
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
 
+    template<typename T_ENVIRONMENT, typename T_BASE_SPEC>
+    struct SpecificationWithStates: T_BASE_SPEC{
+        using BASE_SPEC = T_BASE_SPEC;
+        using ENVIRONMENT = T_ENVIRONMENT;
+    };
+
 }
 
 namespace backprop_tools::rl::components {
@@ -43,6 +49,17 @@ namespace backprop_tools::rl::components {
         DATA_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
         DATA_VIEW<1> terminated;
         DATA_VIEW<1> truncated;
+    };
+
+    template <typename T_SPEC>
+    struct ReplayBufferWithStates: ReplayBuffer<typename T_SPEC::BASE_SPEC> {
+        // mem
+        using SPEC = typename T_SPEC::BASE_SPEC;
+        using ENVIRONMENT = typename T_SPEC::ENVIRONMENT;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename ENVIRONMENT::State, TI, SPEC::CAPACITY, 1>> states;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename ENVIRONMENT::State, TI, SPEC::CAPACITY, 1>> next_states;
     };
 }
 namespace backprop_tools::rl::components::replay_buffer{

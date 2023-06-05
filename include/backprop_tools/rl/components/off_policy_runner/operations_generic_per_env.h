@@ -74,7 +74,7 @@ namespace backprop_tools::rl::components::off_policy_runner{
         auto episode_step_i = get(runner->episode_step, 0, env_i);
         bool truncated = terminated_flag || episode_step_i == SPEC::STEP_LIMIT;
         set(runner->truncated, 0, env_i, truncated);
-        add(device, runner->replay_buffers[env_i], observation, observation_privileged, action, reward_value, next_observation, next_observation_privileged, terminated_flag, truncated);
+        add(device, runner->replay_buffers[env_i], state, observation, observation_privileged, action, reward_value, next_state, next_observation, next_observation_privileged, terminated_flag, truncated);
 
         // state progression needs to come after the addition to the replay buffer because "observation" can point to the memory of runner_state.state (in the case of REQUIRES_OBSERVATION=false)
         state = next_state;

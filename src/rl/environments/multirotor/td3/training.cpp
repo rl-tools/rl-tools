@@ -322,6 +322,20 @@ int main(){
                 bpt::add_scalar(device, device.logger, "off_policy_runner/exploration_noise", off_policy_runner.parameters.exploration_noise);
 
 
+                for (auto& env : off_policy_runner.envs) {
+                    DTYPE action_weight = env.parameters.mdp.reward.action;
+                    action_weight *= 1.2;
+                    DTYPE action_weight_limit = 0.06;
+                    action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
+                    env.parameters.mdp.reward.action = action_weight;
+                }
+
+                auto start = std::chrono::high_resolution_clock::now();
+                bpt::recalculate_rewards(device, off_policy_runner.replay_buffers[0], off_policy_runner.envs[0], rng);
+                auto end = std::chrono::high_resolution_clock::now();
+                std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+                bpt::add_scalar(device, device.logger, "reward_function/action_weight", off_policy_runner.envs[0].parameters.mdp.reward.action);
+
 //                if(step_i > 1000000){
 //                    for (auto& env : off_policy_runner.envs) {
 //                        env.parameters.mdp.reward.angular_acceleration = 0.01;

@@ -24,12 +24,24 @@ namespace backprop_tools {
         free(device, rb.data);
     }
     template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& rb) {
+        malloc(device, (rl::components::ReplayBuffer<typename SPEC::BASE_SPEC>&)rb);
+        malloc(device, rb.states);
+        malloc(device, rb.next_states);
+    }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& rb) {
+        free(device, (rl::components::ReplayBuffer<typename SPEC::BASE_SPEC>&)rb);
+        free(device, rb.states);
+        free(device, rb.next_states);
+    }
+    template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
         rb.full = false;
         rb.position = 0;
     }
-    template <typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename OBSERVATION_PRIVILEGED_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC, typename NEXT_OBSERVATION_PRIVILEGED_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
+    template <typename DEVICE, typename SPEC, typename STATE, typename OBSERVATION_SPEC, typename OBSERVATION_PRIVILEGED_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC, typename NEXT_OBSERVATION_PRIVILEGED_SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const STATE& state, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const STATE& next_state, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
         // todo: change to memcpy?
         for(typename DEVICE::index_t i = 0; i < SPEC::OBSERVATION_DIM; i++) {
             set(buffer.observations, buffer.position, i, get(observation, 0, i));
@@ -51,6 +63,12 @@ namespace backprop_tools {
         }
 //        add_scalar(device, device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
     }
+    template <typename DEVICE, typename SPEC, typename STATE, typename OBSERVATION_SPEC, typename OBSERVATION_PRIVILEGED_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC, typename NEXT_OBSERVATION_PRIVILEGED_SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& buffer, const STATE& state, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const STATE& next_state, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
+        set(buffer.states, buffer.position, 0, state);
+        set(buffer.next_states, buffer.position, 0, next_state);
+        add(device, (rl::components::ReplayBuffer<typename SPEC::BASE_SPEC>&) buffer, state, observation, observation_privileged, action, reward, next_state, next_observation, next_observation_privileged, terminated, truncated);
+    }
     template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::ReplayBuffer<TARGET_SPEC>& target, rl::components::ReplayBuffer<SOURCE_SPEC>& source) {
         copy(target_device, source_device, target.data, source.data);
@@ -70,6 +88,20 @@ namespace backprop_tools {
         acc += abs_diff(device, b1.terminated, b2.terminated);
         acc += abs_diff(device, b1.truncated, b2.truncated);
         return acc;
+    }
+    template <typename DEVICE, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void recalculate_rewards(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& buffer, const typename SPEC::ENVIRONMENT& env, RNG& rng) {
+        using TI = typename DEVICE::index_t;
+        using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        using STATE = typename ENVIRONMENT::State;
+        for(TI position_i = 0; position_i < SPEC::BASE_SPEC::CAPACITY; position_i++){
+            auto prev_r = get(buffer.rewards, position_i, 0);
+            STATE& state = get(buffer.states, position_i, 0);
+            STATE& next_state = get(buffer.next_states, position_i, 0);
+            auto action = row(device, buffer.actions, position_i);
+            auto r = reward(device, env, state, action, next_state, rng);
+            set(buffer.rewards, position_i, 0, r);
+        }
     }
 }
 #endif
