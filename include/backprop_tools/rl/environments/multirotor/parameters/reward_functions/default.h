@@ -132,7 +132,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     constexpr AbsExp<T> position_action_only_3 = {
             10, // scale
             1, // scale inner
-            3, // position
+            2, // position
             0, // orientation
             0, // linear velocity
             0.02, // angular velocity
