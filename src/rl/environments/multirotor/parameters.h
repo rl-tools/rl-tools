@@ -11,7 +11,7 @@ namespace parameters_sim2real{
     struct environment{
 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_old_but_gold_4<T>;
 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_mm<T, TI>;
-        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::position_action_only_2<T>;
+        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::position_action_only_3<T>;
         using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 

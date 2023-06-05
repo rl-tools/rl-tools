@@ -21,7 +21,7 @@ namespace parameters{
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
             static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
             static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-            static constexpr T GAMMA = 0.93;
+            static constexpr T GAMMA = 0.95;
             static constexpr bool IGNORE_TERMINATION = false;
         };
 
