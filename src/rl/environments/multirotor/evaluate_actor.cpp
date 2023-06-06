@@ -38,7 +38,8 @@ namespace TEST_DEFINITIONS{
     constexpr bool INIT_SIMPLE = false;
     constexpr bool DEACTIVATE_OBSERVATION_NOISE = true;
     constexpr bool INJECT_EXPLORATION_NOISE = false;
-    constexpr bool DISABLE_DISTURBANCES = false;
+    constexpr bool DISABLE_DISTURBANCES = true;
+    constexpr bool AMPLIFY_DISTURBANCES = true;
 }
 
 
@@ -175,6 +176,11 @@ int main(int argc, char** argv) {
         if(!SAME_CONFIG_AS_IN_TRAINING && DISABLE_DISTURBANCES){
             env.parameters.disturbances.random_force.mean = 0;
             env.parameters.disturbances.random_force.std = 0;
+        }
+        else{
+            if(AMPLIFY_DISTURBANCES){
+                env.parameters.disturbances.random_force.std *= 2;
+            }
         }
         bpt::sample_initial_state(dev, env, state, rng);
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){

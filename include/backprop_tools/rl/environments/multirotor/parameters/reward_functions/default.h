@@ -368,11 +368,11 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     constexpr Squared<T> reward_squared_position_only = {
             false, // non-negative
             1, // scale
-            1, // constant
+            2, // constant
             0, // termination penalty
             5, // position
-            0, // orientation
-            0, // linear_velocity
+            5, // orientation
+            0.01, // linear_velocity
             0, // angular_velocity
             0, // linear_acceleration
             0, // angular_acceleration

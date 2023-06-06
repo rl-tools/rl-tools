@@ -72,6 +72,7 @@ constexpr TI ASSESSMENT_INTERVAL = 100000;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
 constexpr bool SAVE_REPLAY_BUFFER = false;
+constexpr bool ENABLE_ASSESSMENT = false;
 
 using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<parameters_rl::ACTOR_STRUCTURE_SPEC>>;
 
@@ -311,10 +312,10 @@ int main(){
             if(step_i != 0 && step_i % 100000 == 0){
 //                constexpr DTYPE decay = 0.96;
                 constexpr DTYPE decay = 0.75;
-                off_policy_runner.parameters.exploration_noise *= decay;
+//                off_policy_runner.parameters.exploration_noise *= decay;
 //                actor_critic.target_next_action_noise_std *= decay;
 //                actor_critic.target_next_action_noise_clip *= decay;
-                off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.2 ? 0.2 : off_policy_runner.parameters.exploration_noise;
+//                off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.2 ? 0.2 : off_policy_runner.parameters.exploration_noise;
 //                actor_critic.target_next_action_noise_std = actor_critic.target_next_action_noise_std < 0.05 ? 0.05 : actor_critic.target_next_action_noise_std;
 //                actor_critic.target_next_action_noise_clip = actor_critic.target_next_action_noise_clip < 0.15 ? 0.15 : actor_critic.target_next_action_noise_clip;
                 bpt::add_scalar(device, device.logger, "td3/target_next_action_noise_std", actor_critic.target_next_action_noise_std);
@@ -351,8 +352,16 @@ int main(){
                             position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
                             env.parameters.mdp.reward.position = position_weight;
                         }
+                        {
+                            DTYPE linear_velocity_weight = env.parameters.mdp.reward.linear_velocity;
+                            linear_velocity_weight *= 1.4;
+                            DTYPE linear_velocity_weight_limit = 1;
+                            linear_velocity_weight = linear_velocity_weight > linear_velocity_weight_limit ? linear_velocity_weight_limit : linear_velocity_weight;
+                            env.parameters.mdp.reward.linear_velocity = linear_velocity_weight;
+                        }
                     }
                     bpt::add_scalar(device, device.logger, "reward_function/position_weight", off_policy_runner.envs[0].parameters.mdp.reward.position);
+                    bpt::add_scalar(device, device.logger, "reward_function/linear_velocity_weight", off_policy_runner.envs[0].parameters.mdp.reward.linear_velocity);
                     bpt::add_scalar(device, device.logger, "reward_function/action_weight", off_policy_runner.envs[0].parameters.mdp.reward.action);
                     bpt::add_scalar(device, device.logger, "reward_function/angular_acceleration_weight", off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
                 }
@@ -376,7 +385,7 @@ int main(){
             }
             auto step_start = std::chrono::high_resolution_clock::now();
             device.logger->step = step_i;
-            if(step_i % ASSESSMENT_INTERVAL == 0){
+            if (ENABLE_ASSESSMENT && step_i % ASSESSMENT_INTERVAL == 0){
                 full_assessment<DEVICE, ENVIRONMENT, parameters_rl::ACTOR_TYPE>(device, actor_critic.actor, parameters_environment::parameters, true);
             }
             bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);

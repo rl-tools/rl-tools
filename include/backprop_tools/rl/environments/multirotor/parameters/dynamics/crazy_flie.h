@@ -148,7 +148,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
                     3.16e-10
             },
             // torque constant
-            0.025126582278481014,
+//            0.025126582278481014,
+            0.005964552,
             // mass vehicle
             0.027,
             // gravity
