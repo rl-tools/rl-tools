@@ -339,7 +339,7 @@ int main(){
                     for (auto& env : off_policy_runner.envs) {
                         DTYPE action_weight = env.parameters.mdp.reward.action;
                         action_weight *= 1.2;
-                        DTYPE action_weight_limit = 0.3;
+                        DTYPE action_weight_limit = 0.5;
                         action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
                         env.parameters.mdp.reward.action = action_weight;
                     }
@@ -478,7 +478,7 @@ int main(){
         }
         // 300000 steps: 28s on M1
         std::filesystem::path data_output_dir = "data_test";
-        if constexpr(SAVE_REPLAY_BUFFER){
+        {
             try {
                 if (std::filesystem::create_directories(data_output_dir)) {
                     std::cout << "Directories created successfully: " << data_output_dir << std::endl;
@@ -498,7 +498,7 @@ int main(){
                 std::cout << "Error while saving actor: " << e.what() << std::endl;
             }
         }
-        {
+        if constexpr(SAVE_REPLAY_BUFFER){
             std::filesystem::path rb_output_path = data_output_dir / "replay_buffer.h5";
             try{
                 auto actor_file = HighFive::File(rb_output_path, HighFive::File::Overwrite);
