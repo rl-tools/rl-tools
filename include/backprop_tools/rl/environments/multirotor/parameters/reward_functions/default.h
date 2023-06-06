@@ -379,5 +379,20 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
             0.01, // action
     };
+    template<typename T>
+    constexpr Squared<T> reward_squared_position_only_torque = {
+            false, // non-negative
+            0.5, // scale
+            2, // constant
+            0, // termination penalty
+            5, // position
+            5, // orientation
+            0.01, // linear_velocity
+            0, // angular_velocity
+            0, // linear_acceleration
+            0, // angular_acceleration
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
+            0.01, // action
+    };
 }
 #endif
