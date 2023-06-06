@@ -39,8 +39,8 @@ namespace parameters_sim2real{
                         backprop_tools::rl::environments::multirotor::parameters::termination::fast_learning<T, TI, 4, REWARD_FUNCTION>
                 },
                 typename PARAMETERS_TYPE::Disturbances{
-//                        typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 20} // random_force;
-                        typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} // random_force;
+                        typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0.027 * 9.81 / 20} // random_force;
+//                        typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} // random_force;
                 }
 
         };
