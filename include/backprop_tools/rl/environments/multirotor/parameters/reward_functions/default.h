@@ -377,7 +377,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0, // linear_acceleration
             0, // angular_acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
-            0, // action
+            0.01, // action
     };
 }
 #endif

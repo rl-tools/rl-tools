@@ -71,7 +71,7 @@ constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50000;
 constexpr TI ASSESSMENT_INTERVAL = 100000;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
-
+constexpr bool SAVE_REPLAY_BUFFER = false;
 
 using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<parameters_rl::ACTOR_STRUCTURE_SPEC>>;
 
@@ -334,6 +334,18 @@ int main(){
 //                    bpt::add_scalar(device, device.logger, "reward_function/action_weight", off_policy_runner.envs[0].parameters.mdp.reward.action);
 //                    bpt::add_scalar(device, device.logger, "reward_function/angular_acceleration_weight", off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
 //                }
+//                sq
+                {
+                    for (auto& env : off_policy_runner.envs) {
+                        DTYPE action_weight = env.parameters.mdp.reward.action;
+                        action_weight *= 1.2;
+                        DTYPE action_weight_limit = 0.3;
+                        action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
+                        env.parameters.mdp.reward.action = action_weight;
+                    }
+                    bpt::add_scalar(device, device.logger, "reward_function/action_weight", off_policy_runner.envs[0].parameters.mdp.reward.action);
+                    bpt::add_scalar(device, device.logger, "reward_function/angular_acceleration_weight", off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
+                }
 
 
                 auto start = std::chrono::high_resolution_clock::now();
@@ -466,7 +478,7 @@ int main(){
         }
         // 300000 steps: 28s on M1
         std::filesystem::path data_output_dir = "data_test";
-        {
+        if constexpr(SAVE_REPLAY_BUFFER){
             try {
                 if (std::filesystem::create_directories(data_output_dir)) {
                     std::cout << "Directories created successfully: " << data_output_dir << std::endl;
