@@ -337,12 +337,22 @@ int main(){
 //                sq
                 {
                     for (auto& env : off_policy_runner.envs) {
-                        DTYPE action_weight = env.parameters.mdp.reward.action;
-                        action_weight *= 1.2;
-                        DTYPE action_weight_limit = 1.0;
-                        action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
-                        env.parameters.mdp.reward.action = action_weight;
+                        {
+                            DTYPE action_weight = env.parameters.mdp.reward.action;
+                            action_weight *= 1.4;
+                            DTYPE action_weight_limit = 1.0;
+                            action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
+                            env.parameters.mdp.reward.action = action_weight;
+                        }
+                        {
+                            DTYPE position_weight = env.parameters.mdp.reward.position;
+                            position_weight *= 1.2;
+                            DTYPE position_weight_limit = 10;
+                            position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
+                            env.parameters.mdp.reward.position = position_weight;
+                        }
                     }
+                    bpt::add_scalar(device, device.logger, "reward_function/position_weight", off_policy_runner.envs[0].parameters.mdp.reward.position);
                     bpt::add_scalar(device, device.logger, "reward_function/action_weight", off_policy_runner.envs[0].parameters.mdp.reward.action);
                     bpt::add_scalar(device, device.logger, "reward_function/angular_acceleration_weight", off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
                 }

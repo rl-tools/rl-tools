@@ -370,7 +370,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             1, // scale
             1, // constant
             0, // termination penalty
-            10, // position
+            5, // position
             0, // orientation
             0, // linear_velocity
             0, // angular_velocity
