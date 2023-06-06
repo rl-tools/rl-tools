@@ -12,12 +12,23 @@ namespace backprop_tools::rl::environments::multirotor::parameters::init{
     constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization all_around = {
             0.1, // guidance
             0.3, // position
-            1,   // orientation
+            3.14,   // orientation
             1,   // linear velocity
             10,  // angular velocity
             true,// relative rpm
             -1,  // min rpm
             +1,  // max rpm
+    };
+    template<typename T, typename TI, TI ACTION_DIM, typename REWARD_FUNCTION>
+    constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization all_around_2 = {
+            0.1, // guidance
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_POSITION,   // position
+            3.14,   // orientation
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_LINEAR_VELOCITY,   // linear velocity
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_ANGULAR_VELOCITY,   // angular velocity
+            true,// relative rpm
+            -0,  // min rpm
+            +0,  // max rpm
     };
     template<typename T, typename TI, TI ACTION_DIM, typename REWARD_FUNCTION>
     constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization orientation_all_around = {
