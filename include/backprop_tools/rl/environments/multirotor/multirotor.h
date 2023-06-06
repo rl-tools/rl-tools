@@ -71,6 +71,7 @@ namespace backprop_tools::rl::environments::multirotor{
                 T std;
             };
             UnivariateGaussian random_force;
+            UnivariateGaussian random_torque;
         };
         Disturbances disturbances;
     };
@@ -129,8 +130,9 @@ namespace backprop_tools::rl::environments::multirotor{
 
     template <typename T, typename TI>
     struct StateLatentRandomForce {
-        static constexpr TI DIM = 3;
+        static constexpr TI DIM = 6;
         T force[3];
+        T torque[3];
     };
 
     template <typename T, typename TI, typename T_LATENT_STATE>

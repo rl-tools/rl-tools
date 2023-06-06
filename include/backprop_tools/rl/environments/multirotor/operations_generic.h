@@ -21,6 +21,9 @@ namespace backprop_tools{
         out.force[0] = scalar * state.force[0];
         out.force[1] = scalar * state.force[1];
         out.force[2] = scalar * state.force[2];
+        out.torque[0] = scalar * state.torque[0];
+        out.torque[1] = scalar * state.torque[1];
+        out.torque[2] = scalar * state.torque[2];
     }
     template<typename DEVICE, typename T, typename TI, typename T2, typename LATENT_STATE>
     static void scalar_multiply(DEVICE& device, const typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& state, T2 scalar, typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& out){
@@ -55,6 +58,9 @@ namespace backprop_tools{
         out.force[0] += scalar * state.force[0];
         out.force[1] += scalar * state.force[1];
         out.force[2] += scalar * state.force[2];
+        out.torque[0] += scalar * state.torque[0];
+        out.torque[1] += scalar * state.torque[1];
+        out.torque[2] += scalar * state.torque[2];
     }
     template<typename DEVICE, typename T, typename TI, typename T2, typename LATENT_STATE>
     static void scalar_multiply_accumulate(DEVICE& device, const typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& state, T2 scalar, typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& out){
@@ -81,6 +87,9 @@ namespace backprop_tools{
         out.force[0] = s1.force[0] + s2.force[0];
         out.force[1] = s1.force[1] + s2.force[1];
         out.force[2] = s1.force[2] + s2.force[2];
+        out.torque[0] = s1.torque[0] + s2.torque[0];
+        out.torque[1] = s1.torque[1] + s2.torque[1];
+        out.torque[2] = s1.torque[2] + s2.torque[2];
     }
     template<typename DEVICE, typename T, typename TI, typename LATENT_STATE>
     static void add_accumulate(DEVICE& device, const typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& s1, const typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& s2, typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& out){
@@ -122,9 +131,17 @@ namespace backprop_tools::rl::environments::multirotor {
         state_change.linear_velocity[1] += state.force[1] / params.dynamics.mass;
         state_change.linear_velocity[2] += state.force[2] / params.dynamics.mass;
 
+        T angular_acceleration[3];
+
+        utils::vector_operations::matrix_vector_product<DEVICE, T, 3, 3>(params.dynamics.J_inv, state.torque, angular_acceleration);
+        utils::vector_operations::add_accumulate<DEVICE, T, 3>(angular_acceleration, state_change.angular_velocity);
+
         state_change.force[0] = 0;
         state_change.force[1] = 0;
         state_change.force[2] = 0;
+        state_change.torque[0] = 0;
+        state_change.torque[1] = 0;
+        state_change.torque[2] = 0;
     }
     template<typename DEVICE, typename T, typename TI, typename LATENT_STATE, typename PARAMETERS>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(
@@ -245,6 +262,9 @@ namespace backprop_tools{
         state.force[0] = 0;
         state.force[1] = 0;
         state.force[2] = 0;
+        state.torque[0] = 0;
+        state.torque[1] = 0;
+        state.torque[2] = 0;
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename LATENT_STATE>
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& state){
@@ -289,10 +309,19 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateLatentRandomForce<T_S, TI_S>& state, RNG& rng){
         typename DEVICE::SPEC::RANDOM random_dev;
         using T = typename SPEC::T;
-        auto distribution = env.parameters.disturbances.random_force;
-        state.force[0] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-        state.force[1] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-        state.force[2] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+        {
+            auto distribution = env.parameters.disturbances.random_force;
+            state.force[0] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.force[1] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.force[2] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+        }
+        {
+            auto distribution = env.parameters.disturbances.random_torque;
+            state.torque[0] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.torque[1] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.torque[2] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+        }
+
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename RNG, typename LATENT_STATE>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& state, RNG& rng){
@@ -475,9 +504,10 @@ namespace backprop_tools{
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename OBS_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateLatentRandomForce<T, TI>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-        static_assert(OBS_SPEC::COLS == 3);
+        static_assert(OBS_SPEC::COLS == 6);
         for(TI i = 0; i < 3; i++){
-            set(observation, 0, i, state.force[i]);
+            set(observation, 0, 0 + i, state.force[i]);
+            set(observation, 0, 3 + i, state.torque[i]);
         }
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC, typename OBS_SPEC, typename LATENT_STATE, typename RNG>
@@ -563,6 +593,9 @@ namespace backprop_tools{
         next_state.force[0] = state.force[0];
         next_state.force[1] = state.force[1];
         next_state.force[2] = state.force[2];
+        next_state.torque[0] = state.torque[0];
+        next_state.torque[1] = state.torque[1];
+        next_state.torque[2] = state.torque[2];
     }
     // todo: make state const again
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
