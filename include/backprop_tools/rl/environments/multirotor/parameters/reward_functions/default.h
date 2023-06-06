@@ -145,6 +145,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 
     template<typename T>
     constexpr SqExp<T> sq_exp_position_action_only_2 = {
+            0, // additive_constant
             1, // scale
             10, // scale inner
             1, // position
@@ -159,6 +160,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 
     template<typename T>
     constexpr SqExp<T> sq_exp_position_action_only_3 = {
+            0, // additive_constant
             1, // scale
             5, // scale inner
             1, // position
@@ -166,14 +168,15 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0, // linear velocity
             0, // angular velocity
             0, // linear acceleration
-            0, // angular acceleration
+            1/250.0*0.02, // angular acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
-            0.02 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
+            0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
     };
 
     template<typename T, typename TI>
     constexpr SqExpMultiModal<T, TI, 2> sq_exp_reward_mm = {
             SqExp<T>{
+                    0, // additive_constant
                     1, // scale
                     5, // scale inner
                     2, // position
@@ -186,6 +189,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
                     1 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
             },
             SqExp<T>{
+                    0, // additive_constant
                     1, // scale
                     5, // scale inner
                     1, // position
@@ -359,6 +363,21 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0, // angular_acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
             1, // action
+    };
+    template<typename T>
+    constexpr Squared<T> reward_squared_position_only = {
+            false, // non-negative
+            1, // scale
+            1, // constant
+            0, // termination penalty
+            5, // position
+            0, // orientation
+            0, // linear_velocity
+            0, // angular_velocity
+            0, // linear_acceleration
+            0, // angular_acceleration
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
+            0, // action
     };
 }
 #endif

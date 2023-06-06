@@ -25,22 +25,16 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::Squared<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
-//        T q_sq = state.state[3] * state.state[3] + state.state[4] * state.state[4] + state.state[5] * state.state[5] + state.state[6] * state.state[6];
         T orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
-        T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.position);
-        position_cost *= position_cost;
-        T linear_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.linear_velocity);
-        linear_vel_cost *= linear_vel_cost;
-        T angular_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.angular_velocity);
-        angular_vel_cost *= angular_vel_cost;
+        T position_cost = state.position[0] * state.position[0] + state.position[1] * state.position[1] + state.position[2] * state.position[2];
+        T linear_vel_cost = state.linear_velocity[0] * state.linear_velocity[0] + state.linear_velocity[1] * state.linear_velocity[1] + state.linear_velocity[2] * state.linear_velocity[2];
+        T angular_vel_cost = state.angular_velocity[0] * state.angular_velocity[0] + state.angular_velocity[1] * state.angular_velocity[1] + state.angular_velocity[2] * state.angular_velocity[2];
         T linear_acc[3];
-        utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
-        T linear_acc_cost = utils::vector_operations::norm<DEVICE, T, 3>(linear_acc) / env.parameters.integration.dt;
-        linear_acc_cost *= linear_acc_cost;
         T angular_acc[3];
+        utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
+        T linear_acc_cost = (linear_acc[0] * linear_acc[0] + linear_acc[1] * linear_acc[1] + linear_acc[2] * linear_acc[2]) / (env.parameters.integration.dt * env.parameters.integration.dt);
         utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
-        T angular_acc_cost = utils::vector_operations::norm<DEVICE, T, 3>(angular_acc) / env.parameters.integration.dt;
-        angular_acc_cost *= angular_acc_cost;
+        T angular_acc_cost = (angular_acc[0] * angular_acc[0] + angular_acc[1] * angular_acc[1] + angular_acc[2] * angular_acc[2]) / (env.parameters.integration.dt * env.parameters.integration.dt);
 
         T action_diff[ACTION_DIM];
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, utils::vector_operations::mean<DEVICE, T, ACTION_DIM>(action), action_diff);
@@ -50,7 +44,20 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, params.action_baseline, action_diff);
         T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         action_cost *= action_cost;
-        T weighted_abs_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.linear_acceleration * linear_acc_cost + params.angular_acceleration * angular_acc_cost + params.action * action_cost;
+        T weighted_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.linear_acceleration * linear_acc_cost + params.angular_acceleration * angular_acc_cost + params.action * action_cost;
+        bool terminated_flag = terminated(device, env, next_state, rng);
+        T scaled_weighted_cost = params.scale * weighted_cost;
+
+        T r;
+
+        if(terminated_flag){
+            r = params.termination_penalty;
+        }
+        else{
+            r = -scaled_weighted_cost + params.constant;
+            r = (r > 0 || !params.non_negative) ? r : 0;
+        }
+
         constexpr TI cadence = 991;
         {
             add_scalar(device, device.logger, "reward/orientation_cost", orientation_cost, cadence);
@@ -60,7 +67,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             add_scalar(device, device.logger, "reward/linear_acc_cost", linear_acc_cost, cadence);
             add_scalar(device, device.logger, "reward/angular_acc_cost", angular_acc_cost, cadence);
             add_scalar(device, device.logger, "reward/action_cost", action_cost, cadence);
-            add_scalar(device, device.logger, "reward/pre_exp", -weighted_abs_cost, cadence);
+            add_scalar(device, device.logger, "reward/pre_exp", -weighted_cost, cadence);
 
             add_scalar(device, device.logger, "reward_weighted/orientation_cost", params.orientation * orientation_cost, cadence);
             add_scalar(device, device.logger, "reward_weighted/position_cost", params.position * position_cost, cadence);
@@ -70,28 +77,20 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             add_scalar(device, device.logger, "reward_weighted/angular_acc_cost", params.angular_acceleration * angular_acc_cost, cadence);
             add_scalar(device, device.logger, "reward_weighted/action_cost", params.action * action_cost, cadence);
             // log share of the weighted abs cost
-            add_scalar(device, device.logger, "reward_share/orientation", params.orientation * orientation_cost / weighted_abs_cost, cadence);
-            add_scalar(device, device.logger, "reward_share/position", params.position * position_cost / weighted_abs_cost, cadence);
-            add_scalar(device, device.logger, "reward_share/linear_vel", params.linear_velocity * linear_vel_cost / weighted_abs_cost, cadence);
-            add_scalar(device, device.logger, "reward_share/angular_vel", params.angular_velocity * angular_vel_cost / weighted_abs_cost, cadence);
-            add_scalar(device, device.logger, "reward_share/linear_acc", params.linear_acceleration * linear_acc_cost / weighted_abs_cost, cadence);
-            add_scalar(device, device.logger, "reward_share/angular_acc", params.angular_acceleration * angular_acc_cost / weighted_abs_cost, cadence);
-            add_scalar(device, device.logger, "reward_share/action", params.action * action_cost / weighted_abs_cost, cadence);
-        }
-        add_scalar(device, device.logger, "reward/weighted_abs_cost", weighted_abs_cost, cadence);
-        T scaled_weighted_abs_cost = params.scale * weighted_abs_cost;
-        add_scalar(device, device.logger, "reward/scaled_weighted_abs_cost", scaled_weighted_abs_cost, cadence);
+            add_scalar(device, device.logger, "reward_share/orientation", params.orientation * orientation_cost / weighted_cost, cadence);
+            add_scalar(device, device.logger, "reward_share/position", params.position * position_cost / weighted_cost, cadence);
+            add_scalar(device, device.logger, "reward_share/linear_vel", params.linear_velocity * linear_vel_cost / weighted_cost, cadence);
+            add_scalar(device, device.logger, "reward_share/angular_vel", params.angular_velocity * angular_vel_cost / weighted_cost, cadence);
+            add_scalar(device, device.logger, "reward_share/linear_acc", params.linear_acceleration * linear_acc_cost / weighted_cost, cadence);
+            add_scalar(device, device.logger, "reward_share/angular_acc", params.angular_acceleration * angular_acc_cost / weighted_cost, cadence);
+            add_scalar(device, device.logger, "reward_share/action", params.action * action_cost / weighted_cost, cadence);
 
-        bool terminated_flag = terminated(device, env, next_state, rng);
-
-        if(terminated_flag){
-            return params.termination_penalty;
-        }
-        else{
-            T reward = -scaled_weighted_abs_cost + params.constant;
-            return reward > 0 || !params.non_negative ? reward : 0;
+            add_scalar(device, device.logger, "reward/weighted_cost", weighted_cost, cadence);
+            add_scalar(device, device.logger, "reward/scaled_weighted_cost", scaled_weighted_cost, cadence);
+            add_scalar(device, device.logger, "reward/reward", r, cadence);
         }
 
+        return r;
     }
 }
 

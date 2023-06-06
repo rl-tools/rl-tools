@@ -8,6 +8,7 @@
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{
     template<typename T>
     struct SqExp{
+        T additive_constant;
         T scale;
         T scale_inner;
         T position;
@@ -53,7 +54,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, params.action_baseline, action_diff);
         T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         T weighted_sq_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.linear_acceleration * linear_acc_cost + params.angular_acceleration * angular_acc_cost + params.action * action_cost;
-        T r = math::exp(typename DEVICE::SPEC::MATH(), -params.scale_inner*weighted_sq_cost);
+        T sq_exp = math::exp(typename DEVICE::SPEC::MATH(), -params.scale_inner*weighted_sq_cost);
+        T r = sq_exp * params.scale + params.additive_constant;
         constexpr TI cadence = 991;
         if(log_components){
             add_scalar(device, device.logger, "reward/orientation_cost", orientation_cost, cadence);
@@ -82,9 +84,11 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             add_scalar(device, device.logger, "reward_share/action", params.action * action_cost / weighted_sq_cost, cadence);
 
             add_scalar(device, device.logger, "reward/weighted_sq_cost", weighted_sq_cost, cadence);
+            add_scalar(device, device.logger, "reward/sq_exp", sq_exp, cadence);
+            add_scalar(device, device.logger, "reward/reward", r, cadence);
         }
 
-        return r * params.scale;
+        return r;
     }
     template<typename DEVICE, typename SPEC, typename T, typename ACTION_SPEC, typename TI, TI N_MODES, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::SqExpMultiModal<T, TI, N_MODES>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
