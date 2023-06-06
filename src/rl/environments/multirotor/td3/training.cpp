@@ -339,7 +339,7 @@ int main(){
                     for (auto& env : off_policy_runner.envs) {
                         DTYPE action_weight = env.parameters.mdp.reward.action;
                         action_weight *= 1.2;
-                        DTYPE action_weight_limit = 0.3;
+                        DTYPE action_weight_limit = 1.0;
                         action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
                         env.parameters.mdp.reward.action = action_weight;
                     }
