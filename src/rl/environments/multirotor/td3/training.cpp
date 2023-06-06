@@ -341,14 +341,14 @@ int main(){
                         {
                             DTYPE action_weight = env.parameters.mdp.reward.action;
                             action_weight *= 1.4;
-                            DTYPE action_weight_limit = 1.0;
+                            DTYPE action_weight_limit = 0.5;
                             action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
                             env.parameters.mdp.reward.action = action_weight;
                         }
                         {
                             DTYPE position_weight = env.parameters.mdp.reward.position;
                             position_weight *= 1.2;
-                            DTYPE position_weight_limit = 10;
+                            DTYPE position_weight_limit = 20;
                             position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
                             env.parameters.mdp.reward.position = position_weight;
                         }
