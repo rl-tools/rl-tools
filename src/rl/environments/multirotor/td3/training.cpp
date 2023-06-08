@@ -58,7 +58,7 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 constexpr TI NUM_RUNS = 1;
 constexpr TI BASE_SEED = 100 + ( JOB_ID );
 #else
-constexpr TI NUM_RUNS = 100;
+constexpr TI NUM_RUNS = 1;
 constexpr TI BASE_SEED = 500;
 #endif
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
@@ -76,7 +76,7 @@ constexpr bool ENABLE_ASSESSMENT = false;
 constexpr TI performance_logging_interval = 100;
 constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = false;
 constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 1000;
-constexpr bool ENABLE_EVALUATION = true;
+constexpr bool ENABLE_EVALUATION = false;
 constexpr TI EVALUATION_INTERVAL = 1000;
 
 using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<parameters_rl::ACTOR_STRUCTURE_SPEC>>;
