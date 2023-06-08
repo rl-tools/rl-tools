@@ -58,7 +58,7 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 constexpr TI NUM_RUNS = 1;
 constexpr TI BASE_SEED = 100 + ( JOB_ID );
 #else
-constexpr TI NUM_RUNS = 100;
+constexpr TI NUM_RUNS = 1;
 constexpr TI BASE_SEED = 500;
 #endif
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
@@ -76,7 +76,7 @@ constexpr bool ENABLE_ASSESSMENT = false;
 constexpr TI performance_logging_interval = 100;
 constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = false;
 constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 1000;
-constexpr bool ENABLE_EVALUATION = true;
+constexpr bool ENABLE_EVALUATION = false;
 constexpr TI EVALUATION_INTERVAL = 1000;
 
 using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<parameters_rl::ACTOR_STRUCTURE_SPEC>>;
@@ -105,6 +105,7 @@ int main(){
     std::vector<std::vector<DTYPE>> eval_stats_episode_lengths;
 
     for(typename DEVICE::index_t run_i = 0; run_i < NUM_RUNS; run_i++){
+        auto run_start_time = std::chrono::system_clock::now();
         TI seed = BASE_SEED + run_i;
         std::stringstream run_name_ss;
         run_name_ss << "multirotor_td3_" + std::to_string(seed);
@@ -561,6 +562,9 @@ int main(){
         bpt::free(device, actor_buffers[0]);
         bpt::free(device, actor_buffers[1]);
         bpt::free(device, actor_buffers_eval);
+
+        auto run_end_time = std::chrono::system_clock::now();
+        std::cout << "FINISHED in " << std::chrono::duration_cast<std::chrono::seconds>(run_end_time - run_start_time).count() << "s" << std::endl;
     }
 
 
@@ -574,6 +578,5 @@ int main(){
         group.createDataSet("eval_returns", eval_stats_returns[run_i]);
         group.createDataSet("eval_episode_lengths", eval_stats_episode_lengths[run_i]);
     }
-    std::cout << "FINISHED" << std::endl;
     return 0;
 }
