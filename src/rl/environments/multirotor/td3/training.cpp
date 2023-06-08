@@ -1,8 +1,8 @@
 #include <backprop_tools/operations/cpu_mux.h>
 
 namespace bpt = backprop_tools;
-//using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
-using LOGGING_DEVICE = bpt::devices::logging::CPU;
+using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
+//using LOGGING_DEVICE = bpt::devices::logging::CPU;
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGING_DEVICE>;
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
@@ -93,12 +93,13 @@ std::string sanitize_file_name(const std::string &input){
 
 int main(){
     std::string DATA_FILE_PATH = "learning_curves.h5";
-    std::vector<std::vector<DTYPE>> episode_step;
-    std::vector<std::vector<DTYPE>> episode_returns;
-    std::vector<std::vector<DTYPE>> episode_steps;
+    std::vector<std::vector<DTYPE>> training_stats_step;
+    std::vector<std::vector<DTYPE>> training_stats_returns;
+    std::vector<std::vector<DTYPE>> training_stats_episode_lengths;
 
-    std::vector<std::vector<DTYPE>> eval_step;
-    std::vector<std::vector<DTYPE>> eval_return;
+    std::vector<std::vector<DTYPE>> eval_stats_step;
+    std::vector<std::vector<DTYPE>> eval_stats_return;
+    std::vector<std::vector<DTYPE>> eval_stats_episode_lengths;
 
     for(typename DEVICE::index_t run_i = 0; run_i < NUM_RUNS; run_i++){
         TI seed = BASE_SEED + run_i;
@@ -117,24 +118,26 @@ int main(){
             oss << std::put_time(tm, "%FT%T%z");
             run_name = sanitize_file_name(oss.str()) + "_" + run_name;
         }
-        run_name = "latest";
+//        run_name = "latest";
         std::cout << "Run " << run_i << " of " << NUM_RUNS << " with seed " << seed << " and name " << run_name << std::endl;
         std::cout << "Checkpoints: " << (ACTOR_ENABLE_CHECKPOINTS ? "enabled" : "disabled") << std::endl;
         std::cout << "Observation dim: " << parameters_environment::ENVIRONMENT::OBSERVATION_DIM << " privileged: " << parameters_environment::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED << " action dim: " << parameters_environment::ENVIRONMENT::ACTION_DIM << std::endl;
 
-        episode_step.push_back({});
-        episode_returns.push_back({});
-        episode_steps.push_back({});
+        training_stats_step.push_back({});
+        training_stats_returns.push_back({});
+        training_stats_episode_lengths.push_back({});
 
-        eval_step.push_back({});
-        eval_return.push_back({});
+        eval_stats_step.push_back({});
+        eval_stats_return.push_back({});
+        eval_stats_episode_lengths.push_back({});
 
-        auto& run_episode_step = episode_step.back();
-        auto& run_episode_returns = episode_returns.back();
-        auto& run_episode_steps = episode_steps.back();
+        auto& run_training_stats_step            = training_stats_step.back();
+        auto& run_training_stats_returns         = training_stats_returns.back();
+        auto& run_training_stats_episode_lengths = training_stats_episode_lengths.back();
 
-        auto& run_eval_step = eval_step.back();
-        auto& run_eval_return = eval_return.back();
+        auto& run_eval_stats_step           = eval_stats_step.back();
+        auto& run_eval_stats_return         = eval_stats_return.back();
+        auto& run_eval_stats_episode_lengths = eval_stats_episode_lengths.back();
 
         auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
 
@@ -387,7 +390,7 @@ int main(){
 //                }
             }
             auto step_start = std::chrono::high_resolution_clock::now();
-//            device.logger->step = step_i;
+            bpt::set_step(device, device.logger, step_i);
             if (ENABLE_ASSESSMENT && step_i % ASSESSMENT_INTERVAL == 0){
                 full_assessment<DEVICE, ENVIRONMENT, parameters_rl::ACTOR_TYPE>(device, actor_critic.actor, parameters_environment::parameters, true);
             }
@@ -475,9 +478,9 @@ int main(){
                             bpt::add_scalar(device, device.logger, "episode/return", mean_return);
                             bpt::add_scalar(device, device.logger, "episode/return_per_step", mean_return/mean_steps);
                             bpt::add_scalar(device, device.logger, "episode/length", mean_steps);
-                            run_episode_step.push_back(step_i);
-                            run_episode_returns.push_back(mean_return);
-                            run_episode_steps.push_back(mean_steps);
+                            run_training_stats_step.push_back(step_i);
+                            run_training_stats_returns.push_back(mean_return);
+                            run_training_stats_episode_lengths.push_back(mean_steps);
                         }
                     }
                 }
@@ -486,12 +489,15 @@ int main(){
             auto step_end = std::chrono::high_resolution_clock::now();
             bpt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % 10000 == 0){
-                auto results = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, false);
-                std::cout << "Mean return: " << results.mean << std::endl;
-                run_eval_step.push_back(step_i);
-                run_eval_return.push_back(results.mean);
-                bpt::add_scalar(device, device.logger, "evaluation/return_mean", results.mean);
-                bpt::add_scalar(device, device.logger, "evaluation/return_std", results.std);
+                auto results = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, true);
+                std::cout << "Mean return: " << results.returns_mean << std::endl;
+                run_eval_stats_step.push_back(step_i);
+                run_eval_stats_return.push_back(results.returns_mean);
+                run_eval_stats_episode_lengths.push_back(results.episode_length_mean);
+                bpt::add_scalar(device, device.logger, "evaluation/return_mean", results.returns_mean);
+                bpt::add_scalar(device, device.logger, "evaluation/return_std", results.returns_std);
+                bpt::add_scalar(device, device.logger, "evaluation/episode_length_mean", results.episode_length_mean);
+                bpt::add_scalar(device, device.logger, "evaluation/episode_length_std", results.episode_length_std);
 
 //            if(step_i > 250000){
 //                ASSERT_GT(mean_return, 1000);
@@ -554,13 +560,14 @@ int main(){
 
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
-    for(typename DEVICE::index_t run_i = 0; run_i < episode_step.size(); run_i++){
+    for(typename DEVICE::index_t run_i = 0; run_i < training_stats_step.size(); run_i++){
         auto group = data_file.createGroup(std::to_string(run_i));
-        group.createDataSet("episode_step", episode_step[run_i]);
-        group.createDataSet("episode_returns", episode_returns[run_i]);
-        group.createDataSet("episode_steps", episode_steps[run_i]);
-        group.createDataSet("eval_step", eval_step[run_i]);
-        group.createDataSet("eval_return", eval_return[run_i]);
+        group.createDataSet("episode_step", training_stats_step[run_i]);
+        group.createDataSet("episode_returns", training_stats_returns[run_i]);
+        group.createDataSet("episode_lengths", training_stats_episode_lengths[run_i]);
+        group.createDataSet("eval_step", eval_stats_step[run_i]);
+        group.createDataSet("eval_return", eval_stats_return[run_i]);
+        group.createDataSet("eval_episode_lengths", eval_stats_episode_lengths[run_i]);
     }
     std::cout << "FINISHED" << std::endl;
     return 0;

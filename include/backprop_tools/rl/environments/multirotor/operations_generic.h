@@ -289,7 +289,7 @@ namespace backprop_tools{
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBaseRotors<T, TI, LATENT_STATE>& state){
         initial_state(device, env, (rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>&)state);
         for(typename DEVICE::index_t i = 0; i < 4; i++){
-            state.rpm[i] = 0;
+            state.rpm[i] = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2 + env.parameters.dynamics.action_limit.min;
         }
     }
     template<typename DEVICE, typename T, typename TI_H, TI_H HISTORY_LENGTH, typename SPEC, typename LATENT_STATE>
@@ -299,7 +299,7 @@ namespace backprop_tools{
         initial_state(device, env, (rl::environments::multirotor::StateBaseRotors<T, TI, LATENT_STATE>&)state);
         for(TI step_i = 0; step_i < HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-                state.action_history[step_i][action_i] = -1;
+                state.action_history[step_i][action_i] = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min) / (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) * 2 - 1;
             }
         }
     }

@@ -8,9 +8,11 @@
 #include <backprop_tools/math/operations_generic.h>
 
 namespace backprop_tools::rl::utils::evaluation{
-    template <typename T, typename ENV_STATE>
+    template <typename T, typename TI, typename ENV_STATE>
     struct State{
         T episode_return = 0;
+        TI episode_step = 0;
+
         ENV_STATE state;
     };
     template <auto T_N_EPISODES, auto T_STEP_LIMIT>
@@ -18,12 +20,15 @@ namespace backprop_tools::rl::utils::evaluation{
         constexpr static auto N_EPISODES = T_N_EPISODES;
         constexpr static auto STEP_LIMIT = T_STEP_LIMIT;
     };
-    template <typename T, auto T_N_EPISODES>
+    template <typename T, typename TI, auto T_N_EPISODES>
     struct Result{
         constexpr static auto N_EPISODES = T_N_EPISODES;
         T returns[N_EPISODES];
-        T mean;
-        T std;
+        T returns_mean;
+        T returns_std;
+        TI episode_length[N_EPISODES];
+        T episode_length_mean;
+        T episode_length_std;
     };
 }
 
@@ -63,6 +68,7 @@ namespace backprop_tools {
         T r = reward(device, env, state, action, next_state, rng);
         state = next_state;
         eval_state.episode_return += r;
+        eval_state.episode_step += 1;
         eval_state.state = state;
         free(device, observation);
         free(device, observation_normalized);
@@ -70,27 +76,31 @@ namespace backprop_tools {
         return terminated(device, env, state, rng);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename RNG>
-    typename POLICY::T evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG& rng) {
+    rl::utils::evaluation::State<typename POLICY::T, typename DEVICE::index_t, typename ENVIRONMENT::State> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
-        rl::utils::evaluation::State<T, typename ENVIRONMENT::State> state;
+        rl::utils::evaluation::State<T, TI, typename ENVIRONMENT::State> state;
         state.state = initial_state;
+        state.episode_return = 0;
+        state.episode_step = 0;
         for (TI i = 0; i < SPEC::STEP_LIMIT; i++) {
             if(evaluate_step(device, env, ui, policy, state, observation_mean, observation_std, rng)){
                 break;
             }
         }
-        return state.episode_return;
+        return state;
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC>
-    rl::utils::evaluation::Result<typename POLICY::T, SPEC::N_EPISODES> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG &rng, bool deterministic = false){
+    rl::utils::evaluation::Result<typename POLICY::T, typename DEVICE::index_t, SPEC::N_EPISODES> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM, "Action and policy output dimensions must match");
-        rl::utils::evaluation::Result<T, SPEC::N_EPISODES> results;
-        results.mean = 0;
-        results.std = 0;
+        rl::utils::evaluation::Result<T, TI, SPEC::N_EPISODES> results;
+        results.returns_mean = 0;
+        results.returns_std = 0;
+        results.episode_length_mean = 0;
+        results.episode_length_std = 0;
         for(TI i = 0; i < SPEC::N_EPISODES; i++) {
             typename ENVIRONMENT::State initial_state;
             if(deterministic) {
@@ -99,13 +109,18 @@ namespace backprop_tools {
             else{
                 sample_initial_state(device, env, initial_state, rng);
             }
-            T r = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, observation_mean, observation_std, rng);
-            results.returns[i] = r;
-            results.mean += r;
-            results.std += r*r;
+            auto final_state = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, observation_mean, observation_std, rng);
+            results.returns[i] = final_state.episode_return;
+            results.returns_mean += final_state.episode_return;
+            results.returns_std += final_state.episode_return*final_state.episode_return;
+            results.episode_length[i] = final_state.episode_step;
+            results.episode_length_mean += final_state.episode_step;
+            results.episode_length_std += final_state.episode_step*final_state.episode_step;
         }
-        results.mean /= SPEC::N_EPISODES;
-        results.std = math::sqrt(typename DEVICE::SPEC::MATH(), results.std/SPEC::N_EPISODES - results.mean*results.mean);
+        results.returns_mean /= SPEC::N_EPISODES;
+        results.returns_std = math::sqrt(typename DEVICE::SPEC::MATH(), results.returns_std/SPEC::N_EPISODES - results.returns_mean*results.returns_mean);
+        results.episode_length_mean /= SPEC::N_EPISODES;
+        results.episode_length_std = math::sqrt(typename DEVICE::SPEC::MATH(), results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean);
         return results;
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC>
