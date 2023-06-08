@@ -58,7 +58,7 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 constexpr TI NUM_RUNS = 1;
 constexpr TI BASE_SEED = 100 + ( JOB_ID );
 #else
-constexpr TI NUM_RUNS = 1;
+constexpr TI NUM_RUNS = 100;
 constexpr TI BASE_SEED = 500;
 #endif
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
