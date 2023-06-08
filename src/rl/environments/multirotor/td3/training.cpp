@@ -1,8 +1,8 @@
 #include <backprop_tools/operations/cpu_mux.h>
 
 namespace bpt = backprop_tools;
-using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
-//using LOGGING_DEVICE = bpt::devices::logging::CPU;
+//using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
+using LOGGING_DEVICE = bpt::devices::logging::CPU;
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGING_DEVICE>;
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
@@ -58,15 +58,15 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 constexpr TI NUM_RUNS = 1;
 constexpr TI BASE_SEED = 100 + ( JOB_ID );
 #else
-constexpr TI NUM_RUNS = 10;
-constexpr TI BASE_SEED = 600;
+constexpr TI NUM_RUNS = 100;
+constexpr TI BASE_SEED = 500;
 #endif
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
 constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
 #else
 constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
 #endif
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50000;
 constexpr TI ASSESSMENT_INTERVAL = 100000;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
@@ -74,7 +74,9 @@ const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
 constexpr bool SAVE_REPLAY_BUFFER = false;
 constexpr bool ENABLE_ASSESSMENT = false;
 constexpr TI performance_logging_interval = 100;
+constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = false;
 constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 1000;
+constexpr bool ENABLE_EVALUATION = true;
 constexpr TI EVALUATION_INTERVAL = 1000;
 
 using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<parameters_rl::ACTOR_STRUCTURE_SPEC>>;
@@ -316,8 +318,8 @@ int main(){
                 }
 #endif
             }
-            if(step_i % EVALUATION_INTERVAL == 0){
-                auto results = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, true);
+            if(ENABLE_EVALUATION && step_i % EVALUATION_INTERVAL == 0){
+                auto results = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, true);
                 std::cout << "Mean return: " << results.returns_mean << std::endl;
                 run_eval_stats_step.push_back(step_i);
                 run_eval_stats_returns.push_back(results.returns_mean);
@@ -331,7 +333,7 @@ int main(){
 //                ASSERT_GT(mean_return, 1000);
 //            }
             }
-            if(step_i % ACTOR_CRITIC_EVALUATION_INTERVAL == 0){
+            if(ENABLE_ACTOR_CRITIC_EVALUATION && step_i % ACTOR_CRITIC_EVALUATION_INTERVAL == 0){
                 if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                     bpt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
                     DTYPE critic_1_loss = bpt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0]);
