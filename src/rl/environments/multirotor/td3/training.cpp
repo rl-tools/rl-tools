@@ -1,8 +1,8 @@
 #include <backprop_tools/operations/cpu_mux.h>
 
 namespace bpt = backprop_tools;
-//using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
-using LOGGING_DEVICE = bpt::devices::logging::CPU;
+using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
+//using LOGGING_DEVICE = bpt::devices::logging::CPU;
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGING_DEVICE>;
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
@@ -58,7 +58,7 @@ static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE
 constexpr TI NUM_RUNS = 1;
 constexpr TI BASE_SEED = 100 + ( JOB_ID );
 #else
-constexpr TI NUM_RUNS = 1;
+constexpr TI NUM_RUNS = 20;
 constexpr TI BASE_SEED = 500;
 #endif
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
@@ -66,18 +66,18 @@ constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 500
 #else
 constexpr DEVICE::index_t step_limit = parameters_rl::REPLAY_BUFFER_CAP;
 #endif
-constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
+constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 50000;
 constexpr TI ASSESSMENT_INTERVAL = 100000;
+constexpr bool ENABLE_ASSESSMENT = false;
 constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
 constexpr bool SAVE_REPLAY_BUFFER = false;
-constexpr bool ENABLE_ASSESSMENT = false;
-constexpr TI performance_logging_interval = 100;
-constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = false;
-constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 1000;
-constexpr bool ENABLE_EVALUATION = false;
-constexpr TI EVALUATION_INTERVAL = 1000;
+constexpr TI performance_logging_interval = 10000;
+constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = true;
+constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 199;
+constexpr bool ENABLE_EVALUATION = true;
+constexpr TI EVALUATION_INTERVAL = 10000;
 
 using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<parameters_rl::ACTOR_STRUCTURE_SPEC>>;
 

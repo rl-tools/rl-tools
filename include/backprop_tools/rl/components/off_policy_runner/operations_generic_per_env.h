@@ -13,7 +13,7 @@ namespace backprop_tools::rl::components::off_policy_runner{
         auto& state = get(runner->states, 0, env_i);
         static_assert(!SPEC::COLLECT_EPISODE_STATS || SPEC::EPISODE_STATS_BUFFER_SIZE > 1);
         if (get(runner->truncated, 0, env_i)){
-            if(SPEC::COLLECT_EPISODE_STATS){
+            if constexpr(SPEC::COLLECT_EPISODE_STATS){
                 // todo: the first episode is always zero steps and zero return because the initialization is done by setting truncated to true
                 auto& episode_stats = runner->episode_stats[env_i];
                 TI next_episode_i = episode_stats.next_episode_i;
