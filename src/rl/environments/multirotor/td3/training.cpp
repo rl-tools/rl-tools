@@ -54,13 +54,11 @@ using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
 using parameters_rl = parameter_set::rl<DTYPE, TI, ENVIRONMENT>;
 static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-constexpr TI performance_logging_interval = 100;
-constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
 #if defined(ENABLE_MULTI_CONFIG)
 constexpr TI NUM_RUNS = 1;
 constexpr TI BASE_SEED = 100 + ( JOB_ID );
 #else
-constexpr TI NUM_RUNS = 1;
+constexpr TI NUM_RUNS = 10;
 constexpr TI BASE_SEED = 600;
 #endif
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
@@ -75,6 +73,9 @@ constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
 constexpr bool SAVE_REPLAY_BUFFER = false;
 constexpr bool ENABLE_ASSESSMENT = false;
+constexpr TI performance_logging_interval = 100;
+constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 1000;
+constexpr TI EVALUATION_INTERVAL = 1000;
 
 using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<parameters_rl::ACTOR_STRUCTURE_SPEC>>;
 
@@ -98,7 +99,7 @@ int main(){
     std::vector<std::vector<DTYPE>> training_stats_episode_lengths;
 
     std::vector<std::vector<DTYPE>> eval_stats_step;
-    std::vector<std::vector<DTYPE>> eval_stats_return;
+    std::vector<std::vector<DTYPE>> eval_stats_returns;
     std::vector<std::vector<DTYPE>> eval_stats_episode_lengths;
 
     for(typename DEVICE::index_t run_i = 0; run_i < NUM_RUNS; run_i++){
@@ -128,15 +129,15 @@ int main(){
         training_stats_episode_lengths.push_back({});
 
         eval_stats_step.push_back({});
-        eval_stats_return.push_back({});
+        eval_stats_returns.push_back({});
         eval_stats_episode_lengths.push_back({});
 
         auto& run_training_stats_step            = training_stats_step.back();
         auto& run_training_stats_returns         = training_stats_returns.back();
         auto& run_training_stats_episode_lengths = training_stats_episode_lengths.back();
 
-        auto& run_eval_stats_step           = eval_stats_step.back();
-        auto& run_eval_stats_return         = eval_stats_return.back();
+        auto& run_eval_stats_step            = eval_stats_step.back();
+        auto& run_eval_stats_returns         = eval_stats_returns.back();
         auto& run_eval_stats_episode_lengths = eval_stats_episode_lengths.back();
 
         auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
@@ -315,6 +316,62 @@ int main(){
                 }
 #endif
             }
+            if(step_i % EVALUATION_INTERVAL == 0){
+                auto results = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, true);
+                std::cout << "Mean return: " << results.returns_mean << std::endl;
+                run_eval_stats_step.push_back(step_i);
+                run_eval_stats_returns.push_back(results.returns_mean);
+                run_eval_stats_episode_lengths.push_back(results.episode_length_mean);
+                bpt::add_scalar(device, device.logger, "evaluation/return_mean", results.returns_mean);
+                bpt::add_scalar(device, device.logger, "evaluation/return_std", results.returns_std);
+                bpt::add_scalar(device, device.logger, "evaluation/episode_length_mean", results.episode_length_mean);
+                bpt::add_scalar(device, device.logger, "evaluation/episode_length_std", results.episode_length_std);
+
+//            if(step_i > 250000){
+//                ASSERT_GT(mean_return, 1000);
+//            }
+            }
+            if(step_i % ACTOR_CRITIC_EVALUATION_INTERVAL == 0){
+                if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
+                    bpt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
+                    DTYPE critic_1_loss = bpt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0]);
+                    bpt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
+
+                    bpt::gather_batch(device, off_policy_runner, actor_batch, rng);
+                    // this is undefined (takes the state action value of the previous step (there should be some evaluate() on the collected batch
+                    DTYPE actor_value = bpt::mean(device, actor_training_buffers.state_action_value);
+                    bpt::add_scalar(device, device.logger, "actor_value", actor_value, 100);
+                }
+
+                {
+                    typename DEVICE::index_t num_episodes = 0;
+                    DTYPE mean_return = 0;
+                    DTYPE mean_steps = 0;
+
+                    for(typename DEVICE::index_t env_i = 0; env_i < parameters_rl::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; env_i++){
+                        auto& episode_stats = off_policy_runner.episode_stats[env_i];
+                        if(episode_stats.next_episode_i > 0){
+                            for(typename DEVICE::index_t episode_i = 0; episode_i < episode_stats.next_episode_i - 1; episode_i++){
+                                mean_return += get(episode_stats.returns, episode_i, 0);
+                                mean_steps  += get(episode_stats.steps  , episode_i, 0);
+                                num_episodes++;
+                            }
+                            episode_stats.next_episode_i = 1;
+                        }
+                    }
+                    if(num_episodes > 0){
+                        mean_return /= num_episodes;
+                        mean_steps /= num_episodes;
+
+                        bpt::add_scalar(device, device.logger, "episode/return", mean_return);
+                        bpt::add_scalar(device, device.logger, "episode/return_per_step", mean_return/mean_steps);
+                        bpt::add_scalar(device, device.logger, "episode/length", mean_steps);
+                        run_training_stats_step.push_back(step_i);
+                        run_training_stats_returns.push_back(mean_return);
+                        run_training_stats_episode_lengths.push_back(mean_steps);
+                    }
+                }
+            }
             if(step_i != 0 && step_i % 100000 == 0){
 //                constexpr DTYPE decay = 0.96;
                 constexpr DTYPE decay = 0.75;
@@ -445,64 +502,10 @@ int main(){
                         bpt::update_actor_target(device, actor_critic);
                     }
                 }
-                if(step_i % ACTOR_CRITIC_EVALUATION_INTERVAL == 0){
-                    bpt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
-                    DTYPE critic_1_loss = bpt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0]);
-                    bpt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
-
-                    bpt::gather_batch(device, off_policy_runner, actor_batch, rng);
-                    // this is undefined (takes the state action value of the previous step (there should be some evaluate() on the collected batch
-                    DTYPE actor_value = bpt::mean(device, actor_training_buffers.state_action_value);
-                    bpt::add_scalar(device, device.logger, "actor_value", actor_value, 100);
-
-                    {
-                        typename DEVICE::index_t num_episodes = 0;
-                        DTYPE mean_return = 0;
-                        DTYPE mean_steps = 0;
-
-                        for(typename DEVICE::index_t env_i = 0; env_i < parameters_rl::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; env_i++){
-                            auto& episode_stats = off_policy_runner.episode_stats[env_i];
-                            if(episode_stats.next_episode_i > 0){
-                                for(typename DEVICE::index_t episode_i = 0; episode_i < episode_stats.next_episode_i - 1; episode_i++){
-                                    mean_return += get(episode_stats.returns, episode_i, 0);
-                                    mean_steps  += get(episode_stats.steps  , episode_i, 0);
-                                    num_episodes++;
-                                }
-                                episode_stats.next_episode_i = 1;
-                            }
-                        }
-                        if(num_episodes > 0){
-                            mean_return /= num_episodes;
-                            mean_steps /= num_episodes;
-
-                            bpt::add_scalar(device, device.logger, "episode/return", mean_return);
-                            bpt::add_scalar(device, device.logger, "episode/return_per_step", mean_return/mean_steps);
-                            bpt::add_scalar(device, device.logger, "episode/length", mean_steps);
-                            run_training_stats_step.push_back(step_i);
-                            run_training_stats_returns.push_back(mean_return);
-                            run_training_stats_episode_lengths.push_back(mean_steps);
-                        }
-                    }
-                }
             }
 
             auto step_end = std::chrono::high_resolution_clock::now();
             bpt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
-            if(step_i % 10000 == 0){
-                auto results = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), rng, true);
-                std::cout << "Mean return: " << results.returns_mean << std::endl;
-                run_eval_stats_step.push_back(step_i);
-                run_eval_stats_return.push_back(results.returns_mean);
-                run_eval_stats_episode_lengths.push_back(results.episode_length_mean);
-                bpt::add_scalar(device, device.logger, "evaluation/return_mean", results.returns_mean);
-                bpt::add_scalar(device, device.logger, "evaluation/return_std", results.returns_std);
-                bpt::add_scalar(device, device.logger, "evaluation/episode_length_mean", results.episode_length_mean);
-                bpt::add_scalar(device, device.logger, "evaluation/episode_length_std", results.episode_length_std);
-
-//            if(step_i > 250000){
-//                ASSERT_GT(mean_return, 1000);
-//            }
-            }
         }
         // 300000 steps: 28s on M1
         std::filesystem::path data_output_dir = "data_test";
@@ -566,7 +569,7 @@ int main(){
         group.createDataSet("episode_returns", training_stats_returns[run_i]);
         group.createDataSet("episode_lengths", training_stats_episode_lengths[run_i]);
         group.createDataSet("eval_step", eval_stats_step[run_i]);
-        group.createDataSet("eval_return", eval_stats_return[run_i]);
+        group.createDataSet("eval_returns", eval_stats_returns[run_i]);
         group.createDataSet("eval_episode_lengths", eval_stats_episode_lengths[run_i]);
     }
     std::cout << "FINISHED" << std::endl;
