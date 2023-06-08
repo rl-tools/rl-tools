@@ -1,7 +1,9 @@
 #include <backprop_tools/operations/cpu_mux.h>
 
 namespace bpt = backprop_tools;
-using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
+//using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
+using LOGGING_DEVICE = bpt::devices::logging::CPU;
+using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGING_DEVICE>;
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 #include <backprop_tools/nn/operations_cpu_mkl.h>
@@ -58,8 +60,8 @@ constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 100;
 constexpr TI NUM_RUNS = 1;
 constexpr TI BASE_SEED = 100 + ( JOB_ID );
 #else
-constexpr TI NUM_RUNS = 100;
-constexpr TI BASE_SEED = 500;
+constexpr TI NUM_RUNS = 1;
+constexpr TI BASE_SEED = 600;
 #endif
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
 constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
@@ -115,6 +117,7 @@ int main(){
             oss << std::put_time(tm, "%FT%T%z");
             run_name = sanitize_file_name(oss.str()) + "_" + run_name;
         }
+        run_name = "latest";
         std::cout << "Run " << run_i << " of " << NUM_RUNS << " with seed " << seed << " and name " << run_name << std::endl;
         std::cout << "Checkpoints: " << (ACTOR_ENABLE_CHECKPOINTS ? "enabled" : "disabled") << std::endl;
         std::cout << "Observation dim: " << parameters_environment::ENVIRONMENT::OBSERVATION_DIM << " privileged: " << parameters_environment::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED << " action dim: " << parameters_environment::ENVIRONMENT::ACTION_DIM << std::endl;
@@ -384,7 +387,7 @@ int main(){
 //                }
             }
             auto step_start = std::chrono::high_resolution_clock::now();
-            device.logger->step = step_i;
+//            device.logger->step = step_i;
             if (ENABLE_ASSESSMENT && step_i % ASSESSMENT_INTERVAL == 0){
                 full_assessment<DEVICE, ENVIRONMENT, parameters_rl::ACTOR_TYPE>(device, actor_critic.actor, parameters_environment::parameters, true);
             }
@@ -497,7 +500,7 @@ int main(){
         }
         // 300000 steps: 28s on M1
         std::filesystem::path data_output_dir = "data_test";
-        {
+        if(false){
             try {
                 if (std::filesystem::create_directories(data_output_dir)) {
                     std::cout << "Directories created successfully: " << data_output_dir << std::endl;
@@ -559,5 +562,6 @@ int main(){
         group.createDataSet("eval_step", eval_step[run_i]);
         group.createDataSet("eval_return", eval_return[run_i]);
     }
+    std::cout << "FINISHED" << std::endl;
     return 0;
 }
