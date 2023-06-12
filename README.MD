@@ -35,7 +35,14 @@
 ## Citing
 When using BackpropTools in an academic work please cite our publication using the following Bibtex citation:
 ```
-Bibtex tbd
+@misc{eschmann2023backproptools,
+      title={BackpropTools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control}, 
+      author={Jonas Eschmann and Dario Albani and Giuseppe Loianno},
+      year={2023},
+      eprint={2306.03530},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
 ```
 ## Getting Started
 ### Running Prebuilt Binaries
