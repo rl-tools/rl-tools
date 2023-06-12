@@ -25,7 +25,10 @@ if(NOT APPLE)
 #    add_subdirectory(lib/matplotlib EXCLUDE_FROM_ALL)
 endif()
 
+
+if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
 add_subdirectory(src/rl/environments/mujoco/ant)
+endif()
 
 
 if(BACKPROP_TOOLS_TESTS_ENABLE_EIGEN)
