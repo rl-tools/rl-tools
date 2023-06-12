@@ -11,11 +11,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-        continue-on-error: true
-
-      - name: Create Build Environment
-        run: git submodule update --init --recursive
-        continue-on-error: true
 
       - name: Check
         run: |
