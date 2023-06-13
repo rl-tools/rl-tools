@@ -74,6 +74,7 @@ There are three classes of submodules:
    * E.g. HDF5 for checkpointing, Tensorboard for logging, or MuJoCo for the simulation of contact dynamics
 2. Examples/Code for embedded platforms (in `embedded_platforms/`)
 3. Redistributable dependencies (in `redistributable/`)
+4. Test dependencies (in `tests/lib`)
 4. Test data (in `tests/data`)
 
 These sets of submodules can be cloned additively/independent of eachother.
@@ -85,7 +86,8 @@ cd BackpropTools
 git submodule update --init --recursive -- external
 ```
 
-The submodules for the embedded platforms, the redistributable binaries and test data can be cloned in the same fashion (by replacing `external` with the appropriate folder from the enumeration above)
+The submodules for the embedded platforms, the redistributable binaries and test dependencies/data can be cloned in the same fashion (by replacing `external` with the appropriate folder from the enumeration above). 
+Note: Make sure that for the redistributable dependencies and test data `git-lfs` is installed (e.g. `sudo apt install git-lfs` on Ubuntu) and activated (`git lfs install`) otherwise only the metadata of the blobs is downloaded.
 
 ### Docker
 The most deterministic way to get started using <span style="color:#7DB9B6">BackpropTools</span> not only for replication of the results but for modifying the code is using Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
