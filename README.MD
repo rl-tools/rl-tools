@@ -2,6 +2,12 @@
   <center><h1><span style="color:#7DB9B6">BackpropTools</span>: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h1></center>
 </div>
 
+<p align="center">
+  <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://backprop.tools">Live demo (browser)</a>
+</p>
+
+
+
 <div align="center">
 <img src="https://github.com/BackpropTools/media/blob/master/pendulum_v1_inference.gif" alt="animated" height='200'/>
 </div>
@@ -58,7 +64,7 @@ When running the Linux binaries on a headless version of Ubuntu (e.g. inside Doc
 
 ### Cloning the repository
 To build the examples from source (either in Docker or natively), first the repository should be cloned.
-Instead of cloning all repositories using `git clone --recursive` which takes a lot of space and bandwidth we recommend cloning the main repo containing all the standalone code for `BackpropTools` and then cloning the required sets of submodules later:
+Instead of cloning all submodules using `git clone --recursive` which takes a lot of space and bandwidth we recommend cloning the main repo containing all the standalone code for `BackpropTools` and then cloning the required sets of submodules later:
 ```
 git clone https://github.com/BackpropTools/BackpropTools.git
 ```
