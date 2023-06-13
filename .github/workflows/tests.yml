@@ -26,13 +26,17 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_ENABLE_TESTS:BOOL=ON 
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_ENABLE_TESTS:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON
 
       - name: Build
         run: |
           cd build
           cmake --build .
 
+      - name: Test
+        run: |
+          cd tests
+          git clone https://gitlab.com/backprop_tools/test-data.git
       - name: Test
         run: |
           cd build

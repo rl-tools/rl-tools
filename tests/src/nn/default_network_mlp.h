@@ -23,7 +23,7 @@ constexpr typename NN_DEVICE::index_t OUTPUT_DIM = STRUCTURE_SPEC::OUTPUT_DIM;
 
 class NeuralNetworkTest : public ::testing::Test {
 protected:
-    std::string DATA_FILE_PATH = "data_test/data.hdf5";
+    std::string DATA_FILE_PATH = "data_test/mlp_data.hdf5";
     std::string model_name = "model_1";
     NeuralNetworkTest(){
         const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_NN_DATA_FILE");
