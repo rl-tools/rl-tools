@@ -2,6 +2,9 @@
 #define TEST_UTILS_H
 #include <vector>
 
+#define BACKPROP_TOOLS_STRINGIZE(x) #x
+#define BACKPROP_TOOLS_MACRO_TO_STR(macro) BACKPROP_TOOLS_STRINGIZE(macro)
+
 template <typename T, int DIM>
 void standardise(const T input[DIM], const T mean[DIM], const T std[DIM], T output[DIM]){
     for (int i = 0; i < DIM; i++){

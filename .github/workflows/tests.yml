@@ -35,9 +35,5 @@ jobs:
 
       - name: Test
         run: |
-          cd tests
-          git clone https://gitlab.com/backprop_tools/test-data.git
-      - name: Test
-        run: |
           cd build
           ctest

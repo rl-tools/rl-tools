@@ -57,12 +57,10 @@ constexpr typename DEVICE::index_t OUTPUT_DIM = StructureSpecification::OUTPUT_D
 
 TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
-    std::string DATA_FILE_PATH = "./data_test/mlp_data.hdf5";
-    const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_NN_DATA_FILE");
-    if (data_file_path != NULL){
-        DATA_FILE_PATH = std::string(data_file_path);
-//            std::runtime_error("Environment variable BACKPROP_TOOLS_TEST_DATA_DIR not set. Skipping test.");
-    }
+    std::string DATA_FILE_NAME = "mlp_data.hdf5";
+    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
+
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     data_file.getDataSet("data/X_train").read(X_train);
     data_file.getDataSet("data/Y_train").read(Y_train);

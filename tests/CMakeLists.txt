@@ -26,6 +26,13 @@ if(NOT APPLE)
 endif()
 
 
+# function to do target_compile_definitions(test_neural_network_mlp PRIVATE BACKPROP_TOOLS_TESTS_DATA_PATH=${CMAKE_CURRENT_SOURCE_DIR}/data)
+
+function(BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS target)
+    target_compile_definitions(${target} PRIVATE BACKPROP_TOOLS_TESTS_DATA_PATH=${CMAKE_CURRENT_SOURCE_DIR}/data)
+endfunction()
+
+
 if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
 add_subdirectory(src/rl/environments/mujoco/ant)
 endif()
@@ -62,6 +69,8 @@ target_link_libraries(
 )
 #BACKPROP_TOOLS_ADD_DEFINITIONS(test_neural_network_mlp)
 gtest_discover_tests(test_neural_network_mlp)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_neural_network_mlp)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_neural_network_mlp)
 
 # Neural Network Test Full Training MLP
 add_executable(
@@ -76,6 +85,7 @@ target_link_libraries(
 )
 #BACKPROP_TOOLS_ADD_DEFINITIONS(test_neural_network_full_training_mlp)
 gtest_discover_tests(test_neural_network_full_training_mlp)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_neural_network_full_training_mlp)
 
 # Neural Network Persistence Test
 add_executable(
@@ -90,6 +100,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_neural_network_persistence)
 gtest_discover_tests(test_neural_network_persistence)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_neural_network_persistence)
 
 # RL Environment Pendulum test
 add_executable(
@@ -104,6 +115,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_pendulum)
 gtest_discover_tests(test_rl_environments_pendulum)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_environments_pendulum)
 
 
 if(BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
@@ -122,6 +134,7 @@ if(BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
     )
     BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_pendulum_render)
     gtest_discover_tests(test_rl_environments_pendulum_render)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_environments_pendulum_render)
 endif()
 
 # RL Algorithm off_policy_runner test
@@ -136,6 +149,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_td3_off_policy_runner)
 gtest_discover_tests(test_rl_algorithms_td3_off_policy_runner)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_algorithms_td3_off_policy_runner)
 
 # RL Algorithm td3 test first stage mlp
 add_executable(
@@ -150,6 +164,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_td3_first_stage_mlp)
 gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_algorithms_td3_first_stage_mlp)
 
 
 # RL Algorithm td3 test second stage MLP
@@ -180,6 +195,7 @@ if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
 endif()
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_td3_second_stage_mlp)
 gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_algorithms_td3_second_stage_mlp)
 
 # RL Algorithm td3 test full training
 add_executable(
@@ -213,6 +229,7 @@ endif()
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_td3_full_training_debug)
 target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG)
 gtest_discover_tests(test_rl_algorithms_td3_full_training_debug)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_algorithms_td3_full_training_debug)
 
 
 # RL Algorithm td3 test full training
@@ -229,6 +246,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training)
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_algorithms_td3_full_training)
 
 # RL Algorithm td3 test full training dummy dependencies compilation without any deps
 add_executable(
@@ -275,6 +293,7 @@ add_test(
 #)
 #target_include_directories(test_rl_algorithms_td3_pendulum_training_stats PRIVATE lib)
 #gtest_discover_tests(test_rl_algorithms_td3_pendulum_training_stats)
+#BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_algorithms_td3_pendulum_training_stats)
 
 
 
@@ -291,6 +310,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_neural_network_conversions)
 gtest_discover_tests(test_neural_network_conversions)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_neural_network_conversions)
 
 
 
@@ -310,6 +330,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_neural_network_benchmark)
 gtest_discover_tests(test_neural_network_benchmark)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_neural_network_benchmark)
 endif()
 
 
@@ -325,6 +346,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_container)
 gtest_discover_tests(test_container)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_container)
 
 add_executable(
         test_rl_components_replay_buffer
@@ -339,6 +361,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_components_replay_buffer)
 gtest_discover_tests(test_rl_components_replay_buffer)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_components_replay_buffer)
 
 # Container tests
 add_executable(
@@ -352,6 +375,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_container_persist_code_store)
 gtest_discover_tests(test_container_persist_code_store)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_container_persist_code_store)
 
 ## Container tests
 #add_executable(
@@ -365,6 +389,7 @@ gtest_discover_tests(test_container_persist_code_store)
 #)
 #BACKPROP_TOOLS_ADD_DEFINITIONS(test_container_persist_code_load)
 #gtest_discover_tests(test_container_persist_code_load)
+#BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_container_persist_code_load)
 
 # ARM tests
 add_executable(
@@ -378,6 +403,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_nn_arm)
 gtest_discover_tests(test_nn_arm)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_nn_arm)
 
 # On Policy Runner tests
 add_executable(
@@ -392,6 +418,7 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_components_on_policy_runner)
 gtest_discover_tests(test_rl_components_on_policy_runner)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_components_on_policy_runner)
 
 # PPO tests
 add_executable(
@@ -407,6 +434,7 @@ target_link_libraries(
         tensorboard_logger
 )
 gtest_discover_tests(test_rl_algorithms_ppo)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_algorithms_ppo)
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_ppo)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_algorithms_ppo)
 
@@ -424,6 +452,7 @@ target_link_libraries(
         tensorboard_logger
 )
 gtest_discover_tests(test_rl_components_running_normalizer)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_components_running_normalizer)
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_components_running_normalizer)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_components_running_normalizer)
 

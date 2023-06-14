@@ -1,4 +1,7 @@
 #include <backprop_tools/nn/nn.h>
+#include "../utils/utils.h"
+
+
 namespace bpt = backprop_tools;
 
 using DTYPE = double;
@@ -23,14 +26,12 @@ constexpr typename NN_DEVICE::index_t OUTPUT_DIM = STRUCTURE_SPEC::OUTPUT_DIM;
 
 class NeuralNetworkTest : public ::testing::Test {
 protected:
-    std::string DATA_FILE_PATH = "data_test/mlp_data.hdf5";
+    std::string DATA_FILE_PATH;;
     std::string model_name = "model_1";
     NeuralNetworkTest(){
-        const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_NN_DATA_FILE");
-        if (data_file_path != NULL){
-            DATA_FILE_PATH = std::string(data_file_path);
-//            std::runtime_error("Environment variable BACKPROP_TOOLS_TEST_DATA_DIR not set. Skipping test.");
-        }
+        std::string DATA_FILE_NAME = "mlp_data.hdf5";
+        const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+        this->DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
         auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
         data_file.getDataSet("data/X_train").read(X_train);

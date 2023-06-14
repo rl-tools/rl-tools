@@ -78,7 +78,7 @@ There are three classes of submodules:
 4. Test data (in `tests/data`)
 
 These sets of submodules can be cloned additively/independent of eachother.
-For most use-cases you should clone the submodules for external dependencies:
+For most use-cases (like e.g. most of the Docker examples) you should clone the submodules for external dependencies:
 ```
 cd BackpropTools
 ```
