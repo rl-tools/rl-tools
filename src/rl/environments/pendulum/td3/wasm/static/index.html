@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BackpropTools: The Fastest Deep Reinforcement Learning Library for Continuous Control That Runs Everywhere</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>BackpropTools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1/dist/chart.umd.min.js"></script>
     <script async defer src="https://buttons.github.io/buttons.js"></script>
 </head>
 <body>
@@ -55,18 +55,6 @@
         data: data,
         options: options
     });
-
-    let rewards = [0, 50, 20, 80, 30, 90, 60];
-    let time = 0;
-    const interval = setInterval(() => {
-        if (time >= rewards.length) {
-            clearInterval(interval);
-            return;
-        }
-
-
-        time++;
-    }, 1000);
 
     const terminalContainer = document.getElementById("terminal-container");
     const terminalOutput = document.getElementById("terminal-output");
@@ -196,13 +184,20 @@
 </script>
 
 <div class="container">
+    <div class="info-container" style="margin-bottom: 1px">
+        <div class="info-box">
+            <h3 style="margin: 2px; padding: 0px; text-align: center;"><span style="color: #7DB9B6">BackpropTools</span>: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h3>
+        </div>
+    </div>
+    <div style="text-align: center;">
+        <a style="margin-right: 1em;", class="fancy-button fancy-button-small" id="arxiv-button" href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a>
+        <a class="fancy-button fancy-button-small" id="github-button" href="https://github.com/BackpropTools/BackpropTools">Code on Github</a>
+        <!-- <a class="github-button" href="https://github.com/BackpropTools/BackpropTools" aria-label="Code on Github">Code on Github</a> -->
+    </div>
     <div class="pendulum-container">
         <div class="pendulum" id="pendulum"></div>
         <div class="center-circle"></div>
         <div class="center-circle-inner"></div>
-    </div>
-    <div class="returns-chart-container">
-        <canvas id="returns-chart"></canvas>
     </div>
     <div class="checkbox-container">
         <label for="realtime-checkbox" class="checkbox-label">
@@ -217,13 +212,13 @@
     <div class="controls-container">
         <input class="fancy-button" type="button" value="Start training" id="training-button">
     </div>
+    <div class="returns-chart-container">
+        <canvas id="returns-chart"></canvas>
+    </div>
     <div class="info-container">
         <div class="info-box">
-            <h3><span style="color: #7DB9B6">BackpropTools</span>: The Fastest Deep Reinforcement Learning Library for Continuous Control That Runs Everywhere</h3>
-                <div style="text-align: center;">
-                    <a class="github-button" href="https://github.com/BackpropTools/BackpropTools" aria-label="Code on Github">Code on Github</a>
-                </div>
-            </br>
+            <!-- <h3><span style="color: #7DB9B6">BackpropTools</span>: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h3>
+            </br> -->
             <div style="text-align: center;">
                 <div class="mujoco-ant-gif" style="background-image: url('media/backprop_tools_mujoco_ant_ppo.gif');"></div>
             </div>
@@ -231,7 +226,7 @@
                 Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">BackpropTools</span> PPO
             </div>
             </br>
-            In the previous example the Pendulum-v1 swingup is trained directly in your browser using the TD3 deep reinforcement learning algorithm. BackpropTools is a pure C++ header-only, dependency free deep supervised- and reinforcmeent learning library that runs on a broad variety of devices (as e.g. your browser). To run it in a browser the C++ code is compiled to WASM which can be called from JavaScript. For more information read the paper [link] and/or the source code on Github (linked above).
+            In the previous example the Pendulum-v1 swingup is trained directly in your browser using the TD3 deep reinforcement learning algorithm. BackpropTools is a pure C++ header-only, dependency free deep supervised- and reinforcmeent learning library that runs on a broad variety of devices (as e.g. your browser). To run it in a browser the C++ code is compiled to WASM which can be called from JavaScript. For more information read the paper and/or the source code (both linked on top of the page).
         </div>
     </div>
     <div id="terminal-container" class="terminal-container" style="display: none;">
