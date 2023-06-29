@@ -1,3 +1,5 @@
+find_package(Threads REQUIRED)
+
 add_executable(
         rl_environments_mujoco_ant_training_td3_standalone
         standalone.cpp
@@ -6,6 +8,7 @@ target_link_libraries(
         rl_environments_mujoco_ant_training_td3_standalone
         PRIVATE
         backprop_tools
+        Threads::Threads
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_training_td3_standalone)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_mujoco_ant_training_td3_standalone)

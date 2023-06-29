@@ -55,3 +55,6 @@
 	path = tests/lib/cutlass
 	url = https://github.com/NVIDIA/cutlass.git
 
+[submodule "tests/data"]
+	path = tests/data
+	url = https://gitlab.com/backprop_tools/test-data.git

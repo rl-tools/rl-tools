@@ -3,6 +3,9 @@ import numpy as np
 import h5py
 import mujoco
 
+# create venv
+# pip install gymnasium[mujoco] h5py
+
 env = gym.make('Ant-v4')
 
 

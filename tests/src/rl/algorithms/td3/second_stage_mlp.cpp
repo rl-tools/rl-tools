@@ -25,12 +25,9 @@
 
 namespace bpt = backprop_tools;
 std::string get_data_file_path(){
-    std::string DATA_FILE_PATH = "./data_test/model_second_stage.hdf5";
-    const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_DATA_FILE");
-    if (data_file_path != NULL){
-        DATA_FILE_PATH = std::string(data_file_path);
-//            std::runtime_error("Environment variable BACKPROP_TOOLS_TEST_DATA_DIR not set. Skipping test.");
-    }
+    std::string DATA_FILE_NAME = "model_second_stage.hdf5";
+    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     return DATA_FILE_PATH;
 }
 #define DTYPE double

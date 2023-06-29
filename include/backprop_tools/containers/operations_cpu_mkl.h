@@ -19,7 +19,7 @@ namespace backprop_tools{
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
         for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
             if constexpr(std::is_convertible<typename SPEC::T, float>::value){
-                matrix._data[i] = math::nan<typename SPEC::T>(typename DEVICE::SPEC::MATH());
+                matrix._data[i] = math::nan<typename SPEC::T>(typename DEV_SPEC::MATH());
             }
         }
 #endif

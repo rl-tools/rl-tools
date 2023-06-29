@@ -3,6 +3,7 @@
 #include <backprop_tools/rl/environments/environments.h>
 #include <backprop_tools/rl/environments/operations_cpu.h>
 
+#include "../../../utils/utils.h"
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 namespace bpt = backprop_tools;
@@ -13,11 +14,10 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
     using DEVICE = bpt::devices::DefaultCPU;
     typedef bpt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
     typedef bpt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
-    std::string DATA_FILE_PATH = "./data_test/pendulum.hdf5";
-    const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_DATA_FILE");
-    if (data_file_path != NULL){
-        DATA_FILE_PATH = std::string(data_file_path);
-    }
+    std::string DATA_FILE_NAME = "pendulum.hdf5";
+    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
+
     typename DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     device.logger = &logger;
