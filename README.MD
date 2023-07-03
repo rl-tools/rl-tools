@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://backprop.tools">Live demo (browser)</a> 
   </br>
-  <a href="https://mybinder.org/v2/gh/BackpropTools/documentation/master?labpath=Container.ipynb">
+  <a href="https://mybinder.org/v2/gh/BackpropTools/documentation/master?labpath=Containers.ipynb">
   <img src="https://mybinder.org/badge_logo.svg" alt="Run tutorials on Binder">
 </a>
 </p>
