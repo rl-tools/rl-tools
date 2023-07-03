@@ -7,7 +7,10 @@
   </br>
   <a href="https://mybinder.org/v2/gh/BackpropTools/documentation/master?labpath=Containers.ipynb">
   <img src="https://mybinder.org/badge_logo.svg" alt="Run tutorials on Binder">
-</a>
+  </a>
+  <a href="https://backproptools.readthedocs.io">
+  <img src="https://img.shields.io/badge/Documentation-Read%20the%20Docs-blue.svg" alt="Documentation">
+  </a>
 </p>
 
 
