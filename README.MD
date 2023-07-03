@@ -55,6 +55,11 @@ When using BackpropTools in an academic work please cite our publication using t
 }
 ```
 ## Getting Started
+The getting started documentation is divided in two parts: a tutorial on how BackpropTools works internally and replication instructions for the results from the paper. 
+### Tutorial on BackpropTools internals
+| Chapter | Name | Link |
+| ------- | ---- | ---- |
+| 1 | Containers | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/master?labpath=Containers.ipynb) | 
 ### Running Prebuilt Binaries
 For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/BackpropTools/BackpropTools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
 
