@@ -5,7 +5,6 @@
 
 #include <iostream>
 #include <iomanip>
-#include <cstring> // for std::memcpy
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void print(DEVICE& device, const Matrix<SPEC>& m){
@@ -25,9 +24,13 @@ namespace backprop_tools{
     }
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+        using TARGET_DEVICE = devices::CPU<TARGET_DEV_SPEC>;
+        using TI = typename TARGET_DEVICE::index_t;
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         if constexpr(containers::check_memory_layout<SPEC_1, SPEC_2>){
-            std::memcpy(target._data, source._data, SPEC_1::SIZE_BYTES);
+            for(TI i = 0; i < SPEC_1::SIZE; i++){
+                target._data[i] = source._data[i];
+            }
         }
         else{
             copy_view(target_device, source_device, target, source);

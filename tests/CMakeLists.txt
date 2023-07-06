@@ -458,3 +458,5 @@ BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_components_running_normalizer)
 
 add_subdirectory(src/random)
 endif()
+
+add_subdirectory(src/nn/layers)
