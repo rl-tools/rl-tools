@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://backprop.tools">Live demo (browser)</a> 
   </br>
-  <a href="https://mybinder.org/v2/gh/BackpropTools/documentation/master?labpath=Containers.ipynb">
+  <a href="https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=Containers.ipynb">
   <img src="https://mybinder.org/badge_logo.svg" alt="Run tutorials on Binder">
   </a>
   <a href="https://backproptools.readthedocs.io">
@@ -62,7 +62,7 @@ The getting started documentation is divided in two parts: a tutorial on how Bac
 ### Tutorial on BackpropTools internals
 | Chapter | Name | Link |
 | ------- | ---- | ---- |
-| 1 | Containers | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/master?labpath=Containers.ipynb) | 
+| 1 | Containers | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=Containers.ipynb) | 
 ### Running Prebuilt Binaries
 For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/BackpropTools/BackpropTools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
 

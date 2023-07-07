@@ -60,11 +60,19 @@ namespace backprop_tools{
 #endif
 
     template<typename SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI rows(const Matrix<SPEC>& m){
+        return SPEC::ROWS;
+    }
+    template<typename SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI cols(const Matrix<SPEC>& m){
+        return SPEC::COLS;
+    }
+    template<typename SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
         return SPEC::ROW_PITCH;
     }
     template<typename SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT typename SPEC::TI col_pitch(const Matrix<SPEC>& m){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI col_pitch(const Matrix<SPEC>& m){
         return SPEC::COL_PITCH;
     }
 
@@ -580,7 +588,9 @@ namespace backprop_tools{
         MatrixStatic<matrix::Specification<TI, TI, 1, 1>> output;
         malloc(device, output);
         argmax_row_wise(device, input, output);
-        return get(output, 0, 0);
+        auto result = get(output, 0, 0);
+        free(device, output);
+        return result;
     }
 
     template <typename DEVICE, typename SPEC_INPUT, typename SPEC_OUTPUT>
@@ -618,7 +628,9 @@ namespace backprop_tools{
         MatrixStatic<matrix::Specification<TI, TI, 1, 1>> output;
         malloc(device, output);
         argmax_col_wise(device, input, output);
-        return get(output, 0, 0);
+        auto result = get(output, 0, 0);
+        free(device, output);
+        return result;
     }
 }
 #endif

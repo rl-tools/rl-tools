@@ -169,19 +169,19 @@ namespace backprop_tools {
         static_assert(TEMP_SPEC::ROWS == BATCH_SIZE);
         static_assert(TEMP_SPEC::COLS == MODEL_SPEC::HIDDEN_DIM);
 
-        backward(network.output_layer, d_output, d_layer_input_tick);
+        backward(device, network.output_layer, d_output, d_layer_input_tick);
         for (typename DEVICE::index_t layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
             typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
             if(layer_i % 2 == (MODEL_SPEC::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
-                backward(network.hidden_layers[layer_i], d_layer_input_tick, d_layer_input_tock);
+                backward(device, network.hidden_layers[layer_i], d_layer_input_tick, d_layer_input_tock);
             } else {
-                backward(network.hidden_layers[layer_i], d_layer_input_tock, d_layer_input_tick);
+                backward(device, network.hidden_layers[layer_i], d_layer_input_tock, d_layer_input_tick);
             }
         }
         if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
-            backward(network.input_layer, d_layer_input_tick, d_input);
+            backward(device, network.input_layer, d_layer_input_tick, d_input);
         } else {
-            backward(network.input_layer, d_layer_input_tock, d_input);
+            backward(device, network.input_layer, d_layer_input_tock, d_input);
         }
     }
     template<typename DEVICE, typename MODEL_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC>
