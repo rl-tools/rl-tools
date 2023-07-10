@@ -2,6 +2,7 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_OPERATIONS_CPU_H
 
 #include "ant.h"
+#include <cstring>
 namespace backprop_tools::rl::environments::mujoco::ant{
     #include "model.h"
 }
@@ -16,7 +17,7 @@ namespace backprop_tools{
             mj_defaultVFS(vfs);
             mj_makeEmptyFileVFS(vfs, "model.xml", backprop_tools::rl::environments::mujoco::ant::model_xml_len);
             int file_idx = mj_findFileVFS(vfs, "model.xml");
-            memcpy(vfs->filedata[file_idx], backprop_tools::rl::environments::mujoco::ant::model_xml, backprop_tools::rl::environments::mujoco::ant::model_xml_len);
+            std::memcpy(vfs->filedata[file_idx], backprop_tools::rl::environments::mujoco::ant::model_xml, backprop_tools::rl::environments::mujoco::ant::model_xml_len);
             env.model = mj_loadXML("model.xml", vfs, error, error_length);
             mj_deleteFileVFS(vfs, "model.xml");
             delete vfs;

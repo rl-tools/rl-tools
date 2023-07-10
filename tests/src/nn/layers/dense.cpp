@@ -19,6 +19,7 @@ using LAYER_SPEC = bpt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPU
 
 
 #include <gtest/gtest.h>
+#include <cstring>
 
 
 
