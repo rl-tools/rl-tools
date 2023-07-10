@@ -28,8 +28,10 @@ endif()
 
 # function to do target_compile_definitions(test_neural_network_mlp PRIVATE BACKPROP_TOOLS_TESTS_DATA_PATH=${CMAKE_CURRENT_SOURCE_DIR}/data)
 
+set(BACKPROP_TOOLS_TESTS_DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data)
+
 function(BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS target)
-    target_compile_definitions(${target} PRIVATE BACKPROP_TOOLS_TESTS_DATA_PATH=${CMAKE_CURRENT_SOURCE_DIR}/data)
+    target_compile_definitions(${target} PRIVATE BACKPROP_TOOLS_TESTS_DATA_PATH=${BACKPROP_TOOLS_TESTS_DATA_PATH})
 endfunction()
 
 
@@ -341,9 +343,13 @@ add_executable(
 )
 target_link_libraries(
         test_container
+        PRIVATE
         backprop_tools
         GTest::gtest_main
 )
+if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
+    BACKPROP_TOOLS_TARGET_LINK_BLAS(test_container)
+endif()
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_container)
 gtest_discover_tests(test_container)
 BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_container)

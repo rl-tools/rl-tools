@@ -13,6 +13,7 @@ namespace backprop_tools::devices{
             using MATH = T_MATH;
             using RANDOM = T_RANDOM;
             using LOGGING = T_LOGGING;
+            using index_t = size_t;
         };
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::CPU;

@@ -2,6 +2,8 @@
 
 #include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
 
+#include "../../../../utils/utils.h"
+
 namespace bpt = backprop_tools;
 
 #include <chrono>
@@ -113,8 +115,10 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     bpt::malloc(dev, env);
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
-    const std::string data_path = "tests_rl_environments_mujoco_ant_data.h5";
-    auto data_file = HighFive::File(data_path, HighFive::File::ReadOnly);
+    std::string DATA_FILE_NAME = "tests_rl_environments_mujoco_ant_data.h5";
+    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
+    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     std::vector<std::vector<T>> observations, next_observations, states, next_states, actions;
     std::vector<T> rewards;
     std::vector<T> terminated_flags;

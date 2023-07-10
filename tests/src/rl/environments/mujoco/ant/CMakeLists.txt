@@ -14,6 +14,7 @@ target_link_libraries(
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant)
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_environments_mujoco_ant)
 
 add_executable(
