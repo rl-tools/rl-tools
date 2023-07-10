@@ -314,3 +314,37 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, ARGMAX_STOCHASTIC) {
     test_argmax_stochastic<1, 10>();
     test_argmax_stochastic<10, 1>();
 }
+
+
+TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_GENERIC) {
+    using DEVICE = bpt::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 2, 2>> A, B, C, C_target;
+    bpt::malloc(device, A);
+    bpt::malloc(device, B);
+    bpt::malloc(device, C);
+    bpt::malloc(device, C_target);
+    set(A, 0, 0, -0.259093);
+    set(A, 0, 1, -1.498961);
+    set(A, 1, 0, +0.119264);
+    set(A, 1, 1, +0.458181);
+
+    set(B, 0, 0, +0.394975);
+    set(B, 0, 1, +0.044197);
+    set(B, 1, 0, -0.636256);
+    set(B, 1, 1, +1.731264);
+
+    set(C_target, 0, 0, -0.259093 * +0.394975 + -1.498961 * -0.636256);
+    set(C_target, 0, 1, -0.259093 * +0.044197 + -1.498961 * +1.731264);
+    set(C_target, 1, 0, +0.119264 * +0.394975 + +0.458181 * -0.636256);
+    set(C_target, 1, 1, +0.119264 * +0.044197 + +0.458181 * +1.731264);
+    bpt::print(device, C_target);
+
+    bpt::multiply(device, A, B, C);
+    bpt::print(device, C);
+    auto diff = bpt::abs_diff(device, C_target, C);
+    std::cout << "Matrix mul diff: " << diff << std::endl;
+    ASSERT_TRUE(diff < 1e-6);
+}

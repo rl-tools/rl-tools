@@ -632,5 +632,24 @@ namespace backprop_tools{
         free(device, output);
         return result;
     }
+    template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    void multiply(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
+        static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
+        static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
+        static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
+
+        using T = typename OUTPUT_SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        for(TI row_i = 0; row_i < OUTPUT_SPEC::ROWS; row_i++){
+            for(TI col_i = 0; col_i < OUTPUT_SPEC::COLS; col_i++){
+                T acc = 0;
+                for(TI k = 0; k < INPUT_SPEC_A::COLS; k++){
+                    acc += get(A, row_i, k) * get(B, k, col_i);
+                }
+                set(output, row_i, col_i, acc);
+            }
+        }
+    }
 }
 #endif

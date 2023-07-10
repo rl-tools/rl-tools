@@ -15,6 +15,22 @@ namespace backprop_tools{
             std::cout << std::endl;
         }
     }
+    template<typename DEVICE, typename SPEC>
+    void print_python_literal(DEVICE& device, const Matrix<SPEC>& m){
+        std::cout << "[" << std::endl;
+        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
+            std::cout << "    [";
+            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
+                std::cout << std::fixed << std::setw(12) << std::setprecision(6) << get(m, row_i, col_i);
+                if(col_i < SPEC::COLS - 1){
+                    std::cout << ", ";
+                }
+            }
+            std::cout << "],";
+            std::cout << std::endl;
+        }
+        std::cout << "]" << std::endl;
+    }
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy_view(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         using TARGET_DEVICE = devices::CPU<TARGET_DEV_SPEC>;
