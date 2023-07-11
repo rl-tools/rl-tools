@@ -16,6 +16,7 @@ namespace backprop_tools {
             CPU,
             CPU_BLAS,
             CPU_MKL,
+            CPU_OPENBLAS,
             CPU_ACCELERATE,
             CPU_TENSORBOARD,
             CUDA,
