@@ -190,6 +190,7 @@ int main(int argc, char** argv){
         TI next_evaluation_id = 0;
 
         // -------------- added for cuda training ----------------
+        bpt::init(device);
         bpt::init(device_gpu);
         // -------------------------------------------------------
         bpt::malloc(device, ppo);

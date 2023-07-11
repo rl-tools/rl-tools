@@ -31,7 +31,7 @@ namespace bpt = backprop_tools;
     using LOGGER = bpt::devices::logging::CPU;
 #endif
 
-#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
+#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) || defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) || defined(BACKPROP_TOOLS_BACKEND_ENABLE_OPENBLAS) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
 using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 #else

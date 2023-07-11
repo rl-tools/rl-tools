@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_BLAS_H
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_BLAS_H
 
+#include "operations_cpu.h"
 namespace backprop_tools{
     template<typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
     void multiply(devices::CPU_BLAS<DEV_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {

@@ -2,7 +2,7 @@
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_MKL_H
 
 #include <backprop_tools/containers.h>
-#include "operations_cpu.h"
+#include "operations_cpu_blas.h"
 #include <backprop_tools/devices/cpu_mkl.h>
 
 #include <mkl.h>
