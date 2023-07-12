@@ -21,7 +21,7 @@ namespace backprop_tools::rl::environments::pendulum::ui::xeus {
         static constexpr T PLAYBACK_SPEED = T_PLAYBACK_SPEED/100.0;
         static constexpr T ACTION_INDICATOR_SIZE = SIZE * 1.0/10.0;
         static constexpr T ACTION_INDICATOR_WIDTH = ACTION_INDICATOR_SIZE / 4;
-        static constexpr T ACTION_INDICATOR_TOP_OFFSET = SIZE * 0.1;
+        static constexpr T ACTION_INDICATOR_TOP_OFFSET = SIZE * 0.9;
     };
 
     template<typename T_SPEC>
