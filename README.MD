@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://backprop.tools">Live demo (browser)</a> 
   </br>
-  <a href="https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=Containers.ipynb">
+  <a href="https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=01-Containers.ipynb">
   <img src="https://mybinder.org/badge_logo.svg" alt="Run tutorials on Binder">
   </a>
   <a href="https://backproptools.readthedocs.io">
@@ -62,11 +62,13 @@ The getting started documentation is divided in two parts: a tutorial on how Bac
 ### Tutorial on BackpropTools internals
 | Chapter | Name | Documentation | Interactive Notebook |
 | ------- | ---- | ------------  | ---- |
-| 0 | Overview             | [readthedocs](https://backproptools.readthedocs.io/en/latest/overview.html)                  | -
-| 1 | Containers           | [readthedocs](https://backproptools.readthedocs.io/en/latest/01-Containers.html)             | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=01-Containers.ipynb) | 
-| 2 | Multiple Dispatch    | [readthedocs](https://backproptools.readthedocs.io/en/latest/02-Multiple%20Dispatch.html)    | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=02-Multiple%20Dispatch.ipynb) | 
-| 3 | Deep Learning        | [readthedocs](https://backproptools.readthedocs.io/en/latest/03-Deep%20Learning.html)        | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=03-Deep%20Learning.ipynb) | 
-| 4 | MNIST Classification | [readthedocs](https://backproptools.readthedocs.io/en/latest/04-MNIST%20Classification.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=04-MNIST%20Classification.ipynb) | 
+| 0 | Overview                    | [readthedocs](https://backproptools.readthedocs.io/en/latest/overview.html)                           | -
+| 1 | Containers                  | [readthedocs](https://backproptools.readthedocs.io/en/latest/01-Containers.html)                      | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=01-Containers.ipynb) | 
+| 2 | Multiple Dispatch           | [readthedocs](https://backproptools.readthedocs.io/en/latest/02-Multiple%20Dispatch.html)             | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=02-Multiple%20Dispatch.ipynb) | 
+| 3 | Deep Learning               | [readthedocs](https://backproptools.readthedocs.io/en/latest/03-Deep%20Learning.html)                 | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=03-Deep%20Learning.ipynb) | 
+| 4 | CPU Acceleration            | [readthedocs](https://backproptools.readthedocs.io/en/latest/04-CPU%20Acceleration.html)              | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=04-CPU%20Acceleration.ipynb) | 
+| 5 | MNIST Classification        | [readthedocs](https://backproptools.readthedocs.io/en/latest/05-MNIST%20Classification.html)          | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=05-MNIST%20Classification.ipynb) | 
+| 6 | Deep Reinforcement Learning | [readthedocs](https://backproptools.readthedocs.io/en/latest/06-Deep%20Reinforcement%20Learning.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/BackpropTools/documentation/binder?labpath=06-Deep%20Reinforcement%20Learning.ipynb) | 
 ### Running Prebuilt Binaries
 For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/BackpropTools/BackpropTools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
 
