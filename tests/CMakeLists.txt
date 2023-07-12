@@ -56,6 +56,17 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
     add_subdirectory(src/rl/cuda)
 endif()
 
+add_executable(
+        test_nn_models_mlp_vari
+        src/nn/mlp_vari.cpp
+)
+target_link_libraries(
+        test_nn_models_mlp_vari
+        backprop_tools
+        GTest::gtest_main
+)
+gtest_discover_tests(test_nn_models_mlp_vari)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_nn_models_mlp_vari)
 
 if(BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPROP_TOOLS_ENABLE_TENSORBOARD)
 # Neural Network Test MLP
