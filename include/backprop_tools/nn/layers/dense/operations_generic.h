@@ -58,6 +58,10 @@ namespace backprop_tools{
             }
         }
     }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    void init_weights(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer, RNG& rng) {
+        init_kaiming(device, layer, rng);
+    }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(DEVICE& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {

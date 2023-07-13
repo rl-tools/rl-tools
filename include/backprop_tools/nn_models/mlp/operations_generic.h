@@ -47,11 +47,11 @@ namespace backprop_tools {
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, RNG& rng) {
-        init_kaiming(device, network.input_layer, rng);
+        init_weights(device, network.input_layer, rng);
         for (typename DEVICE::index_t layer_i = 0; layer_i < SPEC::NUM_HIDDEN_LAYERS; layer_i++){
-            init_kaiming(device, network.hidden_layers[layer_i], rng);
+            init_weights(device, network.hidden_layers[layer_i], rng);
         }
-        init_kaiming(device, network.output_layer, rng);
+        init_weights(device, network.output_layer, rng);
     }
 
     // evaluate does not set intermediate outputs and hence can also be called from stateless layers, for register efficiency use forward when working with "Backward" compatible layers
