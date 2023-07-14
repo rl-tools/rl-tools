@@ -173,6 +173,7 @@ namespace backprop_tools{
             init_weights(device, module.next_module, rng);
         }
     }
+    // Evaluate is like a forward pass but without saving intermediate activations (so a backward pass is not possible). Hence we can reuse the memory of the intermediate outputs and just require a double buffer where each buffer has to be able to contain the maximum hidden dimension of the module
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
     void evaluate(DEVICE& device, const nn_models::sequential::ModuleInternal<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC>& buffers){
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
@@ -180,9 +181,6 @@ namespace backprop_tools{
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
-
-//        static_assert(TEMP_SPEC::ROWS >= BATCH_SIZE);
-//        static_assert(TEMP_SPEC::COLS >= MODEL_SPEC::HIDDEN_DIM);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             evaluate(device, model.content, input, output);
