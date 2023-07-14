@@ -134,7 +134,6 @@ namespace backprop_tools::nn_models::sequential{
         template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
         struct Module: ModuleInternal<Specification<T_CONTENT, T_NEXT_MODULE>>{};
     }
-
 }
 
 namespace backprop_tools{
@@ -204,6 +203,21 @@ namespace backprop_tools{
         else{
             bpt::copy(device, device, output, module.content.output);
         }
+    }
+    template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
+    void backward(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC> buffers) {
+        static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
+        using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
+
+        if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            backward(device, model.content, input, d_output, d_input);
+        }
+        else{
+            DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
+            backward<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(model.content.output)::SPEC, D_OUTPUT_SPEC, typename DOUBLE_BUFFER_TYPE::SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer, buffers);
+            backward(device, model.content, input, current_d_output_buffer, d_input);
+        }
+
     }
 }
 
@@ -388,7 +402,6 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_VARI, TEST_FORWARD){
         bpt::copy(device, device, mlp.hidden_layers[0], sequential.next_module.content);
         bpt::copy(device, device, mlp.output_layer, sequential.next_module.next_module.content);
     }
-
 }
 
 TEST(BACKPROP_TOOLS_NN_MODELS_MLP_VARI, TEST_INCOMPATIBLE_DEFINITION){
@@ -465,4 +478,147 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_VARI, TEST_EVALUATE){
 
     ASSERT_LT(abs_diff, 1e-8);
 
+}
+
+TEST(BACKPROP_TOOLS_NN_MODELS_MLP_VARI, TEST_BACKWARD){
+    using DEVICE = bpt::devices::DefaultCPU;
+    using T = float;
+    using TI = typename DEVICE::index_t;
+
+    constexpr T THRESHOLD = 1e-8;
+
+    using MLP_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, 5, 2, 3, 10, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using MLP_SPEC = bpt::nn_models::mlp::AdamSpecification<MLP_STRUCTURE_SPEC>;
+    using MLP = bpt::nn_models::mlp::NeuralNetworkAdam<MLP_SPEC>;
+
+    using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, 5, 10, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam>;
+    using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
+    using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, 10, 10, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam>;
+    using LAYER_2 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
+    using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, 10, 2, bpt::nn::activation_functions::ActivationFunction::IDENTITY, bpt::nn::parameters::Adam>;
+    using LAYER_3 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
+
+    using namespace bpt::nn_models::sequential::interface;
+    using SEQUENTIAL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+
+    std::cout << "Max hidden dim: " << bpt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() << std::endl;
+
+    DEVICE device;
+    MLP mlp;
+    typename MLP::Buffers<1> mlp_buffers;
+    auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
+
+    LAYER_1 layer_1;
+    LAYER_2 layer_2;
+    LAYER_3 layer_3;
+
+    SEQUENTIAL sequential;
+    SEQUENTIAL::DoubleBuffer<1> buffer_sequential;
+
+    bpt::malloc(device, mlp);
+    bpt::malloc(device, layer_1);
+    bpt::malloc(device, layer_2);
+    bpt::malloc(device, layer_3);
+    bpt::malloc(device, mlp_buffers);
+
+    bpt::malloc(device, sequential);
+    bpt::malloc(device, buffer_sequential);
+
+    bpt::init_weights(device, mlp, rng);
+    bpt::copy(device, device, layer_1, mlp.input_layer);
+    bpt::copy(device, device, layer_2, mlp.hidden_layers[0]);
+    bpt::copy(device, device, layer_3, mlp.output_layer);
+
+    bpt::copy(device, device, sequential.content, mlp.input_layer);
+    bpt::copy(device, device, sequential.next_module.content, mlp.hidden_layers[0]);
+    bpt::copy(device, device, sequential.next_module.next_module.content, mlp.output_layer);
+
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 5>> input;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 5>> d_input_mlp, d_input_chain, d_input_sequential;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 10>> hidden_tick;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 10>> hidden_tock;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 10>> d_hidden_tick;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 10>> d_hidden_tock;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 2>> output_mlp;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 2>> output_chain;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 2>> output_sequential;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 2>> d_output;
+    bpt::malloc(device, input);
+    bpt::malloc(device, d_input_mlp);
+    bpt::malloc(device, d_input_chain);
+    bpt::malloc(device, d_input_sequential);
+    bpt::malloc(device, hidden_tick);
+    bpt::malloc(device, hidden_tock);
+    bpt::malloc(device, d_hidden_tick);
+    bpt::malloc(device, d_hidden_tock);
+    bpt::malloc(device, output_mlp);
+    bpt::malloc(device, output_chain);
+    bpt::malloc(device, output_sequential);
+    bpt::malloc(device, d_output);
+
+    bpt::randn(device, input, rng);
+    bpt::randn(device, d_output, rng);
+    bpt::print(device, input);
+
+    bpt::forward(device, mlp, input, output_mlp);
+    bpt::backward(device, mlp, input, d_output, d_input_mlp, mlp_buffers);
+
+    bpt::print(device, d_input_mlp);
+
+    bpt::zero_gradient(device, layer_1);
+    bpt::zero_gradient(device, layer_2);
+    bpt::zero_gradient(device, layer_3);
+    bpt::forward(device, layer_1, input, hidden_tick);
+    bpt::forward(device, layer_2, hidden_tick, hidden_tock);
+    bpt::forward(device, layer_3, hidden_tock, output_chain);
+    bpt::backward(device, layer_3, hidden_tock, d_output, d_hidden_tick);
+    bpt::backward(device, layer_2, hidden_tick, d_hidden_tick, d_hidden_tock);
+    bpt::backward(device, layer_1, input, d_hidden_tock, d_input_chain);
+
+    bpt::print(device, d_input_chain);
+
+    {
+        auto abs_diff_d_input = bpt::abs_diff(device, d_input_mlp, d_input_chain);
+        auto abs_diff_grad_W_1 = bpt::abs_diff(device, mlp.input_layer.weights.gradient, layer_1.weights.gradient);
+        auto abs_diff_grad_b_1 = bpt::abs_diff(device, mlp.input_layer.biases.gradient, layer_1.biases.gradient);
+        auto abs_diff_grad_W_2 = bpt::abs_diff(device, mlp.hidden_layers[0].weights.gradient, layer_2.weights.gradient);
+        auto abs_diff_grad_b_2 = bpt::abs_diff(device, mlp.hidden_layers[0].biases.gradient, layer_2.biases.gradient);
+        auto abs_diff_grad_W_3 = bpt::abs_diff(device, mlp.output_layer.weights.gradient, layer_3.weights.gradient);
+        auto abs_diff_grad_b_3 = bpt::abs_diff(device, mlp.output_layer.biases.gradient, layer_3.biases.gradient);
+
+        ASSERT_LT(abs_diff_d_input, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_W_1, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_b_1, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_W_2, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_b_2, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_W_3, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_b_3, THRESHOLD);
+    }
+
+    bpt::forward(device, sequential.content                        , input, hidden_tick);
+    bpt::forward(device, sequential.next_module.content            , hidden_tick, hidden_tock);
+    bpt::forward(device, sequential.next_module.next_module.content, hidden_tock, output_sequential);
+
+    bpt::forward(device, sequential, input, output_sequential);
+    bpt::backward(device, sequential, input, d_output, d_input_sequential, buffer_sequential);
+
+    bpt::print(device, d_input_sequential);
+
+    {
+        auto abs_diff_d_input = bpt::abs_diff(device, d_input_mlp, d_input_chain);
+        auto abs_diff_grad_W_1 = bpt::abs_diff(device, sequential.content.weights.gradient, layer_1.weights.gradient);
+        auto abs_diff_grad_b_1 = bpt::abs_diff(device, sequential.content.biases.gradient, layer_1.biases.gradient);
+        auto abs_diff_grad_W_2 = bpt::abs_diff(device, sequential.next_module.content.weights.gradient, layer_2.weights.gradient);
+        auto abs_diff_grad_b_2 = bpt::abs_diff(device, sequential.next_module.content.biases.gradient, layer_2.biases.gradient);
+        auto abs_diff_grad_W_3 = bpt::abs_diff(device, sequential.next_module.next_module.content.weights.gradient, layer_3.weights.gradient);
+        auto abs_diff_grad_b_3 = bpt::abs_diff(device, sequential.next_module.next_module.content.biases.gradient, layer_3.biases.gradient);
+
+        ASSERT_LT(abs_diff_d_input, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_W_1, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_b_1, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_W_2, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_b_2, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_W_3, THRESHOLD);
+        ASSERT_LT(abs_diff_grad_b_3, THRESHOLD);
+    }
 }
