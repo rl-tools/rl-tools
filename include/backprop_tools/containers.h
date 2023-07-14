@@ -24,8 +24,11 @@ namespace backprop_tools{
                 static constexpr TI COL_PITCH = T_COL_PITCH;
             };
 
+            template <typename TI>
+            using DEFAULT = layouts::RowMajorAlignmentOptimized<TI>; // row-major by default
+
         }
-        template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename LAYOUT_FACTORY = layouts::RowMajorAlignmentOptimized<T_TI>, bool T_IS_VIEW = false> // row-major by default
+        template <typename T_T, typename T_TI, T_TI T_ROWS, T_TI T_COLS, typename LAYOUT_FACTORY = matrix::layouts::DEFAULT<T_TI>, bool T_IS_VIEW = false>
         struct Specification{
             using T = T_T;
             using TI = T_TI;

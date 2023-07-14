@@ -57,6 +57,7 @@ namespace backprop_tools::nn::layers::dense {
     };
     template<typename SPEC>
     struct LayerBackward : public Layer<SPEC> {
+        static constexpr typename SPEC::TI BATCH_SIZE = SPEC::BATCH_SIZE;
         // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
         using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM>;
         using PRE_ACTIVATIONS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
