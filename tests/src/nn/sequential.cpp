@@ -193,13 +193,26 @@ namespace backprop_tools{
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT>
     void forward(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module, INPUT& input, OUTPUT& output){
-        using namespace nn_models::sequential;
         forward(device, module.content, input);
-        if constexpr(!bpt::utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, OutputModule>){
+        if constexpr(!bpt::utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             forward(device, module.next_module, module.content.output, output);
         }
         else{
             bpt::copy(device, device, output, module.content.output);
+        }
+    }
+    template <typename DEVICE, typename MODULE_SPEC>
+    void zero_gradient(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module){
+        zero_gradient(device, module.content);
+        if constexpr(!bpt::utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            zero_gradient(device, module.next_module);
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void reset_optimizer_state(DEVICE& device, nn_models::sequential::ModuleInternal<SPEC>& module, OPTIMIZER& optimizer) {
+        reset_optimizer_state(device, module.content, optimizer);
+        if constexpr(!bpt::utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            reset_optimizer_state(device, module.next_module, optimizer);
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
@@ -216,6 +229,13 @@ namespace backprop_tools{
             backward(device, model.content, input, current_d_output_buffer, d_input);
         }
 
+    }
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void update(DEVICE& device, nn_models::sequential::ModuleInternal<SPEC>& model, OPTIMIZER& optimizer) {
+        update(device, model.content, optimizer);
+        if constexpr(!bpt::utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            update(device, model.next_module, optimizer);
+        }
     }
 }
 
@@ -597,7 +617,11 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_VARI, TEST_BACKWARD){
     bpt::forward(device, sequential.next_module.content            , hidden_tick, hidden_tock);
     bpt::forward(device, sequential.next_module.next_module.content, hidden_tock, output_sequential);
 
+    bpt::set(sequential.content.weights.gradient, 0, 0, 10);
+    bpt::set(sequential.next_module.content.weights.gradient, 0, 0, 10);
+    bpt::set(sequential.next_module.next_module.content.weights.gradient, 0, 0, 10);
     bpt::forward(device, sequential, input, output_sequential);
+    bpt::zero_gradient(device, sequential);
     bpt::backward(device, sequential, input, d_output, d_input_sequential, buffer_sequential);
 
     bpt::print(device, d_input_sequential);
