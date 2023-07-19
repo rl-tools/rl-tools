@@ -281,7 +281,7 @@ namespace backprop_tools{
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
-    void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
+    void _reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, nn::optimizers::Adam<PARAMETERS>& optimizer) {
         cudaMemset(layer.weights.gradient_first_order_moment._data, 0, decltype(layer.weights.gradient_first_order_moment)::SPEC::SIZE_BYTES);
         check_status(device);
         cudaMemset(layer.weights.gradient_second_order_moment._data, 0, decltype(layer.weights.gradient_second_order_moment)::SPEC::SIZE_BYTES);

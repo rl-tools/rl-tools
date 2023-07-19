@@ -36,7 +36,7 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename CONTAINER, typename PARAMETERS>
-    void reset_optimizer_state(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
+    void _reset_optimizer_state(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
         set_all(device, parameter.gradient_first_order_moment, 0);
         set_all(device, parameter.gradient_second_order_moment, 0);
     }
@@ -55,10 +55,24 @@ namespace backprop_tools{
         acc += abs_diff(device, p1.gradient_second_order_moment, p2.gradient_second_order_moment);
         return acc;
     }
-    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    void reset_optimizer_state(DEVICE& device, nn::parameters::Adam::instance<SPEC>& p1, OPTIMIZER& optimizer) {
-        set_all(device, p1.gradient_first_order_moment, 0);
-        set_all(device, p1.gradient_second_order_moment, 0);
+//    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+//    void _reset_optimizer_state(DEVICE& device, nn::parameters::Adam::instance<SPEC>& p1, OPTIMIZER& optimizer) {
+//        set_all(device, p1.gradient_first_order_moment, 0);
+//        set_all(device, p1.gradient_second_order_moment, 0);
+//    }
+    template<typename DEVICE, typename PARAMETERS, typename MODEL>
+    void reset_optimizer_state(DEVICE& device, nn::optimizers::Adam<PARAMETERS>& optimizer, MODEL& model) {
+        optimizer.age = 1;
+        _reset_optimizer_state(device, model, optimizer);
+    }
+
+    template<typename DEVICE, typename PARAMETERS, typename MODEL>
+    void step(DEVICE& device, nn::optimizers::Adam<PARAMETERS>& optimizer, MODEL& model) {
+        using T = typename PARAMETERS::T;
+        optimizer.first_order_moment_bias_correction  = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), PARAMETERS::BETA_1, (T)optimizer.age));
+        optimizer.second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), PARAMETERS::BETA_2, (T)optimizer.age));
+        optimizer.age += 1;
+        update(device, model, optimizer);
     }
 }
 #endif

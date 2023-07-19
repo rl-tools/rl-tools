@@ -50,7 +50,7 @@ using ActorStructureSpec = bpt::nn_models::mlp::StructureSpecification<DTYPE, DE
 using CriticStructureSpec = bpt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, TD3ParametersCopyTraining::CRITIC_BATCH_SIZE>;
 
 using NN_DEVICE = bpt::devices::DefaultCPU;
-using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
 using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
@@ -65,7 +65,7 @@ using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpec
 using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 
-using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3ParametersCopyTraining>;
+using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3ParametersCopyTraining>;
 using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -152,7 +152,6 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     constexpr bool verbose = true;
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
-    OPTIMIZER optimizer;
     device.logger = &logger;
     NN_DEVICE nn_device;
     nn_device.logger = &logger;
@@ -160,7 +159,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     bpt::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
-    bpt::init(device, actor_critic, optimizer, rng);
+    bpt::init(device, actor_critic,rng);
 
 
     bool ui = false;
@@ -178,9 +177,9 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     OFF_POLICY_RUNNER_TYPE off_policy_runner;
     bpt::malloc(device, off_policy_runner);
 
-    bpt::reset_optimizer_state(device, actor_critic.actor, optimizer);
-    bpt::reset_optimizer_state(device, actor_critic.critic_1, optimizer);
-    bpt::reset_optimizer_state(device, actor_critic.critic_2, optimizer);
+    bpt::reset_optimizer_state(device, actor_critic.actor_optimizer     , actor_critic.actor   );
+    bpt::reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
+    bpt::reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critic_2);
     DTYPE mean_ratio_critic = 0;
     DTYPE mean_ratio_critic_grad = 0;
     DTYPE mean_ratio_critic_adam = 0;
@@ -250,7 +249,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 
             bpt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
-            bpt::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, optimizer, actor_buffers[0], critic_buffers[0], critic_training_buffers);
+            bpt::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_critic.critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers);
 
 
             bpt::reset_forward_state(device, pre_critic_1);
@@ -302,7 +301,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 bpt::load(device, critic_training_buffers.target_next_action_noise, step_group, "target_next_action_noise");
 
                 bpt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
-                bpt::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, optimizer, actor_buffers[0], critic_buffers[0], critic_training_buffers);
+                bpt::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[1], actor_buffers[0], critic_buffers[0], critic_training_buffers);
             }
             bpt::copy(device, device, pre_critic_1, actor_critic.critic_1);
 
@@ -351,7 +350,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
             {
                 bpt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, ACTOR_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, actor_batch, rng);
-                bpt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+                bpt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
             }
 //            DTYPE actor_loss = bpt::train_actor<AC_DEVICE, ActorCriticType::SPEC, decltype(replay_buffer)::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
 

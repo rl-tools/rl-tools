@@ -214,8 +214,8 @@ namespace backprop_tools{
                 backward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.d_action_log_prob_d_action, hybrid_buffers.d_observations, actor_buffers);
                 copy(device_evaluation, device, hybrid_buffers.target_values, batch_target_values);
                 forward_backward_mse(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.target_values, critic_buffers);
-                update(device_evaluation, ppo_evaluation.actor, actor_optimizer);
-                update(device_evaluation, ppo_evaluation.critic, critic_optimizer);
+                step(device_evaluation, actor_optimizer, ppo_evaluation.actor);
+                step(device_evaluation, critic_optimizer, ppo_evaluation.critic);
             }
         }
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {

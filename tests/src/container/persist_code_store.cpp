@@ -41,8 +41,9 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
 
 TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     using DEVICE = bpt::devices::DefaultCPU;
+    using TI = DEVICE::index_t;
     using DTYPE = float;
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, TI>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
     DEVICE device;
@@ -52,7 +53,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     bpt::init_kaiming(device, layer, rng);
     bpt::zero_gradient(device, layer);
     bpt::reset_forward_state(device, layer);
-    bpt::reset_optimizer_state(device, layer, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, layer);
     bpt::randn(device, layer.weights.gradient, rng);
     bpt::randn(device, layer.weights.gradient_first_order_moment, rng);
     bpt::randn(device, layer.weights.gradient_second_order_moment, rng);

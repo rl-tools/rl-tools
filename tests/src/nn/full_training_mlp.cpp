@@ -38,7 +38,7 @@ constexpr int batch_size = 32;
 using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, bpt::nn::activation_functions::GELU, bpt::nn::activation_functions::IDENTITY, 1>;
 
 
-using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T>;
+using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T, typename DEVICE::index_t>;
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 using NetworkType = bpt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
@@ -84,7 +84,7 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     std::vector<T> epoch_durations;
     constexpr int n_epochs = 3;
     //    this->reset();
-    bpt::reset_optimizer_state(device, network, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network);
 //    typename DEVICE::index_t rng = 2;
     std::mt19937 rng(2);
     bpt::init_weights(device, network, rng);
@@ -123,7 +123,7 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
 
             //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            bpt::update(device, network, optimizer);
+            bpt::step(device, optimizer, network);
             if(batch_i % 1000 == 0){
                 std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
             }

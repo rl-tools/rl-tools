@@ -11,7 +11,7 @@ using NN_DEVICE = bpt::devices::DefaultCPU;
 using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY>;
 
 using STRUCTURE_SPEC = StructureSpecification;
-using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<DTYPE>;
+using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<DTYPE, typename NN_DEVICE::index_t>;
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC>;
 using NetworkType = bpt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;

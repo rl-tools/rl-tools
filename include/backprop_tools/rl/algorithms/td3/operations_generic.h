@@ -79,17 +79,17 @@ namespace backprop_tools{
         free(device, critic_training_buffers.next_state_action_value_critic_2);
     }
 
-    template <typename DEVICE, typename SPEC, typename OPTIMIZER, typename RNG>
-    void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, OPTIMIZER& optimizer, RNG& rng){
+    template <typename DEVICE, typename SPEC, typename RNG>
+    void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
         init_weights(device, actor_critic.critic_1, rng);
         init_weights(device, actor_critic.critic_2, rng);
         zero_gradient(device, actor_critic.actor);
         zero_gradient(device, actor_critic.critic_1);
         zero_gradient(device, actor_critic.critic_2);
-        reset_optimizer_state(device, actor_critic.actor, optimizer);
-        reset_optimizer_state(device, actor_critic.critic_1, optimizer);
-        reset_optimizer_state(device, actor_critic.critic_2, optimizer);
+        reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
+        reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
+        reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critic_2);
 
         copy(device, device, actor_critic.actor_target, actor_critic.actor);
         copy(device, device, actor_critic.critic_target_1, actor_critic.critic_1);
@@ -162,7 +162,7 @@ namespace backprop_tools{
 
         target_actions(device, batch, training_buffers);
         forward_backward_mse(device, critic, batch.observations_and_actions, training_buffers.target_action_value, critic_buffers);
-        update(device, critic, optimizer);
+        step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
     typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
@@ -201,7 +201,7 @@ namespace backprop_tools{
         auto d_actor_output = view<DEVICE, typename decltype(training_buffers.d_critic_input)::SPEC, BATCH_SIZE, ACTION_DIM>(device, training_buffers.d_critic_input, 0, OBSERVATION_DIM);
         backward(device, actor_critic.actor, batch.observations, d_actor_output, training_buffers.d_actor_input, actor_buffers);
 
-        update(device, actor_critic.actor, optimizer);
+        step(device, optimizer, actor_critic.actor);
     }
 
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>

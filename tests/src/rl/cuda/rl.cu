@@ -59,7 +59,7 @@ public:
     };
     using ACTOR_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
     using CRITIC_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
-    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE_GPU::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
     using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
@@ -69,13 +69,12 @@ public:
     using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
     using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
     using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
-    using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
+    using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
     using ACTOR_BUFFERS = bpt::nn_models::mlp::NeuralNetworkBuffersForwardBackward<bpt::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;
     using CRITIC_BUFFERS = bpt::nn_models::mlp::NeuralNetworkBuffersForwardBackward<bpt::nn_models::mlp::NeuralNetworkBuffersSpecification<CRITIC_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
     DEVICE_CPU device_cpu;
     DEVICE_GPU device_gpu;
-    OPTIMIZER optimizer;
     OFF_POLICY_RUNNER_TYPE off_policy_runner_cpu;
     OFF_POLICY_RUNNER_TYPE off_policy_runner_cpu_2;
     OFF_POLICY_RUNNER_TYPE off_policy_runner_gpu_cpu;
@@ -132,7 +131,7 @@ protected:
             bpt::test::rl::components::replay_buffer::sample(device_cpu, off_policy_runner_cpu.replay_buffers[rb_i], rng_cpu);
             bpt::copy(device_gpu, device_cpu, off_policy_runner_gpu_cpu.replay_buffers[rb_i], off_policy_runner_cpu.replay_buffers[rb_i]);
         }
-        bpt::init(device_cpu, actor_critic_cpu, optimizer, rng_cpu);
+        bpt::init(device_cpu, actor_critic_cpu, rng_cpu);
 
         // copy
         bpt::check_status(device_gpu);
@@ -330,8 +329,8 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         std::cout << "abs_diff_critic: " << abs_diff_critic << std::endl;
         ASSERT_LT(abs_diff_critic, EPSILON);
 
-        bpt::update(device_cpu, critic_cpu, optimizer);
-        bpt::update(device_gpu, critic_gpu, optimizer);
+        bpt::step(device_cpu, actor_critic_cpu.critic_optimizers[0], critic_cpu);
+        bpt::step(device_gpu, actor_critic_gpu.critic_optimizers[0], critic_gpu);
         bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
         auto abs_diff_critic_after_update = bpt::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
         std::cout << "abs_diff_critic_after_update: " << abs_diff_critic_after_update << std::endl;
@@ -396,8 +395,8 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
         auto& critic_gpu = critic_i == 0 ? actor_critic_gpu.critic_1 : actor_critic_gpu.critic_2;
         auto& critic_cpu_2 = critic_i == 0 ? actor_critic_cpu_2.critic_1 : actor_critic_cpu_2.critic_2;
 
-        bpt::train_critic(device_cpu, actor_critic_cpu, critic_cpu, batch_cpu, optimizer, actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu);
-        bpt::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, optimizer, actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu);
+        bpt::train_critic(device_cpu, actor_critic_cpu, critic_cpu, batch_cpu, actor_critic_cpu.critic_optimizers[0], actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu);
+        bpt::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, actor_critic_gpu.critic_optimizers[0], actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu);
 
         bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
         auto abs_diff_critic_after_update = bpt::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
@@ -460,7 +459,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
         auto& critic_cpu = actor_critic_cpu.critic_1;
         auto start = std::chrono::high_resolution_clock::now();
         for(typename DEVICE_CPU::index_t i = 0; i < N_STEPS; i++){
-            bpt::train_critic(device_mkl, actor_critic_cpu, critic_cpu, batch_cpu, optimizer, actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu);
+            bpt::train_critic(device_mkl, actor_critic_cpu, critic_cpu, batch_cpu, actor_critic_cpu.critic_optimizers[0], actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu);
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -471,7 +470,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
         cudaDeviceSynchronize();
         auto start = std::chrono::high_resolution_clock::now();
         for(typename DEVICE_CPU::index_t i = 0; i < N_STEPS; i++){
-            bpt::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, optimizer, actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu);
+            bpt::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, actor_critic_gpu.critic_optimizers[0], actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu);
         }
         cudaDeviceSynchronize();
         auto end = std::chrono::high_resolution_clock::now();
@@ -499,8 +498,8 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
     for(typename DEVICE_CPU::index_t step_i = 0; step_i < N_STEPS; step_i++){
         sample_batch(false);
 
-        bpt::train_actor(device_cpu, actor_critic_cpu, batch_cpu, optimizer, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu);
-        bpt::train_actor(device_gpu, actor_critic_gpu, batch_gpu, optimizer, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu);
+        bpt::train_actor(device_cpu, actor_critic_cpu, batch_cpu, actor_critic_cpu.actor_optimizer, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu);
+        bpt::train_actor(device_gpu, actor_critic_gpu, batch_gpu, actor_critic_gpu.actor_optimizer, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu);
 
         bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
         auto abs_diff_actor_after_update = bpt::abs_diff(device_cpu, actor_critic_cpu.actor, actor_critic_cpu_2.actor);
@@ -530,7 +529,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
 
     auto start = std::chrono::high_resolution_clock::now();
     for(typename DEVICE_CPU::index_t step_i = 0; step_i < N_STEPS; step_i++){
-        bpt::train_actor(device_cpu, actor_critic_cpu, batch_cpu, optimizer, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu);
+        bpt::train_actor(device_cpu, actor_critic_cpu, batch_cpu, actor_critic_cpu.actor_optimizer, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu);
     }
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -539,7 +538,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
     cudaDeviceSynchronize();
     start = std::chrono::high_resolution_clock::now();
     for(typename DEVICE_CPU::index_t step_i = 0; step_i < N_STEPS; step_i++){
-        bpt::train_actor(device_gpu, actor_critic_gpu, batch_gpu, optimizer, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu);
+        bpt::train_actor(device_gpu, actor_critic_gpu, batch_gpu, actor_critic_gpu.actor_optimizer, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu);
     }
     cudaDeviceSynchronize();
     end = std::chrono::high_resolution_clock::now();

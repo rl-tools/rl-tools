@@ -46,7 +46,7 @@ constexpr DEVICE::index_t HIDDEN_DIM = BATCH_SIZE;
 template <typename T, typename TI, bpt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
 using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, bpt::nn::activation_functions::RELU, BATCH_SIZE>;
 
-using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 template <typename T, typename TI, bpt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
 using InferenceSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>>;
@@ -84,7 +84,7 @@ protected:
         auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
         bpt::malloc(device, network);
         bpt::malloc(device, network_buffers);
-        network.age = 100000;
+        optimizer.age = 100000;
         bpt::malloc(device, network_mkl);
         bpt::malloc(device, network_mkl_buffers);
         bpt::init_weights(device, network, rng);
@@ -114,7 +114,7 @@ protected:
 
         bpt::copy(device, device, expected_output_output_layer, network.output_layer.output);
 
-        bpt::reset_optimizer_state(device, network, optimizer);
+        bpt::reset_optimizer_state(device, optimizer, network);
         bpt::zero_gradient(device, network);
         {
             auto start = std::chrono::high_resolution_clock::now();
@@ -302,7 +302,7 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
     device_mkl.logger = device.logger;
     OPTIMIZER optimizer;
 
-    bpt::reset_optimizer_state(device_mkl, network_mkl, optimizer);
+    bpt::reset_optimizer_state(device_mkl, optimizer, network_mkl);
     bpt::zero_gradient(device_mkl, network_mkl);
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {

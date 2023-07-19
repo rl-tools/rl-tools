@@ -281,7 +281,7 @@ namespace copy{
     template <typename T, typename TI, bpt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
     using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE_CPU::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     template <typename T, typename TI, bpt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
     using NNSPEC = bpt::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>>;
@@ -314,8 +314,8 @@ TEST(BACKPROP_TOOLS_NN_CUDA, COPY) {
     bpt::init_weights(device_cpu, network_cpu_2, rng);
     bpt::zero_gradient(device_cpu, network_cpu);
     bpt::zero_gradient(device_cpu, network_cpu_2);
-    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
-    bpt::reset_optimizer_state(device_cpu, network_cpu_2, optimizer);
+    bpt::reset_optimizer_state(device_cpu, optimizer, network_cpu);
+    bpt::reset_optimizer_state(device_cpu, optimizer, network_cpu_2);
     bpt::reset_forward_state(device_cpu, network_cpu);
     bpt::reset_forward_state(device_cpu, network_cpu_2);
     auto cpu_network_diff = bpt::abs_diff(device_cpu, network_cpu, network_cpu_2);
@@ -355,7 +355,7 @@ void GEMM() {
     constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
     using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, bpt::nn::activation_functions::RELU, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T, typename DEVICE_CUDA::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
     using NNSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
@@ -382,7 +382,7 @@ void GEMM() {
     auto rng = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
     bpt::init_weights(device_cpu, network_cpu, rng);
-    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    bpt::reset_optimizer_state(device_cpu, optimizer, network_cpu);
     bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
@@ -521,7 +521,7 @@ void FORWARD() {
     constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
     using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, bpt::nn::activation_functions::RELU, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T, typename DEVICE_CUDA::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
     using NNSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
@@ -683,7 +683,7 @@ void BACKWARD() {
     constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
     using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, bpt::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T, typename DEVICE_CUDA::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
     using NNSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
@@ -715,7 +715,7 @@ void BACKWARD() {
 
     bpt::init_weights(device_cpu, network_cpu, rng);
     bpt::zero_gradient(device_cpu, network_cpu);
-    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    bpt::reset_optimizer_state(device_cpu, optimizer, network_cpu);
     bpt::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
@@ -870,7 +870,7 @@ void ADAM_UPDATE() {
     constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
     using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, bpt::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<T, TI>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
     using NNSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
@@ -890,7 +890,7 @@ void ADAM_UPDATE() {
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
     typename NetworkTypeCPU::template BuffersForwardBackward<BATCH_SIZE> network_cuda_buffers;
-    OPTIMIZER optimizer;
+    OPTIMIZER optimizer_cpu, optimizer_gpu;
     bpt::malloc(device_cpu, network_cpu);
     bpt::malloc(device_cpu, network_cpu_pre);
     bpt::malloc(device_cpu, network_cuda_cpu);
@@ -902,7 +902,7 @@ void ADAM_UPDATE() {
 
     bpt::init_weights(device_cpu, network_cpu, rng);
     bpt::zero_gradient(device_cpu, network_cpu);
-    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
+    bpt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
     bpt::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
@@ -971,12 +971,12 @@ void ADAM_UPDATE() {
 
     bpt::zero_gradient(device_cpu, network_cpu);
     bpt::zero_gradient(device_cuda, network_cuda);
-    bpt::reset_optimizer_state(device_cpu, network_cpu, optimizer);
-    bpt::reset_optimizer_state(device_cuda, network_cuda, optimizer);
+    bpt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
+    bpt::reset_optimizer_state(device_cuda, optimizer_gpu, network_cuda);
     bpt::forward_backward_mse(device_cpu, network_cpu, input_cpu, output_target_cpu, network_cpu_buffers);
-    bpt::update(device_cpu, network_cpu, optimizer);
+    bpt::step(device_cpu, optimizer_cpu, network_cpu);
     bpt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
-    bpt::update(device_cuda, network_cuda, optimizer);
+    bpt::step(device_cuda, optimizer_gpu, network_cuda);
     cudaDeviceSynchronize();
 
     bpt::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
@@ -1031,7 +1031,7 @@ void ADAM_UPDATE() {
         for(int i = 0; i < ITERATIONS; ++i)
         {
             bpt::forward_backward_mse(device_cuda, network_cuda, input_cuda, output_target_cuda, network_cuda_buffers);
-            bpt::update(device_cuda, network_cuda, optimizer);
+            bpt::step(device_cuda, optimizer_gpu, network_cuda);
             cudaDeviceSynchronize();
         }
         auto end = std::chrono::high_resolution_clock::now();

@@ -178,9 +178,9 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    void reset_optimizer_state(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, OPTIMIZER& optimizer) {
-        reset_optimizer_state(device, layer.weights, optimizer);
-        reset_optimizer_state(device, layer.biases, optimizer);
+    void _reset_optimizer_state(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer, OPTIMIZER& optimizer) {
+        _reset_optimizer_state(device, layer.weights, optimizer);
+        _reset_optimizer_state(device, layer.biases, optimizer);
     }
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>

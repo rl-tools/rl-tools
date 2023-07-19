@@ -97,7 +97,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     bpt::malloc(device, actor_buffers[0]);
     bpt::malloc(device, actor_buffers[1]);
 
-    bpt::init(device_init, actor_critic_init, optimizer, rng_init);
+    bpt::init(device_init, actor_critic_init, rng_init);
     bpt::copy(device, device_init, actor_critic, actor_critic_init);
 //    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
 //        auto parameters = p::env::parameters;

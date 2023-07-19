@@ -2,6 +2,7 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_OPERATIONS_CPU_H
 
 #include "ant.h"
+#include "../../operations_generic.h"
 #include <cstring>
 namespace backprop_tools::rl::environments::mujoco::ant{
     #include "model.h"

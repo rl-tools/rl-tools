@@ -27,10 +27,10 @@ TEST(BACKPROP_TOOLS_NN_PERSIST, Saving) {
     bpt::init_weights(device, network_1, rng);
     bpt::init_weights(device, network_2, rng);
     bpt::reset_forward_state(device, network_1);
-    bpt::reset_optimizer_state(device, network_1, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network_1);
     bpt::zero_gradient(device, network_1);
     bpt::reset_forward_state(device, network_2);
-    bpt::reset_optimizer_state(device, network_2, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network_2);
     bpt::zero_gradient(device, network_2);
     bpt::increment(network_1.input_layer.weights.gradient_first_order_moment, 2, 3, 10);
     {

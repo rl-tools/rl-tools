@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_OPERATIONS_GENERIC
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_OPERATIONS_GENERIC
 #include "pendulum.h"
+#include "../operations_generic.h"
 namespace backprop_tools::rl::environments::pendulum {
     template <typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T clip(T x, T min, T max){

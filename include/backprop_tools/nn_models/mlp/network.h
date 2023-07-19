@@ -162,20 +162,13 @@ namespace backprop_tools::nn_models::mlp {
     };
 
     template<typename SPEC>
-    struct NeuralNetworkBackward: public NeuralNetwork<SPEC>{
-    };
+    struct NeuralNetworkBackward: public NeuralNetwork<SPEC>{};
     template<typename SPEC>
-    struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<SPEC>{
-    };
-
+    struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<SPEC>{};
     template<typename SPEC>
-    struct NeuralNetworkSGD: public NeuralNetworkBackwardGradient<SPEC>{
-    };
-
+    struct NeuralNetworkSGD: public NeuralNetworkBackwardGradient<SPEC>{};
     template<typename SPEC>
-    struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<SPEC>{
-        typename SPEC::TI age = 1;
-    };
+    struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<SPEC>{};
 
 
 }

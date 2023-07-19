@@ -198,7 +198,7 @@ typedef BACKPROP_TOOLS_NN_MLP_BACKWARD_PASS BACKPROP_TOOLS_NN_MLP_ADAM_UPDATE;
 #ifndef SKIP_TESTS
 TEST_F(BACKPROP_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
-    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTF<DTYPE>> optimizer;
+    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTF<DTYPE, typename DEVICE::index_t>> optimizer;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     std::vector<std::vector<DTYPE>> batch_0_input_layer_weights;
@@ -231,8 +231,8 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
     d_input_matrix._data = d_input;
     bpt::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, network_buffers);
-    bpt::reset_optimizer_state(device, network, optimizer);
-    bpt::update(device, network, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network);
+    bpt::step(device, optimizer, network);
 
     DTYPE out = abs_diff_matrix(
             network.input_layer.weights.parameters,
@@ -289,7 +289,7 @@ protected:
 #ifndef SKIP_TESTS
 TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
-    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTF<DTYPE>> optimizer;
+    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTF<DTYPE, typename DEVICE::index_t>> optimizer;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     HighFive::Group g = data_file.getGroup("model_2/overfit_small_batch");
@@ -297,7 +297,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     constexpr int n_iter = 1000;
     constexpr int batch_size = 32;
     DTYPE loss = 0;
-    bpt::reset_optimizer_state(device, network, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network);
     {
         DTYPE diff = abs_diff_network<DTYPE>(network, data_file.getGroup(model_name+"/init"));
         std::cout << "initial diff: " << diff << std::endl;
@@ -332,7 +332,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 
         std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-        bpt::update(device, network, optimizer);
+        bpt::step(device, optimizer, network);
 //        constexpr int comp_batch = 100;
 //        if(batch_i == comp_batch){
         std::stringstream ss;
@@ -354,7 +354,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 #ifndef SKIP_TESTS
 TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     std::vector<DTYPE> losses;
-    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
+    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>> optimizer;
     constexpr int n_batches = 10;
     for(int batch_i_real=0; batch_i_real < n_batches; batch_i_real++){
         this->reset();
@@ -362,7 +362,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
         constexpr int n_iter = 1000;
         constexpr int batch_size = 32;
         DTYPE loss = 0;
-        bpt::reset_optimizer_state(device, network, optimizer);
+        bpt::reset_optimizer_state(device, optimizer, network);
         for (int batch_i=0; batch_i < n_iter; batch_i++){
             loss = 0;
             bpt::zero_gradient(device, network);
@@ -392,7 +392,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            bpt::update(device, network, optimizer);
+            bpt::step(device, optimizer, network);
         }
         std::cout << "batch_i_real " << batch_i_real << " loss: " << loss << std::endl;
         losses.push_back(loss);
@@ -457,12 +457,12 @@ protected:
 #ifndef SKIP_TRAINING_TESTS
 #ifndef SKIP_TESTS
 TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
-    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
+    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>> optimizer;
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
     this->reset();
-    bpt::reset_optimizer_state(device, network, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network);
     constexpr int batch_size = 32;
     int n_iter = X_train.size() / batch_size;
 
@@ -498,7 +498,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            bpt::update(device, network, optimizer);
+            bpt::step(device, optimizer, network);
             std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
         }
         epoch_loss /= n_iter;
@@ -550,7 +550,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
 
 #ifndef SKIP_TESTS
 TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
-    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>> optimizer;
+    bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>> optimizer;
     NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device;
     device.logger = &logger;
@@ -560,7 +560,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
 //    this->reset();
-    bpt::reset_optimizer_state(device, network, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network);
     std::mt19937 rng(2);
     bpt::init_weights(device, network, rng);
 
@@ -600,7 +600,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
 
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            bpt::update(device, network, optimizer);
+            bpt::step(device, optimizer, network);
             std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
         }
         epoch_loss /= n_iter;

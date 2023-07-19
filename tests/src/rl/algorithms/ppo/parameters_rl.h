@@ -12,7 +12,7 @@ namespace parameters_0{
         static constexpr TI BATCH_SIZE = 64;
         using ACTOR_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, bpt::nn::activation_functions::ActivationFunction::TANH, bpt::nn::activation_functions::IDENTITY, BATCH_SIZE>;
 
-        struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParametersTorch<T>{
+        struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParametersTorch<T, TI>{
             static constexpr T ALPHA = 0.001;
         };
         using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;

@@ -75,10 +75,10 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    void reset_optimizer_state(DEVICE& device, nn_models::sequential::ModuleInternal<SPEC>& module, OPTIMIZER& optimizer) {
-        reset_optimizer_state(device, module.content, optimizer);
+    void _reset_optimizer_state(DEVICE& device, nn_models::sequential::ModuleInternal<SPEC>& module, OPTIMIZER& optimizer) {
+        _reset_optimizer_state(device, module.content, optimizer);
         if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            reset_optimizer_state(device, module.next_module, optimizer);
+            _reset_optimizer_state(device, module.next_module, optimizer);
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>

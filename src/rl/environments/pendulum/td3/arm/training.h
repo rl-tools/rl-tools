@@ -39,7 +39,7 @@ using ActorStructureSpec = bpt::nn_models::mlp::StructureSpecification<DTYPE, DE
 using CriticStructureSpec = bpt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG_CRITIC>;
 
 
-using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
 using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
@@ -53,7 +53,7 @@ using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CR
 using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
 using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
-using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS, CONTAINER_TYPE_TAG>;
+using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS, CONTAINER_TYPE_TAG>;
 using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -111,8 +111,6 @@ void train(){
     DEVICE device;
     device.logger = &logger;
 
-    OPTIMIZER optimizer;
-
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
 
     bool ui = false;
@@ -136,7 +134,7 @@ void train(){
 #endif
 
 
-    bpt::init(device, actor_critic, optimizer, rng);
+    bpt::init(device, actor_critic, rng);
     bpt::init(device, off_policy_runner, envs);
     bpt::set_all(device, observations_mean, 0);
     bpt::set_all(device, observations_std, 1);
@@ -180,13 +178,13 @@ void train(){
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 bpt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 bpt::gather_batch(device, off_policy_runner, critic_batch, rng);
-                bpt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers, critic_buffers, critic_training_buffers);
+                bpt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers, critic_buffers, critic_training_buffers);
             }
 
             if(step_i % 2 == 0){
                 {
                     bpt::gather_batch(device, off_policy_runner, actor_batch, rng);
-                    bpt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers, critic_buffers, actor_training_buffers);
+                    bpt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers, critic_buffers, actor_training_buffers);
                 }
 
                 bpt::update_critic_targets(device, actor_critic);

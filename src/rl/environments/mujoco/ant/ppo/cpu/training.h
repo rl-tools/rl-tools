@@ -55,7 +55,11 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI BASE_SEED = 600;
 constexpr DEVICE::index_t NUM_RUNS = 1;
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST)
 constexpr DEVICE::index_t NUM_STEPS = 2500;
+#else
+constexpr DEVICE::index_t NUM_STEPS = 200;
+#endif
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
 #if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
 constexpr bool ENABLE_EVALUATION = false;

@@ -25,7 +25,7 @@ constexpr TI DATASET_SIZE_VAL = 10000;
 constexpr TI VALIDATION_LIMIT = 50;
 using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, 1>;
 
-using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T>;
+using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T, TI>;
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 using NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
@@ -72,7 +72,7 @@ int main(){
     }
 
 
-    bpt::reset_optimizer_state(device, network, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network);
     auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 2);
     bpt::init_weights(device, network, rng);
 
@@ -98,7 +98,7 @@ int main(){
             loss /= BATCH_SIZE;
             epoch_loss += loss;
 
-            bpt::update(device, network, optimizer);
+            bpt::step(device, optimizer, network);
             if(batch_i % 1000 == 0){
                 std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
             }
