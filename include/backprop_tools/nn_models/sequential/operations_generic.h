@@ -39,6 +39,14 @@ namespace backprop_tools{
             init_weights(device, module.next_module, rng);
         }
     }
+    template <typename SPEC>
+    constexpr auto& output(nn_models::sequential::ModuleInternal<SPEC>& m){
+        if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            return m.content.output;
+        } else {
+            return output(m.next_module);
+        }
+    }
     // Evaluate is like a forward pass but without saving intermediate activations (so a backward pass is not possible). Hence we can reuse the memory of the intermediate outputs and just require a double buffer where each buffer has to be able to contain the maximum hidden dimension of the module
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
     void evaluate(DEVICE& device, const nn_models::sequential::ModuleInternal<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC>& buffers){
@@ -57,15 +65,17 @@ namespace backprop_tools{
             evaluate<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename DOUBLE_BUFFER_TYPE::SPEC, OUTPUT_SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, output_buffer, output, buffers);
         }
     }
-    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT>
-    void forward(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module, INPUT& input, OUTPUT& output){
+    template <typename DEVICE, typename MODULE_SPEC, typename INPUT>
+    void forward(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module, INPUT& input){
         forward(device, module.content, input);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            forward(device, module.next_module, module.content.output, output);
+            forward(device, module.next_module, module.content.output);
         }
-        else{
-            copy(device, device, output, module.content.output);
-        }
+    }
+    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT>
+    void forward(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module, INPUT& input, OUTPUT& output){
+        forward(device, module, input);
+        copy(device, device, output, backprop_tools::output(module));
     }
     template <typename DEVICE, typename MODULE_SPEC>
     void zero_gradient(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module){
