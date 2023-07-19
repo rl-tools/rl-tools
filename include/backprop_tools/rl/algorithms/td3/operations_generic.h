@@ -65,6 +65,8 @@ namespace backprop_tools{
         malloc(device, critic_training_buffers.target_action_value);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
         malloc(device, critic_training_buffers.next_state_action_value_critic_2);
+        malloc(device, critic_training_buffers.d_output);
+        malloc(device, critic_training_buffers.d_input);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -77,6 +79,8 @@ namespace backprop_tools{
         free(device, critic_training_buffers.target_action_value);
         free(device, critic_training_buffers.next_state_action_value_critic_1);
         free(device, critic_training_buffers.next_state_action_value_critic_2);
+        free(device, critic_training_buffers.d_output);
+        free(device, critic_training_buffers.d_input);
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
@@ -161,7 +165,9 @@ namespace backprop_tools{
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
 
         target_actions(device, batch, training_buffers);
-        forward_backward_mse(device, critic, batch.observations_and_actions, training_buffers.target_action_value, critic_buffers);
+        forward(device, critic, batch.observations_and_actions);
+        nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output);
+        backward(device, critic, batch.observations_and_actions, training_buffers.d_output, training_buffers.d_input, critic_buffers);
         step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
@@ -223,13 +229,11 @@ namespace backprop_tools{
         utils::polyak::update(device, target.biases.parameters , source.biases.parameters , polyak);
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void update_target_network(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, T polyak) {
-        using TargetNetworkType = typename utils::typing::remove_reference<decltype(target)>::type;
-        update_target_layer(device, target.input_layer, source.input_layer, polyak);
-        for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
-            update_target_layer(device, target.hidden_layers[layer_i], source.hidden_layers[layer_i], polyak);
+    void update_target_network(DEVICE& device, nn_models::sequential::Module<TARGET_SPEC>& target, const nn_models::sequential::Module<SOURCE_SPEC>& source, T polyak) {
+        update_target_layer(device, target.content, source.content, polyak);
+        if constexpr(!utils::typing::is_same_v<typename TARGET_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            update_target_network(device, target.next_module, source.next_module, polyak);
         }
-        update_target_layer(device, target.output_layer, source.output_layer, polyak);
     }
 
     template <typename DEVICE, typename SPEC>

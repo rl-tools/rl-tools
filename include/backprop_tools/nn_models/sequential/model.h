@@ -57,7 +57,16 @@ namespace backprop_tools::nn_models::sequential{
     constexpr bool check_batch_size_consistency = check_batch_size_consistency_f<MODULE>();
 
     template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    constexpr bool check_input_output = INPUT_SPEC::COLS == SPEC::CONTENT::INPUT_DIM && OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS && OUTPUT_SPEC::COLS == find_output_dim<SPEC>() && OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS;
+    constexpr bool check_input_output_f(){
+        static_assert(INPUT_SPEC::COLS == SPEC::CONTENT::INPUT_DIM);
+        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
+        static_assert(OUTPUT_SPEC::COLS == find_output_dim<SPEC>());
+        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
+        return true;
+    }
+    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    constexpr bool check_input_output = check_input_output_f<SPEC, INPUT_SPEC, OUTPUT_SPEC>();
+
 
     template <typename BUFFER_SPEC, typename MODULE_SPEC>
     constexpr bool buffer_compatible = BUFFER_SPEC::SPEC::MAX_HIDDEN_DIM >= MODULE_SPEC::MAX_HIDDEN_DIM;
@@ -68,9 +77,9 @@ namespace backprop_tools::nn_models::sequential{
         using NEXT_MODULE = T_NEXT_MODULE;
         using T = typename CONTENT::T;
         using TI = typename CONTENT::TI;
-        static constexpr auto INPUT_DIM = CONTENT::INPUT_DIM;
-        static constexpr auto OUTPUT_DIM = find_output_dim<Specification<T_CONTENT, T_NEXT_MODULE>>();
-        static constexpr auto MAX_HIDDEN_DIM = find_max_hiddend_dim<typename CONTENT::TI, Specification<T_CONTENT, T_NEXT_MODULE>>();
+        static constexpr TI INPUT_DIM = CONTENT::INPUT_DIM;
+        static constexpr TI OUTPUT_DIM = find_output_dim<Specification<T_CONTENT, T_NEXT_MODULE>>();
+        static constexpr TI MAX_HIDDEN_DIM = find_max_hiddend_dim<typename CONTENT::TI, Specification<T_CONTENT, T_NEXT_MODULE>>();
         static_assert(utils::typing::is_same_v<NEXT_MODULE, OutputModule> || CONTENT::OUTPUT_DIM == NEXT_MODULE::CONTENT::INPUT_DIM);
     };
 
@@ -95,12 +104,15 @@ namespace backprop_tools::nn_models::sequential{
         TICK_TOCK_CONTAINER_TYPE tock;
     };
     template <typename T_SPEC>
-    struct ModuleInternal{
+    struct Module{
         using SPEC = T_SPEC;
         using CONTENT = typename SPEC::CONTENT;
         using NEXT_MODULE = typename SPEC::NEXT_MODULE;
         CONTENT content;
         NEXT_MODULE next_module;
+
+        static constexpr auto INPUT_DIM = SPEC::INPUT_DIM;
+        static constexpr auto OUTPUT_DIM = SPEC::OUTPUT_DIM;
 
         template <typename SPEC::TI BATCH_SIZE, typename CONTAINER_TYPE_TAG = MatrixDynamicTag, typename MEMORY_LAYOUT = matrix::layouts::DEFAULT<typename SPEC::TI>>
         using DoubleBuffer = ModuleDoubleBuffer<ModuleDoubleBufferSpecification<SPEC, BATCH_SIZE, CONTAINER_TYPE_TAG, MEMORY_LAYOUT>>;
@@ -108,7 +120,7 @@ namespace backprop_tools::nn_models::sequential{
 
     namespace interface{
         template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
-        struct Module: ModuleInternal<Specification<T_CONTENT, T_NEXT_MODULE>>{};
+        struct Module: backprop_tools::nn_models::sequential::Module<Specification<T_CONTENT, T_NEXT_MODULE>>{};
     }
 }
 

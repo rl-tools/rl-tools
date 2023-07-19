@@ -2,9 +2,10 @@
 #define BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_OPERATIONS_GENERIC_H
 
 #include "model.h"
+#include <backprop_tools/utils/generic/typing.h>
 namespace backprop_tools{
     template <typename DEVICE, typename MODULE_SPEC>
-    void malloc(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module){
+    void malloc(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module){
         using namespace nn_models::sequential;
         malloc(device, module.content);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, OutputModule>){
@@ -12,11 +13,11 @@ namespace backprop_tools{
         }
     }
     template <typename DEVICE, typename MODULE_SPEC>
-    void free(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module){
+    void free(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module){
         using namespace nn_models::sequential;
         free(device, module.content);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, OutputModule>){
-            free(device, module.next_module, module.content.output);
+            free(device, module.next_module);
         }
     }
     template <typename DEVICE, typename BUFFER_SPEC>
@@ -32,7 +33,7 @@ namespace backprop_tools{
         free(device, buffers.tock);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename RNG>
-    void init_weights(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module, RNG& rng){
+    void init_weights(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module, RNG& rng){
         using namespace nn_models::sequential;
         init_weights(device, module.content, rng);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, OutputModule>){
@@ -40,7 +41,7 @@ namespace backprop_tools{
         }
     }
     template <typename SPEC>
-    constexpr auto& output(nn_models::sequential::ModuleInternal<SPEC>& m){
+    constexpr auto& output(nn_models::sequential::Module<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             return m.content.output;
         } else {
@@ -49,7 +50,7 @@ namespace backprop_tools{
     }
     // Evaluate is like a forward pass but without saving intermediate activations (so a backward pass is not possible). Hence we can reuse the memory of the intermediate outputs and just require a double buffer where each buffer has to be able to contain the maximum hidden dimension of the module
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
-    void evaluate(DEVICE& device, const nn_models::sequential::ModuleInternal<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC>& buffers){
+    void evaluate(DEVICE& device, const nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC>& buffers){
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         static_assert(BUFFER_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
@@ -66,33 +67,33 @@ namespace backprop_tools{
         }
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT>
-    void forward(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module, INPUT& input){
+    void forward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module, INPUT& input){
         forward(device, module.content, input);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             forward(device, module.next_module, module.content.output);
         }
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT>
-    void forward(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module, INPUT& input, OUTPUT& output){
+    void forward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module, INPUT& input, OUTPUT& output){
         forward(device, module, input);
         copy(device, device, output, backprop_tools::output(module));
     }
     template <typename DEVICE, typename MODULE_SPEC>
-    void zero_gradient(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& module){
+    void zero_gradient(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module){
         zero_gradient(device, module.content);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             zero_gradient(device, module.next_module);
         }
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    void _reset_optimizer_state(DEVICE& device, nn_models::sequential::ModuleInternal<SPEC>& module, OPTIMIZER& optimizer) {
+    void _reset_optimizer_state(DEVICE& device, nn_models::sequential::Module<SPEC>& module, OPTIMIZER& optimizer) {
         _reset_optimizer_state(device, module.content, optimizer);
         if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             _reset_optimizer_state(device, module.next_module, optimizer);
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
-    void backward(DEVICE& device, nn_models::sequential::ModuleInternal<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC> buffers) {
+    void backward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC> buffers) {
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
 
@@ -107,10 +108,17 @@ namespace backprop_tools{
 
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    void update(DEVICE& device, nn_models::sequential::ModuleInternal<SPEC>& model, OPTIMIZER& optimizer) {
+    void update(DEVICE& device, nn_models::sequential::Module<SPEC>& model, OPTIMIZER& optimizer) {
         update(device, model.content, optimizer);
         if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             update(device, model.next_module, optimizer);
+        }
+    }
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::sequential::Module<TARGET_SPEC>& target, const nn_models::sequential::Module<SOURCE_SPEC>& source){
+        copy(target_device, source_device, target.content, source.content);
+        if constexpr(!utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            copy(target_device, source_device, target.next_module, source.next_module);
         }
     }
 }
