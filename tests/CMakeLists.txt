@@ -477,3 +477,6 @@ add_subdirectory(src/random)
 endif()
 
 add_subdirectory(src/nn/layers)
+
+
+add_subdirectory(src/nn_models/sequential)
