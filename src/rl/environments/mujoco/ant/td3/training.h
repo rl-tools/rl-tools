@@ -190,11 +190,13 @@ void run(){
         bpt::rl::algorithms::td3::ActorTrainingBuffers<parameters_rl::ActorCriticType::SPEC> actor_training_buffers;
         parameters_rl::ACTOR_TYPE::Buffers<> actor_buffers[2];
         parameters_rl::ACTOR_TYPE::Buffers<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
+        parameters_rl::ACTOR_TYPE::Buffers<1> actor_buffers_deterministic_eval;
         bpt::malloc(device, actor_batch);
         bpt::malloc(device, actor_training_buffers);
         bpt::malloc(device, actor_buffers[0]);
         bpt::malloc(device, actor_buffers[1]);
         bpt::malloc(device, actor_buffers_eval);
+        bpt::malloc(device, actor_buffers_deterministic_eval);
 
 
         // training
@@ -293,7 +295,7 @@ void run(){
             auto step_end = std::chrono::high_resolution_clock::now();
             bpt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % DETERMINISTIC_EVALUATION_INTERVAL == 0){
-                auto result = bpt::evaluate(device, evaluation_env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), evaluation_rng);
+                auto result = bpt::evaluate(device, evaluation_env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_deterministic_eval, evaluation_rng);
                 bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
                 bpt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
                 bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);

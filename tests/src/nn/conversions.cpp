@@ -27,9 +27,9 @@ constexpr index_t OUTER_INPUT_DIM = 10;
 constexpr index_t OUTER_OUTPUT_DIM = 10;
 constexpr unsigned OUTER_INPUT_DIM_2 = 10;
 constexpr unsigned OUTER_OUTPUT_DIM_2 = 10;
-using LayerSpec1 = bpt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::IDENTITY>;
-using LayerSpec2 = bpt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::IDENTITY>;
-using LayerSpec3 = bpt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::RELU>;
+using LayerSpec1 = bpt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::IDENTITY, bpt::nn::parameters::Plain>;
+using LayerSpec2 = bpt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::IDENTITY, bpt::nn::parameters::Plain>;
+using LayerSpec3 = bpt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Plain>;
 
 struct LayerSpec4{
     typedef DTYPE T;
@@ -39,7 +39,7 @@ struct LayerSpec4{
     // Summary
     static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
 };
-using LayerSpec5 = bpt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM_2, OUTER_OUTPUT_DIM_2, bpt::nn::activation_functions::ActivationFunction::RELU>;
+using LayerSpec5 = bpt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM_2, OUTER_OUTPUT_DIM_2, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Plain>;
 
 static_assert(bpt::utils::typing::is_same_v<LayerSpec1, LayerSpec2>);
 // these should fail

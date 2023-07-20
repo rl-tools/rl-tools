@@ -131,7 +131,7 @@ int main() {
             }
         }
         if(step_i % 1000 == 0){
-            auto result = bpt::evaluate(device, env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), rng, true);
+            auto result = bpt::evaluate(device, env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval, rng, true);
             bpt::logging::text(device, device.logger, "Mean return: ", result.mean);
             if(result.mean > -200000){
                 return 0;

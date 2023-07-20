@@ -178,6 +178,7 @@ int main(int argc, char** argv){
         // -------------------------------------------------------
         // -------------- replaced for cuda training ----------------
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;
+        prl::PPO_TYPE::SPEC::ACTOR_TYPE::Buffers<1> actor_deterministic_eval_buffers;
         // ----------------------------------------------------------
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
@@ -202,6 +203,7 @@ int main(int argc, char** argv){
         // -------------------------------------------------------
         bpt::malloc(device, on_policy_runner);
         bpt::malloc(device, actor_eval_buffers);
+        bpt::malloc(device, actor_deterministic_eval_buffers);
         // ------------- removed for cuda training ---------------
 //        bpt::malloc(device, actor_buffers);
 //        bpt::malloc(device, critic_buffers);
@@ -278,7 +280,7 @@ int main(int argc, char** argv){
             }
 #endif
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
-                auto result = bpt::evaluate(device, evaluation_env, ui, ppo.actor, bpt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, evaluation_rng);
+                auto result = bpt::evaluate(device, evaluation_env, ui, ppo.actor, bpt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, actor_deterministic_eval_buffers, evaluation_rng);
 //                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
 //                bpt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
                 bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);

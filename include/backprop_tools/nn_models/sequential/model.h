@@ -106,6 +106,8 @@ namespace backprop_tools::nn_models::sequential{
     template <typename T_SPEC>
     struct Module{
         using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         using CONTENT = typename SPEC::CONTENT;
         using NEXT_MODULE = typename SPEC::NEXT_MODULE;
         CONTENT content;

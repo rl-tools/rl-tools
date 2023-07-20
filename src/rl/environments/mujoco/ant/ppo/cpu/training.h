@@ -61,7 +61,7 @@ constexpr DEVICE::index_t NUM_STEPS = 2500;
 constexpr DEVICE::index_t NUM_STEPS = 200;
 #endif
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
+#if defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
 constexpr bool ENABLE_EVALUATION = false;
 #else
 constexpr bool ENABLE_EVALUATION = true;
@@ -131,6 +131,7 @@ void run(){
         prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
         prl::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers;
+        prl::PPO_TYPE::SPEC::ACTOR_TYPE::Buffers<1> actor_deterministic_eval_buffers;
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
@@ -146,6 +147,7 @@ void run(){
         bpt::malloc(device, on_policy_runner_dataset);
         bpt::malloc(device, on_policy_runner);
         bpt::malloc(device, actor_eval_buffers);
+        bpt::malloc(device, actor_deterministic_eval_buffers);
         bpt::malloc(device, actor_buffers);
         bpt::malloc(device, critic_buffers);
         bpt::malloc(device, critic_buffers_gae);
@@ -203,7 +205,7 @@ void run(){
                 next_checkpoint_id++;
             }
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
-                auto result = bpt::evaluate(device, evaluation_env, ui, ppo.actor, bpt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, evaluation_rng);
+                auto result = bpt::evaluate(device, evaluation_env, ui, ppo.actor, bpt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, actor_deterministic_eval_buffers, evaluation_rng);
                 bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
                 bpt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
                 bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);

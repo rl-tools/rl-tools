@@ -214,9 +214,9 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = typename DEVICE::index_t;
-    using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, 1, 10, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam, bpt::MatrixDynamicTag, 10>;
+    using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, 1, 10, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam, 10>;
     using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, 10, 1, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam, bpt::MatrixDynamicTag, 10>;
+    using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, 10, 1, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam, 10>;
     using LAYER_2 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
 
     using namespace bpt::nn_models::sequential::interface;

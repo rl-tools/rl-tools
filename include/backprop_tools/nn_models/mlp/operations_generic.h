@@ -54,15 +54,25 @@ namespace backprop_tools {
         init_weights(device, network.output_layer, rng);
     }
 
+    template <typename SPEC>
+    constexpr auto& output(nn_models::mlp::NeuralNetwork<SPEC>& m){
+        return m.output_layer.output;
+    }
+
     // evaluate does not set intermediate outputs and hence can also be called from stateless layers, for register efficiency use forward when working with "Backward" compatible layers
 
     namespace nn_models::mlp{
         template <typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-        constexpr bool check_input_output =
-                INPUT_SPEC::COLS == MODEL_SPEC::INPUT_DIM &&
-                INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS &&
-                OUTPUT_SPEC::COLS == MODEL_SPEC::OUTPUT_DIM &&
-                (!MODEL_SPEC::ENFORCE_FLOATING_POINT_TYPE || ( utils::typing::is_same_v<typename MODEL_SPEC::T, typename INPUT_SPEC::T> && utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>));
+        constexpr bool check_input_output_f(){
+            static_assert(INPUT_SPEC::COLS == MODEL_SPEC::INPUT_DIM);
+            static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
+            static_assert(OUTPUT_SPEC::COLS == MODEL_SPEC::OUTPUT_DIM);
+            static_assert(!MODEL_SPEC::ENFORCE_FLOATING_POINT_TYPE || utils::typing::is_same_v<typename MODEL_SPEC::T, typename INPUT_SPEC::T>);
+            static_assert(!MODEL_SPEC::ENFORCE_FLOATING_POINT_TYPE || utils::typing::is_same_v<typename INPUT_SPEC::T, typename OUTPUT_SPEC::T>);
+            return true;
+        }
+        template <typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+        constexpr bool check_input_output = check_input_output_f<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>();
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename TEMP_SPEC>
     void evaluate_memless(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, Matrix<TEMP_SPEC>& layer_output_tick, Matrix<TEMP_SPEC>& layer_output_tock){
@@ -86,8 +96,11 @@ namespace backprop_tools {
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC>
     void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffers){
-        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
-        evaluate_memless(device, network, input, output, buffers.tick, buffers.tock);
+        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE >= OUTPUT_SPEC::ROWS);
+        static_assert(BUFFER_MODEL_SPEC::SPEC::HIDDEN_DIM == MODEL_SPEC::HIDDEN_DIM);
+        auto tick = view(device, buffers.tick, matrix::ViewSpec<OUTPUT_SPEC::ROWS, BUFFER_MODEL_SPEC::SPEC::HIDDEN_DIM>{});
+        auto tock = view(device, buffers.tock, matrix::ViewSpec<OUTPUT_SPEC::ROWS, BUFFER_MODEL_SPEC::SPEC::HIDDEN_DIM>{});
+        evaluate_memless(device, network, input, output, tick, tock);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetwork<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){

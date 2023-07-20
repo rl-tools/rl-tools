@@ -93,6 +93,7 @@ struct CoreTrainingState{
     bpt::rl::components::OffPolicyRunner<typename TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
     typename TRAINING_CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
     typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE actor_critic;
+    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffers<1> actor_deterministic_evaluation_buffers;
     bpt::rl::components::off_policy_runner::Batch<bpt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
     bpt::rl::algorithms::td3::CriticTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_SPEC> critic_training_buffers;
     bpt::MatrixDynamic<bpt::matrix::Specification<typename TRAINING_CONFIG::DTYPE, TI, 1, TRAINING_CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
@@ -146,6 +147,8 @@ void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::TRAINING_CONFIG:
 
     bpt::malloc(ts.device, ts.observations_mean);
     bpt::malloc(ts.device, ts.observations_std);
+
+    bpt::malloc(ts.device, ts.actor_deterministic_evaluation_buffers);
 
     bpt::set_all(ts.device, ts.observations_mean, 0);
     bpt::set_all(ts.device, ts.observations_std, 1);
@@ -202,7 +205,7 @@ bool training_step(TRAINING_STATE& ts){
     }
 #ifndef BACKPROP_TOOLS_BENCHMARK
     if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
-        auto result = bpt::evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.rng, true);
+        auto result = bpt::evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, true);
         std::cout << "Mean return: " << result.mean << std::endl;
         ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.mean;
     }

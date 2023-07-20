@@ -114,7 +114,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    constexpr DEVICE::index_t step_limit = 500000;
+    constexpr DEVICE::index_t step_limit = 20000;
     for(int step_i = 0; step_i < step_limit; step_i += 1){
         rng = bpt::random::next(DEVICE::SPEC::RANDOM(), rng);
         bpt::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
@@ -179,9 +179,9 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 //                    std::cout << "update: " << duration_microseconds << "us" << std::endl;
             }
         }
-        if(step_i % 20000 == 0){
+        if(step_i % 1000 == 0){
             bpt::copy(device_init, device, actor_critic_init, actor_critic);
-            auto results = bpt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, bpt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), rng_init, true);
+            auto results = bpt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, bpt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, true);
             std::cout << "Mean return: " << results.mean << std::endl;
         }
     }

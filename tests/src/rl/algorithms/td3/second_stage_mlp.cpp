@@ -77,7 +77,9 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACT
     NN_DEVICE nn_device;
     nn_device.logger = &logger;
     ActorCriticType actor_critic;
+    ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::Buffers<1> eval_buffers;
     bpt::malloc(device, actor_critic);
+    bpt::malloc(device, eval_buffers);
 
     std::mt19937 rng(0);
 
@@ -88,7 +90,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACT
     assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     bpt::load(device, actor_critic.actor, step_group.getGroup("actor"));
-    auto result = bpt::evaluate(device, env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<100, 200>(), rng, true);
+    auto result = bpt::evaluate(device, env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<100, 200>(), eval_buffers, rng, true);
     std::cout << "mean return: " << result.mean << std::endl;
 }
 
@@ -156,7 +158,9 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     NN_DEVICE nn_device;
     nn_device.logger = &logger;
     ActorCriticType actor_critic;
+    ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::Buffers<1> actor_eval_buffers;
     bpt::malloc(device, actor_critic);
+    bpt::malloc(device, actor_eval_buffers);
 
     std::mt19937 rng(0);
     bpt::init(device, actor_critic,rng);
@@ -487,7 +491,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             if(!verbose){
                 std::cout << "step_i: " << step_i << std::endl;
             }
-            auto result = bpt::evaluate(device, env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<100, 200>(), rng, true);
+            auto result = bpt::evaluate(device, env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<100, 200>(), actor_eval_buffers, rng, true);
 #ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS
             plot_policy_and_value_function<DTYPE, ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, ActorCriticType::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("second_stage"), step_i);
 #endif

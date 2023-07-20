@@ -229,6 +229,15 @@ namespace backprop_tools{
         utils::polyak::update(device, target.biases.parameters , source.biases.parameters , polyak);
     }
     template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void update_target_network(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, T polyak) {
+        using TargetNetworkType = typename utils::typing::remove_reference<decltype(target)>::type;
+        update_target_layer(device, target.input_layer, source.input_layer, polyak);
+        for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+            update_target_layer(device, target.hidden_layers[layer_i], source.hidden_layers[layer_i], polyak);
+        }
+        update_target_layer(device, target.output_layer, source.output_layer, polyak);
+    }
+    template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void update_target_network(DEVICE& device, nn_models::sequential::Module<TARGET_SPEC>& target, const nn_models::sequential::Module<SOURCE_SPEC>& source, T polyak) {
         update_target_layer(device, target.content, source.content, polyak);
         if constexpr(!utils::typing::is_same_v<typename TARGET_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){

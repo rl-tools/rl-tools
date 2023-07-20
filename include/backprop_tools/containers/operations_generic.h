@@ -414,6 +414,14 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, const Matrix<SPEC>& m){
+        static_assert(SPEC::ROWS >= ROWS);
+        static_assert(SPEC::COLS >= COLS);
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout, true>> out = {m._data};
+        return out;
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
@@ -429,6 +437,10 @@ namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename ViewSpec>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, const ViewSpec& vs, typename SPEC::TI row, typename SPEC::TI col){
         return view<DEVICE, SPEC, ViewSpec::ROWS, ViewSpec::COLS>(device, m, row, col);
+    }
+    template<typename DEVICE, typename SPEC, typename ViewSpec>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, const Matrix<SPEC>& m, const ViewSpec& vs){
+        return view<DEVICE, SPEC, ViewSpec::ROWS, ViewSpec::COLS>(device, m);
     }
 
     template<typename DEVICE, typename SPEC>
