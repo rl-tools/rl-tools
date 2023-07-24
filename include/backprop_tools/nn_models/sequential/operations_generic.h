@@ -41,6 +41,15 @@ namespace backprop_tools{
         }
     }
     template <typename SPEC>
+    constexpr typename SPEC::TI num_layers(nn_models::sequential::Module<SPEC>& m, typename SPEC::TI current = 0){
+        if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            return num_layers(m.next_module) + 1;
+        }
+        else{
+            return 1;
+        }
+    }
+    template <typename SPEC>
     constexpr auto& output(nn_models::sequential::Module<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             return m.content.output;
@@ -62,8 +71,9 @@ namespace backprop_tools{
         }
         else{
             DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
-            evaluate(device, model.content, input, output_buffer);
-            evaluate<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename DOUBLE_BUFFER_TYPE::SPEC, OUTPUT_SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, output_buffer, output, buffers);
+            auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
+            evaluate(device, model.content, input, output_buffer_view);
+            evaluate<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(output_buffer_view)::SPEC, OUTPUT_SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, output_buffer_view, output, buffers);
         }
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT>

@@ -1,6 +1,8 @@
 #ifndef BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H
 #define BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H
 
+#include <backprop_tools/utils/generic/typing.h>
+
 namespace backprop_tools::nn_models::sequential{
     struct OutputModule{
         struct CONTENT{
