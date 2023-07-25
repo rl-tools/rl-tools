@@ -63,6 +63,7 @@ namespace backprop_tools{
         init_kaiming(device, layer, rng);
     }
 
+#ifndef BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(DEVICE& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
@@ -98,6 +99,7 @@ namespace backprop_tools{
             }
         }
     }
+#endif
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC>
     void forward(DEVICE& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input) {
@@ -112,30 +114,49 @@ namespace backprop_tools{
         copy(device, device, output, layer.output);
     }
 
+#ifndef BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
+    void backward_input(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input){
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         using SPEC = LAYER_SPEC;
-        constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
+        constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
+        using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < SPEC::OUTPUT_DIM; output_i++) {
-                typename SPEC::T d_pre_activation = d_activation_d_x<typename SPEC::T, SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * d_output[index(d_output, batch_i, output_i)];
+                typename SPEC::T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
                 for(TI input_j = 0; input_j < SPEC::INPUT_DIM; input_j++) {
                     if(output_i == 0){
                         set(d_input, batch_i, input_j, 0);
                     }
-                    increment(d_input, batch_i, input_j, get(layer.weights, output_i, input_j) * d_pre_activation);
+                    increment(d_input, batch_i, input_j, get(layer.weights.parameters, output_i, input_j) * d_pre_activation);
                 }
             }
         }
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
-        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
+
+
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC>
+    void backward_param(DEVICE& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output) {
+        // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
+        // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
-        backward(layer, d_output, d_input);
+        constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
+        constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
+        constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
+        using T = typename LAYER_SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
+                T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                increment(layer.biases.gradient, 0, output_i, d_pre_activation);
+                for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
+                    increment(layer.weights.gradient, output_i, input_i, d_pre_activation * get(input, batch_i, input_i));
+                }
+            }
+        }
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
@@ -146,17 +167,15 @@ namespace backprop_tools{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
-        constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
+        constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
 
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
-//                TI output_index = batch_i * LAYER_SPEC::OUTPUT_DIM + output_i;
                 T d_pre_activation = d_activation_d_x<typename DEVICE::SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
                 increment(layer.biases.gradient, 0, output_i, d_pre_activation);
                 for(TI input_i = 0; input_i < INPUT_DIM; input_i++){
-//                    TI input_index = batch_i * LAYER_SPEC::INPUT_DIM + input_i;
                     if(output_i == 0){
                         set(d_input, batch_i, input_i, 0);
                     }
@@ -166,6 +185,8 @@ namespace backprop_tools{
             }
         }
     }
+
+#endif
     template<typename DEVICE, typename SPEC>
     void zero_gradient(DEVICE& device, nn::layers::dense::LayerBackwardGradient<SPEC>& layer) {
         zero_gradient(device, layer.weights);
@@ -189,22 +210,12 @@ namespace backprop_tools{
         copy(target_device, source_device, target.weights, source.weights);
         copy(target_device, source_device, target.biases, source.biases);
     }
-//    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-//    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::Layer<TARGET_SPEC>& target, const nn::layers::dense::Layer<SOURCE_SPEC>& source){
-//        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-//        copy(target_device, source_device, &target, &source);
-//    }
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackward<TARGET_SPEC>& target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
         copy(target_device, source_device, (nn::layers::dense::Layer<TARGET_SPEC>&) target, (nn::layers::dense::Layer<SOURCE_SPEC>&) source);
         copy(target_device, source_device, target.pre_activations, source.pre_activations);
     }
-//    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-//    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackward<TARGET_SPEC>& target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>& source){
-//        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-//        copy(target_device, source_device, &target, &source);
-//    }
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>& target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>& source){
         static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
@@ -212,24 +223,6 @@ namespace backprop_tools{
         copy(target_device, source_device, target.output, source.output);
 
     }
-//    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-//    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>& target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>& source){
-//        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-//        copy(target_device, source_device, &target, &source);
-//    }
-
-//    namespace nn::layers::dense::helper{
-//        template <typename DEVICE, typename T, typename DEVICE::index_t N_ROWS, typename DEVICE::index_t N_COLS>
-//        T abs_diff(DEVICE& device, const Matrix<T, typename DEVICE::index_t, N_ROWS, N_COLS, RowMajor>& A, const Matrix<T, typename DEVICE::index_t, N_ROWS, N_COLS, RowMajor>& B) {
-//            T acc = 0;
-//            for (int i = 0; i < N_ROWS; i++){
-//                for (int j = 0; j < N_COLS; j++){
-//                    acc += math::abs(A.data[i * N_COLS + j] - B.data[i * N_COLS + j]);
-//                }
-//            }
-//            return acc;
-//        }
-//    }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const backprop_tools::nn::layers::dense::Layer<SPEC_1>* l1, const backprop_tools::nn::layers::dense::Layer<SPEC_2>* l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);

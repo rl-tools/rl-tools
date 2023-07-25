@@ -103,8 +103,10 @@ namespace backprop_tools::nn_models::mlp {
     template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct NeuralNetworkBuffersSpecification{
         using SPEC = T_SPEC;
-        static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
+        using TI = typename SPEC::TI;
+        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        static constexpr TI DIM = SPEC::HIDDEN_DIM;
     };
 
     template<typename T_BUFFER_SPEC>
@@ -114,7 +116,7 @@ namespace backprop_tools::nn_models::mlp {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM, typename SPEC::MEMORY_LAYOUT>;
+        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, BUFFER_SPEC::DIM, typename SPEC::MEMORY_LAYOUT>;
         using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;

@@ -96,6 +96,10 @@ namespace backprop_tools{
         template<typename T_SPEC>
         using type = MatrixStatic<T_SPEC>;
     };
+    namespace matrix{
+        template <typename T, typename TI>
+        using Empty = Matrix<matrix::Specification<T, TI, 0, 0>>;
+    }
 
 
     namespace containers{

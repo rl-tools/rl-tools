@@ -74,16 +74,32 @@ namespace backprop_tools{
         }
     }
 
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
+    void backward_pre_activations(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activations) {
+        // calculating pre-activation
+        constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
+        static_assert(D_OUTPUT_SPEC::COLS == OUTPUT_DIM);
+        static_assert(D_PRE_ACTIVATIONS_SPEC::COLS == OUTPUT_DIM);
+        static_assert(LAYER_SPEC::BATCH_SIZE == D_OUTPUT_SPEC::ROWS);
+        static_assert(LAYER_SPEC::BATCH_SIZE == D_PRE_ACTIVATIONS_SPEC::ROWS);
+        constexpr auto BATCH_SIZE = D_PRE_ACTIVATIONS_SPEC::ROWS;
+        using T = typename LAYER_SPEC::T;
+        using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
+                T d_pre_activation = d_activation_d_x<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
+                set(d_pre_activations, batch_i, output_i, d_pre_activation);
+            }
+        }
+    }
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC>
+    void backward_param(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output) {
         // Warning do not reuse d_output as d_output is used as a temporary buffer
         // todo: create sparate function that does not set d_input (to save cost on backward pass for the first layer)
         // todo: think about storing gradient in column major order to avoid iterating over the minor dimension
-        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
-        constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
-        constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
+        constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = typename LAYER_SPEC::T;
         using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
 
@@ -99,7 +115,7 @@ namespace backprop_tools{
             constexpr auto k = BATCH_SIZE;
             constexpr auto n = LAYER_SPEC::INPUT_DIM;
 
-            // calculating pre-activation
+            // the following is not calling backprop_pre_activations because we can fuse it with accumulating the bias gradient
             for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
                 for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++) {
                     T d_pre_activation = d_activation_d_x<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(layer.pre_activations, batch_i, output_i)) * get(d_output, batch_i, output_i);
@@ -107,6 +123,7 @@ namespace backprop_tools{
                     set(d_output, batch_i, output_i, d_pre_activation);
                 }
             }
+
             if constexpr(utils::typing::is_same_v<T, float>){
                 cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output._data, row_pitch(d_output), (T*)input._data, row_pitch(input), beta, (T*)layer.weights.gradient._data, row_pitch(layer.weights.gradient));
             }
@@ -114,25 +131,43 @@ namespace backprop_tools{
                 cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output._data, row_pitch(d_output), (T*)input._data, row_pitch(input), beta, (T*)layer.weights.gradient._data, row_pitch(layer.weights.gradient));
             }
         }
-        {
-            // d_input
-            constexpr T alpha = 1;
-            constexpr T beta = 0;
-            // op(A) m x k = d_output   (B x O)
-            // op(B) k x n = weights    (O x I)
-            // op(C) m x n = d_input    (B x I)
+    }
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_PRE_ACTIVATIONS_SPEC, typename D_INPUT_SPEC>
+    void backward_input_additional(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activaitons, Matrix<D_INPUT_SPEC>& d_input) {
+        // ATTENTION: this requires d_pre_activation as inputs and not d_output!!
+        static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_PRE_ACTIVATIONS_SPEC>);
+        constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
+        constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
+        constexpr auto BATCH_SIZE = D_PRE_ACTIVATIONS_SPEC::ROWS;
+        using T = typename LAYER_SPEC::T;
+        using TI = typename devices::CPU_BLAS<DEV_SPEC>::index_t;
+        // d_input
+        constexpr T alpha = 1;
+        constexpr T beta = 0;
+        // op(A) m x k = d_output   (B x O)
+        // op(B) k x n = weights    (O x I)
+        // op(C) m x n = d_input    (B x I)
 
-            constexpr auto m = BATCH_SIZE;
-            constexpr auto k = LAYER_SPEC::OUTPUT_DIM;
-            constexpr auto n = LAYER_SPEC::INPUT_DIM;
+        constexpr auto m = BATCH_SIZE;
+        constexpr auto k = LAYER_SPEC::OUTPUT_DIM;
+        constexpr auto n = LAYER_SPEC::INPUT_DIM;
 
-            if constexpr(utils::typing::is_same_v<T, float>){
-                cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output._data, row_pitch(d_output), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)d_input._data, row_pitch(d_input));
-            }
-            else{
-                cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_output._data, row_pitch(d_output), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)d_input._data, row_pitch(d_input));
-            }
+        if constexpr(utils::typing::is_same_v<T, float>){
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_pre_activaitons._data, row_pitch(d_pre_activaitons), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)d_input._data, row_pitch(d_input));
         }
+        else{
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)d_pre_activaitons._data, row_pitch(d_pre_activaitons), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)d_input._data, row_pitch(d_input));
+        }
+    }
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
+    void backward_input(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
+        backward_pre_activations(device, layer, d_output, d_output);
+        backward_input_additional(device, layer, d_output, d_input);
+    }
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
+    void backward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
+        backward_param(device, layer, input, d_output);
+        backward_input(device, layer, d_output, d_input);
     }
 }
 

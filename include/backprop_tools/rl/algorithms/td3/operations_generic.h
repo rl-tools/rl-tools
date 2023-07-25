@@ -167,7 +167,7 @@ namespace backprop_tools{
         target_actions(device, batch, training_buffers);
         forward(device, critic, batch.observations_and_actions);
         nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output);
-        backward(device, critic, batch.observations_and_actions, training_buffers.d_output, training_buffers.d_input, critic_buffers);
+        backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
         step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
@@ -203,9 +203,9 @@ namespace backprop_tools{
         auto& critic = actor_critic.critic_1;
         forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value);
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
-        backward(device, critic, training_buffers.state_action_value_input, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
+        backward_input(device, critic, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
         auto d_actor_output = view<DEVICE, typename decltype(training_buffers.d_critic_input)::SPEC, BATCH_SIZE, ACTION_DIM>(device, training_buffers.d_critic_input, 0, OBSERVATION_DIM);
-        backward(device, actor_critic.actor, batch.observations, d_actor_output, training_buffers.d_actor_input, actor_buffers);
+        backward(device, actor_critic.actor, batch.observations, d_actor_output, actor_buffers);
 
         step(device, optimizer, actor_critic.actor);
     }

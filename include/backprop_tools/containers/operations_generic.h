@@ -77,6 +77,11 @@ namespace backprop_tools{
     }
 
     template<typename SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr bool empty(const Matrix<SPEC>& m){
+        return SPEC::COLS == 0 && SPEC::ROWS == 0;
+    }
+
+    template<typename SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT inline typename SPEC::TI index(const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         typename SPEC::TI index = row * row_pitch(m) + col * col_pitch(m);
         // bounds checking for debugging

@@ -1,0 +1,14 @@
+add_executable(
+        test_nn_layers_concat_constant
+        concat_constant.cpp
+)
+target_link_libraries(
+        test_nn_layers_concat_constant
+        PRIVATE
+        backprop_tools
+        GTest::gtest_main
+)
+gtest_discover_tests(test_nn_layers_concat_constant)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_nn_layers_concat_constant)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_nn_layers_concat_constant)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_nn_layers_concat_constant)
