@@ -188,15 +188,19 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     first_stage_first_stage::NN_DEVICE nn_device;
     nn_device.logger = &logger;
     first_stage_first_stage::ActorCriticType actor_critic;
-    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers;
+    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers;
     typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers;
-//    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
-//    using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-//    OPTIMIZER optimizer;
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, 1>> d_output_critic;
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> d_input_critic;
+    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
+    using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    OPTIMIZER optimizer;
 
     bpt::malloc(device, actor_critic);
     bpt::malloc(device, critic_buffers);
     bpt::malloc(device, actor_buffers);
+    bpt::malloc(device, d_output_critic);
+    bpt::malloc(device, d_input_critic);
 
 
     std::mt19937 rng(0);
@@ -210,6 +214,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     assert(batch.states.size() == 32);
 
     DTYPE loss = 0;
+    bpt::reset_optimizer_state(device, optimizer, actor_critic.critic_1);
     bpt::zero_gradient(device, actor_critic.critic_1);
     for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
 //        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM];
@@ -229,7 +234,12 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         bpt::evaluate(device, actor_critic.critic_1, input, output);
         loss += bpt::nn::loss_functions::mse::evaluate(device, output, target);
 
-        bpt::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
+//        bpt::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
+        {
+            bpt::forward(device, actor_critic.critic_1, input);
+            bpt::nn::loss_functions::mse::gradient(device, actor_critic.critic_1.output_layer.output, target, d_output_critic, DTYPE(1)/32);
+            bpt::backward_full(device, actor_critic.critic_1, input, d_output_critic, d_input_critic, critic_buffers);
+        }
         std::cout << "output: " << bpt::get(actor_critic.critic_1.output_layer.output, 0, 0) << std::endl;
         bpt::free(device, input);
         bpt::free(device, output);
@@ -321,7 +331,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     bpt::malloc(device, critic_training_buffers);
     bpt::malloc(device, critic_training_buffers_target);
 
-    first_stage_second_stage::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
+    first_stage_second_stage::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
     bpt::malloc(device, critic_buffers[0]);
     bpt::malloc(device, critic_buffers[1]);
 

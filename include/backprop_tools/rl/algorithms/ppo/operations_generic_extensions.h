@@ -18,8 +18,8 @@ namespace backprop_tools{
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> actions;
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> observations;
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
-            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM>> d_observations;
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_values;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> d_critic_output;
         };
     }
     template <typename DEVICE, typename SPEC>
@@ -27,16 +27,16 @@ namespace backprop_tools{
         malloc(device, buffers.actions);
         malloc(device, buffers.observations);
         malloc(device, buffers.d_action_log_prob_d_action);
-        malloc(device, buffers.d_observations);
         malloc(device, buffers.target_values);
+        malloc(device, buffers.d_critic_output);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::ppo::TrainingBuffersHybrid<SPEC>& buffers){
         free(device, buffers.actions);
         free(device, buffers.observations);
         free(device, buffers.d_action_log_prob_d_action);
-        free(device, buffers.d_observations);
         free(device, buffers.target_values);
+        free(device, buffers.d_critic_output);
     }
     template <typename DEVICE, typename DEVICE_EVALUATION, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
     void train_hybrid(DEVICE& device,
@@ -48,8 +48,8 @@ namespace backprop_tools{
         CRITIC_OPTIMIZER& critic_optimizer,
         rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers,
         rl::algorithms::ppo::TrainingBuffersHybrid<PPO_SPEC>& hybrid_buffers,
-        typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers,
-        typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers,
+        typename PPO_SPEC::ACTOR_TYPE::template Buffers<PPO_SPEC::BATCH_SIZE>& actor_buffers,
+        typename PPO_SPEC::CRITIC_TYPE::template Buffers<PPO_SPEC::BATCH_SIZE>& critic_buffers,
         RNG& rng){
 #ifdef BACKPROP_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
@@ -211,9 +211,14 @@ namespace backprop_tools{
                 copy(device_evaluation, device, ppo_evaluation.actor.log_std.gradient, ppo.actor.log_std.gradient);
 
                 copy(device_evaluation, device, hybrid_buffers.d_action_log_prob_d_action, ppo_buffers.d_action_log_prob_d_action);
-                backward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.d_action_log_prob_d_action, hybrid_buffers.d_observations, actor_buffers);
+                backward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.d_action_log_prob_d_action, actor_buffers);
                 copy(device_evaluation, device, hybrid_buffers.target_values, batch_target_values);
-                forward_backward_mse(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.target_values, critic_buffers);
+//                forward_backward_mse(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.target_values, critic_buffers);
+                {
+                    forward(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations);
+                    nn::loss_functions::mse::gradient(device_evaluation, output(ppo_evaluation.critic), hybrid_buffers.target_values, hybrid_buffers.d_critic_output);
+                    backward(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.d_critic_output, critic_buffers);
+                }
                 step(device_evaluation, actor_optimizer, ppo_evaluation.actor);
                 step(device_evaluation, critic_optimizer, ppo_evaluation.critic);
             }

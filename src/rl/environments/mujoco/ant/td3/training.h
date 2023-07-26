@@ -177,7 +177,7 @@ void run(){
         using CRITIC_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
         bpt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batches[2];
         bpt::rl::algorithms::td3::CriticTrainingBuffers<parameters_rl::ActorCriticType::SPEC> critic_training_buffers[2];
-        parameters_rl::CRITIC_TYPE::BuffersForwardBackward<> critic_buffers[2];
+        parameters_rl::CRITIC_TYPE::Buffers<> critic_buffers[2];
         bpt::malloc(device, critic_batches[0]);
         bpt::malloc(device, critic_batches[1]);
         bpt::malloc(device, critic_training_buffers[0]);

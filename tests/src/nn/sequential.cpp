@@ -368,7 +368,7 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
 
     bpt::forward(device, mlp, input, output_mlp);
     bpt::zero_gradient(device, mlp);
-    bpt::backward(device, mlp, input, d_output, d_input_mlp, mlp_buffers);
+    bpt::backward_full(device, mlp, input, d_output, d_input_mlp, mlp_buffers);
 
     bpt::print(device, d_input_mlp);
 
@@ -411,7 +411,7 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     bpt::set(sequential.next_module.next_module.content.weights.gradient, 0, 0, 10);
     bpt::forward(device, sequential, input, output_sequential);
     bpt::zero_gradient(device, sequential);
-    bpt::backward(device, sequential, input, d_output, d_input_sequential, buffer_sequential);
+    bpt::backward_full(device, sequential, input, d_output, d_input_sequential, buffer_sequential);
 
     bpt::print(device, d_input_sequential);
 

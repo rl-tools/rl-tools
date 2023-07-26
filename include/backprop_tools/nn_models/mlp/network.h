@@ -121,20 +121,6 @@ namespace backprop_tools::nn_models::mlp {
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
     };
-    template<typename T_BUFFER_SPEC>
-    struct NeuralNetworkBuffersForwardBackward: NeuralNetworkBuffers<T_BUFFER_SPEC>{
-        using BUFFER_SPEC = T_BUFFER_SPEC;
-        using SPEC = typename BUFFER_SPEC::SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        using D_INPUT_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
-        using D_INPUT_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<D_INPUT_CONTAINER_SPEC>;
-        D_INPUT_CONTAINER_TYPE d_input;
-        using D_OUTPUT_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
-        using D_OUTPUT_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<D_OUTPUT_CONTAINER_SPEC>;
-        D_OUTPUT_CONTAINER_TYPE d_output;
-    };
 
     template<typename T_SPEC>
     struct NeuralNetwork{
@@ -143,8 +129,6 @@ namespace backprop_tools::nn_models::mlp {
         using TI = typename SPEC::TI;
         template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Buffers = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
-        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
-        using BuffersForwardBackward = NeuralNetworkBuffersForwardBackward<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
 
         // Convenience
         static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required

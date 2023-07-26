@@ -20,12 +20,6 @@ namespace backprop_tools {
         malloc(device, buffers.tick);
         malloc(device, buffers.tock);
     }
-    template<typename DEVICE, typename BUFFER_SPEC>
-    void malloc(DEVICE& device, nn_models::mlp::NeuralNetworkBuffersForwardBackward<BUFFER_SPEC>& buffers) {
-        malloc(device, (nn_models::mlp::NeuralNetworkBuffers<BUFFER_SPEC>&) buffers);
-        malloc(device, buffers.d_input);
-        malloc(device, buffers.d_output);
-    }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
         free(device, network.input_layer);
@@ -38,12 +32,6 @@ namespace backprop_tools {
     void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffers<SPEC>& buffers) {
         free(device, buffers.tick);
         free(device, buffers.tock);
-    }
-    template<typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn_models::mlp::NeuralNetworkBuffersForwardBackward<SPEC>& buffers) {
-        free(device, (nn_models::mlp::NeuralNetworkBuffers<SPEC>&) buffers);
-        free(device, buffers.d_input);
-        free(device, buffers.d_output);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, RNG& rng) {
@@ -326,12 +314,6 @@ namespace backprop_tools {
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>& source){
         copy(target_device, source_device, target.tick, source.tick);
         copy(target_device, source_device, target.tock, source.tock);
-    }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkBuffersForwardBackward<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkBuffersForwardBackward<SOURCE_SPEC>& source){
-        copy(target_device, source_device, (nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>&)target, (nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>&)source);
-        copy(target_device, source_device, target.d_input, source.d_input);
-        copy(target_device, source_device, target.d_output, source.d_output);
     }
 }
 

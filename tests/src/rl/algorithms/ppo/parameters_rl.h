@@ -38,8 +38,8 @@ namespace parameters_0{
         using ON_POLICY_RUNNER_DATASET_TYPE = bpt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;
 
         using ACTOR_EVAL_BUFFERS = typename ACTOR_TYPE::template Buffers<ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
-        using ACTOR_BUFFERS = typename ACTOR_TYPE::template BuffersForwardBackward<BATCH_SIZE>;
-        using CRITIC_BUFFERS = typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE>;
-        using CRITIC_BUFFERS_ALL = typename CRITIC_TYPE::template BuffersForwardBackward<ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
+        using ACTOR_BUFFERS = typename ACTOR_TYPE::template Buffers<BATCH_SIZE>;
+        using CRITIC_BUFFERS = typename CRITIC_TYPE::template Buffers<BATCH_SIZE>;
+        using CRITIC_BUFFERS_ALL = typename CRITIC_TYPE::template Buffers<ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
     };
 }

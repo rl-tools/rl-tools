@@ -71,8 +71,8 @@ public:
     using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
     using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
-    using ACTOR_BUFFERS = bpt::nn_models::mlp::NeuralNetworkBuffersForwardBackward<bpt::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;
-    using CRITIC_BUFFERS = bpt::nn_models::mlp::NeuralNetworkBuffersForwardBackward<bpt::nn_models::mlp::NeuralNetworkBuffersSpecification<CRITIC_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
+    using ACTOR_BUFFERS = bpt::nn_models::mlp::NeuralNetworkBuffers<bpt::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;
+    using CRITIC_BUFFERS = bpt::nn_models::mlp::NeuralNetworkBuffers<bpt::nn_models::mlp::NeuralNetworkBuffersSpecification<CRITIC_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
     DEVICE_CPU device_cpu;
     DEVICE_GPU device_gpu;
     OFF_POLICY_RUNNER_TYPE off_policy_runner_cpu;
@@ -96,6 +96,9 @@ public:
     CRITIC_BUFFERS critic_buffers_cpu;
     CRITIC_BUFFERS critic_buffers_cpu_2;
     CRITIC_BUFFERS critic_buffers_gpu;
+    using TI = typename DEVICE_GPU::index_t;
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE, 1>> d_critic_output_cpu;
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, TI, CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE, 1>> d_critic_output_gpu;
 protected:
     void SetUp() override {
         bpt::init(device_gpu);
@@ -125,6 +128,8 @@ protected:
         bpt::malloc(device_cpu, actor_training_buffers_cpu);
         bpt::malloc(device_cpu, actor_training_buffers_cpu_2);
         bpt::malloc(device_gpu, actor_training_buffers_gpu);
+        bpt::malloc(device_cpu, d_critic_output_cpu);
+        bpt::malloc(device_gpu, d_critic_output_gpu);
 
         // init
         for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; rb_i++) {
@@ -321,8 +326,18 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         bpt::zero_gradient(device_cpu, critic_cpu);
         bpt::zero_gradient(device_gpu, critic_gpu);
 
-        forward_backward_mse(device_cpu, critic_cpu, batch_cpu.observations_and_actions, critic_training_buffers_cpu.target_action_value, critic_buffers_cpu);
-        forward_backward_mse(device_gpu, critic_gpu, batch_gpu.observations_and_actions, critic_training_buffers_gpu.target_action_value, critic_buffers_gpu);
+//        forward_backward_mse(device_cpu, critic_cpu, batch_cpu.observations_and_actions, critic_training_buffers_cpu.target_action_value, critic_buffers_cpu);
+        {
+            bpt::forward(device_cpu, critic_cpu, batch_cpu.observations_and_actions);
+            bpt::nn::loss_functions::mse::gradient(device_cpu, output(critic_cpu), critic_training_buffers_cpu.target_action_value, d_critic_output_cpu);
+            bpt::backward(device_cpu, critic_cpu, batch_cpu.observations_and_actions, d_critic_output_cpu, critic_buffers_cpu);
+        }
+//        forward_backward_mse(device_gpu, critic_gpu, batch_gpu.observations_and_actions, critic_training_buffers_gpu.target_action_value, critic_buffers_gpu);
+        {
+            bpt::forward(device_gpu, critic_gpu, batch_gpu.observations_and_actions);
+            bpt::nn::loss_functions::mse::gradient(device_gpu, output(critic_gpu), critic_training_buffers_gpu.target_action_value, d_critic_output_gpu);
+            bpt::backward(device_gpu, critic_gpu, batch_gpu.observations_and_actions, d_critic_output_gpu, critic_buffers_gpu);
+        }
         bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
 
         auto abs_diff_critic = bpt::abs_diff(device_cpu, critic_cpu, critic_cpu_2);

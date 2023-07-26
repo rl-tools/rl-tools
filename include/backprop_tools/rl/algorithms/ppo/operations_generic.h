@@ -9,7 +9,7 @@ namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
         malloc(device, buffers.current_batch_actions);
-        malloc(device, buffers.d_batch_observations);
+        malloc(device, buffers.d_critic_output);
         malloc(device, buffers.d_action_log_prob_d_action);
         malloc(device, buffers.d_action_log_prob_d_action_log_std);
         malloc(device, buffers.rollout_log_std);
@@ -17,7 +17,7 @@ namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
         free(device, buffers.current_batch_actions);
-        free(device, buffers.d_batch_observations);
+        free(device, buffers.d_critic_output);
         free(device, buffers.d_action_log_prob_d_action);
         free(device, buffers.d_action_log_prob_d_action_log_std);
         free(device, buffers.rollout_log_std);
@@ -85,7 +85,7 @@ namespace backprop_tools{
         }
     }
     template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template BuffersForwardBackward<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template Buffers<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template Buffers<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
 #ifdef BACKPROP_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
@@ -239,9 +239,14 @@ namespace backprop_tools{
                         actor_optimizer.alpha = math::min(typename DEVICE::SPEC::MATH(), actor_optimizer.alpha / PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MAX);
                     }
                 }
-                backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, ppo_buffers.d_batch_observations, actor_buffers);
-                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
-                T critic_loss = nn::loss_functions::mse::evaluate(device, ppo.critic.output_layer.output, batch_target_values);
+                backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, actor_buffers);
+//                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
+                {
+                    bpt::forward(device, ppo.critic, batch_observations);
+                    bpt::nn::loss_functions::mse::gradient(device, output(ppo.critic), batch_target_values, ppo_buffers.d_critic_output);
+                    bpt::backward(device, ppo.critic, batch_observations, ppo_buffers.d_critic_output, critic_buffers);
+                }
+                T critic_loss = nn::loss_functions::mse::evaluate(device, output(ppo.critic), batch_target_values);
                 add_scalar(device, device.logger, "ppo/critic_loss", critic_loss);
                 step(device, actor_optimizer, ppo.actor);
                 step(device, actor_optimizer, ppo.critic); // todo: evaluate switch to critic_optimizer

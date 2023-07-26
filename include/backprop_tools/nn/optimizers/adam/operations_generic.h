@@ -74,5 +74,10 @@ namespace backprop_tools{
         optimizer.age += 1;
         update(device, model, optimizer);
     }
+    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::optimizers::Adam<TARGET_SPEC>& target, const nn::optimizers::Adam<SOURCE_SPEC>& source){
+        target.alpha = source.alpha;
+        target.age = source.age;
+    }
 }
 #endif

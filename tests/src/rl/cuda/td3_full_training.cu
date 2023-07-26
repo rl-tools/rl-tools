@@ -56,7 +56,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     rlp::CRITIC_BATCH_TYPE critic_batch;
     rlp::CRITIC_BATCH_TYPE* critic_batch_pointer;
     rlp::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers;
-    rlp::CRITIC_NETWORK_TYPE::BuffersForwardBackward<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    rlp::CRITIC_NETWORK_TYPE::Buffers<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
 
     rlp::ACTOR_BATCH_TYPE actor_batch;
     rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;

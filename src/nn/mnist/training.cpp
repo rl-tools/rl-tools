@@ -106,7 +106,7 @@ int main(){
 
                 T d_input[INPUT_DIM];
                 d_input_matrix._data = d_input;
-                bpt::backward(device, network, input, d_loss_d_output_matrix, d_input_matrix, buffers);
+                bpt::backward_full(device, network, input, d_loss_d_output_matrix, d_input_matrix, buffers);
             }
             loss /= BATCH_SIZE;
             epoch_loss += loss;

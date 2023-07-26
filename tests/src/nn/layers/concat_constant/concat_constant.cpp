@@ -19,9 +19,9 @@ using T = float;
 using DEVICE = bpt::DEVICE_FACTORY<bpt::devices::DefaultCPUSpecification>;
 using TI = typename DEVICE::index_t;
 
-constexpr TI INPUT_DIM = 512;
+constexpr TI INPUT_DIM = 4;
 constexpr TI HIDDEN_DIM = 64;
-constexpr TI OUTPUT_DIM = 4;
+constexpr TI OUTPUT_DIM = 1;
 constexpr TI BATCH_SIZE = 64;
 
 using STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, BATCH_SIZE>;

@@ -71,7 +71,7 @@ void test_mlp_forward() {
     using STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_HIDDEN_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1,  bpt::MatrixDynamicTag, true, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
     using SPEC = bpt::nn_models::mlp::BackwardGradientSpecification<STRUCTURE_SPEC>;
     using TYPE = bpt::nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>;
-    using FORWARD_BACKWARD_BUFFERS = typename TYPE::template BuffersForwardBackward<BATCH_SIZE>;
+    using FORWARD_BACKWARD_BUFFERS = typename TYPE::template Buffers<BATCH_SIZE>;
     TYPE mlp_cpu, mlp_arm;
     FORWARD_BACKWARD_BUFFERS buffers;
     bpt::malloc(device, mlp_cpu);

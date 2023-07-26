@@ -113,10 +113,7 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
                 bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
                 loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
 
-                T d_input[INPUT_DIM];
-                bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
-                d_input_matrix._data = d_input;
-                bpt::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, buffers);
+                bpt::backward(device, network, input_matrix, d_loss_d_output_matrix, buffers);
             }
             loss /= batch_size;
             epoch_loss += loss;

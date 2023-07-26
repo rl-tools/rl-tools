@@ -28,7 +28,7 @@ namespace MODEL_1{
     using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 }
 
-TEST(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load) {
+TEST(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
     using MODEL = MODEL_1::MODEL;
 
     DEVICE device;

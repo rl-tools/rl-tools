@@ -167,7 +167,7 @@ namespace backprop_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
     void backward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackwardGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
         backward_param(device, layer, input, d_output);
-        backward_input(device, layer, d_output, d_input);
+        backward_input_additional(device, layer, d_output, d_input);
     }
 }
 
