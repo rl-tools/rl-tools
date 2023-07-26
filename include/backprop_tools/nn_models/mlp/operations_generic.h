@@ -175,8 +175,9 @@ namespace backprop_tools {
         }
         zero_gradient(device, network.output_layer);
     }
-    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename D_INPUT_SPEC>
-    void backward_input(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, const Matrix<D_OUTPUT_SPEC>& d_output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers, Matrix<D_INPUT_SPEC>& d_input) {
+    template<typename DEVICE, typename MODEL_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC>
+    void backward_input(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers) {
+        // ATTENTION: this modifies d_output (uses it as a buffer for the d_pre_activations
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
         static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == BATCH_SIZE);
@@ -199,6 +200,7 @@ namespace backprop_tools {
 
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename D_INPUT_SPEC>
     void backward_full(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffer) {
+        // ATTENTION: this modifies d_output (uses it as a buffer for the d_pre_activations
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
@@ -222,11 +224,11 @@ namespace backprop_tools {
             backward(device, network.input_layer, input, buffer.tock, d_input);
         }
     }
-    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename D_INPUT_SPEC>
+    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC>
     void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffer) {
-        static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
+        // ATTENTION: this modifies d_output (uses it as a buffer for the d_pre_activations
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
-        constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
+        constexpr auto BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
         static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == BATCH_SIZE);
         static_assert(BUFFER_MODEL_SPEC::DIM >= MODEL_SPEC::HIDDEN_DIM);
 
@@ -247,20 +249,6 @@ namespace backprop_tools {
             backward_param(device, network.input_layer, input, buffer.tock);
         }
     }
-//    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC>
-//    void backward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers) {
-//        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == D_INPUT_SPEC::ROWS);
-//        backward_memless(device, network, input, d_output, d_input, buffers.tick, buffers.tock);
-//    }
-
-//    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename TARGET_SPEC, typename BUFFER_MODEL_SPEC>
-//    void forward_backward_mse(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, const Matrix<TARGET_SPEC>& target, nn_models::mlp::NeuralNetworkBuffersForwardBackward<BUFFER_MODEL_SPEC> buffers, typename MODEL_SPEC::T loss_weight = 1) {
-//        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == INPUT_SPEC::ROWS);
-//        static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, TARGET_SPEC>);
-//        forward(device, network, input);
-//        nn::loss_functions::mse::gradient(device, network.output_layer.output, target, buffers.d_output, loss_weight);
-//        backward(device, network, input, buffers.d_output, buffers.d_input, buffers);
-//    }
 
     template<typename DEVICE, typename SPEC, typename ADAM_PARAMETERS>
     void update(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& network, nn::optimizers::Adam<ADAM_PARAMETERS>& optimizer) {

@@ -26,3 +26,18 @@ target_link_libraries(test_nn_models_sequential_persist_code_compile
         GTest::gtest_main
         )
 gtest_discover_tests(test_nn_models_sequential_persist_code_compile)
+
+add_executable(
+        test_nn_models_sequential_d_input_benchmark
+        d_input_benchmark.cpp
+)
+target_link_libraries(
+        test_nn_models_sequential_d_input_benchmark
+        PRIVATE
+        backprop_tools
+        GTest::gtest_main
+)
+gtest_discover_tests(test_nn_models_sequential_d_input_benchmark)
+BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_nn_models_sequential_d_input_benchmark)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_nn_models_sequential_d_input_benchmark)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(test_nn_models_sequential_d_input_benchmark)
