@@ -53,3 +53,8 @@ target_link_libraries(
 )
 endif()
 
+
+if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
+    add_subdirectory(cuda)
+endif()
+
