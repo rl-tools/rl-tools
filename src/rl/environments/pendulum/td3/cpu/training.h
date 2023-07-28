@@ -119,6 +119,7 @@ using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specifica
         TI,
         ENVIRONMENT,
         1,
+        false,
         REPLAY_BUFFER_CAP,
         EPISODE_STEP_LIMIT,
         bpt::rl::components::off_policy_runner::DefaultParameters<T>
@@ -138,7 +139,7 @@ void run(){
     DEVICE device;
     device.logger = &logger;
 
-    auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 4);
+    auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 6);
     bpt::malloc(device, actor_critic);
     bpt::init(device, actor_critic, rng);
 
@@ -221,8 +222,8 @@ void run(){
         if(step_i % 1000 == 0){
 //            auto result = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, EPISODE_STEP_LIMIT>(), rng, true);
             auto result = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, EPISODE_STEP_LIMIT>{}, observations_mean, observations_std, actor_buffers_eval, rng);
-            std::cout << "Mean return: " << result.mean << std::endl;
-            bpt::add_scalar(device, device.logger, "mean_return", result.mean);
+            std::cout << "Mean return: " << result.returns_mean << std::endl;
+            bpt::add_scalar(device, device.logger, "mean_return", result.returns_mean);
 //            if(step_i >= 6000){
 //                ASSERT_GT(mean_return, -1000);
 //            }

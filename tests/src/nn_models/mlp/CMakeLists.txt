@@ -1,0 +1,2 @@
+add_executable(test_backprop_tools_nn_models_mlp_compile_actor compile_actor.cpp)
+target_link_libraries(test_backprop_tools_nn_models_mlp_compile_actor backprop_tools)

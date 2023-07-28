@@ -8,6 +8,8 @@
 
 #include <backprop_tools/utils/generic/typing.h>
 
+#include <backprop_tools/rl/environments/operations_generic.h>
+
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
