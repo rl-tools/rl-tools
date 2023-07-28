@@ -34,13 +34,8 @@ namespace backprop_tools::rl::utils::evaluation{
 
 namespace backprop_tools {
 
-    template <typename DEVICE, typename UI, typename STATE>
-    void set_state(DEVICE& dev, UI& ui, const STATE& state){
-        // dummy implementation for the case where no ui should be used
-    }
-
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename RNG>
-    bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG& rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVAL_BUFFERS, typename RNG>
+    bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVAL_BUFFERS& policy_eval_buffers, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         typename ENVIRONMENT::State state = eval_state.state;
@@ -58,13 +53,15 @@ namespace backprop_tools {
         observe(device, env, state, observation, rng);
         normalize(device, observation_mean, observation_std, observation, observation_normalized);
 
-        evaluate(device, policy, observation_normalized, action);
+        evaluate(device, policy, observation_normalized, action, policy_eval_buffers);
         for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
             set(action, 0, action_i, math::clamp<T>(typename DEVICE::SPEC::MATH(), get(action, 0, action_i), -1, 1));
         }
         typename ENVIRONMENT::State next_state;
         T dt = step(device, env, state, action, next_state, rng);
-        set_state(device, ui, state);
+        set_state(device, env, ui, state);
+        set_action(device, env, ui, action);
+        render(device, env, ui);
         T r = reward(device, env, state, action, next_state, rng);
         state = next_state;
         eval_state.episode_return += r;
@@ -75,8 +72,8 @@ namespace backprop_tools {
         free(device, action);
         return terminated(device, env, state, rng);
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename RNG>
-    rl::utils::evaluation::State<typename POLICY::T, typename DEVICE::index_t, typename ENVIRONMENT::State> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG& rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVALUATION_BUFFERS, typename RNG>
+    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         rl::utils::evaluation::State<T, TI, typename ENVIRONMENT::State> state;
@@ -84,14 +81,14 @@ namespace backprop_tools {
         state.episode_return = 0;
         state.episode_step = 0;
         for (TI i = 0; i < SPEC::STEP_LIMIT; i++) {
-            if(evaluate_step(device, env, ui, policy, state, observation_mean, observation_std, rng)){
+            if(evaluate_step(device, env, ui, policy, state, observation_mean, observation_std, policy_evaluation_buffers, rng)){
                 break;
             }
         }
         return state;
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC>
-    rl::utils::evaluation::Result<typename POLICY::T, typename DEVICE::index_t, SPEC::N_EPISODES> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, RNG &rng, bool deterministic = false){
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVALUATION_BUFFERS>
+    rl::utils::evaluation::Result<typename POLICY::T, typename POLICY::TI, SPEC::N_EPISODES> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
@@ -109,7 +106,7 @@ namespace backprop_tools {
             else{
                 sample_initial_state(device, env, initial_state, rng);
             }
-            auto final_state = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, observation_mean, observation_std, rng);
+            auto final_state = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, observation_mean, observation_std, policy_evaluation_buffers, rng);
             results.returns[i] = final_state.episode_return;
             results.returns_mean += final_state.episode_return;
             results.returns_std += final_state.episode_return*final_state.episode_return;
@@ -123,8 +120,8 @@ namespace backprop_tools {
         results.episode_length_std = math::sqrt(typename DEVICE::SPEC::MATH(), results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean);
         return results;
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC>
-    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, RNG &rng, bool deterministic = false){
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>
+    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_mean;
@@ -133,7 +130,7 @@ namespace backprop_tools {
         malloc(device, observation_std);
         set_all(device, observation_mean, 0);
         set_all(device, observation_std, 1);
-        auto results = evaluate(device, env, ui, policy, eval_spec_tag, observation_mean, observation_std, rng, deterministic);
+        auto results = evaluate(device, env, ui, policy, eval_spec_tag, observation_mean, observation_std, policy_evaluation_buffers, rng, deterministic);
         free(device, observation_mean);
         free(device, observation_std);
         return results;

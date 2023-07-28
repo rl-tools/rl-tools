@@ -46,7 +46,7 @@ constexpr DEVICE::index_t HIDDEN_DIM = BATCH_SIZE;
 template <typename T, typename TI, bpt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
 using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, bpt::nn::activation_functions::RELU, BATCH_SIZE>;
 
-using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 template <typename T, typename TI, bpt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
 using InferenceSpecification = bpt::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>>;
@@ -69,12 +69,15 @@ protected:
     DEVICE device;
 
     OPTIMIZER optimizer;
+    OPTIMIZER optimizer_mkl;
 
 
     NetworkType network;
-    NetworkType::BuffersForwardBackward<BATCH_SIZE> network_buffers;
+    NetworkType::Buffers<BATCH_SIZE> network_buffers;
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> d_input;
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> d_output;
     NetworkType network_mkl;
-    NetworkType::BuffersForwardBackward<BATCH_SIZE> network_mkl_buffers;
+    NetworkType::Buffers<BATCH_SIZE> network_mkl_buffers;
     BACKPROP_TOOLS_NN_DENSE_BENCHMARK(){
         device.logger = &logger;
         bpt::malloc(device, input);
@@ -84,12 +87,15 @@ protected:
         auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
         bpt::malloc(device, network);
         bpt::malloc(device, network_buffers);
-        network.age = 100000;
+        bpt::malloc(device, d_input);
+        bpt::malloc(device, d_output);
+        optimizer.age = 100000;
         bpt::malloc(device, network_mkl);
         bpt::malloc(device, network_mkl_buffers);
         bpt::init_weights(device, network, rng);
         bpt::copy(device, device, network_mkl, network);
-        assert(network_mkl.age == network.age);
+        bpt::copy(device, device, optimizer_mkl, optimizer);
+        assert(optimizer_mkl.age == optimizer.age);
 
         for(INDEX_TYPE i = 0; i < BATCH_SIZE; ++i){
             for(INDEX_TYPE j = 0; j < NetworkType::INPUT_DIM; ++j){
@@ -114,19 +120,29 @@ protected:
 
         bpt::copy(device, device, expected_output_output_layer, network.output_layer.output);
 
-        bpt::reset_optimizer_state(device, network, optimizer);
+        bpt::reset_optimizer_state(device, optimizer, network);
         bpt::zero_gradient(device, network);
         {
             auto start = std::chrono::high_resolution_clock::now();
             for(INDEX_TYPE iteration_i = 0; iteration_i < NAIVE_ITERATIONS; iteration_i++) {
-                bpt::forward_backward_mse(device, network, input, output_target, network_buffers);
+//                bpt::forward_backward_mse(device, network, input, output_target, network_buffers);
+                {
+                    bpt::forward(device, network, input);
+                    bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_target, d_output);
+                    bpt::backward_full(device, network, input, d_output, d_input, network_buffers);
+                }
             }
             auto end = std::chrono::high_resolution_clock::now();
 
             std::cout << "LIC forward backward mse: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
         }
         bpt::zero_gradient(device, network);
-        bpt::forward_backward_mse(device, network, input, output_target, network_buffers);
+//        bpt::forward_backward_mse(device, network, input, output_target, network_buffers);
+        {
+            bpt::forward(device, network, input);
+            bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_target, d_output);
+            bpt::backward_full(device, network, input, d_output, d_input, network_buffers);
+        }
     }
 };
 
@@ -302,15 +318,25 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
     device_mkl.logger = device.logger;
     OPTIMIZER optimizer;
 
-    bpt::reset_optimizer_state(device_mkl, network_mkl, optimizer);
+    bpt::reset_optimizer_state(device_mkl, optimizer, network_mkl);
     bpt::zero_gradient(device_mkl, network_mkl);
     auto start = std::chrono::high_resolution_clock::now();
     for(INDEX_TYPE iteration_i = 0; iteration_i < ITERATIONS; iteration_i++) {
-        bpt::forward_backward_mse(device_mkl, network_mkl, input, output_target, network_mkl_buffers);
+//        bpt::forward_backward_mse(device_mkl, network_mkl, input, output_target, network_mkl_buffers);
+        {
+            bpt::forward(device_mkl, network_mkl, input);
+            bpt::nn::loss_functions::mse::gradient(device_mkl, network.output_layer.output, output_target, d_output);
+            bpt::backward_full(device_mkl, network_mkl, input, d_output, d_input, network_mkl_buffers);
+        }
     }
     auto end = std::chrono::high_resolution_clock::now();
     bpt::zero_gradient(device_mkl, network_mkl);
-    bpt::forward_backward_mse(device_mkl, network_mkl, input, output_target, network_mkl_buffers);
+//    bpt::forward_backward_mse(device_mkl, network_mkl, input, output_target, network_mkl_buffers);
+    {
+        bpt::forward(device_mkl, network_mkl, input);
+        bpt::nn::loss_functions::mse::gradient(device_mkl, network.output_layer.output, output_target, d_output);
+        bpt::backward_full(device_mkl, network_mkl, input, d_output, d_input, network_mkl_buffers);
+    }
     std::cout << "MKL LIC forward backward mse: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((DTYPE)ITERATIONS) << "us" << std::endl;
 
 //    DTYPE abs_diff = bpt::abs_diff(device_mkl, network_mkl.output_layer.d_weights, network.output_layer.d_weights) / NetworkType::NUM_WEIGHTS;

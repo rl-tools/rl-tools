@@ -29,6 +29,7 @@ namespace backprop_tools::rl::algorithms::td3 {
         typename T_ACTOR_TARGET_NETWORK_TYPE,
         typename T_CRITIC_NETWORK_TYPE,
         typename T_CRITIC_TARGET_NETWORK_TYPE,
+        typename T_OPTIMIZER,
         typename T_PARAMETERS,
         typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag
     >
@@ -40,6 +41,7 @@ namespace backprop_tools::rl::algorithms::td3 {
         using ACTOR_TARGET_NETWORK_TYPE = T_ACTOR_TARGET_NETWORK_TYPE;
         using CRITIC_NETWORK_TYPE = T_CRITIC_NETWORK_TYPE;
         using CRITIC_TARGET_NETWORK_TYPE = T_CRITIC_TARGET_NETWORK_TYPE;
+        using OPTIMIZER = T_OPTIMIZER;
         using PARAMETERS = T_PARAMETERS;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
@@ -87,6 +89,9 @@ namespace backprop_tools::rl::algorithms::td3 {
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_action_value;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_2;
+
+        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, OBSERVATION_DIM + ACTION_DIM>> d_input;
+        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> d_output;
     };
 
     template<typename T_SPEC>
@@ -106,6 +111,8 @@ namespace backprop_tools::rl::algorithms::td3 {
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_1;
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_2;
 
+        typename SPEC::OPTIMIZER actor_optimizer;
+        typename SPEC::OPTIMIZER critic_optimizers[2];
     };
 }
 

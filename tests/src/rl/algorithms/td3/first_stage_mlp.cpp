@@ -14,12 +14,9 @@
 
 namespace bpt = backprop_tools;
 std::string get_data_file_path(){
-    std::string DATA_FILE_PATH = "./data_test/model_first_stage.hdf5";
-    const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FIRST_STAGE_DATA_FILE");
-    if (data_file_path != NULL){
-        DATA_FILE_PATH = std::string(data_file_path);
-//            std::runtime_error("Environment variable BACKPROP_TOOLS_TEST_DATA_DIR not set. Skipping test.");
-    }
+    std::string DATA_FILE_NAME = "model_first_stage.hdf5";
+    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "Using data file: " << DATA_FILE_PATH << std::endl;
     return DATA_FILE_PATH;
 }
@@ -111,7 +108,7 @@ namespace first_stage_first_stage{
     using CriticStructureSpec = bpt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, 1>;
 
     using NN_DEVICE = bpt::devices::DefaultCPU;
-    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
     using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
@@ -126,7 +123,7 @@ namespace first_stage_first_stage{
     using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 
-    using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
+    using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 }
 
@@ -141,7 +138,6 @@ T abs_diff_network(const NT network, const HighFive::Group g){
 TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
-    first_stage_first_stage::OPTIMIZER optimizer;
     device.logger = &logger;
     first_stage_first_stage::NN_DEVICE nn_device;
     nn_device.logger = &logger;
@@ -149,7 +145,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     bpt::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
-    bpt::init(device, actor_critic, optimizer, rng);
+    bpt::init(device, actor_critic, rng);
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     bpt::load(device, actor_critic.critic_1, data_file.getGroup("critic_1"));
     bpt::load(device, actor_critic.critic_target_1, data_file.getGroup("critic_target_1"));
@@ -192,19 +188,23 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     first_stage_first_stage::NN_DEVICE nn_device;
     nn_device.logger = &logger;
     first_stage_first_stage::ActorCriticType actor_critic;
-    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers;
+    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers;
     typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers;
-    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, 1>> d_output_critic;
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> d_input_critic;
+    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
 
     bpt::malloc(device, actor_critic);
     bpt::malloc(device, critic_buffers);
     bpt::malloc(device, actor_buffers);
+    bpt::malloc(device, d_output_critic);
+    bpt::malloc(device, d_input_critic);
 
 
     std::mt19937 rng(0);
-    bpt::init(device, actor_critic, optimizer, rng);
+    bpt::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     bpt::load(device, actor_critic.critic_1, data_file.getGroup("critic_1"));
@@ -214,6 +214,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     assert(batch.states.size() == 32);
 
     DTYPE loss = 0;
+    bpt::reset_optimizer_state(device, optimizer, actor_critic.critic_1);
     bpt::zero_gradient(device, actor_critic.critic_1);
     for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
 //        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM];
@@ -233,7 +234,12 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         bpt::evaluate(device, actor_critic.critic_1, input, output);
         loss += bpt::nn::loss_functions::mse::evaluate(device, output, target);
 
-        bpt::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
+//        bpt::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
+        {
+            bpt::forward(device, actor_critic.critic_1, input);
+            bpt::nn::loss_functions::mse::gradient(device, actor_critic.critic_1.output_layer.output, target, d_output_critic, DTYPE(1)/32);
+            bpt::backward_full(device, actor_critic.critic_1, input, d_output_critic, d_input_critic, critic_buffers);
+        }
         std::cout << "output: " << bpt::get(actor_critic.critic_1.output_layer.output, 0, 0) << std::endl;
         bpt::free(device, input);
         bpt::free(device, output);
@@ -257,7 +263,7 @@ namespace first_stage_second_stage{
     using CriticStructureSpec = bpt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
     using NN_DEVICE = bpt::devices::DefaultCPU;
-    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
     using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
@@ -272,7 +278,7 @@ namespace first_stage_second_stage{
     using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 
-    using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, TD3_PARAMETERS>;
+    using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 }
 TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
@@ -281,7 +287,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 //    typedef bpt::rl::algorithms::td3::ActorCritic<bpt::devices::Generic, ActorCriticSpec> ActorCriticType;
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
-    first_stage_second_stage::OPTIMIZER optimizer;
+//    first_stage_second_stage::OPTIMIZER optimizer;
     device.logger = &logger;
     first_stage_second_stage::NN_DEVICE nn_device;
     nn_device.logger = &logger;
@@ -289,7 +295,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     bpt::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
-    bpt::init(device, actor_critic, optimizer, rng);
+    bpt::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     bpt::load(device, actor_critic.actor, data_file.getGroup("actor"));
@@ -325,7 +331,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     bpt::malloc(device, critic_training_buffers);
     bpt::malloc(device, critic_training_buffers_target);
 
-    first_stage_second_stage::CRITIC_NETWORK_TYPE::BuffersForwardBackward<> critic_buffers[2];
+    first_stage_second_stage::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
     bpt::malloc(device, critic_buffers[0]);
     bpt::malloc(device, critic_buffers[1]);
 
@@ -335,7 +341,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 
     decltype(actor_critic.critic_1) pre_critic_1;
     bpt::malloc(device, pre_critic_1);
-    bpt::reset_optimizer_state(device, actor_critic.critic_1, optimizer);
+    bpt::reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
     bpt::copy(device, device, pre_critic_1, actor_critic.critic_1);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
@@ -375,7 +381,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         }
 //        assert(!bpt::is_nan(device, actor_critic));
 
-        bpt::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, optimizer, actor_buffers[0], critic_buffers[0], critic_training_buffers);
+        bpt::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_critic.critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers);
 
         auto target_next_action_diff = bpt::abs_diff(device, critic_training_buffers_target.next_actions, critic_training_buffers.next_actions);
         auto next_state_action_value_input_diff = bpt::abs_diff(device, critic_training_buffers_target.next_state_action_value_input, critic_training_buffers.next_state_action_value_input);
@@ -446,7 +452,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 //    typedef bpt::rl::algorithms::td3::ActorCritic<bpt::devices::Generic, ActorCriticSpec> ActorCriticType;
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
-    first_stage_second_stage::OPTIMIZER optimizer;
+//    first_stage_second_stage::OPTIMIZER optimizer;
     device.logger = &logger;
     first_stage_second_stage::NN_DEVICE nn_device;
     nn_device.logger = &logger;
@@ -454,7 +460,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     bpt::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
-    bpt::init(device, actor_critic, optimizer, rng);
+    bpt::init(device, actor_critic, rng);
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     bpt::load(device, actor_critic.actor, data_file.getGroup("actor"));
@@ -494,7 +500,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     decltype(actor_critic.actor) pre_actor;
     bpt::malloc(device, pre_actor);
     bpt::copy(device, device, pre_actor, actor_critic.actor);
-    bpt::reset_optimizer_state(device, actor_critic.actor, optimizer);
+    bpt::reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
     DTYPE mean_ratio_adam = 0;
@@ -508,7 +514,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 
 //        DTYPE actor_1_loss = bpt::train_actor<AC_DEVICE, ActorCriticType::SPEC, ReplayBufferType::CAPACITY, typeof(rng), true>(device, actor_critic, replay_buffer, rng);
         bpt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, ACTOR_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, actor_batch, rng);
-        bpt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+        bpt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
 
         bpt::reset_forward_state(device, pre_actor);
         bpt::reset_forward_state(device, post_actor);

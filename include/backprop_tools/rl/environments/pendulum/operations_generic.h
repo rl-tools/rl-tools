@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_OPERATIONS_GENERIC
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_OPERATIONS_GENERIC
 #include "pendulum.h"
+#include "../operations_generic.h"
 namespace backprop_tools::rl::environments::pendulum {
     template <typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T clip(T x, T min, T max){
@@ -72,6 +73,7 @@ namespace backprop_tools{
         set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta));
         set(observation, 0, 2, state.theta_dot);
     }
+    // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
     template<typename DEVICE, typename SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T get_serialized_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::State& state, typename DEVICE::index_t index){
         if(index == 0) {

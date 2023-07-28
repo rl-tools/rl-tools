@@ -5,18 +5,20 @@
 
 namespace backprop_tools::nn::optimizers{
     namespace adam{
-        template<typename T_T>
+        template<typename T_T, typename T_TI>
         struct DefaultParametersTF {
             using T = T_T;
+            using TI = T_TI;
             static constexpr T ALPHA = 0.001;
             static constexpr T BETA_1 = 0.9;
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-7;
 
         };
-        template<typename T_T>
+        template<typename T_T, typename T_TI>
         struct DefaultParametersTorch {
             using T = T_T;
+            using TI = T_TI;
             static constexpr T ALPHA = 0.001;
             static constexpr T BETA_1 = 0.9;
             static constexpr T BETA_2 = 0.999;
@@ -28,9 +30,11 @@ namespace backprop_tools::nn::optimizers{
     struct Adam{
         using PARAMETERS = T_PARAMETERS;
         using T = typename PARAMETERS::T;
+        using TI = typename PARAMETERS::TI;
         typename PARAMETERS::T first_order_moment_bias_correction;
         typename PARAMETERS::T second_order_moment_bias_correction;
         T alpha = PARAMETERS::ALPHA;
+        TI age = 1;
     };
 
 

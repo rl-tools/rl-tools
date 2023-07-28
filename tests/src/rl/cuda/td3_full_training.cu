@@ -58,7 +58,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     rlp::CRITIC_BATCH_TYPE critic_batch;
     rlp::CRITIC_BATCH_TYPE* critic_batch_pointer;
     rlp::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers;
-    rlp::CRITIC_NETWORK_TYPE::BuffersForwardBackward<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    rlp::CRITIC_NETWORK_TYPE::Buffers<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
 
     rlp::ACTOR_BATCH_TYPE actor_batch;
     rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;
@@ -99,7 +99,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     bpt::malloc(device, actor_buffers[0]);
     bpt::malloc(device, actor_buffers[1]);
 
-    bpt::init(device_init, actor_critic_init, optimizer, rng_init);
+    bpt::init(device_init, actor_critic_init, rng_init);
     bpt::copy(device, device_init, actor_critic, actor_critic_init);
     for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
         auto parameters = p::env::parameters;
@@ -116,7 +116,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    constexpr DEVICE::index_t step_limit = 500000;
+    constexpr DEVICE::index_t step_limit = 20000;
     for(int step_i = 0; step_i < step_limit; step_i += 1){
         rng = bpt::random::next(DEVICE::SPEC::RANDOM(), rng);
         bpt::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
@@ -181,9 +181,9 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 //                    std::cout << "update: " << duration_microseconds << "us" << std::endl;
             }
         }
-        if(step_i % 20000 == 0){
+        if(step_i % 1000 == 0){
             bpt::copy(device_init, device, actor_critic_init, actor_critic);
-            auto results = bpt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, bpt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), rng_init, true);
+            auto results = bpt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, bpt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, true);
             std::cout << "Mean return: " << results.mean << std::endl;
         }
     }

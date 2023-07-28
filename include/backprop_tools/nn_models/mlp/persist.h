@@ -20,9 +20,6 @@ namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network, HighFive::Group group) {
         save(device, (nn_models::mlp::NeuralNetwork<SPEC>&)network, group);
-        std::vector<decltype(network.age)> age;
-        age.push_back(network.age);
-        group.createDataSet("age", age);
     }
     template<typename DEVICE, typename SPEC>
     void load(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, HighFive::Group group){

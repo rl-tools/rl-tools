@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="rl_environments_mujoco_ant_training_td3_standalone" type="CMakeRunConfiguration" factoryName="Application" nameIsGenerated="true" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$ContentRoot$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="backprop_tools" TARGET_NAME="rl_environments_mujoco_ant_training_td3_standalone" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="backprop_tools" RUN_TARGET_NAME="rl_environments_mujoco_ant_training_td3_standalone">
+    <method v="2">
+      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>

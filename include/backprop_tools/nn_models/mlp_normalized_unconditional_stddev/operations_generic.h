@@ -33,9 +33,9 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    void reset_optimizer_state(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& network, OPTIMIZER& optimizer) {
-        reset_optimizer_state(device, (nn_models::mlp::NeuralNetworkAdam<SPEC>&)network, optimizer);
-        reset_optimizer_state(device, network.log_std, optimizer);
+    void _reset_optimizer_state(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& network, OPTIMIZER& optimizer) {
+        _reset_optimizer_state(device, (nn_models::mlp::NeuralNetworkAdam<SPEC>&)network, optimizer);
+        _reset_optimizer_state(device, network.log_std, optimizer);
     }
 
     template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>

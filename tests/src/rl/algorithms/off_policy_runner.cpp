@@ -16,6 +16,7 @@ const DTYPE STATE_TOLERANCE = 0.00001;
 namespace bpt = backprop_tools;
 
 using DEVICE = bpt::devices::DefaultCPU;
+using TI = typename DEVICE::index_t;
 using ENVIRONMENT_SPEC = bpt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
 using ENVIRONMENT = bpt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
 typedef bpt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, 1, 5000, 100, bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
@@ -24,7 +25,7 @@ typedef bpt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunne
 using PendulumStructureSpecification = bpt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, bpt::nn::activation_functions::GELU, bpt::nn::activation_functions::IDENTITY>;
 
 TEST(BACKPROP_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, TI>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     typedef bpt::nn_models::mlp::AdamSpecification<PendulumStructureSpecification> SPEC;
     DEVICE::SPEC::LOGGING logger;

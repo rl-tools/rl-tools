@@ -43,3 +43,9 @@
 [submodule "external/json"]
 	path = external/json
 	url = https://github.com/nlohmann/json.git
+[submodule "tests/data"]
+	path = tests/data
+	url = https://gitlab.com/backprop_tools/test-data.git
+[submodule "docs"]
+	path = docs
+	url = https://github.com/BackpropTools/documentation.git

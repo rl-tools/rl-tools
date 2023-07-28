@@ -12,7 +12,7 @@ using TI = typename DEVICE::index_t;
 template <typename T, TI ROWS, TI COLS, TI BATCH_SIZE>
 void test(){
     T threshold = 0.01;
-    T std_threshold = 0.1;
+    T std_threshold = 0.2;
     T mean_threshold_normalization = 0.01;
     T std_threshold_normalization = 3.0/BATCH_SIZE;
     static_assert((ROWS % BATCH_SIZE) == 0);

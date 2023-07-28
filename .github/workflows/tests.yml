@@ -11,11 +11,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-        continue-on-error: true
-
-      - name: Create Build Environment
-        run: git submodule update --init --recursive
-        continue-on-error: true
+          lfs: 'true'
 
       - name: Check
         run: |
@@ -31,12 +27,12 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_ENABLE_TESTS:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON
 
       - name: Build
         run: |
           cd build
-          make
+          cmake --build . -j $(nproc)
 
       - name: Test
         run: |

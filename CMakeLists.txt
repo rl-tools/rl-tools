@@ -101,6 +101,27 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE)
     set(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS ON)
 endif()
 
+if(BACKPROP_TOOLS_BACKEND_ENABLE_OPENBLAS)
+#    set(BLA_VENDOR OpenBLAS)
+    find_package(OpenBLAS REQUIRED)
+
+    message(STATUS "OpenBLAS_INCLUDE_DIRS: ${OpenBLAS_INCLUDE_DIRS}")
+    message(STATUS "OpenBLAS_LIBRARIES: ${OpenBLAS_LIBRARIES}")
+
+    add_compile_definitions(BACKPROP_TOOLS_BACKEND_ENABLE_OPENBLAS)
+    set(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS ON)
+endif()
+
+if(BACKPROP_TOOLS_BACKEND_ENABLE_BLIS)
+    find_package(BLIS REQUIRED)
+
+    message(STATUS "OpenBLAS_INCLUDE_DIRS: ${OpenBLAS_INCLUDE_DIRS}")
+    message(STATUS "OpenBLAS_LIBRARIES: ${OpenBLAS_LIBRARIES}")
+
+    add_compile_definitions(BACKPROP_TOOLS_BACKEND_ENABLE_OPENBLAS)
+    set(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS ON)
+endif()
+
 function(BACKPROP_TOOLS_TARGET_LINK_BLAS target)
     if(BACKPROP_TOOLS_BACKEND_ENABLE_MKL)
         message(STATUS "Linking MKL to ${target}")
@@ -109,6 +130,11 @@ function(BACKPROP_TOOLS_TARGET_LINK_BLAS target)
     if(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE)
         message(STATUS "Linking ACCELERATE to ${target}")
         target_link_libraries(${target} PRIVATE BLAS)
+    endif()
+    if(BACKPROP_TOOLS_BACKEND_ENABLE_OPENBLAS)
+        message(STATUS "Linking OpenBLAS to ${target}")
+        target_link_libraries(${target} PRIVATE ${OpenBLAS_LIBRARIES})
+        target_include_directories(${target} PRIVATE ${OpenBLAS_INCLUDE_DIRS})
     endif()
 endfunction()
 

@@ -12,7 +12,7 @@ namespace parameters_0{
         static constexpr TI BATCH_SIZE = 64;
         using ACTOR_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, bpt::nn::activation_functions::ActivationFunction::TANH, bpt::nn::activation_functions::IDENTITY, BATCH_SIZE>;
 
-        struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParametersTorch<T>{
+        struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParametersTorch<T, TI>{
             static constexpr T ALPHA = 0.001;
         };
         using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
@@ -38,8 +38,8 @@ namespace parameters_0{
         using ON_POLICY_RUNNER_DATASET_TYPE = bpt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;
 
         using ACTOR_EVAL_BUFFERS = typename ACTOR_TYPE::template Buffers<ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
-        using ACTOR_BUFFERS = typename ACTOR_TYPE::template BuffersForwardBackward<BATCH_SIZE>;
-        using CRITIC_BUFFERS = typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE>;
-        using CRITIC_BUFFERS_ALL = typename CRITIC_TYPE::template BuffersForwardBackward<ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
+        using ACTOR_BUFFERS = typename ACTOR_TYPE::template Buffers<BATCH_SIZE>;
+        using CRITIC_BUFFERS = typename CRITIC_TYPE::template Buffers<BATCH_SIZE>;
+        using CRITIC_BUFFERS_ALL = typename CRITIC_TYPE::template Buffers<ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
     };
 }

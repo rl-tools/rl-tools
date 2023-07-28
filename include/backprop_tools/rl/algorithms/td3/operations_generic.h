@@ -65,6 +65,8 @@ namespace backprop_tools{
         malloc(device, critic_training_buffers.target_action_value);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
         malloc(device, critic_training_buffers.next_state_action_value_critic_2);
+        malloc(device, critic_training_buffers.d_output);
+        malloc(device, critic_training_buffers.d_input);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -77,19 +79,21 @@ namespace backprop_tools{
         free(device, critic_training_buffers.target_action_value);
         free(device, critic_training_buffers.next_state_action_value_critic_1);
         free(device, critic_training_buffers.next_state_action_value_critic_2);
+        free(device, critic_training_buffers.d_output);
+        free(device, critic_training_buffers.d_input);
     }
 
-    template <typename DEVICE, typename SPEC, typename OPTIMIZER, typename RNG>
-    void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, OPTIMIZER& optimizer, RNG& rng){
+    template <typename DEVICE, typename SPEC, typename RNG>
+    void init(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, RNG& rng){
         init_weights(device, actor_critic.actor   , rng);
         init_weights(device, actor_critic.critic_1, rng);
         init_weights(device, actor_critic.critic_2, rng);
         zero_gradient(device, actor_critic.actor);
         zero_gradient(device, actor_critic.critic_1);
         zero_gradient(device, actor_critic.critic_2);
-        reset_optimizer_state(device, actor_critic.actor, optimizer);
-        reset_optimizer_state(device, actor_critic.critic_1, optimizer);
-        reset_optimizer_state(device, actor_critic.critic_2, optimizer);
+        reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
+        reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
+        reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critic_2);
 
         copy(device, device, actor_critic.actor_target, actor_critic.actor);
         copy(device, device, actor_critic.critic_target_1, actor_critic.critic_1);
@@ -161,11 +165,13 @@ namespace backprop_tools{
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
 
         target_actions(device, batch, training_buffers);
-        forward_backward_mse(device, critic, batch.observations_and_actions, training_buffers.target_action_value, critic_buffers);
-        update(device, critic, optimizer);
+        forward(device, critic, batch.observations_and_actions);
+        nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output);
+        backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
+        step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
-    typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template BuffersForwardBackward<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
+    typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
         // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -197,11 +203,11 @@ namespace backprop_tools{
         auto& critic = actor_critic.critic_1;
         forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value);
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
-        backward(device, critic, training_buffers.state_action_value_input, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
+        backward_input(device, critic, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
         auto d_actor_output = view(device, training_buffers.d_critic_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM);
-        backward(device, actor_critic.actor, batch.observations, d_actor_output, training_buffers.d_actor_input, actor_buffers);
+        backward(device, actor_critic.actor, batch.observations, d_actor_output, actor_buffers);
 
-        update(device, actor_critic.actor, optimizer);
+        step(device, optimizer, actor_critic.actor);
     }
 
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
@@ -230,6 +236,13 @@ namespace backprop_tools{
             update_target_layer(device, target.hidden_layers[layer_i], source.hidden_layers[layer_i], polyak);
         }
         update_target_layer(device, target.output_layer, source.output_layer, polyak);
+    }
+    template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+    void update_target_network(DEVICE& device, nn_models::sequential::Module<TARGET_SPEC>& target, const nn_models::sequential::Module<SOURCE_SPEC>& source, T polyak) {
+        update_target_layer(device, target.content, source.content, polyak);
+        if constexpr(!utils::typing::is_same_v<typename TARGET_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            update_target_network(device, target.next_module, source.next_module, polyak);
+        }
     }
 
     template <typename DEVICE, typename SPEC>

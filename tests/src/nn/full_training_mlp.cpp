@@ -38,7 +38,7 @@ constexpr int batch_size = 32;
 using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, bpt::nn::activation_functions::GELU, bpt::nn::activation_functions::IDENTITY, 1>;
 
 
-using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T>;
+using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T, typename DEVICE::index_t>;
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 using NetworkType = bpt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
@@ -57,12 +57,10 @@ constexpr typename DEVICE::index_t OUTPUT_DIM = StructureSpecification::OUTPUT_D
 
 TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
-    std::string DATA_FILE_PATH = "./data_test/data.hdf5";
-    const char* data_file_path = std::getenv("BACKPROP_TOOLS_TEST_NN_DATA_FILE");
-    if (data_file_path != NULL){
-        DATA_FILE_PATH = std::string(data_file_path);
-//            std::runtime_error("Environment variable BACKPROP_TOOLS_TEST_DATA_DIR not set. Skipping test.");
-    }
+    std::string DATA_FILE_NAME = "mlp_data.hdf5";
+    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
+
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     data_file.getDataSet("data/X_train").read(X_train);
     data_file.getDataSet("data/Y_train").read(Y_train);
@@ -86,7 +84,7 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     std::vector<T> epoch_durations;
     constexpr int n_epochs = 3;
     //    this->reset();
-    bpt::reset_optimizer_state(device, network, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network);
 //    typename DEVICE::index_t rng = 2;
     std::mt19937 rng(2);
     bpt::init_weights(device, network, rng);
@@ -115,17 +113,14 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
                 bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
                 loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
 
-                T d_input[INPUT_DIM];
-                bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_input_matrix;
-                d_input_matrix._data = d_input;
-                bpt::backward(device, network, input_matrix, d_loss_d_output_matrix, d_input_matrix, buffers);
+                bpt::backward(device, network, input_matrix, d_loss_d_output_matrix, buffers);
             }
             loss /= batch_size;
             epoch_loss += loss;
 
             //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            bpt::update(device, network, optimizer);
+            bpt::step(device, optimizer, network);
             if(batch_i % 1000 == 0){
                 std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
             }

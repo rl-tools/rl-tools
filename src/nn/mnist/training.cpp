@@ -1,7 +1,7 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn_models/models.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
-#include <backprop_tools/nn_models/operations_cpu.h>
+#include <backprop_tools/nn_models/operations_generic.h>
 #include <backprop_tools/containers/persist.h>
 
 namespace bpt = backprop_tools;
@@ -23,12 +23,25 @@ constexpr TI HIDDEN_DIM = 50;
 constexpr TI DATASET_SIZE_TRAIN = 60000;
 constexpr TI DATASET_SIZE_VAL = 10000;
 constexpr TI VALIDATION_LIMIT = 50;
-using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, 1>;
 
-using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T>;
+
+using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T, TI>;
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-using NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
-using NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
+
+namespace mnist_model{ // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
+    using namespace backprop_tools::nn_models::sequential::interface;
+
+    using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, INPUT_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam>;
+    using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
+    using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam>;
+    using LAYER_2 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
+    using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::IDENTITY, bpt::nn::parameters::Adam>;
+    using LAYER_3 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
+
+    using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+}
+
+using NETWORK_TYPE = mnist_model::MODEL;
 
 int main(){
     std::string dataset_path = "examples/docker/00_basic_mnist/mnist.hdf5";
@@ -42,7 +55,7 @@ int main(){
     OPTIMIZER optimizer;
     device.logger = &logger;
     NETWORK_TYPE network;
-    typename NETWORK_TYPE::Buffers<1> buffers;
+    typename NETWORK_TYPE::DoubleBuffer<1> buffers;
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, DATASET_SIZE_TRAIN, INPUT_DIM>> x_train;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, DATASET_SIZE_VAL, INPUT_DIM>> x_val;
@@ -72,7 +85,7 @@ int main(){
     }
 
 
-    bpt::reset_optimizer_state(device, network, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, network);
     auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 2);
     bpt::init_weights(device, network, rng);
 
@@ -86,19 +99,19 @@ int main(){
             for (int sample_i=0; sample_i < BATCH_SIZE; sample_i++){
                 auto input = bpt::row(device, x_train, batch_i * BATCH_SIZE + sample_i);
                 auto output = bpt::row(device, y_train, batch_i * BATCH_SIZE + sample_i);
-                auto prediction = bpt::row(device, network.output_layer.output, 0);
+                auto prediction = bpt::row(device, bpt::output(network), 0);
                 bpt::forward(device, network, input);
                 bpt::nn::loss_functions::categorical_cross_entropy::gradient(device, prediction, output, d_loss_d_output_matrix, T(1)/((T)BATCH_SIZE));
                 loss += bpt::nn::loss_functions::categorical_cross_entropy::evaluate(device, prediction, output, T(1)/((T)BATCH_SIZE));
 
                 T d_input[INPUT_DIM];
                 d_input_matrix._data = d_input;
-                bpt::backward(device, network, input, d_loss_d_output_matrix, d_input_matrix, buffers);
+                bpt::backward_full(device, network, input, d_loss_d_output_matrix, d_input_matrix, buffers);
             }
             loss /= BATCH_SIZE;
             epoch_loss += loss;
 
-            bpt::update(device, network, optimizer);
+            bpt::step(device, optimizer, network);
             if(batch_i % 1000 == 0){
                 std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
             }
@@ -115,8 +128,8 @@ int main(){
             auto output = bpt::row(device, y_val, sample_i);
 
             bpt::forward(device, network, input);
-            val_loss += bpt::nn::loss_functions::categorical_cross_entropy::evaluate(device, network.output_layer.output, output, T(1)/BATCH_SIZE);
-            TI predicted_label = bpt::argmax_row(device, network.output_layer.output);
+            val_loss += bpt::nn::loss_functions::categorical_cross_entropy::evaluate(device, bpt::output(network), output, T(1)/BATCH_SIZE);
+            TI predicted_label = bpt::argmax_row(device, bpt::output(network));
             for(TI row_i = 0; row_i < 28; row_i++){
                 for(TI col_i = 0; col_i < 28; col_i++){
                     T val = bpt::get(input, 0, row_i * 28 + col_i);

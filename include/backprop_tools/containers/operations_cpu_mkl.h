@@ -2,7 +2,7 @@
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_MKL_H
 
 #include <backprop_tools/containers.h>
-#include "operations_cpu.h"
+#include "operations_cpu_blas.h"
 #include <backprop_tools/devices/cpu_mkl.h>
 
 #include <mkl.h>
@@ -32,5 +32,11 @@ namespace backprop_tools{
         mkl_free(matrix._data);
     }
 #endif
+    template<typename DEV_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    void multiply(devices::CPU_MKL<DEV_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
+        multiply((devices::CPU_BLAS<DEV_SPEC>&)device, A, B, output);
+    }
 }
 #endif
+
+#include "operations_cpu_blas.h"

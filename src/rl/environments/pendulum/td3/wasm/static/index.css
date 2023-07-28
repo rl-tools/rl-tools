@@ -2,8 +2,8 @@ body {
     display: flex;
     justify-content: center;
     /*align-items: center;*/
-    height: 100%;
-    min-height: 100vh;
+    height: 80%;
+    min-height: 80vh;
     margin: 0;
     background-color: #f0f0f0;
 }
@@ -12,7 +12,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2.5vh;
+    gap: 1em;
     width: 90%;
     max-width: 900px;
 }
@@ -20,8 +20,7 @@ body {
     width: 100%;
     height: 50vw;
     min-height: 10em;
-    max-height: 30vh;
-    margin-bottom: 2vh;
+    max-height: 20vh;
 }
 
 .github-container {
@@ -44,7 +43,7 @@ body {
     align-items: center;
     height: 60vw; /* Adjusted height to accommodate full pendulum rotation */
     min-height: 10em;
-    max-height: 30vh;
+    max-height: 20vh;
     position: relative;
     width: 100%;
 }
@@ -114,6 +113,7 @@ body {
     font-family: "Open Sans", sans-serif;
     font-weight: bold;
     text-transform: uppercase;
+    text-decoration: none;
     letter-spacing: 2px;
     padding: 20px 40px;
     border: none;
@@ -128,6 +128,19 @@ body {
 .fancy-button:hover {
     transform: translateY(-5px);
     box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+.fancy-button-small {
+    letter-spacing: 1px;
+    padding: 10px 20px;
+    border-radius: 25px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    font-size: 70%;
+}
+
+.fancy-button-small:hover {
+    transform: translateY(-2.5px);
+    box-shadow: 0 4px 7.5px rgba(0, 0, 0, 0.3);
 }
 
 .checkbox-container{

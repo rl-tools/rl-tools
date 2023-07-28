@@ -3,6 +3,8 @@
 #include "layer.h"
 #include <backprop_tools/containers/persist_code.h>
 #include <sstream>
+#include <backprop_tools/persist/code.h>
+#include <backprop_tools/containers/persist_code.h>
 
 namespace backprop_tools {
     namespace nn::layers::dense::persist{
@@ -54,12 +56,13 @@ namespace backprop_tools {
             << SPEC::OUTPUT_DIM << ", "
             << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
             << get_type_string(typename SPEC::PARAMETER_TYPE()) << ", "
-            << "backprop_tools::MatrixDynamicTag" << ", "
             << 1 << ", "
+            << "backprop_tools::MatrixDynamicTag" << ", "
             << "true, "
             << "backprop_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
             << ">; \n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "backprop_tools::nn::layers::dense::Layer<SPEC> layer = {weights::parameters, biases::parameters};\n";
+        ss << ind << "    " << "using TYPE = backprop_tools::nn::layers::dense::Layer<SPEC>;";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE layer = {weights::parameters, biases::parameters};\n";
         ss << ind << "}\n";
 
         return {ss_header.str(), ss.str()};

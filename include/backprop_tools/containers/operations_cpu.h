@@ -5,7 +5,6 @@
 
 #include <iostream>
 #include <iomanip>
-#include <cstring> // for std::memcpy
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void print(DEVICE& device, const Matrix<SPEC>& m){
@@ -16,6 +15,22 @@ namespace backprop_tools{
             std::cout << std::endl;
         }
     }
+    template<typename DEVICE, typename SPEC>
+    void print_python_literal(DEVICE& device, const Matrix<SPEC>& m){
+        std::cout << "[" << std::endl;
+        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
+            std::cout << "    [";
+            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
+                std::cout << std::fixed << std::setw(12) << std::setprecision(6) << get(m, row_i, col_i);
+                if(col_i < SPEC::COLS - 1){
+                    std::cout << ", ";
+                }
+            }
+            std::cout << "],";
+            std::cout << std::endl;
+        }
+        std::cout << "]" << std::endl;
+    }
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy_view(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         using TARGET_DEVICE = devices::CPU<TARGET_DEV_SPEC>;
@@ -25,9 +40,13 @@ namespace backprop_tools{
     }
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+        using TARGET_DEVICE = devices::CPU<TARGET_DEV_SPEC>;
+        using TI = typename TARGET_DEVICE::index_t;
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         if constexpr(containers::check_memory_layout<SPEC_1, SPEC_2>){
-            std::memcpy(target._data, source._data, SPEC_1::SIZE_BYTES);
+            for(TI i = 0; i < SPEC_1::SIZE; i++){
+                target._data[i] = source._data[i];
+            }
         }
         else{
             copy_view(target_device, source_device, target, source);

@@ -60,7 +60,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
     bpt::init_kaiming(device, layer, rng);
     bpt::zero_gradient(device, layer);
     bpt::reset_forward_state(device, layer);
-    bpt::reset_optimizer_state(device, layer, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, layer);
     bpt::randn(device, layer.weights.gradient, rng);
     bpt::randn(device, layer.weights.gradient_first_order_moment, rng);
     bpt::randn(device, layer.weights.gradient_second_order_moment, rng);
@@ -105,7 +105,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     bpt::init_weights(device, mlp, rng);
     bpt::zero_gradient(device, mlp);
     bpt::reset_forward_state(device, mlp);
-    bpt::reset_optimizer_state(device, mlp, optimizer);
+    bpt::reset_optimizer_state(device, optimizer, mlp);
     bpt::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
     bpt::copy(device, device, mlp.input_layer, mlp_1::input_layer::layer);
     auto abs_diff = bpt::abs_diff(device, mlp, mlp_1::mlp);

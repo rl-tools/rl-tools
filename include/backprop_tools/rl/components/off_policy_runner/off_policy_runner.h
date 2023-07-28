@@ -127,6 +127,9 @@ namespace backprop_tools::rl::components{
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
         PARAMETERS parameters;
+        template<typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
+        using Batch = off_policy_runner::Batch<typename off_policy_runner::BatchSpecification<SPEC, T_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
+
         off_policy_runner::Buffers<SPEC> buffers;
 
         // todo: change to "environments"

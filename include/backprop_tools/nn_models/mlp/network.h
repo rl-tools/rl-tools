@@ -55,9 +55,9 @@ namespace backprop_tools::nn_models::mlp {
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = S::ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = typename S::MEMORY_LAYOUT;
 
-        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, CONTAINER_TYPE_TAG, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, CONTAINER_TYPE_TAG, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION, PARAMETER_TYPE, CONTAINER_TYPE_TAG, BATCH_SIZE, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
     };
 
     template <typename T_STRUCTURE_SPEC>
@@ -103,8 +103,10 @@ namespace backprop_tools::nn_models::mlp {
     template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct NeuralNetworkBuffersSpecification{
         using SPEC = T_SPEC;
-        static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
+        using TI = typename SPEC::TI;
+        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        static constexpr TI DIM = SPEC::HIDDEN_DIM;
     };
 
     template<typename T_BUFFER_SPEC>
@@ -114,24 +116,10 @@ namespace backprop_tools::nn_models::mlp {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::HIDDEN_DIM, typename SPEC::MEMORY_LAYOUT>;
+        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, BUFFER_SPEC::DIM, typename SPEC::MEMORY_LAYOUT>;
         using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
-    };
-    template<typename T_BUFFER_SPEC>
-    struct NeuralNetworkBuffersForwardBackward: NeuralNetworkBuffers<T_BUFFER_SPEC>{
-        using BUFFER_SPEC = T_BUFFER_SPEC;
-        using SPEC = typename BUFFER_SPEC::SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        using D_INPUT_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
-        using D_INPUT_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<D_INPUT_CONTAINER_SPEC>;
-        D_INPUT_CONTAINER_TYPE d_input;
-        using D_OUTPUT_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
-        using D_OUTPUT_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<D_OUTPUT_CONTAINER_SPEC>;
-        D_OUTPUT_CONTAINER_TYPE d_output;
     };
 
     template<typename T_SPEC>
@@ -141,8 +129,6 @@ namespace backprop_tools::nn_models::mlp {
         using TI = typename SPEC::TI;
         template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Buffers = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
-        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
-        using BuffersForwardBackward = NeuralNetworkBuffersForwardBackward<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
 
         // Convenience
         static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required
@@ -162,20 +148,13 @@ namespace backprop_tools::nn_models::mlp {
     };
 
     template<typename SPEC>
-    struct NeuralNetworkBackward: public NeuralNetwork<SPEC>{
-    };
+    struct NeuralNetworkBackward: public NeuralNetwork<SPEC>{};
     template<typename SPEC>
-    struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<SPEC>{
-    };
-
+    struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<SPEC>{};
     template<typename SPEC>
-    struct NeuralNetworkSGD: public NeuralNetworkBackwardGradient<SPEC>{
-    };
-
+    struct NeuralNetworkSGD: public NeuralNetworkBackwardGradient<SPEC>{};
     template<typename SPEC>
-    struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<SPEC>{
-        typename SPEC::TI age = 1;
-    };
+    struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<SPEC>{};
 
 
 }

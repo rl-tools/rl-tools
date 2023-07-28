@@ -60,12 +60,25 @@ namespace backprop_tools{
 #endif
 
     template<typename SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI rows(const Matrix<SPEC>& m){
+        return SPEC::ROWS;
+    }
+    template<typename SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI cols(const Matrix<SPEC>& m){
+        return SPEC::COLS;
+    }
+    template<typename SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI row_pitch(const Matrix<SPEC>& m){
         return SPEC::ROW_PITCH;
     }
     template<typename SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT typename SPEC::TI col_pitch(const Matrix<SPEC>& m){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr typename SPEC::TI col_pitch(const Matrix<SPEC>& m){
         return SPEC::COL_PITCH;
+    }
+
+    template<typename SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr bool empty(const Matrix<SPEC>& m){
+        return SPEC::COLS == 0 && SPEC::ROWS == 0;
     }
 
     template<typename SPEC>
@@ -406,6 +419,14 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, const Matrix<SPEC>& m){
+        static_assert(SPEC::ROWS >= ROWS);
+        static_assert(SPEC::COLS >= COLS);
+        using ViewLayout = matrix::layouts::Fixed<typename SPEC::TI, SPEC::ROW_PITCH, SPEC::COL_PITCH>;
+        MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, ViewLayout, true>> out = {m._data};
+        return out;
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
         static_assert(SPEC::ROWS >= ROWS);
         static_assert(SPEC::COLS >= COLS);
@@ -421,6 +442,10 @@ namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename ViewSpec>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT auto view(DEVICE& device, const Matrix<SPEC>& m, const ViewSpec& vs, typename SPEC::TI row, typename SPEC::TI col){
         return view<DEVICE, SPEC, ViewSpec::ROWS, ViewSpec::COLS>(device, m, row, col);
+    }
+    template<typename DEVICE, typename SPEC, typename ViewSpec>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT constexpr auto view(DEVICE& device, const Matrix<SPEC>& m, const ViewSpec& vs){
+        return view<DEVICE, SPEC, ViewSpec::ROWS, ViewSpec::COLS>(device, m);
     }
 
     template<typename DEVICE, typename SPEC>
@@ -580,7 +605,9 @@ namespace backprop_tools{
         MatrixStatic<matrix::Specification<TI, TI, 1, 1>> output;
         malloc(device, output);
         argmax_row_wise(device, input, output);
-        return get(output, 0, 0);
+        auto result = get(output, 0, 0);
+        free(device, output);
+        return result;
     }
 
     template <typename DEVICE, typename SPEC_INPUT, typename SPEC_OUTPUT>
@@ -618,7 +645,28 @@ namespace backprop_tools{
         MatrixStatic<matrix::Specification<TI, TI, 1, 1>> output;
         malloc(device, output);
         argmax_col_wise(device, input, output);
-        return get(output, 0, 0);
+        auto result = get(output, 0, 0);
+        free(device, output);
+        return result;
+    }
+    template<typename DEVICE, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
+    void multiply(DEVICE& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& output) {
+        static_assert(INPUT_SPEC_A::ROWS == OUTPUT_SPEC::ROWS);
+        static_assert(INPUT_SPEC_A::COLS == INPUT_SPEC_B::ROWS);
+        static_assert(INPUT_SPEC_B::COLS == OUTPUT_SPEC::COLS);
+
+        using T = typename OUTPUT_SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        for(TI row_i = 0; row_i < OUTPUT_SPEC::ROWS; row_i++){
+            for(TI col_i = 0; col_i < OUTPUT_SPEC::COLS; col_i++){
+                T acc = 0;
+                for(TI k = 0; k < INPUT_SPEC_A::COLS; k++){
+                    acc += get(A, row_i, k) * get(B, k, col_i);
+                }
+                set(output, row_i, col_i, acc);
+            }
+        }
     }
 }
 #endif
