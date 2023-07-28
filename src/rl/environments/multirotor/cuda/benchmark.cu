@@ -2,7 +2,7 @@
 
 
 #include <backprop_tools/rl/environments/multirotor/operations_cpu.h>
-#include "../parameters.h"
+#include "parameters.h"
 namespace bpt = backprop_tools;
 
 #include <iostream>
