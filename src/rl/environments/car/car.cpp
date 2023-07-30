@@ -1,6 +1,6 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
-#include <backprop_tools/rl/environments/operations_generic.h>
+#include <backprop_tools/rl/environments/car/operations_generic.h>
 #include <backprop_tools/nn_models/operations_generic.h>
 
 #include <backprop_tools/rl/algorithms/td3/loop.h>
@@ -12,8 +12,8 @@ struct TrainingConfig{
     using T = float;
     using TI = typename DEVICE::index_t;
 
-    typedef bpt::rl::environments::pendulum::Specification<T, DEVICE::index_t, bpt::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
-    typedef bpt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
+    using ENV_SPEC = bpt::rl::environments::car::Specification<T, DEVICE::index_t>;
+    using ENVIRONMENT = bpt::rl::environments::Car<ENV_SPEC>;
 
     struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
         using LOGGING = bpt::devices::logging::CPU;
