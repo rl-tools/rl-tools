@@ -70,6 +70,7 @@ struct TrainingConfig{
             DEVICE::index_t,
             ENVIRONMENT,
             1,
+            false,
             REPLAY_BUFFER_CAP,
             ENVIRONMENT_STEP_LIMIT,
             bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
@@ -206,8 +207,8 @@ bool training_step(TRAINING_STATE& ts){
 #ifndef BACKPROP_TOOLS_BENCHMARK
     if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
         auto result = bpt::evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, true);
-        std::cout << "Mean return: " << result.mean << std::endl;
-        ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.mean;
+        std::cout << "Mean return: " << result.returns_mean << std::endl;
+        ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
     }
 #endif
     ts.step++;

@@ -78,6 +78,10 @@ namespace backprop_tools::math {
         T x_squared = x * x;
         return x * (27 + x_squared) / (27 + 9 * x_squared);
     }
+    template<typename T>
+    T atan2(const devices::math::Dummy&, T a, T b){
+        return 0;
+    }
 
 }
 #endif
