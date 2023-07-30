@@ -32,8 +32,9 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         initial_state(device, env, state);
-        state.x = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
-        state.y = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
+        constexpr T dist = 0.2;
+        state.x = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -dist, dist, rng);
+        state.y = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -dist, dist, rng);
         state.mu = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
@@ -71,8 +72,9 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::car;
         typedef typename SPEC::T T;
-        T cost = state.x * state.x + state.y * state.y;
-        return -cost;
+        T angle_norm = angle_normalize(typename DEVICE::SPEC::MATH(), state.mu);
+        T cost = 0.1*angle_norm * angle_norm + state.x * state.x + state.y * state.y;
+        return math::exp(typename DEVICE::SPEC::MATH(), -5*cost);
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
@@ -101,7 +103,7 @@ namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State state, RNG& rng){
         using T = typename SPEC::T;
-        return false; //random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, (T)1, rng) > 0.9;
+        return state.x > 1.0 || state.x < -1.0 || state.y > 1.0 || state.y < -1.0;
     }
 }
 #endif

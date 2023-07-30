@@ -1,6 +1,11 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
+
 #include <backprop_tools/rl/environments/car/operations_generic.h>
+#if BACKPROP_TOOLS_ENABLE_GTK
+#include <backprop_tools/rl/environments/car/ui.h>
+#endif
+
 #include <backprop_tools/nn_models/operations_generic.h>
 
 #include <backprop_tools/rl/algorithms/td3/loop.h>
@@ -14,6 +19,11 @@ struct TrainingConfig{
 
     using ENV_SPEC = bpt::rl::environments::car::Specification<T, DEVICE::index_t>;
     using ENVIRONMENT = bpt::rl::environments::Car<ENV_SPEC>;
+#if BACKPROP_TOOLS_ENABLE_GTK
+    using UI = bpt::rl::environments::car::UI<bpt::rl::environments::car::ui::Specification<T, TI, 1000, 60>>;
+#else
+    using UI = bool;
+#endif
 
     struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
         using LOGGING = bpt::devices::logging::CPU;
@@ -49,12 +59,12 @@ struct TrainingConfig{
 
     static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 #ifndef BACKPROP_TOOLS_STEP_LIMIT
-    static constexpr DEVICE::index_t STEP_LIMIT = 100000; //2 * N_WARMUP_STEPS;
+    static constexpr DEVICE::index_t STEP_LIMIT = 1000000; //2 * N_WARMUP_STEPS;
 #else
     static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
 #endif
     static constexpr bool DETERMINISTIC_EVALUATION = true;
-    static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
+    static constexpr DEVICE::index_t EVALUATION_INTERVAL = 10000;
     static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
     static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
     static constexpr bool COLLECT_EPISODE_STATS = true;
@@ -79,6 +89,7 @@ int main(){
     using TI = typename TrainingConfig::TI;
     TrainingState<TrainingConfig> ts;
     training_init(ts, 3);
+//    ts.envs[0].parameters.dt = 0.01;
     for(TI step_i=0; step_i < TrainingConfig::STEP_LIMIT; step_i++){
         training_step(ts);
     }

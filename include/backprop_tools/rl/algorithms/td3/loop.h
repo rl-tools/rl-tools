@@ -14,7 +14,7 @@ struct CoreTrainingState{
     DEVICE device;
     typename TRAINING_CONFIG::OPTIMIZER actor_optimizer, critic_optimizers[2];
     decltype(bpt::random::default_engine(typename DEVICE::SPEC::RANDOM())) rng;
-    bool ui = false;
+    typename TRAINING_CONFIG::UI ui;
     bpt::rl::components::OffPolicyRunner<typename TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
     typename TRAINING_CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
     typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE actor_critic;
@@ -43,6 +43,7 @@ struct TrainingState: CoreTrainingState<TRAINING_CONFIG>{
 template <typename TRAINING_STATE>
 void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::TRAINING_CONFIG::DEVICE::index_t seed){
     using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
+    using T = typename TRAINING_CONFIG::T;
 
     ts.device.logger = &ts.logger;
 
@@ -53,6 +54,7 @@ void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::TRAINING_CONFIG:
 
     bpt::malloc(ts.device, ts.off_policy_runner);
     bpt::init(ts.device, ts.off_policy_runner, ts.envs);
+    bpt::init(ts.device, ts.envs[0], ts.ui);
 
     bpt::malloc(ts.device, ts.critic_batch);
     bpt::malloc(ts.device, ts.critic_training_buffers);
@@ -72,6 +74,8 @@ void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::TRAINING_CONFIG:
 
     bpt::set_all(ts.device, ts.observations_mean, 0);
     bpt::set_all(ts.device, ts.observations_std, 1);
+
+    ts.off_policy_runner.parameters = bpt::rl::components::off_policy_runner::default_parameters<T>;
 
     ts.step = 0;
 }

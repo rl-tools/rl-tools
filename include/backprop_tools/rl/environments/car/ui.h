@@ -13,7 +13,7 @@ namespace backprop_tools::rl::environments::car{
         struct Specification{
             using T = T_T;
             using TI = T_TI;
-        static constexpr TI SIZE = T_SIZE;
+            static constexpr TI SIZE = T_SIZE;
             static constexpr T PLAYBACK_SPEED = T_PLAYBACK_SPEED/100.0;
             static constexpr T ACTION_INDICATOR_SIZE = SIZE * 1.0/10.0;
         };
