@@ -20,6 +20,8 @@ namespace backprop_tools::rl::environments::car {
 }
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
+    static void init(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
+    template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::State& state){
         state.x = 0;
         state.y = 0;
@@ -76,6 +78,12 @@ namespace backprop_tools{
         T cost = 0.1*angle_norm * angle_norm + state.x * state.x + state.y * state.y;
         return math::exp(typename DEVICE::SPEC::MATH(), -5*cost);
     }
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
+        using namespace rl::environments::car;
+        typedef typename SPEC::T T;
+        return state.vx;
+    }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
@@ -104,6 +112,29 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State state, RNG& rng){
         using T = typename SPEC::T;
         return state.x > 1.0 || state.x < -1.0 || state.y > 1.0 || state.y < -1.0;
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::CarTrack<SPEC>::State state, RNG& rng){
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        T x_coord = (state.x + SPEC::TRACK_SCALE * SPEC::WIDTH / 2.0) / ((T)SPEC::TRACK_SCALE);
+        T y_coord = (-state.y + SPEC::TRACK_SCALE * SPEC::HEIGHT / 2.0) / ((T)SPEC::TRACK_SCALE);
+        if(x_coord > 0 && x_coord < SPEC::WIDTH && y_coord > 0 && y_coord < SPEC::HEIGHT){
+            return !env.parameters.track[(TI)y_coord][(TI)x_coord];
+        }
+        else{
+            return true;
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
+        using T = typename SPEC::T;
+        initial_state(device, env, state);
+        do{
+            state.x = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::BOUND_X_LOWER, SPEC::BOUND_X_UPPER, rng);
+            state.y = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::BOUND_Y_LOWER, SPEC::BOUND_Y_UPPER, rng);
+            state.mu = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
+        } while(terminated(device, env, state, rng));
     }
 }
 #endif

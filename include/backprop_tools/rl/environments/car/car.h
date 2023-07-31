@@ -25,10 +25,34 @@ namespace backprop_tools::rl::environments::car {
         T vt  = 0.01;
         T dt  = 0.01;
     };
-    template <typename T_T, typename T_TI>
+
+    template <typename T, typename TI, TI T_HEIGHT, TI T_WIDTH, TI T_TRACK_SCALE>
+    struct ParametersTrack: Parameters<T>{
+        static constexpr TI HEIGHT = T_HEIGHT;
+        static constexpr TI WIDTH = T_WIDTH;
+        static constexpr T TRACK_SCALE = T_TRACK_SCALE / 1000.0;
+        bool track[HEIGHT][WIDTH];
+    };
+
+    template <typename T_T, typename T_TI, typename T_PARAMETERS = car::Parameters<T_T>>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
+        using PARAMETERS = T_PARAMETERS;
+    };
+
+    template <typename T_T, typename T_TI, T_TI T_HEIGHT, T_TI T_WIDTH, T_TI T_TRACK_SCALE>
+    struct SpecificationTrack: Specification<T_T, T_TI>{
+        using T = T_T;
+        using TI = T_TI;
+        static constexpr T_TI HEIGHT = T_HEIGHT;
+        static constexpr T_TI WIDTH = T_WIDTH;
+        static constexpr T TRACK_SCALE = T_TRACK_SCALE/1000.0;
+        static constexpr T BOUND_X_LOWER = -(T)WIDTH * TRACK_SCALE / 2.0;
+        static constexpr T BOUND_Y_LOWER = -(T)HEIGHT * TRACK_SCALE / 2.0;
+        static constexpr T BOUND_X_UPPER = (T)WIDTH * TRACK_SCALE / 2.0;
+        static constexpr T BOUND_Y_UPPER = (T)HEIGHT * TRACK_SCALE / 2.0;
+        using PARAMETERS = ParametersTrack<T, TI, HEIGHT, WIDTH, T_TRACK_SCALE>;
     };
 
     template <typename T, typename TI>
@@ -54,9 +78,12 @@ namespace backprop_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM = 6;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = 2;
-        using PARAMETERS = car::Parameters<T>;
-
+        using PARAMETERS = typename SPEC::PARAMETERS;
         PARAMETERS parameters;
+    };
+
+    template <typename T_SPEC>
+    struct CarTrack: Car<T_SPEC>{
     };
 }
 

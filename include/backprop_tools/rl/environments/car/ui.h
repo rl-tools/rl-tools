@@ -9,13 +9,15 @@
 
 namespace backprop_tools::rl::environments::car{
     namespace ui{
-        template<typename T_T, typename T_TI, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED>
+        template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
+            using ENVIRONMENT = T_ENVIRONMENT;
             static constexpr TI SIZE = T_SIZE;
             static constexpr T PLAYBACK_SPEED = T_PLAYBACK_SPEED/100.0;
             static constexpr T ACTION_INDICATOR_SIZE = SIZE * 1.0/10.0;
+            static constexpr T UI_SCALE = 500;
         };
     }
 
@@ -25,9 +27,9 @@ namespace backprop_tools::rl::environments::car{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         std::chrono::time_point<std::chrono::high_resolution_clock> last_render_time;
-        rl::environments::car::State<typename SPEC::T, typename SPEC::TI> state;
-        rl::environments::car::Parameters<typename SPEC::T> parameters;
-        MatrixDynamic<matrix::Specification<T, TI, 1, 2>> action;
+        typename SPEC::ENVIRONMENT::State state;
+        typename SPEC::ENVIRONMENT::PARAMETERS parameters;
+        MatrixDynamic<matrix::Specification<T, TI, 1, SPEC::ENVIRONMENT::ACTION_DIM>> action;
         GtkWidget *window;
         GtkWidget *canvas;
     };
@@ -63,6 +65,23 @@ namespace backprop_tools::rl::environments::car::ui{
         cairo_set_line_width(cr, width*scale);
         cairo_stroke(cr);
     }
+    template <typename T>
+    void draw_track(cairo_t* cr, T offset_x, T offset_y, T ui_scale, Parameters<T>& params){ }
+    template <typename T, typename TI, TI HEIGHT, TI WIDTH, TI SCALE>
+    void draw_track(cairo_t* cr, T offset_x, T offset_y, T ui_scale, ParametersTrack<T, TI, HEIGHT, WIDTH, SCALE>& params){
+        T scale = ui_scale * ParametersTrack<T, TI, HEIGHT, WIDTH, SCALE>::TRACK_SCALE;
+
+        for(TI i = 0; i < HEIGHT; i++){
+            for(TI j = 0; j < WIDTH; j++){
+                if(!params.track[i][j]){
+                    cairo_rectangle(cr, offset_x - WIDTH/2.0*scale + j*scale, offset_y - HEIGHT/2.0*scale + i*scale, 1*scale, 1*scale);
+                    cairo_set_source_rgb(cr, 0, 0, 0);
+                    cairo_fill(cr);
+                }
+            }
+        }
+
+    }
 
     template <typename SPEC>
     static gboolean draw_callback(GtkWidget *c, cairo_t *cr, gpointer data){
@@ -81,7 +100,9 @@ namespace backprop_tools::rl::environments::car::ui{
         cairo_set_source_rgb(cr, 1, 1, 1);
         cairo_fill(cr);
 
-        T scale = 500;
+        T scale = SPEC::UI_SCALE;
+        draw_track(cr, x_offset, y_offset, scale, p);
+
         T L = p.lr + p.lf;
         T W = L / 2.5;
 
@@ -90,7 +111,7 @@ namespace backprop_tools::rl::environments::car::ui{
         cairo_move_to(cr, position[0], position[1]);
         global_position<T, TI>(x_offset, y_offset, position, p.lf, 0, s.mu, s, scale);
         cairo_line_to(cr, position[0], position[1]);
-        cairo_set_source_rgb(cr, 0, 0, 0);
+        cairo_set_source_rgb(cr, 0, 0, 1);
         cairo_set_line_width(cr, W*scale);
         cairo_stroke(cr);
 
@@ -133,6 +154,7 @@ namespace backprop_tools{
         ui.parameters = env.parameters;
         gtk_init(nullptr, nullptr);
         ui.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+        gtk_window_set_default_size(GTK_WINDOW(ui.window), 1000, 1000);
         g_signal_connect(ui.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
         ui.canvas = gtk_drawing_area_new();
         gtk_container_add(GTK_CONTAINER(ui.window), ui.canvas);

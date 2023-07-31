@@ -1,6 +1,6 @@
 #include <backprop_tools/operations/cpu.h>
 
-#include <backprop_tools/rl/environments/car/operations_generic.h>
+#include <backprop_tools/rl/environments/car/operations_cpu.h>
 #include <backprop_tools/rl/environments/car/ui.h>
 namespace bpt = backprop_tools;
 
@@ -30,10 +30,11 @@ int main(){
     using DEVICE = bpt::devices::CPU<DEV_SPEC>;
     using T = float;
     using TI = typename DEVICE::index_t;
-    using ENV_SPEC = bpt::rl::environments::car::Specification<T, DEVICE::index_t>;
-    using ENVIRONMENT = bpt::rl::environments::Car<ENV_SPEC>;
+//    using ENV_SPEC = bpt::rl::environments::car::SpecificationTrack<T, DEVICE::index_t>;
+    using ENV_SPEC = bpt::rl::environments::car::SpecificationTrack<T, DEVICE::index_t, 100, 100, 20>;
+    using ENVIRONMENT = bpt::rl::environments::CarTrack<ENV_SPEC>;
 
-    using UI_SPEC = bpt::rl::environments::car::ui::Specification<T, TI, 200, 60>;
+    using UI_SPEC = bpt::rl::environments::car::ui::Specification<T, TI, ENVIRONMENT, 200, 60>;
     using UI = bpt::rl::environments::car::UI<UI_SPEC>;
 
     DEVICE device;
@@ -50,6 +51,7 @@ int main(){
     T color = 0;
     bool forward = true;
 
+    bpt::init(device, env);
     bpt::init(device, env, ui);
     bpt::initial_state(device, env, state);
     T steering = 0, throttle = 0;
@@ -71,7 +73,7 @@ int main(){
 //            }
         }
 
-        std::cout << "throttle " << throttle << " steering " << steering << std::endl;
+//        std::cout << "throttle " << throttle << " steering " << steering << std::endl;
         set(action, 0, 0, throttle);
         set(action, 0, 1, steering);
         bpt::step(device, env, state, action, next_state, rng);
@@ -79,6 +81,8 @@ int main(){
         bpt::set_action(device, env, ui, action);
         bpt::set_state(device, env, ui, state);
         bpt::render(device, env, ui);
+        std::cout << "terminated: " << bpt::terminated(device, env, state, rng) << std::endl;
+
     }
 
     SDL_JoystickClose(joystick);
