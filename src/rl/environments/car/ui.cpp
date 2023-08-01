@@ -55,9 +55,9 @@ int main(){
 
     bpt::init(device, env);
     bpt::init(device, env, ui);
-    bpt::initial_state(device, env, state);
+//    bpt::initial_state(device, env, state);
     T steering = 0, throttle = 0;
-    bpt::initial_state(device, env, state);
+    bpt::sample_initial_state(device, env, state, rng);
     while(true){
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) return 0;
@@ -87,6 +87,10 @@ int main(){
 
         bpt::observe(device, env, state, observation, rng);
         std::cout << "lidar: " << get(observation, 0, 6) << ", " << get(observation, 0, 7) << ", " << get(observation, 0, 8) << std::endl;
+        if(bpt::terminated(device, env, state, rng)){
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            bpt::sample_initial_state(device, env, state, rng);
+        }
 
     }
 
