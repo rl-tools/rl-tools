@@ -65,7 +65,7 @@ struct TrainingConfig{
     static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
 #endif
     static constexpr bool DETERMINISTIC_EVALUATION = true;
-    static constexpr DEVICE::index_t EVALUATION_INTERVAL = 10000;
+    static constexpr DEVICE::index_t EVALUATION_INTERVAL = 20000;
     static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 1000000;
     static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 1000;
     static constexpr bool COLLECT_EPISODE_STATS = true;
