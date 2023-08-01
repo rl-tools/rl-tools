@@ -66,7 +66,7 @@ struct TrainingConfig{
     static constexpr bool DETERMINISTIC_EVALUATION = true;
     static constexpr DEVICE::index_t EVALUATION_INTERVAL = 10000;
     static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 1000000;
-    static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
+    static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 20000;
     static constexpr bool COLLECT_EPISODE_STATS = true;
     static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
     using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<

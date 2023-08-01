@@ -110,8 +110,11 @@ int main(){
     ENVIRONMENT::State state;
     auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     bpt::malloc(device, action);
+    bpt::malloc(device, observation);
     bpt::set_all(device, action, 0);
+    bpt::set(action, 0, 1, 20.0/180.0*bpt::math::PI<T>);
     bpt::initial_state(device, env, state);
     bpt::init(device, env);
     bpt::init(device, env, ui);
@@ -119,12 +122,14 @@ int main(){
     TI counter = 0;
     while(true){
         counter++;
-        if(counter % 10 == 0){
+        if(counter % 1 == 0){
             bpt::sample_initial_state(device, env, state, rng);
         }
         bpt::set_state(device, env, ui, state);
         bpt::set_action(device, env, ui, action);
         bpt::render(device, env, ui);
+        bpt::observe(device, env, state, observation, rng);
+        std::cout << "lidar: " << get(observation, 0, 6) << ", " << get(observation, 0, 7) << ", " << get(observation, 0, 8) << std::endl;
     }
     return 0;
 }

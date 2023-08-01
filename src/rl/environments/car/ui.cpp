@@ -44,7 +44,9 @@ int main(){
     auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     bpt::malloc(device, action);
+    bpt::malloc(device, observation);
 
     SDL_Event event;
 
@@ -81,7 +83,10 @@ int main(){
         bpt::set_action(device, env, ui, action);
         bpt::set_state(device, env, ui, state);
         bpt::render(device, env, ui);
-        std::cout << "terminated: " << bpt::terminated(device, env, state, rng) << std::endl;
+//        std::cout << "terminated: " << bpt::terminated(device, env, state, rng) << std::endl;
+
+        bpt::observe(device, env, state, observation, rng);
+        std::cout << "lidar: " << get(observation, 0, 6) << ", " << get(observation, 0, 7) << ", " << get(observation, 0, 8) << std::endl;
 
     }
 

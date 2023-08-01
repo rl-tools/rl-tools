@@ -3,11 +3,6 @@
 #include "car.h"
 #include "../operations_generic.h"
 namespace backprop_tools::rl::environments::car {
-    template <typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T clip(T x, T min, T max){
-        x = x < min ? min : (x > max ? max : x);
-        return x;
-    }
     template <typename DEVICE, typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T f_mod_python(const DEVICE& dev, T a, T b){
         return a - b * math::floor(dev, a / b);
@@ -98,14 +93,35 @@ namespace backprop_tools{
         set(observation, 0, 4, state.vy);
         set(observation, 0, 5, state.omega);
     }
-    // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
-    template<typename DEVICE, typename SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T get_serialized_state(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State& state, typename DEVICE::index_t index){
-        if(index == 0) {
-            return state.theta;
-        }
-        else{
-            return state.theta_dot;
+    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::CarTrack<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+        using ENVIRONMENT = rl::environments::CarTrack<SPEC>;
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == ENVIRONMENT::OBSERVATION_DIM);
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        auto observation_base = view(device, observation, matrix::ViewSpec<1, rl::environments::Car<SPEC>::OBSERVATION_DIM>{});
+        observe(device, (rl::environments::Car<SPEC>&)env, (typename rl::environments::Car<SPEC>::State&)state, observation_base, rng);
+        constexpr TI N_DIRECTIONS = 3;
+        constexpr TI NUM_STEPS = 50;
+        constexpr T step_size = SPEC::TRACK_SCALE / 2;
+        T directions[N_DIRECTIONS] = {-20/180.0*math::PI<T>, 0, 20/180.0*math::PI<T>};
+
+        for(TI direction_i=0; direction_i < N_DIRECTIONS; direction_i++){
+            T direction = directions[direction_i];
+            T direction_x = cos(state.mu + direction) * step_size;
+            T direction_y = sin(state.mu + direction) * step_size;
+            T distance = NUM_STEPS * step_size;
+
+            for(TI step_i = 0; step_i < NUM_STEPS; step_i++){
+                T x_coord = (+state.x + direction_x * step_i + SPEC::TRACK_SCALE * SPEC::WIDTH  / 2.0) / ((T)SPEC::TRACK_SCALE);
+                T y_coord = (-state.y - direction_y * step_i + SPEC::TRACK_SCALE * SPEC::HEIGHT / 2.0) / ((T)SPEC::TRACK_SCALE);
+                if(!env.parameters.track[(TI)y_coord][(TI)x_coord]){
+                    distance = step_i * step_size;
+                    break;
+                }
+            }
+            set(observation, 0, 6 + direction_i, distance / (NUM_STEPS * step_size));
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>

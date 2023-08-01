@@ -84,6 +84,9 @@ namespace backprop_tools::rl::environments{
 
     template <typename T_SPEC>
     struct CarTrack: Car<T_SPEC>{
+        using TI = typename T_SPEC::TI;
+        static constexpr TI OBSERVATION_DIM = Car<T_SPEC>::OBSERVATION_DIM + 3;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
     };
 }
 
