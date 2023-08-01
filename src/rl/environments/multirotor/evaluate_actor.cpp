@@ -182,7 +182,8 @@ int main(int argc, char** argv) {
                 env.parameters.disturbances.random_force.std *= 2;
             }
         }
-        bpt::sample_initial_state(dev, env, state, rng);
+//        bpt::sample_initial_state(dev, env, state, rng);
+        bpt::initial_state(dev, env, state);
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             bpt::observe(dev, env, state, observation, rng);
