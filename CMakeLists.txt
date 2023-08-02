@@ -36,6 +36,7 @@ target_include_directories(backprop_tools INTERFACE include)
 
 set(BACKPROP_TOOLS_INSTALL_PREFIX backprop_tools)
 
+
 if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 #        find_package(glfw3 REQUIRED)

@@ -49,7 +49,7 @@ public:
 //    using REPLAY_BUFFER = bpt::rl::components::ReplayBuffer<REPLAY_BUFFER_SPEC>;
     using PENDULUM_SPEC = bpt::rl::environments::pendulum::Specification<DTYPE, DEVICE_CPU::index_t, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
     using ENVIRONMENT = bpt::rl::environments::Pendulum<PENDULUM_SPEC>;
-    using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE_CPU::index_t, ENVIRONMENT, 1, CAPACITY, 100, bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>>;
+    using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE_CPU::index_t, ENVIRONMENT, 1, false, CAPACITY, 100, bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>>;
     using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
     using BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>;
     using BATCH_TYPE = bpt::rl::components::off_policy_runner::Batch<BATCH_SPEC>;

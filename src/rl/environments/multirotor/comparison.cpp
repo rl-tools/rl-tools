@@ -34,8 +34,9 @@ int main(){
     set(action, 0, 0, 0.5);
     set(action, 0, 1, 0.5);
     bpt::set_state(device, ui, state, action);
+    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
     for(TI step_i=0; step_i<10; ++step_i){
-        bpt::step(device, env, state, action, next_state);
+        bpt::step(device, env, state, action, next_state, rng);
         state = next_state;
         bpt::set_state(device, ui, state, action);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));

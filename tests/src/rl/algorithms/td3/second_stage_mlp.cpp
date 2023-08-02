@@ -95,7 +95,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACT
 }
 
 //using ReplayBufferSpecCopyTraining = bpt::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 1000>;
-using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, 1, true, 1000, 100, backprop_tools::rl::components::off_policy_runner::DefaultParameters<DTYPE>>;
+using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, 1, false, 1000, 100, backprop_tools::rl::components::off_policy_runner::DefaultParameters<DTYPE>>;
 using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
 using DEVICE = bpt::devices::DefaultCPU;
 typedef OFF_POLICY_RUNNER_TYPE::REPLAY_BUFFER_TYPE ReplayBufferTypeCopyTraining;

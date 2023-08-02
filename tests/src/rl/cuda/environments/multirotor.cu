@@ -21,10 +21,10 @@ using DTYPE = double;
 constexpr DTYPE DIFF_THRESHOLD = bpt::utils::typing::is_same_v<DTYPE, float> ? 1e-6 : 1e-10;
 using DEVICE_CPU = bpt::devices::DefaultCPU;
 using DEVICE_CUDA = bpt::devices::DefaultCUDA;
-using TI = typename DEVICE_CUDA::index_t;
-using envp = parameters_fast_learning::environment<DTYPE, TI>;
-using rlp = parameters_0::rl<DTYPE, TI, envp::ENVIRONMENT>;
+using p = parameters_multirotor_0<DEVICE_CUDA, DTYPE>;
+using rlp = p::rl<p::env::ENVIRONMENT>;
 
+using TI = typename DEVICE_CUDA::index_t;
 
 static constexpr TI N_ENVIRONMENTS = 1;
 static constexpr TI REPLAY_BUFFER_CAP = 500000;
@@ -32,7 +32,7 @@ static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
 struct OFF_POLICY_RUNNER_PARAMETERS: bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>{
     static constexpr DTYPE EXPLORATION_NOISE = 0;
 };
-using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<DTYPE, TI, envp::ENVIRONMENT, N_ENVIRONMENTS, false, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, OFF_POLICY_RUNNER_PARAMETERS>;
+using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<DTYPE, TI, p::env::ENVIRONMENT, N_ENVIRONMENTS, false, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, OFF_POLICY_RUNNER_PARAMETERS>;
 using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
 using CRITIC_BATCH_TYPE = bpt::rl::components::off_policy_runner::Batch<bpt::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
 using ACTOR_BATCH_TYPE = bpt::rl::components::off_policy_runner::Batch<bpt::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;
@@ -42,10 +42,10 @@ using ACTOR_TRAINING_BUFFERS_TYPE = bpt::rl::algorithms::td3::ActorTrainingBuffe
 TEST(BACKPROP_TOOLS_RL_CUDA_ENVIRONMENTS_MULTIROTOR, TEST){
     DEVICE_CPU cpu;
     DEVICE_CUDA cuda;
-    envp::ENVIRONMENT envs[rlp::N_ENVIRONMENTS];
+    p::env::ENVIRONMENT envs[rlp::N_ENVIRONMENTS];
     for(TI env_i=0; env_i < rlp::N_ENVIRONMENTS; env_i++){
-        auto parameters = envp::parameters;
-        parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<DTYPE, typename DEVICE_CUDA::index_t, 4, envp::REWARD_FUNCTION>;
+        auto parameters = p::env::parameters;
+        parameters.mdp.init = bpt::rl::environments::multirotor::parameters::init::simple<DTYPE, typename DEVICE_CUDA::index_t, 4, p::env::REWARD_FUNCTION>;
         envs[0].parameters = parameters;
     }
     OFF_POLICY_RUNNER_TYPE off_policy_runner_cpu, off_policy_runner_feedback, off_policy_runner_cuda;

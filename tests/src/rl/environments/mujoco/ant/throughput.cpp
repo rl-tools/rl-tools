@@ -398,7 +398,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE
     for (TI env_i = 0; env_i < NUM_ENVIRONMENTS; env_i++) {
         bpt::sample_initial_state(device, envs[env_i], states[env_i], proto_rng);
         auto observation = bpt::view(device, observations, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
-        bpt::observe(device, envs[env_i], states[env_i], observation, rng);
+        bpt::observe(device, envs[env_i], states[env_i], observation, rngs[0]);
     }
     for(TI thread_i = 0; thread_i < NUM_THREADS; thread_i++){
         threads[thread_i] = std::thread([&device, &states, &next_states, &actor_buffers, &next_env_lock, &next_env, &barrier_1, &evaluation_time, &barrier_1_wait_time, &barrier_2_wait_time, &barrier_2, &actor, &rngs, &observations, &actions, &envs, thread_i](){
@@ -441,12 +441,12 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE
                         }
                     }
                     auto action = bpt::view(device, actions, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::ACTION_DIM>(), current_env, 0);
-                    bpt::step(device, envs[current_env], states[current_env], action, next_states[current_env]);
+                    bpt::step(device, envs[current_env], states[current_env], action, next_states[current_env], rng);
                     if(step_i % 1000 == 0 || bpt::terminated(device, envs[current_env], next_states[current_env], rng)) {
                         bpt::sample_initial_state(device, envs[current_env], states[current_env], rng);
                     }
                     auto observation = bpt::view(device, observations, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), current_env, 0);
-                    bpt::observe(device, envs[current_env], states[current_env], observation);
+                    bpt::observe(device, envs[current_env], states[current_env], observation, rng);
                 }
             }
         });
@@ -504,7 +504,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE
         for (TI env_i = 0; env_i < NUM_ENVIRONMENTS; env_i++) {
             bpt::sample_initial_state(device, envs[env_i], states[env_i], proto_rng);
             auto observation = bpt::view(device, observations, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
-            bpt::observe(device, envs[env_i], states[env_i], observation);
+            bpt::observe(device, envs[env_i], states[env_i], observation, proto_rng);
         }
         for(TI thread_i = 0; thread_i < NUM_THREADS; thread_i++){
             threads[thread_i] = std::thread([&device, &states, &next_states, &actor_buffers, &barrier_1, &evaluation_time, &barrier_1_wait_time, &barrier_2_wait_time, &barrier_2, &actor, &rngs, &observations, &actions, &envs, thread_i](){
