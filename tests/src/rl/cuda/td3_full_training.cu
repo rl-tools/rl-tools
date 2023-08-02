@@ -1,3 +1,4 @@
+#undef BACKPROP_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
 // ------------ Groups 1 ------------
 #include <backprop_tools/operations/cuda/group_1.h>
 #include <backprop_tools/operations/cpu_mkl/group_1.h>
@@ -38,9 +39,10 @@ using DEV_SPEC = DEVICE::SPEC;
 using DTYPE = float;
 
 
-using p = parameters_multirotor_0<DEVICE, DTYPE>;
-//using p = parameters_pendulum_0<DEVICE, DTYPE>;
-using rlp = p::rl<p::env::ENVIRONMENT>;
+using TI = typename DEVICE::index_t;
+//using envp = parameters_fast_learning::environment<DTYPE, TI>;
+using envp = typename parameters_pendulum_0<DEVICE, DTYPE>::env;
+using rlp = parameters::rl<DTYPE, TI, envp::ENVIRONMENT>;
 
 static_assert(rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
@@ -55,24 +57,24 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     rlp::OFF_POLICY_RUNNER_TYPE off_policy_runner_init, off_policy_runner;
     rlp::OFF_POLICY_RUNNER_TYPE* off_policy_runner_pointer;
 
-    rlp::CRITIC_BATCH_TYPE critic_batch;
-    rlp::CRITIC_BATCH_TYPE* critic_batch_pointer;
-    rlp::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers;
-    rlp::CRITIC_NETWORK_TYPE::Buffers<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    rlp::OFF_POLICY_RUNNER_TYPE::Batch<rlp::ACTOR_CRITIC_SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
+    decltype(critic_batch)* critic_batch_pointer;
+    bpt::rl::algorithms::td3::CriticTrainingBuffers<rlp::ACTOR_CRITIC_SPEC> critic_training_buffers;
+    rlp::CRITIC_TYPE::Buffers<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
 
-    rlp::ACTOR_BATCH_TYPE actor_batch;
-    rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;
-    rlp::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers;
-    rlp::ACTOR_NETWORK_TYPE::Buffers<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-    rlp::ACTOR_NETWORK_TYPE::Buffers<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
-    rlp::ACTOR_NETWORK_TYPE::Buffers<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
+    rlp::OFF_POLICY_RUNNER_TYPE::Batch<rlp::ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
+    decltype(actor_batch)* actor_batch_pointer;
+    bpt::rl::algorithms::td3::ActorTrainingBuffers<rlp::ACTOR_CRITIC_SPEC> actor_training_buffers;
+    rlp::ACTOR_TYPE::Buffers<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+    rlp::ACTOR_TYPE::Buffers<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    rlp::ACTOR_TYPE::Buffers<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
 
     bpt::init(device);
     device_init.logger = &logger;
     bpt::construct(device_init, device_init.logger);
     auto rng_init = bpt::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    p::env::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
+    envp::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
     bool ui = false;
     
     
@@ -84,14 +86,14 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     bpt::check_status(device);
 
     bpt::malloc(device, critic_batch);
-    cudaMalloc(&critic_batch_pointer, sizeof(rlp::CRITIC_BATCH_TYPE));
+    cudaMalloc(&critic_batch_pointer, sizeof(decltype(critic_batch)));
     bpt::check_status(device);
     bpt::malloc(device, critic_training_buffers);
     bpt::malloc(device, critic_buffers[0]);
     bpt::malloc(device, critic_buffers[1]);
 
     bpt::malloc(device, actor_batch);
-    cudaMalloc(&actor_batch_pointer, sizeof(rlp::ACTOR_BATCH_TYPE));
+    cudaMalloc(&actor_batch_pointer, sizeof(decltype(actor_batch)));
     bpt::check_status(device);
     bpt::malloc(device, actor_training_buffers);
     bpt::malloc(device, actor_buffers_eval);
@@ -101,22 +103,22 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 
     bpt::init(device_init, actor_critic_init, rng_init);
     bpt::copy(device, device_init, actor_critic, actor_critic_init);
-    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
-        auto parameters = p::env::parameters;
-        envs[i].parameters = parameters;
-    }
+//    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
+//        auto parameters = envp::parameters;
+//        envs[i].parameters = parameters;
+//    }
     bpt::init(device_init, off_policy_runner_init, envs);
     bpt::copy(device, device_init, off_policy_runner, off_policy_runner_init);
     cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(rlp::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
     bpt::check_status(device);
-    cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(rlp::ACTOR_BATCH_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(decltype(actor_batch)), cudaMemcpyHostToDevice);
     bpt::check_status(device);
-    cudaMemcpy(critic_batch_pointer, &critic_batch, sizeof(rlp::CRITIC_BATCH_TYPE), cudaMemcpyHostToDevice);
+    cudaMemcpy(critic_batch_pointer, &critic_batch, sizeof(decltype(critic_batch)), cudaMemcpyHostToDevice);
     bpt::check_status(device);
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    constexpr DEVICE::index_t step_limit = 20000;
+    constexpr DEVICE::index_t step_limit = 2000000;
     for(int step_i = 0; step_i < step_limit; step_i += 1){
         rng = bpt::random::next(DEVICE::SPEC::RANDOM(), rng);
         bpt::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
@@ -184,7 +186,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         if(step_i % 1000 == 0){
             bpt::copy(device_init, device, actor_critic_init, actor_critic);
             auto results = bpt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, bpt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, true);
-            std::cout << "Mean return: " << results.mean << std::endl;
+            std::cout << "Mean return: " << results.returns_mean << std::endl;
         }
     }
     {

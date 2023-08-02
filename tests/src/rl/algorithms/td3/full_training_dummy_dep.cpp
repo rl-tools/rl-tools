@@ -68,6 +68,7 @@ using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specifica
         AC_DEVICE::index_t,
         ENVIRONMENT,
         1,
+        false,
         REPLAY_BUFFER_CAP,
         ENVIRONMENT_STEP_LIMIT,
         bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>
@@ -132,8 +133,8 @@ int main() {
         }
         if(step_i % 1000 == 0){
             auto result = bpt::evaluate(device, env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval, rng, true);
-            bpt::logging::text(device, device.logger, "Mean return: ", result.mean);
-            if(result.mean > -200000){
+            bpt::logging::text(device, device.logger, "Mean return: ", result.returns_mean);
+            if(result.returns_mean > -200000){
                 return 0;
             }
         }

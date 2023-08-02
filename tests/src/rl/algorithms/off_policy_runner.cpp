@@ -19,7 +19,7 @@ using DEVICE = bpt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using ENVIRONMENT_SPEC = bpt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
 using ENVIRONMENT = bpt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
-typedef bpt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, 1, 5000, 100, bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
+typedef bpt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, 1, true, 5000, 100, bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
 typedef bpt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
 
 using PendulumStructureSpecification = bpt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, bpt::nn::activation_functions::GELU, bpt::nn::activation_functions::IDENTITY>;

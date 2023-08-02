@@ -65,10 +65,11 @@ TEST(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
 //        std::cout << "output: " << output << std::endl;
         std::filesystem::create_directories("data");
         std::ofstream file;
-        file.open ("data/nn_models_sequential_persist_code.h");
+        file.open("tests/data/nn_models_sequential_persist_code.h", std::ios::out | std::ios::trunc);
+        std::cout << "Working directory: " << std::filesystem::current_path() << std::endl;
+        std::cout << "Full file path: " << std::filesystem::absolute("data/nn_models_sequential_persist_code.h") << std::endl;
         file << output;
         file.close();
-
     }
 
     std::cout << "output dim " << MODEL::OUTPUT_DIM << std::endl;

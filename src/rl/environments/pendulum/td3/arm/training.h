@@ -72,6 +72,7 @@ using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specifica
         DEVICE::index_t,
         ENVIRONMENT,
         1,
+        false,
         REPLAY_BUFFER_CAP,
         ENVIRONMENT_STEP_LIMIT,
         bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
@@ -195,12 +196,12 @@ void train(){
         if(step_i % EVALUATION_INTERVAL == 0){
             auto result = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
             if(N_EVALUATIONS > 0){
-                evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.mean;
+                evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }
 #ifdef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
             Serial.printf("mean return: %f\n", result.mean);
 #else
-            std::cout << "Mean return: " << result.mean << std::endl;
+            std::cout << "Mean return: " << result.returns_mean << std::endl;
 #endif
         }
 #endif

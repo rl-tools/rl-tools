@@ -123,10 +123,10 @@ int main(int argc, char** argv) {
         T reward_acc = 0;
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
-            bpt::observe(dev, env, state, observation);
+            bpt::observe(dev, env, state, observation, rng);
             bpt::normalize(dev, observation_normalizer.mean, observation_normalizer.std, observation);
             bpt::evaluate(dev, actor, observation, action);
-            T dt = bpt::step(dev, env, state, action, next_state);
+            T dt = bpt::step(dev, env, state, action, next_state, rng);
             bool terminated_flag = bpt::terminated(dev, env, next_state, rng);
             reward_acc += bpt::reward(dev, env, state, action, next_state, rng);
             bpt::set_state(dev, ui, state);

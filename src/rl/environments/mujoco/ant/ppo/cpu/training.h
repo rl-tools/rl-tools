@@ -206,10 +206,10 @@ void run(){
             }
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
                 auto result = bpt::evaluate(device, evaluation_env, ui, ppo.actor, bpt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, actor_deterministic_eval_buffers, evaluation_rng);
-                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
-                bpt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
+                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
+                bpt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
-                std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
+                std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
                 next_evaluation_id++;
             }
             bpt::set_step(device, device.logger, on_policy_runner.step);

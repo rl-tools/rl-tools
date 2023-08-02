@@ -20,6 +20,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
 
     typename DEVICE::SPEC::LOGGING logger;
     DEVICE device;
+    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
     device.logger = &logger;
     HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto episodes_group = file.getGroup("episodes");
@@ -49,8 +50,8 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
             bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
             bpt::malloc(device, action);
             bpt::assign(device, action, actions[step_i].data());
-            bpt::step(device, env, state, action, next_state);
-            DTYPE r = bpt::reward(device, env, state, action, next_state);
+            bpt::step(device, env, state, action, next_state, rng);
+            DTYPE r = bpt::reward(device, env, state, action, next_state, rng);
             EXPECT_NEAR(     states[step_i][0], state.theta, STATE_TOLERANCE);
             EXPECT_NEAR(     states[step_i][1], state.theta_dot, STATE_TOLERANCE);
             EXPECT_NEAR(    rewards[step_i]   , r, STATE_TOLERANCE);

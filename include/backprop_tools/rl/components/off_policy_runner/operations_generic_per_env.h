@@ -79,7 +79,6 @@ namespace backprop_tools::rl::components::off_policy_runner{
         // state progression needs to come after the addition to the replay buffer because "observation" can point to the memory of runner_state.state (in the case of REQUIRES_OBSERVATION=false)
         state = next_state;
     }
-
 }
 
 #endif

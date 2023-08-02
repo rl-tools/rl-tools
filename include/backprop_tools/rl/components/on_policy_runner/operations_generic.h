@@ -117,7 +117,7 @@ namespace backprop_tools{
             auto& state = get(runner.states, 0, env_i);
             TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
             auto observation = row(device, dataset.all_observations, row_i);
-            observe(device, env, state, observation);
+            observe(device, env, state, observation, rng);
             auto observation_normalized = row(device, dataset.all_observations_normalized, row_i);
             normalize(device, observation_mean, observation_std, observation, observation_normalized);
         }

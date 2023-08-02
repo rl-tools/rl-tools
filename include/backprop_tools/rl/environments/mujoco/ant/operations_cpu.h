@@ -66,8 +66,8 @@ namespace backprop_tools{
         }
         mj_forward(env.model, env.data);
     }
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::mujoco::ant::State<SPEC>& next_state) {
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::mujoco::ant::State<SPEC>& next_state, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         T x_pre = env.data->xpos[env.torso_id * 3];
@@ -106,13 +106,13 @@ namespace backprop_tools{
         env.last_terminated = SPEC::PARAMETERS::TERMINATE_WHEN_UNHEALTHY && !healthy;
         return SPEC::PARAMETERS::DT * SPEC::PARAMETERS::FRAME_SKIP;
     }
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::mujoco::ant::State<SPEC>& next_state){
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::mujoco::ant::State<SPEC>& next_state, RNG& rng){
         return env.last_reward;
     }
 
-    template<typename DEVICE, typename SPEC, typename OBS_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, Matrix<OBS_SPEC>& observation){
+    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q - 2; state_i++){
@@ -121,6 +121,10 @@ namespace backprop_tools{
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q_DOT; state_i++){
             set(observation, 0, state_i + SPEC::STATE_DIM_Q - 2, state.q_dot[state_i]);
         }
+    }
+    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+        observe(device, env, state, observation, rng);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::ant::State<SPEC> state, RNG& rng){

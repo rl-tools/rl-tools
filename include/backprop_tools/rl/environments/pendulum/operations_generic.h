@@ -73,6 +73,12 @@ namespace backprop_tools{
         set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta));
         set(observation, 0, 2, state.theta_dot);
     }
+    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == 3);
+        observe(device, env, state, observation, rng);
+    }
     // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
     template<typename DEVICE, typename SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T get_serialized_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::State& state, typename DEVICE::index_t index){

@@ -55,6 +55,7 @@ namespace backprop_tools::rl::environments::mujoco{
         T last_reward;
         bool last_terminated;
         static constexpr TI OBSERVATION_DIM = SPEC::STATE_DIM_Q - 2 + SPEC::STATE_DIM_Q_DOT;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ACTION_DIM;
     };
 }

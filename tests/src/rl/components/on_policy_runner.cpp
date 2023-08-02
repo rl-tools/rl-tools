@@ -68,7 +68,7 @@ TEST(BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
             {
                 bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
                 bpt::malloc(device, observation);
-                bpt::observe(device, get(runner.environments, 0, env_i), states[env_i], observation);
+                bpt::observe(device, get(runner.environments, 0, env_i), states[env_i], observation, rng);
                 auto observation_runner = bpt::view<DEVICE, decltype(dataset.observations)::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM>(device, dataset.observations, pos, 0);
                 auto abs_diff = bpt::abs_diff(device, observation, observation_runner);
                 if(!get(dataset.truncated, pos, 0)){
@@ -78,7 +78,7 @@ TEST(BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
             }
             typename ENVIRONMENT::State next_state;
             auto action = bpt::view<DEVICE, decltype(dataset.actions)::SPEC, 1, ENVIRONMENT::ACTION_DIM>(device, dataset.actions, pos, 0);
-            step(device, get(runner.environments, 0, env_i), states[env_i], action, next_state);
+            step(device, get(runner.environments, 0, env_i), states[env_i], action, next_state, rng);
             states[env_i] = next_state;
         }
     }

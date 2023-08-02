@@ -296,12 +296,12 @@ void run(){
             bpt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % DETERMINISTIC_EVALUATION_INTERVAL == 0){
                 auto result = bpt::evaluate(device, evaluation_env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_deterministic_eval, evaluation_rng);
-                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
-                bpt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
+                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
+                bpt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
-                std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
+                std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
                 run_eval_step.push_back(step_i);
-                run_eval_return.push_back(result.mean);
+                run_eval_return.push_back(result.returns_mean);
 
 //            if(step_i > 250000){
 //                ASSERT_GT(mean_return, 1000);

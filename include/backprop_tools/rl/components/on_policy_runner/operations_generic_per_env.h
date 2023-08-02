@@ -19,7 +19,7 @@ namespace backprop_tools::rl::components::on_policy_runner::per_env{
         }
         auto observation            = view(device, observations           , matrix::ViewSpec<1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
         auto observation_normalized = view(device, observations_normalized, matrix::ViewSpec<1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
-        observe(device, env, state, observation);
+        observe(device, env, state, observation, rng);
         normalize(device, observations_mean, observations_std, observation, observation_normalized);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
@@ -44,10 +44,10 @@ namespace backprop_tools::rl::components::on_policy_runner::per_env{
         auto& state = get(runner.states, 0, env_i);
         typename SPEC::ENVIRONMENT::State next_state;
         auto action = row(device, actions, env_i);
-        step(device, env, state, action, next_state);
+        step(device, env, state, action, next_state, rng);
         bool terminated_flag = terminated(device, env, next_state, rng);
         set(dataset.terminated, pos, 0, terminated_flag);
-        T reward_value = reward(device, env, state, action, next_state);
+        T reward_value = reward(device, env, state, action, next_state, rng);
         increment(runner.episode_return, 0, env_i, reward_value);
         set(dataset.rewards, pos, 0, reward_value);
         increment(runner.episode_step, 0, env_i, 1);

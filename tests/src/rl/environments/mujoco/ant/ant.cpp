@@ -36,7 +36,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
     bpt::sample_initial_state(dev, env, state, rng);
     auto start = std::chrono::high_resolution_clock::now();
     for(int i = 0; i < 1; i++){
-        bpt::step(dev, env, state, action, next_state);
+        bpt::step(dev, env, state, action, next_state, rng);
     }
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -70,14 +70,14 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
         for(TI step_i = 0; step_i < 1000; step_i++){
             bpt::randn(dev, action, rng);
             bpt::clamp(dev, action, -1, 1);
-            bpt::step(dev, env, state, action, next_state_temp);
+            bpt::step(dev, env, state, action, next_state_temp, rng);
             {
                 auto q_temp = bpt::wrap<DEVICE, T, ENVIRONMENT::SPEC::STATE_DIM_Q>(dev, (T*)state.q);
                 auto q_dot_temp = bpt::wrap<DEVICE, T, ENVIRONMENT::SPEC::STATE_DIM_Q_DOT>(dev, (T*)state.q_dot);
                 states_q.push_back(bpt::std_vector(dev, q_temp)[0]);
                 states_q_dot.push_back(bpt::std_vector(dev, q_dot_temp)[0]);
                 actions.push_back(bpt::std_vector(dev, action)[0]);
-                rewards.push_back(bpt::reward(dev, env, state, action, next_state_temp));
+                rewards.push_back(bpt::reward(dev, env, state, action, next_state_temp, rng));
                 terminated.push_back(bpt::terminated(dev, env, state, rng));
             }
             {
@@ -95,7 +95,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
         }
     }
     state = initial_state;
-    bpt::step(dev, env, state, initial_action, next_state_2);
+    bpt::step(dev, env, state, initial_action, next_state_2, rng);
 
     T acc = 0;
     for(TI state_i=0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q; state_i++){
@@ -168,7 +168,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
             set(action, 0, action_i, actions[step_i][action_i]);
         }
         mj_forward(env.model, env.data);
-        bpt::step(dev, env, state, action, next_state);
+        bpt::step(dev, env, state, action, next_state, rng);
         for(TI state_i = 0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q; state_i++){
             T abs_diff = bpt::math::abs(typename DEVICE::SPEC::MATH(), next_state.q[state_i] - next_states[step_i][state_i]);
             if(abs_diff > 0){
@@ -183,7 +183,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
         for(TI state_i = 0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q_DOT; state_i++){
             ASSERT_NEAR(next_state.q_dot[state_i], next_states[step_i][state_i + ENVIRONMENT::SPEC::STATE_DIM_Q], 1e-10);
         }
-        T reward = bpt::reward(dev, env, state, action, next_state);
+        T reward = bpt::reward(dev, env, state, action, next_state, rng);
         T reward_abs_diff = bpt::math::abs(typename DEVICE::SPEC::MATH(), reward - rewards[step_i]);
         if(reward_abs_diff > 1e-2){
             ASSERT_NEAR(reward, rewards[step_i], 1e-5);

@@ -2,9 +2,9 @@ add_executable(rl_environments_car_training car.cpp)
 target_link_libraries(rl_environments_car_training
         PRIVATE
         backprop_tools
-#        tensorboard_logger
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_car_training)
+target_compile_definitions(rl_environments_car_training PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 if(BACKPROP_TOOLS_ENABLE_GTK)
     target_include_directories(rl_environments_car_training PRIVATE ${GTK3_INCLUDE_DIRS})
 #    target_compile_definitions(rl_environments_car_training PRIVATE ${GTK3_CFLAGS_OTHER})

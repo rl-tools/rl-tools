@@ -284,7 +284,7 @@ int main(int argc, char** argv){
 //                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
 //                bpt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
                 bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
-                std::cout << "Evaluation return mean: " << result.mean << " (std: " << result.std << ")" << std::endl;
+                std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
                 next_evaluation_id++;
             }
             bpt::set_step(device, device.logger, on_policy_runner.step);

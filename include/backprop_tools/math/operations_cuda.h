@@ -172,7 +172,7 @@ namespace backprop_tools::math {
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T atan2(const devices::math::CUDA&, const T a, const T b) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
-            return ::fatan2(a, b);
+            return ::atan2f(a, b);
         } else {
             return ::atan2(a, b);
         }

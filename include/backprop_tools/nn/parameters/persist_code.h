@@ -1,4 +1,5 @@
-
+#ifndef BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_CODE_H
+#define BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_CODE_H
 #include <backprop_tools/containers/persist_code.h>
 #include "parameters.h"
 #include <sstream>
@@ -55,3 +56,5 @@ namespace backprop_tools {
     }
 }
 
+
+#endif

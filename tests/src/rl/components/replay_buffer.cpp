@@ -19,7 +19,7 @@ TEST(BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {
     constexpr DEVICE::index_t OBSERVATION_DIM = 2;
     constexpr DEVICE::index_t ACTION_DIM = 3;
     constexpr DEVICE::index_t CAPACITY = 20;
-    using REPLAY_BUFFER_SPEC = bpt::rl::components::replay_buffer::Specification<DTYPE, DEVICE::index_t, OBSERVATION_DIM, ACTION_DIM, CAPACITY>;
+    using REPLAY_BUFFER_SPEC = bpt::rl::components::replay_buffer::Specification<DTYPE, DEVICE::index_t, OBSERVATION_DIM, OBSERVATION_DIM, false, ACTION_DIM, CAPACITY>;
     using REPLAY_BUFFER = bpt::rl::components::ReplayBuffer<REPLAY_BUFFER_SPEC>;
     DEVICE device;
     REPLAY_BUFFER replay_buffer_1;

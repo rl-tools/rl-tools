@@ -57,7 +57,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_SINGLE_CORE){
     bpt::sample_initial_state(device, env, state, rng);
     auto start = std::chrono::high_resolution_clock::now();
     for(TI step_i = 0; step_i < NUM_STEPS; step_i++){
-        bpt::step(device, env, state, action, next_state);
+        bpt::step(device, env, state, action, next_state, rng);
         if(step_i % 1000 == 0 || bpt::terminated(device, env, next_state, rng)) {
             bpt::sample_initial_state(device, env, state, rng);
         }
@@ -96,7 +96,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDEN
             bpt::randn(device, action, rng);
             bpt::sample_initial_state(device, env, state, rng);
             for(TI step_i = 0; step_i < NUM_STEPS_PER_THREAD; step_i++){
-                bpt::step(device, env, state, action, next_state);
+                bpt::step(device, env, state, action, next_state, rng);
                 if(step_i % 1000 == 0 || bpt::terminated(device, env, next_state, rng)) {
                     bpt::sample_initial_state(device, env, state, rng);
                 }
@@ -192,7 +192,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_LOCKSTEP){
             bpt::sample_initial_state(device, env, state, rng);
             for(TI step_i = 0; step_i < NUM_STEPS_PER_THREAD; step_i++){
                 bpt::randn(device, action, rng);
-                bpt::step(device, env, state, action, next_state);
+                bpt::step(device, env, state, action, next_state, rng);
                 if(step_i % 1000 == 0 || bpt::terminated(device, env, next_state, rng)) {
                     bpt::sample_initial_state(device, env, state, rng);
                 }
@@ -257,7 +257,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
     for(TI env_i = 0; env_i < NUM_ENVIRONMENTS; env_i++){
         bpt::sample_initial_state(device, envs[env_i], states[env_i], proto_rng);
         auto observation = bpt::view(device, observations, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
-        bpt::observe(device,envs[env_i], states[env_i], observation);
+        bpt::observe(device,envs[env_i], states[env_i], observation, rngs[0]);
     }
 
 
@@ -275,14 +275,14 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
                         auto& next_state = next_states[env_i];
                         auto action = bpt::view(device, actions, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::ACTION_DIM>(), env_i, 0);
                         auto observation = bpt::view(device, observations, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
-                        bpt::step(device, env, state, action, next_state);
+                        bpt::step(device, env, state, action, next_state, rng);
                         if(step_i % 1000 == 0 || bpt::terminated(device, env, next_state, rng)) {
                             bpt::sample_initial_state(device, env, state, rng);
                         }
                         else{
                             next_state = state;
                         }
-                        bpt::observe(device, env, next_state, observation);
+                        bpt::observe(device, env, next_state, observation, rng);
                     }
                 });
             }
@@ -340,9 +340,9 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDEN
             auto observation = bpt::view(device, observations, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
             bpt::sample_initial_state(device, env, state, rng);
             for(TI step_i = 0; step_i < NUM_STEPS_PER_THREAD; step_i++){
-                bpt::observe(device, env, state, observation);
+                bpt::observe(device, env, state, observation, rng);
                 bpt::evaluate(device, actor, observation, action, actor_buffer);
-                bpt::step(device, env, state, action, next_state);
+                bpt::step(device, env, state, action, next_state, rng);
                 if(step_i % 1000 == 0 || bpt::terminated(device, env, next_state, rng)) {
                     bpt::sample_initial_state(device, env, state, rng);
                 }
@@ -398,7 +398,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE
     for (TI env_i = 0; env_i < NUM_ENVIRONMENTS; env_i++) {
         bpt::sample_initial_state(device, envs[env_i], states[env_i], proto_rng);
         auto observation = bpt::view(device, observations, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
-        bpt::observe(device, envs[env_i], states[env_i], observation);
+        bpt::observe(device, envs[env_i], states[env_i], observation, rng);
     }
     for(TI thread_i = 0; thread_i < NUM_THREADS; thread_i++){
         threads[thread_i] = std::thread([&device, &states, &next_states, &actor_buffers, &next_env_lock, &next_env, &barrier_1, &evaluation_time, &barrier_1_wait_time, &barrier_2_wait_time, &barrier_2, &actor, &rngs, &observations, &actions, &envs, thread_i](){
@@ -535,11 +535,11 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE
                     for(TI env_i = thread_i; env_i < NUM_ENVIRONMENTS; env_i += NUM_THREADS){
                         auto action = bpt::view(device, actions, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::ACTION_DIM>(), env_i, 0);
                         auto observation = bpt::view(device, observations, bpt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
-                        bpt::step(device, envs[env_i], states[env_i], action, next_states[env_i]);
+                        bpt::step(device, envs[env_i], states[env_i], action, next_states[env_i], rng);
                         if(step_i % 1000 == 0 || bpt::terminated(device, envs[env_i], next_states[env_i], rng)) {
                             bpt::sample_initial_state(device, envs[env_i], states[env_i], rng);
                         }
-                        bpt::observe(device, envs[env_i], states[env_i], observation);
+                        bpt::observe(device, envs[env_i], states[env_i], observation, rng);
                     }
                 }
             });

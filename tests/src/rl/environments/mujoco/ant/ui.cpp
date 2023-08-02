@@ -41,7 +41,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
         for (TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
             set(action, 0, action_i, bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), -0.5, 0.5, rng));
         }
-        T dt = bpt::step(dev, env, state, action, next_state);
+        T dt = bpt::step(dev, env, state, action, next_state, rng);
         std::this_thread::sleep_for(std::chrono::milliseconds((int)(dt*1000)));
         bpt::set_state(dev, ui, state);
         state = next_state;
