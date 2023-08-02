@@ -56,6 +56,8 @@ namespace backprop_tools{
         device.malloc_counter += size;
 #endif
     }
+    template <typename SPEC>
+    void check_status(devices::CPU<SPEC>& device){ }
 }
 
 #endif

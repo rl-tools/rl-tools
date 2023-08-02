@@ -20,9 +20,21 @@ namespace backprop_tools{
         void text(DEVICE& device, devices::logging::CUDA* logger, const A a, const B b, const C c, const D d){
         }
         template <typename DEVICE>
-        void add_scalar(DEVICE& device, devices::logging::CUDA* logger, const char* key, const float value, const typename devices::logging::CUDA::index_t cadence = 1){
-            //noop
-        }
+        void set_step(DEVICE& device, devices::logging::CUDA* logger, typename DEVICE::index_t step){ /* noop */ }
+        template <typename DEVICE, typename ARG_1, typename ARG_2>
+        void construct(DEVICE& device, devices::logging::CUDA* logger, ARG_1, ARG_2){ /* noop */ }
+        template <typename DEVICE>
+        void construct(DEVICE& device, devices::logging::CUDA* logger){ /* noop */ }
+        template <typename DEVICE>
+        void destruct(DEVICE& device, devices::logging::CUDA* logger){ /* noop */ }
+        template <typename DEVICE, typename TOPIC, typename ARG>
+        void add_scalar(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const ARG){ /* noop */ }
+        template <typename DEVICE, typename TOPIC, typename ARG, typename CADENCE>
+        void add_scalar(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const ARG, const CADENCE){ /* noop */ }
+        template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN, typename CADENCE>
+        void add_histogram(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const ARG*, const ARG_LEN, const CADENCE){ /* noop */ }
+        template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN>
+        void add_histogram(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const ARG*, const ARG_LEN){ /* noop */ }
     }
 }
 #endif
