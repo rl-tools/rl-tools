@@ -2,7 +2,7 @@ add_executable(rl_environments_car_training car.cpp)
 target_link_libraries(rl_environments_car_training
         PRIVATE
         backprop_tools
-        tensorboard_logger
+#        tensorboard_logger
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_car_training)
 if(BACKPROP_TOOLS_ENABLE_GTK)
