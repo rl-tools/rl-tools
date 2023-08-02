@@ -7,7 +7,7 @@ target_link_libraries(rl_environments_car_training
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_car_training)
 if(BACKPROP_TOOLS_ENABLE_GTK)
     target_include_directories(rl_environments_car_training PRIVATE ${GTK3_INCLUDE_DIRS})
-    target_compile_definitions(rl_environments_car_training PRIVATE ${GTK3_CFLAGS_OTHER})
+#    target_compile_definitions(rl_environments_car_training PRIVATE ${GTK3_CFLAGS_OTHER})
     target_link_directories(rl_environments_car_training PRIVATE ${GTK3_LIBRARY_DIRS})
     target_link_libraries(rl_environments_car_training
             PRIVATE

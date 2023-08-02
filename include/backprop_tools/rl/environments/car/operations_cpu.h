@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <fstream>
 #include "operations_generic.h"
+#include <cassert>
 
 namespace backprop_tools::rl::environments::car{
     uint16_t read_u16(std::ifstream& stream) {
