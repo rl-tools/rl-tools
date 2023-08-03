@@ -1,11 +1,9 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
-
 #include <backprop_tools/rl/environments/pendulum/operations_cpu.h>
+#include <backprop_tools/nn_models/sequential/operations_generic.h>
 
-#include <backprop_tools/nn_models/operations_generic.h>
-
-#include <backprop_tools/rl/algorithms/td3/loop.h>
+#include <backprop_tools/rl/algorithms/sac/loop.h>
 
 
 namespace training_config{
@@ -24,10 +22,9 @@ namespace training_config{
         struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
             using LOGGING = bpt::devices::logging::CPU;
         };
-        struct TD3PendulumParameters: bpt::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
+        struct TD3PendulumParameters: bpt::rl::algorithms::sac::DefaultParameters<T, DEVICE::index_t>{
             constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
             constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
-            constexpr static T GAMMA = 0.997;
         };
 
         using TD3_PARAMETERS = TD3PendulumParameters;
@@ -69,16 +66,12 @@ namespace training_config{
         using CRITIC_TYPE = CRITIC<bpt::nn::parameters::Adam>::MODEL;
         using CRITIC_TARGET_TYPE = CRITIC<bpt::nn::parameters::Adam, bpt::nn::layers::dense::Layer>::MODEL;
 
-        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, OPTIMIZER, TD3_PARAMETERS>;
-        using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
+        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::sac::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, OPTIMIZER, TD3_PARAMETERS>;
+        using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 
 
         static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-#ifndef BACKPROP_TOOLS_STEP_LIMIT
         static constexpr DEVICE::index_t STEP_LIMIT = 10000; //2 * N_WARMUP_STEPS;
-#else
-        static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
-#endif
         static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
         static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 10000;
@@ -97,7 +90,6 @@ namespace training_config{
                 COLLECT_EPISODE_STATS,
                 EPISODE_STATS_BUFFER_SIZE
         >;
-        const T STATE_TOLERANCE = 0.00001;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
     };
 }
@@ -105,10 +97,8 @@ using TrainingConfig = training_config::TrainingConfig;
 
 int main(){
     using TI = typename TrainingConfig::TI;
-    TrainingState<TrainingConfig> ts;
-//    bpt::init(ts.device, ts.envs[0]);
+    backprop_tools::rl::algorithms::sac::TrainingState<TrainingConfig> ts;
     training_init(ts, 3);
-//    ts.envs[0].parameters.dt = 0.01;
     for(TI step_i=0; step_i < TrainingConfig::STEP_LIMIT; step_i++){
         training_step(ts);
     }
