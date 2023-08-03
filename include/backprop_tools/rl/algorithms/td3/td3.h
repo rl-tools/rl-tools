@@ -25,10 +25,10 @@ namespace backprop_tools::rl::algorithms::td3 {
         typename T_T,
         typename T_TI,
         typename T_ENVIRONMENT,
-        typename T_ACTOR_NETWORK_TYPE,
-        typename T_ACTOR_TARGET_NETWORK_TYPE,
-        typename T_CRITIC_NETWORK_TYPE,
-        typename T_CRITIC_TARGET_NETWORK_TYPE,
+        typename T_ACTOR_TYPE,
+        typename T_ACTOR_TARGET_TYPE,
+        typename T_CRITIC_TYPE,
+        typename T_CRITIC_TARGET_TYPE,
         typename T_OPTIMIZER,
         typename T_PARAMETERS,
         typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag
@@ -37,10 +37,10 @@ namespace backprop_tools::rl::algorithms::td3 {
         using T = T_T;
         using TI = T_TI;
         using ENVIRONMENT = T_ENVIRONMENT;
-        using ACTOR_NETWORK_TYPE = T_ACTOR_NETWORK_TYPE;
-        using ACTOR_TARGET_NETWORK_TYPE = T_ACTOR_TARGET_NETWORK_TYPE;
-        using CRITIC_NETWORK_TYPE = T_CRITIC_NETWORK_TYPE;
-        using CRITIC_TARGET_NETWORK_TYPE = T_CRITIC_TARGET_NETWORK_TYPE;
+        using ACTOR_TYPE = T_ACTOR_TYPE;
+        using ACTOR_TARGET_TYPE = T_ACTOR_TARGET_TYPE;
+        using CRITIC_TYPE = T_CRITIC_TYPE;
+        using CRITIC_TARGET_TYPE = T_CRITIC_TARGET_TYPE;
         using OPTIMIZER = T_OPTIMIZER;
         using PARAMETERS = T_PARAMETERS;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
@@ -53,8 +53,8 @@ namespace backprop_tools::rl::algorithms::td3 {
         using TI = typename SPEC::TI;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-        static constexpr TI ACTOR_INPUT_DIM = SPEC::ACTOR_NETWORK_TYPE::INPUT_DIM;
-        static constexpr TI CRITIC_OBSERVATION_DIM = SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM;
+        static constexpr TI ACTOR_INPUT_DIM = SPEC::ACTOR_TYPE::INPUT_DIM;
+        static constexpr TI CRITIC_OBSERVATION_DIM = SPEC::CRITIC_TYPE::INPUT_DIM - SPEC::ACTOR_TYPE::OUTPUT_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
@@ -75,7 +75,7 @@ namespace backprop_tools::rl::algorithms::td3 {
         using TI = typename SPEC::TI;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
-        static constexpr TI CRITIC_OBSERVATION_DIM = SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM;
+        static constexpr TI CRITIC_OBSERVATION_DIM = SPEC::CRITIC_TYPE::INPUT_DIM - SPEC::ACTOR_TYPE::OUTPUT_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
 
@@ -103,13 +103,13 @@ namespace backprop_tools::rl::algorithms::td3 {
         T target_next_action_noise_std = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD;
         T target_next_action_noise_clip = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP;
 
-        typename SPEC::ACTOR_NETWORK_TYPE actor;
-        typename SPEC::ACTOR_TARGET_NETWORK_TYPE actor_target;
+        typename SPEC::ACTOR_TYPE actor;
+        typename SPEC::ACTOR_TARGET_TYPE actor_target;
 
-        typename SPEC::CRITIC_NETWORK_TYPE critic_1;
-        typename SPEC::CRITIC_NETWORK_TYPE critic_2;
-        typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_1;
-        typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_2;
+        typename SPEC::CRITIC_TYPE critic_1;
+        typename SPEC::CRITIC_TYPE critic_2;
+        typename SPEC::CRITIC_TARGET_TYPE critic_target_1;
+        typename SPEC::CRITIC_TARGET_TYPE critic_target_2;
 
         typename SPEC::OPTIMIZER actor_optimizer;
         typename SPEC::OPTIMIZER critic_optimizers[2];
