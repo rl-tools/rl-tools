@@ -1,8 +1,8 @@
-#ifndef BACKPROP_TOOLS_RL_ALGORITHMS_TD3
-#define BACKPROP_TOOLS_RL_ALGORITHMS_TD3
+#ifndef BACKPROP_TOOLS_RL_ALGORITHMS_SAC
+#define BACKPROP_TOOLS_RL_ALGORITHMS_SAC
 
 
-namespace backprop_tools::rl::algorithms::td3 {
+namespace backprop_tools::rl::algorithms::sac {
     template<typename T, typename TI>
     struct DefaultParameters {
         static constexpr T GAMMA = 0.99;
@@ -104,7 +104,6 @@ namespace backprop_tools::rl::algorithms::td3 {
         T target_next_action_noise_clip = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP;
 
         typename SPEC::ACTOR_NETWORK_TYPE actor;
-        typename SPEC::ACTOR_TARGET_NETWORK_TYPE actor_target;
 
         typename SPEC::CRITIC_NETWORK_TYPE critic_1;
         typename SPEC::CRITIC_NETWORK_TYPE critic_2;

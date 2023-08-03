@@ -1,7 +1,7 @@
 #ifndef BACKPROP_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H
 #define BACKPROP_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H
 
-#include "td3.h"
+#include "sac.h"
 
 #include <backprop_tools/rl/components/replay_buffer/replay_buffer.h>
 #include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
