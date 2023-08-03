@@ -5,6 +5,8 @@
 
 namespace backprop_tools{
     template <typename DEVICE, typename ENV>
+    void init(DEVICE, ENV, bool){};
+    template <typename DEVICE, typename ENV>
     void render(DEVICE, ENV, bool){};
     template <typename DEVICE, typename ENV, typename STATE>
     void set_state(DEVICE, ENV, bool, STATE){};
