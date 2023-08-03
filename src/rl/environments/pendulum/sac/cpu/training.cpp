@@ -1,10 +1,10 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
+#include <backprop_tools/nn_models/output_view/model.h>
 #include <backprop_tools/rl/environments/pendulum/operations_cpu.h>
 #include <backprop_tools/nn_models/sequential/operations_generic.h>
 
 #include <backprop_tools/rl/algorithms/sac/loop.h>
-
 
 namespace training_config{
     using namespace backprop_tools::nn_models::sequential::interface;
@@ -29,6 +29,7 @@ namespace training_config{
 
         using TD3_PARAMETERS = TD3PendulumParameters;
 
+
         template <typename PARAMETER_TYPE, template<typename> class LAYER_TYPE = bpt::nn::layers::dense::LayerBackwardGradient>
         struct ACTOR{
             static constexpr TI HIDDEN_DIM = 64;
@@ -37,7 +38,8 @@ namespace training_config{
             using LAYER_1 = LAYER_TYPE<LAYER_1_SPEC>;
             using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_2 = LAYER_TYPE<LAYER_2_SPEC>;
-            using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, bpt::nn::activation_functions::ActivationFunction::TANH, PARAMETER_TYPE, BATCH_SIZE>;
+            static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
+            using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::TANH, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_3 = LAYER_TYPE<LAYER_3_SPEC>;
 
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -71,10 +73,10 @@ namespace training_config{
 
 
         static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-        static constexpr DEVICE::index_t STEP_LIMIT = 10000; //2 * N_WARMUP_STEPS;
+        static constexpr DEVICE::index_t STEP_LIMIT = 20000; //2 * N_WARMUP_STEPS;
         static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
-        static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 10000;
+        static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
         static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
@@ -98,7 +100,7 @@ using TrainingConfig = training_config::TrainingConfig;
 int main(){
     using TI = typename TrainingConfig::TI;
     backprop_tools::rl::algorithms::sac::TrainingState<TrainingConfig> ts;
-    training_init(ts, 3);
+    training_init(ts, 5);
     for(TI step_i=0; step_i < TrainingConfig::STEP_LIMIT; step_i++){
         training_step(ts);
     }

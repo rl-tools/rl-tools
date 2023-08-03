@@ -1,5 +1,6 @@
 #ifndef BACKPROP_TOOLS_RL_ALGORITHMS_SAC
 #define BACKPROP_TOOLS_RL_ALGORITHMS_SAC
+#include <backprop_tools/nn_models/output_view/model.h>
 
 
 namespace backprop_tools::rl::algorithms::sac {
@@ -54,8 +55,8 @@ namespace backprop_tools::rl::algorithms::sac {
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr TI ACTOR_INPUT_DIM = SPEC::ACTOR_NETWORK_TYPE::INPUT_DIM;
-        static constexpr TI CRITIC_OBSERVATION_DIM = SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+        static constexpr TI CRITIC_OBSERVATION_DIM = SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - SPEC::ENVIRONMENT::ACTION_DIM;
 
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>> state_action_value_input;
         template<typename SPEC::TI DIM>
@@ -75,16 +76,18 @@ namespace backprop_tools::rl::algorithms::sac {
         using TI = typename SPEC::TI;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr TI BATCH_SIZE = SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
-        static constexpr TI CRITIC_OBSERVATION_DIM = SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+        static constexpr TI CRITIC_OBSERVATION_DIM = SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM;
 
 
-        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> target_next_action_noise;
-        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>> next_state_action_value_input;
+        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM*2>> next_state_action_value_input_full;
         template<typename SPEC::TI DIM>
-        using NEXT_STATE_ACTION_VALUE_VIEW = typename decltype(next_state_action_value_input)::template VIEW<BATCH_SIZE, DIM>;
+        using NEXT_STATE_ACTION_VALUE_VIEW = typename decltype(next_state_action_value_input_full)::template VIEW<BATCH_SIZE, DIM>;
+        NEXT_STATE_ACTION_VALUE_VIEW<CRITIC_OBSERVATION_DIM + ACTION_DIM> next_state_action_value_input;
         NEXT_STATE_ACTION_VALUE_VIEW<CRITIC_OBSERVATION_DIM> next_observations;
-        NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM> next_actions;
+        NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM*2> next_actions_distribution;
+        NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM> next_actions_mean;
+        NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM> next_actions_log_std;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> action_value;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_action_value;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;
@@ -104,6 +107,8 @@ namespace backprop_tools::rl::algorithms::sac {
         T target_next_action_noise_clip = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP;
 
         typename SPEC::ACTOR_NETWORK_TYPE actor;
+        using ACTOR_VIEW = nn_models::output_view::MODEL<nn_models::output_view::MODEL_VIEW_SPEC<TI, typename SPEC::ACTOR_NETWORK_TYPE, 0, SPEC::ENVIRONMENT::ACTION_DIM>>;
+        ACTOR_VIEW actor_view;
 
         typename SPEC::CRITIC_NETWORK_TYPE critic_1;
         typename SPEC::CRITIC_NETWORK_TYPE critic_2;
@@ -112,6 +117,7 @@ namespace backprop_tools::rl::algorithms::sac {
 
         typename SPEC::OPTIMIZER actor_optimizer;
         typename SPEC::OPTIMIZER critic_optimizers[2];
+        ActorCritic(): actor_view(actor){};
     };
 }
 

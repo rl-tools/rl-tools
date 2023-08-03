@@ -55,10 +55,12 @@ namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
-        malloc(device, critic_training_buffers.target_next_action_noise);
-        malloc(device, critic_training_buffers.next_state_action_value_input);
-        critic_training_buffers.next_observations = view(device, critic_training_buffers.next_state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::CRITIC_OBSERVATION_DIM>{}, 0, 0);
-        critic_training_buffers.next_actions      = view(device, critic_training_buffers.next_state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM);
+        malloc(device, critic_training_buffers.next_state_action_value_input_full);
+        critic_training_buffers.next_state_action_value_input = view(device, critic_training_buffers.next_state_action_value_input_full, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::CRITIC_OBSERVATION_DIM + BUFFERS::ACTION_DIM>{}, 0, 0);
+        critic_training_buffers.next_observations             = view(device, critic_training_buffers.next_state_action_value_input_full, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::CRITIC_OBSERVATION_DIM>{}, 0, 0);
+        critic_training_buffers.next_actions_distribution     = view(device, critic_training_buffers.next_state_action_value_input_full, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM*2>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM);
+        critic_training_buffers.next_actions_mean             = view(device, critic_training_buffers.next_state_action_value_input_full, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM);
+        critic_training_buffers.next_actions_log_std          = view(device, critic_training_buffers.next_state_action_value_input_full, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM + BUFFERS::ACTION_DIM);
         malloc(device, critic_training_buffers.action_value);
         malloc(device, critic_training_buffers.target_action_value);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
@@ -69,10 +71,12 @@ namespace backprop_tools{
 
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& critic_training_buffers){
-        free(device, critic_training_buffers.target_next_action_noise);
-        free(device, critic_training_buffers.next_state_action_value_input);
+        free(device, critic_training_buffers.next_state_action_value_input_full);
+        critic_training_buffers.next_state_action_value_input = nullptr;
         critic_training_buffers.next_observations._data = nullptr;
-        critic_training_buffers.next_actions._data = nullptr;
+        critic_training_buffers.next_actions_distribution._data = nullptr;
+        critic_training_buffers.next_actions_mean._data = nullptr;
+        critic_training_buffers.next_actions_log_std._data = nullptr;
         free(device, critic_training_buffers.action_value);
         free(device, critic_training_buffers.target_action_value);
         free(device, critic_training_buffers.next_state_action_value_critic_1);
@@ -96,35 +100,6 @@ namespace backprop_tools{
         copy(device, device, actor_critic.critic_target_1, actor_critic.critic_1);
         copy(device, device, actor_critic.critic_target_2, actor_critic.critic_2);
     }
-    template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC, typename RNG>
-    void target_action_noise(DEVICE& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, Matrix<OUTPUT_SPEC>& target_action_noise, RNG& rng ) {
-        static_assert(OUTPUT_SPEC::ROWS == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
-        static_assert(OUTPUT_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
-        typedef typename SPEC::T T;
-        for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
-            for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                set(target_action_noise, batch_sample_i, action_i, math::clamp(typename DEVICE::SPEC::MATH(),
-                        random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, actor_critic.target_next_action_noise_std, rng),
-                        -actor_critic.target_next_action_noise_clip,
-                        actor_critic.target_next_action_noise_clip
-                ));
-            }
-        }
-    }
-    template <typename DEVICE, typename SPEC>
-    void noisy_next_actions(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers) {
-        using T = typename SPEC::T;
-        using TI = typename DEVICE::index_t;
-        using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
-        constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
-        for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-            for(TI action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                T noisy_next_action = get(training_buffers.next_actions, batch_step_i, action_i) + get(training_buffers.target_next_action_noise, batch_step_i, action_i);
-                noisy_next_action = math::clamp<T>(typename DEVICE::SPEC::MATH(), noisy_next_action, -1, 1);
-                set(training_buffers.next_actions, batch_step_i, action_i, noisy_next_action);
-            }
-        }
-    }
     template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
     void target_actions(DEVICE& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers) {
         using T = typename SPEC::T;
@@ -147,7 +122,6 @@ namespace backprop_tools{
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS>
     void train_critic(DEVICE& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers) {
-        // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -155,8 +129,7 @@ namespace backprop_tools{
         static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
         zero_gradient(device, critic);
 
-        evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions, actor_buffers);
-        noisy_next_actions(device, training_buffers);
+        evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_distribution, actor_buffers);
         copy(device, device, training_buffers.next_observations, batch.next_observations_privileged);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
@@ -169,13 +142,11 @@ namespace backprop_tools{
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
     typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers) {
-        // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-        evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions, actor_buffers);
-        noisy_next_actions(device, training_buffers);
+        evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_distribution, actor_buffers);
         copy(device, device, training_buffers.next_observations, batch.next_observations_privileged);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
@@ -192,17 +163,25 @@ namespace backprop_tools{
         static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
         static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
-        static_assert(SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM == ACTION_DIM);
+        static_assert(SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM == ACTION_DIM*2);
 
         zero_gradient(device, actor_critic.actor);
-        forward(device, actor_critic.actor, batch.observations, training_buffers.actions);
+        forward(device, actor_critic.actor, batch.observations);
+        auto actions_view = view(device, output(actor_critic.actor), matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);
+        copy(device, device, training_buffers.actions, actions_view);
         copy(device, device, training_buffers.observations, batch.observations_privileged);
         auto& critic = actor_critic.critic_1;
         forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value);
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward_input(device, critic, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
         auto d_actor_output = view(device, training_buffers.d_critic_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM);
-        backward(device, actor_critic.actor, batch.observations, d_actor_output, actor_buffers);
+        MatrixDynamic<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM*2>> d_actor_output_full;
+        malloc(device, d_actor_output_full);
+        auto d_actor_output_view = view(device, d_actor_output_full, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);
+        set_all(device, d_actor_output_full, (T)0);
+        copy(device, device, d_actor_output_view, d_actor_output);
+        backward(device, actor_critic.actor, batch.observations, d_actor_output_full, actor_buffers);
+        free(device, d_actor_output_full);
 
         step(device, optimizer, actor_critic.actor);
     }
@@ -269,8 +248,7 @@ namespace backprop_tools{
     }
     template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
     void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::algorithms::sac::CriticTrainingBuffers<TARGET_SPEC>& target, rl::algorithms::sac::CriticTrainingBuffers<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.target_next_action_noise, source.target_next_action_noise);
-        copy(target_device, source_device, target.next_state_action_value_input, source.next_state_action_value_input);
+        copy(target_device, source_device, target.next_state_action_value_input_full, source.next_state_action_value_input_full);
         copy(target_device, source_device, target.target_action_value, source.target_action_value);
         copy(target_device, source_device, target.next_state_action_value_critic_1, source.next_state_action_value_critic_1);
         copy(target_device, source_device, target.next_state_action_value_critic_2, source.next_state_action_value_critic_2);

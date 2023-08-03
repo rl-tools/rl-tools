@@ -102,27 +102,23 @@ namespace backprop_tools::rl::algorithms::sac{
     bool training_step(TRAINING_STATE& ts){
         bool finished = false;
         using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
-        step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
+        step(ts.device, ts.off_policy_runner, ts.actor_critic.actor_view, ts.actor_buffers_eval, ts.rng);
         if(ts.step > TRAINING_CONFIG::N_WARMUP_STEPS){
-
             for(int critic_i = 0; critic_i < 2; critic_i++){
-                target_action_noise(ts.device, ts.actor_critic, ts.critic_training_buffers.target_next_action_noise, ts.rng);
                 gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
             }
-
             if(ts.step % 2 == 0){
                 {
                     gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
                     train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
                 }
-
                 update_critic_targets(ts.device, ts.actor_critic);
             }
         }
         if constexpr(TRAINING_CONFIG::DETERMINISTIC_EVALUATION == true){
             if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
-                auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+                auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor_view, rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
                 std::cout << "Step: " << ts.step << " Mean return: " << result.returns_mean << std::endl;
                 ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
             }
