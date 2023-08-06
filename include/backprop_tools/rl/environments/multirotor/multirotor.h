@@ -113,6 +113,7 @@ namespace backprop_tools::rl::environments::multirotor{
         static constexpr StateType STATE_TYPE = StateType::Base;
         static constexpr ObservationType OBSERVATION_TYPE = ObservationType::Normal;
         static constexpr TI ACTION_HISTORY_LENGTH = 0;
+        static constexpr bool ENABLE_PRIVILEGED_OBSERVATION = false;
     };
 
     template <typename T_T, typename T_TI, typename T_PARAMETERS, typename T_STATIC_PARAMETERS>
@@ -195,7 +196,7 @@ namespace backprop_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM_ORIENTATION = OBSERVATION_TYPE == multirotor::ObservationType::Normal ? 4 : (OBSERVATION_TYPE == multirotor::ObservationType::DoubleQuaternion ? (2*4) : (9));
         static constexpr TI OBSERVATION_DIM_ACTION_HISTORY = (STATE_TYPE == multirotor::StateType::BaseRotorsHistory) * ACTION_DIM * ACTION_HISTORY_LENGTH;
         static constexpr TI OBSERVATION_DIM = OBSERVATION_DIM_BASE + OBSERVATION_DIM_ORIENTATION + OBSERVATION_DIM_ACTION_HISTORY;
-        static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = STATE_TYPE == multirotor::StateType::Base || LATENT_STATE_TYPE == multirotor::LatentStateType::RandomForce;
+        static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = SPEC::STATIC_PARAMETERS::ENABLE_PRIVILEGED_OBSERVATION && (STATE_TYPE == multirotor::StateType::BaseRotors || STATE_TYPE == multirotor::StateType::BaseRotorsHistory || LATENT_STATE_TYPE == multirotor::LatentStateType::RandomForce);
         static constexpr TI OBSERVATION_DIM_PRIVILEGED_LATENT_STATE = (LATENT_STATE_TYPE == multirotor::LatentStateType::RandomForce ? LatentState::DIM : 0);
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = PRIVILEGED_OBSERVATION_AVAILABLE ? (
                 OBSERVATION_DIM_BASE + OBSERVATION_DIM_ORIENTATION

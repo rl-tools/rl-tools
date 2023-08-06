@@ -551,6 +551,16 @@ namespace backprop_tools{
             set(rpm_observation, 0, action_i, action_value);
         }
     }
+    template<typename DEVICE, typename T_S, typename TI_S, typename SPEC, typename OBS_SPEC, TI_S HISTORY_LENGTH, typename LATENT_STATE, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateBaseRotorsHistory<T_S, TI_S, HISTORY_LENGTH, LATENT_STATE>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+        using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
+        if constexpr(ENVIRONMENT::PRIVILEGED_OBSERVATION_AVAILABLE){
+            observe_privileged(device, env, (const rl::environments::multirotor::StateBaseRotors<T_S, TI_S, LATENT_STATE>&) state, observation, rng);
+        }
+        else{
+            observe(device, env, state, observation, rng);
+        }
+    }
     template<typename DEVICE, typename T_S, typename TI_S, typename LATENT_STATE, typename SPEC, typename ACTION_SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void step_action_history(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::multirotor::StateBase<T_S, TI_S, LATENT_STATE>& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::multirotor::StateBase<T_S, TI_S, LATENT_STATE>& next_state) { }
     template<typename DEVICE, typename T_S, typename TI_S, typename LATENT_STATE, TI_S HISTORY_LENGTH, typename SPEC, typename ACTION_SPEC>
