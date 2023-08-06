@@ -26,7 +26,7 @@ namespace parameters{
         };
 
 
-        static constexpr bool ASYMMETRIC_OBSERVATIONS = true;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = ENVIRONMENT::PRIVILEGED_OBSERVATION_AVAILABLE;
         static constexpr TI CRITIC_OBSERVATION_DIM = ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : ENVIRONMENT::OBSERVATION_DIM;
         static constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::FAST_TANH;
         using ACTOR_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, ACTIVATION_FUNCTION, bpt::nn::activation_functions::TANH, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
@@ -50,7 +50,7 @@ namespace parameters{
         using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr TI N_ENVIRONMENTS = 1;
-        static constexpr TI REPLAY_BUFFER_CAP = 500001;
+        static constexpr TI REPLAY_BUFFER_CAP = 1500001;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
         using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, true, 1000>;
         using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
@@ -65,11 +65,11 @@ namespace parameters{
 
 namespace parameters_fast_learning{
     using parameters::rl;
-    using parameters_fast_learning::environment;
+    using parameters::fast_learning::environment;
 }
 namespace parameters_sim2real{
     using parameters::rl;
-    using parameters_sim2real::environment;
+    using parameters::sim2real::environment;
 }
 
 
