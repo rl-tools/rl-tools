@@ -112,8 +112,8 @@ void train(TI run_id){
     const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
     constexpr bool SAVE_REPLAY_BUFFER = false;
     constexpr TI performance_logging_interval = 10000;
-    constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = false;
-    constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 199;
+    constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = true;
+    constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 1000;
     constexpr bool ENABLE_EVALUATION = true;
     constexpr TI EVALUATION_INTERVAL = 10000;
 
@@ -330,12 +330,12 @@ void train(TI run_id){
                 if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                     bpt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
                     T critic_1_loss = bpt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0]);
-                    bpt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
+                    bpt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss);
 
                     bpt::gather_batch(device, off_policy_runner, actor_batch, rng);
                     // this is undefined (takes the state action value of the previous step (there should be some evaluate() on the collected batch
                     T actor_value = bpt::mean(device, actor_training_buffers.state_action_value);
-                    bpt::add_scalar(device, device.logger, "actor_value", actor_value, 100);
+                    bpt::add_scalar(device, device.logger, "actor_value", actor_value);
                 }
 
                 {
