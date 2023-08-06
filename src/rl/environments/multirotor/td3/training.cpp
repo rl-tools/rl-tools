@@ -6,41 +6,69 @@ struct AblationSpecBase: parameters::DefaultAblationSpec{
     static constexpr bool ROTOR_DELAY = true;
     static constexpr bool ACTION_HISTORY = true;
     static constexpr bool ENABLE_CURRICULUM = true;
-    static constexpr TI NUM_RUNS = 10;
+    static constexpr bool USE_INITIAL_REWARD_FUNCTION = true;
+    static constexpr TI NUM_RUNS = 50;
 };
 
-struct AblationSpec_0: AblationSpecBase{
-    static constexpr bool DISTURBANCE = false;
+template <bool T_DISTURBANCE, bool T_OBSERVATION_NOISE, bool T_ASYMMETRIC_ACTOR_CRITIC, bool T_ROTOR_DELAY, bool T_ACTION_HISTORY, bool T_ENABLE_CURRICULUM, bool T_USE_INITIAL_REWARD_FUNCTION>
+struct AblationSpecTemplate: AblationSpecBase {
+    static constexpr bool DISTURBANCE = T_DISTURBANCE;
+    static constexpr bool OBSERVATION_NOISE = T_OBSERVATION_NOISE;
+    static constexpr bool ASYMMETRIC_ACTOR_CRITIC = T_ASYMMETRIC_ACTOR_CRITIC;
+    static constexpr bool ROTOR_DELAY = T_ROTOR_DELAY;
+    static constexpr bool ACTION_HISTORY = T_ACTION_HISTORY;
+    static constexpr bool ENABLE_CURRICULUM = T_ENABLE_CURRICULUM;
+    static constexpr bool USE_INITIAL_REWARD_FUNCTION = T_USE_INITIAL_REWARD_FUNCTION;
+    static_assert(!ACTION_HISTORY || ROTOR_DELAY); // action history implies rotor delay
+    static_assert(!ENABLE_CURRICULUM || USE_INITIAL_REWARD_FUNCTION); // curriculum implies initial reward function
 };
 
-struct AblationSpec_1: AblationSpecBase{
-    static constexpr bool OBSERVATION_NOISE = false;
-};
+int main(int argc, char** argv){
+    // assert exactly one command line argument and convert it to int
+    int ablation_id;
+    assert(argc == 1 || argc == 2);
+    if(argc == 2){
+        ablation_id = std::stoi(argv[1]);
+    }
+    else{
+        ablation_id = 0;
+    }
+    // DISTURBANCE OBSERVATION_NOISE ASYMMETRIC_ACTOR_CRITIC ROTOR_DELAY ACTION_HISTORY ENABLE_CURRICULUM USE_INITIAL_REWARD_FUNCTION
 
-struct AblationSpec_2: AblationSpecBase{
-    static constexpr bool ASYMMETRIC_ACTOR_CRITIC = false;
-};
+    using ABLATION_SPEC_0 = AblationSpecTemplate< true,  true,  true,  true,  true,  true,  true>;
+    using ABLATION_SPEC_1 = AblationSpecTemplate< true,  true,  true,  true,  true, false,  true>;
+    using ABLATION_SPEC_2 = AblationSpecTemplate< true,  true,  true,  true,  true, false, false>;
+    using ABLATION_SPEC_3 = AblationSpecTemplate< true,  true,  true,  true, false,  true,  true>;
+    using ABLATION_SPEC_4 = AblationSpecTemplate< true,  true, false,  true,  true,  true,  true>;
+    using ABLATION_SPEC_5 = AblationSpecTemplate< true, false,  true,  true,  true,  true,  true>;
+    using ABLATION_SPEC_6 = AblationSpecTemplate<false,  true,  true,  true,  true,  true,  true>;
 
-struct AblationSpec_3: AblationSpecBase{
-    static constexpr bool ROTOR_DELAY = false;
-};
+    switch(ablation_id){
+        case 0:
+            train<ABLATION_SPEC_0>();
+            break;
+        case 1:
+            train<ABLATION_SPEC_1>();
+            break;
+        case 2:
+            train<ABLATION_SPEC_2>();
+            break;
+        case 3:
+            train<ABLATION_SPEC_3>();
+            break;
+        case 4:
+            train<ABLATION_SPEC_4>();
+            break;
+        case 5:
+            train<ABLATION_SPEC_5>();
+            break;
+        case 6:
+            train<ABLATION_SPEC_6>();
+            break;
+        default:
+            std::cout << "Invalid ablation id: " << ablation_id << std::endl;
+            return 1;
+    }
 
-struct AblationSpec_4: AblationSpecBase{
-    static constexpr bool ACTION_HISTORY = false;
-};
-
-struct AblationSpec_5: AblationSpecBase{
-    static constexpr bool ENABLE_CURRICULUM = false;
-};
-
-
-int main(){
-    train<AblationSpecBase>();
-    train<AblationSpec_0>();
-    train<AblationSpec_1>();
-    train<AblationSpec_2>();
-    train<AblationSpec_3>();
-    train<AblationSpec_4>();
-    train<AblationSpec_5>();
     return 0;
 }

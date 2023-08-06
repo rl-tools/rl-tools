@@ -67,6 +67,7 @@ std::string name(){
     n += std::string("r") + (ABLATION_SPEC::ROTOR_DELAY ? "+"  : "-");
     n += std::string("h") + (ABLATION_SPEC::ACTION_HISTORY ? "+"  : "-");
     n += std::string("c") + (ABLATION_SPEC::ENABLE_CURRICULUM ? "+"  : "-");
+    n += std::string("f") + (ABLATION_SPEC::USE_INITIAL_REWARD_FUNCTION ? "+"  : "-");
     return n;
 }
 
@@ -76,11 +77,12 @@ struct SpecEval: BASE_SPEC{
     static constexpr bool OBSERVATION_NOISE = true;
     static constexpr bool ROTOR_DELAY = true;
     static constexpr bool ACTION_HISTORY = BASE_SPEC::ROTOR_DELAY && BASE_SPEC::ACTION_HISTORY;
-    static constexpr bool ENABLE_CURRICULUM = false;
+    static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
 };
 
 template <typename ABLATION_SPEC>
 void train(){
+    static_assert(!ABLATION_SPEC::ENABLE_CURRICULUM || ABLATION_SPEC::USE_INITIAL_REWARD_FUNCTION);
 
     namespace parameter_set = parameters_0;
 
