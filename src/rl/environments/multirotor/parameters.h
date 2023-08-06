@@ -17,6 +17,7 @@ namespace parameters{
         static constexpr bool ACTION_HISTORY = true;
         static constexpr bool ENABLE_CURRICULUM = true;
         static constexpr bool USE_INITIAL_REWARD_FUNCTION = true;
+        static constexpr bool INIT_NORMAL = true;
     };
     namespace sim2real{
         template<typename T, typename TI, typename ABLATION_SPEC>
@@ -35,12 +36,16 @@ namespace parameters{
 
             using PARAMETERS_TYPE = backprop_tools::rl::environments::multirotor::ParametersDisturbances<T, TI, 4, REWARD_FUNCTION>;
 
+            static constexpr auto init_params = ABLATION_SPEC::INIT_NORMAL ?
+                backprop_tools::rl::environments::multirotor::parameters::init::all_around_2<T, TI, 4, REWARD_FUNCTION>:
+                backprop_tools::rl::environments::multirotor::parameters::init::orientation_small_angle<T, TI, 4, REWARD_FUNCTION>;
+
             static constexpr PARAMETERS_TYPE parameters = {
                     backprop_tools::rl::environments::multirotor::parameters::dynamics::crazy_flie_old_reduced_inertia<T, TI, REWARD_FUNCTION>,
                     {0.01}, // integration dt
                     {
 //                        backprop_tools::rl::environments::multirotor::parameters::init::all_around_orientation_only<T, TI, 4, REWARD_FUNCTION>,
-                            backprop_tools::rl::environments::multirotor::parameters::init::all_around_2<T, TI, 4, REWARD_FUNCTION>,
+                            init_params,
 //                        backprop_tools::rl::environments::multirotor::parameters::init::orientation_all_around<T, TI, 4, REWARD_FUNCTION>,
 //                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
                             reward_function,
