@@ -119,6 +119,7 @@ void train(TI run_id){
     using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<typename parameters_rl::ACTOR_STRUCTURE_SPEC>>;
     std::string ablation_name = name<ABLATION_SPEC>();
     std::string DATA_FILE_PATH = std::string("learning_curves_") + ablation_name + std::to_string(run_id) + ".h5";
+    std::cout << "Saving stats to " << DATA_FILE_PATH << std::endl;
     std::vector<std::vector<T>> training_stats_step;
     std::vector<std::vector<T>> training_stats_returns;
     std::vector<std::vector<T>> training_stats_episode_lengths;
