@@ -7,8 +7,8 @@
 #include <random>
 
 namespace backprop_tools::random{
-    std::default_random_engine default_engine(const devices::random::CPU& dev, devices::random::CPU::index_t seed = 0){
-        return std::default_random_engine(seed);
+    auto default_engine(const devices::random::CPU& dev, devices::random::CPU::index_t seed = 0){
+        return std::default_random_engine(seed+1);
     };
 
     template<typename T, typename RNG>

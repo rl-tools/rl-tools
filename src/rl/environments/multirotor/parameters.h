@@ -15,6 +15,7 @@ namespace parameters{
         static constexpr bool ASYMMETRIC_ACTOR_CRITIC = true;
         static constexpr bool ROTOR_DELAY = true;
         static constexpr bool ACTION_HISTORY = true;
+        static constexpr bool ENABLE_CURRICULUM = true;
     };
     namespace sim2real{
         template<typename T, typename TI, typename ABLATION_SPEC>
@@ -23,7 +24,11 @@ namespace parameters{
 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_mm<T, TI>;
 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::sq_exp_position_action_only_3<T>;
 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::sq_exp_reward_mm<T, TI>;
-            static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque<T>;
+            static constexpr auto reward_function = ABLATION_SPEC::ENABLE_CURRICULUM ?
+                    backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque<T> :
+                    backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque_curriculum_target<T>
+            ;
+
             using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
             using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
