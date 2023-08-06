@@ -1,4 +1,5 @@
 #include "training.h"
+#include <cassert>
 struct AblationSpecBase: parameters::DefaultAblationSpec{
     static constexpr bool DISTURBANCE = true;
     static constexpr bool OBSERVATION_NOISE = true;
@@ -25,14 +26,16 @@ struct AblationSpecTemplate: AblationSpecBase {
 
 int main(int argc, char** argv){
     // assert exactly one command line argument and convert it to int
-    int ablation_id;
+    TI job_array_id;
     assert(argc == 1 || argc == 2);
     if(argc == 2){
-        ablation_id = std::stoi(argv[1]);
+        job_array_id = std::stoi(argv[1]);
     }
     else{
-        ablation_id = 0;
+        job_array_id = 0;
     }
+    TI ablation_id = job_array_id / AblationSpecBase::NUM_RUNS;
+    TI run_id = job_array_id % AblationSpecBase::NUM_RUNS;
     // DISTURBANCE OBSERVATION_NOISE ASYMMETRIC_ACTOR_CRITIC ROTOR_DELAY ACTION_HISTORY ENABLE_CURRICULUM USE_INITIAL_REWARD_FUNCTION
 
     using ABLATION_SPEC_0 = AblationSpecTemplate< true,  true,  true,  true,  true,  true,  true>;
@@ -45,25 +48,25 @@ int main(int argc, char** argv){
 
     switch(ablation_id){
         case 0:
-            train<ABLATION_SPEC_0>();
+            train<ABLATION_SPEC_0>(run_id);
             break;
         case 1:
-            train<ABLATION_SPEC_1>();
+            train<ABLATION_SPEC_1>(run_id);
             break;
         case 2:
-            train<ABLATION_SPEC_2>();
+            train<ABLATION_SPEC_2>(run_id);
             break;
         case 3:
-            train<ABLATION_SPEC_3>();
+            train<ABLATION_SPEC_3>(run_id);
             break;
         case 4:
-            train<ABLATION_SPEC_4>();
+            train<ABLATION_SPEC_4>(run_id);
             break;
         case 5:
-            train<ABLATION_SPEC_5>();
+            train<ABLATION_SPEC_5>(run_id);
             break;
         case 6:
-            train<ABLATION_SPEC_6>();
+            train<ABLATION_SPEC_6>(run_id);
             break;
         default:
             std::cout << "Invalid ablation id: " << ablation_id << std::endl;

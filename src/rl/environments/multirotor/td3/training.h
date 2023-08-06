@@ -81,7 +81,7 @@ struct SpecEval: BASE_SPEC{
 };
 
 template <typename ABLATION_SPEC>
-void train(){
+void train(TI run_id){
     static_assert(!ABLATION_SPEC::ENABLE_CURRICULUM || ABLATION_SPEC::USE_INITIAL_REWARD_FUNCTION);
 
     namespace parameter_set = parameters_0;
@@ -96,7 +96,7 @@ void train(){
     using parameters_rl = parameter_set::rl<T, TI, ENVIRONMENT>;
     static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-    constexpr TI NUM_RUNS = ABLATION_SPEC::NUM_RUNS;
+    constexpr TI NUM_RUNS = 1;
     constexpr TI BASE_SEED = 0;
 #ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
     constexpr DEVICE::index_t step_limit = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
@@ -118,7 +118,7 @@ void train(){
 
     using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<typename parameters_rl::ACTOR_STRUCTURE_SPEC>>;
     std::string ablation_name = name<ABLATION_SPEC>();
-    std::string DATA_FILE_PATH = std::string("learning_curves_") + ablation_name + ".h5";
+    std::string DATA_FILE_PATH = std::string("learning_curves_") + ablation_name + std::to_string(run_id) + ".h5";
     std::vector<std::vector<T>> training_stats_step;
     std::vector<std::vector<T>> training_stats_returns;
     std::vector<std::vector<T>> training_stats_episode_lengths;
@@ -128,8 +128,8 @@ void train(){
     std::vector<std::vector<T>> eval_stats_episode_lengths;
 
     for(typename DEVICE::index_t run_i = 0; run_i < NUM_RUNS; run_i++){
-        auto run_start_time = std::chrono::system_clock::now();
-        TI seed = BASE_SEED + run_i;
+        auto run_start_time = std::chrono::high_resolution_clock::now();
+        TI seed = BASE_SEED + run_id * NUM_RUNS + run_i;
         std::stringstream run_name_ss;
         run_name_ss << "multirotor_td3_" << ablation_name << "_" << std::to_string(seed);
         std::string run_name = run_name_ss.str();
@@ -446,7 +446,9 @@ void train(){
             }
             bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
             if(step_i % 1000 == 0){
-                std::cout << "run_i: " << run_i << " step_i: " << step_i << std::endl;
+                auto now = std::chrono::high_resolution_clock::now();
+                T seconds_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - run_start_time).count() / 1000.0;
+                std::cout << "run: " << run_i << " step: " << step_i << " (" << step_i / seconds_elapsed << " steps/s)" << std::endl;
             }
             if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
                 if(step_i >= parameters_rl::N_WARMUP_STEPS_CRITIC){
@@ -553,7 +555,7 @@ void train(){
         bpt::free(device, actor_buffers[1]);
         bpt::free(device, actor_buffers_eval);
 
-        auto run_end_time = std::chrono::system_clock::now();
+        auto run_end_time = std::chrono::high_resolution_clock::now();
         std::cout << "FINISHED in " << std::chrono::duration_cast<std::chrono::seconds>(run_end_time - run_start_time).count() << "s" << std::endl;
     }
 
