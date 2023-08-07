@@ -69,6 +69,9 @@ int main(int argc, char** argv){
         case 6:
             train<ABLATION_SPEC_6>(run_id);
             break;
+        case 7:
+            train<ABLATION_SPEC_7>(run_id);
+            break;
         default:
             std::cout << "Invalid ablation id: " << ablation_id << std::endl;
             return 1;
