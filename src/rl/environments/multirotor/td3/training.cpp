@@ -41,11 +41,11 @@ int main(int argc, char** argv){
     using ABLATION_SPEC_0 = AblationSpecTemplate< true,  true,  true,  true,  true,  true,  true>;
     using ABLATION_SPEC_1 = AblationSpecTemplate< true,  true,  true,  true,  true, false,  true>;
     using ABLATION_SPEC_2 = AblationSpecTemplate< true,  true,  true,  true,  true, false, false>;
-    using ABLATION_SPEC_3 = AblationSpecTemplate< true,  true,  true,  true, false,  true,  true>;
-    using ABLATION_SPEC_4 = AblationSpecTemplate< true,  true,  true, false, false,  true,  true>;
-    using ABLATION_SPEC_5 = AblationSpecTemplate< true,  true, false,  true,  true,  true,  true>;
-    using ABLATION_SPEC_6 = AblationSpecTemplate< true, false,  true,  true,  true,  true,  true>;
-    using ABLATION_SPEC_7 = AblationSpecTemplate<false,  true,  true,  true,  true,  true,  true>;
+    using ABLATION_SPEC_3 = AblationSpecTemplate< true,  true,  true,  true, false, false,  true>;
+    using ABLATION_SPEC_4 = AblationSpecTemplate< true,  true,  true, false, false, false,  true>;
+    using ABLATION_SPEC_5 = AblationSpecTemplate< true,  true, false,  true,  true, false,  true>;
+    using ABLATION_SPEC_6 = AblationSpecTemplate< true, false,  true,  true,  true, false,  true>;
+    using ABLATION_SPEC_7 = AblationSpecTemplate<false,  true,  true,  true,  true, false,  true>;
 
     switch(ablation_id){
         case 0:
