@@ -166,6 +166,7 @@ void train(TI run_id){
         auto& run_eval_stats_episode_lengths = eval_stats_episode_lengths.back();
 
         auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
+        auto rng_eval = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
 
         // device
         typename DEVICE::SPEC::LOGGING logger;
@@ -267,12 +268,12 @@ void train(TI run_id){
                     actor_output_file << actor_weights;
                     {
                         typename parameters_environment::ENVIRONMENT::State state;
-                        bpt::sample_initial_state(device, envs[0], state, rng);
+                        bpt::sample_initial_state(device, envs[0], state, rng_eval);
                         bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, parameters_environment::ENVIRONMENT::OBSERVATION_DIM>> observation;
                         bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, parameters_environment::ENVIRONMENT::ACTION_DIM>> action;
                         bpt::malloc(device, observation);
                         bpt::malloc(device, action);
-                        auto rng_copy = rng;
+                        auto rng_copy = rng_eval;
                         bpt::observe(device, envs[0], state, observation, rng_copy);
                         bpt::evaluate(device, actor_critic.actor, observation, action);
                         bpt::evaluate(device, actor_checkpoint, observation, action);
@@ -312,7 +313,7 @@ void train(TI run_id){
 #endif
             }
             if(ENABLE_EVALUATION && step_i % EVALUATION_INTERVAL == 0){
-                auto results = bpt::evaluate(device, env_eval, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), actor_buffers[0], rng, false);
+                auto results = bpt::evaluate(device, env_eval, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), actor_buffers[0], rng_eval, false);
                 std::cout << "Mean return: " << results.returns_mean << std::endl;
                 run_eval_stats_step.push_back(step_i);
                 run_eval_stats_returns.push_back(results.returns_mean);
@@ -328,11 +329,11 @@ void train(TI run_id){
             }
             if(ENABLE_ACTOR_CRITIC_EVALUATION && step_i % ACTOR_CRITIC_EVALUATION_INTERVAL == 0){
                 if(step_i > std::max(parameters_rl::ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE, parameters_rl::ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE)){
-                    bpt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
+                    bpt::gather_batch(device, off_policy_runner, critic_batches[0], rng_eval);
                     T critic_1_loss = bpt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0]);
                     bpt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss);
 
-                    bpt::gather_batch(device, off_policy_runner, actor_batch, rng);
+                    bpt::gather_batch(device, off_policy_runner, actor_batch, rng_eval);
                     // this is undefined (takes the state action value of the previous step (there should be some evaluate() on the collected batch
                     T actor_value = bpt::mean(device, actor_training_buffers.state_action_value);
                     bpt::add_scalar(device, device.logger, "actor_value", actor_value);
