@@ -39,7 +39,7 @@ namespace training_config{
             using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_2 = LAYER_TYPE<LAYER_2_SPEC>;
             static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
-            using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::TANH, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, bpt::nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
             using LAYER_3 = LAYER_TYPE<LAYER_3_SPEC>;
 
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -101,6 +101,7 @@ int main(){
     using TI = typename TrainingConfig::TI;
     backprop_tools::rl::algorithms::sac::TrainingState<TrainingConfig> ts;
     training_init(ts, 5);
+    ts.off_policy_runner.parameters.exploration_noise = 0;
     for(TI step_i=0; step_i < TrainingConfig::STEP_LIMIT; step_i++){
         training_step(ts);
     }

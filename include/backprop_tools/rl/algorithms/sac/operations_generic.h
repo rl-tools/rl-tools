@@ -67,6 +67,7 @@ namespace backprop_tools{
         malloc(device, critic_training_buffers.next_state_action_value_critic_2);
         malloc(device, critic_training_buffers.d_output);
         malloc(device, critic_training_buffers.d_input);
+        malloc(device, critic_training_buffers.action_log_probs);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -83,6 +84,7 @@ namespace backprop_tools{
         free(device, critic_training_buffers.next_state_action_value_critic_2);
         free(device, critic_training_buffers.d_output);
         free(device, critic_training_buffers.d_input);
+        free(device, critic_training_buffers.action_log_probs);
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
@@ -116,20 +118,34 @@ namespace backprop_tools{
             T reward = get(batch.rewards, 0, batch_step_i);
             bool terminated = get(batch.terminated, 0, batch_step_i);
             T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
-            T current_target_action_value = reward + future_value;
+            T entropy_bonus = -SPEC::PARAMETERS::ALPHA * get(training_buffers.action_log_probs, batch_step_i, 0);
+            T current_target_action_value = reward + future_value + entropy_bonus;
             set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
         }
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS>
-    void train_critic(DEVICE& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename RNG>
+    void train_critic(DEVICE& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
         static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
+
         zero_gradient(device, critic);
 
         evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_distribution, actor_buffers);
+        for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
+            T action_log_prob = 0;
+            for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+                T mean = get(training_buffers.next_actions_mean, sample_i, action_i);
+                T log_std = get(training_buffers.next_actions_log_std, sample_i, action_i);
+                T action_sampled = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, mean, math::exp(typename DEVICE::SPEC::MATH{}, log_std), rng);
+                set(training_buffers.next_actions_mean, sample_i, action_i, action_sampled);
+                action_log_prob += random::normal_distribution::log_prob(device, mean, log_std, action_sampled);
+            }
+            set(training_buffers.action_log_probs, sample_i, 0, action_log_prob);
+        }
         copy(device, device, training_buffers.next_observations, batch.next_observations_privileged);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);

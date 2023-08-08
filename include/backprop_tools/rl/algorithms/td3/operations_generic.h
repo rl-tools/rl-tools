@@ -107,7 +107,7 @@ namespace backprop_tools{
         for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
             for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 set(target_action_noise, batch_sample_i, action_i, math::clamp(typename DEVICE::SPEC::MATH(),
-                        random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, actor_critic.target_next_action_noise_std, rng),
+                        random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, actor_critic.target_next_action_noise_std, rng),
                         -actor_critic.target_next_action_noise_clip,
                         actor_critic.target_next_action_noise_clip
                 ));

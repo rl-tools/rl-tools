@@ -34,7 +34,7 @@ namespace backprop_tools::rl::components::on_policy_runner::per_env{
 //                    topic << "action/" << action_i;
 //                    add_scalar(device, device.logger, topic.str(), action_mu);
             T action_std = math::exp(typename DEVICE::SPEC::MATH(), get(action_log_std, 0, action_i));
-            T action_noisy = random::normal_distribution(typename DEVICE::SPEC::RANDOM(), action_mean, action_std, rng);
+            T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), action_mean, action_std, rng);
             T action_by_action_std = (action_noisy-action_mean) / action_std;
             action_log_prob += -0.5 * action_by_action_std * action_by_action_std - math::log(typename DEVICE::SPEC::MATH(), action_std) - 0.5 * math::log(typename DEVICE::SPEC::MATH(), 2 * math::PI<T>);
             set(actions, env_i, action_i, action_noisy);

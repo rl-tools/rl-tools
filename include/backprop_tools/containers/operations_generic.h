@@ -482,7 +482,7 @@ namespace backprop_tools{
         using T = typename SPEC::T;
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
-                set(m, row_i, col_i, random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, (T)1, rng));
+                set(m, row_i, col_i, random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, (T)1, rng));
             }
         }
     }

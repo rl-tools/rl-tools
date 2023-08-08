@@ -7,6 +7,7 @@ namespace backprop_tools::rl::algorithms::sac {
     template<typename T, typename TI>
     struct DefaultParameters {
         static constexpr T GAMMA = 0.99;
+        static constexpr T ALPHA = 0.5;
         static constexpr TI ACTOR_BATCH_SIZE = 32;
         static constexpr TI CRITIC_BATCH_SIZE = 32;
         static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
@@ -95,6 +96,7 @@ namespace backprop_tools::rl::algorithms::sac {
 
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>> d_input;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> d_output;
+        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> action_log_probs;
     };
 
     template<typename T_SPEC>

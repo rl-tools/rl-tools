@@ -313,15 +313,15 @@ namespace backprop_tools{
         using T = typename SPEC::T;
         {
             auto distribution = env.parameters.disturbances.random_force;
-            state.force[0] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-            state.force[1] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-            state.force[2] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.force[0] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.force[1] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.force[2] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
         }
         {
             auto distribution = env.parameters.disturbances.random_torque;
-            state.torque[0] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-            state.torque[1] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-            state.torque[2] = random::normal_distribution(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.torque[0] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.torque[1] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            state.torque[2] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
         }
 
     }
@@ -416,7 +416,7 @@ namespace backprop_tools{
         // Position
         TI current_observation_i = 0;
         for(TI i = 0; i < 3; i++){
-            T noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.position, rng) : 0;
+            T noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.position, rng) : 0;
             set(observation, 0, current_observation_i, state.position[i] + noise);
             current_observation_i += 1;
         }
@@ -425,7 +425,7 @@ namespace backprop_tools{
         if constexpr(SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE == rl::environments::multirotor::ObservationType::Normal){
             static_assert(OBS_SPEC::COLS == 13);
             for(TI i = 0; i < 4; i++){
-                T noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                T noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                 set(observation, 0, current_observation_i, state.orientation[i] + noise);
                 current_observation_i += 1;
             }
@@ -463,23 +463,23 @@ namespace backprop_tools{
                     static_assert(OBS_SPEC::COLS == 18);
                     const typename SPEC::T* q = state.orientation;
                     T noise;
-                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                     set(observation, 0, current_observation_i + 0, (1 - 2*q[2]*q[2] - 2*q[3]*q[3]) + noise);
-                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                     set(observation, 0, current_observation_i + 1, (    2*q[1]*q[2] - 2*q[0]*q[3]) + noise);
-                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                     set(observation, 0, current_observation_i + 2, (    2*q[1]*q[3] + 2*q[0]*q[2]) + noise);
-                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                     set(observation, 0, current_observation_i + 3, (    2*q[1]*q[2] + 2*q[0]*q[3]) + noise);
-                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                     set(observation, 0, current_observation_i + 4, (1 - 2*q[1]*q[1] - 2*q[3]*q[3]) + noise);
-                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                     set(observation, 0, current_observation_i + 5, (    2*q[2]*q[3] - 2*q[0]*q[1]) + noise);
-                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                     set(observation, 0, current_observation_i + 6, (    2*q[1]*q[3] - 2*q[0]*q[2]) + noise);
-                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                     set(observation, 0, current_observation_i + 7, (    2*q[2]*q[3] + 2*q[0]*q[1]) + noise);
-                    noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
+                    noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng) : 0;
                     set(observation, 0, current_observation_i + 8, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]) + noise);
                     current_observation_i += 9;
                 }
@@ -488,14 +488,14 @@ namespace backprop_tools{
 
         // Linear Velocity
         for(TI i = 0; i < 3; i++){
-            T noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.linear_velocity, rng) : 0;
+            T noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.linear_velocity, rng) : 0;
             set(observation, 0, current_observation_i, state.linear_velocity[i] + noise);
             current_observation_i += 1;
         }
 
         // Angular Velocity
         for(TI i = 0; i < 3; i++){
-            T noise = !privileged ? random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.angular_velocity, rng) : 0;
+            T noise = !privileged ? random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.angular_velocity, rng) : 0;
             set(observation, 0, current_observation_i, state.angular_velocity[i] + noise);
             current_observation_i += 1;
         }
@@ -614,7 +614,7 @@ namespace backprop_tools{
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
             T action_noisy = get(action, 0, action_i);
-            action_noisy += random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.action_noise.normalized_rpm, rng);
+            action_noisy += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.action_noise.normalized_rpm, rng);
             action_noisy = math::clamp(typename DEVICE::SPEC::MATH(), action_noisy, -(T)1, (T)1);
             action_scaled[action_i] = action_noisy * half_range + env.parameters.dynamics.action_limit.min + half_range;
 //            state.rpm[action_i] = action_scaled[action_i];

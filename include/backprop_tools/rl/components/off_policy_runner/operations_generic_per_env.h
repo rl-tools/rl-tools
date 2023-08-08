@@ -56,7 +56,7 @@ namespace backprop_tools::rl::components::off_policy_runner{
         typename ENVIRONMENT::State next_state;
 
         for (typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
-            T action_noisy = get(action, 0, i) + random::normal_distribution(typename DEVICE::SPEC::RANDOM(), (T) 0, runner->parameters.exploration_noise, rng);
+            T action_noisy = get(action, 0, i) + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T) 0, runner->parameters.exploration_noise, rng);
             set(action, 0, i, math::clamp<T>(typename DEVICE::SPEC::MATH(), action_noisy, -1, 1));
         }
         step(device, env, state, action, next_state, rng);
