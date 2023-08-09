@@ -68,6 +68,7 @@ std::string name(){
     n += std::string("h") + (ABLATION_SPEC::ACTION_HISTORY ? "+"  : "-");
     n += std::string("c") + (ABLATION_SPEC::ENABLE_CURRICULUM ? "+"  : "-");
     n += std::string("f") + (ABLATION_SPEC::USE_INITIAL_REWARD_FUNCTION ? "+"  : "-");
+    n += std::string("w") + (ABLATION_SPEC::RECALCULATE_REWARDS ? "+"  : "-");
     return n;
 }
 
@@ -423,10 +424,12 @@ void train(TI run_id){
                     bpt::add_scalar(device, device.logger, "reward_function/linear_velocity_weight", off_policy_runner.envs[0].parameters.mdp.reward.linear_velocity);
                     bpt::add_scalar(device, device.logger, "reward_function/action_weight", off_policy_runner.envs[0].parameters.mdp.reward.action);
                     bpt::add_scalar(device, device.logger, "reward_function/angular_acceleration_weight", off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
-                    auto start = std::chrono::high_resolution_clock::now();
-                    bpt::recalculate_rewards(device, off_policy_runner.replay_buffers[0], off_policy_runner.envs[0], rng);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+                    if constexpr(ABLATION_SPEC::RECALCULATE_REWARDS == true){
+                        auto start = std::chrono::high_resolution_clock::now();
+                        bpt::recalculate_rewards(device, off_policy_runner.replay_buffers[0], off_policy_runner.envs[0], rng);
+                        auto end = std::chrono::high_resolution_clock::now();
+                        std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+                    }
                 }
 
 
