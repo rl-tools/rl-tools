@@ -38,14 +38,14 @@ int main(int argc, char** argv){
     TI run_id = job_array_id % AblationSpecBase::NUM_RUNS;
     // DISTURBANCE OBSERVATION_NOISE ASYMMETRIC_ACTOR_CRITIC ROTOR_DELAY ACTION_HISTORY ENABLE_CURRICULUM USE_INITIAL_REWARD_FUNCTION
 
-    using ABLATION_SPEC_0 = AblationSpecTemplate< true,  true,  true,  true,  true,  true,  true>;
-    using ABLATION_SPEC_1 = AblationSpecTemplate< true,  true,  true,  true,  true, false,  true>;
+    using ABLATION_SPEC_0 = AblationSpecTemplate< true,  true,  true,  true,  true, false,  true>;
+    using ABLATION_SPEC_1 = AblationSpecTemplate< true,  true,  true,  true,  true,  true,  true>;
     using ABLATION_SPEC_2 = AblationSpecTemplate< true,  true,  true,  true,  true, false, false>;
-    using ABLATION_SPEC_3 = AblationSpecTemplate< true,  true,  true,  true, false, false,  true>;
-    using ABLATION_SPEC_4 = AblationSpecTemplate< true,  true,  true, false, false, false,  true>;
-    using ABLATION_SPEC_5 = AblationSpecTemplate< true,  true, false,  true,  true, false,  true>;
-    using ABLATION_SPEC_6 = AblationSpecTemplate< true, false,  true,  true,  true, false,  true>;
-    using ABLATION_SPEC_7 = AblationSpecTemplate<false,  true,  true,  true,  true, false,  true>;
+    using ABLATION_SPEC_3 = AblationSpecTemplate< true,  true,  true,  true, false,  true,  true>;
+    using ABLATION_SPEC_4 = AblationSpecTemplate< true,  true,  true, false, false,  true,  true>;
+    using ABLATION_SPEC_5 = AblationSpecTemplate< true,  true, false,  true,  true,  true,  true>;
+    using ABLATION_SPEC_6 = AblationSpecTemplate< true, false,  true,  true,  true,  true,  true>;
+    using ABLATION_SPEC_7 = AblationSpecTemplate<false,  true,  true,  true,  true,  true,  true>;
 
     switch(ablation_id){
         case 0:
