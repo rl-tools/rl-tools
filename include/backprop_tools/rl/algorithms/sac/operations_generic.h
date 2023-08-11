@@ -36,7 +36,8 @@ namespace backprop_tools{
         actor_training_buffers.actions      = view(device, actor_training_buffers.state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM);
 //        malloc(device, actor_training_buffers.state_action_value);
         malloc(device, actor_training_buffers.d_output);
-        malloc(device, actor_training_buffers.d_critic_input);
+        malloc(device, actor_training_buffers.d_critic_1_input);
+        malloc(device, actor_training_buffers.d_critic_2_input);
         malloc(device, actor_training_buffers.d_actor_output);
         malloc(device, actor_training_buffers.d_actor_input);
     }
@@ -47,7 +48,8 @@ namespace backprop_tools{
         actor_training_buffers.actions._data      = nullptr;
 //        free(device, actor_training_buffers.state_action_value);
         free(device, actor_training_buffers.d_output);
-        free(device, actor_training_buffers.d_critic_input);
+        malloc(device, actor_training_buffers.d_critic_1_input);
+        malloc(device, actor_training_buffers.d_critic_2_input);
         free(device, actor_training_buffers.d_actor_output);
         free(device, actor_training_buffers.d_actor_input);
     }
@@ -171,8 +173,8 @@ namespace backprop_tools{
         evaluate(device, critic, batch.observations_and_actions, training_buffers.action_value, critic_buffers);
         return nn::loss_functions::mse::evaluate(device, training_buffers.action_value, training_buffers.target_action_value);
     }
-    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS>
-    void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename RNG>
+    void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
@@ -185,12 +187,28 @@ namespace backprop_tools{
         forward(device, actor_critic.actor, batch.observations);
         auto actions_view = view(device, output(actor_critic.actor), matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);
         copy(device, device, training_buffers.actions, actions_view);
+        for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+            for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+                T std = math::exp(typename DEVICE::SPEC::MATH{}, get(training_buffers.actions, batch_i, action_i + ACTION_DIM));
+                increment(training_buffers.actions, batch_i, action_i, random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, std, rng));
+            }
+        }
         copy(device, device, training_buffers.observations, batch.observations_privileged);
-        auto& critic = actor_critic.critic_1;
-        forward(device, critic, training_buffers.state_action_value_input);
+//        auto& critic = actor_critic.critic_1;
+        forward(device, actor_critic.critic_1, training_buffers.state_action_value_input);
+        forward(device, actor_critic.critic_2, training_buffers.state_action_value_input);
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
-        backward_input(device, critic, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
-        auto d_actor_output = view(device, training_buffers.d_critic_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM);
+        backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers);
+        backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers);
+        for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+            if(get(output(training_buffers.actor_critic.critic_1), batch_i, 0) > get(output(training_buffers.actor_critic.critic_2), batch_i, 0)){
+                set(training_buffers.d_critic_1_input, batch_i, 0, get(training_buffers.d_critic_2_input, batch_i, 0));
+            }
+        }
+        auto d_actor_output = view(device, training_buffers.d_critic_1_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM * 2);
+
+        // todo backpropagate thorugh the reparam trick
+
         MatrixDynamic<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM*2>> d_actor_output_full;
         malloc(device, d_actor_output_full);
         auto d_actor_output_view = view(device, d_actor_output_full, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);

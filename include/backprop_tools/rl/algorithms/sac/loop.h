@@ -111,7 +111,7 @@ namespace backprop_tools::rl::algorithms::sac{
             if(ts.step % 2 == 0){
                 {
                     gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                    train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
+                    train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
                 }
                 update_critic_targets(ts.device, ts.actor_critic);
             }
