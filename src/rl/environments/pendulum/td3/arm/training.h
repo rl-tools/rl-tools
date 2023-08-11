@@ -11,7 +11,8 @@ using DEVICE = bpt::devices::arm::Generic<bpt::devices::DefaultARMSpecification>
 
 #include <backprop_tools/rl/environments/operations_generic.h>
 #include <backprop_tools/nn_models/operations_generic.h>
-#include <backprop_tools/rl/operations_generic.h>
+#include <backprop_tools/rl/components/off_policy_runner/operations_generic.h>
+#include <backprop_tools/rl/algorithms/td3/operations_generic.h>
 
 #include <backprop_tools/rl/utils/evaluation.h>
 #ifndef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
@@ -76,6 +77,7 @@ using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specifica
         REPLAY_BUFFER_CAP,
         ENVIRONMENT_STEP_LIMIT,
         bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
+        false,
         false,
         0,
         CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER

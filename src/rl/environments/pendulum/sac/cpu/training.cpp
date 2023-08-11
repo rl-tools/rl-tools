@@ -1,6 +1,6 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
-#include <backprop_tools/nn_models/output_view/model.h>
+//#include <backprop_tools/nn_models/output_view/model.h>
 #include <backprop_tools/rl/environments/pendulum/operations_cpu.h>
 #include <backprop_tools/nn_models/sequential/operations_generic.h>
 
@@ -89,6 +89,7 @@ namespace training_config{
                 REPLAY_BUFFER_CAP,
                 ENVIRONMENT_STEP_LIMIT,
                 bpt::rl::components::off_policy_runner::DefaultParameters<T>,
+                true,
                 COLLECT_EPISODE_STATS,
                 EPISODE_STATS_BUFFER_SIZE
         >;

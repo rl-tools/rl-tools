@@ -131,7 +131,7 @@ void test_normal_distribution(){
 
 
     for(unsigned i = 0; i < NUM_RUNS; ++i){
-        auto number = bpt::random::normal_distribution(DEVICE::SPEC::RANDOM(), mean, std, rng);
+        auto number = bpt::random::normal_distribution::sample(DEVICE::SPEC::RANDOM(), mean, std, rng);
         if(number <= mean) {
             smaller_than_mean++;
         }

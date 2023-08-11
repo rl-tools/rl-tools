@@ -34,7 +34,7 @@ namespace backprop_tools{
         malloc(device, actor_training_buffers.state_action_value_input);
         actor_training_buffers.observations = view(device, actor_training_buffers.state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::CRITIC_OBSERVATION_DIM>{}, 0, 0);
         actor_training_buffers.actions      = view(device, actor_training_buffers.state_action_value_input, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM);
-        malloc(device, actor_training_buffers.state_action_value);
+//        malloc(device, actor_training_buffers.state_action_value);
         malloc(device, actor_training_buffers.d_output);
         malloc(device, actor_training_buffers.d_critic_input);
         malloc(device, actor_training_buffers.d_actor_output);
@@ -45,7 +45,7 @@ namespace backprop_tools{
         free(device, actor_training_buffers.state_action_value_input);
         actor_training_buffers.observations._data = nullptr;
         actor_training_buffers.actions._data      = nullptr;
-        free(device, actor_training_buffers.state_action_value);
+//        free(device, actor_training_buffers.state_action_value);
         free(device, actor_training_buffers.d_output);
         free(device, actor_training_buffers.d_critic_input);
         free(device, actor_training_buffers.d_actor_output);
@@ -142,7 +142,7 @@ namespace backprop_tools{
                 T log_std = get(training_buffers.next_actions_log_std, sample_i, action_i);
                 T action_sampled = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, mean, math::exp(typename DEVICE::SPEC::MATH{}, log_std), rng);
                 set(training_buffers.next_actions_mean, sample_i, action_i, action_sampled);
-                action_log_prob += random::normal_distribution::log_prob(device, mean, log_std, action_sampled);
+                action_log_prob += random::normal_distribution::log_prob<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mean, log_std, action_sampled);
             }
             set(training_buffers.action_log_probs, sample_i, 0, action_log_prob);
         }
@@ -187,7 +187,7 @@ namespace backprop_tools{
         copy(device, device, training_buffers.actions, actions_view);
         copy(device, device, training_buffers.observations, batch.observations_privileged);
         auto& critic = actor_critic.critic_1;
-        forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value);
+        forward(device, critic, training_buffers.state_action_value_input);
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward_input(device, critic, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
         auto d_actor_output = view(device, training_buffers.d_critic_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM);

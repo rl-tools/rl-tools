@@ -10,7 +10,8 @@
 #include <backprop_tools/nn_models/models.h>
 #include <backprop_tools/nn_models/operations_generic.h>
 #include <backprop_tools/rl/rl.h>
-#include <backprop_tools/rl/operations_generic.h>
+#include <backprop_tools/rl/components/off_policy_runner/operations_generic.h>
+#include <backprop_tools/rl/algorithms/td3/operations_generic.h>
 
 #include <backprop_tools/rl/utils/evaluation.h>
 

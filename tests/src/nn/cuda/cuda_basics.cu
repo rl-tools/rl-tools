@@ -105,7 +105,7 @@ void COPY_CONTAINER() {
 
         for(DEVICE_CPU::index_t row_i = 0; row_i < decltype(matrix_cpu)::SPEC::ROWS; row_i++){
             for(DEVICE_CPU::index_t col_i = 0; col_i < decltype(matrix_cpu)::SPEC::COLS; col_i++){
-                set(matrix_cpu, row_i, col_i, bpt::random::normal_distribution(decltype(device_cpu)::SPEC::RANDOM(), (T)0, (T)1, rng));
+                set(matrix_cpu, row_i, col_i, bpt::random::normal_distribution::sample(decltype(device_cpu)::SPEC::RANDOM(), (T)0, (T)1, rng));
             }
         }
 
@@ -394,7 +394,7 @@ void GEMM() {
 
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
-            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution::sample(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
@@ -558,7 +558,7 @@ void FORWARD() {
 
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
-            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution::sample(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::INPUT_DIM <= 10){
@@ -926,12 +926,12 @@ void ADAM_UPDATE() {
 
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::INPUT_DIM; input_i++){
-            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(input_cpu, batch_i, input_i, bpt::random::normal_distribution::sample(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::OUTPUT_DIM; input_i++){
-            set(output_target_cpu, batch_i, input_i, bpt::random::normal_distribution(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(output_target_cpu, batch_i, input_i, bpt::random::normal_distribution::sample(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
     {

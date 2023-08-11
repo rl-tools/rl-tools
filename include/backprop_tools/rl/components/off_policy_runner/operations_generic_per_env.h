@@ -41,24 +41,44 @@ namespace backprop_tools::rl::components::off_policy_runner{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT auto process_and_get_action(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        if constexpr(SPEC::STOCHASTIC_POLICY){
+            for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
+                T std = math::exp(typename DEVICE::SPEC::MATH{}, get(runner->buffers.actions, 0, ENVIRONMENT::ACTION_DIM+i));
+                T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), get(runner->buffers.actions, 0, i), std, rng);
+                set(runner->buffers.actions, 0, i, math::clamp<T>(typename DEVICE::SPEC::MATH(), action_noisy, -1, 1));
+            }
+            return view(device, runner->buffers.actions, matrix::ViewSpec<1, SPEC::ENVIRONMENT::ACTION_DIM>{});
+        }
+        else{
+            for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
+                T action_noisy = get(runner->buffers.actions, 0, i) + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T) 0, runner->parameters.exploration_noise, rng);
+                set(runner->buffers.actions, 0, i, math::clamp<T>(typename DEVICE::SPEC::MATH(), action_noisy, -1, 1));
+            }
+            return runner->buffers.actions;
+        }
+
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void epilogue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng, typename DEVICE::index_t env_i) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         using PARAMETERS = typename SPEC::PARAMETERS;
-        auto observation            = view<DEVICE, typename decltype(runner->buffers.observations           )::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM           >(device, runner->buffers.observations           , env_i, 0);
-        auto observation_privileged = view<DEVICE, typename decltype(runner->buffers.observations_privileged)::SPEC, 1, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, runner->buffers.observations_privileged, env_i, 0);
+        auto observation                 = view<DEVICE, typename decltype(runner->buffers.observations           )::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM           >(device, runner->buffers.observations           , env_i, 0);
+        auto observation_privileged      = view<DEVICE, typename decltype(runner->buffers.observations_privileged)::SPEC, 1, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, runner->buffers.observations_privileged, env_i, 0);
         auto next_observation            = view<DEVICE, typename decltype(runner->buffers.observations           )::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM           >(device, runner->buffers.next_observations           , env_i, 0);
         auto next_observation_privileged = view<DEVICE, typename decltype(runner->buffers.observations_privileged)::SPEC, 1, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, runner->buffers.next_observations_privileged, env_i, 0);
-        auto action = view<DEVICE, typename decltype(runner->buffers.actions)::SPEC, 1, ENVIRONMENT::ACTION_DIM>(device, runner->buffers.actions, env_i, 0);
+//        auto action_raw = view<DEVICE, typename decltype(runner->buffers.actions)::SPEC, 1, ENVIRONMENT::ACTION_DIM>(device, runner->buffers.actions, env_i, 0);
         auto& env = runner->envs[env_i];
         auto& state = get(runner->states, 0, env_i);
         typename ENVIRONMENT::State next_state;
 
-        for (typename DEVICE::index_t i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
-            T action_noisy = get(action, 0, i) + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T) 0, runner->parameters.exploration_noise, rng);
-            set(action, 0, i, math::clamp<T>(typename DEVICE::SPEC::MATH(), action_noisy, -1, 1));
-        }
+        auto action = process_and_get_action(device, runner, rng);
+
         step(device, env, state, action, next_state, rng);
 
         T reward_value = reward(device, env, state, action, next_state, rng);

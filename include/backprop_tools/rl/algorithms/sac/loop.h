@@ -102,7 +102,7 @@ namespace backprop_tools::rl::algorithms::sac{
     bool training_step(TRAINING_STATE& ts){
         bool finished = false;
         using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
-        step(ts.device, ts.off_policy_runner, ts.actor_critic.actor_view, ts.actor_buffers_eval, ts.rng);
+        step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         if(ts.step > TRAINING_CONFIG::N_WARMUP_STEPS){
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
@@ -118,7 +118,7 @@ namespace backprop_tools::rl::algorithms::sac{
         }
         if constexpr(TRAINING_CONFIG::DETERMINISTIC_EVALUATION == true){
             if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
-                auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor_view, rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+                auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
                 std::cout << "Step: " << ts.step << " Mean return: " << result.returns_mean << std::endl;
                 ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
             }

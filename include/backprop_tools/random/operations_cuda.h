@@ -37,20 +37,31 @@ namespace backprop_tools::random{
         auto r = uniform_real_distribution(dev, low, high, rng);
         return (T)r;
     }
-    template<typename T, typename RNG>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T normal_distribution(const devices::random::CUDA& dev, T mean, T std, RNG& rng){
-        if constexpr(utils::typing::is_same_v<T, float>){
-            return curand_normal(&rng) * std + mean;
-        }
-        else{
-            if constexpr(utils::typing::is_same_v<T, double>){
-                return curand_normal_double(&rng) * std + mean;
+    namespace normal_distribution{
+        template<typename T, typename RNG>
+        BACKPROP_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::CUDA& dev, T mean, T std, RNG& rng){
+            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
+            if constexpr(utils::typing::is_same_v<T, float>){
+                return curand_normal(&rng) * std + mean;
             }
             else{
-                return 0;
+                if constexpr(utils::typing::is_same_v<T, double>){
+                    return curand_normal_double(&rng) * std + mean;
+                }
+                else{
+                    return 0;
+                }
             }
         }
-        return 0;
+        template<typename DEVICE, typename T>
+        BACKPROP_TOOLS_FUNCTION_PLACEMENT T log_prob(const devices::random::CUDA& dev, T mean, T log_std, T value){
+            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
+            T neg_log_sqrt_pi = -0.5 * math::log(typename DEVICE::SPEC::MATH{}, 2 * math::PI<T>);
+            T diff = (value - mean);
+            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);
+            T pre_square = diff/std;
+            return neg_log_sqrt_pi - log_std - 0.5 * pre_square * pre_square;
+        }
     }
 }
 

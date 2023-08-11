@@ -27,8 +27,18 @@ namespace backprop_tools::random{
 //        return r * (high-low) + low;
         return low;
     }
-    template<typename T, typename RNG>
-    T normal_distribution(const devices::random::Dummy& dev, T mean, T std, RNG& rng){
+    namespace normal_distribution{
+        template<typename T, typename RNG>
+        T sample(const devices::random::Dummy& dev, T mean, T std, RNG& rng){
+            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
+            return 0;
+        }
+        template<typename DEVICE, typename T>
+        T log_prob(const devices::random::Dummy& dev, T mean, T log_std, T value){
+            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
+            return 0;
+        }
+    }
 //        static_assert(utils::typing::is_same_v<RNG, typename DEVICE::index_t>);
 //        //
 //        T x, y, r, res;
@@ -51,8 +61,7 @@ namespace backprop_tools::random{
 //        res = n1 * std + mean;
 //
 //        return res;
-        return mean;
-    }
+//        return mean; }
 }
 
 #endif

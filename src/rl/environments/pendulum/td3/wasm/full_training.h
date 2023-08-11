@@ -4,7 +4,8 @@
 
 #include <backprop_tools/rl/environments/operations_generic.h>
 #include <backprop_tools/nn_models/operations_generic.h>
-#include <backprop_tools/rl/operations_generic.h>
+#include <backprop_tools/rl/components/off_policy_runner/operations_generic.h>
+#include <backprop_tools/rl/algorithms/td3/operations_generic.h>
 
 
 #ifndef BACKPROP_TOOLS_BENCHMARK
@@ -12,6 +13,7 @@
 #include <chrono>
 #endif
 
+namespace bpt = backprop_tools;
 
 
 struct TrainingConfig{
@@ -74,6 +76,7 @@ struct TrainingConfig{
             REPLAY_BUFFER_CAP,
             ENVIRONMENT_STEP_LIMIT,
             bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
+            false,
             COLLECT_EPISODE_STATS,
             EPISODE_STATS_BUFFER_SIZE
     >;

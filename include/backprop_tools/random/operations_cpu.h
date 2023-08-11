@@ -30,7 +30,7 @@ namespace backprop_tools::random{
             return std::normal_distribution<T>(mean, std)(rng);
         }
         template<typename DEVICE, typename T>
-        T log_prob(const DEVICE& dev, T mean, T log_std, T value){
+        T log_prob(const devices::random::CPU& dev, T mean, T log_std, T value){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
             T neg_log_sqrt_pi = -0.5 * math::log(typename DEVICE::SPEC::MATH{}, 2 * math::PI<T>);
             T diff = (value - mean);
@@ -38,7 +38,6 @@ namespace backprop_tools::random{
             T pre_square = diff/std;
             return neg_log_sqrt_pi - log_std - 0.5 * pre_square * pre_square;
         }
-
     }
 }
 

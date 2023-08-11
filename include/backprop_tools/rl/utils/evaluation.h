@@ -38,22 +38,26 @@ namespace backprop_tools {
     bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVAL_BUFFERS& policy_eval_buffers, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
+        static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM));
+        constexpr bool STOCHASTIC_POLICY = ENVIRONMENT::ACTION_DIM*2 == POLICY::OUTPUT_DIM;
         typename ENVIRONMENT::State state = eval_state.state;
 
 #ifndef BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
-        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> action_full;
         MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
 #else
-        MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+        MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> action_full;
         MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
 #endif
         malloc(device, observation);
         malloc(device, observation_normalized);
-        malloc(device, action);
+        malloc(device, action_full);
         observe(device, env, state, observation, rng);
         normalize(device, observation_mean, observation_std, observation, observation_normalized);
 
-        evaluate(device, policy, observation_normalized, action, policy_eval_buffers);
+        auto action = view(device, action_full, matrix::ViewSpec<1, ENVIRONMENT::ACTION_DIM>{});
+        evaluate(device, policy, observation_normalized, action_full, policy_eval_buffers);
+
         for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
             set(action, 0, action_i, math::clamp<T>(typename DEVICE::SPEC::MATH(), get(action, 0, action_i), -1, 1));
         }
@@ -69,7 +73,7 @@ namespace backprop_tools {
         eval_state.state = state;
         free(device, observation);
         free(device, observation_normalized);
-        free(device, action);
+        free(device, action_full);
         return terminated(device, env, state, rng);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVALUATION_BUFFERS, typename RNG>
@@ -92,7 +96,8 @@ namespace backprop_tools {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
-        static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM, "Action and policy output dimensions must match");
+        static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM), "Action and policy output dimensions must match");
+        static bool STOCHASTIC_POLICY = ENVIRONMENT::ACTION_DIM == 2*POLICY::OUTPUT_DIM;
         rl::utils::evaluation::Result<T, TI, SPEC::N_EPISODES> results;
         results.returns_mean = 0;
         results.returns_std = 0;

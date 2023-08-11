@@ -111,19 +111,19 @@ namespace first_stage_first_stage{
     using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
-    using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
+    using ACTOR_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
     using ACTOR_TARGET_NETWORK_SPEC = bpt::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
     using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
     using CRITIC_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
-    using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+    using CRITIC_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
     using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
     using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 
-    using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
+    using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 }
 
@@ -156,7 +156,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     data_file.getDataSet("batch_output").read(outputs);
 
     for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
-        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input;
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM>> input;
         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
         bpt::malloc(device, input);
         bpt::malloc(device, output);
@@ -188,10 +188,10 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     first_stage_first_stage::NN_DEVICE nn_device;
     nn_device.logger = &logger;
     first_stage_first_stage::ActorCriticType actor_critic;
-    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers;
-    typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers;
+    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::Buffers<> critic_buffers;
+    typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_TYPE::Buffers<> actor_buffers;
     bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, 1>> d_output_critic;
-    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> d_input_critic;
+    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM>> d_input_critic;
     using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
@@ -217,8 +217,8 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     bpt::reset_optimizer_state(device, optimizer, actor_critic.critic_1);
     bpt::zero_gradient(device, actor_critic.critic_1);
     for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
-//        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM];
-        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM>> input;
+//        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM];
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM>> input;
         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
         bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> target;
         bpt::malloc(device, input);
@@ -251,7 +251,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     bpt::load(device, critic_1_after_backward, data_file.getGroup("critic_1_backward"));
     bpt::reset_forward_state(device, actor_critic.critic_1);
     bpt::reset_forward_state(device, critic_1_after_backward);
-    DTYPE diff_grad_per_weight = abs_diff_grad(device, actor_critic.critic_1, critic_1_after_backward)/first_stage_first_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+    DTYPE diff_grad_per_weight = abs_diff_grad(device, actor_critic.critic_1, critic_1_after_backward)/first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
     ASSERT_LT(diff_grad_per_weight, 1e-17);
 
     std::cout << "diff_grad_per_weight: " << diff_grad_per_weight << std::endl;
@@ -266,19 +266,19 @@ namespace first_stage_second_stage{
     using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
-    using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
+    using ACTOR_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
     using ACTOR_TARGET_NETWORK_SPEC = bpt::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
     using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
     using CRITIC_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
-    using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+    using CRITIC_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
     using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
     using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
 
-    using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
+    using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 }
 TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
@@ -331,11 +331,11 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     bpt::malloc(device, critic_training_buffers);
     bpt::malloc(device, critic_training_buffers_target);
 
-    first_stage_second_stage::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    first_stage_second_stage::CRITIC_TYPE::Buffers<> critic_buffers[2];
     bpt::malloc(device, critic_buffers[0]);
     bpt::malloc(device, critic_buffers[1]);
 
-    first_stage_second_stage::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
+    first_stage_second_stage::ACTOR_TYPE::Buffers<> actor_buffers[2];
     bpt::malloc(device, actor_buffers[0]);
     bpt::malloc(device, actor_buffers[1]);
 
@@ -356,7 +356,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         bpt::load(device, critic_training_buffers_target.next_state_action_value_critic_2, step_group.getGroup("train_critics"), "next_state_action_values_critic_2");
         bpt::load(device, critic_training_buffers_target.target_action_value, step_group.getGroup("train_critics"), "target_action_values");
 
-        first_stage_second_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE post_critic_1;
+        first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE post_critic_1;
         bpt::malloc(device, post_critic_1);
         bpt::load(device, post_critic_1, step_group.getGroup("critic"));
 
@@ -398,16 +398,16 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         bpt::reset_forward_state(device, post_critic_1);
         bpt::reset_forward_state(device, actor_critic.critic_1);
 
-        DTYPE pre_post_diff_per_weight = abs_diff(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_per_weight = abs_diff(device, post_critic_1, actor_critic.critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_per_weight = abs_diff(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_per_weight = abs_diff(device, post_critic_1, actor_critic.critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1, actor_critic.critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_critic_1, actor_critic.critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
-        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1, actor_critic.critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1, post_critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1, actor_critic.critic_1)/first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
 
         if(verbose){
@@ -488,11 +488,11 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     bpt::malloc(device, actor_batch);
     bpt::malloc(device, actor_training_buffers);
 
-    first_stage_second_stage::CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    first_stage_second_stage::CRITIC_TYPE::Buffers<> critic_buffers[2];
     bpt::malloc(device, critic_buffers[0]);
     bpt::malloc(device, critic_buffers[1]);
 
-    first_stage_second_stage::ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
+    first_stage_second_stage::ACTOR_TYPE::Buffers<> actor_buffers[2];
     bpt::malloc(device, actor_buffers[0]);
     bpt::malloc(device, actor_buffers[1]);
 
@@ -520,16 +520,16 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
         bpt::reset_forward_state(device, post_actor);
         bpt::reset_forward_state(device, actor_critic.actor);
 
-        DTYPE pre_post_diff_per_weight = abs_diff(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_per_weight = abs_diff(device, post_actor, actor_critic.actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_per_weight = abs_diff(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_per_weight = abs_diff(device, post_actor, actor_critic.actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
-        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_actor, actor_critic.actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_grad_per_weight = abs_diff_grad(device, post_actor, actor_critic.actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
-        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
-        DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_actor, actor_critic.actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_NETWORK_TYPE::NUM_WEIGHTS;
+        DTYPE pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_actor, post_actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+        DTYPE diff_target_adam_per_weight = abs_diff_adam(device, post_actor, actor_critic.actor)/first_stage_second_stage::ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
         DTYPE diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
 
         if(verbose){

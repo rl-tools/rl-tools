@@ -1,6 +1,6 @@
 #ifndef BACKPROP_TOOLS_RL_ALGORITHMS_SAC
 #define BACKPROP_TOOLS_RL_ALGORITHMS_SAC
-#include <backprop_tools/nn_models/output_view/model.h>
+//#include <backprop_tools/nn_models/output_view/model.h>
 
 
 namespace backprop_tools::rl::algorithms::sac {
@@ -64,7 +64,7 @@ namespace backprop_tools::rl::algorithms::sac {
         using STATE_ACTION_VALUE_VIEW = typename decltype(state_action_value_input)::template VIEW<BATCH_SIZE, DIM>;
         STATE_ACTION_VALUE_VIEW<CRITIC_OBSERVATION_DIM> observations;
         STATE_ACTION_VALUE_VIEW<ACTION_DIM> actions;
-        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> state_action_value;
+//        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> state_action_value;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> d_output;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>> d_critic_input;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_actor_output;
@@ -109,8 +109,8 @@ namespace backprop_tools::rl::algorithms::sac {
         T target_next_action_noise_clip = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP;
 
         typename SPEC::ACTOR_NETWORK_TYPE actor;
-        using ACTOR_VIEW = nn_models::output_view::MODEL<nn_models::output_view::MODEL_VIEW_SPEC<TI, typename SPEC::ACTOR_NETWORK_TYPE, 0, SPEC::ENVIRONMENT::ACTION_DIM>>;
-        ACTOR_VIEW actor_view;
+//        using ACTOR_VIEW = nn_models::output_view::MODEL<nn_models::output_view::MODEL_VIEW_SPEC<TI, typename SPEC::ACTOR_NETWORK_TYPE, 0, SPEC::ENVIRONMENT::ACTION_DIM>>;
+//        ACTOR_VIEW actor_view;
 
         typename SPEC::CRITIC_NETWORK_TYPE critic_1;
         typename SPEC::CRITIC_NETWORK_TYPE critic_2;
@@ -119,7 +119,7 @@ namespace backprop_tools::rl::algorithms::sac {
 
         typename SPEC::OPTIMIZER actor_optimizer;
         typename SPEC::OPTIMIZER critic_optimizers[2];
-        ActorCritic(): actor_view(actor){};
+//        ActorCritic(): actor_view(actor){};
     };
 }
 
