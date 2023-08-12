@@ -38,6 +38,28 @@ namespace backprop_tools::random{
             T pre_square = diff/std;
             return neg_log_sqrt_pi - log_std - 0.5 * pre_square * pre_square;
         }
+        template<typename DEVICE, typename T>
+        T d_log_prob_d_mean(const devices::random::CPU& dev, T mean, T log_std, T value){
+            T diff = (value - mean);
+            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);
+            T pre_square = diff/std;
+            return pre_square / std;
+        }
+        template<typename DEVICE, typename T>
+        T d_log_prob_d_log_std(const devices::random::CPU& dev, T mean, T log_std, T value){
+            T diff = (value - mean);
+            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);
+            T pre_square = diff/std;
+            return - 1 + pre_square * pre_square;
+        }
+        template<typename DEVICE, typename T>
+        T d_log_prob_d_sample(const devices::random::CPU& dev, T mean, T log_std, T value){
+            T diff = (value - mean);
+            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);
+            T pre_square = diff/std;
+            return - pre_square / std;
+        }
+
     }
 }
 
