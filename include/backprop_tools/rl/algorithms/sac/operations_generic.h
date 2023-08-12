@@ -185,12 +185,14 @@ namespace backprop_tools{
 
         zero_gradient(device, actor_critic.actor);
         forward(device, actor_critic.actor, batch.observations);
-        auto actions_view = view(device, output(actor_critic.actor), matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);
-        copy(device, device, training_buffers.actions, actions_view);
+//        auto actions_view = view(device, output(actor_critic.actor), matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);
+//        copy(device, device, training_buffers.actions, actions_view);
+        auto actions_full = output(actor_critic.actor);
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-                T std = math::exp(typename DEVICE::SPEC::MATH{}, get(training_buffers.actions, batch_i, action_i + ACTION_DIM));
-                increment(training_buffers.actions, batch_i, action_i, random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, std, rng));
+                T std = math::exp(typename DEVICE::SPEC::MATH{}, get(actions_full, batch_i, action_i + ACTION_DIM));
+                T action_sample = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, get(actions_full, batch_i, action_i), std, rng);
+                set(training_buffers.actions, batch_i, action_i, action_sample);
             }
         }
         copy(device, device, training_buffers.observations, batch.observations_privileged);
@@ -201,11 +203,11 @@ namespace backprop_tools{
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers);
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-            if(get(output(training_buffers.actor_critic.critic_1), batch_i, 0) > get(output(training_buffers.actor_critic.critic_2), batch_i, 0)){
+            if(get(output(actor_critic.critic_1), batch_i, 0) > get(output(actor_critic.critic_2), batch_i, 0)){
                 set(training_buffers.d_critic_1_input, batch_i, 0, get(training_buffers.d_critic_2_input, batch_i, 0));
             }
         }
-        auto d_actor_output = view(device, training_buffers.d_critic_1_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM * 2);
+        auto d_actor_output = view(device, training_buffers.d_critic_1_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM);
 
         // todo backpropagate thorugh the reparam trick
 
