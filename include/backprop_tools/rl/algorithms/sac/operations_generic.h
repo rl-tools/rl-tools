@@ -213,6 +213,24 @@ namespace backprop_tools{
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers);
+/*
+        Gradient of the loss function:
+        mu, std = policy(observation)
+        action_sample = gaussian::sample(mu, std)
+        action = tanh(action_sample)
+        action_prob = gaussian::prob(mu, std, action_sample) * | d/d_action tanh^{-1}(action) |
+                    = gaussian::prob(mu, std, action_sample) * | (d/d_action_sample tanh(action_sample))^{-1} |
+                    = gaussian::prob(mu, std, action_sample) * | (d/d_action_sample tanh(action_sample))|^{-1}
+                    = gaussian::prob(mu, std, action_sample) * ((1-tanh(action_sample)^2))^{-1}
+        action_log_prob = gaussian::log_prob(mu, std, action_sample) - log(1-tanh(action_sample)^2))
+        actor_loss = alpha  * action_log_prob - min(Q_1, Q_2);
+        d/d_mu _actor_loss = alpha * d/d_mu action_log_prob - d/d_mu min(Q_1, Q_2)
+        d/d_mu action_log_prob = d/d_mu gaussian::log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample + 1/(1-tanh(action_sample)^2) * 2*tanh(action_sample) * d/d_mu action_sample
+        d/d_mu action_sample = 1
+        d/d_std action_sample = noise
+        d/d_mu min(Q_1, Q_2) = d/d_action min(Q_1, Q_2) * d/d_mu action
+        d/d_mu action = d/d_action_sample tanh(action_sample) * d/d_mu action_sample
+*/
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
             bool critic_1_value = get(output(actor_critic.critic_1), batch_i, 0) < get(output(actor_critic.critic_2), batch_i, 0);
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++) {
@@ -232,13 +250,11 @@ namespace backprop_tools{
                 }
                 T log_std = get(actions_full, batch_i, action_i + ACTION_DIM);
                 T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);
-//                std::cout << "std: " << std << std::endl;
 
                 T d_log_std = std * d_std;
 
                 T mu = get(actions_full, batch_i, action_i);
                 T action_sample = get(training_buffers.action_sample, batch_i, action_i);
-//                T tanh_action_sample = tanh(action_sample);
                 T eps = 1e-6;
                 d_mu += SPEC::PARAMETERS::ALPHA/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_mean<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + 1/(1-action*action + eps) * 2*action);
 
@@ -249,37 +265,7 @@ namespace backprop_tools{
                 set(training_buffers.d_actor_output, batch_i, action_i + ACTION_DIM, d_log_std);
             }
         }
-/*
-        mu, std = policy(observation)
-        action_sample = gaussian::sample(mu, std)
-        action = tanh(action_sample)
-        action_prob = gaussian::prob(mu, std, action_sample) * | d/d_action tanh^{-1}(action) |
-                    = gaussian::prob(mu, std, action_sample) * | (d/d_action_sample tanh(action_sample))^{-1} |
-                    = gaussian::prob(mu, std, action_sample) * | (d/d_action_sample tanh(action_sample))|^{-1}
-                    = gaussian::prob(mu, std, action_sample) * ((1-tanh(action_sample)^2))^{-1}
-        action_log_prob = gaussian::log_prob(mu, std, action_sample) - log(1-tanh(action_sample)^2))
-        actor_loss = alpha  * action_log_prob - min(Q_1, Q_2);
-        d/d_mu _actor_loss = alpha * d/d_mu action_log_prob - d/d_mu min(Q_1, Q_2)
-        d/d_mu action_log_prob = d/d_mu gaussian::log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample + 1/(1-tanh(action_sample)^2) * 2*tanh(action_sample) * d/d_mu action_sample
-        d/d_mu action_sample = 1
-        d/d_std action_sample = noise
-        d/d_mu min(Q_1, Q_2) = d/d_action min(Q_1, Q_2) * d/d_mu action
-        d/d_mu action = d/d_action_sample tanh(action_sample) * d/d_mu action_sample
-*/
-
-
-//        auto d_actor_output = view(device, training_buffers.d_critic_1_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM);
-
-        // todo backpropagate thorugh the reparam trick
-
-//        MatrixDynamic<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM*2>> d_actor_output_full;
-//        malloc(device, d_actor_output_full);
-//        set_all(device, d_actor_output_full, (T)0);
-//        auto d_actor_output_view = view(device, d_actor_output_full, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);
-//        copy(device, device, d_actor_output_view, d_actor_output);
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output, actor_buffers);
-//        free(device, d_actor_output_full);
-
         step(device, optimizer, actor_critic.actor);
     }
 
