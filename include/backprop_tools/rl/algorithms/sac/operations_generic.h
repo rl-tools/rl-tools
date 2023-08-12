@@ -38,6 +38,9 @@ namespace backprop_tools{
         malloc(device, actor_training_buffers.d_output);
         malloc(device, actor_training_buffers.d_critic_1_input);
         malloc(device, actor_training_buffers.d_critic_2_input);
+        malloc(device, actor_training_buffers.d_critic_action_input);
+        malloc(device, actor_training_buffers.action_sample);
+        malloc(device, actor_training_buffers.action_noise);
         malloc(device, actor_training_buffers.d_actor_output);
         malloc(device, actor_training_buffers.d_actor_input);
     }
@@ -48,8 +51,11 @@ namespace backprop_tools{
         actor_training_buffers.actions._data      = nullptr;
 //        free(device, actor_training_buffers.state_action_value);
         free(device, actor_training_buffers.d_output);
-        malloc(device, actor_training_buffers.d_critic_1_input);
-        malloc(device, actor_training_buffers.d_critic_2_input);
+        free(device, actor_training_buffers.d_critic_1_input);
+        free(device, actor_training_buffers.d_critic_2_input);
+        free(device, actor_training_buffers.d_critic_action_input);
+        free(device, actor_training_buffers.action_sample);
+        free(device, actor_training_buffers.action_noise);
         free(device, actor_training_buffers.d_actor_output);
         free(device, actor_training_buffers.d_actor_input);
     }
@@ -191,8 +197,13 @@ namespace backprop_tools{
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                 T std = math::exp(typename DEVICE::SPEC::MATH{}, get(actions_full, batch_i, action_i + ACTION_DIM));
-                T action_sample = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, get(actions_full, batch_i, action_i), std, rng);
-                set(training_buffers.actions, batch_i, action_i, action_sample);
+                // action_sample = noise * std + mean
+                T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, (T)1, rng);
+                set(training_buffers.action_noise, batch_i, action_i, noise);
+                T action_sample = get(actions_full, batch_i, action_i) + std * noise;
+                set(training_buffers.action_sample, batch_i, action_i, action_sample);
+                T action = math::tanh(typename DEVICE::SPEC::MATH{}, action_sample);
+                set(training_buffers.actions, batch_i, action_i, action);
             }
         }
         copy(device, device, training_buffers.observations, batch.observations_privileged);
@@ -203,21 +214,59 @@ namespace backprop_tools{
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers);
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-            if(get(output(actor_critic.critic_1), batch_i, 0) > get(output(actor_critic.critic_2), batch_i, 0)){
-                set(training_buffers.d_critic_1_input, batch_i, 0, get(training_buffers.d_critic_2_input, batch_i, 0));
+            bool critic_1_value = get(output(actor_critic.critic_1), batch_i, 0) < get(output(actor_critic.critic_2), batch_i, 0);
+            for(TI action_i = 0; action_i < ACTION_DIM; action_i++) {
+                T d_mu = 0;
+                T d_std = 0;
+                {
+                    T d_input = 0;
+                    if(critic_1_value) {
+                        d_input = get(training_buffers.d_critic_1_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
+                    }
+                    else{
+                        d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
+                    }
+                    T action = get(training_buffers.actions, batch_i, action_i);
+                    d_mu  = d_input * (1-action*action);
+                    d_std = d_input * (1-action*action) * get(training_buffers.action_noise, batch_i, action_i);
+                }
+                T std = math::exp(typename DEVICE::SPEC::MATH{}, get(actions_full, batch_i, action_i + ACTION_DIM));
+                T d_log_std = std * d_std;
+                set(training_buffers.d_actor_output, batch_i, action_i, d_mu);
+                set(training_buffers.d_actor_output, batch_i, action_i + ACTION_DIM, d_log_std);
             }
         }
-        auto d_actor_output = view(device, training_buffers.d_critic_1_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM);
+/*
+        mu, std = policy(observation)
+        action_sample = gaussian::sample(mu, std)
+        action = tanh(action_sample)
+        action_prob = gaussian::prob(mu, std, action_sample) * | d/d_action tanh^{-1}(action) |
+                    = gaussian::prob(mu, std, action_sample) * | (d/d_action_sample tanh(action_sample))^{-1} |
+                    = gaussian::prob(mu, std, action_sample) * | (d/d_action_sample tanh(action_sample))|^{-1}
+                    = gaussian::prob(mu, std, action_sample) * ((1-tanh(action_sample)^2))^{-1}
+        action_log_prob = gaussian::log_prob(mu, std, action_sample) - log(1-tanh(action_sample)^2))
+        actor_loss = alpha  * action_log_prob - min(Q_1, Q_2);
+        d/d_mu _actor_loss = alpha * d/d_mu action_log_prob - d/d_mu min(Q_1, Q_2)
+        d/d_mu action_log_prob = d/d_mu gaussian::log_prob(mu, std, action_sample) * d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample
+        d/d_mu gaussian::log_prob(mu, std, action_sample) = d/d_mu gaussian:log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample
+        d/d_mu action_sample = 1
+        d/d_std action_sample = noise
+        d/d_mu min(Q_1, Q_2) = d/d_action min(Q_1, Q_2) * d/d_mu action
+        d/d_mu action = d/d_action_sample tanh(action_sample) * d/d_mu action_sample
+*/
+
+
+//        auto d_actor_output = view(device, training_buffers.d_critic_1_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM);
 
         // todo backpropagate thorugh the reparam trick
 
-        MatrixDynamic<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM*2>> d_actor_output_full;
-        malloc(device, d_actor_output_full);
-        auto d_actor_output_view = view(device, d_actor_output_full, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);
-        set_all(device, d_actor_output_full, (T)0);
-        copy(device, device, d_actor_output_view, d_actor_output);
-        backward(device, actor_critic.actor, batch.observations, d_actor_output_full, actor_buffers);
-        free(device, d_actor_output_full);
+//        MatrixDynamic<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM*2>> d_actor_output_full;
+//        malloc(device, d_actor_output_full);
+//        set_all(device, d_actor_output_full, (T)0);
+//        auto d_actor_output_view = view(device, d_actor_output_full, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);
+//        copy(device, device, d_actor_output_view, d_actor_output);
+        backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output, actor_buffers);
+//        free(device, d_actor_output_full);
 
         step(device, optimizer, actor_critic.actor);
     }

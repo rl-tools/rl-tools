@@ -118,7 +118,7 @@ namespace backprop_tools::rl::algorithms::sac{
         }
         if constexpr(TRAINING_CONFIG::DETERMINISTIC_EVALUATION == true){
             if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
-                auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+                auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, rl::utils::evaluation::Specification<10, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
                 std::cout << "Step: " << ts.step << " Mean return: " << result.returns_mean << std::endl;
                 ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
             }
