@@ -25,6 +25,15 @@
             "cwd": "${workspaceFolder}/examples/docker/00_basic_mnist",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "src.rl.environments.acrobot.generate_test_data",
+            "type": "python",
+            "request": "launch",
+            "program": "src/rl/environments/acrobot/generate_test_data.py",
+            // "cwd": "",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
