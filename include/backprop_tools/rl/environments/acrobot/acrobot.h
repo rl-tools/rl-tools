@@ -49,6 +49,8 @@ namespace backprop_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = 1;
     };
+    template <typename T_SPEC>
+    struct AcrobotSwingup: Acrobot<T_SPEC>{};
 }
 
 

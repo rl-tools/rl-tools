@@ -21,9 +21,10 @@ namespace training_config {
         using TI = typename DEVICE::index_t;
 
         using ENV_SPEC = bpt::rl::environments::acrobot::Specification<T, TI>;
-        using ENVIRONMENT = bpt::rl::environments::Acrobot<ENV_SPEC>;
+        using ENVIRONMENT = bpt::rl::environments::AcrobotSwingup<ENV_SPEC>;
 #if BACKPROP_TOOLS_ENABLE_GTK
-        using UI = bpt::rl::environments::acrobot::UI<bpt::rl::environments::acrobot::ui::Specification<T, TI, ENVIRONMENT, 1000, 1600, true>>;
+//        using UI = bpt::rl::environments::acrobot::UI<bpt::rl::environments::acrobot::ui::Specification<T, TI, ENVIRONMENT, 300, 1600, true>>;
+        using UI = bool;
 #else
         using UI = bool;
 #endif
@@ -32,16 +33,16 @@ namespace training_config {
             using LOGGING = bpt::devices::logging::CPU;
         };
         struct TD3PendulumParameters: bpt::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
-            constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
-            constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
-            constexpr static T GAMMA = 0.997;
+            constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
+            constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
+            constexpr static T GAMMA = 0.98;
         };
 
         using TD3_PARAMETERS = TD3PendulumParameters;
 
         template <typename PARAMETER_TYPE>
         struct ACTOR{
-            static constexpr TI HIDDEN_DIM = 64;
+            static constexpr TI HIDDEN_DIM = 256;
             static constexpr TI BATCH_SIZE = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
             using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
@@ -55,7 +56,7 @@ namespace training_config {
 
         template <typename PARAMETER_TYPE>
         struct CRITIC{
-            static constexpr TI HIDDEN_DIM = 64;
+            static constexpr TI HIDDEN_DIM = 256;
             static constexpr TI BATCH_SIZE = TD3_PARAMETERS::CRITIC_BATCH_SIZE;
 
             using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
@@ -91,9 +92,9 @@ namespace training_config {
         static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
 #endif
         static constexpr bool DETERMINISTIC_EVALUATION = true;
-        static constexpr DEVICE::index_t EVALUATION_INTERVAL = 20000;
+        static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
         static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 1000000;
-        static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 500;
+        static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 100;
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
         using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<

@@ -27,6 +27,14 @@ namespace backprop_tools{
         state.theta_0_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
         state.theta_1_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
     }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, typename rl::environments::AcrobotSwingup<SPEC>::State& state, RNG& rng){
+        using T = typename SPEC::T;
+        state.theta_0     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
+        state.theta_1     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
+        state.theta_0_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_1, SPEC::PARAMETERS::MAX_VEL_1, rng);
+        state.theta_1_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_2, SPEC::PARAMETERS::MAX_VEL_2, rng);
+    }
     template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state){
         state.theta_0     = 0;
@@ -128,6 +136,10 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Acrobot<SPEC>::State& next_state, RNG& rng){
         return -1;
     }
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Acrobot<SPEC>::State& next_state, RNG& rng){
+        return (-cos(state.theta_0) * SPEC::PARAMETERS::LINK_LENGTH_1 - cos(state.theta_1 + state.theta_0) * SPEC::PARAMETERS::LINK_LENGTH_2) * 0.01;
+    }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
@@ -160,6 +172,10 @@ namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State state, RNG& rng){
         return (-cos(state.theta_0) - cos(state.theta_1 + state.theta_0)) > 1.0;
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State state, RNG& rng){
+        return math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_1 || math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_2;
     }
 }
 #endif
