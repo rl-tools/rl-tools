@@ -132,16 +132,19 @@ namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 3);
+        static_assert(OBS_SPEC::COLS == 6);
         typedef typename SPEC::T T;
-        set(observation, 0, 0, math::cos(typename DEVICE::SPEC::MATH(), state.theta));
-        set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta));
-        set(observation, 0, 2, state.theta_dot);
+        set(observation, 0, 0, math::cos(typename DEVICE::SPEC::MATH(), state.theta_0));
+        set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta_0));
+        set(observation, 0, 2, math::cos(typename DEVICE::SPEC::MATH(), state.theta_1));
+        set(observation, 0, 3, math::sin(typename DEVICE::SPEC::MATH(), state.theta_1));
+        set(observation, 0, 4, state.theta_0_dot);
+        set(observation, 0, 5, state.theta_1_dot);
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 3);
+        static_assert(OBS_SPEC::COLS == 6);
         observe(device, env, state, observation, rng);
     }
     // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI

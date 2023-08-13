@@ -30,8 +30,7 @@
             "name": "src.rl.environments.acrobot.generate_test_data",
             "type": "python",
             "request": "launch",
-            "program": "src/rl/environments/acrobot/generate_test_data.py",
-            // "cwd": "",
+            "program": "tests/src/rl/environments/acrobot/generate_test_data.py",
             "console": "integratedTerminal",
             "justMyCode": false
         }

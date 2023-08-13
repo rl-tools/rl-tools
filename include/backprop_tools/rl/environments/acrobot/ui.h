@@ -9,7 +9,7 @@
 
 namespace backprop_tools::rl::environments::acrobot{
     namespace ui{
-        template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED>
+        template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED, bool T_BLOCK = true>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
@@ -18,6 +18,7 @@ namespace backprop_tools::rl::environments::acrobot{
             static constexpr T PLAYBACK_SPEED = T_PLAYBACK_SPEED/100.0;
             static constexpr T ACTION_INDICATOR_SIZE = SIZE * 1.0/10.0;
             static constexpr T UI_SCALE = 500;
+            static constexpr bool BLOCK = T_BLOCK;
         };
     }
 
@@ -94,7 +95,7 @@ namespace backprop_tools{
         auto now = std::chrono::high_resolution_clock::now();
         auto interval = (typename DEVICE::index_t)(1000.0 * ENV_SPEC::PARAMETERS::DT / SPEC::PLAYBACK_SPEED);
         auto next_render_time = ui.last_render_time + std::chrono::milliseconds(interval);
-        if(now < next_render_time){
+        if(SPEC::BLOCK && now < next_render_time){
             auto diff = next_render_time - now;
             std::this_thread::sleep_for(diff);
         }

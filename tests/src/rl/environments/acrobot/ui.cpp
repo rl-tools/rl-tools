@@ -19,18 +19,21 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, UI) {
     DEVICE device;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     ENVIRONMENT env;
-    ENVIRONMENT::State state;
+    ENVIRONMENT::State state, next_state;
     UI ui;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 1>> action;
+    bpt::malloc(device, action);
 
     bpt::init(device, env, ui);
 
-    bpt::sample_initial_state(device, env, state, rng);
-
-    while(true){
-        state.theta_0 += 0.1;
-        state.theta_1 += 0.1;
-        bpt::set_state(device, env, ui, state);
-        bpt::render(device, env, ui);
+    for(TI episode_i = 0; episode_i < 10; episode_i++){
+        bpt::sample_initial_state(device, env, state, rng);
+        for(TI step_i = 0; step_i < 10; step_i++){
+            bpt::step(device, env, state, action, next_state, rng);
+            state = next_state;
+            bpt::set_state(device, env, ui, state);
+            bpt::render(device, env, ui);
+        }
     }
 
 }
