@@ -5,6 +5,11 @@
 #include <backprop_tools/nn_models/sequential/operations_generic.h>
 
 #include <backprop_tools/rl/algorithms/sac/loop.h>
+#ifdef BACKPROP_TOOLS_ENABLE_HDF5
+#include <highfive/H5DataSet.hpp>
+#include <highfive/H5DataSpace.hpp>
+#include <highfive/H5File.hpp>
+#endif
 
 namespace training_config{
     using namespace backprop_tools::nn_models::sequential::interface;
@@ -22,10 +27,9 @@ namespace training_config{
         struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
             using LOGGING = bpt::devices::logging::CPU;
         };
-        struct SACPendulumParameters: bpt::rl::algorithms::sac::DefaultParameters<T, DEVICE::index_t>{
-            static constexpr T ALPHA = 0.5;
-            constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
-            constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
+        struct SACPendulumParameters: bpt::rl::algorithms::sac::DefaultParameters<T, DEVICE::index_t, ENVIRONMENT::ACTION_DIM>{
+            constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
+            constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
         };
 
         using SAC_PARAMETERS = SACPendulumParameters;
@@ -61,8 +65,12 @@ namespace training_config{
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
         };
 
-        using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<T, typename DEVICE::index_t>;
+        struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParametersTorch<T, typename DEVICE::index_t>{
+            static constexpr T ALPHA = 3e-4;
+        };
+
         using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+        using ALPHA_OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 
         using ACTOR_TYPE = ACTOR<bpt::nn::parameters::Adam>::MODEL;
         using ACTOR_TARGET_TYPE = ACTOR<bpt::nn::parameters::Adam, bpt::nn::layers::dense::Layer>::MODEL;
@@ -71,13 +79,14 @@ namespace training_config{
 
         using ALPHA_PARAMETER_TYPE = bpt::nn::parameters::Adam;
 
-        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::sac::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, OPTIMIZER, SAC_PARAMETERS>;
+        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::sac::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, OPTIMIZER, OPTIMIZER, ALPHA_OPTIMIZER, SAC_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-        static constexpr DEVICE::index_t STEP_LIMIT = 50000; //2 * N_WARMUP_STEPS;
+        static constexpr DEVICE::index_t STEP_LIMIT = 20000; //2 * N_WARMUP_STEPS;
         static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
+        static constexpr TI NUM_EVALUATION_EPISODES = 10;
         static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
         static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
         static constexpr bool COLLECT_EPISODE_STATS = true;
@@ -101,12 +110,39 @@ namespace training_config{
 using TrainingConfig = training_config::TrainingConfig;
 
 int main(){
+    using T = typename TrainingConfig::T;
     using TI = typename TrainingConfig::TI;
-    backprop_tools::rl::algorithms::sac::TrainingState<TrainingConfig> ts;
-    training_init(ts, 5);
-    ts.off_policy_runner.parameters.exploration_noise = 0;
-    for(TI step_i=0; step_i < TrainingConfig::STEP_LIMIT; step_i++){
-        training_step(ts);
+    using DEVICE = typename TrainingConfig::DEVICE;
+    TI NUM_RUNS = 20;
+#ifdef BACKPROP_TOOLS_ENABLE_HDF5
+    std::string DATA_FILE_PATH = "rl_environments_pendulum_sac_learning_curves.h5";
+    auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
+#endif
+
+    for(TI run_i = 0; run_i < NUM_RUNS; run_i++){
+        std::cout << "Run: " << run_i << std::endl;
+        backprop_tools::rl::algorithms::sac::TrainingState<TrainingConfig> ts;
+        TI seed = run_i;
+        training_init(ts, seed);
+        ts.off_policy_runner.parameters.exploration_noise = 0;
+#ifdef BACKPROP_TOOLS_ENABLE_HDF5
+        auto run_group = data_file.createGroup(std::to_string(run_i));
+#endif
+        for(TI step_i=0; step_i < TrainingConfig::STEP_LIMIT; step_i++){
+            training_step(ts);
+//            if(step_i % 1000 == 0){
+////                std::cout << "alpha: " << bpt::math::exp(DEVICE::SPEC::MATH{}, bpt::get(ts.actor_critic.log_alpha.parameters, 0, 0)) << std::endl;
+//            }
+        }
+        std::vector<size_t> dims{decltype(ts)::N_EVALUATIONS};
+        std::vector<T> mean_returns;
+        for(TI i=0; i < decltype(ts)::N_EVALUATIONS; i++){
+            mean_returns.push_back(ts.evaluation_results[i].returns_mean);
+        }
+
+        run_group.createDataSet("episode_returns", mean_returns);
+
+        training_destroy(ts);
     }
     return 0;
 }

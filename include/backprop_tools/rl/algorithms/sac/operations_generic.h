@@ -83,7 +83,7 @@ namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& critic_training_buffers){
         free(device, critic_training_buffers.next_state_action_value_input_full);
-        critic_training_buffers.next_state_action_value_input = nullptr;
+        critic_training_buffers.next_state_action_value_input._data = nullptr;
         critic_training_buffers.next_observations._data = nullptr;
         critic_training_buffers.next_actions_distribution._data = nullptr;
         critic_training_buffers.next_actions_mean._data = nullptr;
@@ -110,7 +110,7 @@ namespace backprop_tools{
         reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
         reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critic_2);
         reset_optimizer_state(device, actor_critic.alpha_optimizer, actor_critic.log_alpha);
-        set(actor_critic.log_alpha.parameters, 0, 0, 0);
+        set(actor_critic.log_alpha.parameters, 0, 0, math::log(typename DEVICE::SPEC::MATH{}, SPEC::PARAMETERS::ALPHA));
 
 
         copy(device, device, actor_critic.critic_target_1, actor_critic.critic_1);
@@ -241,8 +241,13 @@ namespace backprop_tools{
         d/d_mu min(Q_1, Q_2) = d/d_action min(Q_1, Q_2) * d/d_mu action
         d/d_mu action = d/d_action_sample tanh(action_sample) * d/d_mu action_sample
 */
+        T d_alpha = 0;
+        T log_alpha = get(actor_critic.log_alpha.parameters, 0, 0);
+        T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
+        T mean_entropy = 0;
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
             bool critic_1_value = get(output(actor_critic.critic_1), batch_i, 0) < get(output(actor_critic.critic_2), batch_i, 0);
+            T entropy = 0;
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++) {
                 T action = get(training_buffers.actions, batch_i, action_i);
                 T d_mu = 0;
@@ -266,21 +271,33 @@ namespace backprop_tools{
                 T mu = get(actions_full, batch_i, action_i);
                 T action_sample = get(training_buffers.action_sample, batch_i, action_i);
                 T eps = 1e-6;
-                T log_alpha = get(actor_critic.log_alpha.parameters, 0, 0);
-                T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
-                d_mu += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_mean<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + 1/(1-action*action + eps) * 2*action);
+                T one_minus_action_square_plus_eps = (1-action*action + eps);
+                T one_over_one_minus_action_square_plus_eps = 1/one_minus_action_square_plus_eps;
+                d_mu += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_mean<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + one_over_one_minus_action_square_plus_eps * 2*action);
 
                 T noise = get(training_buffers.action_noise, batch_i, action_i);
-                d_log_std += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_log_std<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) * noise * std + 1/(1-action*action + eps) * 2*action * noise * std);
+                d_log_std += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_log_std<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) * noise * std + one_over_one_minus_action_square_plus_eps * 2*action * noise * std);
 
                 set(training_buffers.d_actor_output, batch_i, action_i, d_mu);
                 set(training_buffers.d_actor_output, batch_i, action_i + ACTION_DIM, d_log_std);
 
-
+                T action_log_prob = random::normal_distribution::log_prob<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
+                entropy += -action_log_prob;
             }
+            d_alpha += entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
+            mean_entropy += entropy;
         }
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output, actor_buffers);
         step(device, optimizer, actor_critic.actor);
+        // adapting alpha
+        if constexpr(SPEC::PARAMETERS::ADAPTIVE_ALPHA){
+            d_alpha /= BATCH_SIZE;
+            mean_entropy /= BATCH_SIZE;
+//            T d_log_alpha = 1/alpha * d_alpha; // This and the former optimize the same objective but the latter seems to work better
+            T d_log_alpha = d_alpha;
+            set(actor_critic.log_alpha.gradient, 0, 0, d_log_alpha);
+            step(device, actor_critic.alpha_optimizer, actor_critic.log_alpha);
+        }
     }
 
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>

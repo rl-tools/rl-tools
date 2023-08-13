@@ -21,7 +21,8 @@ namespace backprop_tools::rl::algorithms::sac {
         static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
         static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
         static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
-        static constexpr T TARGET_ENTROPY = -ACTION_DIM;
+        static constexpr T TARGET_ENTROPY = -((T)ACTION_DIM);
+        static constexpr bool ADAPTIVE_ALPHA = true;
     };
 
     template<
@@ -33,7 +34,9 @@ namespace backprop_tools::rl::algorithms::sac {
         typename T_CRITIC_NETWORK_TYPE,
         typename T_CRITIC_TARGET_NETWORK_TYPE,
         typename T_ALPHA_PARAMETER_TYPE,
-        typename T_OPTIMIZER,
+        typename T_ACTOR_OPTIMIZER,
+        typename T_CRITIC_OPTIMIZER,
+        typename T_ALPHA_OPTIMIZER,
         typename T_PARAMETERS,
         typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag
     >
@@ -46,7 +49,9 @@ namespace backprop_tools::rl::algorithms::sac {
         using CRITIC_NETWORK_TYPE = T_CRITIC_NETWORK_TYPE;
         using CRITIC_TARGET_NETWORK_TYPE = T_CRITIC_TARGET_NETWORK_TYPE;
         using ALPHA_PARAMETER_TYPE = T_ALPHA_PARAMETER_TYPE;
-        using OPTIMIZER = T_OPTIMIZER;
+        using ACTOR_OPTIMIZER = T_ACTOR_OPTIMIZER;
+        using CRITIC_OPTIMIZER = T_CRITIC_OPTIMIZER;
+        using ALPHA_OPTIMIZER = T_ALPHA_OPTIMIZER;
         using PARAMETERS = T_PARAMETERS;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
@@ -126,9 +131,9 @@ namespace backprop_tools::rl::algorithms::sac {
         typename SPEC::ALPHA_PARAMETER_TYPE::template instance<ALPHA_CONTAINER> log_alpha;
 
 
-        typename SPEC::OPTIMIZER actor_optimizer;
-        typename SPEC::OPTIMIZER critic_optimizers[2];
-        typename SPEC::OPTIMIZER alpha_optimizer;
+        typename SPEC::ACTOR_OPTIMIZER actor_optimizer;
+        typename SPEC::CRITIC_OPTIMIZER critic_optimizers[2];
+        typename SPEC::ALPHA_OPTIMIZER alpha_optimizer;
 //        ActorCritic(): actor_view(actor){};
     };
 }

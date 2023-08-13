@@ -10,49 +10,50 @@
 
 
 namespace backprop_tools::rl::algorithms::sac{
-    template <typename T_TRAINING_CONFIG>
+    template <typename T_SPEC>
     struct CoreTrainingState{
-        using TRAINING_CONFIG = T_TRAINING_CONFIG;
-        using DEVICE = typename TRAINING_CONFIG::DEVICE;
+        using SPEC = T_SPEC;
+        using DEVICE = typename SPEC::DEVICE;
         using TI = typename DEVICE::index_t;
         typename DEVICE::SPEC::LOGGING logger;
         DEVICE device;
-        typename TRAINING_CONFIG::OPTIMIZER actor_optimizer, critic_optimizers[2];
+        typename SPEC::OPTIMIZER actor_optimizer, critic_optimizers[2];
         decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng;
-        typename TRAINING_CONFIG::UI ui;
-        rl::components::OffPolicyRunner<typename TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
-        typename TRAINING_CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
-        typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE actor_critic;
-        typename TRAINING_CONFIG::ACTOR_TYPE::template DoubleBuffer<1> actor_deterministic_evaluation_buffers;
-        rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
-        rl::algorithms::sac::CriticTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_SPEC> critic_training_buffers;
-        MatrixDynamic<matrix::Specification<typename TRAINING_CONFIG::T, TI, 1, TRAINING_CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
-        typename TRAINING_CONFIG::CRITIC_TYPE::template DoubleBuffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
-        rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
-        rl::algorithms::sac::ActorTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
-        typename TRAINING_CONFIG::ACTOR_TYPE::template DoubleBuffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-        typename TRAINING_CONFIG::ACTOR_TYPE::template DoubleBuffer<TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+        typename SPEC::UI ui;
+        rl::components::OffPolicyRunner<typename SPEC::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
+        typename SPEC::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
+        typename SPEC::ACTOR_CRITIC_TYPE actor_critic;
+        typename SPEC::ACTOR_TYPE::template DoubleBuffer<1> actor_deterministic_evaluation_buffers;
+        rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, SPEC::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
+        rl::algorithms::sac::CriticTrainingBuffers<typename SPEC::ACTOR_CRITIC_SPEC> critic_training_buffers;
+        MatrixDynamic<matrix::Specification<typename SPEC::T, TI, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
+        typename SPEC::CRITIC_TYPE::template DoubleBuffer<SPEC::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+        rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, SPEC::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
+        rl::algorithms::sac::ActorTrainingBuffers<typename SPEC::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
+        typename SPEC::ACTOR_TYPE::template DoubleBuffer<SPEC::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+        typename SPEC::ACTOR_TYPE::template DoubleBuffer<SPEC::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
     };
 
-    template <typename TRAINING_CONFIG>
-    struct TrainingState: CoreTrainingState<TRAINING_CONFIG>{
-        using T = typename TRAINING_CONFIG::T;
-        using TI = typename TRAINING_CONFIG::DEVICE::index_t;
+    template <typename T_SPEC>
+    struct TrainingState: CoreTrainingState<T_SPEC>{
+        using SPEC = T_SPEC;
+        using T = typename T_SPEC::T;
+        using TI = typename T_SPEC::DEVICE::index_t;
         TI step = 0;
-        static constexpr TI N_EVALUATIONS = TRAINING_CONFIG::STEP_LIMIT / TRAINING_CONFIG::EVALUATION_INTERVAL;
+        static constexpr TI N_EVALUATIONS = T_SPEC::STEP_LIMIT / T_SPEC::EVALUATION_INTERVAL;
         static_assert(N_EVALUATIONS > 0 && N_EVALUATIONS < 1000000);
-        T evaluation_returns[N_EVALUATIONS];
+        rl::utils::evaluation::Result<T, TI, T_SPEC::NUM_EVALUATION_EPISODES> evaluation_results[N_EVALUATIONS];
     };
 
 
     template <typename TRAINING_STATE>
-    void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::TRAINING_CONFIG::DEVICE::index_t seed){
-        using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
-        using T = typename TRAINING_CONFIG::T;
+    void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::SPEC::DEVICE::index_t seed){
+        using SPEC = typename TRAINING_STATE::SPEC;
+        using T = typename SPEC::T;
 
         ts.device.logger = &ts.logger;
 
-        ts.rng = random::default_engine(typename TRAINING_CONFIG::DEVICE::SPEC::RANDOM(), seed);
+        ts.rng = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
 
         malloc(ts.device, ts.actor_critic);
         init(ts.device, ts.actor_critic, ts.rng);
@@ -101,9 +102,9 @@ namespace backprop_tools::rl::algorithms::sac{
     template <typename TRAINING_STATE>
     bool training_step(TRAINING_STATE& ts){
         bool finished = false;
-        using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
+        using SPEC = typename TRAINING_STATE::SPEC;
         step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-        if(ts.step > TRAINING_CONFIG::N_WARMUP_STEPS){
+        if(ts.step > SPEC::N_WARMUP_STEPS){
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers, ts.rng);
@@ -116,15 +117,15 @@ namespace backprop_tools::rl::algorithms::sac{
                 update_critic_targets(ts.device, ts.actor_critic);
             }
         }
-        if constexpr(TRAINING_CONFIG::DETERMINISTIC_EVALUATION == true){
-            if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
-                auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, rl::utils::evaluation::Specification<10, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+        if constexpr(SPEC::DETERMINISTIC_EVALUATION == true){
+            if(ts.step % SPEC::EVALUATION_INTERVAL == 0){
+                auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, rl::utils::evaluation::Specification<TRAINING_STATE::SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
                 std::cout << "Step: " << ts.step << " Mean return: " << result.returns_mean << std::endl;
-                ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
+                ts.evaluation_results[ts.step / SPEC::EVALUATION_INTERVAL] = result;
             }
         }
         ts.step++;
-        if(ts.step > TRAINING_CONFIG::STEP_LIMIT){
+        if(ts.step > SPEC::STEP_LIMIT){
             return true;
         }
         else{
