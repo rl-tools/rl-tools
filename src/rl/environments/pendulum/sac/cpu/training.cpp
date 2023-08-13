@@ -28,8 +28,8 @@ namespace training_config{
             using LOGGING = bpt::devices::logging::CPU;
         };
         struct SACPendulumParameters: bpt::rl::algorithms::sac::DefaultParameters<T, DEVICE::index_t, ENVIRONMENT::ACTION_DIM>{
-            constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
-            constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
+            constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
+            constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
         };
 
         using SAC_PARAMETERS = SACPendulumParameters;
@@ -120,6 +120,7 @@ int main(){
 #endif
 
     for(TI run_i = 0; run_i < NUM_RUNS; run_i++){
+        auto start = std::chrono::high_resolution_clock::now();
         std::cout << "Run: " << run_i << std::endl;
         backprop_tools::rl::algorithms::sac::TrainingState<TrainingConfig> ts;
         TI seed = run_i;
@@ -143,6 +144,8 @@ int main(){
         run_group.createDataSet("episode_returns", mean_returns);
 
         training_destroy(ts);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::cout << "Run time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0 << "s" << std::endl;
     }
     return 0;
 }
