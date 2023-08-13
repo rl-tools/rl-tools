@@ -123,47 +123,40 @@ namespace backprop_tools{
         next_state.theta_1_dot = next_state_flat[3];
 
         return SPEC::PARAMETERS::dt;
-}
-template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Acrobot<SPEC>::State& next_state, RNG& rng){
-    using namespace rl::environments::acrobot;
-    typedef typename SPEC::T T;
-    T angle_norm = angle_normalize(typename DEVICE::SPEC::MATH(), state.theta);
-    T u_normalised = get(action, 0, 0);
-    T u = SPEC::PARAMETERS::max_torque * u_normalised;
-    T costs = angle_norm * angle_norm + 0.1 * state.theta_dot * state.theta_dot + 0.001 * (u * u);
-    return -costs;
-}
+    }
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Acrobot<SPEC>::State& next_state, RNG& rng){
+        return -1;
+    }
 
-template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-    static_assert(OBS_SPEC::ROWS == 1);
-    static_assert(OBS_SPEC::COLS == 3);
-    typedef typename SPEC::T T;
-    set(observation, 0, 0, math::cos(typename DEVICE::SPEC::MATH(), state.theta));
-    set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta));
-    set(observation, 0, 2, state.theta_dot);
-}
-template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-    static_assert(OBS_SPEC::ROWS == 1);
-    static_assert(OBS_SPEC::COLS == 3);
-    observe(device, env, state, observation, rng);
-}
-// get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
-template<typename DEVICE, typename SPEC>
-BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T get_serialized_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, typename DEVICE::index_t index){
-if(index == 0) {
-return state.theta;
-}
-else{
-return state.theta_dot;
-}
-}
-template<typename DEVICE, typename SPEC, typename RNG>
-BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State state, RNG& rng){
-    using T = typename SPEC::T;
-    return false; //random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, (T)1, rng) > 0.9;
-}
+    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == 3);
+        typedef typename SPEC::T T;
+        set(observation, 0, 0, math::cos(typename DEVICE::SPEC::MATH(), state.theta));
+        set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta));
+        set(observation, 0, 2, state.theta_dot);
+    }
+    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+        static_assert(OBS_SPEC::ROWS == 1);
+        static_assert(OBS_SPEC::COLS == 3);
+        observe(device, env, state, observation, rng);
+    }
+    // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
+    template<typename DEVICE, typename SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T get_serialized_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, typename DEVICE::index_t index){
+        if(index == 0) {
+            return state.theta;
+        }
+        else{
+            return state.theta_dot;
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State state, RNG& rng){
+        return (-cos(state.theta_0) - cos(state.theta_1 + state.theta_0)) > 1.0;
+    }
 }
 #endif

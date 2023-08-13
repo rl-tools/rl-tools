@@ -1,12 +1,10 @@
-//ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_ACROBOT_H
-//define BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_ACROBOT_H
-
-//include <backprop_tools/math/operations_generic.h>
+#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_ACROBOT_H
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_ACROBOT_H
 
 namespace backprop_tools::rl::environments::acrobot {
     template <typename T>
     struct DefaultParameters {
-        static constexpr T dt = 0.2;
+        static constexpr T DT = 0.2;
         static constexpr T LINK_LENGTH_1 = 1.0;  // [m]
         static constexpr T LINK_LENGTH_2 = 1.0;  // [m]
         static constexpr T LINK_MASS_1 = 1.0;  //: [kg] mass of link 1
@@ -59,4 +57,4 @@ namespace backprop_tools::rl::environments{
 
 
 
-//endif
+#endif

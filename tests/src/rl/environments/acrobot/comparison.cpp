@@ -53,7 +53,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
             bpt::malloc(device, action);
             bpt::assign(device, action, actions[step_i].data());
             bpt::step(device, env, state, action, next_state, rng);
-//            T r = bpt::reward(device, env, state, action, next_state, rng);
+            T r = bpt::reward(device, env, state, action, next_state, rng);
             T abs_diff = 0;
             abs_diff += abs(states[step_i][0] - state.theta_0);
             abs_diff += abs(states[step_i][1] - state.theta_1);
@@ -72,7 +72,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
             EXPECT_NEAR(     states[step_i][1], state.theta_1, STATE_TOLERANCE);
             EXPECT_NEAR(     states[step_i][2], state.theta_0_dot, STATE_TOLERANCE);
             EXPECT_NEAR(     states[step_i][3], state.theta_1_dot, STATE_TOLERANCE);
-//            EXPECT_NEAR(    rewards[step_i]   , r, STATE_TOLERANCE);
+            EXPECT_NEAR(    rewards[step_i]   , r, STATE_TOLERANCE);
             EXPECT_NEAR(next_states[step_i][0], next_state.theta_0, STATE_TOLERANCE);
             EXPECT_NEAR(next_states[step_i][1], next_state.theta_1, STATE_TOLERANCE);
             EXPECT_NEAR(next_states[step_i][2], next_state.theta_0_dot, STATE_TOLERANCE);

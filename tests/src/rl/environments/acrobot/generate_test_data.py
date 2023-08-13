@@ -3,6 +3,7 @@ from gymnasium.envs.classic_control.acrobot import AcrobotEnv, rk4, wrap, bound
 from stable_baselines3 import TD3, PPO
 import numpy as np
 import h5py
+import time
 
 
 env = gym.make('Acrobot-v1')
@@ -39,7 +40,7 @@ class AcrobotContinuousEnv(AcrobotEnv):
         return (self._get_ob(), reward, terminated, False, {})
 
 
-if __name__ == "__main__":
+if False and __name__ == "__main__":
     env = AcrobotContinuousEnv()#render_mode="human")
 
     with h5py.File("tests/data/rl_environments_acrobot_test_data.h5", "w") as f:
@@ -86,3 +87,11 @@ if __name__ == "__main__":
             group.create_dataset("truncated", data=truncateds)
             group.create_dataset("actions", data=actions)
         
+
+if __name__ == "__main__":
+    env = AcrobotEnv(render_mode="human")
+    obs, info = env.reset(seed=0)
+    env.state[0] = 0.3
+    env.state[1] = 0.3
+    env.render()
+    time.sleep(1000)
