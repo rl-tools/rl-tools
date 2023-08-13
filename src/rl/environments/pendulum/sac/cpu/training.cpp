@@ -69,9 +69,10 @@ namespace training_config{
         using CRITIC_TYPE = CRITIC<bpt::nn::parameters::Adam>::MODEL;
         using CRITIC_TARGET_TYPE = CRITIC<bpt::nn::parameters::Adam, bpt::nn::layers::dense::Layer>::MODEL;
 
-        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::sac::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, OPTIMIZER, SAC_PARAMETERS>;
-        using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
+        using ALPHA_PARAMETER_TYPE = bpt::nn::parameters::Adam;
 
+        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::sac::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, OPTIMIZER, SAC_PARAMETERS>;
+        using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr DEVICE::index_t STEP_LIMIT = 50000; //2 * N_WARMUP_STEPS;

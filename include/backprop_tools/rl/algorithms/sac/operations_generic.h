@@ -19,6 +19,7 @@ namespace backprop_tools{
         malloc(device, actor_critic.critic_2);
         malloc(device, actor_critic.critic_target_1);
         malloc(device, actor_critic.critic_target_2);
+        malloc(device, actor_critic.log_alpha);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic){
@@ -27,6 +28,7 @@ namespace backprop_tools{
         free(device, actor_critic.critic_2);
         free(device, actor_critic.critic_target_1);
         free(device, actor_critic.critic_target_2);
+        free(device, actor_critic.log_alpha);
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& actor_training_buffers){
@@ -103,15 +105,19 @@ namespace backprop_tools{
         zero_gradient(device, actor_critic.actor);
         zero_gradient(device, actor_critic.critic_1);
         zero_gradient(device, actor_critic.critic_2);
+        zero_gradient(device, actor_critic.log_alpha);
         reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
         reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
         reset_optimizer_state(device, actor_critic.critic_optimizers[1], actor_critic.critic_2);
+        reset_optimizer_state(device, actor_critic.alpha_optimizer, actor_critic.log_alpha);
+        set(actor_critic.log_alpha.parameters, 0, 0, 0);
+
 
         copy(device, device, actor_critic.critic_target_1, actor_critic.critic_1);
         copy(device, device, actor_critic.critic_target_2, actor_critic.critic_2);
     }
     template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
-    void target_actions(DEVICE& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers) {
+    void target_actions(DEVICE& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, typename SPEC::T alpha) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
@@ -126,7 +132,7 @@ namespace backprop_tools{
             T reward = get(batch.rewards, 0, batch_step_i);
             bool terminated = get(batch.terminated, 0, batch_step_i);
             T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
-            T entropy_bonus = -SPEC::PARAMETERS::ALPHA * get(training_buffers.action_log_probs, batch_step_i, 0);
+            T entropy_bonus = -alpha * get(training_buffers.action_log_probs, batch_step_i, 0);
             T current_target_action_value = reward + future_value + entropy_bonus;
             set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
         }
@@ -158,7 +164,9 @@ namespace backprop_tools{
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
 
-        target_actions(device, batch, training_buffers);
+        T log_alpha = get(actor_critic.log_alpha.parameters, 0, 0);
+        T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
+        target_actions(device, batch, training_buffers, alpha);
         forward(device, critic, batch.observations_and_actions);
         nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output);
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
@@ -175,7 +183,9 @@ namespace backprop_tools{
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
 
-        target_actions(device, batch, training_buffers);
+        T log_alpha = get(actor_critic.log_alpha, 0, 0);
+        T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
+        target_actions(device, batch, training_buffers, alpha);
         evaluate(device, critic, batch.observations_and_actions, training_buffers.action_value, critic_buffers);
         return nn::loss_functions::mse::evaluate(device, training_buffers.action_value, training_buffers.target_action_value);
     }
@@ -256,13 +266,17 @@ namespace backprop_tools{
                 T mu = get(actions_full, batch_i, action_i);
                 T action_sample = get(training_buffers.action_sample, batch_i, action_i);
                 T eps = 1e-6;
-                d_mu += SPEC::PARAMETERS::ALPHA/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_mean<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + 1/(1-action*action + eps) * 2*action);
+                T log_alpha = get(actor_critic.log_alpha.parameters, 0, 0);
+                T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
+                d_mu += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_mean<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + 1/(1-action*action + eps) * 2*action);
 
                 T noise = get(training_buffers.action_noise, batch_i, action_i);
-                d_log_std += SPEC::PARAMETERS::ALPHA/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_log_std<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) * noise * std + 1/(1-action*action + eps) * 2*action * noise * std);
+                d_log_std += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_log_std<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) * noise * std + 1/(1-action*action + eps) * 2*action * noise * std);
 
                 set(training_buffers.d_actor_output, batch_i, action_i, d_mu);
                 set(training_buffers.d_actor_output, batch_i, action_i + ACTION_DIM, d_log_std);
+
+
             }
         }
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output, actor_buffers);

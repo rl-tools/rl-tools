@@ -4,7 +4,7 @@
 
 
 namespace backprop_tools::rl::algorithms::sac {
-    template<typename T, typename TI>
+    template<typename T, typename TI, TI ACTION_DIM=1>
     struct DefaultParameters {
         static constexpr T GAMMA = 0.99;
         static constexpr T ALPHA = 0.5;
@@ -21,6 +21,7 @@ namespace backprop_tools::rl::algorithms::sac {
         static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
         static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
         static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
+        static constexpr T TARGET_ENTROPY = -ACTION_DIM;
     };
 
     template<
@@ -31,6 +32,7 @@ namespace backprop_tools::rl::algorithms::sac {
         typename T_ACTOR_TARGET_NETWORK_TYPE,
         typename T_CRITIC_NETWORK_TYPE,
         typename T_CRITIC_TARGET_NETWORK_TYPE,
+        typename T_ALPHA_PARAMETER_TYPE,
         typename T_OPTIMIZER,
         typename T_PARAMETERS,
         typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag
@@ -43,6 +45,7 @@ namespace backprop_tools::rl::algorithms::sac {
         using ACTOR_TARGET_NETWORK_TYPE = T_ACTOR_TARGET_NETWORK_TYPE;
         using CRITIC_NETWORK_TYPE = T_CRITIC_NETWORK_TYPE;
         using CRITIC_TARGET_NETWORK_TYPE = T_CRITIC_TARGET_NETWORK_TYPE;
+        using ALPHA_PARAMETER_TYPE = T_ALPHA_PARAMETER_TYPE;
         using OPTIMIZER = T_OPTIMIZER;
         using PARAMETERS = T_PARAMETERS;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
@@ -119,9 +122,13 @@ namespace backprop_tools::rl::algorithms::sac {
         typename SPEC::CRITIC_NETWORK_TYPE critic_2;
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_1;
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_2;
+        using ALPHA_CONTAINER = typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, 1>>;
+        typename SPEC::ALPHA_PARAMETER_TYPE::template instance<ALPHA_CONTAINER> log_alpha;
+
 
         typename SPEC::OPTIMIZER actor_optimizer;
         typename SPEC::OPTIMIZER critic_optimizers[2];
+        typename SPEC::OPTIMIZER alpha_optimizer;
 //        ActorCritic(): actor_view(actor){};
     };
 }
