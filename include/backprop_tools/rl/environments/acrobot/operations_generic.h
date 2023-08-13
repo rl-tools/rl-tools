@@ -110,7 +110,7 @@ namespace backprop_tools{
 
         T state_flat[4] = {state.theta_0, state.theta_1, state.theta_0_dot, state.theta_1_dot};
         T next_state_flat[4];
-        rl::environments::acrobot::rk4(state_flat, get(action, 0, 0), next_state_flat, PARAMS::dt, PARAMS{});
+        rl::environments::acrobot::rk4(state_flat, get(action, 0, 0), next_state_flat, PARAMS::DT, PARAMS{});
 
         next_state_flat[0] = angle_normalize(typename DEVICE::SPEC::MATH(), next_state_flat[0]);
         next_state_flat[1] = angle_normalize(typename DEVICE::SPEC::MATH(), next_state_flat[1]);
@@ -122,7 +122,7 @@ namespace backprop_tools{
         next_state.theta_0_dot = next_state_flat[2];
         next_state.theta_1_dot = next_state_flat[3];
 
-        return SPEC::PARAMETERS::dt;
+        return SPEC::PARAMETERS::DT;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Acrobot<SPEC>::State& next_state, RNG& rng){

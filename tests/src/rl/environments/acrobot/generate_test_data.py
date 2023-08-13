@@ -40,7 +40,7 @@ class AcrobotContinuousEnv(AcrobotEnv):
         return (self._get_ob(), reward, terminated, False, {})
 
 
-if False and __name__ == "__main__":
+if __name__ == "__main__":
     env = AcrobotContinuousEnv()#render_mode="human")
 
     with h5py.File("tests/data/rl_environments_acrobot_test_data.h5", "w") as f:
@@ -88,10 +88,10 @@ if False and __name__ == "__main__":
             group.create_dataset("actions", data=actions)
         
 
-if __name__ == "__main__":
-    env = AcrobotEnv(render_mode="human")
-    obs, info = env.reset(seed=0)
-    env.state[0] = 0.3
-    env.state[1] = 0.3
-    env.render()
-    time.sleep(1000)
+# if __name__ == "__main__":
+#     env = AcrobotEnv(render_mode="human")
+#     obs, info = env.reset(seed=0)
+#     env.state[0] = 0.3
+#     env.state[1] = 0.3
+#     env.render()
+#     time.sleep(1000)
