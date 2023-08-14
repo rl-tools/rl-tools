@@ -6,18 +6,18 @@
 namespace backprop_tools::rl::environments::acrobot {
     template <typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T clip(T x, T min, T max){
-    x = x < min ? min : (x > max ? max : x);
-    return x;
-}
-template <typename DEVICE, typename T>
-BACKPROP_TOOLS_FUNCTION_PLACEMENT T f_mod_python(const DEVICE& dev, T a, T b){
-    return a - b * math::floor(dev, a / b);
-}
+        x = x < min ? min : (x > max ? max : x);
+        return x;
+    }
+    template <typename DEVICE, typename T>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT T f_mod_python(const DEVICE& dev, T a, T b){
+        return a - b * math::floor(dev, a / b);
+    }
 
-template <typename DEVICE, typename T>
-BACKPROP_TOOLS_FUNCTION_PLACEMENT T angle_normalize(const DEVICE& dev, T x){
-    return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
-}
+    template <typename DEVICE, typename T>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT T angle_normalize(const DEVICE& dev, T x){
+        return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
+    }
 }
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
@@ -30,10 +30,14 @@ namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, typename rl::environments::AcrobotSwingup<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
-        state.theta_0     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
-        state.theta_1     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
-        state.theta_0_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_1, SPEC::PARAMETERS::MAX_VEL_1, rng);
-        state.theta_1_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_2, SPEC::PARAMETERS::MAX_VEL_2, rng);
+//        state.theta_0     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
+//        state.theta_1     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
+//        state.theta_0_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_1, SPEC::PARAMETERS::MAX_VEL_1, rng);
+//        state.theta_1_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_2, SPEC::PARAMETERS::MAX_VEL_2, rng);
+        state.theta_0 = math::PI<T>;
+        state.theta_1 = 0;
+        state.theta_0_dot = 0;
+        state.theta_1_dot = 0;
     }
     template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state){
@@ -118,7 +122,8 @@ namespace backprop_tools{
 
         T state_flat[4] = {state.theta_0, state.theta_1, state.theta_0_dot, state.theta_1_dot};
         T next_state_flat[4];
-        rl::environments::acrobot::rk4(state_flat, get(action, 0, 0), next_state_flat, PARAMS::DT, PARAMS{});
+        T action_scaled = (get(action, 0, 0) + 1.0) / 2.0 * (PARAMS::MAX_TORQUE - (PARAMS::MIN_TORQUE)) + (PARAMS::MIN_TORQUE);
+        rl::environments::acrobot::rk4(state_flat, action_scaled, next_state_flat, PARAMS::DT, PARAMS{});
 
         next_state_flat[0] = angle_normalize(typename DEVICE::SPEC::MATH(), next_state_flat[0]);
         next_state_flat[1] = angle_normalize(typename DEVICE::SPEC::MATH(), next_state_flat[1]);
@@ -138,7 +143,22 @@ namespace backprop_tools{
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Acrobot<SPEC>::State& next_state, RNG& rng){
-        return (-cos(state.theta_0) * SPEC::PARAMETERS::LINK_LENGTH_1 - cos(state.theta_1 + state.theta_0) * SPEC::PARAMETERS::LINK_LENGTH_2) * 0.01;
+        using T = typename SPEC::T;
+//        return (-cos(state.theta_0) * SPEC::PARAMETERS::LINK_LENGTH_1 - cos(state.theta_1 + state.theta_0) * SPEC::PARAMETERS::LINK_LENGTH_2) * 0.01;
+        typename DEVICE::SPEC::MATH dm;
+        T a_angle_cost = rl::environments::acrobot::angle_normalize(dm, next_state.theta_0 - math::PI<T>);
+        a_angle_cost *= a_angle_cost;
+        T b_angle_cost = rl::environments::acrobot::angle_normalize(dm, next_state.theta_1);
+        b_angle_cost *= b_angle_cost;
+
+        T a_vel_cost = next_state.theta_0_dot;
+        a_vel_cost *= a_vel_cost;
+        T b_vel_cost = next_state.theta_1_dot;
+        b_vel_cost *= b_vel_cost;
+        T torque_cost = get(action, 0, 0);
+        torque_cost *= torque_cost;
+
+        return math::exp(dm, -a_angle_cost) + math::exp(dm, -b_angle_cost) + SPEC::PARAMETERS::VEL_PENALTY * math::exp(dm, -a_vel_cost) + SPEC::PARAMETERS::VEL_PENALTY*math::exp(dm, -b_vel_cost) + 0.3 * math::exp(dm, -torque_cost);
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
@@ -175,7 +195,7 @@ namespace backprop_tools{
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State state, RNG& rng){
-        return math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_1 || math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_2;
+        return false; //math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_1 || math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_2;
     }
 }
 #endif
