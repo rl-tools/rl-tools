@@ -11,6 +11,8 @@
 #include <highfive/H5File.hpp>
 #endif
 
+#include <chrono>
+
 namespace training_config{
     using namespace backprop_tools::nn_models::sequential::interface;
     struct TrainingConfig{

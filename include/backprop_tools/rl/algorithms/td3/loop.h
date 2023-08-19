@@ -123,7 +123,7 @@ namespace backprop_tools::rl::algorithms::td3::loop{
             if(ts.step % SPEC::EVALUATION_INTERVAL == 0){
                 auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<1, SPEC::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
                 std::cout << "Step: " << ts.step << " Mean return: " << result.returns_mean << std::endl;
-                ts.evaluation_returns[ts.step / SPEC::EVALUATION_INTERVAL] = result.returns_mean;
+                ts.evaluation_results[ts.step / SPEC::EVALUATION_INTERVAL] = result.returns_mean;
             }
         }
         ts.step++;

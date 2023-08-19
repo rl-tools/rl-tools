@@ -20,11 +20,11 @@ namespace training_config {
         using T = float;
         using TI = typename DEVICE::index_t;
 
-        using ENV_SPEC = bpt::rl::environments::acrobot::Specification<T, TI, bpt::rl::environments::acrobot::EasyParameters<T>>;
-        using ENVIRONMENT = bpt::rl::environments::AcrobotSwingup<ENV_SPEC>;
+        using ENV_SPEC = bpt::rl::environments::acrobot::Specification<T, TI, bpt::rl::environments::acrobot::DefaultParameters<T>>;
+        using ENVIRONMENT = bpt::rl::environments::Acrobot<ENV_SPEC>;
 #if BACKPROP_TOOLS_ENABLE_GTK
-        using UI = bpt::rl::environments::acrobot::UI<bpt::rl::environments::acrobot::ui::Specification<T, TI, ENVIRONMENT, 300, 1600, false>>;
-//        using UI = bool;
+//        using UI = bpt::rl::environments::acrobot::UI<bpt::rl::environments::acrobot::ui::Specification<T, TI, ENVIRONMENT, 300, 1600, false>>;
+        using UI = bool;
 #else
         using UI = bool;
 #endif
@@ -33,10 +33,10 @@ namespace training_config {
             using LOGGING = bpt::devices::logging::CPU;
         };
         struct TD3PendulumParameters: bpt::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
-            constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 256;
-            constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 256;
-            constexpr static T GAMMA = 0.98;
-            static constexpr bool IGNORE_TERMINATION = true;
+            constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
+            constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
+            constexpr static T GAMMA = 0.997;
+            static constexpr bool IGNORE_TERMINATION = false;
         };
 
         using TD3_PARAMETERS = TD3PendulumParameters;
@@ -49,12 +49,10 @@ namespace training_config {
             using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
             using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_2 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
-            using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, bpt::nn::activation_functions::ActivationFunction::TANH, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_3 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
-            using LAYER_4_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, bpt::nn::activation_functions::ActivationFunction::TANH, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_4 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_4_SPEC>;
 
-            using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<LAYER_4>>>>;
+            using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
         };
 
         template <typename PARAMETER_TYPE>
@@ -66,12 +64,10 @@ namespace training_config {
             using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
             using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_2 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
-            using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, bpt::nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_3 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
-            using LAYER_4_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, bpt::nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_4 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_4_SPEC>;
 
-            using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<LAYER_4>>>>;
+            using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
         };
 
 
@@ -80,7 +76,7 @@ namespace training_config {
         //using CRITIC_STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
         struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParametersTorch<T, TI>{
-            static constexpr T ALPHA = 1e-3;
+//            static constexpr T ALPHA = 1e-3;
         };
 
 //        using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<T, TI>;
@@ -100,10 +96,11 @@ namespace training_config {
 #else
         static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
 #endif
-        static constexpr bool DETERMINISTIC_EVALUATION = false;
+        static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
+        static constexpr TI NUM_EVALUATION_EPISODES = 10;
         static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 1000000;
-        static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 80;
+        static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 500;
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
         using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<
@@ -130,7 +127,7 @@ int main(){
     bpt::rl::algorithms::td3::loop::TrainingState<CONFIG> ts;
 //    bpt::init(ts.device, ts.envs[0]);
     bpt::rl::algorithms::td3::loop::init(ts, 3);
-    ts.off_policy_runner.parameters.exploration_noise = 0.1;
+//    ts.off_policy_runner.parameters.exploration_noise = 0.1;
 //    ts.envs[0].parameters.dt = 0.01;
     for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
         if(step_i % 1000 == 0){
