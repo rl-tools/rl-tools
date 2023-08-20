@@ -90,18 +90,18 @@ namespace training_config {
         using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
 
-        static constexpr int N_WARMUP_STEPS = 5000;
+        static constexpr int N_WARMUP_STEPS = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
 #ifndef BACKPROP_TOOLS_STEP_LIMIT
-        static constexpr DEVICE::index_t STEP_LIMIT = 500000000; //2 * N_WARMUP_STEPS;
+        static constexpr DEVICE::index_t STEP_LIMIT = 50000; //2 * N_WARMUP_STEPS;
 #else
         static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
 #endif
         static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
         static constexpr TI NUM_EVALUATION_EPISODES = 10;
-        static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 1000000;
+        static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
         static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 500;
-        static constexpr bool COLLECT_EPISODE_STATS = true;
+        static constexpr bool COLLECT_EPISODE_STATS = false;
         static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
         using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<
                 T,
@@ -130,13 +130,7 @@ int main(){
 //    ts.off_policy_runner.parameters.exploration_noise = 0.1;
 //    ts.envs[0].parameters.dt = 0.01;
     for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
-        if(step_i % 1000 == 0){
-            std::cout << "Step: " << step_i << std::endl;
-        }
         bpt::rl::algorithms::td3::loop::step(ts);
-        if(ts.step % CONFIG::EVALUATION_INTERVAL == 0){
-            std::cout << ts.evaluation_results[ts.step / CONFIG::EVALUATION_INTERVAL - 1] << std::endl;
-        }
         bpt::set_state(ts.device, ts.envs[0], ts.ui, get(ts.off_policy_runner.states, 0, 0));
         bpt::render(ts.device, ts.envs[0], ts.ui);
     }
