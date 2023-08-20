@@ -47,7 +47,7 @@ namespace backprop_tools::rl::algorithms::sac{
 
 
     template <typename TRAINING_STATE>
-    void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::SPEC::DEVICE::index_t seed){
+    void init(TRAINING_STATE& ts, typename TRAINING_STATE::SPEC::DEVICE::index_t seed){
         using SPEC = typename TRAINING_STATE::SPEC;
         using T = typename SPEC::T;
 
@@ -87,7 +87,7 @@ namespace backprop_tools::rl::algorithms::sac{
     }
 
     template <typename TRAINING_STATE>
-    void training_destroy(TRAINING_STATE& ts){
+    void destroy(TRAINING_STATE& ts){
         free(ts.device, ts.critic_batch);
         free(ts.device, ts.critic_training_buffers);
         free(ts.device, ts.actor_batch);
@@ -100,7 +100,7 @@ namespace backprop_tools::rl::algorithms::sac{
 
 
     template <typename TRAINING_STATE>
-    bool training_step(TRAINING_STATE& ts){
+    bool step(TRAINING_STATE& ts){
         bool finished = false;
         using SPEC = typename TRAINING_STATE::SPEC;
         step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
