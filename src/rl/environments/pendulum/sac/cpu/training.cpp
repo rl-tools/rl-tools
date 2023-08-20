@@ -124,15 +124,15 @@ int main(){
     for(TI run_i = 0; run_i < NUM_RUNS; run_i++){
         auto start = std::chrono::high_resolution_clock::now();
         std::cout << "Run: " << run_i << std::endl;
-        backprop_tools::rl::algorithms::sac::TrainingState<TrainingConfig> ts;
+        backprop_tools::rl::algorithms::sac::loop::TrainingState<TrainingConfig> ts;
         TI seed = run_i;
-        training_init(ts, seed);
+        bpt::rl::algorithms::sac::loop::init(ts, seed);
         ts.off_policy_runner.parameters.exploration_noise = 0;
 #ifdef BACKPROP_TOOLS_ENABLE_HDF5
         auto run_group = data_file.createGroup(std::to_string(run_i));
 #endif
         for(TI step_i=0; step_i < TrainingConfig::STEP_LIMIT; step_i++){
-            training_step(ts);
+            bpt::rl::algorithms::sac::loop::step(ts);
 //            if(step_i % 1000 == 0){
 ////                std::cout << "alpha: " << bpt::math::exp(DEVICE::SPEC::MATH{}, bpt::get(ts.actor_critic.log_alpha.parameters, 0, 0)) << std::endl;
 //            }
@@ -145,7 +145,7 @@ int main(){
 
         run_group.createDataSet("episode_returns", mean_returns);
 
-        training_destroy(ts);
+        bpt::rl::algorithms::sac::loop::destroy(ts);
         auto end = std::chrono::high_resolution_clock::now();
         std::cout << "Run time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.0 << "s" << std::endl;
     }
