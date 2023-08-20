@@ -115,7 +115,7 @@ int main(){
     using T = typename TrainingConfig::T;
     using TI = typename TrainingConfig::TI;
     using DEVICE = typename TrainingConfig::DEVICE;
-    TI NUM_RUNS = 20;
+    TI NUM_RUNS = 1;
 #ifdef BACKPROP_TOOLS_ENABLE_HDF5
     std::string DATA_FILE_PATH = "rl_environments_pendulum_sac_learning_curves.h5";
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
