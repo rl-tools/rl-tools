@@ -96,7 +96,7 @@ namespace training_config {
 #else
         static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
 #endif
-        static constexpr bool DETERMINISTIC_EVALUATION = true;
+        static constexpr bool DETERMINISTIC_EVALUATION = false;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
         static constexpr TI NUM_EVALUATION_EPISODES = 10;
         static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
