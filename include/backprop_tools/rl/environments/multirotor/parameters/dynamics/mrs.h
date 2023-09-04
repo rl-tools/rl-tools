@@ -3,7 +3,7 @@
 
 namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
     template<typename T, typename TI, typename REWARD_FUNCTION>
-    typename Parameters <T, TI, TI(4), REWARD_FUNCTION>::Dynamics mrs = {
+    constexpr typename ParametersBase<T, TI, TI(4), REWARD_FUNCTION>::Dynamics mrs = {
             // Rotor positions
             {
                     {

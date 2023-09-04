@@ -1,7 +1,7 @@
 # Environment Multirotor test
 add_executable(
         test_rl_environments_multirotor_multirotor
-        src/rl/environments/multirotor/multirotor.cpp
+        multirotor.cpp
 )
 target_link_libraries(
         test_rl_environments_multirotor_multirotor

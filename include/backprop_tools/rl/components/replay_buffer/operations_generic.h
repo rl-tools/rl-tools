@@ -10,14 +10,14 @@ namespace backprop_tools {
         using DATA_SPEC = typename decltype(rb.data)::SPEC;
         malloc(device, rb.data);
         typename DEVICE::index_t offset = 0;
-        rb.observations                 = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
-        rb.observations_privileged      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, rb.data, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
-        rb.actions                      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::ACTION_DIM                >(device, rb.data, 0, offset); offset += SPEC::ACTION_DIM;
-        rb.rewards                      = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                               >(device, rb.data, 0, offset); offset += 1;
-        rb.next_observations            = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >(device, rb.data, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
-        rb.next_observations_privileged = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, rb.data, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
-        rb.terminated                   = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                               >(device, rb.data, 0, offset); offset += 1;
-        rb.truncated                    = view<DEVICE, DATA_SPEC, SPEC::CAPACITY, 1                               >(device, rb.data, 0, offset);
+        rb.observations                 = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >{}, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
+        rb.observations_privileged      = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>{}, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
+        rb.actions                      = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::ACTION_DIM                >{}, 0, offset); offset += SPEC::ACTION_DIM;
+        rb.rewards                      = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, 1                               >{}, 0, offset); offset += 1;
+        rb.next_observations            = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM           >{}, 0, offset); offset += SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::OBSERVATION_DIM : 0;
+        rb.next_observations_privileged = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, SPEC::OBSERVATION_DIM_PRIVILEGED>{}, 0, offset); offset += SPEC::OBSERVATION_DIM_PRIVILEGED;
+        rb.terminated                   = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, 1                               >{}, 0, offset); offset += 1;
+        rb.truncated                    = view(device, rb.data, matrix::ViewSpec<SPEC::CAPACITY, 1                               >{}, 0, offset);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {

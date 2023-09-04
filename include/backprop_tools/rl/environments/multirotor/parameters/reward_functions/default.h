@@ -4,6 +4,7 @@
 #include "../../multirotor.h"
 #include "abs_exp.h"
 #include "sq_exp.h"
+#include "squared.h"
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE (0.334)
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{
     template<typename T>

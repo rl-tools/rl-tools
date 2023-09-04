@@ -39,7 +39,8 @@ endif()
 
 
 if(BACKPROP_TOOLS_ENABLE_JSON AND BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_ENABLE_UI)
-find_package(Threads)
+find_package(Threads REQUIRED)
+find_package(Boost REQUIRED)
 add_executable(
         rl_environments_multirotor_comparison
         comparison.cpp
@@ -50,6 +51,7 @@ target_link_libraries(
         backprop_tools
         nlohmann_json::nlohmann_json
         Threads::Threads
+        Boost::boost
 )
 endif()
 
