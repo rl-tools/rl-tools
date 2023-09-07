@@ -63,8 +63,8 @@ namespace backprop_tools::rl::environments::multirotor{
         Integration integration;
         MDP mdp;
     };
-    template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
-    struct ParametersDisturbances: ParametersBase<T, TI, N, T_REWARD_FUNCTION> {
+    template <typename T, typename TI, typename T_NEXT_COMPONENT>
+    struct ParametersDisturbances: T_NEXT_COMPONENT{
         struct Disturbances{
             struct UnivariateGaussian{
                 T mean;
@@ -76,8 +76,8 @@ namespace backprop_tools::rl::environments::multirotor{
         Disturbances disturbances;
     };
 
-    template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
-    struct ParametersDomainRandomization: ParametersBase<T, TI, N, T_REWARD_FUNCTION>{
+    template <typename T, typename TI, typename T_NEXT_COMPONENT>
+    struct ParametersDomainRandomization: T_NEXT_COMPONENT{
         struct DomainRandomization{
             struct UnivariateGaussian{
                 T mean;
@@ -105,70 +105,192 @@ namespace backprop_tools::rl::environments::multirotor{
 //        RotationMatrix
 //    };
     namespace observation{
-        struct LAST_COMPONENT{};
+        template <typename T_TI>
+        struct LastComponent{
+            static constexpr T_TI DIM = 0;
+        };
         struct NONE{};
-        template <typename T, typename TI, typename T_NEXT_COMPONENT = LAST_COMPONENT>
+
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct PositionSpecification{
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct PositionSpecificationPrivileged: PositionSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+            static constexpr bool PRIVILEGED = true;
+        };
+        template <typename SPEC>
         struct Position{
-            using NEXT_COMPONENT = T_NEXT_COMPONENT;
-            static constexpr TI DIM = NEXT_COMPONENT::DIM + 3;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
+            static constexpr TI CURRENT_DIM = 3;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
-        template <typename T, typename TI, typename T_NEXT_COMPONENT = LAST_COMPONENT>
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct OrientationQuaternionSpecification{
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct OrientationQuaternionSpecificationPrivileged: OrientationQuaternionSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+            static constexpr bool PRIVILEGED = true;
+        };
+        template <typename SPEC>
         struct OrientationQuaternion{
-            using NEXT_COMPONENT = T_NEXT_COMPONENT;
-            static constexpr TI DIM = NEXT_COMPONENT::DIM + 4;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
+            static constexpr TI CURRENT_DIM = 4;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
-        template <typename T, typename TI, typename T_NEXT_COMPONENT = LAST_COMPONENT>
+
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct OrientationRotationMatrixSpecification{
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct OrientationRotationMatrixSpecificationPrivileged: OrientationRotationMatrixSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename SPEC>
         struct OrientationRotationMatrix{
-            using NEXT_COMPONENT = T_NEXT_COMPONENT;
-            static constexpr TI DIM = NEXT_COMPONENT::DIM + 9;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
+            static constexpr TI CURRENT_DIM = 9;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
-        template <typename T, typename TI, typename T_NEXT_COMPONENT = LAST_COMPONENT>
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct LinearVelocitySpecification{
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct LinearVelocitySpecificationPrivileged: LinearVelocitySpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+            static constexpr bool PRIVILEGED = true;
+        };
+        template <typename SPEC>
         struct LinearVelocity{
-            using NEXT_COMPONENT = T_NEXT_COMPONENT;
-            static constexpr TI DIM = NEXT_COMPONENT::DIM + 3;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
+            static constexpr TI CURRENT_DIM = 3;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
-        template <typename T, typename TI, typename T_NEXT_COMPONENT = LAST_COMPONENT>
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct AngularVelocitySpecification {
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct AngularVelocitySpecificationPrivileged: AngularVelocitySpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+            static constexpr bool PRIVILEGED = true;
+        };
+        template <typename SPEC>
         struct AngularVelocity{
-            using NEXT_COMPONENT = T_NEXT_COMPONENT;
-            static constexpr TI DIM = NEXT_COMPONENT::DIM + 3;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
+            static constexpr TI CURRENT_DIM = 3;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
-        template <typename T, typename TI, typename T_NEXT_COMPONENT = LAST_COMPONENT>
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct RotorSpeedsSpecification {
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        };
+        template <typename SPEC>
         struct RotorSpeeds{
-            using NEXT_COMPONENT = T_NEXT_COMPONENT;
-            static constexpr TI DIM = NEXT_COMPONENT::DIM + 4;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr TI CURRENT_DIM = 4;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
-        template <typename T, typename TI, TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT = LAST_COMPONENT>
-        struct ActionHistory{
+        template <typename T_T, typename T_TI, T_TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct ActionHistorySpecification {
+            using T = T_T;
+            using TI = T_TI;
             using NEXT_COMPONENT = T_NEXT_COMPONENT;
-            static constexpr TI HISTORY_LENGTH;
-            static constexpr TI DIM = NEXT_COMPONENT::DIM + 4 * HISTORY_LENGTH;
+            static constexpr TI HISTORY_LENGTH = T_HISTORY_LENGTH;
+        };
+        template <typename SPEC>
+        struct ActionHistory{
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr TI HISTORY_LENGTH = SPEC::HISTORY_LENGTH;
+            static constexpr TI ACTION_DIM = 4;
+            static constexpr TI CURRENT_DIM = ACTION_DIM * HISTORY_LENGTH;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct RandomForceSpecification {
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        };
+        template <typename SPEC>
+        struct RandomForce{
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr TI CURRENT_DIM = 6;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
         };
     }
 
 
     template <typename T, typename TI>
     struct StateBase{
+        static constexpr bool REQUIRES_INTEGRATION = true;
         static constexpr TI DIM = 13;
         T position[3];
         T orientation[4];
         T linear_velocity[3];
         T angular_velocity[3];
     };
-    template <typename T, typename TI, typename NEXT_COMPONENT>
-    struct StateRotors: NEXT_COMPONENT{
+    template <typename T, typename TI, typename T_NEXT_COMPONENT>
+    struct StateRotors: T_NEXT_COMPONENT{
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = true;
         static constexpr TI PARENT_DIM = NEXT_COMPONENT::DIM;
         static constexpr TI DIM = PARENT_DIM + 4;
         T rpm[4];
     };
-    template <typename T, typename TI, TI T_HISTORY_LENGTH, typename NEXT_COMPONENT>
-    struct StateRotorsHistory: StateRotors<T, TI, NEXT_COMPONENT>{
+    template <typename T, typename TI, TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT>
+    struct StateRotorsHistory: StateRotors<T, TI, T_NEXT_COMPONENT>{
+        using NEXT_COMPONENT = StateRotors<T, TI, T_NEXT_COMPONENT>;
+        static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI HISTORY_LENGTH = T_HISTORY_LENGTH;
         static constexpr TI PARENT_DIM = StateRotors<T, TI, NEXT_COMPONENT>::DIM;
-        static constexpr TI DIM = PARENT_DIM + HISTORY_LENGTH * 4;
+        static constexpr TI ACTION_DIM = 4;
+        static constexpr TI DIM = PARENT_DIM + HISTORY_LENGTH * ACTION_DIM;
         T action_history[HISTORY_LENGTH][4];
     };
-    template <typename T, typename TI, typename NEXT_COMPONENT>
-    struct StateRandomForce: NEXT_COMPONENT{
+    template <typename T, typename TI, typename T_NEXT_COMPONENT>
+    struct StateRandomForce: T_NEXT_COMPONENT{
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI DIM = 6 + NEXT_COMPONENT::DIM;
         T force[3];
         T torque[3];
@@ -176,18 +298,17 @@ namespace backprop_tools::rl::environments::multirotor{
     
     template <typename T, typename TI>
     struct StaticParametersDefault{
-        static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
-        static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
+//        static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
+//        static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
 //        static constexpr LatentStateType LATENT_STATE_TYPE = LatentStateType::Empty;
 //        static constexpr StateType STATE_TYPE = StateType::Base;
 //        static constexpr ObservationType OBSERVATION_TYPE = ObservationType::Normal;
         using STATE_TYPE = StateBase<T, TI>;
-        using OBSERVATION_TYPE = observation::Position<T, TI,
-                                 observation::OrientationRotationMatrix<T, TI,
-                                 observation::LinearVelocity<T, TI,
-                                 observation::AngularVelocity<T, TI>>>>;
+        using OBSERVATION_TYPE = observation::Position<observation::PositionSpecification<T, TI,
+                                 observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
+                                 observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
+                                 observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI>>>>>>>>;
         using OBSERVATION_TYPE_PRIVILEGED = observation::NONE;
-        static constexpr TI ACTION_HISTORY_LENGTH = 0;
     };
 
     template <typename T_T, typename T_TI, typename T_PARAMETERS, typename T_STATIC_PARAMETERS>
@@ -213,9 +334,9 @@ namespace backprop_tools::rl::environments{
 
 //        static constexpr multirotor::LatentStateType LATENT_STATE_TYPE = SPEC::STATIC_PARAMETERS::LATENT_STATE_TYPE;
 //        static constexpr multirotor::StateType STATE_TYPE = SPEC::STATIC_PARAMETERS::STATE_TYPE;
-        using STATE_TYPE = typename SPEC::STATIC_PARAMETERS::STATE_TYPE;
-        using OBSERVATION_TYPE = typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE;
-        using OBSERVATION_TYPE_PRIVILEGED = typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
+        using State = typename SPEC::STATIC_PARAMETERS::STATE_TYPE;
+        using Observation = typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE;
+        using ObservationPrivileged = typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
 
 //        using LatentState = utils::typing::conditional_t<
 //            LATENT_STATE_TYPE == multirotor::LatentStateType::Empty,
@@ -243,8 +364,8 @@ namespace backprop_tools::rl::environments{
 //                + (STATE_TYPE == multirotor::StateType::BaseRotors || STATE_TYPE == multirotor::StateType::BaseRotorsHistory ? ACTION_DIM : 0)
 //                + OBSERVATION_DIM_PRIVILEGED_LATENT_STATE
 //        ) : 0;
-        static constexpr TI OBSERVATION_DIM = OBSERVATION_TYPE::DIM;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_TYPE_PRIVILEGED::DIM;
+        static constexpr TI OBSERVATION_DIM = Observation::DIM;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         typename SPEC::PARAMETERS parameters;
         typename SPEC::PARAMETERS::Dynamics current_dynamics;
