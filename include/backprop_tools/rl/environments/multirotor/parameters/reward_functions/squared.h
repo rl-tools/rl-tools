@@ -5,6 +5,7 @@
 #include <backprop_tools/utils/generic/typing.h>
 #include <backprop_tools/utils/generic/vector_operations.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{
     template<typename T>
     struct Squared{
@@ -93,5 +94,6 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         return r;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

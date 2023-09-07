@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_NN_MODELS_OUTPUT_VIEW_MODEL_H
 #define BACKPROP_TOOLS_NN_MODELS_OUTPUT_VIEW_MODEL_H
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn_models::output_view{
     template <typename T_TI, typename T_MODEL, T_TI T_OFFSET, T_TI T_DIM>
     struct MODEL_VIEW_SPEC{
@@ -22,6 +23,7 @@ namespace backprop_tools::nn_models::output_view{
         MODEL(typename SPEC::MODEL& model): model(model){}
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFERS>

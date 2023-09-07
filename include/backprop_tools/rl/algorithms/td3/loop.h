@@ -4,6 +4,7 @@
 #include <backprop_tools/rl/utils/evaluation.h>
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::algorithms::td3::loop {
     template<typename T_SPEC>
     struct CoreTrainingState {
@@ -40,8 +41,10 @@ namespace backprop_tools::rl::algorithms::td3::loop {
         T evaluation_results[N_EVALUATIONS];
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::algorithms::td3::loop{
     template <typename TRAINING_STATE>
     void init(TRAINING_STATE& ts, typename TRAINING_STATE::SPEC::DEVICE::index_t seed){
@@ -135,5 +138,6 @@ namespace backprop_tools::rl::algorithms::td3::loop{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 

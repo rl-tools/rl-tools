@@ -4,6 +4,7 @@
 #include "devices.h"
 
 #include <cstddef>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     namespace esp32{
         enum class Hardware{
@@ -61,6 +62,7 @@ namespace backprop_tools::devices{
     using DefaultESP32Specification = esp32::Specification<math::ESP32, random::ESP32, logging::ESP32, T_HARDWARE>;
     using DefaultESP32 = esp32::OPT<DefaultESP32Specification<>>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

@@ -4,6 +4,7 @@
 #include <mujoco/mujoco.h>
 #include <backprop_tools/utils/generic/typing.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::mujoco{
     namespace ant{
         template <typename T_T, typename T_TI>
@@ -59,4 +60,5 @@ namespace backprop_tools::rl::environments::mujoco{
         static constexpr TI ACTION_DIM = SPEC::ACTION_DIM;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

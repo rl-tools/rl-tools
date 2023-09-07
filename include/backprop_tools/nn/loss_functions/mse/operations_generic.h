@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_NN_LOSS_FUNCTIONS_MSE_OPERATIONS_GENERIC
 #define BACKPROP_TOOLS_NN_LOSS_FUNCTIONS_MSE_OPERATIONS_GENERIC
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::loss_functions::mse{
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
     typename SPEC_A::T evaluate(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, typename SPEC_A::T loss_weight = 1) {
@@ -32,5 +33,6 @@ namespace backprop_tools::nn::loss_functions::mse{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -4,6 +4,7 @@
 
 #include <backprop_tools/utils/generic/typing.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::random{
    devices::random::ESP32::index_t default_engine(const devices::random::ESP32& dev, devices::random::ESP32::index_t seed = 1){
        return 0b10101010101010101010101010101010 + seed;
@@ -46,5 +47,6 @@ namespace backprop_tools::random{
        return z * std + mean;
    }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

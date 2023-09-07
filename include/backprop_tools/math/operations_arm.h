@@ -9,6 +9,7 @@
 //#include <algorithm>
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::math {
 
     template<typename T>
@@ -89,4 +90,5 @@ namespace backprop_tools::math {
         return std::atan2(a, b);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

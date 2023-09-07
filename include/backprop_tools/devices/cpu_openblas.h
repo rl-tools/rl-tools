@@ -8,6 +8,7 @@
 
 #include <cblas.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     template <typename T_SPEC>
     struct CPU_OPENBLAS: CPU_BLAS<T_SPEC>{

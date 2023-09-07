@@ -5,6 +5,7 @@
 
 #include "operations_generic.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::math {
 
     template<typename T>
@@ -84,4 +85,5 @@ namespace backprop_tools::math {
     }
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

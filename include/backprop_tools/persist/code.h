@@ -3,12 +3,14 @@
 
 #include <sstream>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::persist{
     struct Code{
         std::string header;
         std::string body;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

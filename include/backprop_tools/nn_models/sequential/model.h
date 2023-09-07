@@ -3,6 +3,7 @@
 
 #include <backprop_tools/utils/generic/typing.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn_models::sequential{
     struct OutputModule{
         struct CONTENT{
@@ -127,6 +128,7 @@ namespace backprop_tools::nn_models::sequential{
         struct Module: backprop_tools::nn_models::sequential::Module<Specification<T_CONTENT, T_NEXT_MODULE>>{};
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

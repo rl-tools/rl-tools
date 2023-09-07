@@ -5,6 +5,7 @@
 
 #include <backprop_tools/utils/generic/typing.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     namespace devices {
         struct ExecutionHints{};
@@ -32,6 +33,7 @@ namespace backprop_tools {
         };
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

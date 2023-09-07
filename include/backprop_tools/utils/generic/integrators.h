@@ -5,6 +5,7 @@
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::utils::integrators{
     template<typename DEVICE, typename T, typename PARAMETER_TYPE, typename STATE, auto ACTION_DIM, auto DYNAMICS>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void euler(DEVICE& device, const PARAMETER_TYPE& params, const STATE& state, const T action[ACTION_DIM], const T dt, STATE& next_state) {
@@ -61,5 +62,6 @@ namespace backprop_tools::utils::integrators{
         // total flops: 157 + 13 + 157 + 13 + 13 + 157 + 13 + 13 + 157 + 13 = 706
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

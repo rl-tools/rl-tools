@@ -1,6 +1,7 @@
 
 #include "../../multirotor.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
     template<typename T, typename TI, typename REWARD_FUNCTION>
     constexpr typename ParametersBase<T, TI, TI(4), REWARD_FUNCTION>::Dynamics mrs = {
@@ -96,4 +97,5 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
     };
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 

@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_NN_PARAMETERS_PARAMETERS_H
 #define BACKPROP_TOOLS_NN_PARAMETERS_PARAMETERS_H
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::parameters{
     struct Plain{
         // todo: evaluate replacing the instance mechanism with a tag similar to the container type tags
@@ -16,4 +17,5 @@ namespace backprop_tools::nn::parameters{
         };
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

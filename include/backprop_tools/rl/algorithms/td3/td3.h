@@ -2,6 +2,7 @@
 #define BACKPROP_TOOLS_RL_ALGORITHMS_TD3
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::algorithms::td3 {
     template<typename T, typename TI>
     struct DefaultParameters {
@@ -115,6 +116,7 @@ namespace backprop_tools::rl::algorithms::td3 {
         typename SPEC::OPTIMIZER critic_optimizers[2];
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 

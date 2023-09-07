@@ -2,6 +2,7 @@
 #define BACKPROP_TOOLS_NN_UTILS_POLYAK_OPERATIONS_CUDA_H
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::utils::polyak {
     // todo: polyak factor as template parameter (reciprocal INT e.g.)
     namespace internal {
@@ -44,6 +45,7 @@ namespace backprop_tools::utils::polyak {
         update<DEV_SPEC, TARGET_SPEC, SOURCE_SPEC, true>(dev, target, source, polyak);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

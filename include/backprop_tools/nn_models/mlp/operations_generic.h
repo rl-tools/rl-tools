@@ -6,6 +6,7 @@
 #include <backprop_tools/nn/parameters/operations_generic.h>
 #include <backprop_tools/nn/optimizers/adam/operations_generic.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
@@ -316,5 +317,6 @@ namespace backprop_tools {
         copy(target_device, source_device, target.tock, source.tock);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -3,6 +3,7 @@
 
 #include <backprop_tools/devices/cuda.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::loss_functions::mse {
     namespace internal::mse{
         template<typename DEV_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
@@ -56,5 +57,6 @@ namespace backprop_tools::nn::loss_functions::mse {
         check_status(device);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -2,6 +2,7 @@
 #define BACKPROP_TOOLS_UTILS_ASSERT_OPERATIONS_ESP32_H
 
 #include <cstdlib>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::utils{
     template <typename DEV_SPEC, typename T>
     void assert_exit(devices::ESP32<DEV_SPEC>& device, bool condition, T message){
@@ -11,5 +12,6 @@ namespace backprop_tools::utils{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

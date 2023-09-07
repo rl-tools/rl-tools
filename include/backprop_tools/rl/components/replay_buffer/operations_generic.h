@@ -4,6 +4,7 @@
 #include "replay_buffer.h"
 #include <backprop_tools/utils/generic/memcpy.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
@@ -104,4 +105,5 @@ namespace backprop_tools {
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

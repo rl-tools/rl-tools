@@ -4,9 +4,11 @@
 #include "ant.h"
 #include "../../operations_generic.h"
 #include <cstring>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::mujoco::ant{
     #include "model.h"
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>

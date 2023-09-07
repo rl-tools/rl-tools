@@ -3,6 +3,7 @@
 //#include <backprop_tools/nn_models/output_view/model.h>
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::algorithms::sac {
     template<typename T, typename TI, TI ACTION_DIM=1>
     struct DefaultParameters {
@@ -137,6 +138,7 @@ namespace backprop_tools::rl::algorithms::sac {
 //        ActorCritic(): actor_view(actor){};
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 

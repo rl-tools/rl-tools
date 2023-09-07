@@ -3,6 +3,7 @@
 
 #include <backprop_tools/math/operations_generic.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::car {
     template <typename T>
     struct Tire{
@@ -67,7 +68,9 @@ namespace backprop_tools::rl::environments::car {
     };
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments{
     template <typename T_SPEC>
     struct Car{
@@ -89,6 +92,7 @@ namespace backprop_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 

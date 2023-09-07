@@ -3,6 +3,7 @@
 #include <backprop_tools/containers/persist_code.h>
 #include "parameters.h"
 #include <sstream>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     std::string get_type_string(nn::parameters::Plain p){
         return "backprop_tools::nn::parameters::Plain";
@@ -55,6 +56,7 @@ namespace backprop_tools {
         return {ss_header.str(), ss.str()};
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

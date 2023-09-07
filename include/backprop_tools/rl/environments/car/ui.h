@@ -7,6 +7,7 @@
 #include <thread>
 #include <chrono>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::car{
     namespace ui{
         template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED>
@@ -34,8 +35,10 @@ namespace backprop_tools::rl::environments::car{
         GtkWidget *canvas;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::car::ui{
     template <typename T>
     void R(T alpha, T result[2][2]) {
@@ -125,6 +128,7 @@ namespace backprop_tools::rl::environments::car::ui{
         return FALSE;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

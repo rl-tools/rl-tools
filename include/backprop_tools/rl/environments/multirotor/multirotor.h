@@ -3,6 +3,7 @@
 
 #include <backprop_tools/utils/generic/typing.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor{
     template <typename T, typename TI, TI N, typename T_REWARD_FUNCTION>
     struct ParametersBase{
@@ -319,7 +320,9 @@ namespace backprop_tools::rl::environments::multirotor{
         using STATIC_PARAMETERS = T_STATIC_PARAMETERS;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments{
     template <typename SPEC>
     struct Multirotor{
@@ -371,5 +374,6 @@ namespace backprop_tools::rl::environments{
         typename SPEC::PARAMETERS::Dynamics current_dynamics;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

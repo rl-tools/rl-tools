@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_ON_POLICY_RUNNER_H
 #define BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_ON_POLICY_RUNNER_H
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::components{
     namespace on_policy_runner{
         template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
@@ -80,4 +81,5 @@ namespace backprop_tools::rl::components{
 #endif
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -9,6 +9,7 @@
 
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::algorithms::sac::loop{
     template <typename T_SPEC>
     struct CoreTrainingState{
@@ -133,6 +134,7 @@ namespace backprop_tools::rl::algorithms::sac::loop{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

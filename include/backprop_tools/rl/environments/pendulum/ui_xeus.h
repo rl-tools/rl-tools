@@ -6,6 +6,7 @@
 #include <chrono>
 // #include <string>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::pendulum::ui::xeus {
     template<typename T_T, typename T_TI, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED>
     struct Specification{
@@ -33,6 +34,7 @@ namespace backprop_tools::rl::environments::pendulum::ui::xeus {
         typename SPEC::T action;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

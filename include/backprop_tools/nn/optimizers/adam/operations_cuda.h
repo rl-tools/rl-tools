@@ -1,4 +1,5 @@
 #include "adam.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     namespace nn::optimizers::adam::cuda {
         template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
@@ -34,3 +35,4 @@ namespace backprop_tools {
         check_status(device);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

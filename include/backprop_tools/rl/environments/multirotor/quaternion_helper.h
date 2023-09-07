@@ -7,6 +7,7 @@
 
 #include <backprop_tools/utils/generic/vector_operations.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor{
     template <typename DEVICE, typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void quaternion_derivative(const T q[4], const T omega[3], T q_dot[4]) {
@@ -50,5 +51,6 @@ namespace backprop_tools::rl::environments::multirotor{
         R[2][2] = 1 - 2*q[1]*q[1] - 2*q[2]*q[2];
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

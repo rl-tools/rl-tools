@@ -3,6 +3,7 @@
 
 #include <backprop_tools/nn/parameters/parameters.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::optimizers{
     namespace adam{
         template<typename T_T, typename T_TI>
@@ -39,6 +40,8 @@ namespace backprop_tools::nn::optimizers{
 
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::parameters {
     struct Adam{
         template <typename CONTAINER>
@@ -48,5 +51,6 @@ namespace backprop_tools::nn::parameters {
         };
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

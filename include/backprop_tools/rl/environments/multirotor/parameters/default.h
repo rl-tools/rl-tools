@@ -4,6 +4,7 @@
 #include "init/default.h"
 #include "reward_functions/default.h"
 #include "termination/default.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor::parameters {
     namespace default_internal{
         template <typename T>
@@ -49,3 +50,4 @@ namespace backprop_tools::rl::environments::multirotor::parameters {
     };
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

@@ -5,6 +5,7 @@
 #include "devices.h"
 
 #include <cstddef>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     namespace arm{
         template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
@@ -58,6 +59,7 @@ namespace backprop_tools::devices{
     using DefaultARMSpecification = arm::Specification<math::ARM, random::ARM, logging::ARM>;
     using DefaultARM = arm::OPT<DefaultARMSpecification>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

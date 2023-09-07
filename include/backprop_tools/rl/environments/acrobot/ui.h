@@ -7,6 +7,7 @@
 #include <thread>
 #include <chrono>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::acrobot{
     namespace ui{
         template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED, bool T_BLOCK = true>
@@ -35,8 +36,10 @@ namespace backprop_tools::rl::environments::acrobot{
         GtkWidget *canvas;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::acrobot::ui{
     template <typename T>
     void R(T alpha, T result[2][2]) {
@@ -87,6 +90,7 @@ namespace backprop_tools::rl::environments::acrobot::ui{
         return FALSE;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

@@ -4,6 +4,7 @@
 #include "layer.h"
 #include <backprop_tools/utils/persist.h>
 #include <iostream>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer, HighFive::Group group) {
@@ -35,4 +36,5 @@ namespace backprop_tools {
         load(device, (nn::layers::dense::LayerBackward<SPEC>&)layer, group);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

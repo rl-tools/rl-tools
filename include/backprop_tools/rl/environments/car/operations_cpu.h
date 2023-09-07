@@ -3,6 +3,7 @@
 #include "operations_generic.h"
 #include <cassert>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::car{
     uint16_t read_u16(std::ifstream& stream) {
         uint16_t result;
@@ -22,6 +23,7 @@ namespace backprop_tools::rl::environments::car{
         return result;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

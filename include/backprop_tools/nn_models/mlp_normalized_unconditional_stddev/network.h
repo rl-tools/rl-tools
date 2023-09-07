@@ -3,6 +3,7 @@
 
 #include <backprop_tools/nn_models/mlp/network.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn_models::mlp_unconditional_stddev {
 
     template<template <typename> typename BASE, typename SPEC>
@@ -24,5 +25,6 @@ namespace backprop_tools::nn_models::mlp_unconditional_stddev {
 
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

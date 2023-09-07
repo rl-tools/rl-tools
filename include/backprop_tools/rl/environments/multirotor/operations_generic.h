@@ -119,6 +119,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #include <backprop_tools/utils/generic/integrators.h>
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor {
     template<typename DEVICE, typename T, typename TI, typename PARAMETERS>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateBase<T, TI>& state, const T* action, StateBase<T, TI>& state_change) {
@@ -206,6 +207,7 @@ namespace backprop_tools::rl::environments::multirotor {
     }
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

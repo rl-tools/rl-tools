@@ -6,6 +6,7 @@
 
 #include "cpu.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     template <typename T_SPEC>
     struct CPU_BLAS: CPU<T_SPEC>{
@@ -13,5 +14,6 @@ namespace backprop_tools::devices{
     };
     using DefaultCPU_BLAS = CPU_BLAS<DefaultCPUSpecification>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

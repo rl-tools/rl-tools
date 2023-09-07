@@ -4,6 +4,7 @@
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 #include <backprop_tools/devices/devices.h>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::activation_functions {
     enum ActivationFunction{
         IDENTITY,
@@ -16,7 +17,9 @@ namespace backprop_tools::nn::activation_functions {
     template<enum ActivationFunction F>
     constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == FAST_TANH || F == SIGMOID;
 }
-namespace backprop_tools {
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+namespace backprop_tools{
     template<typename DEVICE, typename T, nn::activation_functions::ActivationFunction F>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T activation(T x){
         using namespace nn::activation_functions;
@@ -79,6 +82,7 @@ namespace backprop_tools {
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

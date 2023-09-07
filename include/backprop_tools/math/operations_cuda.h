@@ -9,6 +9,7 @@
 
 #include <backprop_tools/devices/cuda.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::math {
     namespace cuda {
         template<typename T>
@@ -267,4 +268,5 @@ namespace backprop_tools::math {
 //
 //
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

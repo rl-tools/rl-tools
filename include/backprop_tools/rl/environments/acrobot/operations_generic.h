@@ -3,6 +3,7 @@
 #include "acrobot.h"
 #include "../operations_generic.h"
 // adapted from (and tested agains) https://github.com/Farama-Foundation/Gymnasium/blob/v0.28.1/gymnasium/envs/classic_control/acrobot.py
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::acrobot {
     template <typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T clip(T x, T min, T max){
@@ -19,6 +20,7 @@ namespace backprop_tools::rl::environments::acrobot {
         return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename RNG>

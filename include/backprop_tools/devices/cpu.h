@@ -1,10 +1,11 @@
 #ifndef BACKPROP_TOOLS_DEVICES_CPU_H
 #define BACKPROP_TOOLS_DEVICES_CPU_H
 
-#include <backprop_tools/utils/generic/typing.h>
 #include "devices.h"
+#include <backprop_tools/utils/generic/typing.h>
 
 #include <cstddef>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     namespace cpu{
         template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
@@ -48,6 +49,7 @@ namespace backprop_tools::devices{
     using DefaultCPUSpecification = cpu::Specification<math::CPU, random::CPU, logging::CPU>;
     using DefaultCPU = CPU<DefaultCPUSpecification>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

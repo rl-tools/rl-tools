@@ -6,6 +6,7 @@
 
 #include <backprop_tools/math/operations_generic.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::utils::evaluation{
     template <typename T, typename TI, typename ENV_STATE>
     struct State{
@@ -30,7 +31,9 @@ namespace backprop_tools::rl::utils::evaluation{
         T episode_length_std;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
 
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVAL_BUFFERS, typename RNG>
@@ -140,5 +143,6 @@ namespace backprop_tools {
         return results;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

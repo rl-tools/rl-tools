@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_ACROBOT_H
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_ACROBOT_H
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::acrobot {
     template <typename T>
     struct DefaultParameters {
@@ -42,7 +43,9 @@ namespace backprop_tools::rl::environments::acrobot {
     };
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments{
     template <typename T_SPEC>
     struct Acrobot{
@@ -58,6 +61,7 @@ namespace backprop_tools::rl::environments{
     template <typename T_SPEC>
     struct AcrobotSwingup: Acrobot<T_SPEC>{};
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 

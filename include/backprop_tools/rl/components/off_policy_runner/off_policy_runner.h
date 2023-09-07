@@ -14,6 +14,7 @@ namespace bpt = backprop_tools;
 
 */
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::components::off_policy_runner {
     template <typename TI, TI T_NUM_THREADS>
     struct ExecutionHints{
@@ -112,7 +113,9 @@ namespace backprop_tools::rl::components::off_policy_runner {
         STATS_VIEW<1> steps;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::components{
     template<typename T_SPEC>
     struct OffPolicyRunner {
@@ -147,5 +150,6 @@ namespace backprop_tools::rl::components{
 #endif
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

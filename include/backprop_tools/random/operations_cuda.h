@@ -6,6 +6,7 @@
 
 #include <curand_kernel.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::random{
     namespace cuda{
         using RNG = unsigned int; // actually the seed
@@ -64,5 +65,6 @@ namespace backprop_tools::random{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

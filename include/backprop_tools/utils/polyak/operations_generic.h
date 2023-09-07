@@ -2,6 +2,7 @@
 #define BACKPROP_TOOLS_NN_UTILS_POLYAK_OPERATIONS_GENERIC_H
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::utils::polyak {
     // todo: polyak factor as template parameter (reciprocal INT e.g.)
     template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
@@ -27,6 +28,7 @@ namespace backprop_tools::utils::polyak {
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

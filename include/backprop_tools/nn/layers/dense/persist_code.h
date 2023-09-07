@@ -6,6 +6,7 @@
 #include <backprop_tools/persist/code.h>
 #include <backprop_tools/containers/persist_code.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     namespace nn::layers::dense::persist{
         template<nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
@@ -73,5 +74,6 @@ namespace backprop_tools {
         return code.header + code.body;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

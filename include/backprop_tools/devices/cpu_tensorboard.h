@@ -7,6 +7,7 @@
 #include <tensorboard_logger.h>
 #include <mutex>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     namespace logging{
         struct CPU_TENSORBOARD: logging::CPU{
@@ -20,5 +21,6 @@ namespace backprop_tools::devices{
     using DefaultCPU_TENSORBOARDSpecification = cpu::Specification<math::CPU, random::CPU, logging::CPU_TENSORBOARD>;
     using DefaultCPU_TENSORBOARD = CPU<DefaultCPU_TENSORBOARDSpecification>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

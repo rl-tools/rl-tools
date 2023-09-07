@@ -12,6 +12,7 @@
 #include "pendulum.h"
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::pendulum {
     template <typename T>
     class PendulumWidget : public QWidget
@@ -76,6 +77,7 @@ namespace backprop_tools::rl::environments::pendulum {
         }
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

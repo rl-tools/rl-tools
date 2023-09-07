@@ -10,6 +10,7 @@
 
 #include <nlohmann/json.hpp>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor {
     namespace beast = boost::beast;         // from <boost/beast.hpp>
     namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -96,6 +97,7 @@ namespace backprop_tools::rl::environments::multirotor {
         return message;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

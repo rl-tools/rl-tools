@@ -2,6 +2,7 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_OPERATIONS_GENERIC
 #include "pendulum.h"
 #include "../operations_generic.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::pendulum {
     template <typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T clip(T x, T min, T max){
@@ -18,6 +19,7 @@ namespace backprop_tools::rl::environments::pendulum {
         return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
