@@ -146,16 +146,7 @@ namespace backprop_tools::rl::environments::multirotor {
         state_change.torque[2] = 0;
     }
     template<typename DEVICE, typename T, typename TI, typename LATENT_STATE, typename PARAMETERS>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(
-            DEVICE& device,
-            const PARAMETERS& params,
-            // state
-            const StateBase<T, TI, LATENT_STATE>& state,
-            // action
-            const T* action,
-            // state change
-            StateBase<T, TI, LATENT_STATE>& state_change
-    ) {
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateBase<T, TI, LATENT_STATE>& state, const T* action, StateBase<T, TI, LATENT_STATE>& state_change) {
         using STATE = StateBase<T, TI, LATENT_STATE>;
 
         T thrust[3];
@@ -211,16 +202,7 @@ namespace backprop_tools::rl::environments::multirotor {
         multirotor_dynamics(device, params, (const typename STATE::LATENT_STATE&)state, action, state_change);
     }
     template<typename DEVICE, typename T, typename TI, typename LATENT_STATE, typename PARAMETERS>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(
-            DEVICE& device,
-            const PARAMETERS& params,
-            // state
-            const StateBaseRotors<T, TI, LATENT_STATE>& state,
-            // action
-            const T* action,
-            // state change
-            StateBaseRotors<T, TI, LATENT_STATE>& state_change
-    ) {
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateBaseRotors<T, TI, LATENT_STATE>& state, const T* action, StateBaseRotors<T, TI, LATENT_STATE>& state_change) {
         for(typename DEVICE::index_t i_rotor = 0; i_rotor < 4; i_rotor++){
             state_change.rpm[i_rotor] = (action[i_rotor] - state.rpm[i_rotor]) * 1/params.dynamics.rpm_time_constant;
         }
