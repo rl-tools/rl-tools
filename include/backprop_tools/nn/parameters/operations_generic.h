@@ -3,6 +3,7 @@
 
 #include "parameters.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename CONTAINER>
     void malloc(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& p){
@@ -53,4 +54,5 @@ namespace backprop_tools{
         return acc;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -4,6 +4,7 @@
 #include <highfive/H5Group.hpp>
 #include <backprop_tools/containers/persist.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void save(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, HighFive::Group group){
@@ -36,4 +37,5 @@ namespace backprop_tools{
         load(device, dataset.target_values, group, "target_values");
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

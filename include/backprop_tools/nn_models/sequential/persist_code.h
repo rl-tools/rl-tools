@@ -6,6 +6,7 @@
 
 #include <string>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     persist::Code save_code_split(DEVICE& device, nn_models::sequential::Module<SPEC>& model, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0, typename DEVICE::index_t layer_i = 0) {
@@ -69,4 +70,5 @@ namespace backprop_tools{
         return code.header + code.body;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 #include <cuda.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
 #ifndef BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
     template<typename DEV_SPEC, typename SPEC>
@@ -198,5 +199,6 @@ namespace backprop_tools{
         check_status(device);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

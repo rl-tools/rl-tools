@@ -23,6 +23,7 @@ namespace backprop_tools::rl::environments::car{
     }
 }
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
@@ -90,3 +91,4 @@ namespace backprop_tools{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

@@ -5,6 +5,7 @@
 
 #include "adam.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename CONTAINER>
     void save(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, HighFive::Group group) {
@@ -19,5 +20,6 @@ namespace backprop_tools{
         load(device, parameter.gradient_second_order_moment, group, "gradient_second_order_moment", true);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

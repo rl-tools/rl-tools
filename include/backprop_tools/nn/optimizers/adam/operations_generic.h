@@ -5,6 +5,7 @@
 #include <backprop_tools/nn/parameters/operations_generic.h>
 #include <backprop_tools/utils/polyak/operations_generic.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename CONTAINER>
     void malloc(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& p){
@@ -80,4 +81,5 @@ namespace backprop_tools{
         target.age = source.age;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -12,6 +12,7 @@
 #endif
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, MatrixStatic<SPEC>& matrix){
@@ -669,4 +670,5 @@ namespace backprop_tools{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

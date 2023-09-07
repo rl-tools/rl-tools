@@ -127,6 +127,7 @@ namespace backprop_tools::rl::environments::car::ui{
 }
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
     void render(DEVICE& device, const rl::environments::Car<ENV_SPEC>& env, rl::environments::car::UI<SPEC>& ui){
@@ -174,5 +175,6 @@ namespace backprop_tools{
         copy(device, device, ui.action, action);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

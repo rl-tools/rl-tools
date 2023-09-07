@@ -78,9 +78,11 @@ namespace backprop_tools::rl::environments::pendulum {
 }
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename T>
     void set_state(rl::environments::pendulum::UI<T>& ui, const rl::environments::pendulum::State<T>& state){
         ui.angle = state.theta;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

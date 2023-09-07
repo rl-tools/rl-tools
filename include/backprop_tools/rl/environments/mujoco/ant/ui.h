@@ -69,6 +69,7 @@ namespace backprop_tools::rl::environments::mujoco::ant {
 }
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename ENVIRONMENT>
     void init(DEVICE& dev, ENVIRONMENT& env, rl::environments::mujoco::ant::UI<ENVIRONMENT>& ui){
@@ -131,5 +132,6 @@ namespace backprop_tools{
 
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

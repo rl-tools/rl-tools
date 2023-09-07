@@ -3,6 +3,7 @@
 //#include "pendulum/operations_generic.h"
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename ENV>
     void init(DEVICE, ENV, bool){};
@@ -13,4 +14,5 @@ namespace backprop_tools{
     template <typename DEVICE, typename ENV, typename ACTION>
     void set_action(DEVICE, ENV, bool, ACTION){};
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

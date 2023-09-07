@@ -5,6 +5,7 @@
 #include <backprop_tools/utils/generic/typing.h>
 #include <sstream>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace containers::persist{
         using STORAGE_TYPE = unsigned char;
@@ -86,4 +87,5 @@ namespace backprop_tools{
         return code.header + code.body;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

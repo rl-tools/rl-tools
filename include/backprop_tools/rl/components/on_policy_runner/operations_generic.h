@@ -4,6 +4,7 @@
 #include "on_policy_runner.h"
 #include "operations_generic_per_env.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
@@ -139,4 +140,5 @@ namespace backprop_tools{
         free(device, observation_std);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

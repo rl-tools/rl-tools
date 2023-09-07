@@ -10,6 +10,7 @@ namespace backprop_tools::persist{
     };
 }
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE>
     persist::Code embed_in_namespace(DEVICE&, persist::Code c, std::string name, typename DEVICE::index_t indent = 0){
@@ -28,5 +29,6 @@ namespace backprop_tools{
         return {ss_header.str(), ss.str()};
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

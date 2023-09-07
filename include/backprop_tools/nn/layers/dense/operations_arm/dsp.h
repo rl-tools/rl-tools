@@ -6,6 +6,7 @@
 #include <backprop_tools/devices/arm.h>
 #include "arm_math.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(devices::arm::DSP<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
@@ -55,5 +56,6 @@ namespace backprop_tools{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -7,6 +7,7 @@
 namespace backprop_tools::rl::environments::mujoco::ant{
     #include "model.h"
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env) {
@@ -131,4 +132,5 @@ namespace backprop_tools{
         return env.last_terminated;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

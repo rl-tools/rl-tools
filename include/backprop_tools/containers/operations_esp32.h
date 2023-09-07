@@ -3,6 +3,7 @@
 
 #include "operations_generic.h"
 #include <cstring> // formemcpy
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     void copy_view(devices::ESP32<TARGET_DEV_SPEC>& target_device, devices::ESP32<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
@@ -22,4 +23,5 @@ namespace backprop_tools{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

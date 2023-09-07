@@ -7,6 +7,7 @@
 
 #include <mkl.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
 #ifndef BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
     template<typename DEV_SPEC, typename SPEC>
@@ -37,6 +38,7 @@ namespace backprop_tools{
         multiply((devices::CPU_BLAS<DEV_SPEC>&)device, A, B, output);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 
 #include "operations_cpu_blas.h"

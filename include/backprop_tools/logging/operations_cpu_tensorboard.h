@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <cassert>
 #include "operations_cpu.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace logging::tensorboard{
         std::string sanitize_file_name(const std::string &input) {
@@ -85,4 +86,5 @@ namespace backprop_tools{
         add_histogram(device, logger, key, values, n_values, (typename DEVICE::index_t)1);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

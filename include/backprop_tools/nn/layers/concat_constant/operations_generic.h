@@ -1,5 +1,6 @@
 #include "layer.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(DEVICE& device, const nn::layers::concat_constant::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
@@ -13,3 +14,4 @@ namespace backprop_tools{
         set_broadcast(device, constant_target_view, layer.constants.parameters);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

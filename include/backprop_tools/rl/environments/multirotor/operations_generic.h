@@ -14,6 +14,7 @@
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     // State arithmetic for RK4 integration
     // scalar multiply
@@ -113,6 +114,7 @@ namespace backprop_tools{
         add_accumulate(device, static_cast<const typename STATE::NEXT_COMPONENT&>(s), static_cast<const typename STATE::NEXT_COMPONENT&>(out), static_cast<typename STATE::NEXT_COMPONENT&>(out));
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #include <backprop_tools/utils/generic/integrators.h>
 
@@ -206,6 +208,7 @@ namespace backprop_tools::rl::environments::multirotor {
 }
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE, rl::environments::Multirotor<SPEC>){
@@ -691,12 +694,14 @@ namespace backprop_tools{
     }
 }
 #include "parameters/reward_functions/reward_functions.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
         return rl::environments::multirotor::parameters::reward_functions::reward(device, env, env.parameters.mdp.reward, state, action, next_state, rng);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif
 

@@ -3,7 +3,9 @@
 
 #include "operations_generic.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

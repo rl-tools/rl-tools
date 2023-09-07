@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <iomanip>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void print(DEVICE& device, const Matrix<SPEC>& m){
@@ -67,5 +68,6 @@ namespace backprop_tools{
         return result;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

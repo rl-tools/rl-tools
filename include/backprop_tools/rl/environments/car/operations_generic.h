@@ -13,6 +13,7 @@ namespace backprop_tools::rl::environments::car {
         return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     static void init(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
@@ -153,4 +154,5 @@ namespace backprop_tools{
         } while(terminated(device, env, state, rng));
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

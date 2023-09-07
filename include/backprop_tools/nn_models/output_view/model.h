@@ -22,6 +22,7 @@ namespace backprop_tools::nn_models::output_view{
         MODEL(typename SPEC::MODEL& model): model(model){}
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFERS>
     void evaluate(DEVICE& device, const nn_models::output_view::MODEL<SPEC>& actor, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, BUFFERS& eval_buffers){
@@ -37,6 +38,7 @@ namespace backprop_tools{
         free(device, actor_output);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

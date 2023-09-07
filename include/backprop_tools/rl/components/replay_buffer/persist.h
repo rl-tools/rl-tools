@@ -7,6 +7,7 @@
 #include <highfive/H5Group.hpp>
 #include <vector>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void save(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, HighFive::Group group) {
@@ -49,5 +50,6 @@ namespace backprop_tools{
         rb.full = full[0];
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

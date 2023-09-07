@@ -7,6 +7,7 @@
 
 #include <highfive/H5Group.hpp>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, HighFive::Group group) {
@@ -36,4 +37,5 @@ namespace backprop_tools{
         load(device, network, file.getGroup("mlp"));
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

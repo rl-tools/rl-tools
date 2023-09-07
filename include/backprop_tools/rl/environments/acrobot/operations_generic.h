@@ -19,6 +19,7 @@ namespace backprop_tools::rl::environments::acrobot {
         return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state, RNG& rng){
@@ -198,4 +199,5 @@ namespace backprop_tools{
         return false; //math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_1 || math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_2;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

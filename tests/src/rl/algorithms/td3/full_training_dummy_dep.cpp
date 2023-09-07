@@ -5,8 +5,7 @@
 #include <backprop_tools/operations/dummy.h>
 #endif
 
-#include <backprop_tools/rl/environments/environments.h>
-#include <backprop_tools/rl/environments/operations_generic.h>
+#include <backprop_tools/rl/environments/pendulum/operations_generic.h>
 #include <backprop_tools/nn_models/models.h>
 #include <backprop_tools/nn_models/operations_generic.h>
 #include <backprop_tools/rl/rl.h>

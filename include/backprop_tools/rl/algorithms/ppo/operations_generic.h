@@ -5,6 +5,7 @@
 #include <backprop_tools/nn/loss_functions/mse/operations_generic.h>
 #include <backprop_tools/rl/components/on_policy_runner/on_policy_runner.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
@@ -268,4 +269,5 @@ namespace backprop_tools{
     }
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

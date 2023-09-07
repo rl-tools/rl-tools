@@ -8,6 +8,7 @@
 
 #include <cublas_v2.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace nn::dense::cuda{
         template<typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC>
@@ -355,4 +356,5 @@ namespace backprop_tools{
         check_status(device);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

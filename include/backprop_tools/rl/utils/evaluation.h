@@ -4,7 +4,6 @@
  * This file relies on the environments methods hence it should be included after the operations of the environments that it will be used with
  */
 
-#include <backprop_tools/rl/environments/environments.h>
 #include <backprop_tools/math/operations_generic.h>
 
 namespace backprop_tools::rl::utils::evaluation{

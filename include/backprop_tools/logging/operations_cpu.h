@@ -5,6 +5,7 @@
 
 #include <iostream>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace logging{
         template <typename DEVICE, typename A>
@@ -43,4 +44,5 @@ namespace backprop_tools{
     template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN>
     void add_histogram(DEVICE& device, devices::logging::CPU* logger, const TOPIC, const ARG*, const ARG_LEN){ /* noop */ }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

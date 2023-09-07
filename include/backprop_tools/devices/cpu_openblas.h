@@ -15,6 +15,7 @@ namespace backprop_tools::devices{
     };
     using DefaultCPU_OPENBLAS = CPU_OPENBLAS<DefaultCPUSpecification>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC>
     void init(devices::CPU_OPENBLAS<DEV_SPEC>& device){
@@ -22,5 +23,6 @@ namespace backprop_tools{
     }
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

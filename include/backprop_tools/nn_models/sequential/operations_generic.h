@@ -3,6 +3,7 @@
 
 #include "model.h"
 #include <backprop_tools/utils/generic/typing.h>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename MODULE_SPEC>
     void malloc(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module){
@@ -170,5 +171,6 @@ namespace backprop_tools{
         return diff;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

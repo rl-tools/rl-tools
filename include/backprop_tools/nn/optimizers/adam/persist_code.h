@@ -6,6 +6,7 @@
 
 #include <string>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     std::string get_type_string(nn::parameters::Adam p){
         return "backprop_tools::nn::parameters::Adam";
@@ -39,6 +40,7 @@ namespace backprop_tools{
         return {"", ss.str()};
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

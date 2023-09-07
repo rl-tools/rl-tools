@@ -62,6 +62,7 @@ namespace backprop_tools::devices{
     using DefaultESP32 = esp32::OPT<DefaultESP32Specification<>>;
 }
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     template <typename DEV_SPEC, typename TI>
@@ -70,6 +71,7 @@ namespace backprop_tools{
     }
 #endif
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

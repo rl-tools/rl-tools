@@ -98,6 +98,7 @@ namespace backprop_tools::rl::environments::multirotor {
 }
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename ENVIRONMENT>
     void init(DEVICE& dev, ENVIRONMENT& env, rl::environments::multirotor::UI<ENVIRONMENT>& ui){
@@ -148,3 +149,4 @@ namespace backprop_tools{
     }
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

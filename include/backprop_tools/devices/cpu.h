@@ -49,6 +49,7 @@ namespace backprop_tools::devices{
     using DefaultCPU = CPU<DefaultCPUSpecification>;
 }
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::CPU<DEV_SPEC>& device, TI size){
@@ -59,5 +60,6 @@ namespace backprop_tools{
     template <typename SPEC>
     void check_status(devices::CPU<SPEC>& device){ }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

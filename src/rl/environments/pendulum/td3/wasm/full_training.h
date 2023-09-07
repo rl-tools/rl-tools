@@ -2,7 +2,7 @@
 
 #include <backprop_tools/nn/operations_generic.h>
 
-#include <backprop_tools/rl/environments/operations_generic.h>
+#include <backprop_tools/rl/environments/pendulum/operations_generic.h>
 #include <backprop_tools/nn_models/operations_generic.h>
 #include <backprop_tools/rl/components/off_policy_runner/operations_generic.h>
 #include <backprop_tools/rl/algorithms/td3/operations_generic.h>

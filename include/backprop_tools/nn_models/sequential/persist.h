@@ -8,6 +8,7 @@
 #include <highfive/H5Group.hpp>
 #include <string>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
         template<typename DEVICE, typename SPEC>
         void save(DEVICE& device, nn_models::sequential::Module<SPEC>& model, HighFive::Group group, typename DEVICE::index_t layer_i = 0) {
@@ -30,4 +31,5 @@ namespace backprop_tools{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

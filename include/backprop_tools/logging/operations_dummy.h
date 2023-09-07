@@ -1,6 +1,7 @@
 #ifndef BACKPROP_TOOLS_LOGGING_OPERATIONS_DUMMY_H
 #define BACKPROP_TOOLS_LOGGING_OPERATIONS_DUMMY_H
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace logging{
         template <typename DEVICE, typename A>
@@ -18,4 +19,5 @@ namespace backprop_tools{
         //noop
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -35,6 +35,7 @@ namespace backprop_tools::rl::environments::pendulum::ui::xeus {
 }
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
     void render(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui){
@@ -109,5 +110,6 @@ namespace backprop_tools{
         ui.action = get(action, 0, 0);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

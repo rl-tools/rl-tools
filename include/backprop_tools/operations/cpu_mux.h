@@ -4,30 +4,38 @@
 #endif
 #if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_mkl/group_1.h>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC>
     using DEVICE_FACTORY = backprop_tools::devices::CPU_MKL<DEV_SPEC>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #else
 #if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_accelerate/group_1.h>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC>
     using DEVICE_FACTORY = backprop_tools::devices::CPU_ACCELERATE<DEV_SPEC>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #else
 #if defined(BACKPROP_TOOLS_BACKEND_ENABLE_OPENBLAS) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 #include <backprop_tools/operations/cpu_openblas/group_1.h>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC>
     using DEVICE_FACTORY = backprop_tools::devices::CPU_OPENBLAS<DEV_SPEC>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #else
 #include <backprop_tools/operations/cpu/group_1.h>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC>
     using DEVICE_FACTORY = backprop_tools::devices::CPU<DEV_SPEC>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 #endif
 #endif

@@ -931,7 +931,7 @@ void ADAM_UPDATE() {
     }
     for(typename NetworkTypeCPU::TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
         for(typename NetworkTypeCPU::TI input_i = 0; input_i < NetworkTypeCPU::OUTPUT_DIM; input_i++){
-            set(output_target_cpu, batch_i, input_i, bpt::random::normal_distribution::samplac(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
+            set(output_target_cpu, batch_i, input_i, bpt::random::normal_distribution::sample(DEVICE_CPU::SPEC::RANDOM(), (T)0, (T)1, rng));
         }
     }
     {

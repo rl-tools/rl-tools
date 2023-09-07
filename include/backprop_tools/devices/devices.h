@@ -1,6 +1,8 @@
 #ifndef BACKPROP_TOOLS_DEVICES_DEVICES_H
 #define BACKPROP_TOOLS_DEVICES_DEVICES_H
 
+#include <backprop_tools/backprop_tools.h>
+
 #include <backprop_tools/utils/generic/typing.h>
 
 namespace backprop_tools {
@@ -31,11 +33,13 @@ namespace backprop_tools {
     }
 }
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC>
     void init(devices::Device<DEV_SPEC>& device){ };
     template <typename DEV_SPEC, typename T>
     void count_malloc(devices::Device<DEV_SPEC>& device, T){ };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

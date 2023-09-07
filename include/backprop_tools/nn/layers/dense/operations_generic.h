@@ -9,6 +9,7 @@
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer) {
@@ -297,5 +298,6 @@ namespace backprop_tools{
             is_nan(device, l.output);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

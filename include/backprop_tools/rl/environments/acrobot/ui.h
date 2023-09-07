@@ -89,6 +89,7 @@ namespace backprop_tools::rl::environments::acrobot::ui{
 }
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
     void render(DEVICE& device, const rl::environments::Acrobot<ENV_SPEC>& env, rl::environments::acrobot::UI<SPEC>& ui){
@@ -136,5 +137,6 @@ namespace backprop_tools{
         copy(device, device, ui.action, action);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

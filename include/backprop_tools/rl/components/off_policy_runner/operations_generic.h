@@ -8,6 +8,7 @@
 
 #include "operations_generic_per_env.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
@@ -235,5 +236,6 @@ namespace backprop_tools{
 #endif
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

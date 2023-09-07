@@ -11,6 +11,7 @@
 #include <backprop_tools/math/operations_generic.h>
 #include <backprop_tools/utils/generic/memcpy.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic){
@@ -368,5 +369,6 @@ namespace backprop_tools{
         copy(target_device, source_device, target.next_state_action_value_critic_2, source.next_state_action_value_critic_2);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

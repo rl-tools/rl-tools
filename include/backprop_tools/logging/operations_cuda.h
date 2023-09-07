@@ -4,6 +4,7 @@
 
 #include <backprop_tools/devices/cuda.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace logging{
         template <typename DEVICE, typename A>
@@ -37,4 +38,5 @@ namespace backprop_tools{
         void add_histogram(DEVICE& device, devices::logging::CUDA* logger, const TOPIC, const ARG*, const ARG_LEN){ /* noop */ }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif
