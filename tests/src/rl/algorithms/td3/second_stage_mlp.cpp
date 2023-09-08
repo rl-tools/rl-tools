@@ -1,5 +1,5 @@
 #include <backprop_tools/operations/cpu.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <backprop_tools/rl/environments/operations_cpu.h>
 #include <backprop_tools/rl/algorithms/td3/operations_cpu.h>

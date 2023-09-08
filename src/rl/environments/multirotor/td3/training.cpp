@@ -1,6 +1,6 @@
 #include <backprop_tools/operations/cpu_mux.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
 //using LOGGING_DEVICE = bpt::devices::logging::CPU;
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGING_DEVICE>;

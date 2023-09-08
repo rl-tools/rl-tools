@@ -7,7 +7,7 @@
 
 namespace parameters_sim2real{
     namespace builder{
-        namespace bpt = BACKPROP_TOOLS_NAMESPACE;
+        namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
         using namespace bpt::rl::environments::multirotor;
         template<typename T, typename TI>
         struct environment{

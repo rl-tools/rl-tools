@@ -9,7 +9,7 @@
 
 
 namespace parameters{
-    namespace bpt = BACKPROP_TOOLS_NAMESPACE;
+    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
     template<typename T, typename TI, typename ENVIRONMENT>
     struct rl{
         struct ACTOR_CRITIC_PARAMETERS: bpt::rl::algorithms::td3::DefaultParameters<T, TI>{
