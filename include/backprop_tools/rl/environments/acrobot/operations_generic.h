@@ -1,5 +1,5 @@
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_OPERATIONS_GENERIC
-#define BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_OPERATIONS_GENERIC
+#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_OPERATIONS_GENERIC_H
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_OPERATIONS_GENERIC_H
 #include "acrobot.h"
 #include "../operations_generic.h"
 // adapted from (and tested agains) https://github.com/Farama-Foundation/Gymnasium/blob/v0.28.1/gymnasium/envs/classic_control/acrobot.py

@@ -1,5 +1,5 @@
-#ifndef BACKPROP_TOOLS_RL_ALGORITHMS_SAC
-#define BACKPROP_TOOLS_RL_ALGORITHMS_SAC
+#ifndef BACKPROP_TOOLS_RL_ALGORITHMS_SAC_SAC_H
+#define BACKPROP_TOOLS_RL_ALGORITHMS_SAC_SAC_H
 //#include <backprop_tools/nn_models/output_view/model.h>
 
 

@@ -1,5 +1,5 @@
-#ifndef BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM
-#define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM
+#ifndef BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H
+#define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H
 
 #include <backprop_tools/nn/parameters/parameters.h>
 
