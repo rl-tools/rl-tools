@@ -1,0 +1,49 @@
+cmake_minimum_required(VERSION 3.12)
+cmake_policy(SET CMP0097 NEW) # ExternalProject should not pull submodules by default
+
+include(FetchContent)
+FetchContent_Declare(test_rl_environments_multirotor_regression_test_code
+        GIT_REPOSITORY file://${PROJECT_SOURCE_DIR}
+#        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/regression_test
+        GIT_TAG 883e90ba502d7a495306ec0f609c89f79e3744a8
+        GIT_SUBMODULES ""
+)
+FetchContent_Declare(test_rl_environments_multirotor_regression_test_code_new
+        GIT_REPOSITORY file://${PROJECT_SOURCE_DIR}
+        #        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/regression_test
+        GIT_TAG f4086ddf59068fabb97b55c0e7a1b738dce0121e
+        GIT_SUBMODULES ""
+)
+
+if(NOT test_rl_environments_multirotor_regression_test_code_POPULATED)
+    FetchContent_Populate(test_rl_environments_multirotor_regression_test_code)
+endif()
+if(NOT test_rl_environments_multirotor_regression_test_code_new_POPULATED)
+    FetchContent_Populate(test_rl_environments_multirotor_regression_test_code_new) # we have to do it this way around because in the old version the internal imports are absolute <backprop_tools/...> etc. hence can not be renamed
+    file(RENAME ${test_rl_environments_multirotor_regression_test_code_new_SOURCE_DIR}/include/backprop_tools ${test_rl_environments_multirotor_regression_test_code_new_SOURCE_DIR}/include/backprop_tools_new)
+endif()
+
+
+add_executable(
+        test_rl_environments_multirotor_regression_test
+        comparison.cpp
+)
+target_link_libraries(
+        test_rl_environments_multirotor_regression_test
+#        backprop_tools
+        GTest::gtest_main
+)
+target_include_directories(
+        test_rl_environments_multirotor_regression_test
+        PRIVATE
+        ${test_rl_environments_multirotor_regression_test_code_SOURCE_DIR}/include
+        ${test_rl_environments_multirotor_regression_test_code_new_SOURCE_DIR}/include
+)
+#add_dependencies(
+#        test_rl_environments_multirotor_regression_test
+#        test_rl_environments_multirotor_regression_test_code)
+#target_include_directories(
+#        test_rl_environments_multirotor_regression_test
+#        PUBLIC
+#        ${CMAKE_SOURCE_DIR}/back
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_multirotor_regression_test)
