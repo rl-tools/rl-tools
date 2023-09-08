@@ -1,5 +1,6 @@
 #include "../../version.h"
-#if !defined(BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_CODE_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDEGUARDS) || !defined(BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_CODE_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_CODE_H
 #include "../../containers/persist_code.h"
 #include "parameters.h"

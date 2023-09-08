@@ -1,5 +1,6 @@
 #include "../../../version.h"
-#if !defined(BACKPROP_TOOLS_RL_ALGORITHMS_SAC_SAC_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDEGUARDS) || !defined(BACKPROP_TOOLS_RL_ALGORITHMS_SAC_SAC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_ALGORITHMS_SAC_SAC_H
 //#include "../../../nn_models/output_view/model.h"
 

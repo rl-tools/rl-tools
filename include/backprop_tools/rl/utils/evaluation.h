@@ -1,5 +1,6 @@
 #include "../../version.h"
-#if !defined(BACKPROP_TOOLS_RL_UTILS_EVALUATION_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDEGUARDS) || !defined(BACKPROP_TOOLS_RL_UTILS_EVALUATION_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_UTILS_EVALUATION_H
 /*
  * This file relies on the environments methods hence it should be included after the operations of the environments that it will be used with
