@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_PERSIST_H
 
 #include <highfive/H5Group.hpp>
-#include <backprop_tools/containers/persist.h>
+#include "../../../containers/persist.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

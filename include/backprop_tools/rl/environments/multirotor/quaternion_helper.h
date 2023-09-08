@@ -6,7 +6,7 @@
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 
-#include <backprop_tools/utils/generic/vector_operations.h>
+#include "../../../utils/generic/vector_operations.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor{

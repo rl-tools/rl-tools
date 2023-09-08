@@ -1,11 +1,11 @@
 #include "../../../version.h"
 #if !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_LAYER_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_LAYER_H
-#include <backprop_tools/nn/activation_functions.h>
-#include <backprop_tools/utils/generic/typing.h>
-#include <backprop_tools/containers.h>
+#include "../../../nn/activation_functions.h"
+#include "../../../utils/generic/typing.h"
+#include "../../../containers.h"
 
-#include <backprop_tools/nn/parameters/parameters.h>
+#include "../../../nn/parameters/parameters.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::layers::dense {

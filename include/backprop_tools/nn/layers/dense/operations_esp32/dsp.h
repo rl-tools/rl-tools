@@ -2,8 +2,8 @@
 #if !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_ESP32_DSP_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_ESP32_DSP_H
 
-#include <backprop_tools/devices/esp32.h>
-#include <backprop_tools/nn/layers/dense/layer.h>
+#include "../../../../devices/esp32.h"
+#include "../../../../nn/layers/dense/layer.h"
 
 #include "esp_dsp.h"
 

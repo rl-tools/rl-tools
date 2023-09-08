@@ -3,8 +3,8 @@
 #define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_OPERATIONS_GENERIC_H
 
 #include "adam.h"
-#include <backprop_tools/nn/parameters/operations_generic.h>
-#include <backprop_tools/utils/polyak/operations_generic.h>
+#include "../../../nn/parameters/operations_generic.h"
+#include "../../../utils/polyak/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

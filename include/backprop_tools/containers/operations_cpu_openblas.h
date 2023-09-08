@@ -3,8 +3,8 @@
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_OPENBLAS_H
 
 #include "operations_cpu_blas.h"
-#include <backprop_tools/containers.h>
-#include <backprop_tools/devices/cpu_openblas.h>
+#include "../containers.h"
+#include "../devices/cpu_openblas.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

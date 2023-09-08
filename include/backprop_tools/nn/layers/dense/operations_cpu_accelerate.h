@@ -4,7 +4,7 @@
 
 #include <Accelerate/Accelerate.h>
 #include "operations_cpu_blas.h"
-#include <backprop_tools/devices/cpu_accelerate.h>
+#include "../../../devices/cpu_accelerate.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

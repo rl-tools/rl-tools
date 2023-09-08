@@ -2,7 +2,7 @@
 #if !defined(BACKPROP_TOOLS_NN_LOSS_FUNCTIONS_MSE_OPERATIONS_CUDA_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_LOSS_FUNCTIONS_MSE_OPERATIONS_CUDA_H
 
-#include <backprop_tools/devices/cuda.h>
+#include "../../../devices/cuda.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::loss_functions::mse {

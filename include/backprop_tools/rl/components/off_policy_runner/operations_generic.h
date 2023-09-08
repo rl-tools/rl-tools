@@ -2,10 +2,10 @@
 #if !defined(BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_GENERIC_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_GENERIC_H
 
-#include <backprop_tools/math/operations_generic.h>
+#include "../../../math/operations_generic.h"
 #include "off_policy_runner.h"
 
-#include <backprop_tools/rl/components/replay_buffer/operations_generic.h>
+#include "../../../rl/components/replay_buffer/operations_generic.h"
 
 #include "operations_generic_per_env.h"
 

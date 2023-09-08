@@ -2,8 +2,8 @@
 #if !defined(BACKPROP_TOOLS_CONTAINERS_PERSIST_CODE_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_CONTAINERS_PERSIST_CODE_H
 
-#include <backprop_tools/persist/code.h>
-#include <backprop_tools/utils/generic/typing.h>
+#include "../persist/code.h"
+#include "../utils/generic/typing.h"
 #include <sstream>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

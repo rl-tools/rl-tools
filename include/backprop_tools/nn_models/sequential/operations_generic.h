@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_OPERATIONS_GENERIC_H
 
 #include "model.h"
-#include <backprop_tools/utils/generic/typing.h>
+#include "../../utils/generic/typing.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename MODULE_SPEC>

@@ -2,9 +2,9 @@
 #if !defined(BACKPROP_TOOLS_DEVICES_DEVICES_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_DEVICES_DEVICES_H
 
-#include <backprop_tools/backprop_tools.h>
+#include "../backprop_tools.h"
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {

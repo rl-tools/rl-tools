@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_UTILS_LOGGING_OPERATIONS_CUDA_H
 
 
-#include <backprop_tools/devices/cuda.h>
+#include "../devices/cuda.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

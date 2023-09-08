@@ -2,7 +2,7 @@
 #if !defined(BACKPROP_TOOLS_CPU_GENERIC_MATH_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_CPU_GENERIC_MATH_H
 
-#include <backprop_tools/devices/dummy.h>
+#include "../devices/dummy.h"
 
 #include "operations_generic.h"
 

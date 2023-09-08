@@ -2,7 +2,7 @@
 #if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H
 
-#include <backprop_tools/math/operations_generic.h>
+#include "../../../math/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::pendulum {

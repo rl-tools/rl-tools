@@ -2,10 +2,10 @@
 #if !defined(BACKPROP_TOOLS_NN_MODELS_MLP_OPERATIONS_GENERIC_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_MODELS_MLP_OPERATIONS_GENERIC_H
 
-#include <backprop_tools/nn_models/mlp/network.h>
-#include <backprop_tools/nn/operations_generic.h>
-#include <backprop_tools/nn/parameters/operations_generic.h>
-#include <backprop_tools/nn/optimizers/adam/operations_generic.h>
+#include "../../nn_models/mlp/network.h"
+#include "../../nn/operations_generic.h"
+#include "../../nn/parameters/operations_generic.h"
+#include "../../nn/optimizers/adam/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {

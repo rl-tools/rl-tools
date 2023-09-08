@@ -2,7 +2,7 @@
 #if !defined(BACKPROP_TOOLS_RL_ALGORITHMS_PPO_PPO_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_RL_ALGORITHMS_PPO_PPO_H
 
-#include <backprop_tools/rl/components/running_normalizer/running_normalizer.h>
+#include "../../../rl/components/running_normalizer/running_normalizer.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::algorithms{

@@ -3,8 +3,8 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_SQ_EXP_H
 
 #include "../../multirotor.h"
-#include <backprop_tools/utils/generic/typing.h>
-#include <backprop_tools/utils/generic/vector_operations.h>
+#include "../../../../../utils/generic/typing.h"
+#include "../../../../../utils/generic/vector_operations.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{

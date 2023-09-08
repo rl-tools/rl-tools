@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_OPERATIONS_GENERIC_H
 
 #include "replay_buffer.h"
-#include <backprop_tools/utils/generic/memcpy.h>
+#include "../../../utils/generic/memcpy.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {

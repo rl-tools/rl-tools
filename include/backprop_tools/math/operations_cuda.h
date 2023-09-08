@@ -8,7 +8,7 @@
 
 #include "operations_generic.h"
 
-#include <backprop_tools/devices/cuda.h>
+#include "../devices/cuda.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::math {

@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_ANT_H
 
 #include <mujoco/mujoco.h>
-#include <backprop_tools/utils/generic/typing.h>
+#include "../../../../utils/generic/typing.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::mujoco{

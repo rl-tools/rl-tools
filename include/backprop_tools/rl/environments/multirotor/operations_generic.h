@@ -4,12 +4,12 @@
 
 #include "multirotor.h"
 
-#include <backprop_tools/utils/generic/vector_operations.h>
+#include "../../../utils/generic/vector_operations.h"
 #include "quaternion_helper.h"
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../../../utils/generic/typing.h"
 
-#include <backprop_tools/rl/environments/operations_generic.h>
+#include "../../../rl/environments/operations_generic.h"
 
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
@@ -117,7 +117,7 @@ namespace backprop_tools{
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
-#include <backprop_tools/utils/generic/integrators.h>
+#include "../../../utils/generic/integrators.h"
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

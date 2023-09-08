@@ -1,7 +1,7 @@
 #include "../version.h"
 #if !defined(BACKPROP_TOOLS_DEVICES_ESP32_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_DEVICES_ESP32_H
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 #include "devices.h"
 
 #include <cstddef>

@@ -1,7 +1,7 @@
 
 
-#include <backprop_tools/utils/polyak/operations_cuda.h>
-#include <backprop_tools/rl/algorithms/td3/td3.h>
+#include "../../../utils/polyak/operations_cuda.h"
+#include "../../../rl/algorithms/td3/td3.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename RNG>

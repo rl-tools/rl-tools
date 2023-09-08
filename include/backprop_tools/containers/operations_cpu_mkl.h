@@ -2,9 +2,9 @@
 #if !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_MKL_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_MKL_H
 
-#include <backprop_tools/containers.h>
+#include "../containers.h"
 #include "operations_cpu_blas.h"
-#include <backprop_tools/devices/cpu_mkl.h>
+#include "../devices/cpu_mkl.h"
 
 #include <mkl.h>
 

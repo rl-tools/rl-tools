@@ -3,9 +3,9 @@
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CUDA_H
 
 //#include "operations_generic.h"
-#include <backprop_tools/devices/cuda.h>
-#include <backprop_tools/nn/parameters/operations_cuda.h>
-#include <backprop_tools/nn/nn.h>
+#include "../../../devices/cuda.h"
+#include "../../../nn/parameters/operations_cuda.h"
+#include "../../../nn/nn.h"
 
 #include <cublas_v2.h>
 

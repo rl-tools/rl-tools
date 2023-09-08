@@ -2,8 +2,8 @@
 #if !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CUDA_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CUDA_H
 
-#include <backprop_tools/containers.h>
-#include <backprop_tools/devices/cuda.h>
+#include "../containers.h"
+#include "../devices/cuda.h"
 
 #include <cuda_runtime.h>
 #include <cuda.h>

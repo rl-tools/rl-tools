@@ -3,8 +3,8 @@
 #define BACKPROP_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_H
 
 #include "ppo.h"
-#include <backprop_tools/nn/loss_functions/mse/operations_generic.h>
-#include <backprop_tools/rl/components/on_policy_runner/on_policy_runner.h>
+#include "../../../nn/loss_functions/mse/operations_generic.h"
+#include "../../../rl/components/on_policy_runner/on_policy_runner.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

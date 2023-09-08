@@ -4,7 +4,7 @@
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
-#include <backprop_tools/devices/devices.h>
+#include "../devices/devices.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::activation_functions {
     enum ActivationFunction{

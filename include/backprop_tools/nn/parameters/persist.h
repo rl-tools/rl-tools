@@ -2,7 +2,7 @@
 #if !defined(BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_H
 
-#include <backprop_tools/nn/parameters/parameters.h>
+#include "../../nn/parameters/parameters.h"
 
 #include <highfive/H5Group.hpp>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

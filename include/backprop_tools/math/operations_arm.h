@@ -4,7 +4,7 @@
 
 #include "operations_generic.h"
 
-#include <backprop_tools/devices/arm.h>
+#include "../devices/arm.h"
 
 #include <cmath>
 //#include <algorithm>

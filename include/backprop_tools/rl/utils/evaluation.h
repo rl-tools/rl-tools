@@ -5,7 +5,7 @@
  * This file relies on the environments methods hence it should be included after the operations of the environments that it will be used with
  */
 
-#include <backprop_tools/math/operations_generic.h>
+#include "../../math/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::utils::evaluation{

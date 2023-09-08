@@ -2,9 +2,9 @@
 #if !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_ARM_OPT_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_ARM_OPT_H
 
-#include <backprop_tools/nn/layers/dense/operations_generic.h>
-//#include <backprop_tools/utils/generic/memcpy.h>
-#include <backprop_tools/devices/arm.h>
+#include "../../../../nn/layers/dense/operations_generic.h"
+//#include "../../../../utils/generic/memcpy.h"
+#include "../../../../devices/arm.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

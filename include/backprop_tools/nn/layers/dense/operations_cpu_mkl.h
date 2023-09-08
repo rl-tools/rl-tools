@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_MKL_H
 
 #include "operations_cpu_blas.h"
-#include <backprop_tools/devices/cpu_mkl.h>
+#include "../../../devices/cpu_mkl.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

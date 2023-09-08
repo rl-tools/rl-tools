@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_DEVICES_CPU_H
 
 #include "devices.h"
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 
 #include <cstddef>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

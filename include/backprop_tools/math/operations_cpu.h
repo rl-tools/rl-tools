@@ -4,7 +4,7 @@
 
 #include "operations_generic.h"
 
-#include <backprop_tools/devices/cpu.h>
+#include "../devices/cpu.h"
 
 #include <cmath>
 #include <algorithm> // required for clamp(...)

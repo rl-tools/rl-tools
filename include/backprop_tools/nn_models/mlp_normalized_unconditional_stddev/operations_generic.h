@@ -1,5 +1,5 @@
 #include "network.h"
-#include <backprop_tools/nn_models/mlp/operations_generic.h>
+#include "../../nn_models/mlp/operations_generic.h"
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START

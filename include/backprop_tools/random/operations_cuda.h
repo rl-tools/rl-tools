@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_CUDA_H
 
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 
 #include <curand_kernel.h>
 

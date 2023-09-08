@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_CPU_H
 
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 
 #include <random>
 

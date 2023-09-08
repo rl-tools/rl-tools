@@ -4,7 +4,7 @@
 
 #include "../../multirotor.h"
 
-#include <backprop_tools/math/operations_generic.h>
+#include "../../../../../math/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor::parameters::termination{

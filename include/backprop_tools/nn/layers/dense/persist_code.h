@@ -2,10 +2,10 @@
 #if !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H
 #include "layer.h"
-#include <backprop_tools/containers/persist_code.h>
+#include "../../../containers/persist_code.h"
 #include <sstream>
-#include <backprop_tools/persist/code.h>
-#include <backprop_tools/containers/persist_code.h>
+#include "../../../persist/code.h"
+#include "../../../containers/persist_code.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {

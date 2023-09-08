@@ -2,12 +2,12 @@
 #if !defined(BACKPROP_TOOLS_NN_MODELS_MLP_NETWORK_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_MODELS_MLP_NETWORK_H
 
-#include <backprop_tools/nn/nn.h>
-#include <backprop_tools/nn/parameters/parameters.h>
-#include <backprop_tools/nn/optimizers/sgd/sgd.h>
-#include <backprop_tools/nn/optimizers/adam/adam.h>
-#include <backprop_tools/utils/generic/typing.h>
-#include <backprop_tools/containers.h>
+#include "../../nn/nn.h"
+#include "../../nn/parameters/parameters.h"
+#include "../../nn/optimizers/sgd/sgd.h"
+#include "../../nn/optimizers/adam/adam.h"
+#include "../../utils/generic/typing.h"
+#include "../../containers.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn_models::mlp {

@@ -3,8 +3,8 @@
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_BLAS_H
 
 #include "operations_cpu.h"
-#include <backprop_tools/utils/generic/memcpy.h>
-#include <backprop_tools/devices/cpu_blas.h>
+#include "../../../utils/generic/memcpy.h"
+#include "../../../devices/cpu_blas.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

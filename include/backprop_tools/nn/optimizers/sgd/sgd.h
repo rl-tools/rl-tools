@@ -2,7 +2,7 @@
 #if !defined(BACKPROP_TOOLS_NN_OPTIMIZERS_SGD_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_OPTIMIZERS_SGD_H
 
-#include <backprop_tools/nn/parameters/parameters.h>
+#include "../../../nn/parameters/parameters.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::optimizers::sgd {

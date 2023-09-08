@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_PERSIST_CODE_H
 
 #include "adam.h"
-#include <backprop_tools/nn/parameters/persist_code.h>
+#include "../../../nn/parameters/persist_code.h"
 
 #include <string>
 

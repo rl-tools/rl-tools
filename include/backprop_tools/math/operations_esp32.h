@@ -4,7 +4,7 @@
 
 #include "operations_generic.h"
 
-#include <backprop_tools/devices/esp32.h>
+#include "../devices/esp32.h"
 
 #include <cmath>
 #include <algorithm>

@@ -2,10 +2,10 @@
 #if !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H
 
-#include <backprop_tools/containers.h>
-#include <backprop_tools/nn/parameters/operations_generic.h>
+#include "../../../containers.h"
+#include "../../../nn/parameters/operations_generic.h"
 
-#include <backprop_tools/nn/layers/dense/layer.h>
+#include "../../../nn/layers/dense/layer.h"
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif

@@ -1,9 +1,9 @@
 #include "../../version.h"
 #if !defined(BACKPROP_TOOLS_NN_MODELS_MLP_PERSIST_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_MODELS_MLP_PERSIST_H
-#include <backprop_tools/nn/parameters/persist.h>
-#include <backprop_tools/nn/optimizers/adam/persist.h>
-#include <backprop_tools/nn/persist.h>
+#include "../../nn/parameters/persist.h"
+#include "../../nn/optimizers/adam/persist.h"
+#include "../../nn/persist.h"
 #include "network.h"
 
 #include <highfive/H5Group.hpp>

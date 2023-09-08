@@ -3,7 +3,7 @@
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_OPENBLAS_H
 
 #include "operations_cpu_blas.h"
-#include <backprop_tools/devices/cpu_openblas.h>
+#include "../../../devices/cpu_openblas.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
