@@ -1,4 +1,5 @@
-#ifndef BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_ARM_OPT_H
+#include "../../../../version.h"
+#if !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_ARM_OPT_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_ARM_OPT_H
 
 #include <backprop_tools/nn/layers/dense/operations_generic.h>

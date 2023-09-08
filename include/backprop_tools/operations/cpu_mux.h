@@ -1,3 +1,7 @@
+#include "../version.h"
+#if !defined(BACKPROP_TOOLS_OPERATIONS_CPU_MUX_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#define BACKPROP_TOOLS_OPERATIONS_CPU_MUX_H
+
 #include <backprop_tools/backprop_tools.h>
 // ------------ Groups 1 ------------
 #if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
@@ -94,4 +98,6 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 #if defined(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA) && defined(BACKPROP_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA)
 #include <backprop_tools/operations/cuda/group_3.h>
+#endif
+
 #endif

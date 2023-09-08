@@ -1,4 +1,5 @@
-#ifndef BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_H
+#include "../../version.h"
+#if !defined(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_H
 #include <backprop_tools/nn/parameters/persist.h>
 #include <backprop_tools/nn/optimizers/adam/persist.h>

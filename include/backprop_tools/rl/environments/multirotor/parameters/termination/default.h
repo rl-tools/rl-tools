@@ -1,3 +1,7 @@
+#include "../../../../../version.h"
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_TERMINATION_DEFAULT_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_TERMINATION_DEFAULT_H
+
 #include "../../multirotor.h"
 
 #include <backprop_tools/math/operations_generic.h>
@@ -20,3 +24,5 @@ namespace backprop_tools::rl::environments::multirotor::parameters::termination{
     };
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif

@@ -1,3 +1,8 @@
+#include "../version.h"
+#if !defined(BACKPROP_TOOLS_OPERATIONS_ESP32_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#define BACKPROP_TOOLS_OPERATIONS_ESP32_H
+
+
 #ifndef BACKPROP_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
@@ -9,3 +14,5 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #include "esp32/group_1.h"
 #include "esp32/group_2.h"
 #include "esp32/group_3.h"
+
+#endif

@@ -1,4 +1,5 @@
-#ifndef BACKPROP_TOOLS_MATH_OPERATIONS_ESP32_H
+#include "../version.h"
+#if !defined(BACKPROP_TOOLS_MATH_OPERATIONS_ESP32_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_MATH_OPERATIONS_ESP32_H
 
 #include "operations_generic.h"

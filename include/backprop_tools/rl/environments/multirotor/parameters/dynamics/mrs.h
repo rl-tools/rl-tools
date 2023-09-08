@@ -1,3 +1,6 @@
+#include "../../../../../version.h"
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_DYANMICS_MRS_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_DYANMICS_MRS_H
 
 #include "../../multirotor.h"
 
@@ -99,3 +102,5 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+
+#endif

@@ -1,3 +1,6 @@
+#include "../../../../../version.h"
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_DYANMICS_CRAZY_FLIE_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_DYANMICS_CRAZY_FLIE_H
 
 #include "../../multirotor.h"
 
@@ -639,3 +642,5 @@ Iyy = (1/12)m*(a^2 + c^2)
 Izz = (1/12)m*(a^2 + b^2)
  */
 
+
+#endif

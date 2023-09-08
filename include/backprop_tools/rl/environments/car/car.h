@@ -1,4 +1,5 @@
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_CAR_H
+#include "../../../version.h"
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_CAR_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_CAR_H
 
 #include <backprop_tools/math/operations_generic.h>

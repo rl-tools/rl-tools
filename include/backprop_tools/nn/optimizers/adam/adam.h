@@ -1,4 +1,5 @@
-#ifndef BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H
+#include "../../../version.h"
+#if !defined(BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H
 
 #include <backprop_tools/nn/parameters/parameters.h>

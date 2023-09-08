@@ -1,3 +1,7 @@
+#include "../version.h"
+#if !defined(BACKPROP_TOOLS_OPERATIONS_CPU_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#define BACKPROP_TOOLS_OPERATIONS_CPU_H
+
 #include <backprop_tools/backprop_tools.h>
 #ifndef BACKPROP_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
@@ -10,3 +14,5 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #include "cpu/group_1.h"
 #include "cpu/group_2.h"
 #include "cpu/group_3.h"
+
+#endif

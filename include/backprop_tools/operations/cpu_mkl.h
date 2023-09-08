@@ -1,3 +1,7 @@
+#include "../version.h"
+#if !defined(BACKPROP_TOOLS_OPERATIONS_CPU_MKL_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#define BACKPROP_TOOLS_OPERATIONS_CPU_MKL_H
+
 #ifndef BACKPROP_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
@@ -9,3 +13,5 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #include "cpu_mkl/group_1.h"
 #include "cpu_mkl/group_2.h"
 #include "cpu_mkl/group_3.h"
+
+#endif

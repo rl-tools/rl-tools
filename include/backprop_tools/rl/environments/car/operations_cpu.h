@@ -1,3 +1,8 @@
+
+#include "../../../version.h"
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_OPERATIONS_CPU_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_OPERATIONS_CPU_H
+
 #include <stdint.h>
 #include <fstream>
 #include "operations_generic.h"
@@ -94,3 +99,5 @@ namespace backprop_tools{
     }
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif

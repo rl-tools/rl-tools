@@ -1,4 +1,5 @@
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_UI_H
+#include "../../../version.h"
+#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_UI_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_UI_H
 
 #include "car.h"

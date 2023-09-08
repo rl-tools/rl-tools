@@ -1,3 +1,6 @@
+#include "../../version.h"
+#if !defined(BACKPROP_TOOLS_OPERATIONS_CPU_TENSORBOARD_GROUP_1_H) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#define BACKPROP_TOOLS_OPERATIONS_CPU_TENSORBOARD_GROUP_1_H
 #ifndef BACKPROP_TOOLS_OPERATIONS_CPU_TENSORBOARD_GROUP_1
     #define BACKPROP_TOOLS_OPERATIONS_CPU_TENSORBOARD_GROUP_1
     #include <backprop_tools/devices/cpu_tensorboard.h>
@@ -7,4 +10,5 @@
     #include <backprop_tools/logging/operations_cpu_tensorboard.h>
 #else
     #error "Group 1 already imported"
+#endif
 #endif
