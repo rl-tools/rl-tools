@@ -4,7 +4,7 @@
 #include <backprop_tools/nn_models/operations_generic.h>
 #include <backprop_tools/containers/persist.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <random>
 #include <chrono>
@@ -29,7 +29,7 @@ using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T, T
 using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 
 namespace mnist_model{ // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
-    using namespace backprop_tools::nn_models::sequential::interface;
+    using namespace bpt::nn_models::sequential::interface;
 
     using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, INPUT_DIM, HIDDEN_DIM, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam>;
     using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;

@@ -20,7 +20,7 @@ constexpr auto ACTION_DIM = dynamics_legacy::ACTION_DIM;
 
 #include <backprop_tools/utils/generic/memcpy.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <gtest/gtest.h>
 #include <random>

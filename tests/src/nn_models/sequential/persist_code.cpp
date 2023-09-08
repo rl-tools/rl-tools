@@ -7,7 +7,7 @@
 #include <backprop_tools/nn/layers/dense/persist_code.h>
 #include <backprop_tools/nn_models/sequential/persist_code.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <fstream>

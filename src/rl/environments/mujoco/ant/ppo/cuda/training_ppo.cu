@@ -8,7 +8,7 @@
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
 #include <backprop_tools/nn_models/persist.h>
 #endif
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 // --------------- changed for cuda training -----------------
 #include "../parameters.h"
 // -------------------------------------------------------

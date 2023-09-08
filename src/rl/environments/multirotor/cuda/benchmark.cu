@@ -3,7 +3,7 @@
 
 #include <backprop_tools/rl/environments/multirotor/operations_cpu.h>
 #include "parameters.h"
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <iostream>
 #include <chrono>

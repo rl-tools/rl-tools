@@ -33,7 +33,7 @@ namespace backprop_tools{
         }
         if(layer_i == 0){
             ss << ind << "    " << "namespace model_definition {\n";
-            ss << ind << "    " << "    " << "using namespace backprop_tools::nn_models::sequential::interface;\n";
+            ss << ind << "    " << "    " << "using namespace BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn_models::sequential::interface;\n";
             ss << ind << "    " << "    " << "using MODEL = Module<";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << "layer_" << layer_i << "::TYPE";
@@ -59,7 +59,7 @@ namespace backprop_tools{
             }
             ss << ";\n";
 
-//            ss << ind << "    " << (const_declaration ? "const " : "") << "backprop_tools::nn_models::sequential::Module<" << layer_i << "> module = {layer_0::container, " << get_type_string<typename SPEC::NEXT_MODULE>() << "::module, };\n";
+//            ss << ind << "    " << (const_declaration ? "const " : "") << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn_models::sequential::Module<" << layer_i << "> module = {layer_0::container, " << get_type_string<typename SPEC::NEXT_MODULE>() << "::module, };\n";
             ss << ind << "}";
         }
         return {ss_header.str(), ss.str()};

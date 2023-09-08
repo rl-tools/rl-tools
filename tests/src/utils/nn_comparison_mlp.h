@@ -4,7 +4,7 @@
 #include "nn_comparison.h"
 
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff(DEVICE& device, const backprop_tools::nn_models::mlp::NeuralNetwork<SPEC>& n1, const backprop_tools::nn_models::mlp::NeuralNetwork<SPEC>& n2) {
+typename SPEC::T abs_diff(DEVICE& device, const bpt::nn_models::mlp::NeuralNetwork<SPEC>& n1, const bpt::nn_models::mlp::NeuralNetwork<SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
     T acc = 0;
@@ -16,11 +16,11 @@ typename SPEC::T abs_diff(DEVICE& device, const backprop_tools::nn_models::mlp::
     return acc;
 }
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_grad(DEVICE& device, const backprop_tools::nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& n1, const backprop_tools::nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& n2) {
+typename SPEC::T abs_diff_grad(DEVICE& device, const bpt::nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& n1, const bpt::nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
-    using GradNetworkSpec = backprop_tools::nn_models::mlp::BackwardGradientSpecification<typename SPEC::STRUCTURE_SPEC>;
-    using GradNetworkType = backprop_tools::nn_models::mlp::NeuralNetworkBackwardGradient<GradNetworkSpec>;
+    using GradNetworkSpec = bpt::nn_models::mlp::BackwardGradientSpecification<typename SPEC::STRUCTURE_SPEC>;
+    using GradNetworkType = bpt::nn_models::mlp::NeuralNetworkBackwardGradient<GradNetworkSpec>;
     GradNetworkType n1g;
     bpt::malloc(device, n1g);
     bpt::copy(device, device, n1g, n1);
@@ -41,7 +41,7 @@ typename SPEC::T abs_diff_grad(DEVICE& device, const backprop_tools::nn_models::
 }
 
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_adam(DEVICE& device, const backprop_tools::nn_models::mlp::NeuralNetworkAdam<SPEC>& n1, const backprop_tools::nn_models::mlp::NeuralNetworkAdam<SPEC>& n2) {
+typename SPEC::T abs_diff_adam(DEVICE& device, const bpt::nn_models::mlp::NeuralNetworkAdam<SPEC>& n1, const bpt::nn_models::mlp::NeuralNetworkAdam<SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
     T acc = 0;

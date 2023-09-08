@@ -9,10 +9,10 @@
 #include <backprop_tools/nn_models/operations_generic.h>
 
 #include <backprop_tools/rl/algorithms/td3/loop.h>
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 namespace training_config {
-    using namespace backprop_tools::nn_models::sequential::interface; // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
+    using namespace bpt::nn_models::sequential::interface; // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
     struct Config{
         using DEV_SPEC = bpt::devices::DefaultCPUSpecification;
 //    using DEVICE = bpt::devices::CPU<DEV_SPEC>;

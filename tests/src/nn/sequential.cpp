@@ -4,7 +4,7 @@
 #include <backprop_tools/nn_models/operations_cpu.h>
 #include <backprop_tools/nn_models/sequential/operations_generic.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <gtest/gtest.h>
 

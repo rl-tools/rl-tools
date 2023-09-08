@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 
 TEST(BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {

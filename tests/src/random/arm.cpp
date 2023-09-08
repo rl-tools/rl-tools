@@ -4,7 +4,7 @@
 
 template <auto MIN, auto MAX, int NUM_RUNS = 10000>
 void test_int_uniform_limits(){
-    namespace bpt = backprop_tools;
+    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
     using DEVICE = bpt::devices::DefaultARM;
     using T = float;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
@@ -23,7 +23,7 @@ TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_LIMITS) {
 
 template <auto MIN, auto MAX, int NUM_RUNS = 10000>
 void test_int_uniform_distribution(){
-    namespace bpt = backprop_tools;
+    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
     using DEVICE = bpt::devices::DefaultARM;
     using T = float;
     using TI = typename DEVICE::index_t;
@@ -55,7 +55,7 @@ TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_DISTRIBUTION) {
 
 template <typename T, auto MIN, auto MAX, auto DENOMINATOR, int NUM_RUNS = 10000>
 void test_real_uniform_limits(){
-    namespace bpt = backprop_tools;
+    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
     using DEVICE = bpt::devices::DefaultARM;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
     T min = (T)MIN / (T)DENOMINATOR;
@@ -78,7 +78,7 @@ TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_LIMITS) {
 
 template <typename T, auto MIN, auto MAX, auto DENOMINATOR, int NUM_RUNS = 10000>
 void test_real_uniform_distribution(){
-    namespace bpt = backprop_tools;
+    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
     using DEVICE = bpt::devices::DefaultARM;
     using TI = typename DEVICE::index_t;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
@@ -112,7 +112,7 @@ TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_DISTRIBUTION) {
 
 template <typename T, auto MEAN, auto STD, auto DENOMINATOR, int NUM_RUNS = 10000000>
 void test_normal_distribution(){
-    namespace bpt = backprop_tools;
+    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
     using DEVICE = bpt::devices::DefaultARM;
     using TI = typename DEVICE::index_t;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());

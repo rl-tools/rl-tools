@@ -1,6 +1,6 @@
 #include <backprop_tools/operations/cpu.h>
 #include <backprop_tools/nn_models/mlp/operations_cpu.h>
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include "/home/jonas/phd/projects/rl_for_control/backprop_tools_multirotor/checkpoints/multirotor_td3/2023-05-28T23_17_05-0400_ppo_ant_101/actor_000000001500000.h"
 

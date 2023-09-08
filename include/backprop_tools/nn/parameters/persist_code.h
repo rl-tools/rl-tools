@@ -6,10 +6,10 @@
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     std::string get_type_string(nn::parameters::Plain p){
-        return "backprop_tools::nn::parameters::Plain";
+        return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Plain";
     }
     std::string get_type_string(nn::parameters::Gradient p){
-        return "backprop_tools::nn::parameters::Gradient";
+        return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Gradient";
     }
     template<typename DEVICE, typename CONTAINER>
     persist::Code save_split(DEVICE &device, nn::parameters::Plain::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
@@ -25,7 +25,7 @@ namespace backprop_tools {
         ss_header << container.header;
         ss << container.body;
         if(!output_memory_only){
-            ss << ind << "    " << (const_declaration ? "const " : "") << "backprop_tools::nn::parameters::Plain::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container};\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Plain::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container};\n";
         }
         ss << ind << "}\n";
         return {"", ss.str()};
@@ -49,8 +49,8 @@ namespace backprop_tools {
         ss_header << gradient.header;
         ss << gradient.body;
         if(!output_memory_only){
-            ss << ind << "    " << "static_assert(backprop_tools::utils::typing::is_same_v<parameters_memory::CONTAINER_TYPE, gradient_memory::CONTAINER_TYPE>);\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "backprop_tools::nn::parameters::Gradient::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container, gradient_memory::container};\n";
+            ss << ind << "    " << "static_assert(BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::utils::typing::is_same_v<parameters_memory::CONTAINER_TYPE, gradient_memory::CONTAINER_TYPE>);\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Gradient::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container, gradient_memory::container};\n";
         }
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};

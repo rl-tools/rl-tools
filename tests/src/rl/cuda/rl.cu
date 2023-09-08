@@ -34,7 +34,7 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 class BACKPROP_TOOLS_RL_CUDA : public ::testing::Test {
 public:
@@ -64,11 +64,11 @@ public:
     using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
     using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
     using ACTOR_TARGET_NETWORK_SPEC = bpt::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-    using ACTOR_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+    using ACTOR_TARGET_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
     using CRITIC_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
-    using CRITIC_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
-    using CRITIC_TARGET_NETWORK_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-    using CRITIC_TARGET_NETWORK_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+    using CRITIC_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+    using CRITIC_TARGET_NETWORK_SPEC = bpt::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
+    using CRITIC_TARGET_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
     using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
     using ACTOR_BUFFERS = bpt::nn_models::mlp::NeuralNetworkBuffers<bpt::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;

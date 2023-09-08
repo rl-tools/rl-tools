@@ -6,7 +6,7 @@
 #include <backprop_tools/nn_models/persist.h>
 #include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
 #include "ppo/parameters.h"

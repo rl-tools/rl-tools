@@ -16,7 +16,7 @@ namespace plt = matplotlibcpp;
 #include <backprop_tools/utils/rng_std.h>
 #include <backprop_tools/rl/utils/evaluation.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #define DTYPE float
 
 typedef bpt::rl::environments::pendulum::Spec<DTYPE, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;

@@ -695,6 +695,7 @@ namespace backprop_tools{
         return false;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #include "parameters/reward_functions/reward_functions.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{

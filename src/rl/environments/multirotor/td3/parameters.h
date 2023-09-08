@@ -7,7 +7,9 @@
 
 #include <backprop_tools/utils/generic/typing.h>
 
+
 namespace parameters{
+    namespace bpt = BACKPROP_TOOLS_NAMESPACE;
     template<typename T, typename TI, typename ENVIRONMENT>
     struct rl{
         struct ACTOR_CRITIC_PARAMETERS: bpt::rl::algorithms::td3::DefaultParameters<T, TI>{
@@ -38,13 +40,13 @@ namespace parameters{
         using ACTOR_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
 
         using ACTOR_TARGET_SPEC = bpt::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-        using ACTOR_TARGET_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_SPEC>;
+        using ACTOR_TARGET_TYPE = bpt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_SPEC>;
 
         using CRITIC_SPEC = bpt::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_TYPE = backprop_tools::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
+        using CRITIC_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
 
-        using CRITIC_TARGET_SPEC = backprop_tools::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_TARGET_TYPE = backprop_tools::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
+        using CRITIC_TARGET_SPEC = bpt::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
+        using CRITIC_TARGET_TYPE = bpt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
 
         using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, OPTIMIZER, ACTOR_CRITIC_PARAMETERS>;
         using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;

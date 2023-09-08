@@ -11,7 +11,7 @@
 #include <backprop_tools/operations/cpu_mkl/group_3.h>
 #include <backprop_tools/operations/cpu_tensorboard/group_3.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <backprop_tools/nn/operations_cuda.h>
 #include <backprop_tools/nn/operations_cpu_mkl.h>

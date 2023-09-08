@@ -34,7 +34,7 @@ namespace backprop_tools::rl::utils::evaluation{
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools {
+namespace backprop_tools{
 
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVAL_BUFFERS, typename RNG>
     bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVAL_BUFFERS& policy_eval_buffers, RNG& rng) {

@@ -1,7 +1,7 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
 #include <backprop_tools/nn_models/operations_cpu.h>
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #include "parameters_rl.h"
 #include <backprop_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
