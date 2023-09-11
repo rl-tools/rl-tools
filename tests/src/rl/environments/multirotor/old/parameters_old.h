@@ -28,10 +28,14 @@ namespace parameters_sim2real_old{
 //                        backprop_tools::rl::environments::multirotor::parameters::init::simple<T, TI, 4, REWARD_FUNCTION>,
                         reward_function,
                         {   // Observation noise
-                            0.001, // position
-                            0.001, // orientation
-                            0.002, // linear_velocity
-                            0.002, // angular_velocity
+                            0.0, // position
+                            0.0, // orientation
+                            0.0, // linear_velocity
+                            0.0, // angular_velocity
+//                            0.001, // position
+//                            0.001, // orientation
+//                            0.002, // linear_velocity
+//                            0.002, // angular_velocity
                         },
                         {   // Action noise
                             0, // std of additive gaussian noise onto the normalized action (-1, 1)

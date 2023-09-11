@@ -490,8 +490,9 @@ namespace backprop_tools{
             using OBSERVATION = rl::environments::multirotor::observation::RotorSpeeds<OBSERVATION_SPEC>;
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
-            for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
-                set(observation, 0, i, state.rpm[i]);
+            for(TI action_i = 0; action_i < OBSERVATION::CURRENT_DIM; action_i++){
+                T action_value = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min)/(env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) * 2 - 1;
+                set(observation, 0, action_i, action_value);
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);

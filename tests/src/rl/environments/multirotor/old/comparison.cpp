@@ -33,8 +33,16 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, REGRESSION_TEST){
         ENVIRONMENT_NEW::State state_new, next_state_new;
         ENVIRONMENT_OLD::State state_old, next_state_old;
 
-        bpt_old::MatrixDynamic<bpt_old::matrix::Specification<T, TI, 1, 4>> action_old;
-        bpt_new::MatrixDynamic<bpt_new::matrix::Specification<T, TI, 1, 4>> action_new;
+        bpt_old::MatrixDynamic<bpt_old::matrix::Specification<T, TI, 1, ENVIRONMENT_OLD::OBSERVATION_DIM>> observation_old;
+        bpt_old::MatrixDynamic<bpt_old::matrix::Specification<T, TI, 1, ENVIRONMENT_OLD::OBSERVATION_DIM_PRIVILEGED>> observation_privileged_old;
+        bpt_new::MatrixDynamic<bpt_old::matrix::Specification<T, TI, 1, ENVIRONMENT_NEW::OBSERVATION_DIM>> observation_new;
+        bpt_new::MatrixDynamic<bpt_old::matrix::Specification<T, TI, 1, ENVIRONMENT_NEW::OBSERVATION_DIM_PRIVILEGED>> observation_privileged_new;
+        bpt_old::MatrixDynamic<bpt_old::matrix::Specification<T, TI, 1, ENVIRONMENT_OLD::ACTION_DIM>> action_old;
+        bpt_new::MatrixDynamic<bpt_new::matrix::Specification<T, TI, 1, ENVIRONMENT_NEW::ACTION_DIM>> action_new;
+        bpt_old::malloc(device_old, observation_old);
+        bpt_old::malloc(device_old, observation_privileged_old);
+        bpt_new::malloc(device_new, observation_new);
+        bpt_new::malloc(device_new, observation_privileged_new);
         bpt_old::malloc(device_old, action_old);
         bpt_new::malloc(device_new, action_new);
         bpt_new::set(action_new, 0, 0, 1);
@@ -81,8 +89,22 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, REGRESSION_TEST){
         constexpr T threshold = 1e-10;
         for(TI step_i=0; step_i < 100; step_i++){
             std::cout << "Step i: " << step_i << std::endl;
+            bpt_old::observe(device_old, env_old, state_old, observation_old, rng_old);
+            bpt_new::observe(device_new, env_new, state_new, observation_new, rng_new);
+            bpt_old::observe_privileged(device_old, env_old, state_old, observation_privileged_old, rng_old);
+            bpt_new::observe_privileged(device_new, env_new, state_new, observation_privileged_new, rng_new);
             bpt_old::step(device_old, env_old, state_old, action_old, next_state_old, rng_old);
             bpt_new::step(device_new, env_new, state_new, action_new, next_state_new, rng_new);
+            {
+                for(TI i=0; i < ENVIRONMENT_OLD::OBSERVATION_DIM; i++){
+                    std::cout << "observation i: " << i << std::endl;
+                    ASSERT_NEAR(bpt_old::get(observation_old, 0, i), bpt_new::get(observation_new, 0, i), threshold);
+                }
+                for(TI i=0; i < ENVIRONMENT_OLD::OBSERVATION_DIM_PRIVILEGED; i++){
+                    std::cout << "observation_privileged i: " << i << std::endl;
+                    ASSERT_NEAR(bpt_old::get(observation_privileged_old, 0, i), bpt_new::get(observation_privileged_new, 0, i), threshold);
+                }
+            }
             {
                 ASSERT_NEAR(next_state_old.position[0], next_state_new.position[0], threshold);
                 ASSERT_NEAR(next_state_old.position[1], next_state_new.position[1], threshold);
@@ -117,7 +139,8 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, REGRESSION_TEST){
             T r_new = bpt_new::reward(device_new, env_new, state_new, action_new, next_state_new, rng_new);
             T r_old = bpt_old::reward(device_old, env_old, state_old, action_old, next_state_old, rng_old);
             ASSERT_NEAR(r_new, r_old, threshold);
-
+            state_old = next_state_old;
+            state_new = next_state_new;
         }
     }
 
