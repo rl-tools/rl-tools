@@ -11,7 +11,7 @@ FetchContent_Declare(test_rl_environments_multirotor_regression_test_code
 FetchContent_Declare(test_rl_environments_multirotor_regression_test_code_new
         GIT_REPOSITORY file://${PROJECT_SOURCE_DIR}
         #        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/regression_test
-        GIT_TAG bd4180b1e634de4f675471c5c15b4d29f9be2a4b
+        GIT_TAG b24b505caf89186b0ecd518db5601e27e030dac0
         GIT_SUBMODULES ""
 )
 
