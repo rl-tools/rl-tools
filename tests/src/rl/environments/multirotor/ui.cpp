@@ -12,7 +12,7 @@
 #include <backprop_tools/rl/utils/evaluation.h>
 #include <backprop_tools/nn_models/persist.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 using DTYPE = float;
 #include "../multirotor_training/parameters.h"

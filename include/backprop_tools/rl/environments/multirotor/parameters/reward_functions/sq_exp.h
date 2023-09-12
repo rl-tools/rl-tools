@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_SQ_EXP_H
+#include "../../../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_SQ_EXP_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_SQ_EXP_H
 
 #include "../../multirotor.h"
-#include <backprop_tools/utils/generic/typing.h>
-#include <backprop_tools/utils/generic/vector_operations.h>
+#include "../../../../../utils/generic/typing.h"
+#include "../../../../../utils/generic/vector_operations.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{
     template<typename T>
     struct SqExp{
@@ -26,7 +29,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         SqExp<T> modes[N_MODES];
     };
     template<typename DEVICE, typename SPEC, typename T, typename T_STATE, typename TI_STATE, typename LATENT_STATE, typename ACTION_SPEC, typename RNG>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::SqExp<T>& params, const rl::environments::multirotor::StateBase<T_STATE, TI_STATE, LATENT_STATE>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::multirotor::StateBase<T_STATE, TI_STATE, LATENT_STATE>& next_state, RNG& rng, bool log_components = true) {
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::SqExp<T>& params, const rl::environments::multirotor::StateBase<T_STATE, TI_STATE>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::multirotor::StateBase<T_STATE, TI_STATE>& next_state, RNG& rng, bool log_components = true) {
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         static_assert(ACTION_SPEC::ROWS == 1);
@@ -113,5 +116,6 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         return acc;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -1,11 +1,14 @@
-#ifndef BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_CUDA_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_CUDA_H
 
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 
 #include <curand_kernel.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::random{
     namespace cuda{
         using RNG = unsigned int; // actually the seed
@@ -64,5 +67,6 @@ namespace backprop_tools::random{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

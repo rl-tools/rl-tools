@@ -1,11 +1,11 @@
 #include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/nn/operations_cpu_mux.h>
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 
 
 
-#include <backprop_tools/rl/environments/operations_generic.h>
+#include <backprop_tools/rl/environments/pendulum/operations_generic.h>
 #include <backprop_tools/nn_models/operations_generic.h>
 #include <backprop_tools/rl/components/off_policy_runner/operations_generic.h>
 #include <backprop_tools/rl/algorithms/td3/operations_generic.h>
@@ -58,7 +58,7 @@ struct TD3_PENDULUM_PARAMETERS: bpt::rl::algorithms::td3::DefaultParameters<T, T
 using TD3_PARAMETERS = TD3_PENDULUM_PARAMETERS;
 
 namespace function_approximators{ // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
-    using namespace backprop_tools::nn_models::sequential::interface;
+    using namespace bpt::nn_models::sequential::interface;
 
     template <typename PARAMETER_TYPE>
     struct ACTOR{

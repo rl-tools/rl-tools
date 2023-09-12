@@ -1,11 +1,14 @@
-#ifndef BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_PERSIST_CODE_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_PERSIST_CODE_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_PERSIST_CODE_H
 
 #include "adam.h"
-#include <backprop_tools/nn/parameters/persist_code.h>
+#include "../../../nn/parameters/persist_code.h"
 
 #include <string>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     std::string get_type_string(nn::parameters::Adam p){
         return "backprop_tools::nn::parameters::Adam";
@@ -39,6 +42,7 @@ namespace backprop_tools{
         return {"", ss.str()};
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

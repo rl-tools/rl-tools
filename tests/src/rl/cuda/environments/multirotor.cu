@@ -15,7 +15,7 @@
 
 #include <gtest/gtest.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 using DTYPE = double;
 constexpr DTYPE DIFF_THRESHOLD = bpt::utils::typing::is_same_v<DTYPE, float> ? 1e-6 : 1e-10;

@@ -1,13 +1,16 @@
-#ifndef BACKPROP_TOOLS_NN_MODELS_MLP_NETWORK_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_MODELS_MLP_NETWORK_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_MODELS_MLP_NETWORK_H
 
-#include <backprop_tools/nn/nn.h>
-#include <backprop_tools/nn/parameters/parameters.h>
-#include <backprop_tools/nn/optimizers/sgd/sgd.h>
-#include <backprop_tools/nn/optimizers/adam/adam.h>
-#include <backprop_tools/utils/generic/typing.h>
-#include <backprop_tools/containers.h>
+#include "../../nn/nn.h"
+#include "../../nn/parameters/parameters.h"
+#include "../../nn/optimizers/sgd/sgd.h"
+#include "../../nn/optimizers/adam/adam.h"
+#include "../../utils/generic/typing.h"
+#include "../../containers.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn_models::mlp {
     template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct StructureSpecification{
@@ -158,4 +161,5 @@ namespace backprop_tools::nn_models::mlp {
 
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

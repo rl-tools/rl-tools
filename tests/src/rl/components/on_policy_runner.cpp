@@ -6,7 +6,7 @@
 #include <backprop_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <backprop_tools/rl/components/on_policy_runner/persist.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 
 #include <gtest/gtest.h>

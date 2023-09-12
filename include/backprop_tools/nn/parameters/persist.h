@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_PARAMETERS_PERSIST_H
 
-#include <backprop_tools/nn/parameters/parameters.h>
+#include "../../nn/parameters/parameters.h"
 
 #include <highfive/H5Group.hpp>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename CONTAINER>
     void save(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& parameter, HighFive::Group group) {
@@ -24,4 +27,5 @@ namespace backprop_tools{
         load(device, parameter.gradient, group, "gradient");
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

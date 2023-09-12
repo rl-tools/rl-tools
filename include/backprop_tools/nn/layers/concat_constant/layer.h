@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT_LAYER_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT_LAYER_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT_LAYER_H
-#include <backprop_tools/utils/generic/typing.h>
-#include <backprop_tools/containers.h>
+#include "../../../utils/generic/typing.h"
+#include "../../../containers.h"
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::layers::concat_constant {
     template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     constexpr bool check_input_output_f(){
@@ -58,5 +61,6 @@ namespace backprop_tools::nn::layers::concat_constant {
         OUTPUT_CONTAINER_TYPE output;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

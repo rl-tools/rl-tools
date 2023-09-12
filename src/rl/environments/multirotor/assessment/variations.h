@@ -1,7 +1,7 @@
 #include <backprop_tools/rl/environments/multirotor/multirotor.h>
 
 namespace variations {
-    namespace bpt = backprop_tools;
+    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
     template <typename TI, typename T_ENVIRONMENT, typename T_RNG>
     struct Specification{
         using ENVIRONMENT = T_ENVIRONMENT;

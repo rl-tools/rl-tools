@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_OPERATIONS_GENERIC_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_OPERATIONS_GENERIC_H
 
 #include "adam.h"
-#include <backprop_tools/nn/parameters/operations_generic.h>
-#include <backprop_tools/utils/polyak/operations_generic.h>
+#include "../../../nn/parameters/operations_generic.h"
+#include "../../../utils/polyak/operations_generic.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename CONTAINER>
     void malloc(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& p){
@@ -80,4 +83,5 @@ namespace backprop_tools{
         target.age = source.age;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

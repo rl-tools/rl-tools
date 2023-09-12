@@ -1,7 +1,10 @@
-#ifndef BACKPROP_TOOLS_NN_UTILS_POLYAK_OPERATIONS_CUDA_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_UTILS_POLYAK_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_UTILS_POLYAK_OPERATIONS_CUDA_H
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::utils::polyak {
     // todo: polyak factor as template parameter (reciprocal INT e.g.)
     namespace internal {
@@ -44,6 +47,7 @@ namespace backprop_tools::utils::polyak {
         update<DEV_SPEC, TARGET_SPEC, SOURCE_SPEC, true>(dev, target, source, polyak);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

@@ -17,7 +17,7 @@
 #pragma cling load("libdl.so.2")
 #endif
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 using DEVICE = bpt::devices::DefaultCPU;
 using DEVICE_MKL = bpt::devices::DefaultCPU_MKL;

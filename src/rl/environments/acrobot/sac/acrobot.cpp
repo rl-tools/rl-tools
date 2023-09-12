@@ -9,10 +9,10 @@
 #include <backprop_tools/nn_models/operations_generic.h>
 
 #include <backprop_tools/rl/algorithms/sac/loop.h>
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 namespace training_config{
-    using namespace backprop_tools::nn_models::sequential::interface;
+    using namespace bpt::nn_models::sequential::interface;
     struct TrainingConfig{
         using DEV_SPEC = bpt::devices::DefaultCPUSpecification;
 //    using DEVICE = bpt::devices::CPU<DEV_SPEC>;

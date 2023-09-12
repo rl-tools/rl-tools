@@ -1,8 +1,11 @@
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_OPERATIONS_GENERIC
-#define BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_OPERATIONS_GENERIC
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_OPERATIONS_GENERIC_H
 #include "acrobot.h"
 #include "../operations_generic.h"
 // adapted from (and tested agains) https://github.com/Farama-Foundation/Gymnasium/blob/v0.28.1/gymnasium/envs/classic_control/acrobot.py
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::acrobot {
     template <typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T clip(T x, T min, T max){
@@ -19,6 +22,8 @@ namespace backprop_tools::rl::environments::acrobot {
         return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state, RNG& rng){
@@ -198,4 +203,5 @@ namespace backprop_tools{
         return false; //math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_1 || math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_2;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_UTILS_GENERIC_INTEGRATORS_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_GENERIC_INTEGRATORS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_UTILS_GENERIC_INTEGRATORS_H
 
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::utils::integrators{
     template<typename DEVICE, typename T, typename PARAMETER_TYPE, typename STATE, auto ACTION_DIM, auto DYNAMICS>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void euler(DEVICE& device, const PARAMETER_TYPE& params, const STATE& state, const T action[ACTION_DIM], const T dt, STATE& next_state) {
@@ -15,18 +18,19 @@ namespace backprop_tools::utils::integrators{
 
     template<typename DEVICE, typename T, typename PARAMETER_TYPE, typename STATE, auto ACTION_DIM, auto DYNAMICS>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void rk4(DEVICE& device, const PARAMETER_TYPE& params, const STATE& state, const T action[ACTION_DIM], const T dt, STATE& next_state) {
+        next_state = state;
         STATE& k1 = next_state; //[STATE_DIM];
 
         // flops: 157
         DYNAMICS(device, params, state, action, k1);
 
-        STATE var;
+        STATE var = state;
 
         // flops: 13
         scalar_multiply(device, k1, dt / 2, var);
 
         {
-            STATE k2;
+            STATE k2 = state;
             add_accumulate(device, state, var);
             // flops: 157
             DYNAMICS(device, params, var, action, k2);
@@ -36,7 +40,7 @@ namespace backprop_tools::utils::integrators{
             scalar_multiply_accumulate(device, k2, 2, k1);
         }
         {
-            STATE k3;
+            STATE k3 = state;
             add_accumulate(device, state, var);
             // flops: 157
             DYNAMICS(device, params, var, action, k3);
@@ -48,7 +52,7 @@ namespace backprop_tools::utils::integrators{
 
 
         {
-            STATE k4;
+            STATE k4 = state;
             add_accumulate(device, state, var);
             // flops: 157
             DYNAMICS(device, params, var, action, k4);
@@ -61,5 +65,6 @@ namespace backprop_tools::utils::integrators{
         // total flops: 157 + 13 + 157 + 13 + 13 + 157 + 13 + 13 + 157 + 13 = 706
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

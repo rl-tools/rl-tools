@@ -1,8 +1,11 @@
-#ifndef BACKPROP_TOOLS_DEVICES_DUMMY_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_DUMMY_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_DEVICES_DUMMY_H
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 #include "devices.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     namespace dummy{
         struct Base{
@@ -40,5 +43,6 @@ namespace backprop_tools::devices{
     };
     using DefaultDummy = Dummy<DefaultDummySpecification>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

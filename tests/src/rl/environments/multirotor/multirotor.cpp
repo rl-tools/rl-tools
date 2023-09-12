@@ -20,7 +20,7 @@ constexpr auto ACTION_DIM = dynamics_legacy::ACTION_DIM;
 
 #include <backprop_tools/utils/generic/memcpy.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <gtest/gtest.h>
 #include <random>
@@ -39,7 +39,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     const auto parameters = bpt::rl::environments::multirotor::parameters::default_parameters<DTYPE, typename DEVICE::index_t>;
     using PARAMETERS = decltype(parameters);
     using REWARD_FUNCTION = PARAMETERS::MDP::REWARD_FUNCTION;
-    using SPEC = bpt::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, bpt::rl::environments::multirotor::StaticParametersDefault<TI>>;
+    using SPEC = bpt::rl::environments::multirotor::Specification<DTYPE, DEVICE::index_t, PARAMETERS, bpt::rl::environments::multirotor::StaticParametersDefault<DTYPE, TI>>;
     using ENVIRONMENT = bpt::rl::environments::Multirotor<SPEC>;
     std::cout << "sizeof state: " << sizeof(ENVIRONMENT::State) << std::endl;
 

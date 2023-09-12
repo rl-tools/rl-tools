@@ -1,6 +1,9 @@
-#ifndef BACKPROP_TOOLS_UTILS_GENERIC_TYPING_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_GENERIC_TYPING_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_UTILS_GENERIC_TYPING_H
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::utils::typing {
     template<class T, T v>
     struct integral_constant {
@@ -75,6 +78,7 @@ namespace backprop_tools::utils::typing {
     using conditional_t = typename conditional<B,T,F>::type;
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #define backprop_tools_static_warn(x, ...) ((void) warn_if<x>())
 

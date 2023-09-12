@@ -1,12 +1,15 @@
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_QUATERNION_HELPER_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_QUATERNION_HELPER_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_QUATERNION_HELPER_H
 
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 
-#include <backprop_tools/utils/generic/vector_operations.h>
+#include "../../../utils/generic/vector_operations.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor{
     template <typename DEVICE, typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void quaternion_derivative(const T q[4], const T omega[3], T q_dot[4]) {
@@ -50,5 +53,6 @@ namespace backprop_tools::rl::environments::multirotor{
         R[2][2] = 1 - 2*q[1]*q[1] - 2*q[2]*q[2];
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

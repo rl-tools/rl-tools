@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_GENERIC_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_GENERIC_H
 
 #include "on_policy_runner.h"
 #include "operations_generic_per_env.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
@@ -139,4 +142,5 @@ namespace backprop_tools{
         free(device, observation_std);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

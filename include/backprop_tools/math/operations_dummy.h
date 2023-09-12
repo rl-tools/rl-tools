@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_CPU_GENERIC_MATH_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CPU_GENERIC_MATH_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_CPU_GENERIC_MATH_H
 
-#include <backprop_tools/devices/dummy.h>
+#include "../devices/dummy.h"
 
 #include "operations_generic.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::math {
 
     template<typename T>
@@ -84,4 +87,5 @@ namespace backprop_tools::math {
     }
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

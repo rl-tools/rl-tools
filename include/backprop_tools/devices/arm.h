@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_DEVICES_ARM_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_ARM_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_DEVICES_ARM_H
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 #include "devices.h"
 
 #include <cstddef>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     namespace arm{
         template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
@@ -58,7 +61,9 @@ namespace backprop_tools::devices{
     using DefaultARMSpecification = arm::Specification<math::ARM, random::ARM, logging::ARM>;
     using DefaultARM = arm::OPT<DefaultARMSpecification>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     template <typename DEV_SPEC, typename TI>
@@ -67,5 +72,6 @@ namespace backprop_tools{
     }
 #endif
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -1,8 +1,11 @@
-#ifndef BACKPROP_TOOLS_CONTAINERS_OPERATIONS_ARM_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_ARM_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_ARM_H
 
 #include "operations_generic.h"
 #include <cstring> // formemcpy
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     void copy_view(devices::ARM<TARGET_DEV_SPEC>& target_device, devices::ARM<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
@@ -22,4 +25,5 @@ namespace backprop_tools{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

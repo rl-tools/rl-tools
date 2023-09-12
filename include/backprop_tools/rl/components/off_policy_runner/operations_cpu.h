@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CPU_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CPU_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CPU_H
 
 #include <thread>
 
 #include "operations_generic_per_env.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::components::off_policy_runner{
     constexpr auto get_num_threads(devices::ExecutionHints hints) {
         return 1;
@@ -83,6 +86,7 @@ namespace backprop_tools::rl::components::off_policy_runner{
 
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #ifndef BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CPU_DELAY_OPERATIONS_GENERIC_INCLUDE
 #include "operations_generic.h"
 #endif

@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_DEVICES_CPU_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_CPU_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_DEVICES_CPU_H
 
-#include <backprop_tools/utils/generic/typing.h>
 #include "devices.h"
+#include "../utils/generic/typing.h"
 
 #include <cstddef>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     namespace cpu{
         template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
@@ -48,7 +51,9 @@ namespace backprop_tools::devices{
     using DefaultCPUSpecification = cpu::Specification<math::CPU, random::CPU, logging::CPU>;
     using DefaultCPU = CPU<DefaultCPUSpecification>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::CPU<DEV_SPEC>& device, TI size){
@@ -59,5 +64,6 @@ namespace backprop_tools{
     template <typename SPEC>
     void check_status(devices::CPU<SPEC>& device){ }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

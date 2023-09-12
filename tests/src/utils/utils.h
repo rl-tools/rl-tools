@@ -12,7 +12,7 @@ void standardise(const T input[DIM], const T mean[DIM], const T std[DIM], T outp
     }
 }
 template <typename T, typename SPEC>
-T abs_diff_matrix(const backprop_tools::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
+T abs_diff_matrix(const BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
     T acc = 0;
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
@@ -23,7 +23,7 @@ T abs_diff_matrix(const backprop_tools::Matrix<SPEC> A, const std::vector<std::v
 }
 
 template <typename T, typename SPEC>
-T abs_diff_matrix(backprop_tools::Matrix<SPEC> A, const T* B) {
+T abs_diff_matrix(BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools::Matrix<SPEC> A, const T* B) {
     T acc = 0;
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
@@ -43,7 +43,7 @@ T abs_diff_vector(const T A[N_ROWS], const T B[N_ROWS]) {
 }
 
 template <typename T, typename SPEC>
-void assign(backprop_tools::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
+void assign(BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
             set(A, i, j, B[i][j]);

@@ -1,7 +1,9 @@
-#ifndef BACKPROP_TOOLS_CONTAINERS_OPERATIONS_GENERIC_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_GENERIC_H
 
-#include <backprop_tools/containers.h>
+#include "../containers.h"
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
     #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
@@ -12,6 +14,7 @@
 #endif
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, MatrixStatic<SPEC>& matrix){
@@ -669,4 +672,5 @@ namespace backprop_tools{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

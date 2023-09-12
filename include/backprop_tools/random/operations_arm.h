@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_ARM_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_ARM_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_ARM_H
 
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::random{
    devices::random::ARM::index_t default_engine(const devices::random::ARM& dev, devices::random::ARM::index_t seed = 1){
        return 0b10101010101010101010101010101010 + seed;
@@ -60,5 +63,6 @@ namespace backprop_tools::random{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

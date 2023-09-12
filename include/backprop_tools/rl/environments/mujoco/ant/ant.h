@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_ANT_H
+#include "../../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_ANT_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_ANT_H
 
 #include <mujoco/mujoco.h>
-#include <backprop_tools/utils/generic/typing.h>
+#include "../../../../utils/generic/typing.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::mujoco{
     namespace ant{
         template <typename T_T, typename T_TI>
@@ -59,4 +62,5 @@ namespace backprop_tools::rl::environments::mujoco{
         static constexpr TI ACTION_DIM = SPEC::ACTION_DIM;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

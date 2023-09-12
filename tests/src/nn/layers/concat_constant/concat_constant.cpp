@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 #include <thread>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 using T = float;
 //using DEVICE = bpt::devices::DefaultCPU;

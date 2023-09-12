@@ -4,7 +4,7 @@
 
 #include "../../../../utils/utils.h"
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <chrono>
 #include <iostream>

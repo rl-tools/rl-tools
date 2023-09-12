@@ -5,7 +5,7 @@
 #include <backprop_tools/nn_models/operations_cpu.h>
 #include <backprop_tools/nn_models/persist.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include "../parameters_ppo.h"
 

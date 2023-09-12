@@ -1,3 +1,4 @@
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace rl::components::on_policy_runner{
         template <typename T_SPEC>
@@ -109,3 +110,4 @@ namespace backprop_tools{
     }
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

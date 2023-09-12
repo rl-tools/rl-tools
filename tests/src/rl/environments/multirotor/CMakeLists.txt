@@ -35,3 +35,6 @@ if(${BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE})
     BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_multirotor_ui_test)
     gtest_discover_tests(test_rl_environments_multirotor_ui_test)
 endif()
+
+
+add_subdirectory(old)

@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_DEVICES_ESP32_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_ESP32_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_DEVICES_ESP32_H
-#include <backprop_tools/utils/generic/typing.h>
+#include "../utils/generic/typing.h"
 #include "devices.h"
 
 #include <cstddef>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::devices{
     namespace esp32{
         enum class Hardware{
@@ -61,7 +64,9 @@ namespace backprop_tools::devices{
     using DefaultESP32Specification = esp32::Specification<math::ESP32, random::ESP32, logging::ESP32, T_HARDWARE>;
     using DefaultESP32 = esp32::OPT<DefaultESP32Specification<>>;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     template <typename DEV_SPEC, typename TI>
@@ -70,6 +75,7 @@ namespace backprop_tools{
     }
 #endif
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_CONTAINERS_PERSIST_CODE_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CONTAINERS_PERSIST_CODE_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_CONTAINERS_PERSIST_CODE_H
 
-#include <backprop_tools/persist/code.h>
-#include <backprop_tools/utils/generic/typing.h>
+#include "../persist/code.h"
+#include "../utils/generic/typing.h"
 #include <sstream>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace containers::persist{
         using STORAGE_TYPE = unsigned char;
@@ -74,8 +77,8 @@ namespace backprop_tools{
             }
         }
         ss << "};\n";
-        ss << ind << "    using CONTAINER_SPEC = backprop_tools::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "backprop_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>;\n";
-        ss << ind << "    using CONTAINER_TYPE = backprop_tools::MatrixDynamic<CONTAINER_SPEC>;\n";
+        ss << ind << "    using CONTAINER_SPEC = BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>;\n";
+        ss << ind << "    using CONTAINER_TYPE = BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::MatrixDynamic<CONTAINER_SPEC>;\n";
         ss << ind << "    " << (const_declaration ? "const " : "") << "CONTAINER_TYPE container = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
@@ -86,4 +89,5 @@ namespace backprop_tools{
         return code.header + code.body;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

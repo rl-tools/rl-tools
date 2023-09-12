@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_UTILS_GENERIC_VECTOR_OPERATIONS_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_GENERIC_VECTOR_OPERATIONS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_UTILS_GENERIC_VECTOR_OPERATIONS_H
 
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::utils::vector_operations{
     template <typename DEVICE, typename T, auto N>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void scalar_multiply(const T v[N], const T s, T out[N]) {
@@ -164,6 +167,7 @@ namespace backprop_tools::utils::vector_operations{
         return acc/N;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

@@ -1,8 +1,11 @@
-#ifndef BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../../utils/generic/typing.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn_models::sequential{
     struct OutputModule{
         struct CONTENT{
@@ -127,6 +130,7 @@ namespace backprop_tools::nn_models::sequential{
         struct Module: backprop_tools::nn_models::sequential::Module<Specification<T_CONTENT, T_NEXT_MODULE>>{};
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

@@ -1,6 +1,6 @@
 #include <backprop_tools/operations/cpu.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <backprop_tools/nn/optimizers/adam/operations_generic.h>
 #include <backprop_tools/nn_models/operations_cpu.h>

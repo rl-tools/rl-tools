@@ -1,6 +1,6 @@
 #include <backprop_tools/operations/cpu_mux.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
 //using LOGGING_DEVICE = bpt::devices::logging::CPU;
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGING_DEVICE>;
@@ -76,7 +76,7 @@ constexpr bool SAVE_REPLAY_BUFFER = false;
 constexpr TI performance_logging_interval = 10000;
 constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = false;
 constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 199;
-constexpr bool ENABLE_EVALUATION = false;
+constexpr bool ENABLE_EVALUATION = true;
 constexpr TI EVALUATION_INTERVAL = 10000;
 
 using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<parameters_rl::ACTOR_STRUCTURE_SPEC>>;
@@ -289,32 +289,32 @@ int main(){
                         bpt::free(device, observation);
                         bpt::free(device, action);
                     }
-                    {
-                        actor_output_file << "#include <backprop_tools/rl/environments/multirotor/multirotor.h>\n";
-                        actor_output_file << "namespace backprop_tools::checkpoint::environment{\n";
-                        static_assert(parameters_environment::ENVIRONMENT::OBSERVATION_TYPE != bpt::rl::environments::multirotor::ObservationType::DoubleQuaternion);
-                        if constexpr(parameters_environment::ENVIRONMENT::OBSERVATION_TYPE == bpt::rl::environments::multirotor::ObservationType::Normal){
-                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = backprop_tools::rl::environments::multirotor::ObservationType::Normal;\n";
-                        }
-                        if constexpr(parameters_environment::ENVIRONMENT::OBSERVATION_TYPE == bpt::rl::environments::multirotor::ObservationType::RotationMatrix){
-                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = backprop_tools::rl::environments::multirotor::ObservationType::RotationMatrix;\n";
-                        }
-
-                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::Base){
-                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::StateType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::Base;\n";
-                        }
-                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotors){
-                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::BaseRotors;\n";
-                        }
-                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotorsHistory){
-                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::StateType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::BaseRotorsHistory;\n";
-                            actor_output_file << "    " << "constexpr int ACTION_HISTORY_LENGTH = " << parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH << ";\n";
-                        }
-                        else{
-                            actor_output_file << "    " << "constexpr int ACTION_HISTORY_LENGTH = " << 0 << ";\n";
-                        }
-                        actor_output_file << "}\n";
-                    }
+//                    {
+//                        actor_output_file << "#include <backprop_tools/rl/environments/multirotor/multirotor.h>\n";
+//                        actor_output_file << "namespace backprop_tools::checkpoint::environment{\n";
+//                        static_assert(parameters_environment::ENVIRONMENT::OBSERVATION_TYPE != bpt::rl::environments::multirotor::ObservationType::DoubleQuaternion);
+//                        if constexpr(parameters_environment::ENVIRONMENT::OBSERVATION_TYPE == bpt::rl::environments::multirotor::ObservationType::Normal){
+//                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = backprop_tools::rl::environments::multirotor::ObservationType::Normal;\n";
+//                        }
+//                        if constexpr(parameters_environment::ENVIRONMENT::OBSERVATION_TYPE == bpt::rl::environments::multirotor::ObservationType::RotationMatrix){
+//                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType OBSERVATION_TYPE = backprop_tools::rl::environments::multirotor::ObservationType::RotationMatrix;\n";
+//                        }
+//
+//                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::Base){
+//                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::StateType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::Base;\n";
+//                        }
+//                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotors){
+//                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::ObservationType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::BaseRotors;\n";
+//                        }
+//                        if constexpr(parameters_environment::ENVIRONMENT::STATE_TYPE == bpt::rl::environments::multirotor::StateType::BaseRotorsHistory){
+//                            actor_output_file << "    " << "constexpr backprop_tools::rl::environments::multirotor::StateType STATE_TYPE = backprop_tools::rl::environments::multirotor::StateType::BaseRotorsHistory;\n";
+//                            actor_output_file << "    " << "constexpr int ACTION_HISTORY_LENGTH = " << parameters_environment::ENVIRONMENT::ACTION_HISTORY_LENGTH << ";\n";
+//                        }
+//                        else{
+//                            actor_output_file << "    " << "constexpr int ACTION_HISTORY_LENGTH = " << 0 << ";\n";
+//                        }
+//                        actor_output_file << "}\n";
+//                    }
                     bpt::free(device, actor_checkpoint);
                 }
 #endif

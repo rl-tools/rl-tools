@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_H
 
 #include "operations_generic.h"
 
 #include <iostream>
 #include <iomanip>
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void print(DEVICE& device, const Matrix<SPEC>& m){
@@ -67,5 +70,6 @@ namespace backprop_tools{
         return result;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

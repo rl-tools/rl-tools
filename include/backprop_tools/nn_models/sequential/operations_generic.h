@@ -1,8 +1,11 @@
-#ifndef BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_OPERATIONS_GENERIC_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_OPERATIONS_GENERIC_H
 
 #include "model.h"
-#include <backprop_tools/utils/generic/typing.h>
+#include "../../utils/generic/typing.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename MODULE_SPEC>
     void malloc(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module){
@@ -170,5 +173,6 @@ namespace backprop_tools{
         return diff;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

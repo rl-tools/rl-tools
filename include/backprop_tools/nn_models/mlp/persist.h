@@ -1,12 +1,15 @@
-#ifndef BACKPROP_TOOLS_NN_MODELS_MLP_PERSIST_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_MODELS_MLP_PERSIST_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_MODELS_MLP_PERSIST_H
-#include <backprop_tools/nn/parameters/persist.h>
-#include <backprop_tools/nn/optimizers/adam/persist.h>
-#include <backprop_tools/nn/persist.h>
+#include "../../nn/parameters/persist.h"
+#include "../../nn/optimizers/adam/persist.h"
+#include "../../nn/persist.h"
 #include "network.h"
 
 #include <highfive/H5Group.hpp>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, HighFive::Group group) {
@@ -36,4 +39,5 @@ namespace backprop_tools{
         load(device, network, file.getGroup("mlp"));
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

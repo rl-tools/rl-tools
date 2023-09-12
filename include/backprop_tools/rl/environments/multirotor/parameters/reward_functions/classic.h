@@ -1,6 +1,10 @@
-
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_CLASSIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_CLASSIC_H
 
 #include "../../multirotor.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{
     template<typename DEVICE, typename SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::State& state, const typename SPEC::T action[rl::environments::Multirotor<SPEC>::ACTION_DIM], const typename rl::environments::Multirotor<SPEC>::State& next_state){
@@ -42,4 +46,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         return math::exp(typename DEVICE::SPEC::MATH(), -acc/standardization_factor);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+
+#endif

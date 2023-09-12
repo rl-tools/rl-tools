@@ -1,16 +1,19 @@
-#ifndef BACKPROP_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H
 
 #include "td3.h"
 
-#include <backprop_tools/rl/components/replay_buffer/replay_buffer.h>
-#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
-#include <backprop_tools/nn/nn.h>
-#include <backprop_tools/nn_models/operations_generic.h>
-#include <backprop_tools/utils/polyak/operations_generic.h>
-#include <backprop_tools/math/operations_generic.h>
-#include <backprop_tools/utils/generic/memcpy.h>
+#include "../../../rl/components/replay_buffer/replay_buffer.h"
+#include "../../../rl/components/off_policy_runner/off_policy_runner.h"
+#include "../../../nn/nn.h"
+#include "../../../nn_models/operations_generic.h"
+#include "../../../utils/polyak/operations_generic.h"
+#include "../../../math/operations_generic.h"
+#include "../../../utils/generic/memcpy.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
@@ -285,5 +288,6 @@ namespace backprop_tools{
         copy(target_device, source_device, target.next_state_action_value_critic_2, source.next_state_action_value_critic_2);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

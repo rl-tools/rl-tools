@@ -1,13 +1,16 @@
-#ifndef BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CUDA_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CUDA_H
 
 //#include "operations_generic.h"
-#include <backprop_tools/devices/cuda.h>
-#include <backprop_tools/nn/parameters/operations_cuda.h>
-#include <backprop_tools/nn/nn.h>
+#include "../../../devices/cuda.h"
+#include "../../../nn/parameters/operations_cuda.h"
+#include "../../../nn/nn.h"
 
 #include <cublas_v2.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace nn::dense::cuda{
         template<typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC>
@@ -355,4 +358,5 @@ namespace backprop_tools{
         check_status(device);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

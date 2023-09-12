@@ -1,10 +1,13 @@
-#ifndef BACKPROP_TOOLS_UTILS_GENERIC_MATH_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_GENERIC_MATH_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_UTILS_GENERIC_MATH_H
 
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::math {
 
     template<typename T>
@@ -15,4 +18,5 @@ namespace backprop_tools::math {
     template<typename T>
     constexpr T SQRT1_2 = 0.707106781186547524400844362104849039L;
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

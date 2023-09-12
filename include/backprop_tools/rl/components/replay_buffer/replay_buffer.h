@@ -1,5 +1,8 @@
-#ifndef BACKPROP_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER
-#define BACKPROP_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_REPLAY_BUFFER_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_REPLAY_BUFFER_H
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::components::replay_buffer{
     template<typename T_T, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_ACTION_DIM, T_TI T_CAPACITY, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification{
@@ -22,7 +25,9 @@ namespace backprop_tools::rl::components::replay_buffer{
     };
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::components {
     template <typename T_SPEC>
     struct ReplayBuffer {
@@ -62,6 +67,8 @@ namespace backprop_tools::rl::components {
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename ENVIRONMENT::State, TI, SPEC::CAPACITY, 1>> next_states;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::components::replay_buffer{
     template <typename T_SPEC, auto T_SIZE>
     struct SetSpecification{
@@ -74,6 +81,7 @@ namespace backprop_tools::rl::components::replay_buffer{
         ReplayBuffer<SPEC> replay_buffers[SET_SPEC::SIZE];
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

@@ -2,7 +2,7 @@
 
 #include <backprop_tools/rl/environments/acrobot/operations_generic.h>
 #include <backprop_tools/rl/environments/acrobot/ui.h>
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include "../../../utils/utils.h"
 #include <gtest/gtest.h>

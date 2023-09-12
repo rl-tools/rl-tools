@@ -2,7 +2,7 @@
 
 #include <backprop_tools/rl/environments/environments.h>
 #include <backprop_tools/rl/environments/pendulum/ui.h>
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
 

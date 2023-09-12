@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 
 TEST(BACKPROP_TOOLS_TEST_CONTAINER, SLICE){

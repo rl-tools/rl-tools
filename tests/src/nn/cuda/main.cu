@@ -38,7 +38,7 @@ constexpr bool test_first_layer = true;
 #include "cutlass/gemm/device/gemm.h"
 #endif
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 using DTYPE = double;
 

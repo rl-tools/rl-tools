@@ -1,11 +1,14 @@
-#ifndef BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H
 #include "layer.h"
-#include <backprop_tools/containers/persist_code.h>
+#include "../../../containers/persist_code.h"
 #include <sstream>
-#include <backprop_tools/persist/code.h>
-#include <backprop_tools/containers/persist_code.h>
+#include "../../../persist/code.h"
+#include "../../../containers/persist_code.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     namespace nn::layers::dense::persist{
         template<nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
@@ -18,15 +21,15 @@ namespace backprop_tools {
                           ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::SIGMOID);
 
             if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::IDENTITY){
-                return "backprop_tools::nn::activation_functions::ActivationFunction::IDENTITY";
+                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::activation_functions::ActivationFunction::IDENTITY";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
-                return "backprop_tools::nn::activation_functions::ActivationFunction::RELU";
+                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::activation_functions::ActivationFunction::RELU";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::TANH){
-                return "backprop_tools::nn::activation_functions::ActivationFunction::TANH";
+                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::activation_functions::ActivationFunction::TANH";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::FAST_TANH){
-                return "backprop_tools::nn::activation_functions::ActivationFunction::FAST_TANH";
+                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::activation_functions::ActivationFunction::FAST_TANH";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::SIGMOID){
-                return "backprop_tools::nn::activation_functions::ActivationFunction::SIGMOID";
+                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::activation_functions::ActivationFunction::SIGMOID";
             }
         }
     }
@@ -49,7 +52,7 @@ namespace backprop_tools {
         auto biases = save_split(device, layer.biases, "biases", const_declaration, indent+1);
         ss_header << biases.header;
         ss << biases.body;
-        ss << ind << "    using SPEC = " << "backprop_tools::nn::layers::dense::Specification<"
+        ss << ind << "    using SPEC = " << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::layers::dense::Specification<"
             << containers::persist::get_type_string<typename SPEC::T>() << ", "
             << containers::persist::get_type_string<typename SPEC::TI>() << ", "
             << SPEC::INPUT_DIM << ", "
@@ -57,11 +60,11 @@ namespace backprop_tools {
             << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
             << get_type_string(typename SPEC::PARAMETER_TYPE()) << ", "
             << 1 << ", "
-            << "backprop_tools::MatrixDynamicTag" << ", "
+            << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::MatrixDynamicTag" << ", "
             << "true, "
-            << "backprop_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
+            << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
             << ">; \n";
-        ss << ind << "    " << "using TYPE = backprop_tools::nn::layers::dense::Layer<SPEC>;";
+        ss << ind << "    " << "using TYPE = BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::layers::dense::Layer<SPEC>;";
         ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE layer = {weights::parameters, biases::parameters};\n";
         ss << ind << "}\n";
 
@@ -73,5 +76,6 @@ namespace backprop_tools {
         return code.header + code.body;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

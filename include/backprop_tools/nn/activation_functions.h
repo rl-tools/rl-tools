@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_NN_ACTIVATION_FUNCTIONS
-#define BACKPROP_TOOLS_NN_ACTIVATION_FUNCTIONS
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_ACTIVATION_FUNCTIONS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define BACKPROP_TOOLS_NN_ACTIVATION_FUNCTIONS_H
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT
 #endif
-#include <backprop_tools/devices/devices.h>
+#include "../devices/devices.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::activation_functions {
     enum ActivationFunction{
         IDENTITY,
@@ -16,7 +19,9 @@ namespace backprop_tools::nn::activation_functions {
     template<enum ActivationFunction F>
     constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == FAST_TANH || F == SIGMOID;
 }
-namespace backprop_tools {
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+namespace backprop_tools{
     template<typename DEVICE, typename T, nn::activation_functions::ActivationFunction F>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T activation(T x){
         using namespace nn::activation_functions;
@@ -79,6 +84,7 @@ namespace backprop_tools {
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

@@ -87,7 +87,7 @@
 #include <backprop_tools/operations/cpu.h>
 #include <backprop_tools/rl/environments/car/operations_cpu.h>
 #include <backprop_tools/rl/environments/car/ui.h>
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 
 int main(){

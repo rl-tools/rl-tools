@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_CONTAINERS_OPERATIONS_DUMMY_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_DUMMY_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_DUMMY_H
 
 #include "operations_generic.h"
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy(devices::Dummy<TARGET_DEV_SPEC>& target_device, devices::Dummy<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
@@ -13,4 +16,5 @@ namespace backprop_tools{
         vectorize_unary<TARGET_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename TARGET_DEVICE::SPEC::MATH, typename SPEC::T>>(target_device, target, source);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

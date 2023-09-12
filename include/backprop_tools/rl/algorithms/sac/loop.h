@@ -1,14 +1,17 @@
-#ifndef BACKPROP_TOOLS_RL_ALGORITHMS_SAC_LOOP_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ALGORITHMS_SAC_LOOP_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_ALGORITHMS_SAC_LOOP_H
 
-#include <backprop_tools/rl/algorithms/sac/operations_generic.h>
-#include <backprop_tools/rl/components/off_policy_runner/operations_generic.h>
+#include "../../../rl/algorithms/sac/operations_generic.h"
+#include "../../../rl/components/off_policy_runner/operations_generic.h"
 
 
-#include <backprop_tools/rl/utils/evaluation.h>
+#include "../../../rl/utils/evaluation.h"
 
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::algorithms::sac::loop{
     template <typename T_SPEC>
     struct CoreTrainingState{
@@ -133,6 +136,7 @@ namespace backprop_tools::rl::algorithms::sac::loop{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

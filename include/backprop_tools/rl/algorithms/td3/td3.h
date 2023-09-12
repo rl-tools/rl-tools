@@ -1,7 +1,10 @@
-#ifndef BACKPROP_TOOLS_RL_ALGORITHMS_TD3
-#define BACKPROP_TOOLS_RL_ALGORITHMS_TD3
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_TD3_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define BACKPROP_TOOLS_RL_ALGORITHMS_TD3_TD3_H
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::algorithms::td3 {
     template<typename T, typename TI>
     struct DefaultParameters {
@@ -115,6 +118,7 @@ namespace backprop_tools::rl::algorithms::td3 {
         typename SPEC::OPTIMIZER critic_optimizers[2];
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 

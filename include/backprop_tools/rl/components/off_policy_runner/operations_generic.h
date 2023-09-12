@@ -1,13 +1,16 @@
-#ifndef BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_GENERIC_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_GENERIC_H
 
-#include <backprop_tools/math/operations_generic.h>
+#include "../../../math/operations_generic.h"
 #include "off_policy_runner.h"
 
-#include <backprop_tools/rl/components/replay_buffer/operations_generic.h>
+#include "../../../rl/components/replay_buffer/operations_generic.h"
 
 #include "operations_generic_per_env.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
@@ -235,5 +238,6 @@ namespace backprop_tools{
 #endif
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

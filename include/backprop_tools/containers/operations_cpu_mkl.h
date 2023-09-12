@@ -1,12 +1,15 @@
-#ifndef BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_MKL_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_MKL_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_MKL_H
 
-#include <backprop_tools/containers.h>
+#include "../containers.h"
 #include "operations_cpu_blas.h"
-#include <backprop_tools/devices/cpu_mkl.h>
+#include "../devices/cpu_mkl.h"
 
 #include <mkl.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
 #ifndef BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
     template<typename DEV_SPEC, typename SPEC>
@@ -37,6 +40,7 @@ namespace backprop_tools{
         multiply((devices::CPU_BLAS<DEV_SPEC>&)device, A, B, output);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 
 #include "operations_cpu_blas.h"

@@ -1,12 +1,15 @@
-#ifndef BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CUDA_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CUDA_H
 
-#include <backprop_tools/containers.h>
-#include <backprop_tools/devices/cuda.h>
+#include "../containers.h"
+#include "../devices/cuda.h"
 
 #include <cuda_runtime.h>
 #include <cuda.h>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
 #ifndef BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
     template<typename DEV_SPEC, typename SPEC>
@@ -198,5 +201,6 @@ namespace backprop_tools{
         check_status(device);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -13,7 +13,7 @@
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 using DEVICE = bpt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;

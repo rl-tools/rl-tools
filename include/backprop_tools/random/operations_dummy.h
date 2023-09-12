@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_DUMMY_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_DUMMY_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_DUMMY_H
 
-#include <backprop_tools/devices/dummy.h>
-#include <backprop_tools/utils/generic/typing.h>
+#include "../devices/dummy.h"
+#include "../utils/generic/typing.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::random{
     auto default_engine(const devices::random::Dummy& dev){
         return devices::random::Dummy::State(0);
@@ -63,5 +66,6 @@ namespace backprop_tools::random{
 //        return res;
 //        return mean; }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

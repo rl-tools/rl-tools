@@ -1,4 +1,6 @@
-#ifndef BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_UI_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_UI_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_UI_H
 
 #include "car.h"
@@ -7,6 +9,7 @@
 #include <thread>
 #include <chrono>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::car{
     namespace ui{
         template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED>
@@ -34,8 +37,10 @@ namespace backprop_tools::rl::environments::car{
         GtkWidget *canvas;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::car::ui{
     template <typename T>
     void R(T alpha, T result[2][2]) {
@@ -125,8 +130,10 @@ namespace backprop_tools::rl::environments::car::ui{
         return FALSE;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
     void render(DEVICE& device, const rl::environments::Car<ENV_SPEC>& env, rl::environments::car::UI<SPEC>& ui){
@@ -174,5 +181,6 @@ namespace backprop_tools{
         copy(device, device, ui.action, action);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

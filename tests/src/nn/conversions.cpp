@@ -20,7 +20,7 @@
 
 #include <gtest/gtest.h>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 using DTYPE = float;
 using index_t = unsigned;
 constexpr index_t OUTER_INPUT_DIM = 10;

@@ -1,12 +1,14 @@
-#ifndef BACKPROP_TOOLS_RL_UTILS_EVALUATION_H
+#include "../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_UTILS_EVALUATION_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_UTILS_EVALUATION_H
 /*
  * This file relies on the environments methods hence it should be included after the operations of the environments that it will be used with
  */
 
-#include <backprop_tools/rl/environments/environments.h>
-#include <backprop_tools/math/operations_generic.h>
+#include "../../math/operations_generic.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::utils::evaluation{
     template <typename T, typename TI, typename ENV_STATE>
     struct State{
@@ -31,8 +33,10 @@ namespace backprop_tools::rl::utils::evaluation{
         T episode_length_std;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
-namespace backprop_tools {
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+namespace backprop_tools{
 
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVAL_BUFFERS, typename RNG>
     bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVAL_BUFFERS& policy_eval_buffers, RNG& rng) {
@@ -141,5 +145,6 @@ namespace backprop_tools {
         return results;
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

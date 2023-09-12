@@ -1,7 +1,8 @@
 #include "network.h"
-#include <backprop_tools/nn_models/mlp/operations_generic.h>
+#include "../../nn_models/mlp/operations_generic.h"
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& m){
@@ -43,3 +44,4 @@ namespace backprop_tools{
         copy(target_device, source_device, target.log_std, source.log_std);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

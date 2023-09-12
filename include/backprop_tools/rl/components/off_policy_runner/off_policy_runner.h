@@ -1,10 +1,10 @@
-#ifndef BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OFF_POLICY_RUNNER_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OFF_POLICY_RUNNER_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OFF_POLICY_RUNNER_H
 
 // Please include the file containing the environments operations before including this file
-#include <backprop_tools/rl/components/replay_buffer/replay_buffer.h>
-
-namespace bpt = backprop_tools;
+#include "../../../rl/components/replay_buffer/replay_buffer.h"
 
 
 /* requirements
@@ -14,6 +14,7 @@ namespace bpt = backprop_tools;
 
 */
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::components::off_policy_runner {
     template <typename TI, TI T_NUM_THREADS>
     struct ExecutionHints{
@@ -112,7 +113,9 @@ namespace backprop_tools::rl::components::off_policy_runner {
         STATS_VIEW<1> steps;
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::components{
     template<typename T_SPEC>
     struct OffPolicyRunner {
@@ -147,5 +150,6 @@ namespace backprop_tools::rl::components{
 #endif
     };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

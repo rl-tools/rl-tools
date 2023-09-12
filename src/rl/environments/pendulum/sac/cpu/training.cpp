@@ -5,6 +5,7 @@
 #include <backprop_tools/nn_models/sequential/operations_generic.h>
 
 #include <backprop_tools/rl/algorithms/sac/loop.h>
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #ifdef BACKPROP_TOOLS_ENABLE_HDF5
 #include <highfive/H5DataSet.hpp>
 #include <highfive/H5DataSpace.hpp>
@@ -14,7 +15,7 @@
 #include <chrono>
 
 namespace training_config{
-    using namespace backprop_tools::nn_models::sequential::interface;
+    using namespace bpt::nn_models::sequential::interface;
     struct TrainingConfig{
         using DEV_SPEC = bpt::devices::DefaultCPUSpecification;
 //    using DEVICE = bpt::devices::CPU<DEV_SPEC>;
@@ -124,7 +125,7 @@ int main(){
     for(TI run_i = 0; run_i < NUM_RUNS; run_i++){
         auto start = std::chrono::high_resolution_clock::now();
         std::cout << "Run: " << run_i << std::endl;
-        backprop_tools::rl::algorithms::sac::loop::TrainingState<TrainingConfig> ts;
+        bpt::rl::algorithms::sac::loop::TrainingState<TrainingConfig> ts;
         TI seed = run_i;
         bpt::rl::algorithms::sac::loop::init(ts, seed);
         ts.off_policy_runner.parameters.exploration_noise = 0;

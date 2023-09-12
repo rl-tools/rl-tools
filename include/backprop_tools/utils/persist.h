@@ -1,8 +1,11 @@
-#ifndef BACKPROP_TOOLS_UTILS_PERSIST_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_PERSIST_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_UTILS_PERSIST_H
 #include <vector>
 #include <cassert>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::utils::persist::array_conversion{
     template <typename DEVICE, typename SPEC>
     auto matrix_to_std_vector(DEVICE& device, Matrix<SPEC> M){
@@ -43,5 +46,6 @@ namespace backprop_tools::utils::persist::array_conversion{
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

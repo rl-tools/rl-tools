@@ -1,4 +1,6 @@
-#ifndef BACKPROP_TOOLS_MATH_OPERATIONS_CUDA_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_MATH_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_MATH_OPERATIONS_CUDA_H
 
 #ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
@@ -7,8 +9,9 @@
 
 #include "operations_generic.h"
 
-#include <backprop_tools/devices/cuda.h>
+#include "../devices/cuda.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::math {
     namespace cuda {
         template<typename T>
@@ -267,4 +270,5 @@ namespace backprop_tools::math {
 //
 //
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

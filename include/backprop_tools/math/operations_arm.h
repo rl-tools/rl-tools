@@ -1,14 +1,17 @@
-#ifndef BACKPROP_TOOLS_MATH_OPERATIONS_ARM_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_MATH_OPERATIONS_ARM_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_MATH_OPERATIONS_ARM_H
 
 #include "operations_generic.h"
 
-#include <backprop_tools/devices/arm.h>
+#include "../devices/arm.h"
 
 #include <cmath>
 //#include <algorithm>
 
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::math {
 
     template<typename T>
@@ -89,4 +92,5 @@ namespace backprop_tools::math {
         return std::atan2(a, b);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H
 
 #include <filesystem>
 #include <cassert>
 #include "operations_cpu.h"
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace logging::tensorboard{
         std::string sanitize_file_name(const std::string &input) {
@@ -85,4 +88,5 @@ namespace backprop_tools{
         add_histogram(device, logger, key, values, n_values, (typename DEVICE::index_t)1);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

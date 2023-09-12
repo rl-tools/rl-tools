@@ -1,6 +1,11 @@
+#include "../../../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_DYANMICS_MRS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_DYANMICS_MRS_H
 
 #include "../../multirotor.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
     template<typename T, typename TI, typename REWARD_FUNCTION>
     constexpr typename ParametersBase<T, TI, TI(4), REWARD_FUNCTION>::Dynamics mrs = {
@@ -96,4 +101,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::dynamics{
     };
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+
+#endif

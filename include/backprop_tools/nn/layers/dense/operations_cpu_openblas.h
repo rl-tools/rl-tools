@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_OPENBLAS_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_OPENBLAS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_OPENBLAS_H
 
 #include "operations_cpu_blas.h"
-#include <backprop_tools/devices/cpu_openblas.h>
+#include "../../../devices/cpu_openblas.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void evaluate(devices::CPU_OPENBLAS<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
@@ -28,5 +31,6 @@ namespace backprop_tools{
         backward((devices::CPU_BLAS<DEV_SPEC> &) device, layer, input, d_output, d_input);
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

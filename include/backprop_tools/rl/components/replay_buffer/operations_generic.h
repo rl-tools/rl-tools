@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_OPERATIONS_GENERIC_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_OPERATIONS_GENERIC_H
 
 #include "replay_buffer.h"
-#include <backprop_tools/utils/generic/memcpy.h>
+#include "../../../utils/generic/memcpy.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
@@ -104,4 +107,5 @@ namespace backprop_tools {
         }
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

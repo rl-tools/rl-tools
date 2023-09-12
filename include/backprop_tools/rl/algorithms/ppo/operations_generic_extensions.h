@@ -1,9 +1,12 @@
-#ifndef BACKPROP_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_EXTENSIONS_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_EXTENSIONS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_EXTENSIONS_H
 
 #include "ppo.h"
-#include <backprop_tools/rl/components/on_policy_runner/on_policy_runner.h>
+#include "../../../rl/components/on_policy_runner/on_policy_runner.h"
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     namespace rl::algorithms::ppo{
 
@@ -230,4 +233,5 @@ namespace backprop_tools{
     }
 
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

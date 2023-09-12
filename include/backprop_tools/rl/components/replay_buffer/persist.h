@@ -1,12 +1,15 @@
-#ifndef BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_PERSIST_H
+#include "../../../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_PERSIST_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_PERSIST_H
 
 #include "replay_buffer.h"
 
-#include <backprop_tools/containers/persist.h>
+#include "../../../containers/persist.h"
 #include <highfive/H5Group.hpp>
 #include <vector>
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
     void save(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb, HighFive::Group group) {
@@ -49,5 +52,6 @@ namespace backprop_tools{
         rb.full = full[0];
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

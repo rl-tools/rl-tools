@@ -1,8 +1,13 @@
-#ifndef BACKPROP_TOOLS_DEVICES_DEVICES_H
+#include "../version.h"
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_DEVICES_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
 #define BACKPROP_TOOLS_DEVICES_DEVICES_H
 
-#include <backprop_tools/utils/generic/typing.h>
+#include "../backprop_tools.h"
 
+#include "../utils/generic/typing.h"
+
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     namespace devices {
         struct ExecutionHints{};
@@ -30,12 +35,15 @@ namespace backprop_tools {
         };
     }
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEV_SPEC>
     void init(devices::Device<DEV_SPEC>& device){ };
     template <typename DEV_SPEC, typename T>
     void count_malloc(devices::Device<DEV_SPEC>& device, T){ };
 }
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

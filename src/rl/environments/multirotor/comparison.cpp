@@ -6,7 +6,7 @@
 
 #include <thread>
 
-namespace bpt = backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 using DEVICE = bpt::devices::DefaultCPU;
 using T = double;
