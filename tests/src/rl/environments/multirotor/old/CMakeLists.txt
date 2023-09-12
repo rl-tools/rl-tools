@@ -5,22 +5,23 @@ include(FetchContent)
 FetchContent_Declare(test_rl_environments_multirotor_regression_test_code
         GIT_REPOSITORY file://${PROJECT_SOURCE_DIR}
 #        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/regression_test
-        GIT_TAG 883e90ba502d7a495306ec0f609c89f79e3744a8
+        GIT_TAG 9f6f106e54db69931320938720b7fcbcdea9d241
         GIT_SUBMODULES ""
 )
 FetchContent_Declare(test_rl_environments_multirotor_regression_test_code_new
         GIT_REPOSITORY file://${PROJECT_SOURCE_DIR}
         #        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/regression_test
-        GIT_TAG b24b505caf89186b0ecd518db5601e27e030dac0
+        GIT_TAG 6635568fda3d54ccbb41f8799f04fa213d2d9967
         GIT_SUBMODULES ""
 )
 
 if(NOT test_rl_environments_multirotor_regression_test_code_POPULATED)
     FetchContent_Populate(test_rl_environments_multirotor_regression_test_code)
 endif()
-if(NOT test_rl_environments_multirotor_regression_test_code_new_POPULATED)
+if(NOT test_rl_environments_multirotor_regression_test_code_new_POPULATED AND NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/include/backprop_tools_new)
     FetchContent_Populate(test_rl_environments_multirotor_regression_test_code_new) # we have to do it this way around because in the old version the internal imports are absolute <backprop_tools/...> etc. hence can not be renamed
-    file(RENAME ${test_rl_environments_multirotor_regression_test_code_new_SOURCE_DIR}/include/backprop_tools ${test_rl_environments_multirotor_regression_test_code_new_SOURCE_DIR}/include/backprop_tools_new)
+    file(COPY ${test_rl_environments_multirotor_regression_test_code_new_SOURCE_DIR}/include/backprop_tools DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/include)
+    file(RENAME ${CMAKE_CURRENT_BINARY_DIR}/include/backprop_tools ${CMAKE_CURRENT_BINARY_DIR}/include/backprop_tools_new)
 endif()
 
 
@@ -37,7 +38,7 @@ target_include_directories(
         test_rl_environments_multirotor_regression_test
         PRIVATE
         ${test_rl_environments_multirotor_regression_test_code_SOURCE_DIR}/include
-        ${test_rl_environments_multirotor_regression_test_code_new_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 #add_dependencies(
 #        test_rl_environments_multirotor_regression_test
