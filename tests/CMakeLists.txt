@@ -361,7 +361,7 @@ target_link_libraries(
 if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
     BACKPROP_TOOLS_TARGET_LINK_BLAS(test_container)
 endif()
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_container)
+#BACKPROP_TOOLS_ADD_DEFINITIONS(test_container)
 gtest_discover_tests(test_container)
 BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_container)
 
