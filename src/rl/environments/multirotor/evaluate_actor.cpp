@@ -26,8 +26,17 @@ namespace TEST_DEFINITIONS{
     using T = double;
     using TI = typename DEVICE::index_t;
     namespace parameter_set = parameters_0;
+    template <typename BASE_SPEC>
+    struct SpecEval: BASE_SPEC{
+        static constexpr bool DISTURBANCE = true;
+        static constexpr bool OBSERVATION_NOISE = true;
+        static constexpr bool ROTOR_DELAY = true;
+        static constexpr bool ACTION_HISTORY = BASE_SPEC::ROTOR_DELAY && BASE_SPEC::ACTION_HISTORY;
+        static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
+        static constexpr bool INIT_NORMAL = false;
+    };
 
-    using penv = parameter_set::environment<T, TI>;
+    using penv = parameter_set::environment<T, TI, SpecEval<parameters::DefaultAblationSpec>>;
     using ENVIRONMENT = penv::ENVIRONMENT;
     using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
 
@@ -182,8 +191,8 @@ int main(int argc, char** argv) {
                 env.parameters.disturbances.random_force.std *= 2;
             }
         }
-//        bpt::sample_initial_state(dev, env, state, rng);
-        bpt::initial_state(dev, env, state);
+        bpt::sample_initial_state(dev, env, state, rng);
+//        bpt::initial_state(dev, env, state);
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             bpt::observe(dev, env, state, observation, rng);

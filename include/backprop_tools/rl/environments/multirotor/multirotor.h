@@ -112,7 +112,10 @@ namespace backprop_tools::rl::environments::multirotor{
         struct LastComponent{
             static constexpr T_TI DIM = 0;
         };
-        struct NONE{};
+        template <typename T_TI>
+        struct NONE{
+            static constexpr T_TI DIM = 0;
+        };
 
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct PositionSpecification{
@@ -311,7 +314,7 @@ namespace backprop_tools::rl::environments::multirotor{
                                  observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                                  observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                                  observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI>>>>>>>>;
-        using OBSERVATION_TYPE_PRIVILEGED = observation::NONE;
+        using OBSERVATION_TYPE_PRIVILEGED = observation::NONE<TI>;
     };
 
     template <typename T_T, typename T_TI, typename T_PARAMETERS, typename T_STATIC_PARAMETERS>
@@ -371,6 +374,7 @@ namespace backprop_tools::rl::environments{
 //        ) : 0;
         static constexpr TI OBSERVATION_DIM = Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
+        static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = !utils::typing::is_same_v<typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED, multirotor::observation::NONE<TI>>;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         typename SPEC::PARAMETERS parameters;
         typename SPEC::PARAMETERS::Dynamics current_dynamics;
