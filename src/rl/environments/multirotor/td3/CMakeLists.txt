@@ -1,5 +1,5 @@
 if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPROP_TOOLS_ENABLE_TENSORBOARD)
-    function(factory_test_rl_environments_multirotor TARGET DEBUG)
+    function(factory_test_rl_environments_multirotor TARGET DEBUG BENCHMARK)
         # Multirotor Training test
         add_executable(${TARGET} training.cpp)
         target_link_libraries(
@@ -14,10 +14,14 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPRO
         if(${DEBUG})
             target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG)
         endif()
+        if(${BENCHMARK})
+            target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_BENCHMARK)
+        endif()
     endfunction()
 
-    factory_test_rl_environments_multirotor(rl_environments_multirotor_training_td3_debug true)
-    factory_test_rl_environments_multirotor(rl_environments_multirotor_training_td3 false)
+    factory_test_rl_environments_multirotor(rl_environments_multirotor_training_td3_debug true false)
+    factory_test_rl_environments_multirotor(rl_environments_multirotor_training_td3 false false)
+    factory_test_rl_environments_multirotor(rl_environments_multirotor_training_td3_benchmark false true)
 endif()
 
 

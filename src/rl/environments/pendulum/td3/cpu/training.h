@@ -249,6 +249,7 @@ void run(){
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
+        // expect 2.25s for 10k steps with all optimizations @ Lenovo P1 Intel(R) Core(TM) i9-10885H
     }
     bpt::free(device, critic_batch);
     bpt::free(device, critic_training_buffers);

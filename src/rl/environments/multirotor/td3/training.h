@@ -1,8 +1,12 @@
 #include <backprop_tools/operations/cpu_mux.h>
 
+#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_BENCHMARK
+constexpr bool BENCHMARK = true;
+#else
+constexpr bool BENCHMARK = false;
+#endif
 namespace bpt = backprop_tools;
-using LOGGING_DEVICE = bpt::devices::logging::CPU_TENSORBOARD;
-//using LOGGING_DEVICE = bpt::devices::logging::CPU;
+using LOGGING_DEVICE = bpt::utils::typing::conditional_t<BENCHMARK, bpt::devices::logging::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
 using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGING_DEVICE>;
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
@@ -113,9 +117,9 @@ void train(TI run_id){
     const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/multirotor_td3";
     constexpr bool SAVE_REPLAY_BUFFER = false;
     constexpr TI performance_logging_interval = 10000;
-    constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = true;
+    constexpr bool ENABLE_ACTOR_CRITIC_EVALUATION = !BENCHMARK;
     constexpr TI ACTOR_CRITIC_EVALUATION_INTERVAL = 1000;
-    constexpr bool ENABLE_EVALUATION = true;
+    constexpr bool ENABLE_EVALUATION = !BENCHMARK;
     constexpr TI EVALUATION_INTERVAL = 10000;
 
     using ACTOR_CHECKPOINT_TYPE = bpt::nn_models::mlp::NeuralNetwork<bpt::nn_models::mlp::InferenceSpecification<typename parameters_rl::ACTOR_STRUCTURE_SPEC>>;
@@ -484,16 +488,14 @@ void train(TI run_id){
         }
         // 300000 steps: 28s on M1
         std::filesystem::path data_output_dir = "data_test";
-        if(false){
-            try {
-                if (std::filesystem::create_directories(data_output_dir)) {
-                    std::cout << "Directories created successfully: " << data_output_dir << std::endl;
-                } else {
-                    std::cout << "Directories already exist or failed to create: " << data_output_dir << std::endl;
-                }
-            } catch (const std::filesystem::filesystem_error& e) {
-                std::cerr << "Error: " << e.what() << std::endl;
+        try {
+            if (std::filesystem::create_directories(data_output_dir)) {
+                std::cout << "Directories created successfully: " << data_output_dir << std::endl;
+            } else {
+                std::cout << "Directories already exist or failed to create: " << data_output_dir << std::endl;
             }
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
         }
         {
             try{

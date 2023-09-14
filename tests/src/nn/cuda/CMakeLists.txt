@@ -28,6 +28,8 @@ target_link_libraries(
 )
 set_target_properties(test_nn_cuda_basics PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 BACKPROP_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
+BACKPROP_TOOLS_TAG_IS_CUDA(test_nn_cuda_basics)
+BACKPROP_TOOLS_ADD_DEFINITIONS(test_nn_cuda_basics)
 gtest_discover_tests(test_nn_cuda_basics)
 
 #add_executable(
