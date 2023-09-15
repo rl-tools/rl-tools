@@ -284,6 +284,9 @@ void train(TI run_id){
                         bpt::evaluate(device, actor_checkpoint, observation, action);
                         actor_output_file << "\n" << bpt::save(device, observation, std::string("backprop_tools::checkpoint::observation"), true);
                         actor_output_file << "\n" << bpt::save(device, action, std::string("backprop_tools::checkpoint::action"), true);
+                        actor_output_file << "\n" << "namespace backprop_tools::checkpoint::meta{";
+                        actor_output_file << "\n" << "   " << "char name[] = \"" << run_name << "_" << checkpoint_name << "\";";
+                        actor_output_file << "\n" << "}";
                         bpt::free(device, observation);
                         bpt::free(device, action);
                     }
