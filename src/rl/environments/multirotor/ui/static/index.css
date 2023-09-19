@@ -81,7 +81,7 @@
 }
 
 #controlContainer {
-    display: none;
+    /*display: none;*/
     margin: 10px;
     border-width: 2px;
     /* border-style: solid; */
@@ -91,12 +91,12 @@
 }
 
 #infoContainer {
-    display: none;
+    /*display: none;*/
     font-family: 'Helvetica', 'Arial', sans-serif;
 }
 
 #refreshButton {
-    display: none;
+    /*display: none;*/
 }
 
 td {

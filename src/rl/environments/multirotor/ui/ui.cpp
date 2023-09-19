@@ -54,9 +54,8 @@ public:
         );
     }
 
-    void on_accept(beast::error_code ec) {
+    void on_accept(beast::error_code ec){
         if(ec) return;
-        // Start reading messages
         do_read();
         bpt::devices::DefaultCPU device;
         auto rng = bpt::random::default_engine(typename bpt::devices::DefaultCPU::SPEC::RANDOM{});
@@ -73,10 +72,10 @@ public:
         using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
         UI ui;
         ws_.write(
-                net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump())
+            net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump())
         );
         ws_.write(
-                net::buffer(bpt::rl::environments::multirotor::state_message(device, ui, state, action).dump())
+            net::buffer(bpt::rl::environments::multirotor::state_message(device, ui, state, action).dump())
         );
         bpt::free(device, action);
     }
@@ -94,6 +93,14 @@ public:
     void on_read(beast::error_code ec, std::size_t bytes_transferred) {
         boost::ignore_unused(bytes_transferred);
         if(ec) return;
+
+        auto message_string = beast::buffers_to_string(buffer_.data());
+        buffer_.consume(buffer_.size());
+        auto message = nlohmann::json::parse(message_string);
+
+        if(message["channel"] == "startTraining"){
+            std::cout << "startTraining message received" << std::endl;
+        }
 
         // read message to string:
         bool send_message = false;
@@ -119,7 +126,6 @@ public:
         boost::ignore_unused(bytes_transferred);
         if(ec) return;
 
-        buffer_.consume(buffer_.size());
 
         do_read();
     }

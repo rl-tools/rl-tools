@@ -73,13 +73,8 @@ window.onload = function(){
 
 
 
-  var refreshButton = document.getElementById("refreshButton")
-  refreshButton.onclick = () => {
-    console.log("button")
-    Blink.msg("refresh", "")
-  }
+  var button = document.getElementById("button")
   var animateButton = function(e) {
-
     e.preventDefault;
     //reset animation
     e.target.classList.remove('animate');
@@ -90,7 +85,7 @@ window.onload = function(){
     },700);
   };
 
-  refreshButton.addEventListener('click', animateButton, false);
+  button.addEventListener('click', animateButton, false);
 
 
   document.addEventListener("keypress", function onPress(event) {
@@ -107,9 +102,6 @@ window.onload = function(){
 
   ws.onopen = function(event) {
     console.log('Connection opened:', event);
-
-    // Send a simple message to the server
-    ws.send('Hello, server!');
   };
 
   ws.onmessage = function(event) {
@@ -146,20 +138,27 @@ window.onload = function(){
     }
   };
 
-  // window.addDrone("default", default_model, {displayGlobalCoordinateSystem: true, displayIMUCoordinateSystem: true, displayActions: true})
-  // window.electronAPI.addDrone((event, id, origin, model) => {
-  //   if(!model){
-  //     console.log("No model provided, using default")
-  //   }
-  //   window.addDrone(id, origin, model || default_model, {displayGlobalCoordinateSystem: true, displayIMUCoordinateSystem: true, displayActions: true})
-  // })
+  button.addEventListener("click", event => {
+    ws.send(JSON.stringify({
+      "channel": "startTraining",
+      "data": null
+    }))
+  }, false)
 
-  // window.electronAPI.setDroneState((event, id, droneState) => {
-  //   if(id in window.drones){
-  //     window.drones[id].setState(droneState)
-  //   }
-  //   else{
-  //     throw new Error("Drone not found")
-  //   }
-  // })
+    // window.addDrone("default", default_model, {displayGlobalCoordinateSystem: true, displayIMUCoordinateSystem: true, displayActions: true})
+    // window.electronAPI.addDrone((event, id, origin, model) => {
+    //   if(!model){
+    //     console.log("No model provided, using default")
+    //   }
+    //   window.addDrone(id, origin, model || default_model, {displayGlobalCoordinateSystem: true, displayIMUCoordinateSystem: true, displayActions: true})
+    // })
+
+    // window.electronAPI.setDroneState((event, id, droneState) => {
+    //   if(id in window.drones){
+    //     window.drones[id].setState(droneState)
+    //   }
+    //   else{
+    //     throw new Error("Drone not found")
+    //   }
+    // })
 }
