@@ -117,7 +117,7 @@ namespace parameters{
                 using ENVIRONMENT = bpt::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
             };
         }
-        template<typename T, typename TI, typename ABLATION_SPEC>
+        template<typename T, typename TI, typename ABLATION_SPEC = DefaultAblationSpec>
         using environment = builder::environment<T, TI, ABLATION_SPEC>;
     }
 
