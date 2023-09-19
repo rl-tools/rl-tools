@@ -1,0 +1,33 @@
+<html>
+<head>
+    <title>Multirotor</title>
+    <script>
+        console.log("Loading Multirotor environment...")
+        var ws = new WebSocket('ws://' + window.location.host + "/ws");
+
+        ws.onopen = function(event) {
+            console.log('Connection opened:', event);
+
+            // Send a simple message to the server
+            ws.send('Hello, server!');
+        };
+
+        ws.onmessage = function(event) {
+            console.log('Message from server:', event.data);
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket Error:', error);
+        };
+
+        ws.onclose = function(event) {
+            if (event.wasClean) {
+                console.log('Connection closed cleanly, code=', event.code, 'reason=', event.reason);
+            } else {
+                // Connection closed abnormally, e.g., server process killed or network down
+                console.error('Connection died');
+            }
+        };
+
+    </script>
+</html>

@@ -1,0 +1,32 @@
+<html>
+	<body>
+		<!-- Current value: <strong id="counter">0</strong> -->
+		<title>DroneSimUI</title>
+		<link rel="stylesheet" href="index.css">
+		<script type="importmap">
+			{
+              "imports": {
+                "three": "./lib/three.module.js"
+              }
+            }
+		</script>
+		<script type="module" src="main.js"></script>
+		<style>
+			body { margin: 0; }
+			canvas { display: block; }
+			#canvasContainer {
+				position: absolute;
+				height: 100vh;
+				width: 100vw;
+			}
+			#controlContainer {
+				position: absolute;
+			}
+		</style>
+	<div id="canvasContainer"></div>
+	<div id="controlContainer">
+		<button id="refreshButton" class="bubbly-button">Refresh</button>
+		<div id="infoContainer"></div>
+	</div>
+	</body>
+</html>
