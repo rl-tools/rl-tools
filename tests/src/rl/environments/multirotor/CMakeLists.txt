@@ -37,4 +37,6 @@ if(${BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE})
 endif()
 
 
-add_subdirectory(old)
+if(NOT APPLE)
+    add_subdirectory(old)
+endif()
