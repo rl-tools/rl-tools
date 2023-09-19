@@ -7,11 +7,14 @@
 
 namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
-#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
-#include "ppo/parameters.h"
-#else
+//#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+//#include "ppo/parameters.h"
+//#else
 #include "td3/parameters.h"
-#endif
+//#elifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_SEQUENTIAL
+#include "ui/training.h"
+
+//#endif
 
 #include <chrono>
 #include <iostream>
@@ -23,7 +26,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 namespace TEST_DEFINITIONS{
     using DEVICE = bpt::devices::DefaultCPU;
-    using T = double;
+    using T = float;
     using TI = typename DEVICE::index_t;
     namespace parameter_set = parameters_0;
     template <typename BASE_SPEC>
@@ -40,7 +43,7 @@ namespace TEST_DEFINITIONS{
     using ENVIRONMENT = penv::ENVIRONMENT;
     using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
 
-    using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
+//    using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
     constexpr TI MAX_EPISODE_LENGTH = 1000;
     constexpr bool SAME_CONFIG_AS_IN_TRAINING = false;
     constexpr bool RANDOMIZE_DOMAIN_PARAMETERS = false;
@@ -66,7 +69,8 @@ int main(int argc, char** argv) {
     ENVIRONMENT env;
     env.parameters = penv::parameters;
     UI ui;
-    typename prl::ACTOR_TYPE actor;
+    typename multirotor_training::config::Config::ACTOR_TYPE actor;
+    typename multirotor_training::config::Config::ACTOR_TYPE::DoubleBuffer<1> actor_buffer;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     typename ENVIRONMENT::State state, next_state;
@@ -74,6 +78,7 @@ int main(int argc, char** argv) {
 
     bpt::malloc(dev, env);
     bpt::malloc(dev, actor);
+    bpt::malloc(dev, actor_buffer);
     bpt::malloc(dev, action);
     bpt::malloc(dev, observation);
 
@@ -196,7 +201,7 @@ int main(int argc, char** argv) {
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             bpt::observe(dev, env, state, observation, rng);
-            bpt::evaluate(dev, actor, observation, action);
+            bpt::evaluate(dev, actor, observation, action, actor_buffer);
 //            for(TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++){
 //                increment(action, 0, action_i, bpt::random::normal_distribution(DEVICE::SPEC::RANDOM(), (T)0, (T)(T)prl::OFF_POLICY_RUNNER_PARAMETERS::EXPLORATION_NOISE, rng));
 //            }

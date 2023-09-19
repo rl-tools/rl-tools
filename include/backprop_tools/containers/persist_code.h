@@ -84,7 +84,7 @@ namespace backprop_tools{
         return {ss_header.str(), ss.str()};
     }
     template<typename DEVICE, typename SPEC>
-    std::string save(DEVICE &device, Matrix<SPEC>& m, std::string name, bool const_declaration, typename DEVICE::index_t indent=0){
+    std::string save_code(DEVICE &device, Matrix<SPEC>& m, std::string name, bool const_declaration, typename DEVICE::index_t indent=0){
         auto code = save_split(device, m, name, const_declaration, indent);
         return code.header + code.body;
     }

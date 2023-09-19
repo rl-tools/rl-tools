@@ -1,3 +1,6 @@
+#ifndef BACKPROP_TOOLS_SRC_RL_ENVIRONMENTS_MULTIROTOR_TD3_PARAMETERS_H
+#define BACKPROP_TOOLS_SRC_RL_ENVIRONMENTS_MULTIROTOR_TD3_PARAMETERS_H
+
 #include "../parameters.h"
 
 
@@ -77,3 +80,5 @@ namespace parameters_sim2real{
 
 namespace parameters_0 = parameters_sim2real;
 //namespace parameters_0 = parameters_fast_learning;
+
+#endif

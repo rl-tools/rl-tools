@@ -20,6 +20,7 @@ target_link_libraries(
         rl_environments_multirotor_ui_training
         PRIVATE
         backprop_tools
+        HighFive
         tensorboard_logger
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_ui_training)

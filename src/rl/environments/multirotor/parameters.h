@@ -1,3 +1,6 @@
+#ifndef BACKPROP_TOOLS_SRC_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_H
+#define BACKPROP_TOOLS_SRC_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_H
+
 #include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/abs_exp.h>
 #include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/squared.h>
 #include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/default.h>
@@ -171,3 +174,5 @@ namespace parameters{
 //        };
 //    }
 }
+
+#endif
