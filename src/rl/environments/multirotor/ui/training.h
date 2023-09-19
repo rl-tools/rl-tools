@@ -115,7 +115,6 @@ namespace multirotor_training{
 
             static constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
             static constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-            static constexpr TI N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
             static constexpr bool DETERMINISTIC_EVALUATION = true;
             static constexpr TI EVALUATION_INTERVAL = 50000;
             static constexpr TI NUM_EVALUATION_EPISODES = 10;
@@ -125,7 +124,7 @@ namespace multirotor_training{
             static constexpr TI STEP_LIMIT = 1500001;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
-            static constexpr TI SEED = 3;
+            static constexpr TI SEED = 4;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
             static constexpr bpt::rl::components::off_policy_runner::DefaultParameters<T> off_policy_runner_parameters = {

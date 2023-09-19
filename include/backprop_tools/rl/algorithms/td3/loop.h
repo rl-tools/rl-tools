@@ -105,27 +105,25 @@ namespace backprop_tools::rl::algorithms::td3::loop{
         bool finished = false;
         using SPEC = typename TRAINING_STATE::SPEC;
         step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-        if(ts.step > SPEC::N_WARMUP_STEPS){
-
-            if(ts.step % SPEC::TD3_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
-                for(int critic_i = 0; critic_i < 2; critic_i++){
-                    target_action_noise(ts.device, ts.actor_critic, ts.critic_training_buffers.target_next_action_noise, ts.rng);
-                    gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                    train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
-                }
-            }
-
-            if(ts.step % SPEC::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
-                gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
-            }
-            if(ts.step % SPEC::TD3_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0){
-                update_critic_targets(ts.device, ts.actor_critic);
-            }
-            if(ts.step % SPEC::TD3_PARAMETERS::ACTOR_TARGET_UPDATE_INTERVAL == 0) {
-                update_actor_target(ts.device, ts.actor_critic);
+        if(ts.step > SPEC::N_WARMUP_STEPS_CRITIC && ts.step % SPEC::TD3_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
+            for(int critic_i = 0; critic_i < 2; critic_i++){
+                target_action_noise(ts.device, ts.actor_critic, ts.critic_training_buffers.target_next_action_noise, ts.rng);
+                gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
+                train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
             }
         }
+
+        if(ts.step > SPEC::N_WARMUP_STEPS_ACTOR && ts.step % SPEC::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
+            gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+            train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
+        }
+        if(ts.step > SPEC::N_WARMUP_STEPS_CRITIC && ts.step % SPEC::TD3_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0){
+            update_critic_targets(ts.device, ts.actor_critic);
+        }
+        if(ts.step > SPEC::N_WARMUP_STEPS_ACTOR && ts.step % SPEC::TD3_PARAMETERS::ACTOR_TARGET_UPDATE_INTERVAL == 0) {
+            update_actor_target(ts.device, ts.actor_critic);
+        }
+
         if constexpr(SPEC::DETERMINISTIC_EVALUATION == true){
             if(ts.step % SPEC::EVALUATION_INTERVAL == 0){
                 auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
