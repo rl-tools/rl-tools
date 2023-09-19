@@ -20,6 +20,7 @@ option(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE "Enable the Accelerate gemm libr
 option(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA "Enable Nvidia CUDA" OFF)
 option(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO "Enable MuJoCo" OFF)
 option(BACKPROP_TOOLS_ENABLE_JSON "Enable JSON (used in the multirotor UI)" OFF)
+option(BACKPROP_TOOLS_ENABLE_BOOST_BEAST "Enable BOOST beast (used in the multirotor UI)" OFF)
 option(BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN "Use HighFive from conan (don't use the submodule from /external)" OFF)
 option(BACKPROP_TOOLS_BUILD_TYPE "Use \"Release\" to e.g. build fat binaries with code for all CUDA architectures (not just for the GPU found in the machine used to build it)" OFF)
 option(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES "Including redistributables from the redistributable submodule" OFF)

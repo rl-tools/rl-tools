@@ -16,7 +16,7 @@
 #include <backprop_tools/rl/environments/multirotor/ui.h>
 namespace bpt = backprop_tools;
 
-#include "td3/parameters.h"
+#include "../td3/parameters.h"
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -221,7 +221,7 @@ private:
             if(path.empty() || path == "/"){
                 path = "/index.html";
             }
-            path = "src/rl/environments/multirotor/static" + path.string();
+            path = "src/rl/environments/multirotor/ui/static" + path.string();
             // check if file at path exists
 
             if(std::filesystem::exists(path)){
