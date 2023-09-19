@@ -22,7 +22,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 namespace multirotor_training{
     namespace config {
         using namespace bpt::nn_models::sequential::interface; // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
-        struct Config{
+        struct CoreConfig{
             using DEV_SPEC = bpt::devices::DefaultCPUSpecification;
 //    using DEVICE = bpt::devices::CPU<DEV_SPEC>;
             using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
@@ -136,6 +136,10 @@ namespace multirotor_training{
             static constexpr TI N_WARMUP_STEPS_ACTOR = 30000;
             static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         };
+        struct Config: CoreConfig{
+            static constexpr bool ENABLE_CURRICULUM = true;
+            static constexpr bool RECALCULATE_REWARDS = true;
+        };
     }
 
     namespace operations{
@@ -164,7 +168,7 @@ namespace multirotor_training{
             }
         }
 
-        void step(TrainingState& ts){
+        void step_checkpoint(TrainingState& ts){
             using CONFIG = config::Config;
             using T = CONFIG::T;
             using TI = CONFIG::TI;
@@ -228,6 +232,92 @@ namespace multirotor_training{
                     bpt::free(ts.device, actor_checkpoint_buffer);
                 }
             }
+        }
+
+        void step_curriculum(TrainingState& ts){
+            using CONFIG = config::Config;
+            using T = CONFIG::T;
+            using TI = CONFIG::TI;
+            if(ts.step != 0 && ts.step % 100000 == 0){
+//                constexpr T decay = 0.96;
+                constexpr T decay = 0.75;
+//                off_policy_runner.parameters.exploration_noise *= decay;
+//                actor_critic.target_next_action_noise_std *= decay;
+//                actor_critic.target_next_action_noise_clip *= decay;
+//                off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.2 ? 0.2 : off_policy_runner.parameters.exploration_noise;
+//                actor_critic.target_next_action_noise_std = actor_critic.target_next_action_noise_std < 0.05 ? 0.05 : actor_critic.target_next_action_noise_std;
+//                actor_critic.target_next_action_noise_clip = actor_critic.target_next_action_noise_clip < 0.15 ? 0.15 : actor_critic.target_next_action_noise_clip;
+                bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_std", ts.actor_critic.target_next_action_noise_std);
+                bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_clip", ts.actor_critic.target_next_action_noise_clip);
+                bpt::add_scalar(ts.device, ts.device.logger, "off_policy_runner/exploration_noise", ts.off_policy_runner.parameters.exploration_noise);
+
+
+                // sq exp
+//                {
+//                    for (auto& env : off_policy_runner.envs) {
+//                        T action_weight = env.parameters.mdp.reward.angular_acceleration;
+//                        action_weight *= 1.2;
+//                        T action_weight_limit = 0.1 / 250.0 * 2;
+//                        action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
+//                        env.parameters.mdp.reward.angular_acceleration = action_weight;
+//                    }
+//                    bpt::add_scalar(device, device.logger, "reward_function/action_weight", off_policy_runner.envs[0].parameters.mdp.reward.action);
+//                    bpt::add_scalar(device, device.logger, "reward_function/angular_acceleration_weight", off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
+//                }
+//                sq
+                if constexpr(CONFIG::ENABLE_CURRICULUM == true){
+                    for (auto& env : ts.off_policy_runner.envs) {
+                        {
+                            T action_weight = env.parameters.mdp.reward.action;
+                            action_weight *= 1.4;
+                            T action_weight_limit = 0.5;
+                            action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
+                            env.parameters.mdp.reward.action = action_weight;
+                        }
+                        {
+                            T position_weight = env.parameters.mdp.reward.position;
+                            position_weight *= 1.2;
+                            T position_weight_limit = 20;
+                            position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
+                            env.parameters.mdp.reward.position = position_weight;
+                        }
+                        {
+                            T linear_velocity_weight = env.parameters.mdp.reward.linear_velocity;
+                            linear_velocity_weight *= 1.4;
+                            T linear_velocity_weight_limit = 1;
+                            linear_velocity_weight = linear_velocity_weight > linear_velocity_weight_limit ? linear_velocity_weight_limit : linear_velocity_weight;
+                            env.parameters.mdp.reward.linear_velocity = linear_velocity_weight;
+                        }
+                    }
+                    bpt::add_scalar(ts.device, ts.device.logger, "reward_function/position_weight", ts.off_policy_runner.envs[0].parameters.mdp.reward.position);
+                    bpt::add_scalar(ts.device, ts.device.logger, "reward_function/linear_velocity_weight",ts. off_policy_runner.envs[0].parameters.mdp.reward.linear_velocity);
+                    bpt::add_scalar(ts.device, ts.device.logger, "reward_function/action_weight", ts.off_policy_runner.envs[0].parameters.mdp.reward.action);
+                    bpt::add_scalar(ts.device, ts.device.logger, "reward_function/angular_acceleration_weight", ts.off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
+                    if constexpr(CONFIG::RECALCULATE_REWARDS == true){
+                        auto start = std::chrono::high_resolution_clock::now();
+                        bpt::recalculate_rewards(ts.device, ts.off_policy_runner.replay_buffers[0], ts.off_policy_runner.envs[0], ts.rng_eval);
+                        auto end = std::chrono::high_resolution_clock::now();
+                        std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+                    }
+                }
+
+
+
+//                if(step_i > 1000000){
+//                    for (auto& env : off_policy_runner.envs) {
+//                        env.parameters.mdp.reward.angular_acceleration = 0.01;
+//                    }
+//                }
+//                if(step_i <= 2000000){
+//                    for (auto& env : off_policy_runner.envs) {
+//                        env.parameters.mdp.reward.scale *= 2;
+//                    }
+//                }
+            }
+        }
+        void step(TrainingState& ts){
+            step_checkpoint(ts);
+            step_curriculum(ts);
             bpt::rl::algorithms::td3::loop::step(ts);
         }
     }
