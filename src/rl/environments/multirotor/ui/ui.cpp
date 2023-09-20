@@ -394,10 +394,6 @@ int main(int argc, char* argv[]) {
         if(argc != 3)
         {
             std::cerr << "Usage: " << argv[0] << " <address> <port>\n";
-            std::cerr << "  For IPv4, try:\n";
-            std::cerr << "    receiver 0.0.0.0 80\n";
-            std::cerr << "  For IPv6, try:\n";
-            std::cerr << "    receiver 0::0 80\n";
             return EXIT_FAILURE;
         }
 
@@ -409,6 +405,8 @@ int main(int argc, char* argv[]) {
         tcp::acceptor acceptor{ioc, {address, port}};
         tcp::socket socket{ioc};
         http_server(acceptor, socket);
+
+        std::cout << "Web interface coming up at: http://" << address << ":" << port << std::endl;
 
         ioc.run();
     }
