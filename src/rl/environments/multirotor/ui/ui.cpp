@@ -113,7 +113,7 @@ public:
         TI new_trajectories = 0;
         {
             std::lock_guard<std::mutex> lock(ts.trajectories_mutex);
-            while(!ts.trajectories.empty()){
+            while(!ts.trajectories.empty() && new_trajectories < 5 && ongoing_trajectories.size() <= 100){
                 ongoing_trajectories.push_back(ts.trajectories.front());
                 ts.trajectories.pop();
                 new_trajectories++;
@@ -121,7 +121,6 @@ public:
         }
         while(new_trajectories > 0){
             if(idle_drones.empty()){
-                std::cout << "Adding drone" << std::endl;
                 TI drone_id = drone_id_counter++;
                 ongoing_drones.push_back(drone_id);
                 using UI = bpt::rl::environments::multirotor::UI<CONFIG::ENVIRONMENT>;
@@ -129,6 +128,8 @@ public:
                 ui.id = std::to_string(drone_id);
                 ui.origin[0] = drone_id / 10;
                 ui.origin[1] = drone_id % 10;
+                ui.origin[2] = 0;
+//                std::cout << "Adding drone at " << ui << std::endl;
                 ws_.write(net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump()));
             }
             else{
@@ -150,6 +151,9 @@ public:
                 ongoing_trajectories.erase(ongoing_trajectories.begin() + trajectory_i);
                 ongoing_drones.erase(ongoing_drones.begin() + trajectory_i);
                 trajectory_i--;
+                if(ongoing_trajectories.empty()){
+                    break;
+                }
             }
         }
     }
