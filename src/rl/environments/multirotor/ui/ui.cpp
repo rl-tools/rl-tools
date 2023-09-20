@@ -11,12 +11,13 @@
 #include <boost/beast/websocket.hpp>
 #include <filesystem>
 #include <fstream>
-#include <backprop_tools/operations/cpu.h>
+#include <backprop_tools/operations/cpu_mux.h>
 #include <backprop_tools/rl/environments/multirotor/operations_cpu.h>
 #include <backprop_tools/rl/environments/multirotor/ui.h>
 namespace bpt = backprop_tools;
 
-#include "../td3/parameters.h"
+//#include "../td3/parameters.h"
+#include "training.h"
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -40,8 +41,28 @@ namespace my_program_state
 }
 class websocket_session : public std::enable_shared_from_this<websocket_session> {
     beast::websocket::stream<tcp::socket> ws_;
+
+    using CONFIG = multirotor_training::config::Config;
+    using TI = CONFIG::TI;
+
+    multirotor_training::operations::TrainingState ts;
+    boost::asio::steady_timer timer_;
+    std::thread t;
+    std::vector<std::vector<CONFIG::ENVIRONMENT::State>> ongoing_trajectories;
+    std::vector<TI> ongoing_drones;
+    std::vector<TI> idle_drones;
+    TI drone_id_counter = 0;
+    using T = CONFIG::T;
+    using ENVIRONMENT = typename parameters_sim2real::environment<CONFIG::T, TI>::ENVIRONMENT;
+    ENVIRONMENT env;
+    bpt::devices::DefaultCPU device;
+    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+
 public:
-    explicit websocket_session(tcp::socket socket) : ws_(std::move(socket)) {}
+    explicit websocket_session(tcp::socket socket) : ws_(std::move(socket)), timer_(ws_.get_executor()) {
+        env.parameters = parameters_0::environment<T, TI>::parameters;
+        bpt::malloc(device, action);
+    }
 
     template<class Body>
     void run(http::request<Body>&& req) {
@@ -57,27 +78,15 @@ public:
     void on_accept(beast::error_code ec){
         if(ec) return;
         do_read();
-        bpt::devices::DefaultCPU device;
-        auto rng = bpt::random::default_engine(typename bpt::devices::DefaultCPU::SPEC::RANDOM{});
-        using T = double;
-        using TI = typename bpt::devices::DefaultCPU::index_t;
-        using ENVIRONMENT = typename parameters_sim2real::environment<T, TI>::ENVIRONMENT;
-        ENVIRONMENT env;
-        env.parameters = parameters_0::environment<T, TI>::parameters;
-        ENVIRONMENT::State state;
-        bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-        bpt::malloc(device, action);
-        bpt::set_all(device, action, 0);
-        bpt::sample_initial_state(device, env, state, rng);
-        using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
-        UI ui;
-        ws_.write(
-            net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump())
-        );
-        ws_.write(
-            net::buffer(bpt::rl::environments::multirotor::state_message(device, ui, state, action).dump())
-        );
-        bpt::free(device, action);
+//        bpt::set_all(device, action, 0);
+//        using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
+//        UI ui;
+//        ws_.write(
+//            net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump())
+//        );
+//        ws_.write(
+//            net::buffer(bpt::rl::environments::multirotor::state_message(device, ui, state, action).dump())
+//        );
     }
 
     void do_read() {
@@ -90,6 +99,61 @@ public:
         );
     }
 
+    void start(int duration) {
+        timer_.expires_after(boost::asio::chrono::milliseconds(duration));
+        timer_.async_wait([this, duration](const boost::system::error_code& ec) {
+            if (!ec) {
+                refresh();
+                start(duration);
+            }
+        });
+    }
+
+    void refresh(){
+        TI new_trajectories = 0;
+        {
+            std::lock_guard<std::mutex> lock(ts.trajectories_mutex);
+            while(!ts.trajectories.empty()){
+                ongoing_trajectories.push_back(ts.trajectories.front());
+                ts.trajectories.pop();
+                new_trajectories++;
+            }
+        }
+        while(new_trajectories > 0){
+            if(idle_drones.empty()){
+                std::cout << "Adding drone" << std::endl;
+                TI drone_id = drone_id_counter++;
+                ongoing_drones.push_back(drone_id);
+                using UI = bpt::rl::environments::multirotor::UI<CONFIG::ENVIRONMENT>;
+                UI ui;
+                ui.id = std::to_string(drone_id);
+                ui.origin[0] = drone_id / 10;
+                ui.origin[1] = drone_id % 10;
+                ws_.write(net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump()));
+            }
+            else{
+                ongoing_drones.push_back(idle_drones.back());
+                idle_drones.pop_back();
+            }
+            new_trajectories--;
+        }
+        for(TI trajectory_i=0; trajectory_i < ongoing_trajectories.size(); trajectory_i++){
+            TI drone_id = ongoing_drones[trajectory_i];
+            CONFIG::ENVIRONMENT::State state = ongoing_trajectories[trajectory_i].front();
+            ongoing_trajectories[trajectory_i].erase(ongoing_trajectories[trajectory_i].begin());
+            using UI = bpt::rl::environments::multirotor::UI<CONFIG::ENVIRONMENT>;
+            UI ui;
+            ui.id = std::to_string(drone_id);
+            ws_.write(net::buffer(bpt::rl::environments::multirotor::state_message(device, ui, state).dump()));
+            if(ongoing_trajectories[trajectory_i].empty()){
+                idle_drones.push_back(drone_id);
+                ongoing_trajectories.erase(ongoing_trajectories.begin() + trajectory_i);
+                ongoing_drones.erase(ongoing_drones.begin() + trajectory_i);
+                trajectory_i--;
+            }
+        }
+    }
+
     void on_read(beast::error_code ec, std::size_t bytes_transferred) {
         boost::ignore_unused(bytes_transferred);
         if(ec) return;
@@ -100,6 +164,16 @@ public:
 
         if(message["channel"] == "startTraining"){
             std::cout << "startTraining message received" << std::endl;
+            start(10);
+
+            // start thread in lambda for training of ts (passed as a reference)
+            this->t = std::thread([&](){
+                multirotor_training::operations::init(ts);
+                for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
+                    multirotor_training::operations::step(ts);
+                }
+            });
+            t.detach();
         }
 
         // read message to string:

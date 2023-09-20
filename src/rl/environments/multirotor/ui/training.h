@@ -19,6 +19,12 @@
 namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include "../td3/parameters.h"
+
+#include <vector>
+#include <queue>
+#include <mutex>
+
+
 namespace multirotor_training{
     namespace config {
         using namespace bpt::nn_models::sequential::interface; // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
@@ -143,7 +149,11 @@ namespace multirotor_training{
 
     namespace operations{
         struct CustomTrainingState: bpt::rl::algorithms::td3::loop::TrainingState<config::Config>{
+            using CONFIG = config::Config;
             std::string run_name;
+            std::queue<std::vector<CONFIG::ENVIRONMENT::State>> trajectories;
+            std::mutex trajectories_mutex;
+            std::vector<CONFIG::ENVIRONMENT::State> episode;
         };
         using TrainingState = CustomTrainingState;
         void init(TrainingState& ts){
@@ -299,25 +309,28 @@ namespace multirotor_training{
                         std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
                     }
                 }
-
-
-
-//                if(step_i > 1000000){
-//                    for (auto& env : off_policy_runner.envs) {
-//                        env.parameters.mdp.reward.angular_acceleration = 0.01;
-//                    }
-//                }
-//                if(step_i <= 2000000){
-//                    for (auto& env : off_policy_runner.envs) {
-//                        env.parameters.mdp.reward.scale *= 2;
-//                    }
-//                }
+            }
+        }
+        void step_trajectory_collection(TrainingState& ts){
+            using CONFIG = config::Config;
+            using TI = CONFIG::TI;
+            auto& rb = ts.off_policy_runner.replay_buffers[0];
+            TI current_pos = rb.position - 1;
+            CONFIG::ENVIRONMENT::State s = get(rb.states, current_pos, 0);
+            ts.episode.push_back(s);
+            if(bpt::get(rb.terminated, current_pos, 0) == 1.0){
+                {
+                    std::lock_guard<std::mutex> lock(ts.trajectories_mutex);
+                    ts.trajectories.push(ts.episode);
+                }
+                ts.episode.clear();
             }
         }
         void step(TrainingState& ts){
             step_checkpoint(ts);
             step_curriculum(ts);
             bpt::rl::algorithms::td3::loop::step(ts);
+            step_trajectory_collection(ts);
         }
     }
 }

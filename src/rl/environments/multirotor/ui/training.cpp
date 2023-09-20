@@ -4,6 +4,7 @@
 int main(){
     using namespace multirotor_training::config;
 
+    using CONFIG = multirotor_training::config::Config;
 
     multirotor_training::operations::TrainingState ts;
 
