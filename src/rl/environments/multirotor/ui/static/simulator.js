@@ -53,10 +53,10 @@ class Simulator {
         // camera.position.z = 0.15;
 
         let distance_factor = parameters["cameraDistanceToOrigin"]
-        this.camera.position.x = -2.5 * distance_factor
-        this.camera.position.y = 2.5 * distance_factor
+        this.camera.position.x = -3.5 * distance_factor
+        this.camera.position.y = 3.5 * distance_factor
         this.camera.position.z = 2.0 * distance_factor
-        this.camera.lookAt(0, 0, 0)
+        this.camera.lookAt(3, 3, 0)
 
         let animate = () =>{
             requestAnimationFrame(animate);
