@@ -4,7 +4,7 @@ import {norm, Matrix4FromRotMat, Matrix4FromRotMatTranspose} from "./math.js"
 
 class Drone{
   constructor(model, origin, envParams, displayIMUCoordinateSystem, displayActions){
-    console.log(model)
+    // console.log(model)
     this.origin = origin
     this.model = model
     this.envParams = envParams
@@ -40,7 +40,7 @@ class Drone{
       let rotorCageThicknessFactor = 1
       if (this.envParams != null){
         const rotorParams = this.envParams.rotors[rotorIndex]
-        console.log(this.envParams)
+        // console.log(this.envParams)
         if (rotorParams.thrust_curve.factors[1].constructor == Object){
           if (Array.isArray(rotorParams.thrust_curve.factors[1].parameters)){
             const mean1 = rotorParams.thrust_curve.factors[1].parameters.reduce((a, c)=>a+c, 0) / rotorParams.thrust_curve.factors[1].parameters.length

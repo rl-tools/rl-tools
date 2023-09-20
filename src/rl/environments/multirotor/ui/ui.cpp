@@ -47,6 +47,7 @@ class websocket_session : public std::enable_shared_from_this<websocket_session>
 
     multirotor_training::operations::TrainingState ts;
     boost::asio::steady_timer timer_;
+    std::chrono::time_point<std::chrono::high_resolution_clock> training_start, training_end;
     std::thread t;
     std::vector<std::vector<CONFIG::ENVIRONMENT::State>> ongoing_trajectories;
     std::vector<TI> ongoing_drones;
@@ -113,28 +114,46 @@ public:
         TI new_trajectories = 0;
         {
             std::lock_guard<std::mutex> lock(ts.trajectories_mutex);
-            while(!ts.trajectories.empty() && new_trajectories < 5 && ongoing_trajectories.size() <= 100){
+            while(!ts.trajectories.empty() && ongoing_trajectories.size() <= 100){
                 ongoing_trajectories.push_back(ts.trajectories.front());
                 ts.trajectories.pop();
                 new_trajectories++;
             }
         }
         while(new_trajectories > 0){
+            std::sort(idle_drones.begin(), idle_drones.end(), std::greater<TI>());
             if(idle_drones.empty()){
                 TI drone_id = drone_id_counter++;
                 ongoing_drones.push_back(drone_id);
                 using UI = bpt::rl::environments::multirotor::UI<CONFIG::ENVIRONMENT>;
                 UI ui;
                 ui.id = std::to_string(drone_id);
-                ui.origin[0] = drone_id / 10;
-                ui.origin[1] = drone_id % 10;
+                constexpr TI width = 5;
+                constexpr TI height = 3;
+                TI drone_sub_id = drone_id % (width * height);
+                constexpr T scale = 0.3;
+                ui.origin[0] = (drone_id / 10)*scale;
+                ui.origin[1] = (drone_id % 10)*scale;
                 ui.origin[2] = 0;
 //                std::cout << "Adding drone at " << ui << std::endl;
                 ws_.write(net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump()));
             }
             else{
-                ongoing_drones.push_back(idle_drones.back());
+                TI drone_id = idle_drones.back();
+                ongoing_drones.push_back(drone_id);
                 idle_drones.pop_back();
+                using UI = bpt::rl::environments::multirotor::UI<CONFIG::ENVIRONMENT>;
+                UI ui;
+                ui.id = std::to_string(drone_id);
+                constexpr TI width = 5;
+                constexpr TI height = 3;
+                TI drone_sub_id = drone_id % (width * height);
+                constexpr T scale = 0.3;
+                ui.origin[0] = (drone_id / 10)*scale;
+                ui.origin[1] = (drone_id % 10)*scale;
+                ui.origin[2] = 0;
+//                std::cout << "Adding drone at " << ui << std::endl;
+                ws_.write(net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump()));
             }
             new_trajectories--;
         }
@@ -156,6 +175,22 @@ public:
                 }
             }
         }
+        for(TI idle_i=0; idle_i < idle_drones.size(); idle_i ++){
+            using UI = bpt::rl::environments::multirotor::UI<CONFIG::ENVIRONMENT>;
+            UI ui;
+            TI drone_id = idle_drones[idle_i];
+            ui.id = std::to_string(drone_id);
+            ws_.write(net::buffer(bpt::rl::environments::multirotor::remove_drone_message(device, ui).dump()));
+        }
+        {
+            nlohmann::json message;
+            message["channel"] = "status";
+            message["data"]["progress"] = ((T)ts.step)/CONFIG::STEP_LIMIT;
+            message["data"]["time"] = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - training_start).count()/1000.0;
+            message["data"]["finished"] = ts.finished;
+            ws_.write(net::buffer(message.dump()));
+        }
+
     }
 
     void on_read(beast::error_code ec, std::size_t bytes_transferred) {
@@ -172,10 +207,14 @@ public:
 
             // start thread in lambda for training of ts (passed as a reference)
             this->t = std::thread([&](){
+                training_start = std::chrono::high_resolution_clock::now();
                 multirotor_training::operations::init(ts);
                 for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
                     multirotor_training::operations::step(ts);
                 }
+                training_end = std::chrono::high_resolution_clock::now();
+                std::cout << "Training took " << (std::chrono::duration_cast<std::chrono::milliseconds>(training_end - training_start).count())/1000 << "s" << std::endl;
+
             });
             t.detach();
         }

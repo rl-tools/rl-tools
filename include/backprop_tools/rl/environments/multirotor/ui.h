@@ -66,6 +66,13 @@ namespace backprop_tools::rl::environments::multirotor {
         return message;
     }
     template <typename DEVICE, typename ENVIRONMENT>
+    nlohmann::json remove_drone_message(DEVICE& dev, rl::environments::multirotor::UI<ENVIRONMENT>& ui){
+        nlohmann::json message;
+        message["channel"] = "removeDrone";
+        message["data"]["id"] = ui.id;
+        return message;
+    }
+    template <typename DEVICE, typename ENVIRONMENT>
     nlohmann::json model_message(DEVICE& dev, ENVIRONMENT& env, rl::environments::multirotor::UI<ENVIRONMENT>& ui){
         nlohmann::json message;
         message["channel"] = "addDrone";
@@ -99,6 +106,9 @@ namespace backprop_tools::rl::environments::multirotor {
             }}
         };
         message["data"]["model"]["gravity"] = { 0.0, 0.0, -9.81};
+        message["data"]["display_options"]["displayGlobalCoordinateSystem"] = false;
+        message["data"]["display_options"]["displayIMUCoordinateSystem"] = false;
+        message["data"]["display_options"]["displayActions"] = false;
         return message;
     }
 }

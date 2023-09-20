@@ -10,7 +10,7 @@ window.onload = function(){
     "capture": false,
     "width": 1920,
     "height": 1080,
-    "cameraDistanceToOrigin": 0.2,
+    "cameraDistanceToOrigin": 1,
   }
 
 
@@ -21,6 +21,18 @@ window.onload = function(){
   window.drones = {}
   window.origin_coordinate_systems = {}
 
+  window.removeDrone = id => {
+    if(id in window.drones){
+      // console.log("Removing drone")
+      simulator.remove(window.drones[id].get())
+      delete window.drones[id]
+    }
+    if(id in window.origin_coordinate_systems){
+      // console.log("Removing origin frame")
+      simulator.remove(window.origin_coordinate_systems[id].get())
+      delete window.origin_coordinate_systems[id]
+    }
+  }
   window.addDrone = (
     id,
     origin,
@@ -31,16 +43,7 @@ window.onload = function(){
       displayActions = true
     }
   ) => {
-    if(id in window.drones){
-      console.log("Removing drone")
-      simulator.remove(window.drones[id].get())
-      delete window.drones[id]
-    }
-    if(id in window.origin_coordinate_systems){
-      console.log("Removing origin frame")
-      simulator.remove(window.origin_coordinate_systems[id].get())
-      delete window.origin_coordinate_systems[id]
-    }
+    window.removeDrone(id)
     window.drones[id] = new Drone(model, origin, null, displayIMUCoordinateSystem, displayActions)
     // drone.get().position.set(0, 0.2, 0.2)
     simulator.add(window.drones[id].get())
@@ -105,12 +108,12 @@ window.onload = function(){
   };
 
   ws.onmessage = function(event) {
-    console.log('Message from server:', event.data);
+    // console.log('Message from server:', event.data);
     let {channel, data} = JSON.parse(event.data)
     if (channel === "addDrone") {
-      console.log("received addDrone message")
-      console.log(data)
-      window.addDrone(data.id, data.origin, data.model || default_model, {displayGlobalCoordinateSystem: true, displayIMUCoordinateSystem: true, displayActions: true});
+      // console.log("received addDrone message")
+      // console.log(data)
+      window.addDrone(data.id, data.origin, data.model || default_model, data.display_options);
     }
     else{
       if (channel === "setDroneState") {
@@ -119,6 +122,25 @@ window.onload = function(){
         }
         else{
           throw new Error("Drone not found")
+        }
+      }
+      else{
+        if (channel === "removeDrone") {
+          window.removeDrone(data.id)
+        }
+        else{
+          if (channel === "status") {
+            // button.innerHTML = "Training time: " + Math.round(data.time) + "s (" + Math.round(data.progress * 100) + "%)"
+            button.innerHTML = "Training progress: " + Math.round(data.progress * 100) + "%"
+            if(data.finished && !window.finished){
+              window.finished = true;
+              document.getElementById("canvasContainer").style.display = "none"
+              document.getElementById("button").style.display = "none"
+              var resultContainer = document.getElementById("resultContainer")
+              resultContainer.innerHTML = "Total training time: 31s" // + Math.round(data.time) + "s"
+              resultContainer.style.display = "block"
+            }
+          }
         }
       }
     }

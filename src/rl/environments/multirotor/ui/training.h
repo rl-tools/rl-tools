@@ -127,10 +127,10 @@ namespace multirotor_training{
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 1500001;
+            static constexpr TI STEP_LIMIT = 500001;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
-            static constexpr TI SEED = 4;
+            static constexpr TI SEED = 6;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
             static constexpr bpt::rl::components::off_policy_runner::DefaultParameters<T> off_policy_runner_parameters = {
@@ -167,12 +167,12 @@ namespace multirotor_training{
             ts.off_policy_runner.parameters = parameters_0::rl<config::Config::T, config::Config::TI, config::Config::ENVIRONMENT>::off_policy_runner_parameters;
             {
                 std::stringstream run_name_ss;
-                run_name_ss << "multirotor_td3_";
+                run_name_ss << "multirotor_td3";
                 std::string run_name = run_name_ss.str();
                 auto now = std::chrono::system_clock::now();
                 auto local_time = std::chrono::system_clock::to_time_t(now);
                 std::tm* tm = std::localtime(&local_time);
-                run_name_ss << std::put_time(tm, "%Y%m%d%H%M%S");
+//                run_name_ss << "_" << std::put_time(tm, "%Y%m%d%H%M%S");
                 ts.run_name = run_name_ss.str();
             }
         }
@@ -215,6 +215,7 @@ namespace multirotor_training{
                     bpt::copy(ts.device, ts.device, actor_checkpoint, ts.actor_critic.actor);
                     std::filesystem::path actor_output_path_code = actor_output_dir / (checkpoint_name + ".h");
                     auto actor_weights = bpt::save_code(ts.device, actor_checkpoint, std::string("backprop_tools::checkpoint::actor"), true);
+                    std::cout << "Saving checkpoint at: " << actor_output_path_code << std::endl;
                     std::ofstream actor_output_file(actor_output_path_code);
                     actor_output_file << actor_weights;
                     {
@@ -306,7 +307,7 @@ namespace multirotor_training{
                         auto start = std::chrono::high_resolution_clock::now();
                         bpt::recalculate_rewards(ts.device, ts.off_policy_runner.replay_buffers[0], ts.off_policy_runner.envs[0], ts.rng_eval);
                         auto end = std::chrono::high_resolution_clock::now();
-                        std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+//                        std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
                     }
                 }
             }
@@ -315,7 +316,7 @@ namespace multirotor_training{
             using CONFIG = config::Config;
             using TI = CONFIG::TI;
             auto& rb = ts.off_policy_runner.replay_buffers[0];
-            TI current_pos = rb.position - 1;
+            TI current_pos = rb.position == 0 ? CONFIG::REPLAY_BUFFER_CAP - 1 : rb.position - 1;
             CONFIG::ENVIRONMENT::State s = get(rb.states, current_pos, 0);
             ts.episode.push_back(s);
             if(bpt::get(rb.terminated, current_pos, 0) == 1.0){

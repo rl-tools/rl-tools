@@ -35,6 +35,7 @@ namespace backprop_tools::rl::algorithms::td3::loop {
         using T = typename SPEC::T;
         using TI = typename SPEC::DEVICE::index_t;
         TI step = 0;
+        bool finished = false;
         static constexpr TI N_EVALUATIONS = SPEC::STEP_LIMIT / SPEC::EVALUATION_INTERVAL;
         static_assert(N_EVALUATIONS > 0 && N_EVALUATIONS < 1000000);
 //        rl::utils::evaluation::Result<T, TI, SPEC::N_EPISODES> evaluation_results[N_EVALUATIONS];
@@ -85,6 +86,7 @@ namespace backprop_tools::rl::algorithms::td3::loop{
         ts.off_policy_runner.parameters = components::off_policy_runner::default_parameters<T>;
 
         ts.step = 0;
+        ts.finished = false;
     }
 
     template <typename TRAINING_STATE>
@@ -132,12 +134,8 @@ namespace backprop_tools::rl::algorithms::td3::loop{
             }
         }
         ts.step++;
-        if(ts.step > SPEC::STEP_LIMIT){
-            return true;
-        }
-        else{
-            return finished;
-        }
+        ts.finished = ts.step >= SPEC::STEP_LIMIT;
+        return ts.finished;
     }
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
