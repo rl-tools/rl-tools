@@ -83,8 +83,6 @@ int main() {
     AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
     NN_DEVICE nn_device;
-    device.logger = &logger;
-    nn_device.logger = &logger;
     bpt::malloc(device, off_policy_runner);
     bpt::malloc(device, actor_critic);
     auto rng = bpt::random::default_engine(decltype(device)::SPEC::RANDOM());
@@ -95,7 +93,7 @@ int main() {
     using CRITIC_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
     bpt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batch;
     bpt::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-    CRITIC_NETWORK_TYPE::Buffers<> critic_buffers[2];
+    CRITIC_NETWORK_TYPE::DoubleBuffer<> critic_buffers[2];
     bpt::malloc(device, critic_batch);
     bpt::malloc(device, critic_training_buffers);
     bpt::malloc(device, critic_buffers[0]);
@@ -104,8 +102,8 @@ int main() {
     using ACTOR_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
     bpt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
     bpt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
-    ACTOR_NETWORK_TYPE::Buffers<> actor_buffers[2];
-    ACTOR_NETWORK_TYPE::Buffers<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    ACTOR_NETWORK_TYPE::DoubleBuffer<> actor_buffers[2];
+    ACTOR_NETWORK_TYPE::DoubleBuffer<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
     bpt::malloc(device, actor_batch);
     bpt::malloc(device, actor_training_buffers);
     bpt::malloc(device, actor_buffers_eval);

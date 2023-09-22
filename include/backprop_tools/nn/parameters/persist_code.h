@@ -7,14 +7,26 @@
 #include <sstream>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
+
     std::string get_type_string(nn::parameters::Plain p){
         return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Plain";
     }
     std::string get_type_string(nn::parameters::Gradient p){
         return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Gradient";
     }
+
+    template <typename DEVICE>
+    std::string get_type_string_tag(const DEVICE&, const nn::parameters::categories::Weights){
+        return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::categories::Weights";
+    }
+
+    template <typename DEVICE>
+    std::string get_type_string_tag(const DEVICE&, const nn::parameters::categories::Biases){
+        return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::categories::Biases";
+    }
+
     template<typename DEVICE, typename CONTAINER>
-    persist::Code save_split(DEVICE &device, nn::parameters::Plain::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
+    persist::Code save_split(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -27,14 +39,15 @@ namespace backprop_tools {
         ss_header << container.header;
         ss << container.body;
         if(!output_memory_only){
-            ss << ind << "    " << (const_declaration ? "const " : "") << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Plain::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container};\n";
+            ss << ind << "    " << "using PARAMETER_SPEC = " << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Plain::spec<parameters_memory::CONTAINER_TYPE, " << get_type_string_tag(device, typename CONTAINER::CATEGORY_TAG{}) << ">;\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Plain::instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
         }
         ss << ind << "}\n";
         return {"", ss.str()};
     }
 
     template<typename DEVICE, typename CONTAINER>
-    persist::Code save_split(DEVICE &device, nn::parameters::Gradient::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
+    persist::Code save_split(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -52,6 +65,7 @@ namespace backprop_tools {
         ss << gradient.body;
         if(!output_memory_only){
             ss << ind << "    " << "static_assert(BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::utils::typing::is_same_v<parameters_memory::CONTAINER_TYPE, gradient_memory::CONTAINER_TYPE>);\n";
+            ss << ind << "    " << "using PARAMETER_SPEC = " << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Gradient::spec<parameters_memory::CONTAINER_TYPE, " << get_type_string_tag(device, typename CONTAINER::CATEGORY_TAG{}) << ">;\n";
             ss << ind << "    " << (const_declaration ? "const " : "") << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::nn::parameters::Gradient::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container, gradient_memory::container};\n";
         }
         ss << ind << "}\n";

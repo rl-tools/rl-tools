@@ -36,8 +36,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 
 //        printf("state reward: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
 
-        T orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
-//        T orientation_cost = math::abs(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
+        T orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::abs(device.math, 2 * math::acos(device.math, quaternion_w));
+//        T orientation_cost = math::abs(device.math, 2 * math::acos(device.math, quaternion_w));
         T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.position);
         T linear_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.linear_velocity);
         T angular_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.angular_velocity);
@@ -56,7 +56,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, params.action_baseline, action_diff);
         T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         T weighted_abs_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.linear_acceleration * linear_acc_cost + params.angular_acceleration * angular_acc_cost + params.action * action_cost;
-        T r = math::exp(typename DEVICE::SPEC::MATH(), -params.scale_inner*weighted_abs_cost);
+        T r = math::exp(device.math, -params.scale_inner*weighted_abs_cost);
         constexpr TI cadence = 991;
         if(log_components){
             add_scalar(device, device.logger, "reward/orientation_cost", orientation_cost, cadence);

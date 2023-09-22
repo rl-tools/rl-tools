@@ -8,7 +8,7 @@
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools {
     template<typename DEVICE, typename SPEC>
-    void save(DEVICE &device, Matrix<SPEC>& m, HighFive::Group group, std::string dataset_name) {
+    void save(DEVICE& device, Matrix<SPEC>& m, HighFive::Group group, std::string dataset_name) {
         using T = typename SPEC::T;
         std::vector<std::vector<T>> data(SPEC::ROWS);
         for(typename DEVICE::index_t i=0; i < SPEC::ROWS; i++){

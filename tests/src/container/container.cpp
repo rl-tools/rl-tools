@@ -9,9 +9,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 TEST(BACKPROP_TOOLS_TEST_CONTAINER, SLICE){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
-    DEVICE::SPEC::LOGGING logger;
     DEVICE device;
-    device.logger = &logger;
     bpt::MatrixDynamic<bpt::matrix::Specification<float, typename DEVICE::index_t, 3, 3>> m;
     bpt::malloc(device, m);
     bpt::set(m, 0, 0, 1);

@@ -42,15 +42,15 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const nn::parameters::Plain::instance<SPEC_1>& p1, const nn::parameters::Plain::instance<SPEC_2>& p2){
-        typename SPEC_1::T acc = 0;
+    typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Plain::instance<SPEC_1>& p1, const nn::parameters::Plain::instance<SPEC_2>& p2){
+        typename SPEC_1::CONTAINER::T acc = 0;
         acc += abs_diff(device, p1.parameters, p2.parameters);
         return acc;
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const nn::parameters::Gradient::instance<SPEC_1>& p1, const nn::parameters::Gradient::instance<SPEC_2>& p2){
-        typename SPEC_1::T acc = 0;
+    typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Gradient::instance<SPEC_1>& p1, const nn::parameters::Gradient::instance<SPEC_2>& p2){
+        typename SPEC_1::CONTAINER::T acc = 0;
         acc += abs_diff(device, (nn::parameters::Plain::instance<SPEC_1>&) p1, (nn::parameters::Plain::instance<SPEC_2>&) p2);
         acc += abs_diff(device, p1.gradient, p2.gradient);
         return acc;

@@ -50,7 +50,7 @@ namespace backprop_tools{
 
         u = clip(u, -PARAMS::max_torque, PARAMS::max_torque);
 
-        T newthdot = state.theta_dot + (3 * g / (2 * l) * math::sin(typename DEVICE::SPEC::MATH(), state.theta) + 3.0 / (m * l * l) * u) * dt;
+        T newthdot = state.theta_dot + (3 * g / (2 * l) * math::sin(device.math, state.theta) + 3.0 / (m * l * l) * u) * dt;
         newthdot = clip(newthdot, -PARAMS::max_speed, PARAMS::max_speed);
         T newth = state.theta + newthdot * dt;
 
@@ -62,7 +62,7 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Pendulum<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
-        T angle_norm = angle_normalize(typename DEVICE::SPEC::MATH(), state.theta);
+        T angle_norm = angle_normalize(device.math, state.theta);
         T u_normalised = get(action, 0, 0);
         T u = SPEC::PARAMETERS::max_torque * u_normalised;
         T costs = angle_norm * angle_norm + 0.1 * state.theta_dot * state.theta_dot + 0.001 * (u * u);
@@ -74,8 +74,8 @@ namespace backprop_tools{
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 3);
         typedef typename SPEC::T T;
-        set(observation, 0, 0, math::cos(typename DEVICE::SPEC::MATH(), state.theta));
-        set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta));
+        set(observation, 0, 0, math::cos(device.math, state.theta));
+        set(observation, 0, 1, math::sin(device.math, state.theta));
         set(observation, 0, 2, state.theta_dot);
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>

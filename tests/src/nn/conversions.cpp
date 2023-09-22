@@ -53,9 +53,7 @@ TEST(BACKPROP_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     using Device1 = bpt::devices::DefaultDummy;
     using Layer1 = bpt::nn::layers::dense::Layer<LayerSpec1>;
 
-    Device1::SPEC::LOGGING logger;
     Device1 device1;
-    device1.logger = &logger;
     Layer1 layer1;
 
     Layer1 layer11;
@@ -63,9 +61,7 @@ TEST(BACKPROP_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     using Device2 = bpt::devices::DefaultCPU;
     using Layer2 = bpt::nn::layers::dense::Layer<LayerSpec2>;
 
-    Device2::SPEC::LOGGING logger2;
     Device2 device2;
-    device2.logger = &logger2;
     Layer2 layer2;
     Layer2 layer22;
     Layer2 layer222;

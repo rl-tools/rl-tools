@@ -215,7 +215,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template<typename DEVICE, typename SPEC>
-    void malloc(DEVICE, rl::environments::Multirotor<SPEC>){
+    void malloc(DEVICE&, rl::environments::Multirotor<SPEC>){
 
     }
     template<typename DEVICE, typename T, typename TI, typename SPEC>
@@ -605,7 +605,7 @@ namespace backprop_tools{
         for(TI state_i = 0; state_i < 4; state_i++){
             quaternion_norm += next_state.orientation[state_i] * next_state.orientation[state_i];
         }
-        quaternion_norm = math::sqrt(typename DEVICE::SPEC::MATH(), quaternion_norm);
+        quaternion_norm = math::sqrt(device.math, quaternion_norm);
         for(TI state_i = 0; state_i < 4; state_i++){
             next_state.orientation[state_i] /= quaternion_norm;
         }
@@ -668,7 +668,7 @@ namespace backprop_tools{
             T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
             T action_noisy = get(action, 0, action_i);
             action_noisy += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.action_noise.normalized_rpm, rng);
-            action_noisy = math::clamp(typename DEVICE::SPEC::MATH(), action_noisy, -(T)1, (T)1);
+            action_noisy = math::clamp(device.math, action_noisy, -(T)1, (T)1);
             action_scaled[action_i] = action_noisy * half_range + env.parameters.dynamics.action_limit.min + half_range;
 //            state.rpm[action_i] = action_scaled[action_i];
         }
@@ -687,9 +687,9 @@ namespace backprop_tools{
         if(env.parameters.mdp.termination.enabled){
             for(TI i = 0; i < 3; i++){
                 if(
-                    math::abs(typename DEVICE::SPEC::MATH(), state.position[i]) > env.parameters.mdp.termination.position_threshold ||
-                    math::abs(typename DEVICE::SPEC::MATH(), state.linear_velocity[i]) > env.parameters.mdp.termination.linear_velocity_threshold ||
-                    math::abs(typename DEVICE::SPEC::MATH(), state.angular_velocity[i]) > env.parameters.mdp.termination.angular_velocity_threshold
+                    math::abs(device.math, state.position[i]) > env.parameters.mdp.termination.position_threshold ||
+                    math::abs(device.math, state.linear_velocity[i]) > env.parameters.mdp.termination.linear_velocity_threshold ||
+                    math::abs(device.math, state.angular_velocity[i]) > env.parameters.mdp.termination.angular_velocity_threshold
                 ){
                     return true;
                 }

@@ -46,7 +46,7 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    persist::Code save_split(DEVICE &device, Matrix<SPEC>& m, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    persist::Code save_split(DEVICE& device, Matrix<SPEC>& m, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(utils::typing::is_same_v<containers::persist::STORAGE_TYPE, unsigned char>);
@@ -84,7 +84,7 @@ namespace backprop_tools{
         return {ss_header.str(), ss.str()};
     }
     template<typename DEVICE, typename SPEC>
-    std::string save_code(DEVICE &device, Matrix<SPEC>& m, std::string name, bool const_declaration, typename DEVICE::index_t indent=0){
+    std::string save_code(DEVICE& device, Matrix<SPEC>& m, std::string name, bool const_declaration, typename DEVICE::index_t indent=0){
         auto code = save_split(device, m, name, const_declaration, indent);
         return code.header + code.body;
     }

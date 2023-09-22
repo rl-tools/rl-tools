@@ -47,6 +47,8 @@ namespace backprop_tools::devices{
         static constexpr bool compatible = OTHER_DEVICE::DEVICE == DeviceId::ESP32;
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
+        typename SPEC::MATH math;
+        typename SPEC::RANDOM random;
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;
 #endif

@@ -89,7 +89,6 @@ struct CoreTrainingState{
     using TRAINING_CONFIG = T_TRAINING_CONFIG;
     using DEVICE = typename TRAINING_CONFIG::DEVICE;
     using TI = typename DEVICE::index_t;
-    typename DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     typename TRAINING_CONFIG::OPTIMIZER actor_optimizer, critic_optimizers[2];
     decltype(bpt::random::default_engine(typename DEVICE::SPEC::RANDOM())) rng;
@@ -97,15 +96,15 @@ struct CoreTrainingState{
     bpt::rl::components::OffPolicyRunner<typename TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
     typename TRAINING_CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
     typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE actor_critic;
-    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffers<1> actor_deterministic_evaluation_buffers;
+    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template DoubleBuffer<1> actor_deterministic_evaluation_buffers;
     bpt::rl::components::off_policy_runner::Batch<bpt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
     bpt::rl::algorithms::td3::CriticTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_SPEC> critic_training_buffers;
     bpt::MatrixDynamic<bpt::matrix::Specification<typename TRAINING_CONFIG::DTYPE, TI, 1, TRAINING_CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
-    typename TRAINING_CONFIG::CRITIC_NETWORK_TYPE::template Buffers<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    typename TRAINING_CONFIG::CRITIC_NETWORK_TYPE::template DoubleBuffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
     bpt::rl::components::off_policy_runner::Batch<bpt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
     bpt::rl::algorithms::td3::ActorTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
-    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffers<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffers<TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template DoubleBuffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template DoubleBuffer<TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
 };
 
 template <typename TRAINING_CONFIG>
@@ -128,7 +127,6 @@ template <typename TRAINING_STATE>
 void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::TRAINING_CONFIG::DEVICE::index_t seed){
     using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
 
-    ts.device.logger = &ts.logger;
 
     ts.rng = bpt::random::default_engine(typename TRAINING_CONFIG::DEVICE::SPEC::RANDOM(), seed);
 

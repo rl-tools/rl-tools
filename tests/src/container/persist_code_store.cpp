@@ -28,7 +28,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
     bpt::malloc(device, m);
     bpt::randn(device, m, rng);
     bpt::print(device, m);
-    auto output = bpt::save(device, m, "matrix_1", const_declaration);
+    auto output = bpt::save_code(device, m, "matrix_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;
@@ -60,7 +60,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     bpt::randn(device, layer.biases.gradient, rng);
     bpt::randn(device, layer.biases.gradient_first_order_moment, rng);
     bpt::randn(device, layer.biases.gradient_second_order_moment, rng);
-    auto output = bpt::save(device, layer, "layer_1", const_declaration);
+    auto output = bpt::save_code(device, layer, "layer_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;
@@ -80,7 +80,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     bpt::nn_models::mlp::NeuralNetwork<SPEC> mlp;
     bpt::malloc(device, mlp);
     bpt::init_weights(device, mlp, rng);
-    auto output = bpt::save(device, mlp, "mlp_1", const_declaration);
+    auto output = bpt::save_code(device, mlp, "mlp_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;

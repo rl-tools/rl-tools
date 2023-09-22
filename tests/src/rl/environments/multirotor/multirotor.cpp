@@ -30,9 +30,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR, MULTIROTOR) {
     using TI = typename DEVICE::index_t;
 
 
-    typename DEVICE::SPEC::LOGGING logger;
     DEVICE device;
-    device.logger = &logger;
 
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM{}, 2);
 

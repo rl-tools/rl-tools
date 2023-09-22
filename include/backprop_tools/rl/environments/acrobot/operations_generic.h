@@ -130,10 +130,10 @@ namespace backprop_tools{
         T action_scaled = (get(action, 0, 0) + 1.0) / 2.0 * (PARAMS::MAX_TORQUE - (PARAMS::MIN_TORQUE)) + (PARAMS::MIN_TORQUE);
         rl::environments::acrobot::rk4(state_flat, action_scaled, next_state_flat, PARAMS::DT, PARAMS{});
 
-        next_state_flat[0] = angle_normalize(typename DEVICE::SPEC::MATH(), next_state_flat[0]);
-        next_state_flat[1] = angle_normalize(typename DEVICE::SPEC::MATH(), next_state_flat[1]);
-        next_state_flat[2] = math::clamp(    typename DEVICE::SPEC::MATH(), next_state_flat[2], -PARAMS::MAX_VEL_1, PARAMS::MAX_VEL_1);
-        next_state_flat[3] = math::clamp(    typename DEVICE::SPEC::MATH(), next_state_flat[3], -PARAMS::MAX_VEL_2, PARAMS::MAX_VEL_2);
+        next_state_flat[0] = angle_normalize(device.math, next_state_flat[0]);
+        next_state_flat[1] = angle_normalize(device.math, next_state_flat[1]);
+        next_state_flat[2] = math::clamp(    device.math, next_state_flat[2], -PARAMS::MAX_VEL_1, PARAMS::MAX_VEL_1);
+        next_state_flat[3] = math::clamp(    device.math, next_state_flat[3], -PARAMS::MAX_VEL_2, PARAMS::MAX_VEL_2);
 
         next_state.theta_0 = next_state_flat[0];
         next_state.theta_1 = next_state_flat[1];
@@ -171,10 +171,10 @@ namespace backprop_tools{
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 6);
         typedef typename SPEC::T T;
-        set(observation, 0, 0, math::cos(typename DEVICE::SPEC::MATH(), state.theta_0));
-        set(observation, 0, 1, math::sin(typename DEVICE::SPEC::MATH(), state.theta_0));
-        set(observation, 0, 2, math::cos(typename DEVICE::SPEC::MATH(), state.theta_1));
-        set(observation, 0, 3, math::sin(typename DEVICE::SPEC::MATH(), state.theta_1));
+        set(observation, 0, 0, math::cos(device.math, state.theta_0));
+        set(observation, 0, 1, math::sin(device.math, state.theta_0));
+        set(observation, 0, 2, math::cos(device.math, state.theta_1));
+        set(observation, 0, 3, math::sin(device.math, state.theta_1));
         set(observation, 0, 4, state.theta_0_dot);
         set(observation, 0, 5, state.theta_1_dot);
     }

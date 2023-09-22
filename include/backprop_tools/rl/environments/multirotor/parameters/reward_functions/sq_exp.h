@@ -37,8 +37,8 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 
 //        printf("state reward: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
 
-        T orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::sq(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
-//        T orientation_cost = math::sq(typename DEVICE::SPEC::MATH(), 2 * math::acos(typename DEVICE::SPEC::MATH(), quaternion_w));
+        T orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::sq(device.math, 2 * math::acos(device.math, quaternion_w));
+//        T orientation_cost = math::sq(device.math, 2 * math::acos(device.math, quaternion_w));
         T position_cost = state.position[0] * state.position[0] + state.position[1] * state.position[1] + state.position[2] * state.position[2];
         T linear_vel_cost = state.linear_velocity[0] * state.linear_velocity[0] + state.linear_velocity[1] * state.linear_velocity[1] + state.linear_velocity[2] * state.linear_velocity[2];
         T angular_vel_cost = state.angular_velocity[0] * state.angular_velocity[0] + state.angular_velocity[1] * state.angular_velocity[1] + state.angular_velocity[2] * state.angular_velocity[2];
@@ -57,7 +57,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, params.action_baseline, action_diff);
         T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         T weighted_sq_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.linear_acceleration * linear_acc_cost + params.angular_acceleration * angular_acc_cost + params.action * action_cost;
-        T sq_exp = math::exp(typename DEVICE::SPEC::MATH(), -params.scale_inner*weighted_sq_cost);
+        T sq_exp = math::exp(device.math, -params.scale_inner*weighted_sq_cost);
         T r = sq_exp * params.scale + params.additive_constant;
         constexpr TI cadence = 991;
         if(log_components){

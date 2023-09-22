@@ -71,12 +71,10 @@ TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     data_file.getDataSet("data/Y_mean").read(Y_mean);
     data_file.getDataSet("data/Y_std").read(Y_std);
 
-    DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     OPTIMIZER optimizer;
-    device.logger = &logger;
     NetworkType network;
-    typename NetworkType::Buffers<1> buffers;
+    typename NetworkType::DoubleBuffer<1> buffers;
     bpt::malloc(device, network);
     bpt::malloc(device, buffers);
     std::vector<T> losses;

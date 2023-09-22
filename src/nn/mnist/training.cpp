@@ -53,7 +53,6 @@ int main(){
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     OPTIMIZER optimizer;
-    device.logger = &logger;
     NETWORK_TYPE network;
     typename NETWORK_TYPE::DoubleBuffer<1> buffers;
 

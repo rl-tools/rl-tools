@@ -35,6 +35,8 @@ namespace backprop_tools::devices{
         static constexpr bool compatible = utils::typing::is_same_v<OTHER_DEVICE, Dummy<T_SPEC>>;
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
+        typename SPEC::MATH math;
+        typename SPEC::RANDOM random;
     };
     struct DefaultDummySpecification{
         using MATH = math::Dummy;

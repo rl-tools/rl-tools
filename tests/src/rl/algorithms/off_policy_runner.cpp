@@ -28,9 +28,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, TI>;
     using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     typedef bpt::nn_models::mlp::AdamSpecification<PendulumStructureSpecification> SPEC;
-    DEVICE::SPEC::LOGGING logger;
     DEVICE device;
-    device.logger = &logger;
     OPTIMIZER optimizer;
     bpt::nn_models::mlp::NeuralNetworkAdam<SPEC> policy;
     bpt::malloc(device, policy);
@@ -40,7 +38,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     bpt::malloc(device, off_policy_runner);
     ENVIRONMENT envs[OffPolicyRunnerSpec::N_ENVIRONMENTS];
     bpt::init(device, off_policy_runner, envs);
-    decltype(policy)::Buffers<OffPolicyRunnerSpec::N_ENVIRONMENTS> policy_buffers;
+    decltype(policy)::DoubleBuffer<OffPolicyRunnerSpec::N_ENVIRONMENTS> policy_buffers;
     bpt::malloc(device, policy_buffers);
     for(int step_i = 0; step_i < 10000; step_i++){
         bpt::step(device, off_policy_runner, policy, policy_buffers, rng);

@@ -178,7 +178,7 @@ int main(int argc, char** argv){
         // -------------------------------------------------------
         // -------------- replaced for cuda training ----------------
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;
-        prl::PPO_TYPE::SPEC::ACTOR_TYPE::Buffers<1> actor_deterministic_eval_buffers;
+        prl::PPO_TYPE::SPEC::ACTOR_TYPE::DoubleBuffer<1> actor_deterministic_eval_buffers;
         // ----------------------------------------------------------
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
@@ -235,7 +235,6 @@ int main(int argc, char** argv){
         // -------------- added for cuda training ----------------
         bpt::copy(device_gpu, device, ppo_gpu, ppo);
         // -------------------------------------------------------
-        device.logger = &logger;
         bpt::construct(device, device.logger, logs_dir, run_name);
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){

@@ -52,14 +52,14 @@ namespace backprop_tools::rl::components::off_policy_runner{
             for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
                 T std = math::exp(typename DEVICE::SPEC::MATH{}, get(runner->buffers.actions, 0, ENVIRONMENT::ACTION_DIM+i));
                 T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), get(runner->buffers.actions, 0, i), std, rng);
-                set(runner->buffers.actions, 0, i, math::clamp<T>(typename DEVICE::SPEC::MATH(), action_noisy, -1, 1));
+                set(runner->buffers.actions, 0, i, math::clamp<T>(device.math, action_noisy, -1, 1));
             }
             return view(device, runner->buffers.actions, matrix::ViewSpec<1, SPEC::ENVIRONMENT::ACTION_DIM>{});
         }
         else{
             for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
                 T action_noisy = get(runner->buffers.actions, 0, i) + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T) 0, runner->parameters.exploration_noise, rng);
-                set(runner->buffers.actions, 0, i, math::clamp<T>(typename DEVICE::SPEC::MATH(), action_noisy, -1, 1));
+                set(runner->buffers.actions, 0, i, math::clamp<T>(device.math, action_noisy, -1, 1));
             }
             return runner->buffers.actions;
         }

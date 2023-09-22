@@ -20,7 +20,7 @@ namespace training_config {
         using T = float;
         using TI = typename DEVICE::index_t;
 
-        using ENV_SPEC = bpt::rl::environments::car::SpecificationTrack<T, DEVICE::index_t, 100, 100, 20>;
+        using ENV_SPEC = bpt::rl::environments::car::SpecificationTrack<T, TI, 100, 100, 20>;
         using ENVIRONMENT = bpt::rl::environments::CarTrack<ENV_SPEC>;
 #if BACKPROP_TOOLS_ENABLE_GTK
         using UI = bpt::rl::environments::car::UI<bpt::rl::environments::car::ui::Specification<T, TI, ENVIRONMENT, 1000, 60>>;
@@ -31,9 +31,9 @@ namespace training_config {
         struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
             using LOGGING = bpt::devices::logging::CPU;
         };
-        struct TD3PendulumParameters: bpt::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
-            constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
-            constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
+        struct TD3PendulumParameters: bpt::rl::algorithms::td3::DefaultParameters<T, TI>{
+            constexpr static TI CRITIC_BATCH_SIZE = 100;
+            constexpr static TI ACTOR_BATCH_SIZE = 100;
             constexpr static T GAMMA = 0.997;
         };
 
@@ -80,25 +80,27 @@ namespace training_config {
         using CRITIC_TYPE = typename CRITIC<bpt::nn::parameters::Adam>::MODEL;
         using CRITIC_TARGET_TYPE = typename CRITIC<bpt::nn::parameters::Plain>::MODEL;
 
-        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, OPTIMIZER, TD3_PARAMETERS>;
+        using ACTOR_CRITIC_SPEC = bpt::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, OPTIMIZER, TD3_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
 
-        static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr int N_WARMUP_STEPS_ACTOR = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr int N_WARMUP_STEPS_CRITIC = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 #ifndef BACKPROP_TOOLS_STEP_LIMIT
-        static constexpr DEVICE::index_t STEP_LIMIT = 500000000; //2 * N_WARMUP_STEPS;
+        static constexpr TI STEP_LIMIT = 500000000; //2 * N_WARMUP_STEPS;
 #else
-        static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
+        static constexpr TI STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
 #endif
         static constexpr bool DETERMINISTIC_EVALUATION = true;
-        static constexpr DEVICE::index_t EVALUATION_INTERVAL = 20000;
-        static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 1000000;
-        static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 1000;
+        static constexpr TI NUM_EVALUATION_EPISODES = 10;
+        static constexpr TI EVALUATION_INTERVAL = 20000;
+        static constexpr TI REPLAY_BUFFER_CAP = 1000000;
+        static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
         static constexpr bool COLLECT_EPISODE_STATS = true;
-        static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
+        static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
         using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<
                 T,
-                DEVICE::index_t,
+                TI,
                 ENVIRONMENT,
                 1,
                 false,

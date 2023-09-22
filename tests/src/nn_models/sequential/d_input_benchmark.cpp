@@ -52,7 +52,7 @@ namespace config{
 template <typename DEVICE, typename SEQUENTIAL_DEVICE, typename CONFIG>
 void test_correctness(){
     typename CONFIG::MODEL model, model_temp;
-    typename CONFIG::MODEL::template Buffers<CONFIG::BATCH_SIZE> buffer;
+    typename CONFIG::MODEL::template DoubleBuffer<CONFIG::BATCH_SIZE> buffer;
     DEVICE device;
     SEQUENTIAL_DEVICE sdevice;
     typename CONFIG::SEQUENTIAL_MODEL sequential_model, sequential_model_temp;

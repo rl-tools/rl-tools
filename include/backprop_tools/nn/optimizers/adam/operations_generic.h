@@ -29,26 +29,12 @@ namespace backprop_tools{
         gradient_descent(device, parameter, optimizer);
     }
 
-    template <typename DEVICE, typename PARAMETERS, typename TAG>
-    constexpr bool apply_weight_decay(const DEVICE& device, const nn::optimizers::Adam<PARAMETERS>& optimizer, const TAG){
-        return true;
-    };
-
-    template <typename DEVICE, typename PARAMETERS>
-    constexpr bool apply_weight_decay(const DEVICE& device, const nn::optimizers::Adam<PARAMETERS>& optimizer, const nn::layers::dense::parameter_categories::Weights){
-        return true;
-    };
-    template <typename DEVICE, typename PARAMETERS>
-    constexpr bool apply_weight_decay(const DEVICE& device, const nn::optimizers::Adam<PARAMETERS>& optimizer, const nn::layers::dense::parameter_categories::Biases){
-        return false;
-    };
-
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::CONTAINER::ROWS; row_i++) {
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::CONTAINER::COLS; col_i++) {
-                typename SPEC::CONTAINER::T parameter_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(typename DEVICE::SPEC::MATH(), get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-                if constexpr(apply_weight_decay(device, optimizer, typename SPEC::CATEGORY_TAG{}) &&  PARAMETERS::WEIGHT_DECAY > 0){
+                typename SPEC::CONTAINER::T parameter_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Weights> && PARAMETERS::WEIGHT_DECAY > 0){
                     parameter_update += get(parameter.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY / 2;
                 }
                 increment(parameter.parameters, row_i, col_i, -parameter_update);
@@ -89,8 +75,8 @@ namespace backprop_tools{
     template<typename DEVICE, typename PARAMETERS, typename MODEL>
     void step(DEVICE& device, nn::optimizers::Adam<PARAMETERS>& optimizer, MODEL& model) {
         using T = typename PARAMETERS::T;
-        optimizer.first_order_moment_bias_correction  = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), PARAMETERS::BETA_1, (T)optimizer.age));
-        optimizer.second_order_moment_bias_correction = 1/(1 - math::pow(typename DEVICE::SPEC::MATH(), PARAMETERS::BETA_2, (T)optimizer.age));
+        optimizer.first_order_moment_bias_correction  = 1/(1 - math::pow(device.math, PARAMETERS::BETA_1, (T)optimizer.age));
+        optimizer.second_order_moment_bias_correction = 1/(1 - math::pow(device.math, PARAMETERS::BETA_2, (T)optimizer.age));
         optimizer.age += 1;
         update(device, model, optimizer);
     }

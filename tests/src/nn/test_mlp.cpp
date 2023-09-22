@@ -52,7 +52,6 @@ template <typename NetworkType>
 class NeuralNetworkTestLoadWeights : public NeuralNetworkTest {
 protected:
     NeuralNetworkTestLoadWeights(){
-        device.logger = &logger;
         model_name = "model_1";
         bpt::malloc(device, network);
         bpt::malloc(device, network_buffers);
@@ -104,10 +103,9 @@ protected:
         bpt::assign(device, network.output_layer.biases.parameters, output_layer_biases.data());
     }
 
-    typename NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device;
     NetworkType network;
-    typename NetworkType::template Buffers<> network_buffers;
+    typename NetworkType::template DoubleBuffer<> network_buffers;
     std::vector<std::vector<DTYPE>> input_layer_weights;
     std::vector<DTYPE> input_layer_biases;
     std::vector<std::vector<DTYPE>> hidden_layer_0_weights;
@@ -551,9 +549,7 @@ TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
 #ifndef SKIP_TESTS
 TEST_F(BACKPROP_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     bpt::nn::optimizers::Adam<bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>> optimizer;
-    NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device;
-    device.logger = &logger;
     NetworkType network;
     bpt::malloc(device, network);
     std::vector<DTYPE> losses;

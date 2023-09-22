@@ -131,7 +131,8 @@ namespace backprop_tools::rl::algorithms::sac {
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_1;
         typename SPEC::CRITIC_TARGET_NETWORK_TYPE critic_target_2;
         using ALPHA_CONTAINER = typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, 1>>;
-        typename SPEC::ALPHA_PARAMETER_TYPE::template instance<ALPHA_CONTAINER> log_alpha;
+        using ALPHA_PARAMETER_SPEC = typename SPEC::ALPHA_PARAMETER_TYPE::template spec<ALPHA_CONTAINER, nn::parameters::categories::Biases>;
+        typename SPEC::ALPHA_PARAMETER_TYPE::template instance<ALPHA_PARAMETER_SPEC> log_alpha;
 
 
         typename SPEC::ACTOR_OPTIMIZER actor_optimizer;

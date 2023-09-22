@@ -62,7 +62,7 @@ namespace backprop_tools{
 
         template<typename DEVICE, typename SPEC, typename RNG>
         __global__
-        void prologue_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
+        void prologue_kernel(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
@@ -93,7 +93,7 @@ namespace backprop_tools{
 
         template<typename DEVICE, typename SPEC, typename RNG>
         __global__
-        void epilogue_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
+        void epilogue_kernel(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
 

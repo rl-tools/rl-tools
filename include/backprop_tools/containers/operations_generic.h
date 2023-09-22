@@ -25,7 +25,7 @@ namespace backprop_tools{
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
         for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
             if constexpr(std::is_convertible<typename SPEC::T, float>::value){
-                matrix._data[i] = math::nan<typename SPEC::T>(typename DEVICE::SPEC::MATH());
+                matrix._data[i] = math::nan<typename SPEC::T>(device.math);
             }
         }
 #endif
@@ -47,7 +47,7 @@ namespace backprop_tools{
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
         for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
             if constexpr(std::is_convertible<typename SPEC::T, float>::value){
-                matrix._data[i] = math::nan<typename SPEC::T>(typename DEVICE::SPEC::MATH());
+                matrix._data[i] = math::nan<typename SPEC::T>(device.math);
             }
         }
 #endif
@@ -131,31 +131,31 @@ namespace backprop_tools{
     }
     namespace containers::vectorization::operators{
         template<typename DEVICE, typename T>
-        inline T copy(DEVICE dev, T b){
+        inline T copy(DEVICE& dev, T b){
             return b;
         }
         template<typename DEVICE, typename T>
-        inline T add(DEVICE dev, T a, T b){
+        inline T add(DEVICE& dev, T a, T b){
             return a+b;
         }
         template<typename DEVICE, typename T>
-        inline T sub(DEVICE dev, T a, T b){
+        inline T sub(DEVICE& dev, T a, T b){
             return a-b;
         }
         template<typename DEVICE, typename T>
-        inline bool is_nan(DEVICE dev, bool a, T c){
+        inline bool is_nan(DEVICE& dev, bool a, T c){
             return a || math::is_nan(dev, c);
         }
         template<typename DEVICE, typename T>
-        inline bool is_finite(DEVICE dev, bool a, T c){
+        inline bool is_finite(DEVICE& dev, bool a, T c){
             return a && math::is_finite(dev, c);
         }
         template<typename DEVICE, typename T>
-        inline T max(DEVICE dev, T a, T c){
+        inline T max(DEVICE& dev, T a, T c){
             return math::max(dev, a, c);
         }
         template<typename DEVICE, typename T>
-        inline T min(DEVICE dev, T a, T c){
+        inline T min(DEVICE& dev, T a, T c){
             return math::min(dev, a, c);
         }
     }
@@ -186,7 +186,7 @@ namespace backprop_tools{
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
                 T v1 = get(m1, i, j);
                 T v2 = get(m2, i, j);
-                acc += math::abs(typename DEVICE::SPEC::MATH(), v1 - v2);
+                acc += math::abs(device.math, v1 - v2);
             }
         }
         return acc;
@@ -209,17 +209,17 @@ namespace backprop_tools{
         using SPEC = SPEC_1;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                set(target, i, j, UNARY_OPERATOR(typename DEVICE::SPEC::MATH(), get(source, i, j)));
+                set(target, i, j, UNARY_OPERATOR(device.math, get(source, i, j)));
             }
         }
     }
     template<typename DEVICE, typename SPEC, typename RETURN_TYPE, auto BINARY_OPERATOR>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT RETURN_TYPE reduce_unary(DEVICE device, const Matrix<SPEC>& source, const RETURN_TYPE& init){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT RETURN_TYPE reduce_unary(DEVICE& device, const Matrix<SPEC>& source, const RETURN_TYPE& init){
         using TI = typename SPEC::TI;
         RETURN_TYPE acc = init;
         for(TI row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(TI col_i = 0; col_i < SPEC::COLS; col_i++){
-                acc = BINARY_OPERATOR(typename DEVICE::SPEC::MATH(), acc, get(source, row_i, col_i));
+                acc = BINARY_OPERATOR(device.math, acc, get(source, row_i, col_i));
             }
         }
         return acc;
@@ -231,7 +231,7 @@ namespace backprop_tools{
         RETURN_TYPE acc = init;
         for(TI row_i = 0; row_i < SPEC_1::ROWS; row_i++){
             for(TI col_i = 0; col_i < SPEC_1::COLS; col_i++){
-                acc = TERTIARY_OPERATOR(typename DEVICE::SPEC::MATH(), acc, get(source_1, row_i, col_i), get(source_2, row_i, col_i));
+                acc = TERTIARY_OPERATOR(device.math, acc, get(source_1, row_i, col_i), get(source_2, row_i, col_i));
             }
         }
         return acc;
@@ -513,7 +513,7 @@ namespace backprop_tools{
                 acc += diff * diff;
             }
         }
-        return math::sqrt(typename DEVICE::SPEC::MATH(), acc/(SPEC::ROWS * SPEC::COLS));
+        return math::sqrt(device.math, acc/(SPEC::ROWS * SPEC::COLS));
     }
 
     template <typename DEVICE, typename T, typename DEVICE::index_t DIM>
@@ -525,7 +525,7 @@ namespace backprop_tools{
     void clamp(DEVICE& device, backprop_tools::Matrix<SPEC>& m, typename SPEC::T lower, typename SPEC::T upper){
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
-                set(m, row_i, col_i, math::clamp<typename SPEC::T>(typename DEVICE::SPEC::MATH(), get(m, row_i, col_i), lower, upper));
+                set(m, row_i, col_i, math::clamp<typename SPEC::T>(device.math, get(m, row_i, col_i), lower, upper));
             }
         }
     }

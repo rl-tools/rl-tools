@@ -63,7 +63,7 @@ namespace backprop_tools{
         evaluate(device, policy, observation_normalized, action_full, policy_eval_buffers);
 
         for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
-            set(action, 0, action_i, math::clamp<T>(typename DEVICE::SPEC::MATH(), get(action, 0, action_i), -1, 1));
+            set(action, 0, action_i, math::clamp<T>(device.math, get(action, 0, action_i), -1, 1));
         }
         typename ENVIRONMENT::State next_state;
         T dt = step(device, env, state, action, next_state, rng);
@@ -124,9 +124,9 @@ namespace backprop_tools{
             results.episode_length_std += final_state.episode_step*final_state.episode_step;
         }
         results.returns_mean /= SPEC::N_EPISODES;
-        results.returns_std = math::sqrt(typename DEVICE::SPEC::MATH(), results.returns_std/SPEC::N_EPISODES - results.returns_mean*results.returns_mean);
+        results.returns_std = math::sqrt(device.math, results.returns_std/SPEC::N_EPISODES - results.returns_mean*results.returns_mean);
         results.episode_length_mean /= SPEC::N_EPISODES;
-        results.episode_length_std = math::sqrt(typename DEVICE::SPEC::MATH(), results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean);
+        results.episode_length_std = math::sqrt(device.math, results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean);
         return results;
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>

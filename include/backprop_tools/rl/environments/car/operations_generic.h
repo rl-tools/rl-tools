@@ -52,8 +52,8 @@ namespace backprop_tools{
         
         auto& p = env.parameters;
         
-        T alpha_f = math::atan2(typename DEVICE::SPEC::MATH(), (s.vy + p.lf * s.omega), s.vx) - delta;
-        T alpha_r = math::atan2(typename DEVICE::SPEC::MATH(), (s.vy - p.lr * s.omega), s.vx);
+        T alpha_f = math::atan2(device.math, (s.vy + p.lf * s.omega), s.vx) - delta;
+        T alpha_r = math::atan2(device.math, (s.vy - p.lr * s.omega), s.vx);
         T FnF = p.lr / (p.lf + p.lr) * p.m * p.g;
         T FnR = p.lf / (p.lf + p.lr) * p.m * p.g;
         T FyF = s.vx > p.vt || s.vy > p.vt ? FnF * p.tf.D * sin(p.tf.C * atan(p.tf.B * (-alpha_f))) : 0;
@@ -74,9 +74,9 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::car;
         typedef typename SPEC::T T;
-        T angle_norm = angle_normalize(typename DEVICE::SPEC::MATH(), state.mu);
+        T angle_norm = angle_normalize(device.math, state.mu);
         T cost = 0.1*angle_norm * angle_norm + state.x * state.x + state.y * state.y;
-        return math::exp(typename DEVICE::SPEC::MATH(), -5*cost);
+        return math::exp(device.math, -5*cost);
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){

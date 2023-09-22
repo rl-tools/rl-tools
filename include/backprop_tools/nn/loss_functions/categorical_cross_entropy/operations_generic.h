@@ -20,9 +20,9 @@ namespace backprop_tools::nn::loss_functions::categorical_cross_entropy{
             T sum = 0;
             for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++) {
                 T logit = get(a, row_i, col_i);
-                sum += math::exp(typename DEVICE::SPEC::MATH(), logit - maximum);
+                sum += math::exp(device.math, logit - maximum);
             }
-            acc -= math::log(typename DEVICE::SPEC::MATH(), sum);
+            acc -= math::log(device.math, sum);
         }
         return -acc * loss_weight / SPEC_A::ROWS;
     }
@@ -39,14 +39,14 @@ namespace backprop_tools::nn::loss_functions::categorical_cross_entropy{
             T sum = 0;
             for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++) {
                 T logit = get(a, row_i, col_i);
-                sum += math::exp(typename DEVICE::SPEC::MATH(), logit - maximum);
+                sum += math::exp(device.math, logit - maximum);
             }
             TI target_index = get(b, row_i, 0);
             for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++) {
                 if(col_i == target_index){
                     increment(d_a, row_i, col_i, -1);
                 }
-                T p = math::exp(typename DEVICE::SPEC::MATH(), get(a, row_i, col_i) - maximum) / sum;
+                T p = math::exp(device.math, get(a, row_i, col_i) - maximum) / sum;
                 increment(d_a, row_i, col_i, p);
             }
         }

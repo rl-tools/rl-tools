@@ -71,13 +71,10 @@ using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     constexpr bool verbose = false;
-    AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
-    device.logger = &logger;
     NN_DEVICE nn_device;
-    nn_device.logger = &logger;
     ActorCriticType actor_critic;
-    ActorCriticType::SPEC::ACTOR_TYPE::Buffers<1> eval_buffers;
+    ActorCriticType::SPEC::ACTOR_TYPE::DoubleBuffer<1> eval_buffers;
     bpt::malloc(device, actor_critic);
     bpt::malloc(device, eval_buffers);
 
@@ -152,13 +149,10 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     UI ui;
 #endif
     constexpr bool verbose = true;
-    AC_DEVICE::SPEC::LOGGING logger;
     AC_DEVICE device;
-    device.logger = &logger;
     NN_DEVICE nn_device;
-    nn_device.logger = &logger;
     ActorCriticType actor_critic;
-    ActorCriticType::SPEC::ACTOR_TYPE::Buffers<1> actor_eval_buffers;
+    ActorCriticType::SPEC::ACTOR_TYPE::DoubleBuffer<1> actor_eval_buffers;
     bpt::malloc(device, actor_critic);
     bpt::malloc(device, actor_eval_buffers);
 
@@ -207,7 +201,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     using CRITIC_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
     bpt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batch;
     bpt::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-    CRITIC_TYPE::Buffers<> critic_buffers[2];
+    CRITIC_TYPE::DoubleBuffer<> critic_buffers[2];
     bpt::malloc(device, critic_batch);
     bpt::malloc(device, critic_training_buffers);
     bpt::malloc(device, critic_buffers[0]);
@@ -216,7 +210,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     using ACTOR_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
     bpt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
     bpt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
-    ACTOR_TYPE::Buffers<> actor_buffers[2];
+    ACTOR_TYPE::DoubleBuffer<> actor_buffers[2];
     bpt::malloc(device, actor_batch);
     bpt::malloc(device, actor_training_buffers);
     bpt::malloc(device, actor_buffers[0]);

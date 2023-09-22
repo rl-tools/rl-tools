@@ -5,6 +5,11 @@
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::parameters{
+    namespace categories{
+        struct Weights{};
+        struct Biases{};
+    }
+
     struct Plain{
         // todo: evaluate replacing the instance mechanism with a tag similar to the container type tags
         template <typename T_CONTAINER, typename T_CATEGORY_TAG>

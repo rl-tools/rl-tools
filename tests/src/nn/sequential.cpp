@@ -311,7 +311,7 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
 
     DEVICE device;
     MLP mlp;
-    typename MLP::Buffers<1> mlp_buffers;
+    typename MLP::DoubleBuffer<1> mlp_buffers;
     auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
 
     LAYER_1 layer_1;

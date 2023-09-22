@@ -33,8 +33,9 @@ namespace backprop_tools {
             }
         }
     }
+
     template<typename DEVICE, typename SPEC>
-    persist::Code save_split(DEVICE &device, nn::layers::dense::Layer <SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    persist::Code save_split(DEVICE& device, nn::layers::dense::Layer <SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -71,7 +72,7 @@ namespace backprop_tools {
         return {ss_header.str(), ss.str()};
     }
     template<typename DEVICE, typename SPEC>
-    std::string save_code(DEVICE &device, nn::layers::dense::Layer <SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    std::string save_code(DEVICE& device, nn::layers::dense::Layer <SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
         auto code = save_split(device, layer, name, const_declaration, indent);
         return code.header + code.body;
     }

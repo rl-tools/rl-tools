@@ -149,7 +149,8 @@ namespace backprop_tools::utils::vector_operations{
         for(typename DEVICE::index_t i = 0; i < N; i++) {
             acc += source[i]*source[i];
         }
-        return math::sqrt(typename DEVICE::SPEC::MATH(), acc);
+        typename DEVICE::SPEC::MATH math_dev;
+        return math::sqrt(math_dev, acc);
     }
     template <typename DEVICE, typename T, auto N>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void normalize(const T source[N], T target[N]) {

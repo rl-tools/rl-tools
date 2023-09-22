@@ -109,7 +109,7 @@ namespace backprop_tools{
         typedef typename SPEC::T T;
         for(typename DEVICE::index_t batch_sample_i=0; batch_sample_i < SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
             for(typename DEVICE::index_t action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
-                set(target_action_noise, batch_sample_i, action_i, math::clamp(typename DEVICE::SPEC::MATH(),
+                set(target_action_noise, batch_sample_i, action_i, math::clamp(device.math,
                         random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, actor_critic.target_next_action_noise_std, rng),
                         -actor_critic.target_next_action_noise_clip,
                         actor_critic.target_next_action_noise_clip
@@ -126,7 +126,7 @@ namespace backprop_tools{
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
             for(TI action_i=0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++){
                 T noisy_next_action = get(training_buffers.next_actions, batch_step_i, action_i) + get(training_buffers.target_next_action_noise, batch_step_i, action_i);
-                noisy_next_action = math::clamp<T>(typename DEVICE::SPEC::MATH(), noisy_next_action, -1, 1);
+                noisy_next_action = math::clamp<T>(device.math, noisy_next_action, -1, 1);
                 set(training_buffers.next_actions, batch_step_i, action_i, noisy_next_action);
             }
         }
@@ -140,7 +140,7 @@ namespace backprop_tools{
         constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-            T min_next_state_action_value = math::min(typename DEVICE::SPEC::MATH(),
+            T min_next_state_action_value = math::min(device.math,
                     get(training_buffers.next_state_action_value_critic_1, batch_step_i, 0),
                     get(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)
             );

@@ -49,11 +49,10 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_PPO, TEST){
     penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
     bpt::init(device, on_policy_runner, envs, rng);
     bpt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
-    device.logger = &logger;
     bpt::construct(device, device.logger);
     auto training_start = std::chrono::high_resolution_clock::now();
     for(TI ppo_step_i = 0; ppo_step_i < 1000; ppo_step_i++) {
-        device.logger->step = on_policy_runner.step;
+        bpt::set_step(device, device.logger, on_policy_runner.step);
 
         if(ppo_step_i % 100 == 0){
             std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;

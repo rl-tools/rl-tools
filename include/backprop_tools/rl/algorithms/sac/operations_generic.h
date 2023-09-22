@@ -128,7 +128,7 @@ namespace backprop_tools{
         constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-            T min_next_state_action_value = math::min(typename DEVICE::SPEC::MATH(),
+            T min_next_state_action_value = math::min(device.math,
                     get(training_buffers.next_state_action_value_critic_1, batch_step_i, 0),
                     get(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)
             );

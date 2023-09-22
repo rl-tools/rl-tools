@@ -18,10 +18,8 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
     const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
-    typename DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
-    device.logger = &logger;
     HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto episodes_group = file.getGroup("episodes");
     for(int episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){

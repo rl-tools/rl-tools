@@ -146,7 +146,6 @@ void run(){
         // device
         typename DEVICE::SPEC::LOGGING logger;
         DEVICE device;
-        device.logger = &logger;
         bpt::construct(device, device.logger);
 
         // optimizer
@@ -177,7 +176,7 @@ void run(){
         using CRITIC_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
         bpt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batches[2];
         bpt::rl::algorithms::td3::CriticTrainingBuffers<parameters_rl::ActorCriticType::SPEC> critic_training_buffers[2];
-        parameters_rl::CRITIC_TYPE::Buffers<> critic_buffers[2];
+        parameters_rl::CRITIC_TYPE::DoubleBuffer<> critic_buffers[2];
         bpt::malloc(device, critic_batches[0]);
         bpt::malloc(device, critic_batches[1]);
         bpt::malloc(device, critic_training_buffers[0]);
@@ -188,9 +187,9 @@ void run(){
         using ACTOR_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
         bpt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
         bpt::rl::algorithms::td3::ActorTrainingBuffers<parameters_rl::ActorCriticType::SPEC> actor_training_buffers;
-        parameters_rl::ACTOR_TYPE::Buffers<> actor_buffers[2];
-        parameters_rl::ACTOR_TYPE::Buffers<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
-        parameters_rl::ACTOR_TYPE::Buffers<1> actor_buffers_deterministic_eval;
+        parameters_rl::ACTOR_TYPE::DoubleBuffer<> actor_buffers[2];
+        parameters_rl::ACTOR_TYPE::DoubleBuffer<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
+        parameters_rl::ACTOR_TYPE::DoubleBuffer<1> actor_buffers_deterministic_eval;
         bpt::malloc(device, actor_batch);
         bpt::malloc(device, actor_training_buffers);
         bpt::malloc(device, actor_buffers[0]);

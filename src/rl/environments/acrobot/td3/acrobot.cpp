@@ -90,7 +90,8 @@ namespace training_config {
         using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
 
-        static constexpr int N_WARMUP_STEPS = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr int N_WARMUP_STEPS_ACTOR = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr int N_WARMUP_STEPS_CRITIC = TD3_PARAMETERS::CRITIC_BATCH_SIZE;
 #ifndef BACKPROP_TOOLS_STEP_LIMIT
         static constexpr DEVICE::index_t STEP_LIMIT = 50000; //2 * N_WARMUP_STEPS;
 #else

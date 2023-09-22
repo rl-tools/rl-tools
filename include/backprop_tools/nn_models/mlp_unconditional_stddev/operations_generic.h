@@ -5,17 +5,17 @@
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& m){
+    void malloc(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& m){
         malloc(device, (nn_models::mlp::NeuralNetworkAdam<SPEC>&)m);
         malloc(device, m.log_std);
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& m){
+    void free(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& m){
         free(device, (nn_models::mlp::NeuralNetworkAdam<SPEC>&)m);
         free(device, m.log_std);
     }
     template <typename DEVICE, typename SPEC, typename RNG>
-    void init_weights(DEVICE device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& m, RNG& rng){
+    void init_weights(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& m, RNG& rng){
         init_weights(device, (nn_models::mlp::NeuralNetworkAdam<SPEC>&)m, rng);
         set_all(device, m.log_std.parameters, 0);
     }

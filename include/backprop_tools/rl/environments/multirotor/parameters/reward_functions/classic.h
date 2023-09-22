@@ -43,7 +43,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         T variance_action = env.parameters.mdp.reward.action;
         T standardization_factor = (variance_position * 3 + variance_orientation * 4 + variance_linear_velocity * 3 + variance_angular_velocity * 3 + variance_action * 4);
         standardization_factor *= 100;
-        return math::exp(typename DEVICE::SPEC::MATH(), -acc/standardization_factor);
+        return math::exp(device.math, -acc/standardization_factor);
     }
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

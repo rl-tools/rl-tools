@@ -14,7 +14,7 @@ namespace backprop_tools{
         return "backprop_tools::nn::parameters::Adam";
     }
     template<typename DEVICE, typename CONTAINER>
-    persist::Code save_split(DEVICE &device, nn::parameters::Adam::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
+    persist::Code save_split(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){

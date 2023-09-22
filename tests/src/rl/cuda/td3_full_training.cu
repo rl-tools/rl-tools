@@ -58,17 +58,16 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     rlp::CRITIC_BATCH_TYPE critic_batch;
     rlp::CRITIC_BATCH_TYPE* critic_batch_pointer;
     rlp::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers;
-    rlp::CRITIC_NETWORK_TYPE::Buffers<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    rlp::CRITIC_NETWORK_TYPE::DoubleBuffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
 
     rlp::ACTOR_BATCH_TYPE actor_batch;
     rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;
     rlp::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers;
-    rlp::ACTOR_NETWORK_TYPE::Buffers<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-    rlp::ACTOR_NETWORK_TYPE::Buffers<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
-    rlp::ACTOR_NETWORK_TYPE::Buffers<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
+    rlp::ACTOR_NETWORK_TYPE::DoubleBuffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+    rlp::ACTOR_NETWORK_TYPE::DoubleBuffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    rlp::ACTOR_NETWORK_TYPE::DoubleBuffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
 
     bpt::init(device);
-    device_init.logger = &logger;
     bpt::construct(device_init, device_init.logger);
     auto rng_init = bpt::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());

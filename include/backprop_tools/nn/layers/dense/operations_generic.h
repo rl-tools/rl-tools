@@ -48,12 +48,12 @@ namespace backprop_tools{
     void init_kaiming(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        T negative_slope = math::sqrt(typename DEVICE::SPEC::MATH(), (T)5);
-        T gain = math::sqrt(typename DEVICE::SPEC::MATH(), (T)2.0 / (1 + negative_slope * negative_slope));
+        T negative_slope = math::sqrt(device.math, (T)5);
+        T gain = math::sqrt(device.math, (T)2.0 / (1 + negative_slope * negative_slope));
         T fan = SPEC::INPUT_DIM;
-        T std = gain / math::sqrt(typename DEVICE::SPEC::MATH(), fan);
-        T weight_bound = math::sqrt(typename DEVICE::SPEC::MATH(), (T)3.0) * std;
-        T bias_bound = 1/math::sqrt(typename DEVICE::SPEC::MATH(), (T)SPEC::INPUT_DIM);
+        T std = gain / math::sqrt(device.math, fan);
+        T weight_bound = math::sqrt(device.math, (T)3.0) * std;
+        T bias_bound = 1/math::sqrt(device.math, (T)SPEC::INPUT_DIM);
         for(TI i = 0; i < SPEC::OUTPUT_DIM; i++) {
             set(layer.biases.parameters, 0, i, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng));
             for(TI j = 0; j < SPEC::INPUT_DIM; j++) {

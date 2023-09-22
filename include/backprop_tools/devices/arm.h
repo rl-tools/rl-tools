@@ -43,6 +43,8 @@ namespace backprop_tools::devices{
         template <typename OTHER_DEVICE>
         static constexpr bool compatible = OTHER_DEVICE::DEVICE == DeviceId::ARM;
         using SPEC = T_SPEC;
+        typename SPEC::MATH math;
+        typename SPEC::RANDOM random;
         typename SPEC::LOGGING* logger = nullptr;
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;

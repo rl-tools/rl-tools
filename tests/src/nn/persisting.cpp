@@ -16,10 +16,8 @@
 #include <random>
 TEST(BACKPROP_TOOLS_NN_PERSIST, Saving) {
 
-    NN_DEVICE::SPEC::LOGGING logger;
     NN_DEVICE device;
     OPTIMIZER optimizer;
-    device.logger = &logger;
     NetworkType network_1, network_2;
     bpt::malloc(device, network_1);
     bpt::malloc(device, network_2);

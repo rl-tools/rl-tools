@@ -42,6 +42,8 @@ namespace backprop_tools::devices{
     struct CPU: Device<T_SPEC>, cpu::Base{
         using SPEC = T_SPEC;
         using EXECUTION_HINTS = typename SPEC::EXECUTION_HINTS;
+        typename SPEC::MATH math;
+        typename SPEC::RANDOM random;
         typename SPEC::LOGGING logger;
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;

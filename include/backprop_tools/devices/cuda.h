@@ -38,6 +38,8 @@ namespace backprop_tools::devices{
         using SPEC = T_SPEC;
         typename SPEC::LOGGING* logger = nullptr;
         cublasHandle_t handle;
+        typename SPEC::MATH math;
+        typename SPEC::RANDOM random;
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;
 #endif

@@ -136,9 +136,7 @@ void run(){
 #ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
     UI ui;
 #endif
-    DEVICE::SPEC::LOGGING logger;
     DEVICE device;
-    device.logger = &logger;
 
     auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 6);
     bpt::malloc(device, actor_critic);

@@ -18,7 +18,6 @@ namespace backprop_tools::rl::algorithms::sac::loop{
         using SPEC = T_SPEC;
         using DEVICE = typename SPEC::DEVICE;
         using TI = typename DEVICE::index_t;
-        typename DEVICE::SPEC::LOGGING logger;
         DEVICE device;
         typename SPEC::OPTIMIZER actor_optimizer, critic_optimizers[2];
         decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng;
@@ -53,8 +52,6 @@ namespace backprop_tools::rl::algorithms::sac::loop{
     void init(TRAINING_STATE& ts, typename TRAINING_STATE::SPEC::DEVICE::index_t seed){
         using SPEC = typename TRAINING_STATE::SPEC;
         using T = typename SPEC::T;
-
-        ts.device.logger = &ts.logger;
 
         ts.rng = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
 

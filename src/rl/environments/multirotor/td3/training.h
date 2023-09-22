@@ -176,7 +176,6 @@ void train(TI run_id){
         // device
         typename DEVICE::SPEC::LOGGING logger;
         DEVICE device;
-        device.logger = &logger;
         bpt::construct(device, device.logger, std::string("logs"), run_name);
 
 //        // optimizer
@@ -215,7 +214,7 @@ void train(TI run_id){
         using CRITIC_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
         bpt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batches[2];
         bpt::rl::algorithms::td3::CriticTrainingBuffers<typename parameters_rl::ActorCriticType::SPEC> critic_training_buffers[2];
-        typename parameters_rl::CRITIC_TYPE::template Buffers<> critic_buffers[2];
+        typename parameters_rl::CRITIC_TYPE::template DoubleBuffer<> critic_buffers[2];
         bpt::malloc(device, critic_batches[0]);
         bpt::malloc(device, critic_batches[1]);
         bpt::malloc(device, critic_training_buffers[0]);
@@ -226,8 +225,8 @@ void train(TI run_id){
         using ACTOR_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
         bpt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
         bpt::rl::algorithms::td3::ActorTrainingBuffers<typename parameters_rl::ActorCriticType::SPEC> actor_training_buffers;
-        typename parameters_rl::ACTOR_TYPE::template Buffers<> actor_buffers[2];
-        typename parameters_rl::ACTOR_TYPE::template Buffers<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
+        typename parameters_rl::ACTOR_TYPE::template DoubleBuffer<> actor_buffers[2];
+        typename parameters_rl::ACTOR_TYPE::template DoubleBuffer<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
         bpt::malloc(device, actor_batch);
         bpt::malloc(device, actor_training_buffers);
         bpt::malloc(device, actor_buffers[0]);
@@ -268,7 +267,7 @@ void train(TI run_id){
                     bpt::malloc(device, actor_checkpoint);
                     bpt::copy(device, device, actor_checkpoint, actor_critic.actor);
                     std::filesystem::path actor_output_path_code = actor_output_dir / (checkpoint_name + ".h");
-                    auto actor_weights = bpt::save(device, actor_checkpoint, std::string("backprop_tools::checkpoint::actor"), true);
+                    auto actor_weights = bpt::save_code(device, actor_checkpoint, std::string("backprop_tools::checkpoint::actor"), true);
                     std::ofstream actor_output_file(actor_output_path_code);
                     actor_output_file << actor_weights;
                     {
@@ -282,8 +281,8 @@ void train(TI run_id){
                         bpt::observe(device, envs[0], state, observation, rng_copy);
                         bpt::evaluate(device, actor_critic.actor, observation, action);
                         bpt::evaluate(device, actor_checkpoint, observation, action);
-                        actor_output_file << "\n" << bpt::save(device, observation, std::string("backprop_tools::checkpoint::observation"), true);
-                        actor_output_file << "\n" << bpt::save(device, action, std::string("backprop_tools::checkpoint::action"), true);
+                        actor_output_file << "\n" << bpt::save_code(device, observation, std::string("backprop_tools::checkpoint::observation"), true);
+                        actor_output_file << "\n" << bpt::save_code(device, action, std::string("backprop_tools::checkpoint::action"), true);
                         actor_output_file << "\n" << "namespace backprop_tools::checkpoint::meta{";
                         actor_output_file << "\n" << "   " << "char name[] = \"" << run_name << "_" << checkpoint_name << "\";";
                         actor_output_file << "\n" << "}";
