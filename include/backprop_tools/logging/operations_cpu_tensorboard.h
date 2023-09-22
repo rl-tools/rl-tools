@@ -54,7 +54,7 @@ namespace backprop_tools{
     }
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, typename DEVICE::index_t step){
-        device.logger.step = step;
+        logger.step = step;
     }
     template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE, typename CADANCE_TYPE>
     void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const VALUE_TYPE value, const CADANCE_TYPE cadence){

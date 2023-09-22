@@ -22,6 +22,26 @@ namespace backprop_tools{
         void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d){
             std::cout << a << b << c << d << std::endl;
         }
+        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E>
+        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e){
+            std::cout << a << b << c << d << e << std::endl;
+        }
+        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F>
+        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f){
+            std::cout << a << b << c << d << e << f << std::endl;
+        }
+        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G>
+        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g){
+            std::cout << a << b << c << d << e << f << g << std::endl;
+        }
+        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
+        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h){
+            std::cout << a << b << c << d << e << f << g << h << std::endl;
+        }
+        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
+        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i){
+            std::cout << a << b << c << d << e << f << g << h << i << std::endl;
+        }
     }
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::CPU& logger, typename DEVICE::index_t step){ /* noop */ }

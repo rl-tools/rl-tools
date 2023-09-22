@@ -4,42 +4,59 @@
 #define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_OPERATIONS_GENERIC_H
 
 #include "adam.h"
+#include "../../../nn/layers/dense/layer.h"
 #include "../../../nn/parameters/operations_generic.h"
 #include "../../../utils/polyak/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
-    template <typename DEVICE, typename CONTAINER>
-    void malloc(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& p){
-        malloc(device, (nn::parameters::Gradient::instance<CONTAINER>&) p);
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, nn::parameters::Adam::instance<SPEC>& p){
+        malloc(device, (nn::parameters::Gradient::instance<SPEC>&) p);
         malloc(device, p.gradient_first_order_moment);
         malloc(device, p.gradient_second_order_moment);
     }
-    template <typename DEVICE, typename CONTAINER>
-    void free(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& p){
-        free(device, (nn::parameters::Gradient::instance<CONTAINER>&) p);
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn::parameters::Adam::instance<SPEC>& p){
+        free(device, (nn::parameters::Gradient::instance<SPEC>&) p);
         free(device, p.gradient_first_order_moment);
         free(device, p.gradient_second_order_moment);
     }
-    template<typename DEVICE, typename CONTAINER, typename PARAMETERS>
-    void update(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer) {
+    template<typename DEVICE, typename SPEC, typename PARAMETERS>
+    void update(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer) {
         utils::polyak::update(device, parameter.gradient_first_order_moment, parameter.gradient, PARAMETERS::BETA_1);
         utils::polyak::update_squared(device, parameter.gradient_second_order_moment, parameter.gradient, PARAMETERS::BETA_2);
         gradient_descent(device, parameter, optimizer);
     }
 
-    template<typename DEVICE, typename CONTAINER_TYPE, typename PARAMETERS>
-    void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<CONTAINER_TYPE>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
-        using SPEC = typename CONTAINER_TYPE::SPEC;
-        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++) {
-            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++) {
-                typename SPEC::T parameter_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(typename DEVICE::SPEC::MATH(), get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+    template <typename DEVICE, typename PARAMETERS, typename TAG>
+    constexpr bool apply_weight_decay(const DEVICE& device, const nn::optimizers::Adam<PARAMETERS>& optimizer, const TAG){
+        return true;
+    };
+
+    template <typename DEVICE, typename PARAMETERS>
+    constexpr bool apply_weight_decay(const DEVICE& device, const nn::optimizers::Adam<PARAMETERS>& optimizer, const nn::layers::dense::parameter_categories::Weights){
+        return true;
+    };
+    template <typename DEVICE, typename PARAMETERS>
+    constexpr bool apply_weight_decay(const DEVICE& device, const nn::optimizers::Adam<PARAMETERS>& optimizer, const nn::layers::dense::parameter_categories::Biases){
+        return false;
+    };
+
+    template<typename DEVICE, typename SPEC, typename PARAMETERS>
+    void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
+        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::CONTAINER::ROWS; row_i++) {
+            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::CONTAINER::COLS; col_i++) {
+                typename SPEC::CONTAINER::T parameter_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(typename DEVICE::SPEC::MATH(), get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                if constexpr(apply_weight_decay(device, optimizer, typename SPEC::CATEGORY_TAG{}) &&  PARAMETERS::WEIGHT_DECAY > 0){
+                    parameter_update += get(parameter.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY / 2;
+                }
                 increment(parameter.parameters, row_i, col_i, -parameter_update);
             }
         }
     }
-    template<typename DEVICE, typename CONTAINER, typename PARAMETERS>
-    void _reset_optimizer_state(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
+    template<typename DEVICE, typename SPEC, typename PARAMETERS>
+    void _reset_optimizer_state(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
         set_all(device, parameter.gradient_first_order_moment, 0);
         set_all(device, parameter.gradient_second_order_moment, 0);
     }

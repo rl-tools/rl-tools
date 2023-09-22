@@ -16,6 +16,7 @@ namespace backprop_tools::nn::optimizers{
             static constexpr T BETA_1 = 0.9;
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-7;
+            static constexpr T WEIGHT_DECAY = 0;
 
         };
         template<typename T_T, typename T_TI>
@@ -26,7 +27,7 @@ namespace backprop_tools::nn::optimizers{
             static constexpr T BETA_1 = 0.9;
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-8;
-
+            static constexpr T WEIGHT_DECAY = 0;
         };
     }
     template<typename T_PARAMETERS>
@@ -45,9 +46,11 @@ namespace backprop_tools::nn::optimizers{
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::parameters {
-    struct Adam{
-        template <typename CONTAINER>
-        struct instance: Gradient::instance<CONTAINER>{
+    struct Adam: Gradient{
+        template <typename T_SPEC>
+        struct instance: Gradient::instance<T_SPEC>{
+            using SPEC = T_SPEC;
+            using CONTAINER = typename SPEC::CONTAINER;
             CONTAINER gradient_first_order_moment;
             CONTAINER gradient_second_order_moment;
         };

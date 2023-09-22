@@ -47,6 +47,11 @@ namespace backprop_tools::nn::layers::dense {
         check_spec_memory<SPEC_1, SPEC_2>
         && SPEC_1::ACTIVATION_FUNCTION == SPEC_2::ACTIVATION_FUNCTION;
 
+    namespace parameter_categories{
+        struct Weights{};
+        struct Biases{};
+    }
+
     template<typename T_SPEC>
     struct Layer {
         using SPEC = T_SPEC;
@@ -57,11 +62,13 @@ namespace backprop_tools::nn::layers::dense {
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
         using WEIGHTS_CONTAINER_SPEC = matrix::Specification<T, TI, OUTPUT_DIM, INPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
         using WEIGHTS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<WEIGHTS_CONTAINER_SPEC>;
-        typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_CONTAINER_TYPE> weights;
+        using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_CONTAINER_TYPE, parameter_categories::Weights>;
+        typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_PARAMETER_SPEC> weights;
 
         using BIASES_CONTAINER_SPEC = matrix::Specification<T, TI, 1, OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
         using BIASES_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<BIASES_CONTAINER_SPEC>;
-        typename SPEC::PARAMETER_TYPE::template instance<BIASES_CONTAINER_TYPE> biases;
+        using BIASES_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<BIASES_CONTAINER_TYPE, parameter_categories::Biases>;
+        typename SPEC::PARAMETER_TYPE::template instance<BIASES_PARAMETER_SPEC> biases;
     };
     template<typename SPEC>
     struct LayerBackward : public Layer<SPEC> {

@@ -73,7 +73,7 @@ namespace multirotor_training{
                 using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
                 using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
                 using LAYER_2 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
-                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
+                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, bpt::nn::activation_functions::FAST_TANH, PARAMETER_TYPE, BATCH_SIZE>;
                 using LAYER_3 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
 
                 using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -85,7 +85,7 @@ namespace multirotor_training{
                 using LAYER_1 = bpt::nn::layers::dense::Layer<LAYER_1_SPEC>;
                 using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, ACTOR::HIDDEN_DIM, ACTOR::HIDDEN_DIM, ACTOR::ACTIVATION_FUNCTION, bpt::nn::parameters::Plain>;
                 using LAYER_2 = bpt::nn::layers::dense::Layer<LAYER_2_SPEC>;
-                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, ACTOR::HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, ACTOR::ACTIVATION_FUNCTION, bpt::nn::parameters::Plain>;
+                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, ACTOR::HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, bpt::nn::activation_functions::FAST_TANH, bpt::nn::parameters::Plain>;
                 using LAYER_3 = bpt::nn::layers::dense::Layer<LAYER_3_SPEC>;
 
                 using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -107,7 +107,9 @@ namespace multirotor_training{
                 using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
             };
 
-            using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<T, TI>;
+            struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParametersTorch<T, TI>{
+                static constexpr T WEIGHT_DECAY = 0.0001;
+            };
             using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
             using ACTOR_TYPE = typename ACTOR<bpt::nn::parameters::Adam>::MODEL;
             using ACTOR_CHECKPOINT_TYPE = typename ACTOR_CHECKPOINT<ACTOR<bpt::nn::parameters::Plain>>::MODEL;
@@ -178,6 +180,10 @@ namespace multirotor_training{
                 bpt::construct(ts.device, ts.device.logger, std::string("logs"), ts.run_name);
             }
             bpt::rl::algorithms::td3::loop::init(ts, CONFIG::SEED);
+        }
+
+        void step_logger(TrainingState& ts){
+            bpt::set_step(ts.device, ts.device.logger, ts.step);
         }
 
         void step_checkpoint(TrainingState& ts){
@@ -320,6 +326,24 @@ namespace multirotor_training{
                 }
             }
         }
+        void step_critic_reset(TrainingState& ts){
+            using CONFIG = config::Config;
+            using T = CONFIG::T;
+            using TI = CONFIG::TI;
+            if(ts.step == 500000) {
+                std::cout << "Resetting critic" << std::endl;
+                bpt::init_weights(ts.device, ts.actor_critic.critic_1, ts.rng);
+                bpt::init_weights(ts.device, ts.actor_critic.critic_2, ts.rng);
+                bpt::reset_optimizer_state(ts.device, ts.actor_critic.critic_optimizers[0], ts.actor_critic.critic_1);
+                bpt::reset_optimizer_state(ts.device, ts.actor_critic.critic_optimizers[1], ts.actor_critic.critic_2);
+            }
+            if(ts.step == 600000){
+                std::cout << "Resetting actor" << std::endl;
+                bpt::init_weights(ts.device, ts.actor_critic.actor, ts.rng);
+                bpt::reset_optimizer_state(ts.device, ts.actor_critic.actor_optimizer, ts.actor_critic.actor);
+            }
+        }
+
         void step_trajectory_collection(TrainingState& ts){
             using CONFIG = config::Config;
             using TI = CONFIG::TI;
@@ -336,10 +360,12 @@ namespace multirotor_training{
             }
         }
         void step(TrainingState& ts){
+            step_logger(ts);
             step_checkpoint(ts);
             step_curriculum(ts);
             bpt::rl::algorithms::td3::loop::step(ts);
             step_trajectory_collection(ts);
+//            step_critic_reset(ts);
         }
     }
 }

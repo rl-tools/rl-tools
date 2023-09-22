@@ -11,7 +11,6 @@ namespace backprop_tools::rl::algorithms::td3::loop {
         using SPEC = T_SPEC;
         using DEVICE = typename SPEC::DEVICE;
         using TI = typename DEVICE::index_t;
-        typename DEVICE::SPEC::LOGGING logger;
         DEVICE device;
         typename SPEC::OPTIMIZER actor_optimizer, critic_optimizers[2];
         decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng, rng_eval;
@@ -52,8 +51,6 @@ namespace backprop_tools::rl::algorithms::td3::loop{
         using SPEC = typename TRAINING_STATE::SPEC;
         using T = typename SPEC::T;
 
-//        ts.device.logger = &ts.logger;
-
         ts.rng = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
         ts.rng_eval = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
 
@@ -87,6 +84,7 @@ namespace backprop_tools::rl::algorithms::td3::loop{
 
         ts.step = 0;
         ts.finished = false;
+        construct(ts.device, ts.device.logger);
     }
 
     template <typename TRAINING_STATE>
@@ -106,18 +104,26 @@ namespace backprop_tools::rl::algorithms::td3::loop{
     bool step(TRAINING_STATE& ts){
         bool finished = false;
         using SPEC = typename TRAINING_STATE::SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         if(ts.step > SPEC::N_WARMUP_STEPS_CRITIC && ts.step % SPEC::TD3_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
-            for(int critic_i = 0; critic_i < 2; critic_i++){
+            for(TI critic_i = 0; critic_i < 2; critic_i++){
                 target_action_noise(ts.device, ts.actor_critic, ts.critic_training_buffers.target_next_action_noise, ts.rng);
                 gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
+
+                T critic_1_loss = critic_loss(ts.device, ts.actor_critic, ts.actor_critic.critic_1, ts.critic_batch, ts.actor_buffers[0], ts.critic_buffers[0], ts.critic_training_buffers);
+                add_scalar(ts.device, ts.device.logger, "critic_1_loss", critic_1_loss);
             }
         }
 
         if(ts.step > SPEC::N_WARMUP_STEPS_ACTOR && ts.step % SPEC::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
             gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
             train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
+
+            T actor_value = mean(ts.device, ts.actor_training_buffers.state_action_value);
+            add_scalar(ts.device, ts.device.logger, "actor_value", actor_value, 100);
         }
         if(ts.step > SPEC::N_WARMUP_STEPS_CRITIC && ts.step % SPEC::TD3_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0){
             update_critic_targets(ts.device, ts.actor_critic);
@@ -126,11 +132,16 @@ namespace backprop_tools::rl::algorithms::td3::loop{
             update_actor_target(ts.device, ts.actor_critic);
         }
 
+
         if constexpr(SPEC::DETERMINISTIC_EVALUATION == true){
             if(ts.step % SPEC::EVALUATION_INTERVAL == 0){
                 auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
-                std::cout << "Step: " << ts.step << " (mean return: " << result.returns_mean << ", mean episode length: " << result.episode_length_mean << ")" << std::endl;
+                logging::text(ts.device, ts.device.logger, "Step: ", ts.step, " (mean return: ", result.returns_mean, ", mean episode length: ", result.episode_length_mean, ")");
                 ts.evaluation_results[ts.step / SPEC::EVALUATION_INTERVAL] = result.returns_mean;
+                add_scalar(ts.device, ts.device.logger, "evaluation/returns_mean", result.returns_mean);
+                add_scalar(ts.device, ts.device.logger, "evaluation/returns_std", result.returns_std);
+                add_scalar(ts.device, ts.device.logger, "evaluation/episode_length_mean", result.episode_length_mean);
+                add_scalar(ts.device, ts.device.logger, "evaluation/episode_length_std", result.episode_length_std);
             }
         }
         ts.step++;
