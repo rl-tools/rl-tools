@@ -22,9 +22,7 @@ namespace backprop_tools{
         }
     }
     template <typename DEVICE>
-    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, std::string logs_dir, std::string name){
-        assert(logger != nullptr);// "Cannot construct TensorBoard logger on null device");
-        utils::assert_exit(device, device.logger == logger, "Device logger and passed logger are not the same");
+    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, std::string logs_dir, std::string name){
         if (!std::filesystem::is_directory(logs_dir.c_str()) || !std::filesystem::exists(logs_dir.c_str())) {
             std::filesystem::create_directory(logs_dir.c_str());
         }
@@ -37,10 +35,10 @@ namespace backprop_tools{
         std::cout << "Logging to " << log_file.string() << std::endl;
         TensorBoardLoggerOptions opts;
         opts.flush_period_s(1);
-        logger->tb = new TensorBoardLogger(log_file.string(), opts);
+        logger.tb = new TensorBoardLogger(log_file.string(), opts);
     }
     template <typename DEVICE>
-    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger){
+    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger){
         time_t now;
         time(&now);
         char buf[sizeof "0000-00-00T00:00:00Z"];
@@ -51,40 +49,36 @@ namespace backprop_tools{
         construct(device, logger, std::string("logs"), logging::tensorboard::sanitize_file_name(run_name));
     }
     template <typename DEVICE>
-    void destruct(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger){
-        assert(logger != nullptr);// "Cannot destruct TensorBoard logger on null device");
-        delete logger->tb;
+    void destruct(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger){
+        delete logger.tb;
     }
     template <typename DEVICE>
-    void set_step(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, typename DEVICE::index_t step){
-        device.logger->step = step;
+    void set_step(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, typename DEVICE::index_t step){
+        device.logger.step = step;
     }
     template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE, typename CADANCE_TYPE>
-    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const VALUE_TYPE value, const CADANCE_TYPE cadence){
-        if(logger == nullptr){
-            return;
-        }
-        std::lock_guard<std::mutex> lock(logger->mutex);
-        if(logger->step % cadence == 0){
-            logger->tb->add_scalar(key, logger->step, (float)value);
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const VALUE_TYPE value, const CADANCE_TYPE cadence){
+        std::lock_guard<std::mutex> lock(logger.mutex);
+        if(logger.step % cadence == 0){
+            logger.tb->add_scalar(key, logger.step, (float)value);
         }
     }
     template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE>
-    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const VALUE_TYPE value){
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const VALUE_TYPE value){
         add_scalar(device, logger, key, value, (typename DEVICE::index_t)1);
     }
     template <typename DEVICE, typename KEY_TYPE, typename T, typename TI, typename CADANCE_TYPE>
-    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const T* values, const TI n_values, const CADANCE_TYPE cadence = (typename DEVICE::index_t)1){
-        if(logger == nullptr){
+    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const T* values, const TI n_values, const CADANCE_TYPE cadence = (typename DEVICE::index_t)1){
+        if(logger.tb == nullptr){
             return;
         }
-        std::lock_guard<std::mutex> lock(logger->mutex);
-        if(logger->step % cadence == 0){
-            logger->tb->add_histogram(key, logger->step, values, n_values);
+        std::lock_guard<std::mutex> lock(logger.mutex);
+        if(logger.step % cadence == 0){
+            logger.tb->add_histogram(key, logger.step, values, n_values);
         }
     }
     template <typename DEVICE, typename KEY_TYPE, typename T, typename TI>
-    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD* logger, const KEY_TYPE key, const T* values, const TI n_values){
+    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const T* values, const TI n_values){
         add_histogram(device, logger, key, values, n_values, (typename DEVICE::index_t)1);
     }
 }

@@ -8,13 +8,13 @@
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools{
     template <typename DEVICE, typename ENV>
-    void init(DEVICE, ENV, bool){};
+    void init(DEVICE&, ENV&, bool){};
     template <typename DEVICE, typename ENV>
-    void render(DEVICE, ENV, bool){};
+    void render(DEVICE&, ENV&, bool){};
     template <typename DEVICE, typename ENV, typename STATE>
-    void set_state(DEVICE, ENV, bool, STATE){};
+    void set_state(DEVICE&, ENV&, bool, STATE&){};
     template <typename DEVICE, typename ENV, typename ACTION>
-    void set_action(DEVICE, ENV, bool, ACTION){};
+    void set_action(DEVICE&, ENV&, bool, ACTION&){};
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

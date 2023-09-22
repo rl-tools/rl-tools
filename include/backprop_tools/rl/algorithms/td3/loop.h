@@ -52,7 +52,7 @@ namespace backprop_tools::rl::algorithms::td3::loop{
         using SPEC = typename TRAINING_STATE::SPEC;
         using T = typename SPEC::T;
 
-        ts.device.logger = &ts.logger;
+//        ts.device.logger = &ts.logger;
 
         ts.rng = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
         ts.rng_eval = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);

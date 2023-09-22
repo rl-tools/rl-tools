@@ -13,6 +13,7 @@ target_link_libraries(
         nlohmann_json::nlohmann_json
 )
 #target_compile_definitions(rl_environments_multirotor_ui PRIVATE BOOST_BEAST_USE_STD_STRING_VIEW)
+BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_ui)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_ui)
 endif()
 

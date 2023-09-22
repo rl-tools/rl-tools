@@ -119,6 +119,9 @@ public:
                 ts.trajectories.pop();
                 new_trajectories++;
             }
+            while(!ts.trajectories.empty()){
+                ts.trajectories.pop();
+            }
         }
         while(new_trajectories > 0){
             std::sort(idle_drones.begin(), idle_drones.end(), std::greater<TI>());

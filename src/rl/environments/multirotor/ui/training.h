@@ -29,7 +29,7 @@ namespace multirotor_training{
     namespace config {
         using namespace bpt::nn_models::sequential::interface; // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
         struct CoreConfig{
-            using DEV_SPEC = bpt::devices::DefaultCPUSpecification;
+            using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
 //    using DEVICE = bpt::devices::CPU<DEV_SPEC>;
             using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
             using T = float;
@@ -127,7 +127,7 @@ namespace multirotor_training{
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 500001;
+            static constexpr TI STEP_LIMIT = 3000001;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
             static constexpr TI SEED = 6;
@@ -163,7 +163,6 @@ namespace multirotor_training{
                 env.parameters = parameters_0::environment<config::Config::T, config::Config::TI>::parameters;
             }
             ts.env_eval.parameters = ts.envs[0].parameters;
-            bpt::rl::algorithms::td3::loop::init(ts, CONFIG::SEED);
             ts.off_policy_runner.parameters = parameters_0::rl<config::Config::T, config::Config::TI, config::Config::ENVIRONMENT>::off_policy_runner_parameters;
             {
                 std::stringstream run_name_ss;
@@ -172,9 +171,13 @@ namespace multirotor_training{
                 auto now = std::chrono::system_clock::now();
                 auto local_time = std::chrono::system_clock::to_time_t(now);
                 std::tm* tm = std::localtime(&local_time);
-//                run_name_ss << "_" << std::put_time(tm, "%Y%m%d%H%M%S");
+                run_name_ss << "_" << std::put_time(tm, "%Y_%m_%d_%H_%M_%S");
                 ts.run_name = run_name_ss.str();
             }
+            {
+                bpt::construct(ts.device, ts.device.logger, std::string("logs"), ts.run_name);
+            }
+            bpt::rl::algorithms::td3::loop::init(ts, CONFIG::SEED);
         }
 
         void step_checkpoint(TrainingState& ts){
@@ -309,6 +312,11 @@ namespace multirotor_training{
                         auto end = std::chrono::high_resolution_clock::now();
 //                        std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
                     }
+
+                    constexpr T noise_decay_base = 0.95;
+                    ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
+                    ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
+                    ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                 }
             }
         }
