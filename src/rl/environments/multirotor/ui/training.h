@@ -57,8 +57,8 @@ namespace multirotor_training{
 //                constexpr static typename TI CRITIC_BATCH_SIZE = 100;
 //                constexpr static typename TI ACTOR_BATCH_SIZE = 100;
 //                constexpr static T GAMMA = 0.997;
-                static constexpr TI ACTOR_BATCH_SIZE = 256;
-                static constexpr TI CRITIC_BATCH_SIZE = 256;
+                static constexpr TI ACTOR_BATCH_SIZE = 64;
+                static constexpr TI CRITIC_BATCH_SIZE = 64;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 10;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 20;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 10;
@@ -67,7 +67,7 @@ namespace multirotor_training{
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-                static constexpr T GAMMA = 0.995;
+                static constexpr T GAMMA = 0.997;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
 
@@ -141,9 +141,9 @@ namespace multirotor_training{
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 500001;
+            static constexpr TI STEP_LIMIT = 1500001;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
+            static constexpr TI ENVIRONMENT_STEP_LIMIT = 100;
             static constexpr TI SEED = 6;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
