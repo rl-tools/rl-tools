@@ -27,7 +27,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         static constexpr TI N_MODES = T_N_MODES;
         AbsExp<T> modes[N_MODES];
     };
-    template<typename DEVICE, typename SPEC, typename T, typename T_STATE, typename TI_STATE, typename LATENT_STATE, typename ACTION_SPEC, typename RNG>
+    template<typename DEVICE, typename SPEC, typename T, typename T_STATE, typename TI_STATE, typename ACTION_SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::AbsExp<T>& params, const rl::environments::multirotor::StateBase<T_STATE, TI_STATE>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::multirotor::StateBase<T_STATE, TI_STATE>& next_state, RNG& rng, bool log_components = true) {
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;

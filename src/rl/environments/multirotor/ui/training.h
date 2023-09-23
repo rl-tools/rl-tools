@@ -35,7 +35,19 @@ namespace multirotor_training{
             using T = float;
             using TI = typename DEVICE::index_t;
 
-            using ENVIRONMENT = parameters_0::environment<T, TI>::ENVIRONMENT;
+            struct ABLATION_SPEC{
+                static constexpr bool DISTURBANCE = true;
+                static constexpr bool OBSERVATION_NOISE = true;
+                static constexpr bool ASYMMETRIC_ACTOR_CRITIC = true;
+                static constexpr bool ROTOR_DELAY = true;
+                static constexpr bool ACTION_HISTORY = true;
+                static constexpr bool ENABLE_CURRICULUM = false;
+                static constexpr bool RECALCULATE_REWARDS = true;
+                static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
+                static constexpr bool INIT_NORMAL = true;
+            };
+
+            using ENVIRONMENT = parameters_0::environment<T, TI, ABLATION_SPEC>::ENVIRONMENT;
             using UI = bool;
 
             struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
@@ -55,7 +67,7 @@ namespace multirotor_training{
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-                static constexpr T GAMMA = 0.99;
+                static constexpr T GAMMA = 0.995;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
 
@@ -129,7 +141,7 @@ namespace multirotor_training{
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 3000001;
+            static constexpr TI STEP_LIMIT = 500001;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
             static constexpr TI SEED = 6;
@@ -144,8 +156,8 @@ namespace multirotor_training{
             static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         };
         struct Config: CoreConfig{
-            static constexpr bool ENABLE_CURRICULUM = true;
-            static constexpr bool RECALCULATE_REWARDS = true;
+//            static constexpr bool ENABLE_CURRICULUM = false;
+//            static constexpr bool RECALCULATE_REWARDS = true;
         };
     }
 
@@ -284,7 +296,7 @@ namespace multirotor_training{
 //                    bpt::add_scalar(device, device.logger, "reward_function/angular_acceleration_weight", off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
 //                }
 //                sq
-                if constexpr(CONFIG::ENABLE_CURRICULUM == true){
+                if constexpr(CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true){
                     for (auto& env : ts.off_policy_runner.envs) {
                         {
                             T action_weight = env.parameters.mdp.reward.action;
@@ -312,7 +324,7 @@ namespace multirotor_training{
                     bpt::add_scalar(ts.device, ts.device.logger, "reward_function/linear_velocity_weight",ts. off_policy_runner.envs[0].parameters.mdp.reward.linear_velocity);
                     bpt::add_scalar(ts.device, ts.device.logger, "reward_function/action_weight", ts.off_policy_runner.envs[0].parameters.mdp.reward.action);
                     bpt::add_scalar(ts.device, ts.device.logger, "reward_function/angular_acceleration_weight", ts.off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
-                    if constexpr(CONFIG::RECALCULATE_REWARDS == true){
+                    if constexpr(CONFIG::ABLATION_SPEC::RECALCULATE_REWARDS == true){
                         auto start = std::chrono::high_resolution_clock::now();
                         bpt::recalculate_rewards(ts.device, ts.off_policy_runner.replay_buffers[0], ts.off_policy_runner.envs[0], ts.rng_eval);
                         auto end = std::chrono::high_resolution_clock::now();

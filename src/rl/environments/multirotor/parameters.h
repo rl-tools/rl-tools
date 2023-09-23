@@ -32,10 +32,13 @@ namespace parameters{
                 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_mm<T, TI>;
                 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::sq_exp_position_action_only_3<T>;
                 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::sq_exp_reward_mm<T, TI>;
-                static constexpr auto reward_function = ABLATION_SPEC::USE_INITIAL_REWARD_FUNCTION ?
-                                                        backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque<T>
-                                                                                                   :
-                                                        backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque_curriculum_target<T>;
+//                static constexpr auto reward_function = ABLATION_SPEC::USE_INITIAL_REWARD_FUNCTION ?
+//                                                        backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque<T>
+//                                                                                                   :
+//                                                        backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque_curriculum_target<T>;
+//                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_263<T>;
+                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_fast_learning<T>;
+
 
                 using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
                 using REWARD_FUNCTION = typename backprop_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
