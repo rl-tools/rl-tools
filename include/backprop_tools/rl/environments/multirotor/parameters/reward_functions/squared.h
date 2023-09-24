@@ -87,10 +87,12 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             add_scalar(device, device.logger, "reward_share/linear_acc", params.linear_acceleration * linear_acc_cost / weighted_cost, cadence);
             add_scalar(device, device.logger, "reward_share/angular_acc", params.angular_acceleration * angular_acc_cost / weighted_cost, cadence);
             add_scalar(device, device.logger, "reward_share/action", params.action * action_cost / weighted_cost, cadence);
+            add_scalar(device, device.logger, "reward_share/const", r/params.constant, cadence);
 
             add_scalar(device, device.logger, "reward/weighted_cost", weighted_cost, cadence);
             add_scalar(device, device.logger, "reward/scaled_weighted_cost", scaled_weighted_cost, cadence);
             add_scalar(device, device.logger, "reward/reward", r, cadence);
+            add_scalar(device, device.logger, "reward/reward_zero", r == 0, cadence);
         }
 
         return r;

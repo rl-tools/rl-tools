@@ -402,16 +402,16 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     constexpr Squared<T> reward_squared_fast_learning = {
             false, // non-negative
             1, // scale
-            5, // constant
+            0.2, // constant
             0, // termination penalty
-            10, // position
-            1, // orientation
+            1, // position
+            0, // orientation
             0, // linear_velocity
             0, // angular_velocity
             0, // linear_acceleration
             0, // angular_acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
-            0.5, // action
+            0.0, // action
     };
     template<typename T>
     constexpr Squared<T> reward_squared_position_only_torque_curriculum_target = {

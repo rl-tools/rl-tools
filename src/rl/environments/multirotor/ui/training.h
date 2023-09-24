@@ -36,8 +36,8 @@ namespace multirotor_training{
             using TI = typename DEVICE::index_t;
 
             struct ABLATION_SPEC{
-                static constexpr bool DISTURBANCE = true;
-                static constexpr bool OBSERVATION_NOISE = true;
+                static constexpr bool DISTURBANCE = false;
+                static constexpr bool OBSERVATION_NOISE = false;
                 static constexpr bool ASYMMETRIC_ACTOR_CRITIC = true;
                 static constexpr bool ROTOR_DELAY = true;
                 static constexpr bool ACTION_HISTORY = true;
@@ -57,12 +57,13 @@ namespace multirotor_training{
 //                constexpr static typename TI CRITIC_BATCH_SIZE = 100;
 //                constexpr static typename TI ACTOR_BATCH_SIZE = 100;
 //                constexpr static T GAMMA = 0.997;
-                static constexpr TI ACTOR_BATCH_SIZE = 64;
-                static constexpr TI CRITIC_BATCH_SIZE = 64;
-                static constexpr TI CRITIC_TRAINING_INTERVAL = 10;
-                static constexpr TI ACTOR_TRAINING_INTERVAL = 20;
-                static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 10;
-                static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 20;
+                static constexpr TI ACTOR_BATCH_SIZE = 256;
+                static constexpr TI CRITIC_BATCH_SIZE = 256;
+                static constexpr TI TRAINING_INTERVAL = 10;
+                static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
+                static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
+                static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
+                static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2 * TRAINING_INTERVAL;
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 1.0;
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
@@ -119,7 +120,7 @@ namespace multirotor_training{
                 using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
             };
 
-            struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParametersTorch<T, TI>{
+            struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParameters<T, TI>{
                 static constexpr T WEIGHT_DECAY = 0.0001;
             };
             using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
@@ -141,9 +142,9 @@ namespace multirotor_training{
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 1500001;
+            static constexpr TI STEP_LIMIT = 15000001;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI ENVIRONMENT_STEP_LIMIT = 100;
+            static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
             static constexpr TI SEED = 6;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
@@ -151,8 +152,8 @@ namespace multirotor_training{
                     0.5
             };
 
-            static constexpr TI N_WARMUP_STEPS_CRITIC = 15000;
-            static constexpr TI N_WARMUP_STEPS_ACTOR = 30000;
+            static constexpr TI N_WARMUP_STEPS_CRITIC = 100000;
+            static constexpr TI N_WARMUP_STEPS_ACTOR = 200000;
             static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         };
         struct Config: CoreConfig{
@@ -271,13 +272,17 @@ namespace multirotor_training{
             using TI = CONFIG::TI;
             if(ts.step != 0 && ts.step % 100000 == 0){
 //                constexpr T decay = 0.96;
-                constexpr T decay = 0.75;
+//                constexpr T decay = 0.75;
 //                off_policy_runner.parameters.exploration_noise *= decay;
 //                actor_critic.target_next_action_noise_std *= decay;
 //                actor_critic.target_next_action_noise_clip *= decay;
 //                off_policy_runner.parameters.exploration_noise = off_policy_runner.parameters.exploration_noise < 0.2 ? 0.2 : off_policy_runner.parameters.exploration_noise;
 //                actor_critic.target_next_action_noise_std = actor_critic.target_next_action_noise_std < 0.05 ? 0.05 : actor_critic.target_next_action_noise_std;
 //                actor_critic.target_next_action_noise_clip = actor_critic.target_next_action_noise_clip < 0.15 ? 0.15 : actor_critic.target_next_action_noise_clip;
+                constexpr T noise_decay_base = 0.95;
+                ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
+                ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
+                ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_std", ts.actor_critic.target_next_action_noise_std);
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_clip", ts.actor_critic.target_next_action_noise_clip);
                 bpt::add_scalar(ts.device, ts.device.logger, "off_policy_runner/exploration_noise", ts.off_policy_runner.parameters.exploration_noise);
@@ -331,10 +336,6 @@ namespace multirotor_training{
 //                        std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
                     }
 
-                    constexpr T noise_decay_base = 0.95;
-                    ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
-                    ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
-                    ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                 }
             }
         }

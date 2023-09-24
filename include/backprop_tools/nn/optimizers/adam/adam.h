@@ -17,6 +17,7 @@ namespace backprop_tools::nn::optimizers{
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-7;
             static constexpr T WEIGHT_DECAY = 0;
+            static constexpr T BIAS_LR_FACTOR = 1;
 
         };
         template<typename T_T, typename T_TI>
@@ -28,6 +29,18 @@ namespace backprop_tools::nn::optimizers{
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-8;
             static constexpr T WEIGHT_DECAY = 0;
+            static constexpr T BIAS_LR_FACTOR = 1;
+        };
+        template<typename T_T, typename T_TI>
+        struct DefaultParameters{
+            using T = T_T;
+            using TI = T_TI;
+            static constexpr T ALPHA = 0.001;
+            static constexpr T BETA_1 = 0.9;
+            static constexpr T BETA_2 = 0.999;
+            static constexpr T EPSILON = 1e-8;
+            static constexpr T WEIGHT_DECAY = 0;
+            static constexpr T BIAS_LR_FACTOR = 10;
         };
     }
     template<typename T_PARAMETERS>

@@ -128,7 +128,7 @@ public:
             if(idle_drones.empty()){
                 TI drone_id = drone_id_counter++;
                 ongoing_drones.push_back(drone_id);
-                using UI = bpt::rl::environments::multirotor::UI<CONFIG::ENVIRONMENT>;
+                using UI = bpt::rl::environments::multirotor::UI<decltype(env)>;
                 UI ui;
                 ui.id = std::to_string(drone_id);
                 constexpr TI width = 5;
@@ -145,7 +145,7 @@ public:
                 TI drone_id = idle_drones.back();
                 ongoing_drones.push_back(drone_id);
                 idle_drones.pop_back();
-                using UI = bpt::rl::environments::multirotor::UI<CONFIG::ENVIRONMENT>;
+                using UI = bpt::rl::environments::multirotor::UI<decltype(env)>;
                 UI ui;
                 ui.id = std::to_string(drone_id);
                 constexpr TI width = 5;

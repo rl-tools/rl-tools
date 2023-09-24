@@ -31,8 +31,8 @@ namespace TEST_DEFINITIONS{
     namespace parameter_set = parameters_0;
     template <typename BASE_SPEC>
     struct SpecEval: BASE_SPEC{
-        static constexpr bool DISTURBANCE = true;
-        static constexpr bool OBSERVATION_NOISE = true;
+        static constexpr bool DISTURBANCE = false;
+        static constexpr bool OBSERVATION_NOISE = false;
         static constexpr bool ROTOR_DELAY = true;
         static constexpr bool ACTION_HISTORY = BASE_SPEC::ROTOR_DELAY && BASE_SPEC::ACTION_HISTORY;
         static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
@@ -50,8 +50,8 @@ namespace TEST_DEFINITIONS{
     constexpr bool INIT_SIMPLE = false;
     constexpr bool DEACTIVATE_OBSERVATION_NOISE = true;
     constexpr bool INJECT_EXPLORATION_NOISE = false;
-    constexpr bool DISABLE_DISTURBANCES = false;
-    constexpr bool AMPLIFY_DISTURBANCES = true;
+    constexpr bool DISABLE_DISTURBANCES = true;
+    constexpr bool AMPLIFY_DISTURBANCES = false;
 }
 
 

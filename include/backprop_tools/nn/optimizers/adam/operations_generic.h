@@ -34,6 +34,9 @@ namespace backprop_tools{
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::CONTAINER::ROWS; row_i++) {
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::CONTAINER::COLS; col_i++) {
                 typename SPEC::CONTAINER::T parameter_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
+                if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && PARAMETERS::BIAS_LR_FACTOR > 1){
+                    parameter_update *= PARAMETERS::BIAS_LR_FACTOR;
+                }
                 if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Weights> && PARAMETERS::WEIGHT_DECAY > 0){
                     parameter_update += get(parameter.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY / 2;
                 }
