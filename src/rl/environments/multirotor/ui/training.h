@@ -284,6 +284,14 @@ namespace multirotor_training{
 //                ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
 //                ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
 //                ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
+                {
+                    T gamma = ts.actor_critic.gamma;
+                    gamma += 0.1;
+                    T gamma_limit = 0.997;
+                    gamma = gamma > gamma_limit ? gamma_limit : gamma;
+                    ts.actor_critic.gamma = gamma;
+                }
+                bpt::add_scalar(ts.device, ts.device.logger, "td3/gamma", ts.actor_critic.gamma);
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_std", ts.actor_critic.target_next_action_noise_std);
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_clip", ts.actor_critic.target_next_action_noise_clip);
                 bpt::add_scalar(ts.device, ts.device.logger, "off_policy_runner/exploration_noise", ts.off_policy_runner.parameters.exploration_noise);
@@ -307,14 +315,14 @@ namespace multirotor_training{
                         {
                             T action_weight = env.parameters.mdp.reward.action;
                             action_weight += 0.1;
-                            T action_weight_limit = 1.0;
+                            T action_weight_limit = 0.5;
                             action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
                             env.parameters.mdp.reward.action = action_weight;
                         }
                         {
                             T position_weight = env.parameters.mdp.reward.position;
                             position_weight *= 1.2;
-                            T position_weight_limit = 5;
+                            T position_weight_limit = 15;
                             position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
                             env.parameters.mdp.reward.position = position_weight;
                         }
