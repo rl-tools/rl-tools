@@ -36,7 +36,7 @@ namespace multirotor_training{
             using TI = typename DEVICE::index_t;
 
             struct ABLATION_SPEC{
-                static constexpr bool DISTURBANCE = false;
+                static constexpr bool DISTURBANCE = true;
                 static constexpr bool OBSERVATION_NOISE = false;
                 static constexpr bool ASYMMETRIC_ACTOR_CRITIC = true;
                 static constexpr bool ROTOR_DELAY = true;
@@ -44,7 +44,7 @@ namespace multirotor_training{
                 static constexpr bool ENABLE_CURRICULUM = true;
                 static constexpr bool RECALCULATE_REWARDS = true;
                 static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
-                static constexpr bool INIT_NORMAL = false;
+                static constexpr bool INIT_NORMAL = true;
             };
 
             using ENVIRONMENT = parameters_0::environment<T, TI, ABLATION_SPEC>::ENVIRONMENT;
