@@ -110,6 +110,17 @@ namespace backprop_tools::rl::environments::multirotor::parameters::init{
             0,   // min rpm
             0,   // max rpm
     };
+    template<typename T, typename TI, TI ACTION_DIM, typename REWARD_FUNCTION>
+    constexpr typename ParametersBase<T, TI, ACTION_DIM, REWARD_FUNCTION>::MDP::Initialization all_positions = {
+            0.1, // guidance
+            0.3, // position
+            0,   // orientation
+            0,   // linear velocity
+            0,  // angular velocity
+            true,// relative rpm
+            0,  // min rpm
+            0,  // max rpm
+    };
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 

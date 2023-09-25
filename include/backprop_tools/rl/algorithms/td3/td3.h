@@ -105,6 +105,7 @@ namespace backprop_tools::rl::algorithms::td3 {
 
         T target_next_action_noise_std = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD;
         T target_next_action_noise_clip = SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_CLIP;
+        T gamma = SPEC::PARAMETERS::GAMMA;
 
         typename SPEC::ACTOR_TYPE actor;
         typename SPEC::ACTOR_TARGET_TYPE actor_target;

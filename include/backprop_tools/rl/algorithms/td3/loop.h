@@ -84,7 +84,9 @@ namespace backprop_tools::rl::algorithms::td3::loop{
 
         ts.step = 0;
         ts.finished = false;
-        construct(ts.device, ts.device.logger);
+        if constexpr(SPEC::CONSTRUCT_LOGGER){
+            construct(ts.device, ts.device.logger);
+        }
     }
 
     template <typename TRAINING_STATE>

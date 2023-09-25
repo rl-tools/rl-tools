@@ -68,7 +68,7 @@ namespace multirotor_training{
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-                static constexpr T GAMMA = 0.995;
+                static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
 
@@ -106,7 +106,7 @@ namespace multirotor_training{
 
             template <typename PARAMETER_TYPE>
             struct CRITIC{
-                static constexpr TI HIDDEN_DIM = 128;
+                static constexpr TI HIDDEN_DIM = 64;
                 static constexpr TI BATCH_SIZE = TD3_PARAMETERS::CRITIC_BATCH_SIZE;
 
                 static constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::FAST_TANH;
@@ -144,8 +144,9 @@ namespace multirotor_training{
             static constexpr TI N_ENVIRONMENTS = 1;
             static constexpr TI STEP_LIMIT = 15000001;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
+            static constexpr TI ENVIRONMENT_STEP_LIMIT = 250;
             static constexpr TI SEED = 6;
+            static constexpr bool CONSTRUCT_LOGGER = false;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
             static constexpr bpt::rl::components::off_policy_runner::DefaultParameters<T> off_policy_runner_parameters = {
@@ -178,7 +179,6 @@ namespace multirotor_training{
                 env.parameters = parameters_0::environment<config::Config::T, config::Config::TI>::parameters;
             }
             ts.env_eval.parameters = ts.envs[0].parameters;
-            ts.off_policy_runner.parameters = parameters_0::rl<config::Config::T, config::Config::TI, config::Config::ENVIRONMENT>::off_policy_runner_parameters;
             {
                 std::stringstream run_name_ss;
                 run_name_ss << "multirotor_td3";
@@ -193,6 +193,7 @@ namespace multirotor_training{
                 bpt::construct(ts.device, ts.device.logger, std::string("logs"), ts.run_name);
             }
             bpt::rl::algorithms::td3::loop::init(ts, CONFIG::SEED);
+            ts.off_policy_runner.parameters = parameters_0::rl<config::Config::T, config::Config::TI, config::Config::ENVIRONMENT>::off_policy_runner_parameters;
         }
 
         void step_logger(TrainingState& ts){
@@ -280,9 +281,9 @@ namespace multirotor_training{
 //                actor_critic.target_next_action_noise_std = actor_critic.target_next_action_noise_std < 0.05 ? 0.05 : actor_critic.target_next_action_noise_std;
 //                actor_critic.target_next_action_noise_clip = actor_critic.target_next_action_noise_clip < 0.15 ? 0.15 : actor_critic.target_next_action_noise_clip;
                 constexpr T noise_decay_base = 0.95;
-                ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
-                ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
-                ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
+//                ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
+//                ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
+//                ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_std", ts.actor_critic.target_next_action_noise_std);
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_clip", ts.actor_critic.target_next_action_noise_clip);
                 bpt::add_scalar(ts.device, ts.device.logger, "off_policy_runner/exploration_noise", ts.off_policy_runner.parameters.exploration_noise);
@@ -305,15 +306,15 @@ namespace multirotor_training{
                     for (auto& env : ts.off_policy_runner.envs) {
                         {
                             T action_weight = env.parameters.mdp.reward.action;
-                            action_weight *= 1.4;
-                            T action_weight_limit = 0.5;
+                            action_weight += 0.1;
+                            T action_weight_limit = 1.0;
                             action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
                             env.parameters.mdp.reward.action = action_weight;
                         }
                         {
                             T position_weight = env.parameters.mdp.reward.position;
                             position_weight *= 1.2;
-                            T position_weight_limit = 20;
+                            T position_weight_limit = 5;
                             position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
                             env.parameters.mdp.reward.position = position_weight;
                         }

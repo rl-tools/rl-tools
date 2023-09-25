@@ -448,7 +448,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     constexpr Absolute<T> reward_absolute_fast_learning = {
             false, // non-negative
             1, // scale
-            0.2, // constant
+            1, // constant
             0, // termination penalty
             1, // position
             0, // orientation
