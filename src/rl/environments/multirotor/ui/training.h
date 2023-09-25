@@ -286,7 +286,7 @@ namespace multirotor_training{
 //                ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                 if constexpr(CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true){
                     T gamma = ts.actor_critic.gamma;
-                    gamma += 0.000;
+                    gamma += 0.001;
                     T gamma_limit = 0.997;
                     gamma = gamma > gamma_limit ? gamma_limit : gamma;
                     ts.actor_critic.gamma = gamma;
