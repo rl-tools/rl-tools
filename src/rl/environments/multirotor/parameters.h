@@ -3,6 +3,7 @@
 
 #include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/abs_exp.h>
 #include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/squared.h>
+#include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/absolute.h>
 #include <backprop_tools/rl/environments/multirotor/parameters/reward_functions/default.h>
 #include <backprop_tools/rl/environments/multirotor/parameters/dynamics/crazy_flie.h>
 #include <backprop_tools/rl/environments/multirotor/parameters/init/default.h>
@@ -37,7 +38,9 @@ namespace parameters{
 //                                                                                                   :
 //                                                        backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque_curriculum_target<T>;
 //                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_263<T>;
-                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_fast_learning<T>;
+//                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_old_but_gold<T>;
+//                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_fast_learning<T>;
+                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_absolute_fast_learning<T>;
 
 
                 using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;

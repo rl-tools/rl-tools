@@ -41,10 +41,10 @@ namespace multirotor_training{
                 static constexpr bool ASYMMETRIC_ACTOR_CRITIC = true;
                 static constexpr bool ROTOR_DELAY = true;
                 static constexpr bool ACTION_HISTORY = true;
-                static constexpr bool ENABLE_CURRICULUM = false;
+                static constexpr bool ENABLE_CURRICULUM = true;
                 static constexpr bool RECALCULATE_REWARDS = true;
                 static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
-                static constexpr bool INIT_NORMAL = true;
+                static constexpr bool INIT_NORMAL = false;
             };
 
             using ENVIRONMENT = parameters_0::environment<T, TI, ABLATION_SPEC>::ENVIRONMENT;
@@ -68,7 +68,7 @@ namespace multirotor_training{
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-                static constexpr T GAMMA = 0.997;
+                static constexpr T GAMMA = 0.995;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
 
@@ -106,7 +106,7 @@ namespace multirotor_training{
 
             template <typename PARAMETER_TYPE>
             struct CRITIC{
-                static constexpr TI HIDDEN_DIM = 64;
+                static constexpr TI HIDDEN_DIM = 128;
                 static constexpr TI BATCH_SIZE = TD3_PARAMETERS::CRITIC_BATCH_SIZE;
 
                 static constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::FAST_TANH;
@@ -121,7 +121,7 @@ namespace multirotor_training{
             };
 
             struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParameters<T, TI>{
-                static constexpr T WEIGHT_DECAY = 0.0001;
+                static constexpr T WEIGHT_DECAY = 0.0002;
             };
             using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
             using ACTOR_TYPE = typename ACTOR<bpt::nn::parameters::Adam>::MODEL;
@@ -144,7 +144,7 @@ namespace multirotor_training{
             static constexpr TI N_ENVIRONMENTS = 1;
             static constexpr TI STEP_LIMIT = 15000001;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
+            static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
             static constexpr TI SEED = 6;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
@@ -152,8 +152,8 @@ namespace multirotor_training{
                     0.5
             };
 
-            static constexpr TI N_WARMUP_STEPS_CRITIC = 100000;
-            static constexpr TI N_WARMUP_STEPS_ACTOR = 200000;
+            static constexpr TI N_WARMUP_STEPS_CRITIC = 15000;
+            static constexpr TI N_WARMUP_STEPS_ACTOR = 30000;
             static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         };
         struct Config: CoreConfig{

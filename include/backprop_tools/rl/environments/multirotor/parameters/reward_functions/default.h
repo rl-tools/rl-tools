@@ -7,6 +7,7 @@
 #include "abs_exp.h"
 #include "sq_exp.h"
 #include "squared.h"
+#include "absolute.h"
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE (0.334)
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::rl::environments::multirotor::parameters::reward_functions{
@@ -414,6 +415,21 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0.0, // action
     };
     template<typename T>
+    constexpr Squared<T> reward_squared_fast_learning_negative = {
+            false, // non-negative
+            0.1, // scale
+            0, // constant
+            0, // termination penalty
+            1, // position
+            0, // orientation
+            0, // linear_velocity
+            0, // angular_velocity
+            0, // linear_acceleration
+            0, // angular_acceleration
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
+            0.0, // action
+    };
+    template<typename T>
     constexpr Squared<T> reward_squared_position_only_torque_curriculum_target = {
             false, // non-negative
             0.5, // scale
@@ -427,6 +443,21 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             0, // angular_acceleration
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
             0.50, // action
+    };
+    template<typename T>
+    constexpr Absolute<T> reward_absolute_fast_learning = {
+            false, // non-negative
+            1, // scale
+            0.2, // constant
+            0, // termination penalty
+            1, // position
+            0, // orientation
+            0, // linear_velocity
+            0, // angular_velocity
+            0, // linear_acceleration
+            0, // angular_acceleration
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
+            0.0, // action
     };
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
