@@ -29,15 +29,15 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         T orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::abs(device.math, 2 * math::acos(device.math, quaternion_w));
-        T position_cost = state.position[0] * state.position[0] + state.position[1] * state.position[1] + state.position[2] * state.position[2];
-        T linear_vel_cost = state.linear_velocity[0] * state.linear_velocity[0] + state.linear_velocity[1] * state.linear_velocity[1] + state.linear_velocity[2] * state.linear_velocity[2];
-        T angular_vel_cost = state.angular_velocity[0] * state.angular_velocity[0] + state.angular_velocity[1] * state.angular_velocity[1] + state.angular_velocity[2] * state.angular_velocity[2];
+        T position_cost = math::abs(device.math, state.position[0]) + math::abs(device.math, state.position[1]) + math::abs(device.math, state.position[2]);
+        T linear_vel_cost = math::abs(device.math, state.linear_velocity[0]) + math::abs(device.math, state.linear_velocity[1]) + math::abs(device.math, state.linear_velocity[2]);
+        T angular_vel_cost = math::abs(device.math, state.angular_velocity[0]) + math::abs(device.math, state.angular_velocity[1]) + math::abs(device.math, state.angular_velocity[2]);
         T linear_acc[3];
         T angular_acc[3];
         utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
-        T linear_acc_cost = (linear_acc[0] * linear_acc[0] + linear_acc[1] * linear_acc[1] + linear_acc[2] * linear_acc[2]) / (env.parameters.integration.dt * env.parameters.integration.dt);
+        T linear_acc_cost = (math::abs(device.math, linear_acc[0]) + math::abs(device.math, linear_acc[1]) + math::abs(device.math, linear_acc[2])) / (env.parameters.integration.dt * env.parameters.integration.dt);
         utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
-        T angular_acc_cost = (angular_acc[0] * angular_acc[0] + angular_acc[1] * angular_acc[1] + angular_acc[2] * angular_acc[2]) / (env.parameters.integration.dt * env.parameters.integration.dt);
+        T angular_acc_cost = (math::abs(device.math, angular_acc[0]) + math::abs(device.math, angular_acc[1]) + math::abs(device.math, angular_acc[2])) / (env.parameters.integration.dt * env.parameters.integration.dt);
 
         T action_diff[ACTION_DIM];
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, utils::vector_operations::mean<DEVICE, T, ACTION_DIM>(action), action_diff);

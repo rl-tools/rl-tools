@@ -142,9 +142,9 @@ namespace multirotor_training{
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 15000001;
+            static constexpr TI STEP_LIMIT = 1500001;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-            static constexpr TI ENVIRONMENT_STEP_LIMIT = 250;
+            static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
             static constexpr TI SEED = 6;
             static constexpr bool CONSTRUCT_LOGGER = false;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
@@ -284,9 +284,9 @@ namespace multirotor_training{
 //                ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
 //                ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
 //                ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
-                {
+                if constexpr(CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true){
                     T gamma = ts.actor_critic.gamma;
-                    gamma += 0.1;
+                    gamma += 0.000;
                     T gamma_limit = 0.997;
                     gamma = gamma > gamma_limit ? gamma_limit : gamma;
                     ts.actor_critic.gamma = gamma;
@@ -321,8 +321,8 @@ namespace multirotor_training{
                         }
                         {
                             T position_weight = env.parameters.mdp.reward.position;
-                            position_weight *= 1.2;
-                            T position_weight_limit = 15;
+                            position_weight *= 1.0;
+                            T position_weight_limit = 5;
                             position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
                             env.parameters.mdp.reward.position = position_weight;
                         }
@@ -342,7 +342,7 @@ namespace multirotor_training{
                         auto start = std::chrono::high_resolution_clock::now();
                         bpt::recalculate_rewards(ts.device, ts.off_policy_runner.replay_buffers[0], ts.off_policy_runner.envs[0], ts.rng_eval);
                         auto end = std::chrono::high_resolution_clock::now();
-//                        std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+                        std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
                     }
 
                 }
