@@ -197,7 +197,9 @@ int main(int argc, char** argv) {
             }
         }
         bpt::sample_initial_state(dev, env, state, rng);
+        std::cout << "Random force: " << state.force[0] << ", " << state.force[1] << ", " << state.force[2] << std::endl;
 //        bpt::initial_state(dev, env, state);
+        T max_speed = 0;
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             bpt::observe(dev, env, state, observation, rng);
@@ -221,9 +223,13 @@ int main(int argc, char** argv) {
                     }
                 }
             }
+            T speed = bpt::math::sqrt(dev.math, next_state.linear_velocity[0] * next_state.linear_velocity[0] + next_state.linear_velocity[1] * next_state.linear_velocity[1] + next_state.linear_velocity[2] * next_state.linear_velocity[2]);
+            if(speed > max_speed){
+                max_speed = speed;
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds((int)((dt - diff.count())*1000)));
             if(terminated_flag || step_i == (MAX_EPISODE_LENGTH - 1)){
-                std::cout << "Episode terminated after " << step_i << " steps with reward " << reward_acc << std::endl;
+                std::cout << "Episode terminated after " << step_i << " steps with reward " << reward_acc << "(max speed: " << max_speed << ")" << std::endl;
                 break;
             }
         }

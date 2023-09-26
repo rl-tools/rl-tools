@@ -459,6 +459,21 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
             BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
             0.0, // action
     };
+    template<typename T>
+    constexpr Absolute<T> reward_absolute_fast_learning_2 = {
+            false, // non-negative
+            1, // scale
+            2, // constant
+            0, // termination penalty
+            1, // position
+            0.1, // orientation
+            0.1, // linear_velocity
+            0.01, // angular_velocity
+            0, // linear_acceleration
+            0, // angular_acceleration
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE
+            0.0, // action
+    };
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

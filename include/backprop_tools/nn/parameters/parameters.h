@@ -5,6 +5,12 @@
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 namespace backprop_tools::nn::parameters{
+    namespace groups{
+        struct Normal{};
+        struct Input{};
+        struct Output{};
+    }
+
     namespace categories{
         struct Weights{};
         struct Biases{};
@@ -12,9 +18,10 @@ namespace backprop_tools::nn::parameters{
 
     struct Plain{
         // todo: evaluate replacing the instance mechanism with a tag similar to the container type tags
-        template <typename T_CONTAINER, typename T_CATEGORY_TAG>
+        template <typename T_CONTAINER, typename T_GROUP_TAG, typename T_CATEGORY_TAG>
         struct spec {
             using CONTAINER = T_CONTAINER;
+            using GROUP_TAG = T_GROUP_TAG;
             using CATEGORY_TAG = T_CATEGORY_TAG;
         };
         template <typename T_SPEC>

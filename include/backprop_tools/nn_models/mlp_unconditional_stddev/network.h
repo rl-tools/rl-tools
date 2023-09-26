@@ -18,12 +18,12 @@ namespace backprop_tools::nn_models::mlp_unconditional_stddev {
 
     template <typename SPEC>
     struct NeuralNetwork: NEURAL_NETWORK_FACTORY<nn_models::mlp::NeuralNetwork, SPEC>{
-        using PARAMETER_SPEC = nn::parameters::Plain::spec<typename NeuralNetwork::LOG_STD_CONTAINER_TYPE, nn::parameters::categories::Biases>;
+        using PARAMETER_SPEC = nn::parameters::Plain::spec<typename NeuralNetwork::LOG_STD_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Biases>;
         nn::parameters::Plain::instance<PARAMETER_SPEC> log_std;
     };
     template <typename SPEC>
     struct NeuralNetworkAdam: NEURAL_NETWORK_FACTORY<nn_models::mlp::NeuralNetworkAdam, SPEC>{
-        using PARAMETER_SPEC = nn::parameters::Adam::spec<typename NeuralNetworkAdam::LOG_STD_CONTAINER_TYPE, nn::parameters::categories::Biases>;
+        using PARAMETER_SPEC = nn::parameters::Adam::spec<typename NeuralNetworkAdam::LOG_STD_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Biases>;
         nn::parameters::Adam::instance<PARAMETER_SPEC> log_std;
     };
 

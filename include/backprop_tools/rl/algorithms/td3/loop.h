@@ -114,10 +114,9 @@ namespace backprop_tools::rl::algorithms::td3::loop{
                 target_action_noise(ts.device, ts.actor_critic, ts.critic_training_buffers.target_next_action_noise, ts.rng);
                 gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
-
-                T critic_1_loss = critic_loss(ts.device, ts.actor_critic, ts.actor_critic.critic_1, ts.critic_batch, ts.actor_buffers[0], ts.critic_buffers[0], ts.critic_training_buffers);
-                add_scalar(ts.device, ts.device.logger, "critic_1_loss", critic_1_loss);
             }
+            T critic_1_loss = critic_loss(ts.device, ts.actor_critic, ts.actor_critic.critic_1, ts.critic_batch, ts.actor_buffers[0], ts.critic_buffers[0], ts.critic_training_buffers);
+            add_scalar(ts.device, ts.device.logger, "critic_1_loss", critic_1_loss, 100);
         }
 
         if(ts.step > SPEC::N_WARMUP_STEPS_ACTOR && ts.step % SPEC::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){

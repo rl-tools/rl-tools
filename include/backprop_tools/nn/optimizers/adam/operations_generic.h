@@ -37,8 +37,10 @@ namespace backprop_tools{
                 if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && PARAMETERS::BIAS_LR_FACTOR > 1){
                     parameter_update *= PARAMETERS::BIAS_LR_FACTOR;
                 }
-                if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Weights> && PARAMETERS::WEIGHT_DECAY > 0){
-                    parameter_update += get(parameter.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY / 2;
+                if constexpr(utils::typing::is_same_v<typename SPEC::GROUP_TAG, nn::parameters::groups::Normal>){
+                    if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Weights> && PARAMETERS::WEIGHT_DECAY > 0){
+                        parameter_update += get(parameter.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY / 2;
+                    }
                 }
                 increment(parameter.parameters, row_i, col_i, -parameter_update);
             }

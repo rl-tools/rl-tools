@@ -44,7 +44,7 @@ namespace multirotor_training{
                 static constexpr bool ENABLE_CURRICULUM = true;
                 static constexpr bool RECALCULATE_REWARDS = true;
                 static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
-                static constexpr bool INIT_NORMAL = true;
+                static constexpr bool INIT_NORMAL = false;
             };
 
             using ENVIRONMENT = parameters_0::environment<T, TI, ABLATION_SPEC>::ENVIRONMENT;
@@ -82,11 +82,11 @@ namespace multirotor_training{
                 static constexpr TI HIDDEN_DIM = 64;
                 static constexpr TI BATCH_SIZE = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
                 static constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::FAST_TANH;
-                using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
+                using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, bpt::nn::parameters::groups::Input, BATCH_SIZE>;
                 using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
-                using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
+                using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, bpt::nn::parameters::groups::Normal, BATCH_SIZE>;
                 using LAYER_2 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
-                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, bpt::nn::activation_functions::FAST_TANH, PARAMETER_TYPE, BATCH_SIZE>;
+                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, bpt::nn::activation_functions::FAST_TANH, PARAMETER_TYPE, bpt::nn::parameters::groups::Output, BATCH_SIZE>;
                 using LAYER_3 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
 
                 using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -94,11 +94,11 @@ namespace multirotor_training{
 
             template <typename ACTOR>
             struct ACTOR_CHECKPOINT{
-                using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ACTOR::HIDDEN_DIM, ACTOR::ACTIVATION_FUNCTION, bpt::nn::parameters::Plain>;
+                using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ACTOR::HIDDEN_DIM, ACTOR::ACTIVATION_FUNCTION, bpt::nn::parameters::Plain, bpt::nn::parameters::groups::Input>;
                 using LAYER_1 = bpt::nn::layers::dense::Layer<LAYER_1_SPEC>;
-                using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, ACTOR::HIDDEN_DIM, ACTOR::HIDDEN_DIM, ACTOR::ACTIVATION_FUNCTION, bpt::nn::parameters::Plain>;
+                using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, ACTOR::HIDDEN_DIM, ACTOR::HIDDEN_DIM, ACTOR::ACTIVATION_FUNCTION, bpt::nn::parameters::Plain, bpt::nn::parameters::groups::Normal>;
                 using LAYER_2 = bpt::nn::layers::dense::Layer<LAYER_2_SPEC>;
-                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, ACTOR::HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, bpt::nn::activation_functions::FAST_TANH, bpt::nn::parameters::Plain>;
+                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, ACTOR::HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, bpt::nn::activation_functions::FAST_TANH, bpt::nn::parameters::Plain, bpt::nn::parameters::groups::Output>;
                 using LAYER_3 = bpt::nn::layers::dense::Layer<LAYER_3_SPEC>;
 
                 using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -110,18 +110,18 @@ namespace multirotor_training{
                 static constexpr TI BATCH_SIZE = TD3_PARAMETERS::CRITIC_BATCH_SIZE;
 
                 static constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::FAST_TANH;
-                using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, CRITIC_OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
+                using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, CRITIC_OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, bpt::nn::parameters::groups::Input, BATCH_SIZE>;
                 using LAYER_1 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
-                using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
+                using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, bpt::nn::parameters::groups::Normal, BATCH_SIZE>;
                 using LAYER_2 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
-                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, bpt::nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>;
+                using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, bpt::nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, bpt::nn::parameters::groups::Output, BATCH_SIZE>;
                 using LAYER_3 = bpt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
 
                 using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
             };
 
             struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParameters<T, TI>{
-                static constexpr T WEIGHT_DECAY = 0.0002;
+                static constexpr T WEIGHT_DECAY = 0.0010;
             };
             using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
             using ACTOR_TYPE = typename ACTOR<bpt::nn::parameters::Adam>::MODEL;
@@ -291,6 +291,11 @@ namespace multirotor_training{
                     gamma = gamma > gamma_limit ? gamma_limit : gamma;
                     ts.actor_critic.gamma = gamma;
                 }
+                if (CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true && ts.step == 300000){
+                    for (auto& env : ts.off_policy_runner.envs) {
+                        env.parameters.mdp.init = backprop_tools::rl::environments::multirotor::parameters::init::all_around_2<T, TI, 4, CONFIG::ENVIRONMENT::PARAMETERS::MDP::REWARD_FUNCTION>;
+                    }
+                }
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/gamma", ts.actor_critic.gamma);
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_std", ts.actor_critic.target_next_action_noise_std);
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_clip", ts.actor_critic.target_next_action_noise_clip);
@@ -328,7 +333,7 @@ namespace multirotor_training{
                         }
                         {
                             T linear_velocity_weight = env.parameters.mdp.reward.linear_velocity;
-                            linear_velocity_weight *= 1.4;
+//                            linear_velocity_weight *= 1.4;
                             T linear_velocity_weight_limit = 1;
                             linear_velocity_weight = linear_velocity_weight > linear_velocity_weight_limit ? linear_velocity_weight_limit : linear_velocity_weight;
                             env.parameters.mdp.reward.linear_velocity = linear_velocity_weight;
