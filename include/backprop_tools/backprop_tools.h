@@ -12,6 +12,17 @@
 #define BACKPROP_TOOLS_NAMESPACE_WRAPPER_START namespace BACKPROP_TOOLS_NAMESPACE_WRAPPER {
 #define BACKPROP_TOOLS_NAMESPACE_WRAPPER_END }
 #endif
+
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+namespace backprop_tools{
+    template <auto T_C>
+    struct Constant{
+        static constexpr auto C = T_C;
+    };
+}
+BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+
+
 #endif
 
 #define BACKPROP_TOOLS_TARGET_COMMIT_HASH fea9e60f01022880379374001e26f2a7678ab42e

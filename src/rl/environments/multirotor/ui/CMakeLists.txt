@@ -24,6 +24,7 @@ target_link_libraries(
         backprop_tools
         HighFive
         tensorboard_logger
+        libattopng
 )
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_ui_training)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_ui_training)

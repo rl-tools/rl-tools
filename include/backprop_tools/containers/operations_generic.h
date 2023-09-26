@@ -283,6 +283,14 @@ namespace backprop_tools{
             }
         }
     }
+    template<typename DEVICE, typename SPEC>
+    void multiply_all(DEVICE& device, Matrix<SPEC>& m, typename SPEC::T factor){
+        for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
+            for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
+                multiply(m, i, j, factor);
+            }
+        }
+    }
     template<typename DEVICE, typename SPEC, typename VALUE_T>
     void increment_all(DEVICE& device, Matrix<SPEC>& m, VALUE_T value){
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
@@ -374,6 +382,23 @@ namespace backprop_tools{
             }
         }
         return acc;
+    }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T sum_of_squares(DEVICE& device, const Matrix<SPEC>& m){
+        using TI = typename SPEC::TI;
+        using T = typename SPEC::T;
+        T acc = 0;
+        for(TI i = 0; i < SPEC::ROWS; i++){
+            for(TI j = 0; j < SPEC::COLS; j++){
+                auto val = get(m, i, j);
+                acc += val * val;
+            }
+        }
+        return acc;
+    }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T mean_of_squares(DEVICE& device, const Matrix<SPEC>& m){
+        return sum_of_squares(device, m) / (SPEC::ROWS * SPEC::COLS);
     }
     template<typename DEVICE, typename SPEC>
     [[deprecated("Note: math::isnan might be optimized out by the compiler when using e.g. fast-math")]]
@@ -549,6 +574,25 @@ namespace backprop_tools{
         T tmp = get(a, row_a, col_a);
         set(a, row_a, col_a, get(b, row_b, col_b));
         set(b, row_b, col_b, tmp);
+    }
+    template <typename DEVICE, typename INPUT_SPEC, typename OUTPUT_SPEC>
+    void normalize(DEVICE& device, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
+        static_assert(containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
+        using T = typename INPUT_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        T mu = mean(device, input);
+        T std = math::sqrt(device.math, mean_of_squares(device, input) - mu * mu);
+        for(TI row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
+            for(TI col_i = 0; col_i < INPUT_SPEC::COLS; col_i++){
+                T x = get(input, row_i, col_i);
+                T normalized = (x - mu) / std;
+                set(output, row_i, col_i, normalized);
+            }
+        }
+    }
+    template <typename DEVICE, typename INPUT_SPEC>
+    void normalize(DEVICE& device, Matrix<INPUT_SPEC>& input){
+        normalize(device, input, input);
     }
 
     template <typename DEVICE, typename MEAN_SPEC, typename STD_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>

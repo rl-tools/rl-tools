@@ -2,11 +2,16 @@
 #if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H
+#include <backprop_tools/containers.h>
 
 #include <filesystem>
 #include <cassert>
 #include "operations_cpu.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+
+#ifdef BACKPROP_TOOLS_ENABLE_LIBATTOPNG
+#include <libattopng.h>
+#endif
 namespace backprop_tools{
     namespace logging::tensorboard{
         std::string sanitize_file_name(const std::string &input) {
@@ -81,6 +86,34 @@ namespace backprop_tools{
     void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const T* values, const TI n_values){
         add_histogram(device, logger, key, values, n_values, (typename DEVICE::index_t)1);
     }
+#ifdef BACKPROP_TOOLS_ENABLE_LIBATTOPNG
+    template <typename DEVICE, typename KEY_TYPE, typename SPEC>
+    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, backprop_tools::Matrix<SPEC> values){
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        libattopng_t* png = libattopng_new(SPEC::COLS, SPEC::ROWS, PNG_RGBA);
+
+        for (TI y = 0; y < SPEC::ROWS; y++) {
+            for (TI x = 0; x < SPEC::COLS; x++) {
+                uint8_t r = math::clamp<T>(device.math, get(values, x, y) * 255.0, 0, 255);
+                uint8_t g = r;
+                uint8_t b = r;
+                uint8_t a = 255;
+                uint32_t color = r | ((g) << 8) | ((b) << 16) | ((a) << 24);
+                libattopng_set_pixel(png, x, y, color);
+            }
+        }
+        size_t len;
+        char *data = libattopng_get_data(png, &len);
+        std::string image_data = std::string(data, len);
+        std::cout << "adding image at step: " << logger.step << std::endl;
+        logger.tb->add_image(key, logger.step, image_data, SPEC::ROWS, SPEC::COLS, 4, "Test", "Image");
+        libattopng_destroy(png);
+    }
+#else
+    template <typename DEVICE, typename SPEC>
+    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, backprop_tools::Matrix<SPEC> values){ }
+#endif
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 #endif

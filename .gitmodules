@@ -49,3 +49,6 @@
 [submodule "docs"]
 	path = docs
 	url = https://github.com/BackpropTools/documentation.git
+[submodule "external/libattopng"]
+	path = external/libattopng
+	url = https://github.com/misc0110/libattopng.git
