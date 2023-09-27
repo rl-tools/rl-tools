@@ -222,8 +222,8 @@ int main(int argc, char** argv) {
                 target_state = state;
                 trajectory(((T)step_i - TRACKING_START_STEP) * env.parameters.integration.dt, target_state.position, target_state.linear_velocity);
                 observation_state = state;
-                constexpr T max_pos_diff = 0.3;
-                constexpr T max_vel_diff = 1;
+                constexpr T max_pos_diff = 0.6;
+                constexpr T max_vel_diff = 2;
                 observation_state.position[0] = bpt::math::clamp(dev.math, state.position[0] - target_state.position[0], -max_pos_diff, max_pos_diff);
                 observation_state.position[1] = bpt::math::clamp(dev.math, state.position[1] - target_state.position[1], -max_pos_diff, max_pos_diff);
                 observation_state.position[2] = bpt::math::clamp(dev.math, state.position[2] - target_state.position[2], -max_pos_diff, max_pos_diff);
