@@ -163,6 +163,20 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     };
 
     template<typename T>
+    constexpr AbsExp<T> abs_exp_position_orientation_lin_vel = {
+            1, // scale
+            20, // scale inner
+            1, // position
+            0.1, // orientation
+            0.1, // linear velocity
+            0, // angular velocity
+            0, // linear acceleration
+            0, // angular acceleration
+            BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_REWARD_FUNCTIONS_DEFAULT_ACTION_BASELINE, // action baseline
+            0 // divide by to because actions are transformed from -1 -> 1 to 0 to 2 by the baseline => norm will be 2x
+    };
+
+    template<typename T>
     constexpr SqExp<T> sq_exp_position_action_only_2 = {
             0, // additive_constant
             1, // scale

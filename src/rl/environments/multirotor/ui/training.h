@@ -145,11 +145,11 @@ namespace multirotor_training{
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 15000001;
-            static constexpr TI REPLAY_BUFFER_LIMIT = 3000000;
-            static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT > REPLAY_BUFFER_LIMIT ? REPLAY_BUFFER_LIMIT : STEP_LIMIT;
+            static constexpr TI STEP_LIMIT = 3000001;
+//            static constexpr TI REPLAY_BUFFER_LIMIT = 3000000;
+            static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 100;
-            static constexpr TI SEED = 6;
+            static constexpr TI SEED = 7;
             static constexpr bool CONSTRUCT_LOGGER = false;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
