@@ -37,15 +37,15 @@ namespace multirotor_training{
             using TI = typename DEVICE::index_t;
 
             struct ABLATION_SPEC{
-                static constexpr bool DISTURBANCE = true;
+                static constexpr bool DISTURBANCE = false;
                 static constexpr bool OBSERVATION_NOISE = false;
                 static constexpr bool ASYMMETRIC_ACTOR_CRITIC = true;
                 static constexpr bool ROTOR_DELAY = true;
                 static constexpr bool ACTION_HISTORY = true;
-                static constexpr bool ENABLE_CURRICULUM = true;
+                static constexpr bool ENABLE_CURRICULUM = false;
                 static constexpr bool RECALCULATE_REWARDS = true;
                 static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
-                static constexpr bool INIT_NORMAL = false;
+                static constexpr bool INIT_NORMAL = true;
             };
 
             using ENVIRONMENT = parameters_0::environment<T, TI, ABLATION_SPEC>::ENVIRONMENT;
@@ -69,7 +69,7 @@ namespace multirotor_training{
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-                static constexpr T GAMMA = 0.99;
+                static constexpr T GAMMA = 0.97;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
 
@@ -144,8 +144,9 @@ namespace multirotor_training{
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
             static constexpr TI STEP_LIMIT = 15000001;
-            static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT > 1000000 ? 1000000 : STEP_LIMIT;
-            static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
+            static constexpr TI REPLAY_BUFFER_LIMIT = 3000000;
+            static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT > REPLAY_BUFFER_LIMIT ? REPLAY_BUFFER_LIMIT : STEP_LIMIT;
+            static constexpr TI ENVIRONMENT_STEP_LIMIT = 100;
             static constexpr TI SEED = 6;
             static constexpr bool CONSTRUCT_LOGGER = false;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
@@ -287,16 +288,16 @@ namespace multirotor_training{
 //                ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                 if constexpr(CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true){
                     T gamma = ts.actor_critic.gamma;
-                    gamma += 0.001;
+//                    gamma += 0.001;
                     T gamma_limit = 0.997;
                     gamma = gamma > gamma_limit ? gamma_limit : gamma;
                     ts.actor_critic.gamma = gamma;
                 }
-                if (CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true && ts.step == 300000){
-                    for (auto& env : ts.off_policy_runner.envs) {
-                        env.parameters.mdp.init = backprop_tools::rl::environments::multirotor::parameters::init::all_around_2<T, TI, 4, CONFIG::ENVIRONMENT::PARAMETERS::MDP::REWARD_FUNCTION>;
-                    }
-                }
+//                if (CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true && ts.step == 300000){
+//                    for (auto& env : ts.off_policy_runner.envs) {
+//                        env.parameters.mdp.init = backprop_tools::rl::environments::multirotor::parameters::init::all_around_2<T, TI, 4, CONFIG::ENVIRONMENT::PARAMETERS::MDP::REWARD_FUNCTION>;
+//                    }
+//                }
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/gamma", ts.actor_critic.gamma);
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_std", ts.actor_critic.target_next_action_noise_std);
                 bpt::add_scalar(ts.device, ts.device.logger, "td3/target_next_action_noise_clip", ts.actor_critic.target_next_action_noise_clip);
@@ -410,7 +411,7 @@ namespace multirotor_training{
             using CONFIG = config::Config;
             using T = CONFIG::T;
             using TI = CONFIG::TI;
-            if(ts.step % 10000 == 0){
+            if(ts.step % 100000 == 0){
                 {
                     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 100, 100>> image;
                     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED + CONFIG::ENVIRONMENT::ACTION_DIM>> critic_input;

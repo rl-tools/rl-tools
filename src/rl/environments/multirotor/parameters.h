@@ -41,7 +41,8 @@ namespace parameters{
 //                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_old_but_gold<T>;
 //                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_fast_learning<T>;
 //                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_absolute_fast_learning<T>;
-                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_absolute_fast_learning_2<T>;
+//                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_absolute_fast_learning_2<T>;
+                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::abs_exp_position_only<T>;
 
 
                 using REWARD_FUNCTION_CONST = typename backprop_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
@@ -50,7 +51,7 @@ namespace parameters{
                 using PARAMETERS_TYPE = backprop_tools::rl::environments::multirotor::ParametersDisturbances<T, TI, backprop_tools::rl::environments::multirotor::ParametersBase<T, TI, 4, REWARD_FUNCTION>>;
 
                 static constexpr auto init_params = ABLATION_SPEC::INIT_NORMAL ?
-                                                    backprop_tools::rl::environments::multirotor::parameters::init::all_around_2<T, TI, 4, REWARD_FUNCTION>
+                                                    backprop_tools::rl::environments::multirotor::parameters::init::orientation_biggest_angle<T, TI, 4, REWARD_FUNCTION>
                                                                                :
 //                                                    backprop_tools::rl::environments::multirotor::parameters::init::orientation_small_angle<T, TI, 4, REWARD_FUNCTION>;
                                                     backprop_tools::rl::environments::multirotor::parameters::init::all_positions<T, TI, 4, REWARD_FUNCTION>;
