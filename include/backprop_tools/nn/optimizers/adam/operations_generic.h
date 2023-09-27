@@ -39,8 +39,8 @@ namespace backprop_tools{
                 }
                 if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Weights> && PARAMETERS::WEIGHT_DECAY > 0){
                     if constexpr(utils::typing::is_same_v<typename SPEC::GROUP_TAG, nn::parameters::groups::Normal> ||
-                                 utils::typing::is_same_v<typename SPEC::GROUP_TAG, nn::parameters::groups::Input> && PARAMETERS::WEIGHT_DECAY_ON_INPUT ||
-                                 utils::typing::is_same_v<typename SPEC::GROUP_TAG, nn::parameters::groups::Output> && PARAMETERS::WEIGHT_DECAY_ON_OUTPUT){
+                                 utils::typing::is_same_v<typename SPEC::GROUP_TAG, nn::parameters::groups::Input>  && PARAMETERS::WEIGHT_DECAY_ON_INPUT  > 0 ||
+                                 utils::typing::is_same_v<typename SPEC::GROUP_TAG, nn::parameters::groups::Output> && PARAMETERS::WEIGHT_DECAY_ON_OUTPUT > 0){
                         parameter_update += get(parameter.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY / 2;
                     }
                 }

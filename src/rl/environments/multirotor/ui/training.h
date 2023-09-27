@@ -69,7 +69,7 @@ namespace multirotor_training{
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-                static constexpr T GAMMA = 0.97;
+                static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
 
@@ -122,7 +122,9 @@ namespace multirotor_training{
             };
 
             struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParameters<T, TI>{
-                static constexpr T WEIGHT_DECAY = 0.002;
+                static constexpr T WEIGHT_DECAY = 0.0002;
+//                static constexpr T WEIGHT_DECAY_ON_INPUT = 0.00002;
+//                static constexpr T WEIGHT_DECAY_ON_OUTPUT = 0.00002;
             };
             using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
             using ACTOR_TYPE = typename ACTOR<bpt::nn::parameters::Adam>::MODEL;

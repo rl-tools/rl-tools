@@ -17,8 +17,8 @@ namespace backprop_tools::nn::optimizers{
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-7;
             static constexpr T WEIGHT_DECAY = 0;
-            static constexpr bool WEIGHT_DECAY_ON_INPUT = false;
-            static constexpr bool WEIGHT_DECAY_ON_OUTPUT = false;
+            static constexpr T WEIGHT_DECAY_ON_INPUT = 0;
+            static constexpr T WEIGHT_DECAY_ON_OUTPUT = 0;
             static constexpr T BIAS_LR_FACTOR = 1;
 
         };
@@ -31,8 +31,8 @@ namespace backprop_tools::nn::optimizers{
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-8;
             static constexpr T WEIGHT_DECAY = 0;
-            static constexpr bool WEIGHT_DECAY_ON_INPUT = false;
-            static constexpr bool WEIGHT_DECAY_ON_OUTPUT = false;
+            static constexpr T WEIGHT_DECAY_INPUT = 0;
+            static constexpr T WEIGHT_DECAY_OUTPUT = 0;
             static constexpr T BIAS_LR_FACTOR = 1;
         };
         template<typename T_T, typename T_TI>
@@ -44,8 +44,8 @@ namespace backprop_tools::nn::optimizers{
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-8;
             static constexpr T WEIGHT_DECAY = 0;
-            static constexpr bool WEIGHT_DECAY_ON_INPUT = false;
-            static constexpr bool WEIGHT_DECAY_ON_OUTPUT = false;
+            static constexpr T WEIGHT_DECAY_ON_INPUT = 0;
+            static constexpr T WEIGHT_DECAY_ON_OUTPUT = 0;
             static constexpr T BIAS_LR_FACTOR = 10;
         };
     }
