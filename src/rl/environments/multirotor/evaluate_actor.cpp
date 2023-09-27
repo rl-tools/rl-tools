@@ -36,7 +36,7 @@ namespace TEST_DEFINITIONS{
         static constexpr bool ROTOR_DELAY = true;
         static constexpr bool ACTION_HISTORY = BASE_SPEC::ROTOR_DELAY && BASE_SPEC::ACTION_HISTORY;
         static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
-        static constexpr bool INIT_NORMAL = false;
+        static constexpr bool INIT_NORMAL = true;
     };
 
     using penv = parameter_set::environment<T, TI, SpecEval<parameters::DefaultAblationSpec>>;
@@ -44,7 +44,8 @@ namespace TEST_DEFINITIONS{
     using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
 
 //    using prl = parameter_set::rl<T, TI, penv::ENVIRONMENT>;
-    constexpr TI MAX_EPISODE_LENGTH = 1000;
+    constexpr bool TRAJECTORY_TRACKING = false;
+    constexpr TI MAX_EPISODE_LENGTH = TRAJECTORY_TRACKING ? 3000 : 300;
     constexpr bool SAME_CONFIG_AS_IN_TRAINING = false;
     constexpr bool RANDOMIZE_DOMAIN_PARAMETERS = false;
     constexpr bool INIT_SIMPLE = false;
@@ -66,6 +67,10 @@ void trajectory(T t, T position[3], T velocity[3]){
     velocity[0] = cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * speed * 4 * M_PI;
     position[2] = 0;
     velocity[2] = 0;
+//    cosf(progress*2*M_PI + M_PI / 2) * figure_eight_scale
+//    -sinf(progress*2*M_PI + M_PI / 2) * speed * 2 * M_PI
+//    sinf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale
+//    cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * speed * 4 * M_PI
 }
 
 
@@ -87,7 +92,7 @@ int main(int argc, char** argv) {
     typename multirotor_training::config::Config::ACTOR_TYPE::DoubleBuffer<1> actor_buffer;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
-    typename ENVIRONMENT::State state, target_state, observation_state, next_state;
+    typename ENVIRONMENT::State state, target_state, observation_state, observation_state_clamped, next_state;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
     bpt::malloc(dev, env);
@@ -216,31 +221,45 @@ int main(int argc, char** argv) {
         T max_speed = 0;
         constexpr TI TRACKING_START_STEP = 100;
 
+        T tracking_error = 0;
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
-            if(step_i >= TRACKING_START_STEP){
+            if(TRAJECTORY_TRACKING && step_i >= TRACKING_START_STEP){
                 target_state = state;
                 trajectory(((T)step_i - TRACKING_START_STEP) * env.parameters.integration.dt, target_state.position, target_state.linear_velocity);
                 observation_state = state;
+                observation_state_clamped = state;
                 constexpr T max_pos_diff = 0.6;
-                constexpr T max_vel_diff = 2;
-                observation_state.position[0] = bpt::math::clamp(dev.math, state.position[0] - target_state.position[0], -max_pos_diff, max_pos_diff);
-                observation_state.position[1] = bpt::math::clamp(dev.math, state.position[1] - target_state.position[1], -max_pos_diff, max_pos_diff);
-                observation_state.position[2] = bpt::math::clamp(dev.math, state.position[2] - target_state.position[2], -max_pos_diff, max_pos_diff);
-                observation_state.linear_velocity[0] = bpt::math::clamp(dev.math, state.linear_velocity[0] - target_state.linear_velocity[0], -max_vel_diff, max_vel_diff);
-                observation_state.linear_velocity[1] = bpt::math::clamp(dev.math, state.linear_velocity[1] - target_state.linear_velocity[1], -max_vel_diff, max_vel_diff);
-                observation_state.linear_velocity[2] = bpt::math::clamp(dev.math, state.linear_velocity[2] - target_state.linear_velocity[2], -max_vel_diff, max_vel_diff);
+                constexpr T max_vel_diff = 5;
+                observation_state.position[0] = state.position[0] - target_state.position[0];
+                observation_state.position[1] = state.position[1] - target_state.position[1];
+                observation_state.position[2] = state.position[2] - target_state.position[2];
+                observation_state_clamped.position[0] = bpt::math::clamp(dev.math, observation_state.position[0], -max_pos_diff, max_pos_diff);
+                observation_state_clamped.position[1] = bpt::math::clamp(dev.math, observation_state.position[1], -max_pos_diff, max_pos_diff);
+                observation_state_clamped.position[2] = bpt::math::clamp(dev.math, observation_state.position[2], -max_pos_diff, max_pos_diff);
+
+                observation_state.linear_velocity[0] = state.linear_velocity[0] - target_state.linear_velocity[0];
+                observation_state.linear_velocity[1] = state.linear_velocity[1] - target_state.linear_velocity[1];
+                observation_state.linear_velocity[2] = state.linear_velocity[2] - target_state.linear_velocity[2];
+                observation_state_clamped.linear_velocity[0] = bpt::math::clamp(dev.math, observation_state.linear_velocity[0], -max_vel_diff, max_vel_diff);
+                observation_state_clamped.linear_velocity[1] = bpt::math::clamp(dev.math, observation_state.linear_velocity[1], -max_vel_diff, max_vel_diff);
+                observation_state_clamped.linear_velocity[2] = bpt::math::clamp(dev.math, observation_state.linear_velocity[2], -max_vel_diff, max_vel_diff);
+
+                tracking_error += bpt::math::sqrt(dev.math, observation_state.position[0] * observation_state.position[0] + observation_state.position[1] * observation_state.position[1]); // + observation_state.position[2] * observation_state.position[2]);
+                std::cout << "Tracking error: " << tracking_error/(step_i - TRACKING_START_STEP + 1) << std::endl;
             }
             else{
                 observation_state = state;
+                observation_state_clamped = state;
             }
-            bpt::observe(dev, env, observation_state, observation, rng);
+            bpt::observe(dev, env, observation_state_clamped, observation, rng);
             bpt::evaluate(dev, actor, observation, action, actor_buffer);
 //            for(TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++){
 //                increment(action, 0, action_i, bpt::random::normal_distribution(DEVICE::SPEC::RANDOM(), (T)0, (T)(T)prl::OFF_POLICY_RUNNER_PARAMETERS::EXPLORATION_NOISE, rng));
 //            }
             bpt::clamp(dev, action, (T)-1, (T)1);
             T dt = bpt::step(dev, env, state, action, next_state, rng);
+            constexpr T time_lapse = 1;
             bool terminated_flag = bpt::terminated(dev, env, observation_state, rng);
             reward_acc += bpt::reward(dev, env, state, action, next_state, rng);
             bpt::set_state(dev, ui, state, action);
@@ -259,7 +278,7 @@ int main(int argc, char** argv) {
             if(speed > max_speed){
                 max_speed = speed;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds((int)((dt - diff.count())*1000)));
+            std::this_thread::sleep_for(std::chrono::milliseconds((int)((dt/time_lapse - diff.count())*1000)));
             if(terminated_flag || step_i == (MAX_EPISODE_LENGTH - 1)){
                 std::cout << "Episode terminated after " << step_i << " steps with reward " << reward_acc << "(max speed: " << max_speed << ")" << std::endl;
                 break;

@@ -42,7 +42,7 @@ namespace multirotor_training{
                 static constexpr bool ASYMMETRIC_ACTOR_CRITIC = true;
                 static constexpr bool ROTOR_DELAY = true;
                 static constexpr bool ACTION_HISTORY = true;
-                static constexpr bool ENABLE_CURRICULUM = false;
+                static constexpr bool ENABLE_CURRICULUM = true;
                 static constexpr bool RECALCULATE_REWARDS = true;
                 static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
                 static constexpr bool INIT_NORMAL = true;
@@ -69,7 +69,7 @@ namespace multirotor_training{
 //            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-                static constexpr T GAMMA = 0.98;
+                static constexpr T GAMMA = 0.97;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
 
@@ -288,13 +288,13 @@ namespace multirotor_training{
 //                ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
 //                ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
 //                ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
-                if constexpr(CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true){
-                    T gamma = ts.actor_critic.gamma;
+//                if constexpr(CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true){
+//                    T gamma = ts.actor_critic.gamma;
 //                    gamma += 0.001;
-                    T gamma_limit = 0.997;
-                    gamma = gamma > gamma_limit ? gamma_limit : gamma;
-                    ts.actor_critic.gamma = gamma;
-                }
+//                    T gamma_limit = 0.997;
+//                    gamma = gamma > gamma_limit ? gamma_limit : gamma;
+//                    ts.actor_critic.gamma = gamma;
+//                }
 //                if (CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true && ts.step == 300000){
 //                    for (auto& env : ts.off_policy_runner.envs) {
 //                        env.parameters.mdp.init = backprop_tools::rl::environments::multirotor::parameters::init::all_around_2<T, TI, 4, CONFIG::ENVIRONMENT::PARAMETERS::MDP::REWARD_FUNCTION>;
@@ -322,26 +322,34 @@ namespace multirotor_training{
                 if constexpr(CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true){
                     for (auto& env : ts.off_policy_runner.envs) {
                         {
-                            T action_weight = env.parameters.mdp.reward.action;
-                            action_weight += 0.1;
-                            T action_weight_limit = 0.5;
-                            action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
-                            env.parameters.mdp.reward.action = action_weight;
+                            T scale_inner = env.parameters.mdp.reward.scale_inner;
+                            scale_inner *= 1.2;
+                            T scale_inner_limit = 50;
+                            scale_inner = scale_inner > scale_inner_limit ? scale_inner_limit : scale_inner;
+                            env.parameters.mdp.reward.scale_inner = scale_inner;
+                            bpt::add_scalar(ts.device, ts.device.logger, "reward_function/scale_inner", scale_inner);
                         }
-                        {
-                            T position_weight = env.parameters.mdp.reward.position;
-                            position_weight *= 1.0;
-                            T position_weight_limit = 5;
-                            position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
-                            env.parameters.mdp.reward.position = position_weight;
-                        }
-                        {
-                            T linear_velocity_weight = env.parameters.mdp.reward.linear_velocity;
-//                            linear_velocity_weight *= 1.4;
-                            T linear_velocity_weight_limit = 1;
-                            linear_velocity_weight = linear_velocity_weight > linear_velocity_weight_limit ? linear_velocity_weight_limit : linear_velocity_weight;
-                            env.parameters.mdp.reward.linear_velocity = linear_velocity_weight;
-                        }
+//                        {
+//                            T action_weight = env.parameters.mdp.reward.action;
+//                            action_weight += 0.1;
+//                            T action_weight_limit = 0.5;
+//                            action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
+//                            env.parameters.mdp.reward.action = action_weight;
+//                        }
+//                        {
+//                            T position_weight = env.parameters.mdp.reward.position;
+//                            position_weight *= 1.0;
+//                            T position_weight_limit = 5;
+//                            position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
+//                            env.parameters.mdp.reward.position = position_weight;
+//                        }
+//                        {
+//                            T linear_velocity_weight = env.parameters.mdp.reward.linear_velocity;
+////                            linear_velocity_weight *= 1.4;
+//                            T linear_velocity_weight_limit = 1;
+//                            linear_velocity_weight = linear_velocity_weight > linear_velocity_weight_limit ? linear_velocity_weight_limit : linear_velocity_weight;
+//                            env.parameters.mdp.reward.linear_velocity = linear_velocity_weight;
+//                        }
                     }
                     bpt::add_scalar(ts.device, ts.device.logger, "reward_function/position_weight", ts.off_policy_runner.envs[0].parameters.mdp.reward.position);
                     bpt::add_scalar(ts.device, ts.device.logger, "reward_function/linear_velocity_weight",ts. off_policy_runner.envs[0].parameters.mdp.reward.linear_velocity);
@@ -353,7 +361,6 @@ namespace multirotor_training{
                         auto end = std::chrono::high_resolution_clock::now();
                         std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
                     }
-
                 }
             }
         }
