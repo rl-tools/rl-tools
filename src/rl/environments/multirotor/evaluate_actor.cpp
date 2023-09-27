@@ -54,6 +54,20 @@ namespace TEST_DEFINITIONS{
     constexpr bool AMPLIFY_DISTURBANCES = false;
 }
 
+template <typename T>
+void trajectory(T t, T position[3], T velocity[3]){
+    constexpr T figure_eight_scale = 2;
+    constexpr T figure_eight_interval = 5.5;
+    T speed = 1 / figure_eight_interval;
+    T progress = t * speed;
+    position[1] = cosf(progress*2*M_PI + M_PI / 2) * figure_eight_scale;
+    velocity[1] = -sinf(progress*2*M_PI + M_PI / 2) * speed * 2 * M_PI;
+    position[0] = sinf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * figure_eight_scale;
+    velocity[0] = cosf(2*(progress*2*M_PI + M_PI / 2)) / 2.0f * speed * 4 * M_PI;
+    position[2] = 0;
+    velocity[2] = 0;
+}
+
 
 int main(int argc, char** argv) {
     using namespace TEST_DEFINITIONS;
@@ -73,7 +87,7 @@ int main(int argc, char** argv) {
     typename multirotor_training::config::Config::ACTOR_TYPE::DoubleBuffer<1> actor_buffer;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
-    typename ENVIRONMENT::State state, next_state;
+    typename ENVIRONMENT::State state, target_state, observation_state, next_state;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
     bpt::malloc(dev, env);
@@ -200,16 +214,34 @@ int main(int argc, char** argv) {
         std::cout << "Random force: " << state.force[0] << ", " << state.force[1] << ", " << state.force[2] << std::endl;
 //        bpt::initial_state(dev, env, state);
         T max_speed = 0;
+        constexpr TI TRACKING_START_STEP = 100;
+
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
-            bpt::observe(dev, env, state, observation, rng);
+            if(step_i >= TRACKING_START_STEP){
+                target_state = state;
+                trajectory(((T)step_i - TRACKING_START_STEP) * env.parameters.integration.dt, target_state.position, target_state.linear_velocity);
+                observation_state = state;
+                constexpr T max_pos_diff = 0.3;
+                constexpr T max_vel_diff = 1;
+                observation_state.position[0] = bpt::math::clamp(dev.math, state.position[0] - target_state.position[0], -max_pos_diff, max_pos_diff);
+                observation_state.position[1] = bpt::math::clamp(dev.math, state.position[1] - target_state.position[1], -max_pos_diff, max_pos_diff);
+                observation_state.position[2] = bpt::math::clamp(dev.math, state.position[2] - target_state.position[2], -max_pos_diff, max_pos_diff);
+                observation_state.linear_velocity[0] = bpt::math::clamp(dev.math, state.linear_velocity[0] - target_state.linear_velocity[0], -max_vel_diff, max_vel_diff);
+                observation_state.linear_velocity[1] = bpt::math::clamp(dev.math, state.linear_velocity[1] - target_state.linear_velocity[1], -max_vel_diff, max_vel_diff);
+                observation_state.linear_velocity[2] = bpt::math::clamp(dev.math, state.linear_velocity[2] - target_state.linear_velocity[2], -max_vel_diff, max_vel_diff);
+            }
+            else{
+                observation_state = state;
+            }
+            bpt::observe(dev, env, observation_state, observation, rng);
             bpt::evaluate(dev, actor, observation, action, actor_buffer);
 //            for(TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++){
 //                increment(action, 0, action_i, bpt::random::normal_distribution(DEVICE::SPEC::RANDOM(), (T)0, (T)(T)prl::OFF_POLICY_RUNNER_PARAMETERS::EXPLORATION_NOISE, rng));
 //            }
             bpt::clamp(dev, action, (T)-1, (T)1);
             T dt = bpt::step(dev, env, state, action, next_state, rng);
-            bool terminated_flag = bpt::terminated(dev, env, next_state, rng);
+            bool terminated_flag = bpt::terminated(dev, env, observation_state, rng);
             reward_acc += bpt::reward(dev, env, state, action, next_state, rng);
             bpt::set_state(dev, ui, state, action);
             state = next_state;
