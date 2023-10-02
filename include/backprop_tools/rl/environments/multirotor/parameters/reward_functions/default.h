@@ -165,7 +165,7 @@ namespace backprop_tools::rl::environments::multirotor::parameters::reward_funct
     template<typename T>
     constexpr AbsExp<T> abs_exp_position_orientation_lin_vel = {
             1, // scale
-            10, // scale inner
+            1, // scale inner
             1, // position
             0.01, // orientation
             0.3, // linear velocity

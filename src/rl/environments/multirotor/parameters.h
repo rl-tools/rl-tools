@@ -52,7 +52,7 @@ namespace parameters{
                 using PARAMETERS_TYPE = backprop_tools::rl::environments::multirotor::ParametersDisturbances<T, TI, backprop_tools::rl::environments::multirotor::ParametersBase<T, TI, 4, REWARD_FUNCTION>>;
 
                 static constexpr auto init_params = ABLATION_SPEC::INIT_NORMAL ?
-                                                    backprop_tools::rl::environments::multirotor::parameters::init::orientation_biggest_angle<T, TI, 4, REWARD_FUNCTION>
+                                                    backprop_tools::rl::environments::multirotor::parameters::init::all_around_2<T, TI, 4, REWARD_FUNCTION>
                                                                                :
 //                                                    backprop_tools::rl::environments::multirotor::parameters::init::orientation_small_angle<T, TI, 4, REWARD_FUNCTION>;
                                                     backprop_tools::rl::environments::multirotor::parameters::init::all_positions<T, TI, 4, REWARD_FUNCTION>;

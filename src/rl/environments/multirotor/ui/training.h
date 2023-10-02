@@ -156,6 +156,14 @@ namespace multirotor_training{
             static constexpr bpt::rl::components::off_policy_runner::DefaultParameters<T> off_policy_runner_parameters = {
                     0.5
             };
+            // good policy stats:
+            // angular_acc error < 60
+            // action cost < 0.7
+            // angular_velocity < 4
+            // linear acceleration < 4
+            // orientation < 0.08
+            // position < 0.25
+            // linear_velocity < 0.75
 
             static constexpr TI N_WARMUP_STEPS_CRITIC = 15000;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 30000;
@@ -323,11 +331,19 @@ namespace multirotor_training{
                     for (auto& env : ts.off_policy_runner.envs) {
                         {
                             T scale_inner = env.parameters.mdp.reward.scale_inner;
-                            scale_inner *= 1.2;
+                            scale_inner *= 1.1;
                             T scale_inner_limit = 50;
                             scale_inner = scale_inner > scale_inner_limit ? scale_inner_limit : scale_inner;
                             env.parameters.mdp.reward.scale_inner = scale_inner;
                             bpt::add_scalar(ts.device, ts.device.logger, "reward_function/scale_inner", scale_inner);
+                        }
+                        {
+                            T angular_acceleration_weight = env.parameters.mdp.reward.angular_acceleration;
+                            angular_acceleration_weight += 1.0/2000;
+                            T angular_acceleration_weight_limit = 10.0/2000;
+                            angular_acceleration_weight = angular_acceleration_weight > angular_acceleration_weight_limit ? angular_acceleration_weight_limit : angular_acceleration_weight;
+                            env.parameters.mdp.reward.angular_acceleration = angular_acceleration_weight;
+                            bpt::add_scalar(ts.device, ts.device.logger, "reward_function/angular_acceleration", angular_acceleration_weight);
                         }
 //                        {
 //                            T action_weight = env.parameters.mdp.reward.action;
