@@ -171,8 +171,6 @@ namespace multirotor_training{
             static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         };
         struct Config: CoreConfig{
-//            static constexpr bool ENABLE_CURRICULUM = false;
-//            static constexpr bool RECALCULATE_REWARDS = true;
         };
     }
 
@@ -374,6 +372,10 @@ namespace multirotor_training{
                         }
 
                     }
+                    constexpr T noise_decay_base = 0.95;
+                    ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
+                    ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
+                    ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                     if constexpr(CONFIG::ABLATION_SPEC::RECALCULATE_REWARDS == true){
                         auto start = std::chrono::high_resolution_clock::now();
                         bpt::recalculate_rewards(ts.device, ts.off_policy_runner.replay_buffers[0], ts.off_policy_runner.envs[0], ts.rng_eval);
