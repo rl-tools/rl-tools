@@ -278,46 +278,62 @@ namespace backprop_tools{
             }
         }
     }
-    template<typename DEVICE, typename T, typename TI, typename SPEC, typename RNG>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBase<T, TI>& state, RNG& rng){
+    template<typename DEVICE, typename T, typename TI, typename SPEC, typename RNG, bool INHERIT_GUIDANCE = false>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateBase<T, TI>& state, RNG& rng, bool inherited_guidance = false){
         typename DEVICE::SPEC::MATH math_dev;
         typename DEVICE::SPEC::RANDOM random_dev;
         using STATE = typename rl::environments::multirotor::StateBase<T, TI>;
-        bool guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < env.parameters.mdp.init.guidance;
+        bool guidance;
+        if constexpr(INHERIT_GUIDANCE){
+            guidance = inherited_guidance;
+        }
+        else{
+            guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < env.parameters.mdp.init.guidance;
+        }
         if(!guidance){
             for(TI i = 0; i < 3; i++){
                 state.position[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_position, env.parameters.mdp.init.max_position, rng);
+            }
+            // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
+            if(env.parameters.mdp.init.max_angle > 0 && !guidance){
+                do{
+                    T u[3];
+                    for(TI i = 0; i < 3; i++){
+                        u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
+                    }
+                    state.orientation[0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*math::PI<T>*u[1]);
+                    state.orientation[1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
+                    state.orientation[2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
+                    state.orientation[3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
+                } while(math::abs(math_dev, 2*math::acos(math_dev, state.orientation[0])) > env.parameters.mdp.init.max_angle);
+            }
+            else{
+                state.orientation[0] = 1;
+                state.orientation[1] = 0;
+                state.orientation[2] = 0;
+                state.orientation[3] = 0;
+            }
+            for(TI i = 0; i < 3; i++){
+                state.linear_velocity[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_linear_velocity, env.parameters.mdp.init.max_linear_velocity, rng);
+            }
+            for(TI i = 0; i < 3; i++){
+                state.angular_velocity[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_angular_velocity, env.parameters.mdp.init.max_angular_velocity, rng);
             }
         }
         else{
             for(TI i = 0; i < 3; i++){
                 state.position[i] = 0;
             }
-        }
-        // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
-        if(env.parameters.mdp.init.max_angle > 0 && !guidance){
-            do{
-                T u[3];
-                for(TI i = 0; i < 3; i++){
-                    u[i] = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng);
-                }
-                state.orientation[0] = math::sqrt(math_dev, 1-u[0]) * math::sin(math_dev, 2*math::PI<T>*u[1]);
-                state.orientation[1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
-                state.orientation[2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
-                state.orientation[3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
-            } while(math::abs(math_dev, 2*math::acos(math_dev, state.orientation[0])) > env.parameters.mdp.init.max_angle);
-        }
-        else{
             state.orientation[0] = 1;
-            state.orientation[1] = 0;
-            state.orientation[2] = 0;
-            state.orientation[3] = 0;
-        }
-        for(TI i = 0; i < 3; i++){
-            state.linear_velocity[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_linear_velocity, env.parameters.mdp.init.max_linear_velocity, rng);
-        }
-        for(TI i = 0; i < 3; i++){
-            state.angular_velocity[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_angular_velocity, env.parameters.mdp.init.max_angular_velocity, rng);
+            for(TI i = 1; i < 4; i++){
+                state.orientation[i] = 0;
+            }
+            for(TI i = 0; i < 3; i++){
+                state.linear_velocity[i] = 0;
+            }
+            for(TI i = 0; i < 3; i++){
+                state.angular_velocity[i] = 0;
+            }
         }
         initial_parameters(device, env, state);
     }
@@ -325,18 +341,29 @@ namespace backprop_tools{
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::multirotor::StateRandomForce<T_S, TI_S, NEXT_COMPONENT>& state, RNG& rng){
         typename DEVICE::SPEC::RANDOM random_dev;
         using T = typename SPEC::T;
-        sample_initial_state(device, env, static_cast<NEXT_COMPONENT&>(state), rng);
-        {
-            auto distribution = env.parameters.disturbances.random_force;
-            state.force[0] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-            state.force[1] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-            state.force[2] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+        bool guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < env.parameters.mdp.init.guidance;
+        sample_initial_state<DEVICE, T_S, TI_S, SPEC, RNG, true>(device, env, static_cast<NEXT_COMPONENT&>(state), rng, guidance);
+        if(!guidance){
+            {
+                auto distribution = env.parameters.disturbances.random_force;
+                state.force[0] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+                state.force[1] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+                state.force[2] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            }
+            {
+                auto distribution = env.parameters.disturbances.random_torque;
+                state.torque[0] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+                state.torque[1] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+                state.torque[2] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+            }
         }
-        {
-            auto distribution = env.parameters.disturbances.random_torque;
-            state.torque[0] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-            state.torque[1] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
-            state.torque[2] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
+        else{
+            state.force[0] = 0;
+            state.force[1] = 0;
+            state.force[2] = 0;
+            state.torque[0] = 0;
+            state.torque[1] = 0;
+            state.torque[2] = 0;
         }
 
     }
