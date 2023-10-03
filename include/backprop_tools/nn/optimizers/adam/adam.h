@@ -46,7 +46,7 @@ namespace backprop_tools::nn::optimizers{
             static constexpr T WEIGHT_DECAY = 0;
             static constexpr T WEIGHT_DECAY_ON_INPUT = 0;
             static constexpr T WEIGHT_DECAY_ON_OUTPUT = 0;
-            static constexpr T BIAS_LR_FACTOR = 10;
+            static constexpr T BIAS_LR_FACTOR = 1;
         };
     }
     template<typename T_PARAMETERS>

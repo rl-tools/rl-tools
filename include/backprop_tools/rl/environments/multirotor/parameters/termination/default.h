@@ -19,9 +19,9 @@ namespace backprop_tools::rl::environments::multirotor::parameters::termination{
     template<typename T, typename TI, TI ACTION_DIM, typename REWARD_FUNCTION>
     constexpr typename backprop_tools::rl::environments::multirotor::ParametersBase<T, TI, 4, REWARD_FUNCTION>::MDP::Termination fast_learning = {
         true,           // enable
-        2.0,            // position
-        20,         // linear velocity
-        100 // angular velocity
+        0.6,            // position
+        1000,         // linear velocity
+        1000 // angular velocity
     };
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
