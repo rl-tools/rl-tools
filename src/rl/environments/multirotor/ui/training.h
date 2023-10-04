@@ -150,12 +150,12 @@ namespace multirotor_training{
 //            static constexpr TI REPLAY_BUFFER_LIMIT = 3000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
-            static constexpr TI SEED = 1;
+            static constexpr TI SEED = 12;
             static constexpr bool CONSTRUCT_LOGGER = false;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
             static constexpr bpt::rl::components::off_policy_runner::DefaultParameters<T> off_policy_runner_parameters = {
-                    0.5
+                    0.1
             };
             // good policy stats:
             // angular_acc error < 60
@@ -331,7 +331,7 @@ namespace multirotor_training{
                         {
                             T action_weight = env.parameters.mdp.reward.action;
                             action_weight *= 1.4;
-                            T action_weight_limit = 0.5;
+                            T action_weight_limit = 1.0;
                             action_weight = action_weight > action_weight_limit ? action_weight_limit : action_weight;
                             env.parameters.mdp.reward.action = action_weight;
                             bpt::add_scalar(ts.device, ts.device.logger, "reward_function/action_weight", action_weight);
@@ -339,43 +339,43 @@ namespace multirotor_training{
                         {
                             T position_weight = env.parameters.mdp.reward.position;
                             position_weight *= 1.2;
-                            T position_weight_limit = 20;
+                            T position_weight_limit = 40;
                             position_weight = position_weight > position_weight_limit ? position_weight_limit : position_weight;
                             env.parameters.mdp.reward.position = position_weight;
                             bpt::add_scalar(ts.device, ts.device.logger, "reward_function/position_weight", position_weight);
                         }
                         {
                             T linear_velocity_weight = env.parameters.mdp.reward.linear_velocity;
-                            linear_velocity_weight *= 1.5;
-                            T linear_velocity_weight_limit = 2;
+                            linear_velocity_weight *= 1.4;
+                            T linear_velocity_weight_limit = 1;
                             linear_velocity_weight = linear_velocity_weight > linear_velocity_weight_limit ? linear_velocity_weight_limit : linear_velocity_weight;
                             env.parameters.mdp.reward.linear_velocity = linear_velocity_weight;
                             bpt::add_scalar(ts.device, ts.device.logger, "reward_function/linear_velocity_weight", linear_velocity_weight);
                         }
                         if(ts.step >= 500000){
-                            {
-                                T angular_acceleration_weight = env.parameters.mdp.reward.angular_acceleration;
-                                angular_acceleration_weight += 0.01/170;
-                                T angular_acceleration_weight_limit = 0.05/170;
-                                angular_acceleration_weight = angular_acceleration_weight > angular_acceleration_weight_limit ? angular_acceleration_weight_limit : angular_acceleration_weight;
-                                env.parameters.mdp.reward.angular_acceleration = angular_acceleration_weight;
-                                bpt::add_scalar(ts.device, ts.device.logger, "reward_function/angular_acceleration_weight", angular_acceleration_weight);
-                            }
-                            {
-                                T constant_weight = env.parameters.mdp.reward.constant;
-                                constant_weight -= 0.1;
-                                T constant_weight_limit = 1;
-                                constant_weight = constant_weight < constant_weight_limit ? constant_weight_limit : constant_weight;
-                                env.parameters.mdp.reward.constant = constant_weight;
-                                bpt::add_scalar(ts.device, ts.device.logger, "reward_function/constant", constant_weight);
-                            }
+//                            {
+//                                T angular_acceleration_weight = env.parameters.mdp.reward.angular_acceleration;
+//                                angular_acceleration_weight += 0.01/170;
+//                                T angular_acceleration_weight_limit = 0.05/170;
+//                                angular_acceleration_weight = angular_acceleration_weight > angular_acceleration_weight_limit ? angular_acceleration_weight_limit : angular_acceleration_weight;
+//                                env.parameters.mdp.reward.angular_acceleration = angular_acceleration_weight;
+//                                bpt::add_scalar(ts.device, ts.device.logger, "reward_function/angular_acceleration_weight", angular_acceleration_weight);
+//                            }
+//                            {
+//                                T constant_weight = env.parameters.mdp.reward.constant;
+//                                constant_weight -= 0.1;
+//                                T constant_weight_limit = 1;
+//                                constant_weight = constant_weight < constant_weight_limit ? constant_weight_limit : constant_weight;
+//                                env.parameters.mdp.reward.constant = constant_weight;
+//                                bpt::add_scalar(ts.device, ts.device.logger, "reward_function/constant", constant_weight);
+//                            }
+                            constexpr T noise_decay_base = 0.90;
+                            ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
+                            ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
+                            ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                         }
 
                     }
-                    constexpr T noise_decay_base = 0.95;
-                    ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
-                    ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
-                    ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                     if constexpr(CONFIG::ABLATION_SPEC::RECALCULATE_REWARDS == true){
                         auto start = std::chrono::high_resolution_clock::now();
                         bpt::recalculate_rewards(ts.device, ts.off_policy_runner.replay_buffers[0], ts.off_policy_runner.envs[0], ts.rng_eval);
