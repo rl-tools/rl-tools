@@ -204,7 +204,7 @@ namespace multirotor_training{
                 bpt::construct(ts.device, ts.device.logger, std::string("logs"), ts.run_name);
             }
             bpt::rl::algorithms::td3::loop::init(ts, CONFIG::SEED);
-            ts.off_policy_runner.parameters = parameters_0::rl<config::Config::T, config::Config::TI, config::Config::ENVIRONMENT>::off_policy_runner_parameters;
+            ts.off_policy_runner.parameters = config::Config::off_policy_runner_parameters;
         }
 
         void step_logger(TrainingState& ts){
