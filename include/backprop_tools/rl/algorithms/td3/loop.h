@@ -91,14 +91,20 @@ namespace backprop_tools::rl::algorithms::td3::loop{
 
     template <typename TRAINING_STATE>
     void destroy(TRAINING_STATE& ts){
+        free(ts.device, ts.actor_critic);
+        free(ts.device, ts.off_policy_runner);
         free(ts.device, ts.critic_batch);
         free(ts.device, ts.critic_training_buffers);
+        free(ts.device, ts.critic_buffers[0]);
+        free(ts.device, ts.critic_buffers[1]);
         free(ts.device, ts.actor_batch);
         free(ts.device, ts.actor_training_buffers);
-        free(ts.device, ts.off_policy_runner);
-        free(ts.device, ts.actor_critic);
+        free(ts.device, ts.actor_buffers_eval);
+        free(ts.device, ts.actor_buffers[0]);
+        free(ts.device, ts.actor_buffers[1]);
         free(ts.device, ts.observations_mean);
         free(ts.device, ts.observations_std);
+        free(ts.device, ts.actor_deterministic_evaluation_buffers);
     }
 
 

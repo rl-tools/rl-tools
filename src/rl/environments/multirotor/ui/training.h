@@ -44,7 +44,7 @@ namespace multirotor_training{
                 static constexpr bool ACTION_HISTORY = true;
                 static constexpr bool ENABLE_CURRICULUM = true;
                 static constexpr bool RECALCULATE_REWARDS = true;
-                static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
+                static constexpr bool USE_INITIAL_REWARD_FUNCTION = true;
                 static constexpr bool INIT_NORMAL = true;
             };
 
@@ -123,9 +123,9 @@ namespace multirotor_training{
 
             struct OPTIMIZER_PARAMETERS: bpt::nn::optimizers::adam::DefaultParameters<T, TI>{
                 static constexpr T WEIGHT_DECAY = 0.0001;
-                static constexpr T WEIGHT_DECAY_ON_INPUT = 0.0001;
-                static constexpr T WEIGHT_DECAY_ON_OUTPUT = 0.0001;
-                static constexpr T BIAS_LR_FACTOR = 10;
+                static constexpr T WEIGHT_DECAY_INPUT = 0.0001;
+                static constexpr T WEIGHT_DECAY_OUTPUT = 0.0001;
+                static constexpr T BIAS_LR_FACTOR = 1;
             };
             using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
             using ACTOR_TYPE = typename ACTOR<bpt::nn::parameters::Adam>::MODEL;
@@ -150,7 +150,7 @@ namespace multirotor_training{
 //            static constexpr TI REPLAY_BUFFER_LIMIT = 3000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
-            static constexpr TI SEED = 12;
+            static constexpr TI BASE_SEED = 30;
             static constexpr bool CONSTRUCT_LOGGER = false;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
@@ -183,7 +183,7 @@ namespace multirotor_training{
             std::vector<CONFIG::ENVIRONMENT::State> episode;
         };
         using TrainingState = CustomTrainingState;
-        void init(TrainingState& ts){
+        void init(TrainingState& ts, typename config::Config::TI seed = 0){
             using CONFIG = config::Config;
             using TI = typename CONFIG::TI;
             for (auto& env : ts.envs) {
@@ -203,7 +203,10 @@ namespace multirotor_training{
             {
                 bpt::construct(ts.device, ts.device.logger, std::string("logs"), ts.run_name);
             }
-            bpt::rl::algorithms::td3::loop::init(ts, CONFIG::SEED);
+            TI effective_seed = CONFIG::BASE_SEED + seed;
+            bpt::set_step(ts.device, ts.device.logger, 0);
+            bpt::add_scalar(ts.device, ts.device.logger, "loop/seed", effective_seed);
+            bpt::rl::algorithms::td3::loop::init(ts, effective_seed);
             ts.off_policy_runner.parameters = config::Config::off_policy_runner_parameters;
         }
 
@@ -352,7 +355,8 @@ namespace multirotor_training{
                             env.parameters.mdp.reward.linear_velocity = linear_velocity_weight;
                             bpt::add_scalar(ts.device, ts.device.logger, "reward_function/linear_velocity_weight", linear_velocity_weight);
                         }
-                        if(ts.step >= 500000){
+                    }
+                    if(ts.step >= 500000){
 //                            {
 //                                T angular_acceleration_weight = env.parameters.mdp.reward.angular_acceleration;
 //                                angular_acceleration_weight += 0.01/170;
@@ -369,12 +373,10 @@ namespace multirotor_training{
 //                                env.parameters.mdp.reward.constant = constant_weight;
 //                                bpt::add_scalar(ts.device, ts.device.logger, "reward_function/constant", constant_weight);
 //                            }
-                            constexpr T noise_decay_base = 0.90;
-                            ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
-                            ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
-                            ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
-                        }
-
+                        constexpr T noise_decay_base = 0.90;
+                        ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
+                        ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
+                        ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                     }
                     if constexpr(CONFIG::ABLATION_SPEC::RECALCULATE_REWARDS == true){
                         auto start = std::chrono::high_resolution_clock::now();
@@ -594,9 +596,9 @@ namespace multirotor_training{
                     bpt::free(ts.device, image_1);
                     bpt::free(ts.device, image_2);
                     bpt::free(ts.device, image_3);
-                    bpt::malloc(ts.device, actor_input);
-                    bpt::malloc(ts.device, action);
-                    bpt::malloc(ts.device, actor_buffer);
+                    bpt::free(ts.device, actor_input);
+                    bpt::free(ts.device, action);
+                    bpt::free(ts.device, actor_buffer);
                 }
             }
         }
@@ -608,7 +610,10 @@ namespace multirotor_training{
             step_trajectory_collection(ts);
 //            step_critic_reset(ts);
             step_network_stats(ts);
-            step_network_analysis(ts);
+//            step_network_analysis(ts);
+        }
+        void destroy(TrainingState& ts){
+            bpt::rl::algorithms::td3::loop::destroy(ts);
         }
     }
 }
