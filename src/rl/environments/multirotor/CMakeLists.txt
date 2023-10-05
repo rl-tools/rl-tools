@@ -62,4 +62,20 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
     add_subdirectory(cuda)
 endif()
 
+
+
 add_subdirectory(ui)
+
+message(STATUS "BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_VALIDATION")
+add_executable(
+        rl_environments_multirotor_validation
+        validation.cpp
+)
+target_link_libraries(
+        rl_environments_multirotor_validation
+        PRIVATE
+        backprop_tools
+        nlohmann_json::nlohmann_json
+        Threads::Threads
+        Boost::boost
+)
