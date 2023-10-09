@@ -56,7 +56,9 @@ namespace backprop_tools::rl::utils::validation{
     };
     namespace metrics{
         struct ReturnMean: Metric{};
+        struct ReturnStd: Metric{};
         struct EpisodeLengthMean: Metric{};
+        struct EpisodeLengthStd: Metric{};
         struct TerminatedFraction: Metric{};
     };
     namespace set{
@@ -178,7 +180,9 @@ namespace backprop_tools{
         }
     }
     auto constexpr name(rl::utils::validation::metrics::ReturnMean){return "ReturnMean";}
+    auto constexpr name(rl::utils::validation::metrics::ReturnStd){return "ReturnStd";}
     auto constexpr name(rl::utils::validation::metrics::EpisodeLengthMean){return "EpisodeLengthMean";}
+    auto constexpr name(rl::utils::validation::metrics::EpisodeLengthStd){return "EpisodeLengthStd";}
     auto constexpr name(rl::utils::validation::metrics::TerminatedFraction){return "TerminatedFraction";}
     template <typename DEVICE, typename SPEC>
     typename SPEC::T evaluate(DEVICE& device, rl::utils::validation::metrics::ReturnMean, rl::utils::validation::Task<SPEC>& task){
@@ -196,6 +200,49 @@ namespace backprop_tools{
             }
         }
         return return_sum / SPEC::N_EPISODES;
+    }
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::T evaluate(DEVICE& device, rl::utils::validation::metrics::ReturnStd, rl::utils::validation::Task<SPEC>& task){
+        utils::assert_exit(device, task.completed, "Task is not completed");
+        using TI = typename SPEC::TI;
+        using T = typename SPEC::T;
+        T mean = evaluate(device, rl::utils::validation::metrics::ReturnMean{}, task);
+        T return_sum = 0;
+        for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
+            auto& eb = task.episode_buffer[episode_i];
+            for(TI step_i = 0; step_i < task.episode_length[episode_i]; step_i++){
+                T diff = get(eb.rewards, step_i, 0) - mean;
+                return_sum += diff*diff;
+                if(step_i == task.episode_length[episode_i] - 1){
+                    break;
+                }
+            }
+        }
+        return math::sqrt(device.math, return_sum / SPEC::N_EPISODES);
+    }
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::T evaluate(DEVICE& device, rl::utils::validation::metrics::EpisodeLengthMean, rl::utils::validation::Task<SPEC>& task){
+        utils::assert_exit(device, task.completed, "Task is not completed");
+        using TI = typename SPEC::TI;
+        using T = typename SPEC::T;
+        T return_sum = 0;
+        for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
+            return_sum += task.episode_length[episode_i];
+        }
+        return return_sum / SPEC::N_EPISODES;
+    }
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::T evaluate(DEVICE& device, rl::utils::validation::metrics::EpisodeLengthStd, rl::utils::validation::Task<SPEC>& task){
+        utils::assert_exit(device, task.completed, "Task is not completed");
+        using TI = typename SPEC::TI;
+        using T = typename SPEC::T;
+        T mean = evaluate(device, rl::utils::validation::metrics::EpisodeLengthMean{}, task);
+        T return_sum = 0;
+        for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
+            T diff = task.episode_length[episode_i] - mean;
+            return_sum += diff*diff;
+        }
+        return math::sqrt(device.math, return_sum / SPEC::N_EPISODES);
     }
     template <typename DEVICE, typename SPEC>
     typename SPEC::T evaluate(DEVICE& device, rl::utils::validation::metrics::TerminatedFraction, rl::utils::validation::Task<SPEC>& task){

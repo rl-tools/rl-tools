@@ -17,7 +17,7 @@
 #include <backprop_tools/nn/optimizers/adam/adam.h>
 
 //#include "../../../../checkpoints/multirotor_td3/multirotor_td3_2023_10_04_19_28_21/actor_000000003000000.h"
-#include "../../../../checkpoints/multirotor_td3/multirotor_td3_2023_10_04_19_20_42/actor_000000002900000.h"
+#include "../../../../checkpoints/multirotor_td3/multirotor_td3_2023_10_09_14_34_39/actor_000000000100000.h"
 
 #include <thread>
 
@@ -57,7 +57,7 @@ int main(){
     ENVIRONMENT envs[N_EPISODES];
     for(ENVIRONMENT& env: envs){
         env.parameters = parameters_0::environment<T, TI>::parameters;
-        env.parameters.mdp.init.max_angle *= 0.2;
+//        env.parameters.mdp.init.max_angle *= 0.2;
     }
     bpt::init(device, task, envs, rng);
     bpt::malloc(device, buffers);
@@ -73,6 +73,8 @@ int main(){
         bpt::init(device, envs[i], ui[i]);
     }
 #endif
+
+    std::cout << "Validating actor: " << bpt::checkpoint::meta::name << std::endl;
 
     while(true){
         bpt::reset(device, task, rng);
@@ -90,7 +92,19 @@ int main(){
 //            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         T return_mean = bpt::evaluate(device, bpt::rl::utils::validation::metrics::ReturnMean{}, task);
-        std::cout << "Return mean: " << return_mean << std::endl;
+        T return_std = bpt::evaluate(device, bpt::rl::utils::validation::metrics::ReturnStd{}, task);
+        T terminated_fraction = bpt::evaluate(device, bpt::rl::utils::validation::metrics::TerminatedFraction{}, task);
+        T episode_length_mean = bpt::evaluate(device, bpt::rl::utils::validation::metrics::EpisodeLengthMean{}, task);
+        T episode_length_std = bpt::evaluate(device, bpt::rl::utils::validation::metrics::EpisodeLengthStd{}, task);
+        std::ostringstream oss;
+        oss << std::setprecision(2) << std::fixed
+            << std::left << std::setw(10) << "Return mean:"          << std::right << std::setw(10) << return_mean
+            << std::left << std::setw(10) << " | return std:"          << std::right << std::setw(10) << return_std
+            << std::left << std::setw(10) << " | terminated fraction:" << std::right << std::setw(10) << terminated_fraction
+            << std::left << std::setw(10) << " | episode length mean:" << std::right << std::setw(10) << episode_length_mean
+            << std::left << std::setw(10) << " | episode length std:"  << std::right << std::setw(10) << episode_length_std
+        ;
+        std::cout << oss.str() << std::endl;
     }
 
     return 0;
