@@ -79,3 +79,4 @@ target_link_libraries(
         Threads::Threads
         Boost::boost
 )
+BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_validation)

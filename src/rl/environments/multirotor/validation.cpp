@@ -1,4 +1,4 @@
-#include <backprop_tools/operations/cpu.h>
+#include <backprop_tools/operations/cpu_mux.h>
 
 #include <backprop_tools/rl/environments/multirotor/operations_cpu.h>
 
@@ -10,12 +10,14 @@
 
 #include <backprop_tools/rl/utils/validation.h>
 
+#ifdef ENABLE_UI
 #include <backprop_tools/rl/environments/multirotor/ui.h>
+#endif
 
 #include <backprop_tools/nn/optimizers/adam/adam.h>
 
 //#include "../../../../checkpoints/multirotor_td3/multirotor_td3_2023_10_04_19_28_21/actor_000000003000000.h"
-#include "../../../../checkpoints/multirotor_td3/multirotor_td3_2023_10_04_19_20_42/actor_000000003000000.h"
+#include "../../../../checkpoints/multirotor_td3/multirotor_td3_2023_10_04_19_20_42/actor_000000002900000.h"
 
 #include <thread>
 
@@ -31,7 +33,7 @@ namespace bpt = backprop_tools;
 //    }
 //}
 
-using DEVICE = bpt::devices::DefaultCPU;
+using DEVICE = backprop_tools::DEVICE_FACTORY<backprop_tools::devices::DefaultCPUSpecification>;
 
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -41,8 +43,8 @@ using ENVIRONMENT = parameters_0::environment<T, TI>::ENVIRONMENT;
 
 
 using VALIDATION_SPEC = bpt::rl::utils::validation::Specification<T, TI, ENVIRONMENT>;
-constexpr TI N_EPISODES = 10;
-constexpr TI MAX_EPISODE_LENGTH = 1000;
+constexpr TI N_EPISODES = 100;
+constexpr TI MAX_EPISODE_LENGTH = parameters_0::rl<T, TI, ENVIRONMENT>::ENVIRONMENT_STEP_LIMIT;
 using TASK_SPEC = bpt::rl::utils::validation::TaskSpecification<VALIDATION_SPEC, N_EPISODES, MAX_EPISODE_LENGTH>;
 
 int main(){
@@ -61,6 +63,7 @@ int main(){
     bpt::malloc(device, buffers);
 
     // UI
+#ifdef ENABLE_UI
     using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
     UI ui[N_EPISODES];
     for(TI i = 0; i < N_EPISODES; i++){
@@ -69,19 +72,25 @@ int main(){
         ui[i].id = i;
         bpt::init(device, envs[i], ui[i]);
     }
+#endif
 
     while(true){
         bpt::reset(device, task, rng);
-        for(TI step_i=0; step_i < MAX_EPISODE_LENGTH; step_i++){
-            bpt::step(device, task, p, buffers, rng);
+        bool completed = false;
+        while(!completed){
+            completed = bpt::step(device, task, p, buffers, rng);
+#ifdef ENABLE_UI
             for(TI i = 0; i < N_EPISODES; i++){
                 if(!task.terminated[i]){
                     auto action = bpt::row(device, task.episode_buffer[i].actions, task.step-1);
                     bpt::set_state(device, ui[i], task.state[i], action);
                 }
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+#endif
+//            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
+        T return_mean = bpt::evaluate(device, bpt::rl::utils::validation::metrics::ReturnMean{}, task);
+        std::cout << "Return mean: " << return_mean << std::endl;
     }
 
     return 0;
