@@ -1,7 +1,7 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_UTILS_EVALUATION_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_UTILS_VALIDATION_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_UTILS_EVALUATION_H
+#define BACKPROP_TOOLS_RL_UTILS_VALIDATION_H
 
 #include "../../math/operations_generic.h"
 #include "../../utils/generic/typing.h"
@@ -69,7 +69,14 @@ namespace backprop_tools::rl::utils::validation{
         };
         struct FinalComponent{};
     };
-    using DefaultMetrics = set::Component<metrics::ReturnMean, set::Component<metrics::EpisodeLengthMean, set::Component<metrics::TerminatedFraction, set::FinalComponent>>>;
+    template <typename NEXT_COMPONENT = set::FinalComponent>
+    using DefaultMetrics = set::Component<
+            metrics::ReturnMean,
+            set::Component<metrics::ReturnStd,
+            set::Component<metrics::EpisodeLengthMean,
+            set::Component<metrics::EpisodeLengthStd,
+            set::Component<metrics::TerminatedFraction,
+            NEXT_COMPONENT>>>>>;
 }
 namespace backprop_tools{
     template <typename DEVICE, typename SPEC, typename SPEC::TI SIZE>
@@ -151,7 +158,7 @@ namespace backprop_tools{
         }
         return task.completed;
     }
-    template <typename DEVICE, typename SPEC, typename RNG>
+    template <typename DEVICE, typename SPEC>
     void destroy(DEVICE& device, rl::utils::validation::Task<SPEC>& task){
         using TI = typename SPEC::TI;
         for(TI i = 0; i < SPEC::N_EPISODES; i++){
@@ -170,8 +177,9 @@ namespace backprop_tools{
         }
     }
     template <typename DEVICE, typename CONTENT, typename NEXT_COMPONENT, auto I>
-    constexpr typename DEVICE::index_t get(DEVICE& device, rl::utils::validation::set::Component<CONTENT, NEXT_COMPONENT> c, Constant<I>){
-        static_assert(I < length(device, c), "Index out of bounds");
+    constexpr auto get(DEVICE& device, rl::utils::validation::set::Component<CONTENT, NEXT_COMPONENT>, Constant<I>){
+        using COMPONENT = rl::utils::validation::set::Component<CONTENT, NEXT_COMPONENT>;
+        static_assert(I < length(device, COMPONENT{}), "Index out of bounds");
         if constexpr (I == 0){
             return CONTENT{};
         }
@@ -207,18 +215,16 @@ namespace backprop_tools{
         using TI = typename SPEC::TI;
         using T = typename SPEC::T;
         T mean = evaluate(device, rl::utils::validation::metrics::ReturnMean{}, task);
-        T return_sum = 0;
+        T variance_sum = 0;
         for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
+            T return_sum = 0;
             auto& eb = task.episode_buffer[episode_i];
             for(TI step_i = 0; step_i < task.episode_length[episode_i]; step_i++){
-                T diff = get(eb.rewards, step_i, 0) - mean;
-                return_sum += diff*diff;
-                if(step_i == task.episode_length[episode_i] - 1){
-                    break;
-                }
+                return_sum += get(eb.rewards, step_i, 0);
             }
+            variance_sum += (return_sum - mean)*(return_sum - mean);
         }
-        return math::sqrt(device.math, return_sum / SPEC::N_EPISODES);
+        return math::sqrt(device.math, variance_sum / SPEC::N_EPISODES);
     }
     template <typename DEVICE, typename SPEC>
     typename SPEC::T evaluate(DEVICE& device, rl::utils::validation::metrics::EpisodeLengthMean, rl::utils::validation::Task<SPEC>& task){

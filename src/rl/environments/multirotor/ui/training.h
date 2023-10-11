@@ -2,6 +2,7 @@
 #include <backprop_tools/nn/operations_cpu_mux.h>
 
 #include <backprop_tools/rl/environments/multirotor/operations_cpu.h>
+#include <backprop_tools/rl/environments/multirotor/metrics.h>
 
 #include <backprop_tools/nn_models/sequential/operations_generic.h>
 
@@ -16,6 +17,9 @@
 #include <backprop_tools/nn/parameters/persist_code.h>
 #include <backprop_tools/nn/layers/dense/persist_code.h>
 #include <backprop_tools/nn_models/sequential/persist_code.h>
+
+#include <backprop_tools/rl/utils/validation_analysis.h>
+
 
 namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
@@ -171,6 +175,16 @@ namespace multirotor_training{
             static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         };
         struct Config: CoreConfig{
+            using VALIDATION_SPEC = bpt::rl::utils::validation::Specification<T, TI, ENVIRONMENT>;
+            static constexpr TI VALIDATION_N_EPISODES = 10;
+            static constexpr TI VALIDATION_MAX_EPISODE_LENGTH = CoreConfig::ENVIRONMENT_STEP_LIMIT;
+            using TASK_SPEC = bpt::rl::utils::validation::TaskSpecification<VALIDATION_SPEC, VALIDATION_N_EPISODES, VALIDATION_MAX_EPISODE_LENGTH>;
+            using ADDITIONAL_METRICS = bpt::rl::utils::validation::set::Component<
+                    bpt::rl::utils::validation::metrics::SettlingFractionPosition<TI, 200>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::POSITION, TI, 100>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd<bpt::rl::utils::validation::metrics::multirotor::POSITION, TI, 100>,
+                    bpt::rl::utils::validation::set::FinalComponent>>>;
+            using METRICS = bpt::rl::utils::validation::DefaultMetrics<ADDITIONAL_METRICS>;
         };
     }
 
@@ -181,6 +195,10 @@ namespace multirotor_training{
             std::queue<std::vector<CONFIG::ENVIRONMENT::State>> trajectories;
             std::mutex trajectories_mutex;
             std::vector<CONFIG::ENVIRONMENT::State> episode;
+            // validation
+            bpt::rl::utils::validation::Task<typename CONFIG::TASK_SPEC> task;
+            typename CONFIG::ENVIRONMENT validation_envs[CONFIG::VALIDATION_N_EPISODES];
+            CONFIG::ACTOR_TYPE::template DoubleBuffer<CONFIG::VALIDATION_N_EPISODES> validation_actor_buffers;
         };
         using TrainingState = CustomTrainingState;
         void init(TrainingState& ts, typename config::Config::TI seed = 0){
@@ -208,6 +226,12 @@ namespace multirotor_training{
             bpt::add_scalar(ts.device, ts.device.logger, "loop/seed", effective_seed);
             bpt::rl::algorithms::td3::loop::init(ts, effective_seed);
             ts.off_policy_runner.parameters = config::Config::off_policy_runner_parameters;
+
+            for(CONFIG::ENVIRONMENT& env: ts.validation_envs){
+                env.parameters = parameters_0::environment<typename CONFIG::T, TI>::parameters;
+            }
+            bpt::malloc(ts.device, ts.validation_actor_buffers);
+            bpt::init(ts.device, ts.task, ts.validation_envs, ts.rng_eval);
         }
 
         void step_logger(TrainingState& ts){
@@ -602,9 +626,20 @@ namespace multirotor_training{
                 }
             }
         }
+        void step_validation(TrainingState& ts){
+            if(ts.step % 50000 == 0){
+                bpt::reset(ts.device, ts.task, ts.rng_eval);
+                bool completed = false;
+                while(!completed){
+                    completed = bpt::step(ts.device, ts.task, ts.actor_critic.actor, ts.validation_actor_buffers, ts.rng_eval);
+                }
+                bpt::analyse_log(ts.device, ts.task, TrainingState::SPEC::METRICS{});
+            }
+        }
         void step(TrainingState& ts){
             step_logger(ts);
             step_checkpoint(ts);
+            step_validation(ts);
             step_curriculum(ts);
             bpt::rl::algorithms::td3::loop::step(ts);
             step_trajectory_collection(ts);
@@ -614,6 +649,8 @@ namespace multirotor_training{
         }
         void destroy(TrainingState& ts){
             bpt::rl::algorithms::td3::loop::destroy(ts);
+            bpt::destroy(ts.device, ts.task);
+            bpt::malloc(ts.device, ts.validation_actor_buffers);
         }
     }
 }

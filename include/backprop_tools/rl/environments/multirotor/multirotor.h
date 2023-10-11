@@ -266,8 +266,10 @@ namespace backprop_tools::rl::environments::multirotor{
     }
 
 
-    template <typename T, typename TI>
+    template <typename T_T, typename T_TI>
     struct StateBase{
+        using T = T_T;
+        using TI = T_TI;
         static constexpr bool REQUIRES_INTEGRATION = true;
         static constexpr TI DIM = 13;
         T position[3];
@@ -275,16 +277,20 @@ namespace backprop_tools::rl::environments::multirotor{
         T linear_velocity[3];
         T angular_velocity[3];
     };
-    template <typename T, typename TI, typename T_NEXT_COMPONENT>
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
     struct StateRotors: T_NEXT_COMPONENT{
+        using T = T_T;
+        using TI = T_TI;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = true;
         static constexpr TI PARENT_DIM = NEXT_COMPONENT::DIM;
         static constexpr TI DIM = PARENT_DIM + 4;
         T rpm[4];
     };
-    template <typename T, typename TI, TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT>
-    struct StateRotorsHistory: StateRotors<T, TI, T_NEXT_COMPONENT>{
+    template <typename T_T, typename T_TI, T_TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT>
+    struct StateRotorsHistory: StateRotors<T_T, T_TI, T_NEXT_COMPONENT>{
+        using T = T_T;
+        using TI = T_TI;
         using NEXT_COMPONENT = StateRotors<T, TI, T_NEXT_COMPONENT>;
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI HISTORY_LENGTH = T_HISTORY_LENGTH;
@@ -293,8 +299,10 @@ namespace backprop_tools::rl::environments::multirotor{
         static constexpr TI DIM = PARENT_DIM + HISTORY_LENGTH * ACTION_DIM;
         T action_history[HISTORY_LENGTH][4];
     };
-    template <typename T, typename TI, typename T_NEXT_COMPONENT>
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
     struct StateRandomForce: T_NEXT_COMPONENT{
+        using T = T_T;
+        using TI = T_TI;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI DIM = 6 + NEXT_COMPONENT::DIM;

@@ -66,7 +66,6 @@ endif()
 
 add_subdirectory(ui)
 
-message(STATUS "BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_VALIDATION")
 add_executable(
         rl_environments_multirotor_validation
         validation.cpp
@@ -78,5 +77,8 @@ target_link_libraries(
         nlohmann_json::nlohmann_json
         Threads::Threads
         Boost::boost
+        tensorboard_logger
+        libattopng
 )
 BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_validation)
+BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_validation)
