@@ -95,7 +95,7 @@ namespace backprop_tools{
         typename STATE::T get_quantity(DEVICE& device, rl::utils::validation::metrics::multirotor::MultirotorStateQuantity quantity, STATE& state, STATE& next_state, typename STATE::T dt){
             using T = typename STATE::T;
             T distance = 0;
-            switch(quantity){
+            switch (quantity){
                 case rl::utils::validation::metrics::multirotor::POSITION:
                     distance += state.position[0] * state.position[0];
                     distance += state.position[1] * state.position[1];
@@ -103,6 +103,7 @@ namespace backprop_tools{
                     distance = math::sqrt(device.math, distance);
                     break;
                 case rl::utils::validation::metrics::multirotor::ANGLE:
+                    distance = math::abs(device.math, 2 * math::acos(device.math, state.orientation[0]));
                     break;
                 case rl::utils::validation::metrics::multirotor::LINEAR_VELOCITY:
                     distance += state.linear_velocity[0] * state.linear_velocity[0];

@@ -182,8 +182,24 @@ namespace multirotor_training{
             using ADDITIONAL_METRICS = bpt::rl::utils::validation::set::Component<
                     bpt::rl::utils::validation::metrics::SettlingFractionPosition<TI, 200>,
                     bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::POSITION, TI, 100>,
-                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd<bpt::rl::utils::validation::metrics::multirotor::POSITION, TI, 100>,
-                    bpt::rl::utils::validation::set::FinalComponent>>>;
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd <bpt::rl::utils::validation::metrics::multirotor::POSITION, TI, 100>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::POSITION, TI, 200>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd <bpt::rl::utils::validation::metrics::multirotor::POSITION, TI, 200>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::ANGLE, TI, 100>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd <bpt::rl::utils::validation::metrics::multirotor::ANGLE, TI, 200>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::LINEAR_VELOCITY, TI, 100>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd <bpt::rl::utils::validation::metrics::multirotor::LINEAR_VELOCITY, TI, 100>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::LINEAR_VELOCITY, TI, 200>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd <bpt::rl::utils::validation::metrics::multirotor::LINEAR_VELOCITY, TI, 200>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::ANGULAR_VELOCITY, TI, 100>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd <bpt::rl::utils::validation::metrics::multirotor::ANGULAR_VELOCITY, TI, 100>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::ANGULAR_VELOCITY, TI, 200>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd <bpt::rl::utils::validation::metrics::multirotor::ANGULAR_VELOCITY, TI, 200>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::ANGULAR_ACCELERATION, TI, 100>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd <bpt::rl::utils::validation::metrics::multirotor::ANGULAR_ACCELERATION, TI, 100>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorMean<bpt::rl::utils::validation::metrics::multirotor::ANGULAR_ACCELERATION, TI, 200>,
+                    bpt::rl::utils::validation::set::Component<bpt::rl::utils::validation::metrics::MaxErrorStd <bpt::rl::utils::validation::metrics::multirotor::ANGULAR_ACCELERATION, TI, 200>,
+                    bpt::rl::utils::validation::set::FinalComponent>>>>>>>>>>>>>>>>>>>;
             using METRICS = bpt::rl::utils::validation::DefaultMetrics<ADDITIONAL_METRICS>;
         };
     }
@@ -208,20 +224,21 @@ namespace multirotor_training{
                 env.parameters = parameters_0::environment<config::Config::T, config::Config::TI>::parameters;
             }
             ts.env_eval.parameters = ts.envs[0].parameters;
+            TI effective_seed = CONFIG::BASE_SEED + seed;
             {
                 std::stringstream run_name_ss;
-                run_name_ss << "multirotor_td3";
+                run_name_ss << "";
                 std::string run_name = run_name_ss.str();
                 auto now = std::chrono::system_clock::now();
                 auto local_time = std::chrono::system_clock::to_time_t(now);
                 std::tm* tm = std::localtime(&local_time);
-                run_name_ss << "_" << std::put_time(tm, "%Y_%m_%d_%H_%M_%S");
+                run_name_ss << "" << std::put_time(tm, "%Y_%m_%d_%H_%M_%S");
+                run_name_ss << "_" << std::setw(3) << std::setfill('0') << effective_seed;
                 ts.run_name = run_name_ss.str();
             }
             {
                 bpt::construct(ts.device, ts.device.logger, std::string("logs"), ts.run_name);
             }
-            TI effective_seed = CONFIG::BASE_SEED + seed;
             bpt::set_step(ts.device, ts.device.logger, 0);
             bpt::add_scalar(ts.device, ts.device.logger, "loop/seed", effective_seed);
             bpt::rl::algorithms::td3::loop::init(ts, effective_seed);
