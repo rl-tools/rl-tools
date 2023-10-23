@@ -44,9 +44,9 @@ namespace backprop_tools{
         }
     }
     template <typename SPEC>
-    constexpr typename SPEC::TI num_layers(nn_models::sequential::Module<SPEC>& m){
+    constexpr typename SPEC::TI num_layers(nn_models::sequential::Module<SPEC>){
         if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            return num_layers(m.next_module) + 1;
+            return num_layers(typename SPEC::NEXT_MODULE{}) + 1;
         }
         else{
             return 1;
@@ -176,7 +176,7 @@ namespace backprop_tools{
     template<typename DEVICE, typename MODULE_SPEC, auto LAYER_I>
     constexpr auto& get_layer(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& model, Constant<LAYER_I>){
         static_assert(LAYER_I >= 0);
-        static_assert(LAYER_I < num_layers(model));
+        static_assert(LAYER_I < num_layers(nn_models::sequential::Module<MODULE_SPEC>{}));
         if constexpr(LAYER_I == 0){
             return model.content;
         }
