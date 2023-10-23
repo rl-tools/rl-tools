@@ -51,7 +51,7 @@ namespace TEST_DEFINITIONS{
     constexpr bool INIT_SIMPLE = false;
     constexpr bool DEACTIVATE_OBSERVATION_NOISE = true;
     constexpr bool INJECT_EXPLORATION_NOISE = false;
-    constexpr bool DISABLE_DISTURBANCES = true;
+    constexpr bool DISABLE_DISTURBANCES = false;
     constexpr bool AMPLIFY_DISTURBANCES = false;
 }
 

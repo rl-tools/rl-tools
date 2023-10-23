@@ -29,3 +29,16 @@ target_link_libraries(
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_ui_training)
 BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_ui_training)
 add_compile_definitions(rl_environments_multirotor_ui_training BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD)
+
+add_executable(rl_environments_multirotor_ui_ablation_study ablation_study.cpp)
+target_link_libraries(
+        rl_environments_multirotor_ui_ablation_study
+        PRIVATE
+        backprop_tools
+        HighFive
+        tensorboard_logger
+        libattopng
+)
+BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_ui_ablation_study)
+BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_ui_ablation_study)
+add_compile_definitions(rl_environments_multirotor_ui_ablation_study BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD)
