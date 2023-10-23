@@ -66,6 +66,7 @@ endif()
 
 add_subdirectory(ui)
 
+if(BACKPROP_TOOLS_ENABLE_JSON)
 add_executable(
         rl_environments_multirotor_validation
         validation.cpp
@@ -82,3 +83,4 @@ target_link_libraries(
 )
 BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_validation)
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_validation)
+endif()
