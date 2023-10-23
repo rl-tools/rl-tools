@@ -254,7 +254,6 @@ namespace multirotor_training{
             {
                 std::stringstream run_name_ss;
                 run_name_ss << "";
-                std::string run_name = run_name_ss.str();
                 auto now = std::chrono::system_clock::now();
                 auto local_time = std::chrono::system_clock::to_time_t(now);
                 std::tm* tm = std::localtime(&local_time);
@@ -704,7 +703,7 @@ namespace multirotor_training{
         void destroy(TrainingState<T_ABLATION_SPEC>& ts){
             bpt::rl::algorithms::td3::loop::destroy(ts);
             bpt::destroy(ts.device, ts.task);
-            bpt::malloc(ts.device, ts.validation_actor_buffers);
+            bpt::free(ts.device, ts.validation_actor_buffers);
         }
     }
 }

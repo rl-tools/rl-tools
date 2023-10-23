@@ -35,10 +35,10 @@ namespace backprop_tools::rl::algorithms::td3::loop {
         using TI = typename SPEC::DEVICE::index_t;
         TI step = 0;
         bool finished = false;
-        static constexpr TI N_EVALUATIONS = SPEC::STEP_LIMIT / SPEC::EVALUATION_INTERVAL;
+        static constexpr TI N_EVALUATIONS = SPEC::STEP_LIMIT / SPEC::EVALUATION_INTERVAL + 1;
         static_assert(N_EVALUATIONS > 0 && N_EVALUATIONS < 1000000);
-//        rl::utils::evaluation::Result<T, TI, SPEC::N_EPISODES> evaluation_results[N_EVALUATIONS];
-        T evaluation_results[N_EVALUATIONS];
+        rl::utils::evaluation::Result<T, TI, SPEC::NUM_EVALUATION_EPISODES> evaluation_results[N_EVALUATIONS];
+//        T evaluation_results[N_EVALUATIONS];
     };
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
@@ -114,6 +114,19 @@ namespace backprop_tools::rl::algorithms::td3::loop{
         using SPEC = typename TRAINING_STATE::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        if constexpr(SPEC::DETERMINISTIC_EVALUATION == true){
+            if(ts.step % SPEC::EVALUATION_INTERVAL == 0){
+                auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
+                logging::text(ts.device, ts.device.logger, "Step: ", ts.step, " (mean return: ", result.returns_mean, ", mean episode length: ", result.episode_length_mean, ")");
+                TI current_evaluation_i = ts.step / SPEC::EVALUATION_INTERVAL;
+                assert(current_evaluation_i < TRAINING_STATE::N_EVALUATIONS);
+                ts.evaluation_results[current_evaluation_i] = result;
+                add_scalar(ts.device, ts.device.logger, "evaluation/returns_mean", result.returns_mean);
+                add_scalar(ts.device, ts.device.logger, "evaluation/returns_std", result.returns_std);
+                add_scalar(ts.device, ts.device.logger, "evaluation/episode_length_mean", result.episode_length_mean);
+                add_scalar(ts.device, ts.device.logger, "evaluation/episode_length_std", result.episode_length_std);
+            }
+        }
         step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         if(ts.step > SPEC::N_WARMUP_STEPS_CRITIC && ts.step % SPEC::TD3_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
             for(TI critic_i = 0; critic_i < 2; critic_i++){
@@ -140,17 +153,6 @@ namespace backprop_tools::rl::algorithms::td3::loop{
         }
 
 
-        if constexpr(SPEC::DETERMINISTIC_EVALUATION == true){
-            if(ts.step % SPEC::EVALUATION_INTERVAL == 0){
-                auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
-                logging::text(ts.device, ts.device.logger, "Step: ", ts.step, " (mean return: ", result.returns_mean, ", mean episode length: ", result.episode_length_mean, ")");
-                ts.evaluation_results[ts.step / SPEC::EVALUATION_INTERVAL] = result.returns_mean;
-                add_scalar(ts.device, ts.device.logger, "evaluation/returns_mean", result.returns_mean);
-                add_scalar(ts.device, ts.device.logger, "evaluation/returns_std", result.returns_std);
-                add_scalar(ts.device, ts.device.logger, "evaluation/episode_length_mean", result.episode_length_mean);
-                add_scalar(ts.device, ts.device.logger, "evaluation/episode_length_std", result.episode_length_std);
-            }
-        }
         ts.step++;
         ts.finished = ts.step >= SPEC::STEP_LIMIT;
         return ts.finished;

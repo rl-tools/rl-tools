@@ -6,6 +6,7 @@ void train(typename multirotor_training::config::Config<T_ABLATION_SPEC>::TI see
     using namespace multirotor_training::config;
 
     using CONFIG = multirotor_training::config::Config<T_ABLATION_SPEC>;
+    using T = typename CONFIG::T;
     using TI = typename CONFIG::TI;
 
     std::cout << "Seed " << seed << "\n";
@@ -14,6 +15,26 @@ void train(typename multirotor_training::config::Config<T_ABLATION_SPEC>::TI see
     for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
         multirotor_training::operations::step(ts);
     }
+    {
+        std::string DATA_FILE_PATH = std::string("learning_curves_") + ts.run_name + ".h5";
+        auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
+        std::vector<TI> step;
+        std::vector<T> returns_mean, returns_std, episode_length_mean, episode_length_std;
+        for(TI eval_i = 0; eval_i < decltype(ts)::N_EVALUATIONS; eval_i++){
+            step.push_back(eval_i * CONFIG::EVALUATION_INTERVAL);
+            returns_mean.push_back(ts.evaluation_results[eval_i].returns_mean);
+            returns_std.push_back(ts.evaluation_results[eval_i].returns_std);
+            episode_length_mean.push_back(ts.evaluation_results[eval_i].episode_length_mean);
+            episode_length_std.push_back(ts.evaluation_results[eval_i].episode_length_std);
+        }
+        data_file.createDataSet("step", step);
+        data_file.createDataSet("returns_mean", returns_mean);
+        data_file.createDataSet("returns_std", returns_std);
+        data_file.createDataSet("episode_length_mean", episode_length_mean);
+        data_file.createDataSet("episode_length_std", episode_length_std);
+
+    }
+
     multirotor_training::operations::destroy(ts);
 }
 
