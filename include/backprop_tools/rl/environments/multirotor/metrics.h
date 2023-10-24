@@ -56,6 +56,8 @@ namespace backprop_tools{
                     return "AngularVelocity";
                 case rl::utils::validation::metrics::multirotor::ANGULAR_ACCELERATION:
                     return "AngularAcceleration";
+                default:
+                    return "Unknown";
             }
         }
     }

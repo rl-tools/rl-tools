@@ -44,7 +44,7 @@ namespace multirotor_training{
             static constexpr bool USE_INITIAL_REWARD_FUNCTION = true;
             static constexpr bool INIT_NORMAL = true;
         };
-        template <typename T_ABLATION_SPEC=DEFAULT_ABLATION_SPEC>
+        template <typename T_ABLATION_SPEC>
         struct CoreConfig{
             using ABLATION_SPEC = T_ABLATION_SPEC;
             using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
@@ -176,7 +176,7 @@ namespace multirotor_training{
             static constexpr TI N_WARMUP_STEPS_ACTOR = 30000;
             static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         };
-        template <typename T_ABLATION_SPEC = DEFAULT_ABLATION_SPEC>
+        template <typename T_ABLATION_SPEC>
         struct Config: CoreConfig<T_ABLATION_SPEC>{
             using SUPER = CoreConfig<T_ABLATION_SPEC>;
             using T = typename SUPER::T;
@@ -246,10 +246,11 @@ namespace multirotor_training{
             using CONFIG = config::Config<T_ABLATION_SPEC>;
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
+            auto env_parameters = parameters_0::environment<T, TI, T_ABLATION_SPEC>::parameters;
             for (auto& env : ts.envs) {
-                env.parameters = parameters_0::environment<T, TI>::parameters;
+                env.parameters = env_parameters;
             }
-            ts.env_eval.parameters = ts.envs[0].parameters;
+            ts.env_eval.parameters = env_parameters;
             TI effective_seed = CONFIG::BASE_SEED + seed;
             {
                 std::stringstream run_name_ss;
@@ -271,7 +272,7 @@ namespace multirotor_training{
             ts.off_policy_runner.parameters = CONFIG::off_policy_runner_parameters;
 
             for(typename CONFIG::ENVIRONMENT& env: ts.validation_envs){
-                env.parameters = parameters_0::environment<typename CONFIG::T, TI>::parameters;
+                env.parameters = parameters_0::environment<typename CONFIG::T, TI, T_ABLATION_SPEC>::parameters;
             }
             bpt::malloc(ts.device, ts.validation_actor_buffers);
             bpt::init(ts.device, ts.task, ts.validation_envs, ts.rng_eval);
@@ -400,7 +401,7 @@ namespace multirotor_training{
 //                    bpt::add_scalar(device, device.logger, "reward_function/angular_acceleration_weight", off_policy_runner.envs[0].parameters.mdp.reward.angular_acceleration);
 //                }
 //                sq
-                    for (auto& env : ts.off_policy_runner.envs) {
+                    for(auto& env : ts.off_policy_runner.envs){
                         {
                             T action_weight = env.parameters.mdp.reward.action;
                             action_weight *= 1.4;
