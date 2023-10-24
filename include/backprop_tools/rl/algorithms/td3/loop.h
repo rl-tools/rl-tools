@@ -16,7 +16,8 @@ namespace backprop_tools::rl::algorithms::td3::loop {
         decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng, rng_eval;
         typename SPEC::UI ui;
         rl::components::OffPolicyRunner<typename SPEC::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
-        typename SPEC::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS], env_eval;
+        typename SPEC::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
+        typename SPEC::ENVIRONMENT_EVALUATION env_eval;
         typename SPEC::ACTOR_CRITIC_TYPE actor_critic;
         typename SPEC::ACTOR_TYPE::template DoubleBuffer<1> actor_deterministic_evaluation_buffers;
         rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, SPEC::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;

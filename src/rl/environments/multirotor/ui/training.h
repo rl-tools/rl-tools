@@ -45,8 +45,16 @@ namespace multirotor_training{
             static constexpr bool INIT_NORMAL = true;
         };
         template <typename T_ABLATION_SPEC>
-        struct ABLATION_SPEC_USE_TARGET_REWARD_FUNCTION: T_ABLATION_SPEC{
-            static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
+        struct ABLATION_SPEC_EVAL: T_ABLATION_SPEC{
+            // override everything but ACTION_HISTORY because that changes the observation space
+            static constexpr bool DISTURBANCE = true;
+            static constexpr bool OBSERVATION_NOISE = true;
+            static constexpr bool ASYMMETRIC_ACTOR_CRITIC = true;
+            static constexpr bool ROTOR_DELAY = true;
+            static constexpr bool ENABLE_CURRICULUM = true;
+            static constexpr bool RECALCULATE_REWARDS = true;
+            static constexpr bool USE_INITIAL_REWARD_FUNCTION = false; // Use target reward function as metric
+            static constexpr bool INIT_NORMAL = true;
         };
         template <typename T_ABLATION_SPEC>
         struct CoreConfig{
@@ -59,6 +67,9 @@ namespace multirotor_training{
 
 
             using ENVIRONMENT = typename parameters_0::environment<T, TI, ABLATION_SPEC>::ENVIRONMENT;
+            using ENVIRONMENT_EVALUATION = typename parameters_0::environment<T, TI, ABLATION_SPEC_EVAL<ABLATION_SPEC>>::ENVIRONMENT;
+            static_assert(ENVIRONMENT::OBSERVATION_DIM == ENVIRONMENT_EVALUATION::OBSERVATION_DIM);
+            static_assert(ENVIRONMENT::ACTION_DIM == ENVIRONMENT_EVALUATION::ACTION_DIM);
             using UI = bool;
 
             struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
@@ -251,7 +262,7 @@ namespace multirotor_training{
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
             auto env_parameters = parameters_0::environment<T, TI, T_ABLATION_SPEC>::parameters;
-            auto env_parameters_eval = parameters_0::environment<T, TI, config::ABLATION_SPEC_USE_TARGET_REWARD_FUNCTION<T_ABLATION_SPEC>>::parameters;
+            auto env_parameters_eval = parameters_0::environment<T, TI, config::ABLATION_SPEC_EVAL<T_ABLATION_SPEC>>::parameters;
             for (auto& env : ts.envs) {
                 env.parameters = env_parameters;
             }
@@ -331,9 +342,9 @@ namespace multirotor_training{
                     std::ofstream actor_output_file(actor_output_path_code);
                     actor_output_file << actor_weights;
                     {
-                        typename CONFIG::ENVIRONMENT::State state;
+                        typename CONFIG::ENVIRONMENT_EVALUATION::State state;
                         bpt::sample_initial_state(ts.device, ts.envs[0], state, ts.rng_eval);
-                        bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observation;
+                        bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT_EVALUATION::OBSERVATION_DIM>> observation;
                         bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT::ACTION_DIM>> action;
                         bpt::malloc(ts.device, observation);
                         bpt::malloc(ts.device, action);
@@ -566,10 +577,10 @@ namespace multirotor_training{
                     bpt::malloc(ts.device, critic_input);
                     bpt::malloc(ts.device, critic_output);
                     bpt::malloc(ts.device, critic_buffer);
-                    auto observation = bpt::view(ts.device, critic_input, bpt::matrix::ViewSpec<1, CONFIG::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED>{});
-                    auto action = bpt::view(ts.device, critic_input, bpt::matrix::ViewSpec<1, CONFIG::ENVIRONMENT::ACTION_DIM>{}, 0, CONFIG::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED);
+                    auto observation = bpt::view(ts.device, critic_input, bpt::matrix::ViewSpec<1, CONFIG::ENVIRONMENT_EVALUATION::OBSERVATION_DIM_PRIVILEGED>{});
+                    auto action = bpt::view(ts.device, critic_input, bpt::matrix::ViewSpec<1, CONFIG::ENVIRONMENT_EVALUATION::ACTION_DIM>{}, 0, CONFIG::ENVIRONMENT_EVALUATION::OBSERVATION_DIM_PRIVILEGED);
                     bpt::set_all(ts.device, action, 0);
-                    typename CONFIG::ENVIRONMENT::State state;
+                    typename CONFIG::ENVIRONMENT_EVALUATION::State state;
                     bpt::initial_state(ts.device, ts.envs[0], state);
                     for(TI x_i = 0; x_i < decltype(image)::COLS; x_i++){
                         for(TI y_i = 0; y_i < decltype(image)::ROWS; y_i++){
@@ -592,17 +603,17 @@ namespace multirotor_training{
                 }
                 {
                     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 100, 100>> image;
-                    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED + CONFIG::ENVIRONMENT::ACTION_DIM>> critic_input;
+                    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT_EVALUATION::OBSERVATION_DIM_PRIVILEGED + CONFIG::ENVIRONMENT_EVALUATION::ACTION_DIM>> critic_input;
                     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 1>> critic_output;
                     typename CONFIG::CRITIC_TYPE::template DoubleBuffer<1> critic_buffer;
                     bpt::malloc(ts.device, image);
                     bpt::malloc(ts.device, critic_input);
                     bpt::malloc(ts.device, critic_output);
                     bpt::malloc(ts.device, critic_buffer);
-                    auto observation = bpt::view(ts.device, critic_input, bpt::matrix::ViewSpec<1, CONFIG::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED>{});
-                    auto action = bpt::view(ts.device, critic_input, bpt::matrix::ViewSpec<1, CONFIG::ENVIRONMENT::ACTION_DIM>{}, 0, CONFIG::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED);
+                    auto observation = bpt::view(ts.device, critic_input, bpt::matrix::ViewSpec<1, CONFIG::ENVIRONMENT_EVALUATION::OBSERVATION_DIM_PRIVILEGED>{});
+                    auto action = bpt::view(ts.device, critic_input, bpt::matrix::ViewSpec<1, CONFIG::ENVIRONMENT_EVALUATION::ACTION_DIM>{}, 0, CONFIG::ENVIRONMENT_EVALUATION::OBSERVATION_DIM_PRIVILEGED);
                     bpt::set_all(ts.device, action, 0);
-                    typename CONFIG::ENVIRONMENT::State state;
+                    typename CONFIG::ENVIRONMENT_EVALUATION::State state;
                     bpt::initial_state(ts.device, ts.envs[0], state);
                     for(TI x_i = 0; x_i < decltype(image)::COLS; x_i++){
                         for(TI y_i = 0; y_i < decltype(image)::ROWS; y_i++){
@@ -625,8 +636,8 @@ namespace multirotor_training{
                 }
                 {
                     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 100, 100>> image_0, image_1, image_2, image_3;
-                    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT::OBSERVATION_DIM>> actor_input;
-                    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT::ACTION_DIM>> action;
+                    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT_EVALUATION::OBSERVATION_DIM>> actor_input;
+                    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, CONFIG::ENVIRONMENT_EVALUATION::ACTION_DIM>> action;
                     typename CONFIG::ACTOR_TYPE::template DoubleBuffer<1> actor_buffer;
                     bpt::malloc(ts.device, image_0);
                     bpt::malloc(ts.device, image_1);
@@ -636,7 +647,7 @@ namespace multirotor_training{
                     bpt::malloc(ts.device, action);
                     bpt::malloc(ts.device, actor_buffer);
                     bpt::set_all(ts.device, action, 0);
-                    typename CONFIG::ENVIRONMENT::State state;
+                    typename CONFIG::ENVIRONMENT_EVALUATION::State state;
                     bpt::initial_state(ts.device, ts.envs[0], state);
                     for(TI x_i = 0; x_i < decltype(image_0)::COLS; x_i++){
                         for(TI y_i = 0; y_i < decltype(image_0)::ROWS; y_i++){
