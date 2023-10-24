@@ -46,7 +46,6 @@ namespace parameters{
 //                static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::abs_exp_position_orientation_lin_vel<T>;
                 static constexpr auto initial_reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque<T>;
                 static constexpr auto target_reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_squared_position_only_torque_curriculum_target<T>;
-                                                                                                   :
                 static constexpr auto reward_function = ABLATION_SPEC::USE_INITIAL_REWARD_FUNCTION ? initial_reward_function : target_reward_function;
 
 
