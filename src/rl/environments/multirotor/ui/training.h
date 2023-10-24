@@ -45,6 +45,10 @@ namespace multirotor_training{
             static constexpr bool INIT_NORMAL = true;
         };
         template <typename T_ABLATION_SPEC>
+        struct ABLATION_SPEC_USE_TARGET_REWARD_FUNCTION: T_ABLATION_SPEC{
+            static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
+        };
+        template <typename T_ABLATION_SPEC>
         struct CoreConfig{
             using ABLATION_SPEC = T_ABLATION_SPEC;
             using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
@@ -247,10 +251,11 @@ namespace multirotor_training{
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
             auto env_parameters = parameters_0::environment<T, TI, T_ABLATION_SPEC>::parameters;
+            auto env_parameters_eval = parameters_0::environment<T, TI, config::ABLATION_SPEC_USE_TARGET_REWARD_FUNCTION<T_ABLATION_SPEC>>::parameters;
             for (auto& env : ts.envs) {
                 env.parameters = env_parameters;
             }
-            ts.env_eval.parameters = env_parameters;
+            ts.env_eval.parameters = env_parameters_eval;
             TI effective_seed = CONFIG::BASE_SEED + seed;
             {
                 std::stringstream run_name_ss;
