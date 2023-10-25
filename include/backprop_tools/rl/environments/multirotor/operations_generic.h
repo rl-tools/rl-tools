@@ -400,7 +400,7 @@ namespace backprop_tools{
             using TI = typename DEVICE::index_t;
 
             for(TI i = 0; i < 3; i++){
-                if constexpr(OBSERVATION_SPEC::PRIVILEGED){
+                if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
                     set(observation, 0, i, state.position[i]);
                 }
                 else{
@@ -419,7 +419,7 @@ namespace backprop_tools{
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
             for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
-                if constexpr(OBSERVATION_SPEC::PRIVILEGED){
+                if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
                     set(observation, 0, i, state.orientation[i]);
                 }
                 else{
@@ -447,7 +447,7 @@ namespace backprop_tools{
             set(observation, 0, 6, (    2*q[1]*q[3] - 2*q[0]*q[2]));
             set(observation, 0, 7, (    2*q[2]*q[3] + 2*q[0]*q[1]));
             set(observation, 0, 8, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]));
-            if constexpr(!OBSERVATION_SPEC::PRIVILEGED){
+            if constexpr(!OBSERVATION_SPEC::PRIVILEGED || SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
                 for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
                     T noise;
                     noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng);
@@ -465,7 +465,7 @@ namespace backprop_tools{
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
             for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
-                if constexpr(OBSERVATION_SPEC::PRIVILEGED){
+                if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
                     set(observation, 0, i, state.linear_velocity[i]);
                 }
                 else{
@@ -484,7 +484,7 @@ namespace backprop_tools{
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
             for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
-                if constexpr(OBSERVATION_SPEC::PRIVILEGED){
+                if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
                     set(observation, 0, i, state.angular_velocity[i]);
                 }
                 else{

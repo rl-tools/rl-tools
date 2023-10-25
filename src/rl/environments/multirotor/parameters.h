@@ -128,6 +128,7 @@ namespace parameters{
                         >>,
                         observation::NONE<TI>
                     >;
+                    static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
                 };
 
                 using ENVIRONMENT_SPEC = bpt::rl::environments::multirotor::Specification<T, TI, PARAMETERS, ENVIRONMENT_STATIC_PARAMETERS>;

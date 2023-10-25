@@ -292,6 +292,13 @@ namespace multirotor_training{
             }
             bpt::malloc(ts.device, ts.validation_actor_buffers);
             bpt::init(ts.device, ts.task, ts.validation_envs, ts.rng_eval);
+
+            // info
+
+            std::cout << "Environment Info: \n";
+            std::cout << "\t" << "Observation dim: " << CONFIG::ENVIRONMENT::OBSERVATION_DIM << std::endl;
+            std::cout << "\t" << "Observation dim privileged: " << CONFIG::ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED << std::endl;
+            std::cout << "\t" << "Action dim: " << CONFIG::ENVIRONMENT::ACTION_DIM << std::endl;
         }
 
         template <typename T_ABLATION_SPEC>

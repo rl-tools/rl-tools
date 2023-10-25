@@ -167,7 +167,7 @@ namespace backprop_tools::rl::environments::multirotor{
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct OrientationRotationMatrixSpecificationPrivileged: OrientationRotationMatrixSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
-            static constexpr bool PRIVILEGED = false;
+            static constexpr bool PRIVILEGED = true;
         };
         template <typename SPEC>
         struct OrientationRotationMatrix{
@@ -323,6 +323,7 @@ namespace backprop_tools::rl::environments::multirotor{
                                  observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                                  observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI>>>>>>>>;
         using OBSERVATION_TYPE_PRIVILEGED = observation::NONE<TI>;
+        static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
     };
 
     template <typename T_T, typename T_TI, typename T_PARAMETERS, typename T_STATIC_PARAMETERS>
