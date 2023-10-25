@@ -43,6 +43,7 @@ namespace multirotor_training{
             static constexpr bool RECALCULATE_REWARDS = true;
             static constexpr bool USE_INITIAL_REWARD_FUNCTION = true;
             static constexpr bool INIT_NORMAL = true;
+            static constexpr bool EXPLORATION_NOISE_DECAY = true;
         };
         template <typename T_ABLATION_SPEC>
         struct ABLATION_SPEC_EVAL: T_ABLATION_SPEC{
@@ -55,6 +56,7 @@ namespace multirotor_training{
             static constexpr bool RECALCULATE_REWARDS = true;
             static constexpr bool USE_INITIAL_REWARD_FUNCTION = false; // Use target reward function as metric
             static constexpr bool INIT_NORMAL = true;
+            static constexpr bool EXPLORATION_NOISE_DECAY = true;
         };
         template <typename T_ABLATION_SPEC>
         struct CoreConfig{
@@ -253,6 +255,7 @@ namespace multirotor_training{
             n += std::string("c") + (ABLATION_SPEC::ENABLE_CURRICULUM ? "+"  : "-");
             n += std::string("f") + (ABLATION_SPEC::USE_INITIAL_REWARD_FUNCTION ? "+"  : "-");
             n += std::string("w") + (ABLATION_SPEC::RECALCULATE_REWARDS ? "+"  : "-");
+            n += std::string("e") + (ABLATION_SPEC::EXPLORATION_NOISE_DECAY ? "+"  : "-");
             return n;
         }
 
@@ -453,34 +456,20 @@ namespace multirotor_training{
                             bpt::add_scalar(ts.device, ts.device.logger, "reward_function/linear_velocity_weight", linear_velocity_weight);
                         }
                     }
-                    if(ts.step >= 500000){
-//                            {
-//                                T angular_acceleration_weight = env.parameters.mdp.reward.angular_acceleration;
-//                                angular_acceleration_weight += 0.01/170;
-//                                T angular_acceleration_weight_limit = 0.05/170;
-//                                angular_acceleration_weight = angular_acceleration_weight > angular_acceleration_weight_limit ? angular_acceleration_weight_limit : angular_acceleration_weight;
-//                                env.parameters.mdp.reward.angular_acceleration = angular_acceleration_weight;
-//                                bpt::add_scalar(ts.device, ts.device.logger, "reward_function/angular_acceleration_weight", angular_acceleration_weight);
-//                            }
-//                            {
-//                                T constant_weight = env.parameters.mdp.reward.constant;
-//                                constant_weight -= 0.1;
-//                                T constant_weight_limit = 1;
-//                                constant_weight = constant_weight < constant_weight_limit ? constant_weight_limit : constant_weight;
-//                                env.parameters.mdp.reward.constant = constant_weight;
-//                                bpt::add_scalar(ts.device, ts.device.logger, "reward_function/constant", constant_weight);
-//                            }
-                        constexpr T noise_decay_base = 0.90;
-                        ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
-                        ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
-                        ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
-                    }
                     if constexpr(CONFIG::ABLATION_SPEC::RECALCULATE_REWARDS == true){
                         auto start = std::chrono::high_resolution_clock::now();
                         bpt::recalculate_rewards(ts.device, ts.off_policy_runner.replay_buffers[0], ts.off_policy_runner.envs[0], ts.rng_eval);
                         auto end = std::chrono::high_resolution_clock::now();
                         std::cout << "recalculate_rewards: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
                     }
+                }
+            }
+            if(CONFIG::ABLATION_SPEC::EXPLORATION_NOISE_DECAY == true){
+                if(ts.step % 100000 == 0 && ts.step >= 500000){
+                    constexpr T noise_decay_base = 0.90;
+                    ts.off_policy_runner.parameters.exploration_noise *= noise_decay_base;
+                    ts.actor_critic.target_next_action_noise_std *= noise_decay_base;
+                    ts.actor_critic.target_next_action_noise_clip *= noise_decay_base;
                 }
             }
         }
