@@ -83,43 +83,51 @@ int main(int argc, char** argv){
     TI run_id = job_array_id % AblationSpecBase<TI>::NUM_RUNS;
     // T_DISTURBANCE T_OBSERVATION_NOISE T_ASYMMETRIC_ACTOR_CRITIC T_ROTOR_DELAY T_ACTION_HISTORY T_ENABLE_CURRICULUM T_USE_INITIAL_REWARD_FUNCTION T_RECALCULATE_REWARDS
 
-    using ABLATION_SPEC_0 = AblationSpecTemplate<TI, true,  true,  true,  true,  true,  true,  true, true>;
-    using ABLATION_SPEC_1 = AblationSpecTemplate<TI, true,  true,  true,  true,  true, false,  true, true>;
-    using ABLATION_SPEC_2 = AblationSpecTemplate<TI, true,  true,  true,  true,  true, false, false, true>;
-    using ABLATION_SPEC_3 = AblationSpecTemplate<TI, true,  true,  true,  true, false,  true,  true, true>;
-    using ABLATION_SPEC_4 = AblationSpecTemplate<TI, true,  true,  true, false, false,  true,  true, true>;
-    using ABLATION_SPEC_5 = AblationSpecTemplate<TI, true,  true, false,  true,  true,  true,  true, true>;
-    using ABLATION_SPEC_6 = AblationSpecTemplate<TI, true, false,  true,  true,  true,  true,  true, true>;
-    using ABLATION_SPEC_7 = AblationSpecTemplate<TI,false,  true,  true,  true,  true,  true,  true, true>;
-    using ABLATION_SPEC_8 = AblationSpecTemplate<TI, true,  true,  true,  true,  true,  true,  true, false>;
+    using ABLATION_SPEC_00 = AblationSpecTemplate<TI, true,  true,  true,  true,  true,  true,  true, true>;
+    using ABLATION_SPEC_01 = AblationSpecTemplate<TI, true,  true,  true,  true,  true, false,  true, true>;
+    using ABLATION_SPEC_02 = AblationSpecTemplate<TI, true,  true,  true,  true,  true, false, false, true>;
+    using ABLATION_SPEC_03 = AblationSpecTemplate<TI, true,  true,  true,  true, false,  true,  true, true>;
+    using ABLATION_SPEC_04 = AblationSpecTemplate<TI, true,  true,  true, false, false,  true,  true, true>;
+    using ABLATION_SPEC_05 = AblationSpecTemplate<TI, true,  true, false,  true,  true,  true,  true, true>;
+    using ABLATION_SPEC_06 = AblationSpecTemplate<TI, true, false,  true,  true,  true,  true,  true, true>;
+    using ABLATION_SPEC_07 = AblationSpecTemplate<TI,false,  true,  true,  true,  true,  true,  true, true>;
+    using ABLATION_SPEC_08 = AblationSpecTemplate<TI, true,  true,  true,  true,  true,  true,  true, false>;
+    using ABLATION_SPEC_09 = AblationSpecTemplate<TI, true,  true, false,  true,  true, false,  true, true>;
+    using ABLATION_SPEC_10 = AblationSpecTemplate<TI, true,  true, false,  true,  true, false, false, true>;
 
     switch(ablation_id){
         case 0:
-            train<ABLATION_SPEC_0>(run_id);
+            train<ABLATION_SPEC_00>(run_id);
             break;
         case 1:
-            train<ABLATION_SPEC_1>(run_id);
+            train<ABLATION_SPEC_01>(run_id);
             break;
         case 2:
-            train<ABLATION_SPEC_2>(run_id);
+            train<ABLATION_SPEC_02>(run_id);
             break;
         case 3:
-            train<ABLATION_SPEC_3>(run_id);
+            train<ABLATION_SPEC_03>(run_id);
             break;
         case 4:
-            train<ABLATION_SPEC_4>(run_id);
+            train<ABLATION_SPEC_04>(run_id);
             break;
         case 5:
-            train<ABLATION_SPEC_5>(run_id);
+            train<ABLATION_SPEC_05>(run_id);
             break;
         case 6:
-            train<ABLATION_SPEC_6>(run_id);
+            train<ABLATION_SPEC_06>(run_id);
             break;
         case 7:
-            train<ABLATION_SPEC_7>(run_id);
+            train<ABLATION_SPEC_07>(run_id);
             break;
         case 8:
-            train<ABLATION_SPEC_8>(run_id);
+            train<ABLATION_SPEC_08>(run_id);
+            break;
+        case 9:
+            train<ABLATION_SPEC_09>(run_id);
+            break;
+        case 10:
+            train<ABLATION_SPEC_10>(run_id);
             break;
         default:
             std::cout << "Invalid ablation id: " << ablation_id << std::endl;
