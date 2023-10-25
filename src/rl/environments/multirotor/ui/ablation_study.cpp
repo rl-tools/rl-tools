@@ -66,7 +66,7 @@ struct AblationSpecTemplate: AblationSpecBase<TI> {
 };
 
 int main(int argc, char** argv){
-    // assert exactly one command line argument and convert it to int
+    std::cout << "Running the ablation study using BackpropTools: " BACKPROP_TOOLS_STRINGIFY(BACKPROP_TOOLS_COMMIT_HASH) << std::endl;
 
     using TI = int;
     using BASE_CONFIG = multirotor_training::config::Config<AblationSpecBase<TI>>;

@@ -10,6 +10,18 @@ set(CMAKE_CXX_STANDARD 17)
 message("Build type: ${CMAKE_BUILD_TYPE}")
 message("C++ Compiler: ${CMAKE_CXX_COMPILER}")
 
+
+find_package(Git REQUIRED)
+if(GIT_FOUND)
+    execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            OUTPUT_VARIABLE BACKPROP_TOOLS_COMMIT_HASH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    message("Commit hash: ${BACKPROP_TOOLS_COMMIT_HASH}")
+endif()
+
 option(BACKPROP_TOOLS_ENABLE_TESTS "Build the unit tests when enabled." off)
 
 # To obtain MKL: sudo apt install intel-oneapi-mkl-devel
@@ -217,6 +229,9 @@ if(BACKPROP_TOOLS_ENABLE_SDL2)
 endif()
 
 function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)
+    if(DEFINED BACKPROP_TOOLS_COMMIT_HASH)
+        target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_COMMIT_HASH="${BACKPROP_TOOLS_COMMIT_HASH}")
+    endif()
     if(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE)
         add_compile_definitions(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE)
     endif()

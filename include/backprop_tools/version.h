@@ -1,5 +1,9 @@
-#define BACKPROP_TOOLS_COMMIT_HASH fea9e60f01022880379374001e26f2a7678ab42e
-#define BACKPROP_TOOLS_COMMIT_HASH_SHORT 16689638 // decimal of the first 24 bits of the commit hash
+#if !defined(BACKPROP_TOOLS_COMMIT_HASH) || !defined(BACKPROP_TOOLS_COMMIT_HASH_SHORT)
+#pragma message "BACKPROP_TOOLS_COMMIT_HASH and BACKPROP_TOOLS_COMMIT_HASH_SHORT are not passed by the build system"
+// Note that this commit hash will always be delayed
+#define BACKPROP_TOOLS_COMMIT_HASH 111f0b82ba87ee4f1938f4d85ee2d266e70f4498
+#define BACKPROP_TOOLS_COMMIT_HASH_SHORT 1122059 // decimal of the first 24 bits of the commit hash: julia -e 'println(parse(Int, "111f0b", base=16))'
+#endif
 
 #define BACKPROP_TOOLS_STRINGIFY_INNER(x) #x
 #define BACKPROP_TOOLS_STRINGIFY(x) BACKPROP_TOOLS_STRINGIFY_INNER(x)

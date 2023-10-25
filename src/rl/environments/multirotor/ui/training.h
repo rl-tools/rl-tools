@@ -365,6 +365,7 @@ namespace multirotor_training{
                         actor_output_file << "\n" << bpt::save_code(ts.device, action, std::string("backprop_tools::checkpoint::action"), true);
                         actor_output_file << "\n" << "namespace backprop_tools::checkpoint::meta{";
                         actor_output_file << "\n" << "   " << "char name[] = \"" << ts.run_name << "_" << checkpoint_name << "\";";
+                        actor_output_file << "\n" << "   " << "char commit_hash[] = \"" << BACKPROP_TOOLS_STRINGIFY(BACKPROP_TOOLS_COMMIT_HASH) << "\";";
                         actor_output_file << "\n" << "}";
                         bpt::free(ts.device, observation);
                         bpt::free(ts.device, action);
