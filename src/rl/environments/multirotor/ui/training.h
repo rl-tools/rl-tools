@@ -67,7 +67,9 @@ namespace multirotor_training{
 
 
             using ENVIRONMENT = typename parameters_0::environment<T, TI, ABLATION_SPEC>::ENVIRONMENT;
-            using ENVIRONMENT_EVALUATION = typename parameters_0::environment<T, TI, ABLATION_SPEC_EVAL<ABLATION_SPEC>>::ENVIRONMENT;
+            using ABLATION_SPEC_EVAL_INSTANCE = ABLATION_SPEC_EVAL<ABLATION_SPEC>;
+            static_assert(ABLATION_SPEC_EVAL_INSTANCE::ROTOR_DELAY == true);
+            using ENVIRONMENT_EVALUATION = typename parameters_0::environment<T, TI, ABLATION_SPEC_EVAL_INSTANCE>::ENVIRONMENT;
             static_assert(ENVIRONMENT::OBSERVATION_DIM == ENVIRONMENT_EVALUATION::OBSERVATION_DIM);
             static_assert(ENVIRONMENT::ACTION_DIM == ENVIRONMENT_EVALUATION::ACTION_DIM);
             using UI = bool;

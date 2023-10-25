@@ -27,8 +27,9 @@ namespace parameters{
         namespace builder {
             namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER::backprop_tools;
             using namespace bpt::rl::environments::multirotor;
-            template<typename T, typename TI, typename ABLATION_SPEC>
+            template<typename T, typename TI, typename T_ABLATION_SPEC>
             struct environment {
+                using ABLATION_SPEC = T_ABLATION_SPEC;
                 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_old_but_gold_4<T>;
                 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::reward_mm<T, TI>;
                 //        static constexpr auto reward_function = backprop_tools::rl::environments::multirotor::parameters::reward_functions::sq_exp_position_action_only_3<T>;
