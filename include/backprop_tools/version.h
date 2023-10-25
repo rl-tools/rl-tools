@@ -1,4 +1,4 @@
-#if !defined(BACKPROP_TOOLS_COMMIT_HASH) || !defined(BACKPROP_TOOLS_COMMIT_HASH_SHORT)
+#if !defined(BACKPROP_TOOLS_COMMIT_HASH)
 #pragma message "BACKPROP_TOOLS_COMMIT_HASH and BACKPROP_TOOLS_COMMIT_HASH_SHORT are not passed by the build system"
 // Note that this commit hash will always be delayed
 #define BACKPROP_TOOLS_COMMIT_HASH 111f0b82ba87ee4f1938f4d85ee2d266e70f4498

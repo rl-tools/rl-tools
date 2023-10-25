@@ -11,7 +11,7 @@ message("Build type: ${CMAKE_BUILD_TYPE}")
 message("C++ Compiler: ${CMAKE_CXX_COMPILER}")
 
 
-find_package(Git REQUIRED)
+find_package(Git)
 if(GIT_FOUND)
     execute_process(
             COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
@@ -229,7 +229,7 @@ if(BACKPROP_TOOLS_ENABLE_SDL2)
 endif()
 
 function(BACKPROP_TOOLS_ADD_DEFINITIONS TARGET)
-    if(DEFINED BACKPROP_TOOLS_COMMIT_HASH)
+    if(BACKPROP_TOOLS_COMMIT_HASH)
         target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_COMMIT_HASH="${BACKPROP_TOOLS_COMMIT_HASH}")
     endif()
     if(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE)
