@@ -32,14 +32,16 @@ namespace TEST_DEFINITIONS{
     template <typename BASE_SPEC>
     struct SpecEval: BASE_SPEC{
         static constexpr bool DISTURBANCE = true;
-        static constexpr bool OBSERVATION_NOISE = false;
+        static constexpr bool OBSERVATION_NOISE = true;
         static constexpr bool ROTOR_DELAY = true;
-        static constexpr bool ACTION_HISTORY = BASE_SPEC::ROTOR_DELAY && BASE_SPEC::ACTION_HISTORY;
+        static constexpr bool ACTION_HISTORY = false; //BASE_SPEC::ROTOR_DELAY && BASE_SPEC::ACTION_HISTORY;
         static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
         static constexpr bool INIT_NORMAL = true;
     };
+    using EVAL_SPEC = SpecEval<parameters::DefaultAblationSpec>;
+    using CONFIG = multirotor_training::config::Config<EVAL_SPEC>;
 
-    using penv = parameter_set::environment<T, TI, SpecEval<parameters::DefaultAblationSpec>>;
+    using penv = parameter_set::environment<T, TI, EVAL_SPEC>;
     using ENVIRONMENT = penv::ENVIRONMENT;
     using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
 
@@ -88,8 +90,8 @@ int main(int argc, char** argv) {
     ENVIRONMENT env;
     env.parameters = penv::parameters;
     UI ui;
-    typename multirotor_training::config::Config::ACTOR_TYPE actor;
-    typename multirotor_training::config::Config::ACTOR_TYPE::DoubleBuffer<1> actor_buffer;
+    typename CONFIG::ACTOR_TYPE actor;
+    typename CONFIG::ACTOR_TYPE::template DoubleBuffer<1> actor_buffer;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     typename ENVIRONMENT::State state, target_state, observation_state, observation_state_clamped, next_state;
