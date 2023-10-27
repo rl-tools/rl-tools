@@ -34,7 +34,7 @@ namespace TEST_DEFINITIONS{
         static constexpr bool DISTURBANCE = true;
         static constexpr bool OBSERVATION_NOISE = true;
         static constexpr bool ROTOR_DELAY = true;
-        static constexpr bool ACTION_HISTORY = false; //BASE_SPEC::ROTOR_DELAY && BASE_SPEC::ACTION_HISTORY;
+        static constexpr bool ACTION_HISTORY = BASE_SPEC::ROTOR_DELAY && BASE_SPEC::ACTION_HISTORY;
         static constexpr bool USE_INITIAL_REWARD_FUNCTION = false;
         static constexpr bool INIT_NORMAL = true;
     };
