@@ -42,10 +42,11 @@ namespace my_program_state
 class websocket_session : public std::enable_shared_from_this<websocket_session> {
     beast::websocket::stream<tcp::socket> ws_;
 
-    using CONFIG = multirotor_training::config::Config;
+    using ABLATION_SPEC = multirotor_training::config::DEFAULT_ABLATION_SPEC;
+    using CONFIG = multirotor_training::config::Config<ABLATION_SPEC>;
     using TI = CONFIG::TI;
 
-    multirotor_training::operations::TrainingState ts;
+    multirotor_training::operations::TrainingState<ABLATION_SPEC> ts;
     boost::asio::steady_timer timer_;
     std::chrono::time_point<std::chrono::high_resolution_clock> training_start, training_end;
     std::thread t;
@@ -54,14 +55,14 @@ class websocket_session : public std::enable_shared_from_this<websocket_session>
     std::vector<TI> idle_drones;
     TI drone_id_counter = 0;
     using T = CONFIG::T;
-    using ENVIRONMENT = typename parameters_sim2real::environment<CONFIG::T, TI>::ENVIRONMENT;
+    using ENVIRONMENT = typename parameters_sim2real::environment<CONFIG::T, TI, ABLATION_SPEC>::ENVIRONMENT;
     ENVIRONMENT env;
     bpt::devices::DefaultCPU device;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
 
 public:
     explicit websocket_session(tcp::socket socket) : ws_(std::move(socket)), timer_(ws_.get_executor()) {
-        env.parameters = parameters_0::environment<T, TI>::parameters;
+        env.parameters = parameters_0::environment<T, TI, ABLATION_SPEC>::parameters;
         bpt::malloc(device, action);
     }
 

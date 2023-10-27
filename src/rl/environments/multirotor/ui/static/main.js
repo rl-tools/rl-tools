@@ -137,7 +137,7 @@ window.onload = function(){
               document.getElementById("canvasContainer").style.display = "none"
               document.getElementById("button").style.display = "none"
               var resultContainer = document.getElementById("resultContainer")
-              resultContainer.innerHTML = "Total training time: 31s" // + Math.round(data.time) + "s"
+              resultContainer.innerHTML = "Total training time: " + Math.round(data.time) + "s"
               resultContainer.style.display = "block"
             }
           }

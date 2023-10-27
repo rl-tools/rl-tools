@@ -9,6 +9,7 @@ target_link_libraries(
         backprop_tools
         HighFive
         tensorboard_logger
+        libattopng
         Boost::boost
         nlohmann_json::nlohmann_json
 )
