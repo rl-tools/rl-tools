@@ -10,7 +10,7 @@ void train(typename multirotor_training::config::Config<T_ABLATION_SPEC>::TI see
     using TI = typename CONFIG::TI;
 
     std::cout << "Seed " << seed << "\n";
-    multirotor_training::operations::TrainingState<T_ABLATION_SPEC> ts;
+    multirotor_training::operations::TrainingState<CONFIG> ts;
     multirotor_training::operations::init(ts, seed);
     for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
         multirotor_training::operations::step(ts);

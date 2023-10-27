@@ -30,15 +30,15 @@ namespace backprop_tools::rl::algorithms::td3::loop {
         typename SPEC::ACTOR_TYPE::template DoubleBuffer<SPEC::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
     };
 
-    template<typename SPEC>
-    struct TrainingState : CoreTrainingState<SPEC> {
-        using T = typename SPEC::T;
-        using TI = typename SPEC::DEVICE::index_t;
+    template<typename CONFIG>
+    struct TrainingState : CoreTrainingState<CONFIG> {
+        using T = typename CONFIG::T;
+        using TI = typename CONFIG::DEVICE::index_t;
         TI step = 0;
         bool finished = false;
-        static constexpr TI N_EVALUATIONS = SPEC::STEP_LIMIT / SPEC::EVALUATION_INTERVAL + 1;
+        static constexpr TI N_EVALUATIONS = CONFIG::STEP_LIMIT / CONFIG::EVALUATION_INTERVAL + 1;
         static_assert(N_EVALUATIONS > 0 && N_EVALUATIONS < 1000000);
-        rl::utils::evaluation::Result<T, TI, SPEC::NUM_EVALUATION_EPISODES> evaluation_results[N_EVALUATIONS];
+        rl::utils::evaluation::Result<T, TI, CONFIG::NUM_EVALUATION_EPISODES> evaluation_results[N_EVALUATIONS];
 //        T evaluation_results[N_EVALUATIONS];
     };
 }

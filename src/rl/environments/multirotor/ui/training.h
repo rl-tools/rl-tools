@@ -171,7 +171,7 @@ namespace multirotor_training{
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 300001;
+            static constexpr TI STEP_LIMIT = 3000001;
 //            static constexpr TI REPLAY_BUFFER_LIMIT = 3000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
@@ -231,9 +231,9 @@ namespace multirotor_training{
     }
 
     namespace operations{
-        template <typename T_ABLATION_SPEC>
-        struct CustomTrainingState: bpt::rl::algorithms::td3::loop::TrainingState<config::Config<T_ABLATION_SPEC>>{
-            using CONFIG = typename config::Config<T_ABLATION_SPEC>;
+        template <typename T_CONFIG>
+        struct CustomTrainingState: bpt::rl::algorithms::td3::loop::TrainingState<T_CONFIG>{
+            using CONFIG = T_CONFIG;
             std::string run_name;
             std::queue<std::vector<typename CONFIG::ENVIRONMENT::State>> trajectories;
             std::mutex trajectories_mutex;
@@ -259,15 +259,16 @@ namespace multirotor_training{
             return n;
         }
 
-        template <typename T_ABLATION_SPEC = config::DEFAULT_ABLATION_SPEC>
-        using TrainingState = CustomTrainingState<T_ABLATION_SPEC>;
-        template <typename T_ABLATION_SPEC>
-        void init(TrainingState<T_ABLATION_SPEC>& ts, typename config::Config<T_ABLATION_SPEC>::TI seed = 0){
-            using CONFIG = config::Config<T_ABLATION_SPEC>;
+        template <typename T_CONFIG>
+        using TrainingState = CustomTrainingState<T_CONFIG>;
+        template <typename T_CONFIG>
+        void init(TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+            using CONFIG = T_CONFIG;
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
-            auto env_parameters = parameters_0::environment<T, TI, T_ABLATION_SPEC>::parameters;
-            auto env_parameters_eval = parameters_0::environment<T, TI, config::ABLATION_SPEC_EVAL<T_ABLATION_SPEC>>::parameters;
+            using ABLATION_SPEC = typename CONFIG::ABLATION_SPEC;
+            auto env_parameters = parameters_0::environment<T, TI, ABLATION_SPEC>::parameters;
+            auto env_parameters_eval = parameters_0::environment<T, TI, config::ABLATION_SPEC_EVAL<ABLATION_SPEC>>::parameters;
             for (auto& env : ts.envs) {
                 env.parameters = env_parameters;
             }
@@ -280,7 +281,7 @@ namespace multirotor_training{
                 auto local_time = std::chrono::system_clock::to_time_t(now);
                 std::tm* tm = std::localtime(&local_time);
                 run_name_ss << "" << std::put_time(tm, "%Y_%m_%d_%H_%M_%S");
-                run_name_ss << "_" << ablation_name<T_ABLATION_SPEC>();
+                run_name_ss << "_" << ablation_name<ABLATION_SPEC>();
                 run_name_ss << "_" << std::setw(3) << std::setfill('0') << effective_seed;
                 ts.run_name = run_name_ss.str();
             }
@@ -293,7 +294,7 @@ namespace multirotor_training{
             ts.off_policy_runner.parameters = CONFIG::off_policy_runner_parameters;
 
             for(typename CONFIG::ENVIRONMENT& env: ts.validation_envs){
-                env.parameters = parameters_0::environment<typename CONFIG::T, TI, T_ABLATION_SPEC>::parameters;
+                env.parameters = parameters_0::environment<typename CONFIG::T, TI, ABLATION_SPEC>::parameters;
             }
             bpt::malloc(ts.device, ts.validation_actor_buffers);
             bpt::init(ts.device, ts.task, ts.validation_envs, ts.rng_eval);
@@ -306,14 +307,14 @@ namespace multirotor_training{
             std::cout << "\t" << "Action dim: " << CONFIG::ENVIRONMENT::ACTION_DIM << std::endl;
         }
 
-        template <typename T_ABLATION_SPEC>
-        void step_logger(TrainingState<T_ABLATION_SPEC>& ts){
+        template <typename T_CONFIG>
+        void step_logger(TrainingState<T_CONFIG>& ts){
             bpt::set_step(ts.device, ts.device.logger, ts.step);
         }
 
-        template <typename T_ABLATION_SPEC>
-        void step_checkpoint(TrainingState<T_ABLATION_SPEC>& ts){
-            using CONFIG = config::Config<T_ABLATION_SPEC>;
+        template <typename T_CONFIG>
+        void step_checkpoint(TrainingState<T_CONFIG>& ts){
+            using CONFIG = T_CONFIG;
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
             if(CONFIG::ACTOR_ENABLE_CHECKPOINTS && (ts.step % CONFIG::ACTOR_CHECKPOINT_INTERVAL == 0)){
@@ -380,9 +381,8 @@ namespace multirotor_training{
             }
         }
 
-        template <typename T_ABLATION_SPEC>
-        void step_curriculum(TrainingState<T_ABLATION_SPEC>& ts){
-            using CONFIG = config::Config<T_ABLATION_SPEC>;
+        template <typename CONFIG>
+        void step_curriculum(TrainingState<CONFIG>& ts){
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
             if constexpr(CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true) {
@@ -473,9 +473,8 @@ namespace multirotor_training{
                 }
             }
         }
-        template <typename T_ABLATION_SPEC>
-        void step_critic_reset(TrainingState<T_ABLATION_SPEC>& ts){
-            using CONFIG = config::Config<T_ABLATION_SPEC>;
+        template <typename CONFIG>
+        void step_critic_reset(TrainingState<CONFIG>& ts){
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
             if(ts.step == 500000) {
@@ -492,9 +491,8 @@ namespace multirotor_training{
             }
         }
 
-        template <typename T_ABLATION_SPEC>
-        void step_trajectory_collection(TrainingState<T_ABLATION_SPEC>& ts){
-            using CONFIG = config::Config<T_ABLATION_SPEC>;
+        template <typename CONFIG>
+        void step_trajectory_collection(TrainingState<CONFIG>& ts){
             using TI = typename CONFIG::TI;
             auto& rb = ts.off_policy_runner.replay_buffers[0];
             TI current_pos = rb.position == 0 ? CONFIG::REPLAY_BUFFER_CAP - 1 : rb.position - 1;
@@ -508,9 +506,8 @@ namespace multirotor_training{
                 ts.episode.clear();
             }
         }
-        template <typename T_ABLATION_SPEC>
-        void step_network_stats(TrainingState<T_ABLATION_SPEC>& ts){
-            using CONFIG = config::Config<T_ABLATION_SPEC>;
+        template <typename CONFIG>
+        void step_network_stats(TrainingState<CONFIG>& ts){
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
             if(ts.step % 100000 == 0){
@@ -528,9 +525,8 @@ namespace multirotor_training{
                 }
             }
         }
-        template <typename T_ABLATION_SPEC>
-        void step_network_analysis(TrainingState<T_ABLATION_SPEC>& ts){
-            using CONFIG = config::Config<T_ABLATION_SPEC>;
+        template <typename CONFIG>
+        void step_network_analysis(TrainingState<CONFIG>& ts){
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
             if(ts.step % 100000 == 0){
@@ -692,19 +688,19 @@ namespace multirotor_training{
                 }
             }
         }
-        template <typename T_ABLATION_SPEC>
-        void step_validation(TrainingState<T_ABLATION_SPEC>& ts){
+        template <typename CONFIG>
+        void step_validation(TrainingState<CONFIG>& ts){
             if(ts.step % 50000 == 0){
                 bpt::reset(ts.device, ts.task, ts.rng_eval);
                 bool completed = false;
                 while(!completed){
                     completed = bpt::step(ts.device, ts.task, ts.actor_critic.actor, ts.validation_actor_buffers, ts.rng_eval);
                 }
-                bpt::analyse_log(ts.device, ts.task, typename TrainingState<T_ABLATION_SPEC>::SPEC::METRICS{});
+                bpt::analyse_log(ts.device, ts.task, typename TrainingState<CONFIG>::SPEC::METRICS{});
             }
         }
-        template <typename T_ABLATION_SPEC>
-        void step(TrainingState<T_ABLATION_SPEC>& ts){
+        template <typename CONFIG>
+        void step(TrainingState<CONFIG>& ts){
             step_logger(ts);
             step_checkpoint(ts);
             step_validation(ts);
@@ -715,8 +711,8 @@ namespace multirotor_training{
             step_network_stats(ts);
 //            step_network_analysis(ts);
         }
-        template <typename T_ABLATION_SPEC>
-        void destroy(TrainingState<T_ABLATION_SPEC>& ts){
+        template <typename CONFIG>
+        void destroy(TrainingState<CONFIG>& ts){
             bpt::rl::algorithms::td3::loop::destroy(ts);
             bpt::destroy(ts.device, ts.task);
             bpt::free(ts.device, ts.validation_actor_buffers);
