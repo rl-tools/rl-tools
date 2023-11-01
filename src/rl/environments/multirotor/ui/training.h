@@ -166,7 +166,7 @@ namespace multirotor_training{
             static constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
             static constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
             static constexpr bool DETERMINISTIC_EVALUATION = true;
-            static constexpr TI EVALUATION_INTERVAL = 50000;
+            static constexpr TI EVALUATION_INTERVAL = 10000;
             static constexpr TI NUM_EVALUATION_EPISODES = 1000;
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
