@@ -132,7 +132,7 @@ window.onload = function(){
           if (channel === "status") {
             // button.innerHTML = "Training time: " + Math.round(data.time) + "s (" + Math.round(data.progress * 100) + "%)"
             button.innerHTML = "Training progress: " + Math.round(data.progress * 100) + "%"
-            if(data.finished && !window.finished){
+            if(data.finished && !window.finished && false){
               window.finished = true;
               document.getElementById("canvasContainer").style.display = "none"
               document.getElementById("button").style.display = "none"
