@@ -52,11 +52,17 @@ class Simulator {
         // camera.position.y = 0.15;
         // camera.position.z = 0.15;
 
-        let distance_factor = parameters["cameraDistanceToOrigin"]
-        this.camera.position.x = -3.5 * distance_factor
-        this.camera.position.y = 3.5 * distance_factor
-        this.camera.position.z = 2.0 * distance_factor
-        this.camera.lookAt(3, 3, 0)
+        // let distance_factor = parameters["cameraDistanceToOrigin"]
+        // this.camera.position.x = -3.5 * distance_factor
+        // this.camera.position.y = 3.5 * distance_factor
+        // this.camera.position.z = 2.0 * distance_factor
+        this.camera.position.set(3.046703062498493, 1.2024550372132523, -0.22878932408466626)
+        this.camera.quaternion.set(-0.14872632450719536, 0.721081850741007, 0.1633077667143152, 0.6566978135042688)
+        // this.camera.lookAt(0, 0, 0)
+        // this.camera.position.applyMatrix4(this.simulator.matrixWorld);
+        // this.camera.quaternion.copy(this.simulator.quaternion)
+        // this.camera.quaternion.set(-0.2642084649747099, -0.6665095797761348, -0.27488495215598063, 0.6406224552578156)
+        controls.update()
 
         let animate = () =>{
             requestAnimationFrame(animate);

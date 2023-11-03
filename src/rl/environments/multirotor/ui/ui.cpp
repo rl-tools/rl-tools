@@ -142,8 +142,8 @@ public:
                 constexpr TI height = 3;
                 TI drone_sub_id = drone_id % (width * height);
                 constexpr T scale = 0.3;
-                ui.origin[0] = (drone_id / 10)*scale;
-                ui.origin[1] = (drone_id % 10)*scale;
+                ui.origin[0] = (drone_id / 10)*scale - 5*scale;
+                ui.origin[1] = (drone_id % 10)*scale - 5*scale;
                 ui.origin[2] = 0;
 //                std::cout << "Adding drone at " << ui << std::endl;
                 ws_.write(net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump()));
@@ -159,8 +159,8 @@ public:
                 constexpr TI height = 3;
                 TI drone_sub_id = drone_id % (width * height);
                 constexpr T scale = 0.3;
-                ui.origin[0] = (drone_id / 10)*scale;
-                ui.origin[1] = (drone_id % 10)*scale;
+                ui.origin[0] = (drone_id / 10)*scale - 5 * scale;
+                ui.origin[1] = (drone_id % 10)*scale - 5 * scale;
                 ui.origin[2] = 0;
 //                std::cout << "Adding drone at " << ui << std::endl;
                 ws_.write(net::buffer(bpt::rl::environments::multirotor::model_message(device, env, ui).dump()));
