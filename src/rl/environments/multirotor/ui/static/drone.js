@@ -96,6 +96,7 @@ class Drone{
       this.drone.add(rotorGroup)
       this.drone.add(armGroup)
       this.droneFrame.add(this.drone)
+      this.droneFrame.visible = false
       this.rotors.push({
         forceArrow,
         rotorCage
@@ -108,6 +109,7 @@ class Drone{
   }
   setState(state){
     // console.log(state)
+    this.droneFrame.visible = true
     const mat = Matrix4FromRotMat(state.pose.orientation)
     this.droneFrame.quaternion.setFromRotationMatrix(mat)
     this.droneFrame.position.set(state.pose.position[0] + this.origin[0], state.pose.position[1] + this.origin[1], state.pose.position[2] + this.origin[2])
