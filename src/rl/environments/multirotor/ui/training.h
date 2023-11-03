@@ -60,8 +60,9 @@ namespace multirotor_training{
         };
         template <typename T_ABLATION_SPEC>
         struct CoreConfig{
+            static constexpr bool BENCHMARK = true;
             using ABLATION_SPEC = T_ABLATION_SPEC;
-            using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
+            using DEV_SPEC = bpt::utils::typing::conditional_t<BENCHMARK, bpt::devices::DefaultCPUSpecification, bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>>;
 //    using DEVICE = bpt::devices::CPU<DEV_SPEC>;
             using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
             using T = float;
@@ -163,15 +164,15 @@ namespace multirotor_training{
             using ACTOR_CRITIC_TYPE = bpt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
 
-            static constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
+            static constexpr bool ACTOR_ENABLE_CHECKPOINTS = true; //!BENCHMARK;
             static constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-            static constexpr bool DETERMINISTIC_EVALUATION = true;
+            static constexpr bool DETERMINISTIC_EVALUATION = !BENCHMARK;
             static constexpr TI EVALUATION_INTERVAL = 10000;
             static constexpr TI NUM_EVALUATION_EPISODES = 1000;
             static constexpr bool COLLECT_EPISODE_STATS = false;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
             static constexpr TI N_ENVIRONMENTS = 1;
-            static constexpr TI STEP_LIMIT = 3000001;
+            static constexpr TI STEP_LIMIT = 300001;
 //            static constexpr TI REPLAY_BUFFER_LIMIT = 3000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
@@ -281,6 +282,9 @@ namespace multirotor_training{
                 auto local_time = std::chrono::system_clock::to_time_t(now);
                 std::tm* tm = std::localtime(&local_time);
                 run_name_ss << "" << std::put_time(tm, "%Y_%m_%d_%H_%M_%S");
+                if constexpr(CONFIG::BENCHMARK){
+                    run_name_ss << "_BENCHMARK";
+                }
                 run_name_ss << "_" << ablation_name<ABLATION_SPEC>();
                 run_name_ss << "_" << std::setw(3) << std::setfill('0') << effective_seed;
                 ts.run_name = run_name_ss.str();
@@ -386,7 +390,7 @@ namespace multirotor_training{
             using T = typename CONFIG::T;
             using TI = typename CONFIG::TI;
             if constexpr(CONFIG::ABLATION_SPEC::ENABLE_CURRICULUM == true) {
-                if(ts.step != 0 && ts.step % 100000 == 0){
+                if(ts.step != 0 && ts.step % 100000 == 0 && ts.step != (CONFIG::STEP_LIMIT - 1)){
 //                constexpr T decay = 0.96;
 //                constexpr T decay = 0.75;
 //                off_policy_runner.parameters.exploration_noise *= decay;
