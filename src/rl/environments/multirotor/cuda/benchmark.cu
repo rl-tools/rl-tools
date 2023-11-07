@@ -10,7 +10,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #include <cassert>
 
 using T = float;
-constexpr T DT = 0.02;
+constexpr T DT = 0.01;
 constexpr size_t N_BLOCKS = 64;
 constexpr size_t N_BLOCKS_CPU = 1;
 constexpr size_t N_THREADS = 128;
