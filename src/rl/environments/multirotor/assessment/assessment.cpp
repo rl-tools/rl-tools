@@ -31,7 +31,7 @@ namespace TEST_DEFINITIONS{
     using TI = typename DEVICE::index_t;
     namespace parameter_set = parameters_0;
 
-    using penv = parameter_set::environment<T, TI>;
+    using penv = parameter_set::environment<T, TI, parameters::DefaultAblationSpec>;
     using ENVIRONMENT = penv::ENVIRONMENT;
     using UI = bpt::rl::environments::multirotor::UI<ENVIRONMENT>;
 

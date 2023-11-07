@@ -22,6 +22,7 @@ namespace training_config {
 
         using ENV_SPEC = bpt::rl::environments::car::SpecificationTrack<T, TI, 100, 100, 20>;
         using ENVIRONMENT = bpt::rl::environments::CarTrack<ENV_SPEC>;
+        using ENVIRONMENT_EVALUATION = ENVIRONMENT;
 #if BACKPROP_TOOLS_ENABLE_GTK
         using UI = bpt::rl::environments::car::UI<bpt::rl::environments::car::ui::Specification<T, TI, ENVIRONMENT, 1000, 60>>;
 #else
@@ -31,6 +32,7 @@ namespace training_config {
         struct DEVICE_SPEC: bpt::devices::DefaultCPUSpecification {
             using LOGGING = bpt::devices::logging::CPU;
         };
+        static constexpr bool CONSTRUCT_LOGGER = false;
         struct TD3PendulumParameters: bpt::rl::algorithms::td3::DefaultParameters<T, TI>{
             constexpr static TI CRITIC_BATCH_SIZE = 100;
             constexpr static TI ACTOR_BATCH_SIZE = 100;

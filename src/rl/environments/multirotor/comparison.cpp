@@ -11,7 +11,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 using DEVICE = bpt::devices::DefaultCPU;
 using T = double;
 using TI = typename DEVICE::index_t;
-using penv = parameters_0::environment<T, TI>;
+using penv = parameters_0::environment<T, TI, parameters::DefaultAblationSpec>;
 using UI = bpt::rl::environments::multirotor::UI<penv::ENVIRONMENT>;
 
 int main(){

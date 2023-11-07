@@ -14,7 +14,7 @@ void run(){
         std::cout << "Run " << run_i << "\n";
         struct mallinfo mi = mallinfo();
         std::cout << "Total allocated space before declaration: " << mi.uordblks << " bytes\n";
-        multirotor_training::operations::TrainingState<T_ABLATION_SPEC> ts;
+        multirotor_training::operations::TrainingState<CONFIG> ts;
         mi = mallinfo();
         std::cout << "Total allocated space after declaration: " << mi.uordblks << " bytes\n";
         multirotor_training::operations::init(ts, run_i);

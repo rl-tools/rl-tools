@@ -19,7 +19,7 @@
 #include <backprop_tools/nn/optimizers/adam/adam.h>
 
 //#include "../../../../checkpoints/multirotor_td3/multirotor_td3_2023_10_04_19_28_21/actor_000000003000000.h"
-#include "../../../../checkpoints/multirotor_td3/multirotor_td3_2023_10_04_19_28_21/actor_000000003000000.h"
+#include "../../../../checkpoints/multirotor_td3/2023_11_07_15_09_40_BENCHMARK_d+o+a+r+h+c-f+w+e+_040/actor_000000000300000.h"
 
 #include <thread>
 
@@ -41,7 +41,8 @@ using T = float;
 using TI = typename DEVICE::index_t;
 
 
-using ENVIRONMENT = parameters_0::environment<T, TI>::ENVIRONMENT;
+using ABLATION_SPEC = parameters::DefaultAblationSpec;
+using ENVIRONMENT = parameters_0::environment<T, TI, ABLATION_SPEC>::ENVIRONMENT;
 
 
 using VALIDATION_SPEC = bpt::rl::utils::validation::Specification<T, TI, ENVIRONMENT>;
@@ -63,7 +64,7 @@ int main(){
     bpt::construct(device, device.logger);
     ENVIRONMENT envs[N_EPISODES];
     for(ENVIRONMENT& env: envs){
-        env.parameters = parameters_0::environment<T, TI>::parameters;
+        env.parameters = parameters_0::environment<T, TI, ABLATION_SPEC>::parameters;
 //        env.parameters.mdp.init.max_angle *= 0.2;
     }
     bpt::init(device, task, envs, rng);
@@ -103,7 +104,7 @@ int main(){
         constexpr TI index = 0;
 //        T value = bpt::evaluate(device, bpt::get(device, METRICS{}, bpt::Constant<0>{}), task);
 //        }
-        bpt::analyse(device, task, METRICS{});
+        bpt::analyse_log(device, task, METRICS{});
 //        T return_mean = bpt::evaluate(device, bpt::rl::utils::validation::metrics::ReturnMean{}, task);
 //        T return_std = bpt::evaluate(device, bpt::rl::utils::validation::metrics::ReturnStd{}, task);
 //        T terminated_fraction = bpt::evaluate(device, bpt::rl::utils::validation::metrics::TerminatedFraction{}, task);

@@ -18,11 +18,11 @@ using TI = typename DEVICE::index_t;
 
 namespace MODEL_1{
     using namespace bpt::nn_models::sequential::interface;
-    using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, 10, 15, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Plain, bpt::nn::parameters::groups::Input>;
+    using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, 10, 15, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Plain, 1, bpt::nn::parameters::groups::Input>;
     using LAYER_1 = bpt::nn::layers::dense::Layer<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, 15, 20, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Plain, bpt::nn::parameters::groups::Normal>;
+    using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, 15, 20, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Plain, 1, bpt::nn::parameters::groups::Normal>;
     using LAYER_2 = bpt::nn::layers::dense::Layer<LAYER_2_SPEC>;
-    using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, 20, 5, bpt::nn::activation_functions::ActivationFunction::IDENTITY, bpt::nn::parameters::Plain, bpt::nn::parameters::groups::Output>;
+    using LAYER_3_SPEC = bpt::nn::layers::dense::Specification<T, TI, 20, 5, bpt::nn::activation_functions::ActivationFunction::IDENTITY, bpt::nn::parameters::Plain, 1, bpt::nn::parameters::groups::Output>;
     using LAYER_3 = bpt::nn::layers::dense::Layer<LAYER_3_SPEC>;
 
     using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;

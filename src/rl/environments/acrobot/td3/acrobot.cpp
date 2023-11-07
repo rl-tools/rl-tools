@@ -17,11 +17,13 @@ namespace training_config {
         using DEV_SPEC = bpt::devices::DefaultCPUSpecification;
 //    using DEVICE = bpt::devices::CPU<DEV_SPEC>;
         using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
+        static constexpr bool CONSTRUCT_LOGGER = false;
         using T = float;
         using TI = typename DEVICE::index_t;
 
         using ENV_SPEC = bpt::rl::environments::acrobot::Specification<T, TI, bpt::rl::environments::acrobot::DefaultParameters<T>>;
         using ENVIRONMENT = bpt::rl::environments::Acrobot<ENV_SPEC>;
+        using ENVIRONMENT_EVALUATION = ENVIRONMENT;
 #if BACKPROP_TOOLS_ENABLE_GTK
 //        using UI = bpt::rl::environments::acrobot::UI<bpt::rl::environments::acrobot::ui::Specification<T, TI, ENVIRONMENT, 300, 1600, false>>;
         using UI = bool;

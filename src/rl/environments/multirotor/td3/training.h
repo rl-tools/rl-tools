@@ -96,8 +96,9 @@ void train(TI run_id){
     using parameters_environment = parameter_set::environment<T, TI, ABLATION_SPEC>;
     using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
     using ABLATION_SPEC_EVAL = SpecEval<ABLATION_SPEC>;
-    using parameters_environment_eval = parameter_set::environment<T, TI, ABLATION_SPEC_EVAL>;
-    using ENVIRONMENT_EVAL = typename parameters_environment_eval::ENVIRONMENT;
+//    using parameters_environment_eval = parameter_set::environment<T, TI, ABLATION_SPEC_EVAL>;
+//    using ENVIRONMENT_EVAL = typename parameters_environment_eval::ENVIRONMENT;
+    using ENVIRONMENT_EVAL = ENVIRONMENT;
 
     using parameters_rl = parameter_set::rl<T, TI, ENVIRONMENT>;
     static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -207,7 +208,7 @@ void train(TI run_id){
             env.parameters = parameters;
         }
         ENVIRONMENT_EVAL env_eval;
-        env_eval.parameters = parameters_environment_eval::parameters;
+        env_eval.parameters = parameters_environment::parameters;
 
         bpt::init(device, off_policy_runner, envs);
 
