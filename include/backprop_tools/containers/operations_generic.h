@@ -120,7 +120,7 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    void transpose(DEVICE& device, Matrix<SPEC_1>& target, Matrix<SPEC_2>& source){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void transpose(DEVICE& device, Matrix<SPEC_1>& target, Matrix<SPEC_2>& source){
         static_assert(SPEC_1::ROWS == SPEC_2::COLS);
         static_assert(SPEC_1::COLS == SPEC_2::ROWS);
         for(typename SPEC_1::TI i = 0; i < SPEC_1::ROWS; i++){
@@ -131,36 +131,36 @@ namespace backprop_tools{
     }
     namespace containers::vectorization::operators{
         template<typename DEVICE, typename T>
-        inline T copy(DEVICE& dev, T b){
+        BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T copy(DEVICE& dev, T b){
             return b;
         }
         template<typename DEVICE, typename T>
-        inline T add(DEVICE& dev, T a, T b){
+        BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T add(DEVICE& dev, T a, T b){
             return a+b;
         }
         template<typename DEVICE, typename T>
-        inline T sub(DEVICE& dev, T a, T b){
+        BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T sub(DEVICE& dev, T a, T b){
             return a-b;
         }
         template<typename DEVICE, typename T>
-        inline bool is_nan(DEVICE& dev, bool a, T c){
+        BACKPROP_TOOLS_FUNCTION_PLACEMENT inline bool is_nan(DEVICE& dev, bool a, T c){
             return a || math::is_nan(dev, c);
         }
         template<typename DEVICE, typename T>
-        inline bool is_finite(DEVICE& dev, bool a, T c){
+        BACKPROP_TOOLS_FUNCTION_PLACEMENT inline bool is_finite(DEVICE& dev, bool a, T c){
             return a && math::is_finite(dev, c);
         }
         template<typename DEVICE, typename T>
-        inline T max(DEVICE& dev, T a, T c){
+        BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T max(DEVICE& dev, T a, T c){
             return math::max(dev, a, c);
         }
         template<typename DEVICE, typename T>
-        inline T min(DEVICE& dev, T a, T c){
+        BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T min(DEVICE& dev, T a, T c){
             return math::min(dev, a, c);
         }
     }
     template<typename DEVICE, typename SPEC>
-    auto view_transpose(DEVICE& device, Matrix<SPEC>& target){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT auto view_transpose(DEVICE& device, Matrix<SPEC>& target){
 //        static_assert(SPEC::ROWS == SPEC::COLS);
         using TI = typename SPEC::TI;
 //        for(TI i = 0; i < SPEC::ROWS; i++){
@@ -177,7 +177,7 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const Matrix<SPEC_1>& m1, const Matrix<SPEC_2>& m2){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::T abs_diff(DEVICE& device, const Matrix<SPEC_1>& m1, const Matrix<SPEC_2>& m2){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
         using T = typename SPEC::T;
@@ -193,7 +193,7 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3, auto BINARY_OPERATOR>
-    void vectorize_binary(DEVICE& device, const Matrix<SPEC_1>& a, const Matrix<SPEC_2>& b, Matrix<SPEC_3>& c){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void vectorize_binary(DEVICE& device, const Matrix<SPEC_1>& a, const Matrix<SPEC_2>& b, Matrix<SPEC_3>& c){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         static_assert(containers::check_structure<SPEC_2, SPEC_3>);
         using SPEC = SPEC_1;
@@ -238,14 +238,14 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    void add(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
         vectorize_binary<DEVICE, SPEC_1, SPEC_2, SPEC_1, containers::vectorization::operators::add<typename SPEC::T>>(device, target, source, target);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3>
-    void sub(DEVICE& device, const Matrix<SPEC_1>& a, const Matrix<SPEC_2>& b, Matrix<SPEC_3>& c){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void sub(DEVICE& device, const Matrix<SPEC_1>& a, const Matrix<SPEC_2>& b, Matrix<SPEC_3>& c){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         static_assert(containers::check_structure<SPEC_2, SPEC_3>);
         using SPEC = SPEC_1;
@@ -253,7 +253,7 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    void add_broadcast(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add_broadcast(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         static_assert(SPEC_1::COLS == SPEC_2::COLS);
         static_assert(SPEC_2::ROWS == 1);
         using SPEC = SPEC_1;
@@ -264,7 +264,7 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    void set_broadcast(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void set_broadcast(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
         static_assert(SPEC_1::COLS == SPEC_2::COLS);
         static_assert(SPEC_2::ROWS == 1);
         using SPEC = SPEC_1;
@@ -276,7 +276,7 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename VALUE_T>
-    void set_all(DEVICE& device, Matrix<SPEC>& m, VALUE_T value){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void set_all(DEVICE& device, Matrix<SPEC>& m, VALUE_T value){
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
                 set(m, i, j, value);
@@ -284,7 +284,7 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    void multiply_all(DEVICE& device, Matrix<SPEC>& m, typename SPEC::T factor){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void multiply_all(DEVICE& device, Matrix<SPEC>& m, typename SPEC::T factor){
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
                 multiply(m, i, j, factor);
@@ -292,7 +292,7 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename VALUE_T>
-    void increment_all(DEVICE& device, Matrix<SPEC>& m, VALUE_T value){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void increment_all(DEVICE& device, Matrix<SPEC>& m, VALUE_T value){
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
                 increment(m, i, j, value);
@@ -301,7 +301,7 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_3>
-    void mul(DEVICE& device, const Matrix<SPEC_1>& A, const Matrix<SPEC_2>& B, const Matrix<SPEC_3>& C){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void mul(DEVICE& device, const Matrix<SPEC_1>& A, const Matrix<SPEC_2>& B, const Matrix<SPEC_3>& C){
         static_assert(SPEC_1::COLS == SPEC_2::ROWS);
         static_assert(SPEC_1::ROWS == SPEC_3::ROWS);
         static_assert(SPEC_2::COLS == SPEC_3::COLS);
@@ -319,7 +319,7 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_C>
-    void hcat(DEVICE& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, Matrix<SPEC_C>& C){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void hcat(DEVICE& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, Matrix<SPEC_C>& C){
         static_assert(SPEC_A::ROWS == SPEC_B::ROWS);
         static_assert(SPEC_C::ROWS == SPEC_A::ROWS);
         static_assert(SPEC_A::COLS + SPEC_B::COLS == SPEC_C::COLS);
@@ -336,7 +336,7 @@ namespace backprop_tools{
     }
     // vcat
     template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_C>
-    void vcat(DEVICE& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, const Matrix<SPEC_C>& C){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void vcat(DEVICE& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, const Matrix<SPEC_C>& C){
         static_assert(SPEC_A::COLS == SPEC_B::COLS);
         static_assert(SPEC_C::COLS == SPEC_A::COLS);
         static_assert(SPEC_A::ROWS + SPEC_B::ROWS == SPEC_C::ROWS);
@@ -354,7 +354,7 @@ namespace backprop_tools{
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, bool BOUNDS_CHECKING=true>
-    void slice(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source, typename SPEC_1::TI row, typename SPEC_1::TI col, typename SPEC_1::TI rows = SPEC_1::ROWS, typename SPEC_1::TI cols = SPEC_1::COLS, typename SPEC_1::TI target_row=0, typename SPEC_1::TI target_col=0){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void slice(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source, typename SPEC_1::TI row, typename SPEC_1::TI col, typename SPEC_1::TI rows = SPEC_1::ROWS, typename SPEC_1::TI cols = SPEC_1::COLS, typename SPEC_1::TI target_row=0, typename SPEC_1::TI target_col=0){
 //        static_assert(SPEC_1::ROWS <= SPEC_2::ROWS);
 //        static_assert(SPEC_1::COLS <= SPEC_2::COLS);
         using TI = typename SPEC_1::TI;
@@ -372,7 +372,7 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC>
-    typename SPEC::T sum(DEVICE& device, const Matrix<SPEC>& m){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT typename SPEC::T sum(DEVICE& device, const Matrix<SPEC>& m){
         using TI = typename SPEC::TI;
         using T = typename SPEC::T;
         T acc = 0;
