@@ -21,7 +21,7 @@ message("CUDA Host Compiler: ${CMAKE_CUDA_HOST_COMPILER}")
 # set_target_properties(rl_environments_mujoco_ant_throughput_cuda PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 # BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_throughput_cuda)
 # BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_throughput_cuda)
-# BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_mujoco_ant_throughput_cuda)
+# BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_throughput_cuda)
 
 
 add_executable(
@@ -63,7 +63,7 @@ BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_training_ppo_cuda_benc
 BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
 if(NOT WIN32)
 # for some reason this does not work on windows and crashes with an access violation in MKL (strangely enough this works when linking tensorboard_logger)
-        BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
+        BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
 else()
         target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_benchmark PRIVATE BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 endif()
@@ -92,7 +92,7 @@ set_target_properties(rl_environments_mujoco_ant_training_ppo_cuda_full PROPERTI
 BACKPROP_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_full)
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_training_ppo_cuda_full)
 BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_training_ppo_cuda_full)
-BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_mujoco_ant_training_ppo_cuda_full)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_training_ppo_cuda_full)
 BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_cuda_full)
 endif()
 
@@ -112,4 +112,4 @@ endif()
 # set_target_properties(rl_environments_mujoco_ant_collection_cuda PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 # BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_collection_cuda)
 # BACKPROP_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_collection_cuda)
-# BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_mujoco_ant_collection_cuda)
+# BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_collection_cuda)

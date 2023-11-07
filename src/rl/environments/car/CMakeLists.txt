@@ -16,7 +16,7 @@ if(BACKPROP_TOOLS_ENABLE_GTK)
             ${GTK3_LIBRARIES}
     )
 endif()
-BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_car_training)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_car_training)
 endif()
 
 

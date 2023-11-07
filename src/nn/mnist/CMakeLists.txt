@@ -10,6 +10,6 @@ if(BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPROP_TOOLS_ENABLE_TENSORBOARD)
             HighFive
             tensorboard_logger
     )
-    BACKPROP_TOOLS_TARGET_LINK_BLAS(nn_mnist_training)
+    BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(nn_mnist_training)
     BACKPROP_TOOLS_ADD_DEFINITIONS(nn_mnist_training)
 endif()

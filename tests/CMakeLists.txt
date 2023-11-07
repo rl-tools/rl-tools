@@ -222,7 +222,7 @@ target_link_libraries(
         GTest::gtest_main
         tensorboard_logger
 )
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training_debug)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_algorithms_td3_full_training_debug)
 
 if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
     target_link_libraries(
@@ -257,7 +257,7 @@ target_link_libraries(
         GTest::gtest_main
         tensorboard_logger
 )
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_algorithms_td3_full_training)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_algorithms_td3_full_training)
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
 BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_algorithms_td3_full_training)
 
@@ -321,7 +321,7 @@ target_link_libraries(
         backprop_tools
         GTest::gtest_main
 )
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_neural_network_conversions)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_neural_network_conversions)
 gtest_discover_tests(test_neural_network_conversions)
 BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_neural_network_conversions)
 
@@ -341,7 +341,7 @@ target_link_libraries(
         Eigen3::Eigen
 #        CUDA::cudart
 )
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_neural_network_benchmark)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_neural_network_benchmark)
 gtest_discover_tests(test_neural_network_benchmark)
 BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_neural_network_benchmark)
 endif()
@@ -359,7 +359,7 @@ target_link_libraries(
         GTest::gtest_main
 )
 if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
-    BACKPROP_TOOLS_TARGET_LINK_BLAS(test_container)
+    BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_container)
 endif()
 #BACKPROP_TOOLS_ADD_DEFINITIONS(test_container)
 gtest_discover_tests(test_container)
@@ -453,7 +453,7 @@ target_link_libraries(
 gtest_discover_tests(test_rl_algorithms_ppo)
 BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_algorithms_ppo)
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_algorithms_ppo)
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_algorithms_ppo)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_algorithms_ppo)
 
 
 add_executable(
@@ -471,7 +471,7 @@ target_link_libraries(
 gtest_discover_tests(test_rl_components_running_normalizer)
 BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_components_running_normalizer)
 BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_components_running_normalizer)
-BACKPROP_TOOLS_TARGET_LINK_BLAS(test_rl_components_running_normalizer)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_components_running_normalizer)
 
 add_subdirectory(src/random)
 endif()

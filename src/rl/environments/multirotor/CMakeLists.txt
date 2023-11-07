@@ -17,7 +17,7 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPRO
             libattopng
     )
     BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_evaluation_td3)
-    BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_evaluation_td3)
+    BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_multirotor_evaluation_td3)
     BACKPROP_TOOLS_INSTALL(rl_environments_multirotor_evaluation_td3)
 endif()
 if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPROP_TOOLS_ENABLE_TENSORBOARD AND BACKPROP_TOOLS_ENABLE_JSON AND BACKPROP_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_ENABLE_UI)
@@ -35,7 +35,7 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPRO
             nlohmann_json::nlohmann_json
     )
     BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_assessment_td3)
-    BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_assessment_td3)
+    BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_multirotor_assessment_td3)
     BACKPROP_TOOLS_INSTALL(rl_environments_multirotor_assessment_td3)
 endif()
 
@@ -81,6 +81,6 @@ target_link_libraries(
         tensorboard_logger
         libattopng
 )
-BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_multirotor_validation)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_multirotor_validation)
 BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_multirotor_validation)
 endif()

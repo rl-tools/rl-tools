@@ -5,4 +5,4 @@ target_compile_definitions(rl_environments_acrobot_sac_training PRIVATE BACKPROP
 if(BACKPROP_TOOLS_ENABLE_GTK)
     BACKPROP_TOOLS_TARGET_LINK_GTK(rl_environments_acrobot_sac_training)
 endif()
-BACKPROP_TOOLS_TARGET_LINK_BLAS(rl_environments_acrobot_sac_training)
+BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_acrobot_sac_training)
