@@ -37,8 +37,8 @@ void COPY_CONTAINER() {
 
         bpt::set_all(device_cpu, matrix_cpu, 1337.0f);
 
-        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
-        bpt::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
+        bpt::copy(device_cpu, device_cuda, matrix_cpu, matrix_cuda);
+        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu2);
         auto diff = bpt::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 0.0f);
         bpt::free(device_cpu, matrix_cpu);

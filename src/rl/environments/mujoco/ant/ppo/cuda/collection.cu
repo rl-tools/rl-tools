@@ -98,8 +98,8 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
     bpt::reset_optimizer_state(device, ppo.actor, actor_optimizer);
     bpt::reset_forward_state(device, ppo.actor);
     bpt::zero_gradient(device, ppo.actor);
-    bpt::copy(device_gpu, device, actor_gpu, ppo.actor);
-    bpt::copy(device, device_gpu, actor3, actor_gpu);
+    bpt::copy(device, device_gpu, ppo.actor, actor_gpu);
+    bpt::copy(device_gpu, device, actor_gpu, actor3);
     auto diff = bpt::abs_diff(device, ppo.actor, actor3);
     ASSERT_LT(diff, 1e-5);
 
@@ -107,7 +107,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
         auto rng_cpu_copy = rng;
         auto rng_gpu_copy = rng;
         bpt::collect(device, on_policy_runner_dataset_cpu, on_policy_runner_cpu, ppo.actor, actor_eval_buffers, rng_cpu_copy);
-        bpt::copy(device_gpu, device, actor_gpu, ppo.actor);
+        bpt::copy(device, device_gpu, ppo.actor, actor_gpu);
         bpt::collect_hybrid(device, device_gpu, on_policy_runner_dataset_gpu, on_policy_runner_gpu, ppo.actor, actor_gpu, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng_gpu_copy);
         for(TI rollout_step_i = 0; rollout_step_i < prl::ON_POLICY_RUNNER_STEPS_PER_ENV; rollout_step_i++) {
             auto observations_cpu = bpt::view(device, on_policy_runner_dataset_cpu.observations, bpt::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::OBSERVATION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);

@@ -78,7 +78,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_C
 
     bpt::randn(device, actions, proto_rng);
     bpt::init_weights(device, actor_cpu, proto_rng);
-    bpt::copy(device_cuda, device, actor_gpu, actor_cpu);
+    bpt::copy(device, device_cuda, actor_cpu, actor_gpu);
 
     for(TI env_i = 0; env_i < NUM_ENVIRONMENTS; env_i++){
         bpt::sample_initial_state(device, envs[env_i], states[env_i], proto_rng);
@@ -89,7 +89,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_C
 
     auto start = std::chrono::high_resolution_clock::now();
     for(TI rollout_step_i = 0; rollout_step_i < NUM_ROLLOUT_STEPS; rollout_step_i++){
-        bpt::copy(device_cuda, device, actor_gpu, actor_cpu);
+        bpt::copy(device, device_cuda, actor_cpu, actor_gpu);
         std::cout << "Rollout step " << rollout_step_i << std::endl;
         for(TI step_i = 0; step_i < NUM_STEPS_PER_ENVIRONMENT; step_i++) {
             std::vector<std::thread> threads;
@@ -116,9 +116,9 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_C
             for(TI env_i = 0; env_i < NUM_THREADS; env_i++){
                 threads[env_i].join();
             }
-            bpt::copy(device_cuda, device, observations_gpu, observations);
+            bpt::copy(device, device_cuda, observations, observations_gpu);
             bpt::evaluate(device_cuda, actor_gpu, observations_gpu, actions_gpu, actor_buffers);
-            bpt::copy(device, device_cuda, actions, actions_gpu);
+            bpt::copy(device_cuda, device, actions_gpu, actions);
         }
     }
     auto end = std::chrono::high_resolution_clock::now();

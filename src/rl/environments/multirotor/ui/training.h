@@ -60,7 +60,7 @@ namespace multirotor_training{
         };
         template <typename T_ABLATION_SPEC>
         struct CoreConfig{
-            static constexpr bool BENCHMARK = true;
+            static constexpr bool BENCHMARK = false;
             using ABLATION_SPEC = T_ABLATION_SPEC;
             using DEV_SPEC = bpt::utils::typing::conditional_t<BENCHMARK, bpt::devices::DefaultCPUSpecification, bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>>;
 //    using DEVICE = bpt::devices::CPU<DEV_SPEC>;
@@ -177,7 +177,7 @@ namespace multirotor_training{
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
             static constexpr TI BASE_SEED = 0;
-            static constexpr bool CONSTRUCT_LOGGER = false;
+            static constexpr bool CONSTRUCT_LOGGER = true;
             using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, ASYMMETRIC_OBSERVATIONS, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT, bpt::rl::components::off_policy_runner::DefaultParameters<T>, false, true, 1000>;
             using OFF_POLICY_RUNNER_TYPE = bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
             static constexpr bpt::rl::components::off_policy_runner::DefaultParameters<T> off_policy_runner_parameters = {
@@ -352,7 +352,7 @@ namespace multirotor_training{
                     bpt::malloc(ts.device, actor_checkpoint);
                     bpt::malloc(ts.device, actor_buffer);
                     bpt::malloc(ts.device, actor_checkpoint_buffer);
-                    bpt::copy(ts.device, ts.device, actor_checkpoint, ts.actor_critic.actor);
+                    bpt::copy(ts.device, ts.device, ts.actor_critic.actor, actor_checkpoint);
                     std::filesystem::path actor_output_path_code = actor_output_dir / (checkpoint_name + ".h");
                     auto actor_weights = bpt::save_code(ts.device, actor_checkpoint, std::string("backprop_tools::checkpoint::actor"), true);
                     std::cout << "Saving checkpoint at: " << actor_output_path_code << std::endl;

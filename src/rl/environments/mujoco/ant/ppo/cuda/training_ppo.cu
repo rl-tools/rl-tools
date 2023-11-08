@@ -233,7 +233,7 @@ int main(int argc, char** argv){
         bpt::init(device, observation_normalizer);
         bpt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         // -------------- added for cuda training ----------------
-        bpt::copy(device_gpu, device, ppo_gpu, ppo);
+        bpt::copy(device, device_gpu, ppo, ppo_gpu);
         // -------------------------------------------------------
         bpt::construct(device, device.logger, logs_dir, run_name);
         auto training_start = std::chrono::high_resolution_clock::now();
@@ -250,7 +250,7 @@ int main(int argc, char** argv){
         }
         for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
             // -------------- added for cuda training ----------------
-            bpt::copy(device, device_gpu, ppo, ppo_gpu);
+            bpt::copy(device_gpu, device, ppo_gpu, ppo);
             // -------------------------------------------------------
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
             if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
@@ -321,9 +321,9 @@ int main(int argc, char** argv){
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                copy(device_gpu, device, gae_all_observations, on_policy_runner_dataset_all_observations);
+                copy(device, device_gpu, on_policy_runner_dataset_all_observations, gae_all_observations);
                 evaluate(device_gpu, ppo_gpu.critic, gae_all_observations, gae_all_values, critic_buffers_gae);
-                copy(device, device_gpu, on_policy_runner_dataset.all_values, gae_all_values);
+                copy(device_gpu, device, gae_all_values, on_policy_runner_dataset.all_values);
                 // ----------------------------------------------------------
                 bpt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
 //                auto end = std::chrono::high_resolution_clock::now();

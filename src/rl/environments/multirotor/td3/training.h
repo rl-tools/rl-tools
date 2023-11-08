@@ -266,7 +266,7 @@ void train(TI run_id){
                     // Since checkpointing a full Adam model to code (including gradients and moments of the weights and biases currently does not work)
                     ACTOR_CHECKPOINT_TYPE actor_checkpoint;
                     bpt::malloc(device, actor_checkpoint);
-                    bpt::copy(device, device, actor_checkpoint, actor_critic.actor);
+                    bpt::copy(device, device, actor_critic.actor, actor_checkpoint);
                     std::filesystem::path actor_output_path_code = actor_output_dir / (checkpoint_name + ".h");
                     auto actor_weights = bpt::save_code(device, actor_checkpoint, std::string("backprop_tools::checkpoint::actor"), true);
                     std::ofstream actor_output_file(actor_output_path_code);
