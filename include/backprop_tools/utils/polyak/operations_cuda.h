@@ -10,7 +10,7 @@ namespace backprop_tools::utils::polyak {
     namespace internal {
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC, bool SQUARE=false>
         __global__
-        void update_kernel(Matrix<SOURCE_SPEC> source, const Matrix<TARGET_SPEC> target, const typename SOURCE_SPEC::T polyak) {
+        void update_kernel(const Matrix<SOURCE_SPEC> source, Matrix<TARGET_SPEC> target, const typename SOURCE_SPEC::T polyak) {
             static_assert(containers::check_structure<SOURCE_SPEC, TARGET_SPEC>);
             using SPEC = SOURCE_SPEC;
             using T = typename SPEC::T;
@@ -29,7 +29,7 @@ namespace backprop_tools::utils::polyak {
         }
     }
     template<typename DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, bool SQUARE=false>
-    void update( const devices::CUDA<DEV_SPEC>& dev, Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak) {
+    void update(devices::CUDA<DEV_SPEC>& dev, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak) {
         static_assert(containers::check_structure<SOURCE_SPEC, TARGET_SPEC>);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using SPEC = SOURCE_SPEC;
@@ -43,7 +43,7 @@ namespace backprop_tools::utils::polyak {
         check_status(dev);
     }
     template<typename DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void update_squared( const devices::CUDA<DEV_SPEC>& dev, Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak) {
+    void update_squared(devices::CUDA<DEV_SPEC>& dev, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak) {
         update<DEV_SPEC, SOURCE_SPEC, TARGET_SPEC, true>(dev, source, target, polyak);
     }
 }
