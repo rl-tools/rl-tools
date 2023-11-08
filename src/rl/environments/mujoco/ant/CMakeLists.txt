@@ -15,8 +15,6 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
             CLI11::CLI11
     )
     BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_evaluation_td3)
-    BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_evaluation_td3)
-    BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_evaluation_td3)
     BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_evaluation_td3)
 endif()
 
@@ -39,7 +37,5 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
             -DBACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
     )
     BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_evaluation_ppo)
-    BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_evaluation_ppo)
-    BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_evaluation_ppo)
     BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_evaluation_ppo)
 endif()

@@ -6,11 +6,7 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPRO
                 ${TARGET}
                 PRIVATE
                 backprop_tools
-                HighFive
-                tensorboard_logger
         )
-        BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(${TARGET})
-        BACKPROP_TOOLS_ADD_DEFINITIONS(${TARGET})
         if(${DEBUG})
             target_compile_definitions(${TARGET} PRIVATE BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG)
         endif()
@@ -47,8 +43,6 @@ endif()
 #                tensorboard_logger
 #        )
 #
-#        BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(${TARGET_NAME})
-#        BACKPROP_TOOLS_ADD_DEFINITIONS(${TARGET_NAME})
 #
 #        target_compile_definitions(${TARGET_NAME} PRIVATE JOB_ID=${ID})
 #        target_compile_definitions(${TARGET_NAME} PRIVATE ENABLE_MULTI_CONFIG)

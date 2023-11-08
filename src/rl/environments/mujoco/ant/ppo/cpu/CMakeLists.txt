@@ -31,8 +31,6 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
     )
     # todo: link mujoco like this everywhere
     BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_training_ppo_blas_benchmark)
-    BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_training_ppo_blas_benchmark)
-    BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_training_ppo_blas_benchmark)
     target_compile_definitions(rl_environments_mujoco_ant_training_ppo_blas_benchmark PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
     target_compile_definitions(rl_environments_mujoco_ant_training_ppo_blas_benchmark PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
     BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_blas_benchmark)
@@ -53,8 +51,6 @@ target_link_libraries(
 )
 # todo: link mujoco like this everywhere
 BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_training_ppo_blas)
-BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_training_ppo_blas)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_training_ppo_blas)
 BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_blas)
 endif()
 

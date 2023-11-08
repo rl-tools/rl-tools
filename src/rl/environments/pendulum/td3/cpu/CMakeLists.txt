@@ -8,7 +8,6 @@ target_link_libraries(
         PRIVATE
         backprop_tools
 )
-BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_pendulum_td3_training_standalone)
 target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
@@ -25,8 +24,6 @@ target_link_libraries(
         PRIVATE
         backprop_tools
 )
-BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_pendulum_td3_training_blas)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_pendulum_td3_training_blas)
 target_compile_definitions(rl_environments_pendulum_td3_training_blas PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_td3_training_blas PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas)
@@ -43,8 +40,6 @@ target_link_libraries(
         PRIVATE
         backprop_tools
 )
-BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_pendulum_td3_training_blas_benchmark)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_pendulum_td3_training_blas_benchmark)
 target_compile_definitions(rl_environments_pendulum_td3_training_blas_benchmark PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 target_compile_definitions(rl_environments_pendulum_td3_training_blas_benchmark PRIVATE BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_DISABLE_EVALUATION)
 BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas_benchmark)
@@ -62,7 +57,5 @@ target_link_libraries(
         backprop_tools
         tensorboard_logger
 )
-BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_pendulum_td3_training_blas_tensorboard)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_pendulum_td3_training_blas_tensorboard)
 BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas_tensorboard)
 endif()

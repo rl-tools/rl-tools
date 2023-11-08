@@ -5,7 +5,6 @@ target_link_libraries(rl_environments_car_training
         PRIVATE
         backprop_tools
 )
-BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_car_training)
 target_compile_definitions(rl_environments_car_training PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 if(BACKPROP_TOOLS_ENABLE_GTK)
     target_include_directories(rl_environments_car_training PRIVATE ${GTK3_INCLUDE_DIRS})
@@ -16,7 +15,6 @@ if(BACKPROP_TOOLS_ENABLE_GTK)
             ${GTK3_LIBRARIES}
     )
 endif()
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_car_training)
 endif()
 
 
