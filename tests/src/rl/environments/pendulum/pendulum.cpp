@@ -47,7 +47,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
             ENVIRONMENT::State next_state;
             bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
             bpt::malloc(device, action);
-            bpt::assign(device, action, actions[step_i].data());
+            bpt::assign(device, actions[step_i].data(), action);
             bpt::step(device, env, state, action, next_state, rng);
             DTYPE r = bpt::reward(device, env, state, action, next_state, rng);
             EXPECT_NEAR(     states[step_i][0], state.theta, STATE_TOLERANCE);

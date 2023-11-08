@@ -116,8 +116,8 @@ namespace backprop_tools{
         set(actor_critic.log_alpha.parameters, 0, 0, math::log(typename DEVICE::SPEC::MATH{}, SPEC::PARAMETERS::ALPHA));
 
 
-        copy(device, device, actor_critic.critic_target_1, actor_critic.critic_1);
-        copy(device, device, actor_critic.critic_target_2, actor_critic.critic_2);
+        copy(device, device, actor_critic.critic_1, actor_critic.critic_target_1);
+        copy(device, device, actor_critic.critic_2, actor_critic.critic_target_2);
     }
     template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
     void target_actions(DEVICE& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, typename SPEC::T alpha) {
@@ -163,7 +163,7 @@ namespace backprop_tools{
             }
             set(training_buffers.action_log_probs, sample_i, 0, action_log_prob);
         }
-        copy(device, device, training_buffers.next_observations, batch.next_observations_privileged);
+        copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
 
@@ -182,7 +182,7 @@ namespace backprop_tools{
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
         evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_distribution, actor_buffers);
-        copy(device, device, training_buffers.next_observations, batch.next_observations_privileged);
+        copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
 
@@ -205,7 +205,7 @@ namespace backprop_tools{
         zero_gradient(device, actor_critic.actor);
         forward(device, actor_critic.actor, batch.observations);
 //        auto actions_view = view(device, output(actor_critic.actor), matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, 0);
-//        copy(device, device, training_buffers.actions, actions_view);
+//        copy(device, device, actions_view, training_buffers.actions)
         auto actions_full = output(actor_critic.actor);
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
@@ -219,7 +219,7 @@ namespace backprop_tools{
                 set(training_buffers.actions, batch_i, action_i, action);
             }
         }
-        copy(device, device, training_buffers.observations, batch.observations_privileged);
+        copy(device, device, batch.observations_privileged, training_buffers.observations);
 //        auto& critic = actor_critic.critic_1;
         forward(device, actor_critic.critic_1, training_buffers.state_action_value_input);
         forward(device, actor_critic.critic_2, training_buffers.state_action_value_input);
@@ -310,38 +310,38 @@ namespace backprop_tools{
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
 
         evaluate(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers);
-        copy(device, device, training_buffers.observations, batch.observations);
+        copy(device, device, batch.observations, training_buffers.observations);
         auto& critic = actor_critic.critic_1;
         evaluate(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, critic_buffers);
         return mean(device, training_buffers.state_action_value);
     }
 
-    template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void update_target_layer(DEVICE& device, nn::layers::dense::Layer<TARGET_SPEC>& target, const nn::layers::dense::Layer<SOURCE_SPEC>& source, typename TARGET_SPEC::T polyak) {
-        utils::polyak::update(device, target.weights.parameters, source.weights.parameters, polyak);
-        utils::polyak::update(device, target.biases.parameters , source.biases.parameters , polyak);
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void update_target_layer(DEVICE& device, const  nn::layers::dense::Layer<SOURCE_SPEC>& source, nn::layers::dense::Layer<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) {
+        utils::polyak::update(device, source.weights.parameters, target.weights.parameters, polyak);
+        utils::polyak::update(device, source.biases.parameters , target.biases.parameters , polyak);
     }
-    template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void update_target_network(DEVICE& device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, T polyak) {
-        using TargetNetworkType = typename utils::typing::remove_reference<decltype(target)>::type;
-        update_target_layer(device, target.input_layer, source.input_layer, polyak);
+    template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void update_target_network(DEVICE& device, const  nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, T polyak) {
+        using TargetNetworkType = nn_models::mlp::NeuralNetwork<TARGET_SPEC>;
+        update_target_layer(device, source.input_layer, target.input_layer, polyak);
         for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
-            update_target_layer(device, target.hidden_layers[layer_i], source.hidden_layers[layer_i], polyak);
+            update_target_layer(device, source.hidden_layers[layer_i], target.hidden_layers[layer_i], polyak);
         }
-        update_target_layer(device, target.output_layer, source.output_layer, polyak);
+        update_target_layer(device, source.output_layer, target.output_layer, polyak);
     }
-    template<typename T, typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void update_target_network(DEVICE& device, nn_models::sequential::Module<TARGET_SPEC>& target, const nn_models::sequential::Module<SOURCE_SPEC>& source, T polyak) {
-        update_target_layer(device, target.content, source.content, polyak);
-        if constexpr(!utils::typing::is_same_v<typename TARGET_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            update_target_network(device, target.next_module, source.next_module, polyak);
+    template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void update_target_network(DEVICE& device, const  nn_models::sequential::Module<SOURCE_SPEC>& source, nn_models::sequential::Module<TARGET_SPEC>& target, T polyak) {
+        update_target_layer(device, source.content, target.content, polyak);
+        if constexpr(!utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            update_target_network(device, source.next_module, target.next_module, polyak);
         }
     }
 
     template <typename DEVICE, typename SPEC>
     void update_critic_targets(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic) {
-        update_target_network(device, actor_critic.critic_target_1, actor_critic.critic_1, SPEC::PARAMETERS::CRITIC_POLYAK);
-        update_target_network(device, actor_critic.critic_target_2, actor_critic.critic_2, SPEC::PARAMETERS::CRITIC_POLYAK);
+        update_target_network(device, actor_critic.critic_1, actor_critic.critic_target_1, SPEC::PARAMETERS::CRITIC_POLYAK);
+        update_target_network(device, actor_critic.critic_2, actor_critic.critic_target_2, SPEC::PARAMETERS::CRITIC_POLYAK);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -354,21 +354,21 @@ namespace backprop_tools{
         found_nan = found_nan || is_nan(device, ac.critic_target_2);
         return found_nan;
     }
-    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::algorithms::sac::ActorCritic<TARGET_SPEC>& target, rl::algorithms::sac::ActorCritic<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.actor   , source.actor);
-        copy(target_device, source_device, target.critic_1, source.critic_1);
-        copy(target_device, source_device, target.critic_2, source.critic_2);
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::ActorCritic<SOURCE_SPEC>& source, rl::algorithms::sac::ActorCritic<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.actor   , target.actor);
+        copy(source_device, target_device, source.critic_1, target.critic_1);
+        copy(source_device, target_device, source.critic_2, target.critic_2);
 
-        copy(target_device, source_device, target.critic_target_1, source.critic_target_1);
-        copy(target_device, source_device, target.critic_target_2, source.critic_target_2);
+        copy(source_device, target_device, source.critic_target_1, target.critic_target_1);
+        copy(source_device, target_device, source.critic_target_2, target.critic_target_2);
     }
-    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::algorithms::sac::CriticTrainingBuffers<TARGET_SPEC>& target, rl::algorithms::sac::CriticTrainingBuffers<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.next_state_action_value_input_full, source.next_state_action_value_input_full);
-        copy(target_device, source_device, target.target_action_value, source.target_action_value);
-        copy(target_device, source_device, target.next_state_action_value_critic_1, source.next_state_action_value_critic_1);
-        copy(target_device, source_device, target.next_state_action_value_critic_2, source.next_state_action_value_critic_2);
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::CriticTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::CriticTrainingBuffers<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.next_state_action_value_input_full, target.next_state_action_value_input_full);
+        copy(source_device, target_device, source.target_action_value, target.target_action_value);
+        copy(source_device, target_device, source.next_state_action_value_critic_1, target.next_state_action_value_critic_1);
+        copy(source_device, target_device, source.next_state_action_value_critic_2, target.next_state_action_value_critic_2);
     }
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

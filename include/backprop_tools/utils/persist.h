@@ -29,13 +29,13 @@ namespace backprop_tools::utils::persist::array_conversion{
         }
     }
     template <typename DEVICE, typename T, auto ROWS>
-    void std_vector_to_vector(DEVICE& device, T target[ROWS], std::vector<T> source){
+    void std_vector_to_vector(DEVICE& device, T source[ROWS], std::vector<T> target){
         for (typename DEVICE::index_t i=0; i < ROWS; i++){
             target[i] = source[i];
         }
     }
     template <typename DEVICE, typename SPEC>
-    void std_vector_to_matrix(Matrix<SPEC> target, std::vector<std::vector<typename SPEC::T>> source){
+    void std_vector_to_matrix(std::vector<std::vector<typename SPEC::T>> source, Matrix<SPEC> target){
         assert(source.size() == SPEC::ROWS);
         assert(!source.empty());
         assert(source[0].size() == SPEC::COLS);

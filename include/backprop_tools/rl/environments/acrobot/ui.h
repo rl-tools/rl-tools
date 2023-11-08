@@ -140,7 +140,7 @@ namespace backprop_tools{
     void set_action(DEVICE& device, const rl::environments::Acrobot<ENV_SPEC>& env, rl::environments::acrobot::UI<SPEC>& ui, const Matrix<ACTION_SPEC>& action){
         using ENVIRONMENT = rl::environments::Acrobot<ENV_SPEC>;
         static_assert(ACTION_SPEC::ROWS == 1 && ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
-        copy(device, device, ui.action, action);
+        copy(device, device, action, ui.action);
     }
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

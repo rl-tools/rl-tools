@@ -233,7 +233,7 @@ namespace backprop_tools{
             std::cout << "CUBLAS ERROR: " << cublasGetStatusString(stat) << std::endl;
         }
 
-        copy(device, device, layer.pre_activations, output);
+        copy(device, device, output, layer.pre_activations);
 
         nn::dense::cuda::activation(device, layer, output, output);
     }

@@ -74,7 +74,7 @@ protected:
         bpt::forward(device, network, input_matrix);
 //        bpt::forward(device, network, input);
         DTYPE d_loss_d_output[OUTPUT_DIM];
-        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t>>> d_loss_d_output_matrix;
+        bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t, 1>>> d_loss_d_output_matrix;
         d_loss_d_output_matrix._data = d_loss_d_output;
         bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix);
 //        bpt::nn::loss_functions::d_mse_d_x<NN_DEVICE, DTYPE, OUTPUT_DIM, 1>(device, network.output_layer.output.data, output, d_loss_d_output);
@@ -96,11 +96,11 @@ protected:
         data_file.getDataSet(model_name + "/init/output_layer/weight").read(output_layer_weights);
         data_file.getDataSet(model_name + "/init/output_layer/bias").read(output_layer_biases);
         bpt::load(device, network.input_layer.weights.parameters, input_layer_weights);
-        bpt::assign(device, network.input_layer.biases.parameters, input_layer_biases.data());
+        bpt::assign(device, input_layer_biases.data(), network.input_layer.biases.parameters);
         bpt::load(device, network.hidden_layers[0].weights.parameters, hidden_layer_0_weights);
-        bpt::assign(device, network.hidden_layers[0].biases.parameters, hidden_layer_0_biases.data());
+        bpt::assign(device, hidden_layer_0_biases.data(), network.hidden_layers[0].biases.parameters);
         bpt::load(device, network.output_layer.weights.parameters, output_layer_weights);
-        bpt::assign(device, network.output_layer.biases.parameters, output_layer_biases.data());
+        bpt::assign(device, output_layer_biases.data(), network.output_layer.biases.parameters);
     }
 
     NN_DEVICE device;

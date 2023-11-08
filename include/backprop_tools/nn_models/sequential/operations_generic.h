@@ -89,7 +89,7 @@ namespace backprop_tools{
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT>
     void forward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module, INPUT& input, OUTPUT& output){
         forward(device, module, input);
-        copy(device, device, output, backprop_tools::output(module));
+        copy(device, device, backprop_tools::output(module), output);
     }
     template <typename DEVICE, typename MODULE_SPEC>
     void zero_gradient(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module){
@@ -156,11 +156,11 @@ namespace backprop_tools{
             update(device, model.next_module, optimizer);
         }
     }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::sequential::Module<TARGET_SPEC>& target, const nn_models::sequential::Module<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.content, source.content);
-        if constexpr(!utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            copy(target_device, source_device, target.next_module, source.next_module);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::sequential::Module<SOURCE_SPEC>& source, nn_models::sequential::Module<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.content, target.content);
+        if constexpr(!utils::typing::is_same_v<typename TARGET_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            copy(source_device, target_device, source.next_module, target.next_module);
         }
     }
 

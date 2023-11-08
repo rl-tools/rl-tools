@@ -28,7 +28,7 @@ namespace backprop_tools{
         constexpr auto k = LAYER_SPEC::INPUT_DIM;
         constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
 
-        set_broadcast(device, output, layer.biases.parameters);
+        set_broadcast(device, layer.biases.parameters, output);
 
         if constexpr(utils::typing::is_same_v<T, float>){
             cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)output._data, row_pitch(output));
@@ -61,7 +61,7 @@ namespace backprop_tools{
         constexpr auto n = LAYER_SPEC::OUTPUT_DIM;
 
 
-        set_broadcast(device, output, layer.biases.parameters);
+        set_broadcast(device, layer.biases.parameters, output);
 
         if constexpr(utils::typing::is_same_v<T, float>){
             cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)output._data, row_pitch(output));
@@ -69,7 +69,7 @@ namespace backprop_tools{
         else{
             cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)output._data, row_pitch(output));
         }
-        copy(device, device, layer.pre_activations, output);
+        copy(device, device, output, layer.pre_activations);
         for(TI i = 0; i < BATCH_SIZE; i++){
             for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){
                 set(output, i, j, activation<typename DEV_SPEC::MATH, T, LAYER_SPEC::ACTIVATION_FUNCTION>(get(output, i, j)));

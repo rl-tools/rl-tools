@@ -87,7 +87,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
                 next_states_q_dot.push_back(bpt::std_vector(dev, q_dot_temp)[0]);
             }
             if(episode_i == 0 && step_i == 0){
-                bpt::copy(dev, dev, initial_action, action);
+                bpt::copy(dev, dev, action, initial_action);
                 initial_state = state;
                 next_state_1 = next_state_temp;
             }

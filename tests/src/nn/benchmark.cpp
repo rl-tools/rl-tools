@@ -93,8 +93,8 @@ protected:
         bpt::malloc(device, network_mkl);
         bpt::malloc(device, network_mkl_buffers);
         bpt::init_weights(device, network, rng);
-        bpt::copy(device, device, network_mkl, network);
-        bpt::copy(device, device, optimizer_mkl, optimizer);
+        bpt::copy(device, device, network, network_mkl);
+        bpt::copy(device, device, optimizer, optimizer_mkl);
         assert(optimizer_mkl.age == optimizer.age);
 
         for(INDEX_TYPE i = 0; i < BATCH_SIZE; ++i){
@@ -118,7 +118,7 @@ protected:
 
         bpt::forward(device, network, input);
 
-        bpt::copy(device, device, expected_output_output_layer, network.output_layer.output);
+        bpt::copy(device, device, network.output_layer.output, expected_output_output_layer);
 
         bpt::reset_optimizer_state(device, optimizer, network);
         bpt::zero_gradient(device, network);
@@ -193,7 +193,7 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL) {
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, BATCH_SIZE, NetworkType::SPEC::HIDDEN_DIM>> output_mkl_matrix;
     bpt::malloc(device, input_mkl_matrix);
     bpt::malloc(device, output_mkl_matrix);
-    bpt::copy(device, device, input_mkl_matrix, input);
+    bpt::copy(device, device, input, input_mkl_matrix);
     bpt::set_all(device, output_mkl_matrix, (T)0);
 
     static_assert(decltype(network_mkl.input_layer.weights.parameters)::COL_PITCH == 1);
@@ -385,7 +385,7 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
 //
 //    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input_lic_matrix;
 //    bpt::malloc(device, input_lic_matrix);
-//    bpt::copy(device, device, input_lic_matrix, input);
+//    bpt::copy(device, device, input, input_lic_matrix);
 //    DTYPE input_abs_diff = bpt::abs_diff(device, input_mkl_matrix, input_lic_matrix);
 //
 //    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, NetworkType::INPUT_DIM, BATCH_SIZE>> input_lic_matrix_transpose;

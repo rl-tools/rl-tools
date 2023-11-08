@@ -65,9 +65,9 @@ TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, TEST){
     bpt::randn(device, input, rng);
     bpt::randn(device, d_output, rng);
 
-    bpt::copy(device, device, sequential_model.content, model.input_layer);
-    bpt::copy(device, device, sequential_model.next_module.content, model.hidden_layers[0]);
-    bpt::copy(device, device, sequential_model.next_module.next_module.content, model.output_layer);
+    bpt::copy(device, device, model.input_layer, sequential_model.content);
+    bpt::copy(device, device, model.hidden_layers[0], sequential_model.next_module.content);
+    bpt::copy(device, device, model.output_layer, sequential_model.next_module.next_module.content);
 
     bpt::forward(device, model, input, output);
     bpt::evaluate(device, sequential_model, input, output_sequential, sequential_buffer);

@@ -40,7 +40,7 @@ TEST(BACKPROP_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE_2>;
     bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC> layer_2;
     bpt::malloc(device, layer_2);
-    bpt::copy(device, device, layer_2, layer);
+    bpt::copy(device, device, layer, layer_2);
     bpt::zero_gradient(device, layer_2);
     auto abs_diff = bpt::abs_diff(device, layer, layer_2);
     EXPECT_EQ(abs_diff, 0);

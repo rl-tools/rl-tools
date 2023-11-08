@@ -107,7 +107,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     bpt::reset_forward_state(device, mlp);
     bpt::reset_optimizer_state(device, optimizer, mlp);
     bpt::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
-    bpt::copy(device, device, mlp.input_layer, mlp_1::input_layer::layer);
+    bpt::copy(device, device, mlp_1::input_layer::layer, mlp.input_layer);
     auto abs_diff = bpt::abs_diff(device, mlp, mlp_1::mlp);
     ASSERT_FLOAT_EQ(10, abs_diff);
 }

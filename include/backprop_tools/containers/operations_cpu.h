@@ -34,17 +34,17 @@ namespace backprop_tools{
         }
         std::cout << "]" << std::endl;
     }
-    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy_view(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
-        using TARGET_DEVICE = devices::CPU<TARGET_DEV_SPEC>;
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SPEC_1, typename SPEC_2>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy_view(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
+        using SOURCE_DEVICE = devices::CPU<SOURCE_DEV_SPEC>;
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
-        vectorize_unary<TARGET_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename TARGET_DEVICE::SPEC::MATH, typename SPEC::T>>(target_device, target, source);
+        vectorize_unary<SOURCE_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename SOURCE_DEVICE::SPEC::MATH, typename SPEC::T>>(source_device, source, target);
     }
-    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename SPEC_1, typename SPEC_2>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
-        using TARGET_DEVICE = devices::CPU<TARGET_DEV_SPEC>;
-        using TI = typename TARGET_DEVICE::index_t;
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SPEC_1, typename SPEC_2>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
+        using SOURCE_DEVICE = devices::CPU<SOURCE_DEV_SPEC>;
+        using TI = typename SOURCE_DEVICE::index_t;
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         if constexpr(containers::check_memory_layout<SPEC_1, SPEC_2>){
             for(TI i = 0; i < SPEC_1::SIZE; i++){
@@ -52,7 +52,7 @@ namespace backprop_tools{
             }
         }
         else{
-            copy_view(target_device, source_device, target, source);
+            copy_view(source_device, target_device, source, target);
         }
     }
     template<typename DEV_SPEC, typename SPEC>

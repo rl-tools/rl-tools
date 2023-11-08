@@ -43,10 +43,10 @@ T abs_diff_vector(const T A[N_ROWS], const T B[N_ROWS]) {
 }
 
 template <typename T, typename SPEC>
-void assign(BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
+void assign(const std::vector<std::vector<T>>& source, BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools::Matrix<SPEC> target) {
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
-            set(A, i, j, B[i][j]);
+            set(target, i, j, source[i][j]);
         }
     }
 }

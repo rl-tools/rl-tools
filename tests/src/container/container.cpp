@@ -64,7 +64,7 @@ void test_view(){
     bpt::malloc(device, m);
     bpt::malloc(device, m_dense);
     bpt::randn(device, m, rng);
-    bpt::copy(device, device, m_dense, m);
+    bpt::copy(device, device, m, m_dense);
 
     for(TI row_i = 0; row_i < ROWS-VIEW_ROWS; row_i++){
         for(TI col_i = 0; col_i < COLS-VIEW_COLS; col_i++){
@@ -100,7 +100,7 @@ void test_view_col(){
     bpt::malloc(device, m);
     bpt::malloc(device, m_dense);
     bpt::randn(device, m, rng);
-    bpt::copy(device, device, m_dense, m);
+    bpt::copy(device, device, m, m_dense);
 
     for(TI row_i = 0; row_i < ROWS; row_i++){
         auto row_m = bpt::row(device, m, row_i);

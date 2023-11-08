@@ -101,11 +101,11 @@ template <typename DEVICE, typename T>
 void load(DEVICE& device, ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
     for(int i = 0; i < batch.size(); i++){
 //        bpt::utils::memcpy(&rb.     bpt::get(observations, i, 0), &batch[i][0], ENVIRONMENT::OBSERVATION_DIM);
-        bpt::assign(device, rb.observations, &batch[i][0], i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
+        bpt::assign(device, &batch[i][0], rb.observations, i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
 //        bpt::utils::memcpy(&rb.          bpt::get(actions, i, 0), &batch[i][ENVIRONMENT::OBSERVATION_DIM], ENVIRONMENT::ACTION_DIM);
-        bpt::assign(device, rb.actions, &batch[i][ENVIRONMENT::OBSERVATION_DIM], i, 0, 1, ENVIRONMENT::ACTION_DIM);
+        bpt::assign(device, &batch[i][ENVIRONMENT::OBSERVATION_DIM], rb.actions, i, 0, 1, ENVIRONMENT::ACTION_DIM);
 //        bpt::utils::memcpy(&bpt::get(rb.next_observations, i, 0), &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], ENVIRONMENT::OBSERVATION_DIM);
-        bpt::assign(device, rb.next_observations, &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
+        bpt::assign(device, &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], rb.next_observations, i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
         bpt::set(rb.rewards, i, 0, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM]);
         bpt::set(rb.terminated, i, 0, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1);
         bpt::set(rb.truncated, i, 0, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1);
@@ -190,13 +190,13 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     int num_steps = std::min(steps_group.getNumberObjects(), (typename DEVICE::index_t)1000);
     decltype(actor_critic.critic_1) pre_critic_1;
     bpt::malloc(device, pre_critic_1);
-    bpt::copy(device, device, pre_critic_1, actor_critic.critic_1);
+    bpt::copy(device, device, actor_critic.critic_1, pre_critic_1);
     decltype(actor_critic.actor) pre_actor;
     bpt::malloc(device, pre_actor);
-    bpt::copy(device, device, pre_actor, actor_critic.actor);
+    bpt::copy(device, device, actor_critic.actor, pre_actor);
     decltype(actor_critic.critic_target_1) pre_critic_1_target;
     bpt::malloc(device, pre_critic_1_target);
-    bpt::copy(device, device, pre_critic_1_target, actor_critic.critic_target_1);
+    bpt::copy(device, device, actor_critic.critic_target_1, pre_critic_1_target);
 
     using CRITIC_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
     bpt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batch;
@@ -301,7 +301,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 bpt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
                 bpt::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[1], actor_buffers[0], critic_buffers[0], critic_training_buffers);
             }
-            bpt::copy(device, device, pre_critic_1, actor_critic.critic_1);
+            bpt::copy(device, device, actor_critic.critic_1, pre_critic_1);
 
 //            if(false){//(step_i % 100 == 0){
 //                DTYPE diff = 0;
@@ -411,7 +411,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             mean_ratio_actor_grad += diff_ratio_grad;
             mean_ratio_actor_adam += diff_ratio_adam;
 
-            bpt::copy(device, device, pre_actor, actor_critic.actor);
+            bpt::copy(device, device, actor_critic.actor, pre_actor);
             bpt::free(device, post_actor);
             bpt::free(device, pre_actor_loaded);
         }
@@ -457,7 +457,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
                     mean_ratio_critic_target += diff_ratio;
 
-                    bpt::copy(device, device, pre_critic_1_target, actor_critic.critic_target_1);
+                    bpt::copy(device, device, actor_critic.critic_target_1, pre_critic_1_target);
 
 //                    if(true){//(step_i % 100 == 0){
 //                        DTYPE diff = 0;

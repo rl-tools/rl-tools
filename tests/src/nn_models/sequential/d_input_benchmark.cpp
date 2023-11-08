@@ -88,9 +88,9 @@ void test_correctness(){
     bpt::randn(device, input, rng);
     bpt::randn(device, d_output, rng);
 
-    bpt::copy(sdevice, device, sequential_model.content, model.input_layer);
-    bpt::copy(sdevice, device, sequential_model.next_module.content, model.hidden_layers[0]);
-    bpt::copy(sdevice, device, sequential_model.next_module.next_module.content, model.output_layer);
+    bpt::copy(device, sdevice, model.input_layer, sequential_model.content);
+    bpt::copy(device, sdevice, model.hidden_layers[0], sequential_model.next_module.content);
+    bpt::copy(device, sdevice, model.output_layer, sequential_model.next_module.next_module.content);
 
     bpt::evaluate(device, model, input, output_eval, buffer);
     bpt::evaluate(sdevice, sequential_model, input, output_sequential_eval, sequential_buffer);
@@ -125,8 +125,8 @@ void test_correctness(){
         ASSERT_LT(abs_diff, CONFIG::THRESHOLD);
     }
 
-    bpt::copy(device, device, model_temp, model);
-    bpt::copy(sdevice, sdevice, sequential_model_temp, sequential_model);
+    bpt::copy(device, device, model, model_temp);
+    bpt::copy(sdevice, sdevice, sequential_model, sequential_model_temp);
 
     bpt::step(device, optimizer, model);
     bpt::step(sdevice, sequential_optimizer, sequential_model);
@@ -179,8 +179,8 @@ void test_correctness(){
         ASSERT_LT(abs_diff, CONFIG::THRESHOLD);
     }
 
-    bpt::copy(device, device, model_temp, model);
-    bpt::copy(sdevice, sdevice, sequential_model_temp, sequential_model);
+    bpt::copy(device, device, model, model_temp);
+    bpt::copy(sdevice, sdevice, sequential_model, sequential_model_temp);
 
     bpt::backward_input(device, model, d_output, d_input_only, buffer);
     bpt::backward_input(sdevice, sequential_model, d_output, d_input_sequential_only, sequential_buffer);
@@ -261,9 +261,9 @@ void test_benchmark(){
     bpt::randn(device, input, rng);
     bpt::randn(device, d_output, rng);
 
-    bpt::copy(device, device, sequential_model.content, model.input_layer);
-    bpt::copy(device, device, sequential_model.next_module.content, model.hidden_layers[0]);
-    bpt::copy(device, device, sequential_model.next_module.next_module.content, model.output_layer);
+    bpt::copy(device, device, model.input_layer, sequential_model.content);
+    bpt::copy(device, device, model.hidden_layers[0], sequential_model.next_module.content);
+    bpt::copy(device, device, model.output_layer, sequential_model.next_module.next_module.content);
 
     bpt::forward(device, model, input, output);
     bpt::evaluate(device, sequential_model, input, output_sequential, sequential_buffer);

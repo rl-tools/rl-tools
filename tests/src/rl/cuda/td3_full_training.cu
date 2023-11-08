@@ -99,13 +99,13 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     bpt::malloc(device, actor_buffers[1]);
 
     bpt::init(device_init, actor_critic_init, rng_init);
-    bpt::copy(device, device_init, actor_critic, actor_critic_init);
+    bpt::copy(device_init, device, actor_critic_init, actor_critic);
 //    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
 //        auto parameters = p::env::parameters;
 //        envs[i].parameters = parameters;
 //    }
     bpt::init(device_init, off_policy_runner_init, envs);
-    bpt::copy(device, device_init, off_policy_runner, off_policy_runner_init);
+    bpt::copy(device_init, device, off_policy_runner_init, off_policy_runner);
     cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(rlp::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
     bpt::check_status(device);
     cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(rlp::ACTOR_BATCH_TYPE), cudaMemcpyHostToDevice);
@@ -181,7 +181,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
             }
         }
         if(step_i % 1000 == 0){
-            bpt::copy(device_init, device, actor_critic_init, actor_critic);
+            bpt::copy(device, device_init, actor_critic, actor_critic_init);
             auto results = bpt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, bpt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, false);
             std::cout << "Mean return: " << results.returns_mean << std::endl;
         }

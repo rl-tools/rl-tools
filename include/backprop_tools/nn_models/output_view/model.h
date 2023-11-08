@@ -38,7 +38,7 @@ namespace backprop_tools{
         malloc(device, actor_output);
         evaluate(device, actor.model, input, actor_output, eval_buffers);
         auto output_view = view(device, actor_output, matrix::ViewSpec<OUTPUT_SPEC::ROWS, SPEC::DIM>{}, 0, SPEC::OFFSET);
-        copy(device, device, output, output_view);
+        copy(device, device, output_view, output);
         free(device, actor_output);
     }
 }

@@ -23,11 +23,11 @@ typename SPEC::T abs_diff_grad(DEVICE& device, const bpt::nn_models::mlp::Neural
     using GradNetworkType = bpt::nn_models::mlp::NeuralNetworkBackwardGradient<GradNetworkSpec>;
     GradNetworkType n1g;
     bpt::malloc(device, n1g);
-    bpt::copy(device, device, n1g, n1);
+    bpt::copy(device, device, n1, n1g);
     bpt::reset_forward_state(device, n1g);
     GradNetworkType n2g;
     bpt::malloc(device, n2g);
-    bpt::copy(device, device, n2g, n2);
+    bpt::copy(device, device, n2, n2g);
     bpt::reset_forward_state(device, n2g);
     T acc = 0;
     acc += bpt::abs_diff(device, n1g.input_layer, n2g.input_layer);

@@ -10,8 +10,8 @@ namespace backprop_tools{
         using TI = typename DEVICE::index_t;
         auto input_target_view = view(device, output, matrix::ViewSpec<BATCH_SIZE, LAYER_SPEC::INPUT_DIM>{});
         auto constant_target_view = view(device, output, matrix::ViewSpec<BATCH_SIZE, LAYER_SPEC::INPUT_DIM>{}, 0, LAYER_SPEC::INPUT_DIM);
-        copy(device, device, input_target_view, input);
-        set_broadcast(device, constant_target_view, layer.constants.parameters);
+        copy(device, device, input, input_target_view);
+        set_broadcast(device, layer.constants.parameters, constant_target_view);
     }
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

@@ -24,8 +24,8 @@ namespace backprop_tools{
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     void update(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer) {
-        utils::polyak::update(device, parameter.gradient_first_order_moment, parameter.gradient, PARAMETERS::BETA_1);
-        utils::polyak::update_squared(device, parameter.gradient_second_order_moment, parameter.gradient, PARAMETERS::BETA_2);
+        utils::polyak::update(device, parameter.gradient, parameter.gradient_first_order_moment, PARAMETERS::BETA_1);
+        utils::polyak::update_squared(device, parameter.gradient, parameter.gradient_second_order_moment, PARAMETERS::BETA_2);
         gradient_descent(device, parameter, optimizer);
     }
 
@@ -58,11 +58,11 @@ namespace backprop_tools{
         set_all(device, parameter.gradient_second_order_moment, 0);
     }
 
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::parameters::Adam::instance<TARGET_SPEC>& target, const nn::parameters::Adam::instance<SOURCE_SPEC>& source){
-        copy(target_device, source_device, (nn::parameters::Gradient::instance<TARGET_SPEC>&) target, (nn::parameters::Gradient::instance<SOURCE_SPEC>&) source);
-        copy(target_device, source_device, target.gradient_first_order_moment , source.gradient_first_order_moment);
-        copy(target_device, source_device, target.gradient_second_order_moment, source.gradient_second_order_moment);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::parameters::Adam::instance<SOURCE_SPEC>& source, nn::parameters::Adam::instance<TARGET_SPEC>& target){
+        copy(source_device, target_device, (nn::parameters::Gradient::instance<SOURCE_SPEC>&) source, (nn::parameters::Gradient::instance<TARGET_SPEC>&) target);
+        copy(source_device, target_device, source.gradient_first_order_moment , target.gradient_first_order_moment);
+        copy(source_device, target_device, source.gradient_second_order_moment, target.gradient_second_order_moment);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const nn::parameters::Adam::instance<SPEC_1>& p1, const nn::parameters::Adam::instance<SPEC_2>& p2){
@@ -91,8 +91,8 @@ namespace backprop_tools{
         optimizer.age += 1;
         update(device, model, optimizer);
     }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::optimizers::Adam<TARGET_SPEC>& target, const nn::optimizers::Adam<SOURCE_SPEC>& source){
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::optimizers::Adam<SOURCE_SPEC>& source, nn::optimizers::Adam<TARGET_SPEC>& target){
         target.alpha = source.alpha;
         target.age = source.age;
     }

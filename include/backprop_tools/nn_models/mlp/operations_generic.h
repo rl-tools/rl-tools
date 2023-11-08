@@ -155,7 +155,7 @@ namespace backprop_tools {
     void forward(DEVICE& device, nn_models::mlp::NeuralNetworkBackwardGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         forward(device, network, input);
-        copy(device, device, output, network.output_layer.output);
+        copy(device, device, network.output_layer.output, output);
     }
 
     template<typename DEVICE, typename SPEC>
@@ -266,20 +266,20 @@ namespace backprop_tools {
     }
 
     // The following copy operators are more powerful than the default copy assignment operator in that they can e.g. copy between networks with different activation functions
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source){
-        static_assert(backprop_tools::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
-        copy(target_device, source_device, target.input_layer, source.input_layer);
-        for(typename TARGET_SPEC::TI layer_i = 0; layer_i <  TARGET_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
-            copy(target_device, source_device, target.hidden_layers[layer_i], source.hidden_layers[layer_i]);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target){
+        static_assert(backprop_tools::nn_models::mlp::check_spec_memory<typename SOURCE_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The source and target network must have the same structure");
+        copy(source_device, target_device, source.input_layer, target.input_layer);
+        for(typename SOURCE_SPEC::TI layer_i = 0; layer_i <  SOURCE_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
+            copy(source_device, target_device, source.hidden_layers[layer_i], target.hidden_layers[layer_i]);
         }
-        copy(target_device, source_device, target.output_layer, source.output_layer);
+        copy(source_device, target_device, source.output_layer, target.output_layer);
     }
 
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>& source){
-        static_assert(backprop_tools::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
-        copy(target_device, source_device, (nn_models::mlp::NeuralNetwork<TARGET_SPEC>&)target, (nn_models::mlp::NeuralNetwork<SOURCE_SPEC>&)source);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>& target){
+        static_assert(backprop_tools::nn_models::mlp::check_spec_memory<typename SOURCE_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The source and target network must have the same structure");
+        copy(source_device, target_device, (nn_models::mlp::NeuralNetwork<SOURCE_SPEC>&)source, (nn_models::mlp::NeuralNetwork<TARGET_SPEC>&)target);
     }
 
     template<typename DEVICE, typename SPEC>
@@ -293,7 +293,7 @@ namespace backprop_tools {
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC_1>& n1, const nn_models::mlp::NeuralNetwork<SPEC_2>& n2){
-        static_assert(backprop_tools::nn_models::mlp::check_spec_memory<typename SPEC_1::STRUCTURE_SPEC, typename SPEC_2::STRUCTURE_SPEC>, "The target and source network must have the same structure");
+        static_assert(backprop_tools::nn_models::mlp::check_spec_memory<typename SPEC_1::STRUCTURE_SPEC, typename SPEC_2::STRUCTURE_SPEC>, "The source and target network must have the same structure");
         typename SPEC_1::T acc = 0;
 
         acc += abs_diff(device, n1.output_layer, n2.output_layer);
@@ -313,10 +313,10 @@ namespace backprop_tools {
         found_nan = found_nan || is_nan(device, n.output_layer);
         return found_nan;
     }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.tick, source.tick);
-        copy(target_device, source_device, target.tock, source.tock);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.tick, target.tick);
+        copy(source_device, target_device, source.tock, target.tock);
     }
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

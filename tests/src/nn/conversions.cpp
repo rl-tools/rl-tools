@@ -78,16 +78,16 @@ TEST(BACKPROP_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
 
     ASSERT_GT(bpt::abs_diff(device2, layer2, layer22), 0);
 
-    bpt::copy(device2, device2, layer22, layer222);
+    bpt::copy(device2, device2, layer222, layer22);
 
     ASSERT_GT(bpt::abs_diff(device2, layer2, layer22), 0);
     ASSERT_EQ(bpt::abs_diff(device2, layer22, layer222), 0);
 
-    bpt::copy(device2, device2, layer2, layer22);
+    bpt::copy(device2, device2, layer22, layer2);
 
     ASSERT_EQ(bpt::abs_diff(device2, layer2, layer222), 0);
 
-    bpt::copy(device1, device1, layer1, layer2);
+    bpt::copy(device1, device1, layer2, layer1);
 
     ASSERT_EQ(bpt::abs_diff(device1, layer1, layer222), 0);
 

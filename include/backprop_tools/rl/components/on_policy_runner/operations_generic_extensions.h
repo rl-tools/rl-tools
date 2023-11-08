@@ -48,7 +48,7 @@ namespace backprop_tools{
             }
             {
 //                auto start = std::chrono::high_resolution_clock::now();
-                copy(device_evaluation, device, evaluation_buffer_evaluation.observations, observations_normalized);
+                copy(device, device_evaluation, observations_normalized, evaluation_buffer_evaluation.observations);
 //                auto end = std::chrono::high_resolution_clock::now();
 //                copy_observations_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
@@ -62,8 +62,8 @@ namespace backprop_tools{
             {
 
 //                auto start = std::chrono::high_resolution_clock::now();
-                copy(device, device_evaluation, evaluation_buffer.actions, evaluation_buffer_evaluation.actions);
-                copy(device, device, actions_mean, evaluation_buffer.actions);
+                copy(device_evaluation, device, evaluation_buffer_evaluation.actions, evaluation_buffer.actions);
+                copy(device, device, evaluation_buffer.actions, actions_mean);
 //                auto end = std::chrono::high_resolution_clock::now();
 //                copy_back_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }

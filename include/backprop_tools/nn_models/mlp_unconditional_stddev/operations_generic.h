@@ -37,11 +37,11 @@ namespace backprop_tools{
         _reset_optimizer_state(device, network.log_std, optimizer);
     }
 
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<TARGET_SPEC>& target, const nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SOURCE_SPEC>& source){
-        static_assert(backprop_tools::nn_models::mlp::check_spec_memory<typename TARGET_SPEC::STRUCTURE_SPEC, typename SOURCE_SPEC::STRUCTURE_SPEC>, "The target and source network must have the same structure");
-        copy(target_device, source_device, (nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>&)target, (nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>&)source);
-        copy(target_device, source_device, target.log_std, source.log_std);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SOURCE_SPEC>& source, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<TARGET_SPEC>& target){
+        static_assert(backprop_tools::nn_models::mlp::check_spec_memory<typename SOURCE_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The source and target network must have the same structure");
+        copy(source_device, target_device, (nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>&)source, (nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>&)target);
+        copy(source_device, target_device, source.log_std, target.log_std);
     }
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

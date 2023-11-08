@@ -30,15 +30,15 @@ namespace backprop_tools{
         set_all(device, container.gradient, 0);
     }
 
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::parameters::Plain::instance<TARGET_SPEC>& target, const nn::parameters::Plain::instance<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.parameters, source.parameters);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::parameters::Plain::instance<SOURCE_SPEC>& source, nn::parameters::Plain::instance<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.parameters, target.parameters);
     }
 
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::parameters::Gradient::instance<TARGET_SPEC>& target, const nn::parameters::Gradient::instance<SOURCE_SPEC>& source){
-        copy(target_device, source_device, (nn::parameters::Plain::instance<TARGET_SPEC>&) target, (nn::parameters::Plain::instance<SOURCE_SPEC>&) source);
-        copy(target_device, source_device, target.gradient, source.gradient);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::parameters::Gradient::instance<SOURCE_SPEC>& source, nn::parameters::Gradient::instance<TARGET_SPEC>& target){
+        copy(source_device, target_device, (nn::parameters::Plain::instance<SOURCE_SPEC>&) source, (nn::parameters::Plain::instance<TARGET_SPEC>&) target);
+        copy(source_device, target_device, source.gradient, target.gradient);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>

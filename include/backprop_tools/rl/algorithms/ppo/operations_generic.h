@@ -109,7 +109,7 @@ namespace backprop_tools{
         // batch needs observations, original log-probs, advantages
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
-            copy(device, device, ppo_buffers.rollout_log_std, ppo.actor.log_std.parameters);
+            copy(device, device, ppo.actor.log_std.parameters, ppo_buffers.rollout_log_std);
         }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // shuffling
@@ -261,10 +261,10 @@ namespace backprop_tools{
         }
     }
 
-    template <typename DEVICE_TARGET, typename DEVICE_SOURCE, typename PPO_SPEC>
-    void copy(DEVICE_TARGET& device_target, DEVICE_SOURCE& device_source, rl::algorithms::PPO<PPO_SPEC>& target, rl::algorithms::PPO<PPO_SPEC>& source){
-        copy(device_target, device_source, target.actor, source.actor);
-        copy(device_target, device_source, target.critic, source.critic);
+    template <typename DEVICE_SOURCE, typename DEVICE_TARGET, typename PPO_SPEC>
+    void copy(DEVICE_SOURCE& device_source, DEVICE_TARGET& device_target, const rl::algorithms::PPO<PPO_SPEC>& source, rl::algorithms::PPO<PPO_SPEC>& target){
+        copy(device_source, device_target, source.actor, target.actor);
+        copy(device_source, device_target, source.critic, target.critic);
 #ifdef BACKPROP_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         target.initialized = source.initialized;
 #endif

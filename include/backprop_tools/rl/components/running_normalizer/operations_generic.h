@@ -55,11 +55,11 @@ namespace backprop_tools{
         static_assert(INPUT_SPEC::COLS == SPEC::DIM, "Data dimension must match normalizer dimension");
         normalize(device, normalizer.mean, normalizer.std, input, output);
     }
-    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::RunningNormalizer<TARGET_SPEC>& target, rl::components::RunningNormalizer<SOURCE_SPEC>& source){
-        static_assert(TARGET_SPEC::DIM == SOURCE_SPEC::DIM, "copy: target and source normalizers must have the same dimension");
-        copy(target_device, source_device, target.mean, source.mean);
-        copy(target_device, source_device, target.std, source.std);
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::RunningNormalizer<SOURCE_SPEC>& source, rl::components::RunningNormalizer<TARGET_SPEC>& target){
+        static_assert(SOURCE_SPEC::DIM == TARGET_SPEC::DIM, "copy: source and target normalizers must have the same dimension");
+        copy(source_device, target_device, source.mean, target.mean);
+        copy(source_device, target_device, source.std, target.std);
         target.age = source.age;
     }
 }

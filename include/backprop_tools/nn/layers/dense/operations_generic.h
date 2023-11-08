@@ -114,7 +114,7 @@ namespace backprop_tools{
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // compile time warning if used
         forward(device, layer, input);
-        copy(device, device, output, layer.output);
+        copy(device, device, layer.output, output);
     }
 
 #ifndef BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
@@ -207,23 +207,23 @@ namespace backprop_tools{
         _reset_optimizer_state(device, layer.biases, optimizer);
     }
 
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::Layer<TARGET_SPEC>& target, const nn::layers::dense::Layer<SOURCE_SPEC>& source){
-        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, target.weights, source.weights);
-        copy(target_device, source_device, target.biases, source.biases);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::layers::dense::Layer<SOURCE_SPEC>& source, nn::layers::dense::Layer<TARGET_SPEC>& target){
+        static_assert(nn::layers::dense::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, source.weights, target.weights);
+        copy(source_device, target_device, source.biases, target.biases);
     }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackward<TARGET_SPEC>& target, const nn::layers::dense::LayerBackward<SOURCE_SPEC>& source){
-        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, (nn::layers::dense::Layer<TARGET_SPEC>&) target, (nn::layers::dense::Layer<SOURCE_SPEC>&) source);
-        copy(target_device, source_device, target.pre_activations, source.pre_activations);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::dense::LayerBackward<SOURCE_SPEC>& source, nn::layers::dense::LayerBackward<TARGET_SPEC>& target){
+        static_assert(nn::layers::dense::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, (nn::layers::dense::Layer<SOURCE_SPEC>&) source, (nn::layers::dense::Layer<TARGET_SPEC>&) target);
+        copy(source_device, target_device, source.pre_activations, target.pre_activations);
     }
-    template<typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>& target, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>& source){
-        static_assert(nn::layers::dense::check_spec_memory<TARGET_SPEC, SOURCE_SPEC>);
-        copy(target_device, source_device, (nn::layers::dense::LayerBackward<TARGET_SPEC>&)target, (nn::layers::dense::LayerBackward<SOURCE_SPEC>&)source);
-        copy(target_device, source_device, target.output, source.output);
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::dense::LayerBackwardGradient<SOURCE_SPEC>& source, nn::layers::dense::LayerBackwardGradient<TARGET_SPEC>& target){
+        static_assert(nn::layers::dense::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>);
+        copy(source_device, target_device, (nn::layers::dense::LayerBackward<SOURCE_SPEC>&)source, (nn::layers::dense::LayerBackward<TARGET_SPEC>&)target);
+        copy(source_device, target_device, source.output, target.output);
 
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>

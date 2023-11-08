@@ -61,7 +61,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_ENVIRONMENTS_MULTIROTOR, TEST){
     bpt::check_status(cuda);
 
     bpt::init(cpu, off_policy_runner_cpu, envs);
-    bpt::copy(cuda, cpu, off_policy_runner_cuda, off_policy_runner_cpu);
+    bpt::copy(cpu, cuda, off_policy_runner_cpu, off_policy_runner_cuda);
     cudaMemcpy(off_policy_runner_cuda_struct, &off_policy_runner_cuda, sizeof(rlp::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
     bpt::check_status(cuda);
 
@@ -69,7 +69,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_ENVIRONMENTS_MULTIROTOR, TEST){
     for(TI env_i=0; env_i < rlp::N_ENVIRONMENTS; env_i++) {
         bpt::randn(cpu, off_policy_runner_cpu.replay_buffers[env_i].data, rng_cpu);
     }
-    bpt::copy(cuda, cpu, off_policy_runner_cuda, off_policy_runner_cpu);
+    bpt::copy(cpu, cuda, off_policy_runner_cpu, off_policy_runner_cuda);
 
     for(TI step_i = 0; step_i < 10; step_i++){
         bpt::rl::components::off_policy_runner::prologue(cpu, off_policy_runner_cpu, rng_cpu);
@@ -80,7 +80,7 @@ TEST(BACKPROP_TOOLS_RL_CUDA_ENVIRONMENTS_MULTIROTOR, TEST){
     }
 
 
-    bpt::copy(cpu, cuda, off_policy_runner_feedback, off_policy_runner_cuda);
+    bpt::copy(cuda, cpu, off_policy_runner_cuda, off_policy_runner_feedback);
 
     std::cout << "next observations cpu: " << std::endl;
     bpt::print(cpu, off_policy_runner_cpu.buffers.next_observations);

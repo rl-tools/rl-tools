@@ -134,7 +134,7 @@ protected:
         // init
         for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; rb_i++) {
             bpt::test::rl::components::replay_buffer::sample(device_cpu, off_policy_runner_cpu.replay_buffers[rb_i], rng_cpu);
-            bpt::copy(device_gpu, device_cpu, off_policy_runner_gpu_cpu.replay_buffers[rb_i], off_policy_runner_cpu.replay_buffers[rb_i]);
+            bpt::copy(device_cpu, device_gpu, off_policy_runner_cpu.replay_buffers[rb_i], off_policy_runner_gpu_cpu.replay_buffers[rb_i]);
         }
         bpt::init(device_cpu, actor_critic_cpu, rng_cpu);
 
@@ -144,7 +144,7 @@ protected:
         bpt::check_status(device_gpu);
         cudaMemcpy(batch_gpu_struct, &batch_gpu, sizeof(BATCH_TYPE), cudaMemcpyHostToDevice);
         bpt::check_status(device_gpu);
-        bpt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu);
+        bpt::copy(device_cpu, device_gpu, actor_critic_cpu, actor_critic_gpu);
     }
 
     void TearDown() override {
@@ -181,8 +181,8 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, VIEW_COPY_PROBLEM) {
 
     bpt::randn(device_cpu, batch_cpu.observations_actions_next_observations, rng_cpu);
     bpt::set_all(device_cpu, batch_cpu_2.observations_actions_next_observations, 0);
-    bpt::copy(device_gpu, device_cpu, batch_gpu.next_observations, batch_cpu.next_observations);
-    bpt::copy(device_cpu, device_gpu, batch_cpu_2.next_observations, batch_gpu.next_observations);
+    bpt::copy(device_cpu, device_gpu, batch_cpu.next_observations, batch_gpu.next_observations);
+    bpt::copy(device_gpu, device_cpu, batch_gpu.next_observations, batch_cpu_2.next_observations);
 
     auto abs_diff_next_observations = bpt::abs_diff(device_cpu, batch_cpu_2.next_observations, batch_cpu.next_observations);
     ASSERT_LT(abs_diff_next_observations, EPSILON);
@@ -195,7 +195,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, GATHER_BATCH) {
     auto rng_cpu = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = bpt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
     for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; rb_i++) {
-        bpt::copy(device_cpu, device_gpu, off_policy_runner_cpu_2.replay_buffers[rb_i], off_policy_runner_gpu_cpu.replay_buffers[rb_i]);
+        bpt::copy(device_gpu, device_cpu, off_policy_runner_gpu_cpu.replay_buffers[rb_i], off_policy_runner_cpu_2.replay_buffers[rb_i]);
         auto abs_diff = bpt::abs_diff(device_cpu, off_policy_runner_cpu.replay_buffers[rb_i], off_policy_runner_cpu_2.replay_buffers[rb_i]);
         ASSERT_FLOAT_EQ(abs_diff, 0);
     }
@@ -208,7 +208,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, GATHER_BATCH) {
     std::cout << "BATCH" << std::endl;
     bpt::print(device_cpu, batch_cpu.observations);
     std::cout << "BATCH GPU" << std::endl;
-    bpt::copy(device_cpu, device_gpu, batch_cpu_2, batch_gpu);
+    bpt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu_2);
     bpt::print(device_cpu, batch_cpu_2.observations);
 
     auto abs_diff_batch = bpt::abs_diff(device_cpu, batch_cpu.observations, batch_cpu_2.observations);
@@ -233,19 +233,19 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
             // action noise from cpu
             bpt::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
-            bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
-            bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu_2.target_next_action_noise);
             auto abs_diff_target_next_action_noise = bpt::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
             std::cout << "abs_diff_target_next_action_noise: " << abs_diff_target_next_action_noise << std::endl;
             ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
         }
         else{
             bpt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
-            bpt::copy(device_cpu, device_gpu, batch_cpu, batch_gpu);
+            bpt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
 
             // action noise from gpu
             bpt::target_action_noise(device_gpu, actor_critic_gpu, critic_training_buffers_gpu.target_next_action_noise, rng_gpu);
-            bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
             auto action_noise_std = bpt::std(device_cpu, critic_training_buffers_cpu.target_next_action_noise);
             auto action_noise_std_diff = std::abs(action_noise_std - ACTOR_CRITIC_SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
             std::cout << "action_noise_std_diff: " << action_noise_std_diff << std::endl;
@@ -256,15 +256,15 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
         static_assert(BATCH_SPEC::BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
 
-        bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
-        bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+        bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu, critic_training_buffers_cpu_2);
+        bpt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu_2);
         auto abs_diff_actor_critic = bpt::abs_diff(device_cpu, actor_critic_cpu_2.actor_target, actor_critic_cpu.actor_target);
         std::cout << "abs_diff_actor_critic: " << abs_diff_actor_critic << std::endl;
         ASSERT_FLOAT_EQ(abs_diff_actor_critic, 0);
 
         bpt::evaluate(device_cpu, actor_critic_cpu.actor.input_layer, batch_cpu.observations, actor_buffers_cpu.tick);
         bpt::evaluate(device_gpu, actor_critic_gpu.actor.input_layer, batch_gpu.observations, actor_buffers_gpu.tick);
-        bpt::copy(device_cpu, device_gpu, actor_buffers_cpu_2, actor_buffers_gpu);
+        bpt::copy(device_gpu, device_cpu, actor_buffers_gpu, actor_buffers_cpu_2);
         auto abs_diff_tick = bpt::abs_diff(device_cpu, actor_buffers_cpu_2.tick, actor_buffers_cpu.tick);
         std::cout << "abs_diff_tick: " << abs_diff_tick << std::endl;
         ASSERT_LT(abs_diff_tick, EPSILON);
@@ -272,22 +272,22 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         bpt::evaluate(device_cpu, actor_critic_cpu.actor_target, batch_cpu.next_observations, critic_training_buffers_cpu.next_actions, actor_buffers_cpu);
         bpt::evaluate(device_gpu, actor_critic_gpu.actor_target, batch_gpu.next_observations, critic_training_buffers_gpu.next_actions, actor_buffers_gpu);
 
-        bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu, critic_training_buffers_cpu_2);
         auto abs_diff_next_actions = bpt::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_cpu.next_actions);
         std::cout << "abs_diff_next_actions: " << abs_diff_next_actions << std::endl;
         ASSERT_LT(abs_diff_next_actions, EPSILON);
 
         bpt::noisy_next_actions(device_cpu, critic_training_buffers_cpu);
         bpt::noisy_next_actions(device_gpu, critic_training_buffers_gpu);
-        bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu, critic_training_buffers_cpu_2);
         bpt::check_status(device_gpu);
         auto abs_diff_noisy_next_actions = bpt::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_cpu.next_actions);
         std::cout << "abs_diff_noisy_next_actions: " << abs_diff_noisy_next_actions << std::endl;
         ASSERT_LT(abs_diff_noisy_next_actions, EPSILON);
 
-        bpt::copy(device_cpu, device_cpu, critic_training_buffers_cpu.next_observations, batch_cpu.next_observations);
-        bpt::copy(device_gpu, device_gpu, critic_training_buffers_gpu.next_observations, batch_gpu.next_observations);
-        bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        bpt::copy(device_cpu, device_cpu, batch_cpu.next_observations, critic_training_buffers_cpu.next_observations);
+        bpt::copy(device_gpu, device_gpu, batch_gpu.next_observations, critic_training_buffers_gpu.next_observations);
+        bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu, critic_training_buffers_cpu_2);
         auto abs_diff_next_state_action_value_input = bpt::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_input);
         std::cout << "abs_diff_next_state_action_value_input: " << abs_diff_next_state_action_value_input << std::endl;
         ASSERT_LT(abs_diff_next_state_action_value_input, EPSILON);
@@ -298,7 +298,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         bpt::evaluate(device_gpu, actor_critic_gpu.critic_target_1, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_1, critic_buffers_gpu);
         bpt::evaluate(device_gpu, actor_critic_gpu.critic_target_2, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_2, critic_buffers_gpu);
 
-        bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu, critic_training_buffers_cpu_2);
         auto abs_diff_next_state_action_value_critic_1 = bpt::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_critic_1, critic_training_buffers_cpu.next_state_action_value_critic_1);
         auto abs_diff_next_state_action_value_critic_2 = bpt::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_critic_2, critic_training_buffers_cpu.next_state_action_value_critic_2);
         std::cout << "abs_diff_next_state_action_value_critic_1: " << abs_diff_next_state_action_value_critic_1 << std::endl;
@@ -308,7 +308,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
         bpt::target_actions(device_cpu, actor_critic_cpu, batch_cpu, critic_training_buffers_cpu);
         bpt::target_actions(device_gpu, actor_critic_gpu, batch_gpu, critic_training_buffers_gpu);
-        bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2, critic_training_buffers_gpu);
+        bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu, critic_training_buffers_cpu_2);
         auto abs_diff_target_action_value = bpt::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_action_value, critic_training_buffers_cpu.target_action_value);
         std::cout << "abs_diff_target_action_value: " << abs_diff_target_action_value << std::endl;
         ASSERT_LT(abs_diff_target_action_value, EPSILON);
@@ -338,7 +338,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
             bpt::nn::loss_functions::mse::gradient(device_gpu, output(critic_gpu), critic_training_buffers_gpu.target_action_value, d_critic_output_gpu);
             bpt::backward(device_gpu, critic_gpu, batch_gpu.observations_and_actions, d_critic_output_gpu, critic_buffers_gpu);
         }
-        bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+        bpt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu_2);
 
         auto abs_diff_critic = bpt::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
         std::cout << "abs_diff_critic: " << abs_diff_critic << std::endl;
@@ -346,7 +346,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
         bpt::step(device_cpu, actor_critic_cpu.critic_optimizers[0], critic_cpu);
         bpt::step(device_gpu, actor_critic_gpu.critic_optimizers[0], critic_gpu);
-        bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+        bpt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu_2);
         auto abs_diff_critic_after_update = bpt::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
         std::cout << "abs_diff_critic_after_update: " << abs_diff_critic_after_update << std::endl;
         ASSERT_LT(abs_diff_critic_after_update, EPSILON);
@@ -354,7 +354,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         if(i % 5 == 0){
             bpt::update_critic_targets(device_cpu, actor_critic_cpu);
             bpt::update_critic_targets(device_gpu, actor_critic_gpu);
-            bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+            bpt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu_2);
             auto abs_diff_critic_target_1 = bpt::abs_diff(device_cpu, actor_critic_cpu.critic_target_1, actor_critic_cpu_2.critic_target_1);
             auto abs_diff_critic_target_2 = bpt::abs_diff(device_cpu, actor_critic_cpu.critic_target_2, actor_critic_cpu_2.critic_target_2);
             std::cout << "abs_diff_critic_target_1: " << abs_diff_critic_target_1 << std::endl;
@@ -381,19 +381,19 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
 
             // action noise from cpu
             bpt::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
-            bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
-            bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu_2.target_next_action_noise);
             auto abs_diff_target_next_action_noise = bpt::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
             std::cout << "abs_diff_target_next_action_noise: " << abs_diff_target_next_action_noise << std::endl;
             ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
         }
         else{
             bpt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
-            bpt::copy(device_cpu, device_gpu, batch_cpu, batch_gpu);
+            bpt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
 
             // action noise from gpu
             bpt::target_action_noise(device_gpu, actor_critic_gpu, critic_training_buffers_gpu.target_next_action_noise, rng_gpu);
-            bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
             auto action_noise_std = bpt::std(device_cpu, critic_training_buffers_cpu.target_next_action_noise);
             auto action_noise_std_diff = std::abs(action_noise_std - ACTOR_CRITIC_SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
             std::cout << "action_noise_std_diff: " << action_noise_std_diff << std::endl;
@@ -413,7 +413,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
         bpt::train_critic(device_cpu, actor_critic_cpu, critic_cpu, batch_cpu, actor_critic_cpu.critic_optimizers[0], actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu);
         bpt::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, actor_critic_gpu.critic_optimizers[0], actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu);
 
-        bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+        bpt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu_2);
         auto abs_diff_critic_after_update = bpt::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
         std::cout << "abs_diff_critic_after_update: " << abs_diff_critic_after_update << std::endl;
         ASSERT_LT(abs_diff_critic_after_update, EPSILON);
@@ -421,7 +421,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
         if(i % 5 == 0){
             bpt::update_critic_targets(device_cpu, actor_critic_cpu);
             bpt::update_critic_targets(device_gpu, actor_critic_gpu);
-            bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+            bpt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu_2);
             auto abs_diff_critic_target_1 = bpt::abs_diff(device_cpu, actor_critic_cpu.critic_target_1, actor_critic_cpu_2.critic_target_1);
             auto abs_diff_critic_target_2 = bpt::abs_diff(device_cpu, actor_critic_cpu.critic_target_2, actor_critic_cpu_2.critic_target_2);
             std::cout << "abs_diff_critic_target_1: " << abs_diff_critic_target_1 << std::endl;
@@ -448,19 +448,19 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
 
             // action noise from cpu
             bpt::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
-            bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
-            bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu_2.target_next_action_noise);
             auto abs_diff_target_next_action_noise = bpt::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
             std::cout << "abs_diff_target_next_action_noise: " << abs_diff_target_next_action_noise << std::endl;
             ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
         }
         else{
             bpt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
-            bpt::copy(device_cpu, device_gpu, batch_cpu, batch_gpu);
+            bpt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
 
             // action noise from gpu
             bpt::target_action_noise(device_gpu, actor_critic_gpu, critic_training_buffers_gpu.target_next_action_noise, rng_gpu);
-            bpt::copy(device_cpu, device_gpu, critic_training_buffers_cpu.target_next_action_noise, critic_training_buffers_gpu.target_next_action_noise);
+            bpt::copy(device_gpu, device_cpu, critic_training_buffers_gpu.target_next_action_noise, critic_training_buffers_cpu.target_next_action_noise);
             auto action_noise_std = bpt::std(device_cpu, critic_training_buffers_cpu.target_next_action_noise);
             auto action_noise_std_diff = std::abs(action_noise_std - ACTOR_CRITIC_SPEC::PARAMETERS::TARGET_NEXT_ACTION_NOISE_STD);
             std::cout << "action_noise_std_diff: " << action_noise_std_diff << std::endl;
@@ -507,7 +507,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
         }
         else{
             bpt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
-            bpt::copy(device_cpu, device_gpu, batch_cpu, batch_gpu);
+            bpt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
         }
     };
     for(typename DEVICE_CPU::index_t step_i = 0; step_i < N_STEPS; step_i++){
@@ -516,7 +516,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
         bpt::train_actor(device_cpu, actor_critic_cpu, batch_cpu, actor_critic_cpu.actor_optimizer, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu);
         bpt::train_actor(device_gpu, actor_critic_gpu, batch_gpu, actor_critic_gpu.actor_optimizer, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu);
 
-        bpt::copy(device_cpu, device_gpu, actor_critic_cpu_2, actor_critic_gpu);
+        bpt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu_2);
         auto abs_diff_actor_after_update = bpt::abs_diff(device_cpu, actor_critic_cpu.actor, actor_critic_cpu_2.actor);
         std::cout << "abs_diff_actor_after_update: " << abs_diff_actor_after_update << std::endl;
         ASSERT_LT(abs_diff_actor_after_update, EPSILON);
@@ -537,7 +537,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
         }
         else{
             bpt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
-            bpt::copy(device_cpu, device_gpu, batch_cpu, batch_gpu);
+            bpt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
         }
     };
     sample_batch(false);

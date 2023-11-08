@@ -49,7 +49,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
             ENVIRONMENT::State next_state;
             bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
             bpt::malloc(device, action);
-            bpt::assign(device, action, actions[step_i].data());
+            bpt::assign(device, actions[step_i].data(), action);
             bpt::step(device, env, state, action, next_state, rng);
             T r = bpt::reward(device, env, state, action, next_state, rng);
             T abs_diff = 0;

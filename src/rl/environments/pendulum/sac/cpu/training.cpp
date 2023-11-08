@@ -87,7 +87,7 @@ namespace training_config{
 
         static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr DEVICE::index_t STEP_LIMIT = 10000; //2 * N_WARMUP_STEPS;
-        static constexpr bool DETERMINISTIC_EVALUATION = false;
+        static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
         static constexpr TI NUM_EVALUATION_EPISODES = 10;
         static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
@@ -116,7 +116,7 @@ int main(){
     using T = typename TrainingConfig::T;
     using TI = typename TrainingConfig::TI;
     using DEVICE = typename TrainingConfig::DEVICE;
-    TI NUM_RUNS = 1;
+    TI NUM_RUNS = 10;
 #ifdef BACKPROP_TOOLS_ENABLE_HDF5
     std::string DATA_FILE_PATH = "rl_environments_pendulum_sac_learning_curves.h5";
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);

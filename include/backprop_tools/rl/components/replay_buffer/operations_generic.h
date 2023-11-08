@@ -72,9 +72,9 @@ namespace backprop_tools {
         set(buffer.next_states, buffer.position, 0, next_state);
         add(device, (rl::components::ReplayBuffer<typename SPEC::BASE_SPEC>&) buffer, state, observation, observation_privileged, action, reward, next_state, next_observation, next_observation_privileged, terminated, truncated);
     }
-    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::ReplayBuffer<TARGET_SPEC>& target, rl::components::ReplayBuffer<SOURCE_SPEC>& source) {
-        copy(target_device, source_device, target.data, source.data);
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::ReplayBuffer<SOURCE_SPEC>& source, rl::components::ReplayBuffer<TARGET_SPEC>& target) {
+        copy(source_device, target_device, source.data, target.data);
         target.full = source.full;
         target.position = source.position;
     }

@@ -41,10 +41,10 @@ namespace backprop_tools{
     }
 #endif
     namespace containers::cuda::kernels {
-        template<typename DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
+        template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
         __global__ void
-        copy(Matrix<TARGET_SPEC> target, Matrix<SOURCE_SPEC> source) {
-            static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
+        copy(const Matrix<SOURCE_SPEC> source, Matrix<TARGET_SPEC> target) {
+            static_assert(containers::check_structure<SOURCE_SPEC, TARGET_SPEC>);
             using T = typename TARGET_SPEC::T;
             using TI = typename DEVICE::index_t;
 
@@ -67,8 +67,8 @@ namespace backprop_tools{
             }
         }
     }
-    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy_layout_mismatch(devices::CUDA<TARGET_DEV_SPEC>& target_device, devices::CUDA<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy_layout_mismatch(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
         static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
@@ -79,11 +79,11 @@ namespace backprop_tools{
         constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
         dim3 grid(N_BLOCKS_COLS);
         dim3 block(BLOCKSIZE_COLS);
-        containers::cuda::kernels::copy<DEVICE, TARGET_SPEC, SOURCE_SPEC><<<grid, block>>>(target, source);
+        containers::cuda::kernels::copy<DEVICE, SOURCE_SPEC, TARGET_SPEC><<<grid, block>>>(source, target);
         check_status(target_device);
     }
-    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(devices::CUDA<TARGET_DEV_SPEC>& target_device, devices::CUDA<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
@@ -93,11 +93,11 @@ namespace backprop_tools{
             check_status(source_device);
         }
         else{
-            copy_layout_mismatch(target_device, source_device, target, source);
+            copy_layout_mismatch(source_device, target_device, source, target);
         }
     }
-    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy_layout_mismatch(devices::CUDA<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy_layout_mismatch(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
 //        static_assert(!TARGET_SPEC::IS_VIEW);
         using DEVICE_CUDA = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
@@ -111,7 +111,7 @@ namespace backprop_tools{
             using TEMP_SPEC = typename decltype(temp)::SPEC;
             static_assert(TEMP_SPEC::SIZE_BYTES == TARGET_SPEC::SIZE_BYTES);
             malloc(source_device, temp);
-            copy(source_device, source_device, temp, source);
+            copy(source_device, source_device, source, temp);
             auto temp_size = TEMP_SPEC::SIZE_BYTES;
             cudaMemcpy(target._data, temp._data, temp_size, cudaMemcpyHostToDevice);
             check_status(target_device);
@@ -120,7 +120,7 @@ namespace backprop_tools{
         else{
             MatrixDynamic<matrix::Specification<T, TI, SPEC::ROWS, SPEC::COLS, typename SOURCE_SPEC::LAYOUT, false>> temp;
             malloc(target_device, temp);
-            copy(target_device, source_device, temp, source);
+            copy(source_device, target_device, source, temp);
 //            {
 //                constexpr TI BLOCKSIZE_COLS = 32;
 //                constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
@@ -129,11 +129,11 @@ namespace backprop_tools{
 //                containers::cuda::kernels::copy<DEVICE_CUDA, TARGET_SPEC, typename decltype(temp)::SPEC><<<grid, block>>>(target, temp);
 //                check_status(target_device);
 //            }
-            copy(target_device, target_device, target, temp);
+            copy(target_device, target_device, temp, target);
         }
     }
-    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(devices::CUDA<TARGET_DEV_SPEC>& target_device, devices::CPU<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
@@ -143,12 +143,12 @@ namespace backprop_tools{
             check_status(target_device);
         }
         else{
-            copy_layout_mismatch(target_device, source_device, target, source);
+            copy_layout_mismatch(source_device, target_device, source, target);
         }
     }
 
-    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy_layout_mismatch(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CUDA<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy_layout_mismatch(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
         static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
@@ -166,26 +166,26 @@ namespace backprop_tools{
 //            containers::cuda::kernels::copy<DEVICE_CUDA, typename decltype(temp_gpu)::SPEC, SOURCE_SPEC><<<grid, block>>>(temp_gpu, source);
 //            check_status(source_device);
 //        }
-        copy(source_device, source_device, temp_gpu, source);
+        copy(source_device, source_device, source, temp_gpu);
         malloc(target_device, temp_cpu);
         cudaMemcpy(temp_cpu._data, temp_gpu._data, TEMP_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost);
         check_status(source_device);
         free(source_device, temp_gpu);
-        copy(target_device, target_device, target, temp_cpu);
+        copy(target_device, target_device, temp_cpu, target);
         free(target_device, temp_cpu);
     }
-    template<typename TARGET_DEV_SPEC, typename SOURCE_DEV_SPEC, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(devices::CPU<TARGET_DEV_SPEC>& target_device, devices::CUDA<SOURCE_DEV_SPEC>& source_device, Matrix<TARGET_SPEC>& target, const Matrix<SOURCE_SPEC>& source){
+    template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
             cudaMemcpy(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost);
-            check_status(source_device);
+            check_status(target_device);
         }
         else{
-            copy_layout_mismatch(target_device, source_device, target, source);
+            copy_layout_mismatch(source_device, target_device, source, target);
         }
     }
 

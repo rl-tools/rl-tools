@@ -79,7 +79,7 @@ void test_mlp_forward() {
     bpt::malloc(device, buffers);
     bpt::init_weights(device, mlp_cpu, rng);
     bpt::zero_gradient(device, mlp_cpu);
-    bpt::copy(device, device, mlp_arm, mlp_cpu);
+    bpt::copy(device, device, mlp_cpu, mlp_arm);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
     bpt::malloc(device, input);

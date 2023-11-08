@@ -75,7 +75,7 @@ void load_dataset(DEVICE& device, HighFive::Group g, RB& rb){
 }
 
 template <typename SPEC>
-typename SPEC::T assign(bpt::nn::layers::dense::Layer<SPEC>& layer, const HighFive::Group g){
+typename SPEC::T assign(const HighFive::Group g, bpt::nn::layers::dense::Layer<SPEC>& layer){
     std::vector<std::vector<typename SPEC::T>> weights;
     std::vector<typename SPEC::T> biases;
     g.getDataSet("weight").read(weights);
@@ -89,9 +89,9 @@ typename SPEC::T assign(bpt::nn::layers::dense::Layer<SPEC>& layer, const HighFi
 }
 template <typename NT>
 void assign_network(NT& network, const HighFive::Group g){
-    assign(network.layer_1, g.getGroup("0"));
-    assign(network.layer_2, g.getGroup("1"));
-    assign(network.output_layer, g.getGroup("2"));
+    assign(g.getGroup("0"), network.layer_1);
+    assign(g.getGroup("1"), network.layer_2);
+    assign(g.getGroup("2"), network.output_layer);
 }
 
 using AC_DEVICE = bpt::devices::DefaultCPU;
@@ -333,7 +333,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     decltype(actor_critic.critic_1) pre_critic_1;
     bpt::malloc(device, pre_critic_1);
     bpt::reset_optimizer_state(device, actor_critic.critic_optimizers[0], actor_critic.critic_1);
-    bpt::copy(device, device, pre_critic_1, actor_critic.critic_1);
+    bpt::copy(device, device, actor_critic.critic_1, pre_critic_1);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
     DTYPE mean_ratio_adam = 0;
@@ -487,7 +487,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 
     decltype(actor_critic.actor) pre_actor;
     bpt::malloc(device, pre_actor);
-    bpt::copy(device, device, pre_actor, actor_critic.actor);
+    bpt::copy(device, device, actor_critic.actor, pre_actor);
     bpt::reset_optimizer_state(device, actor_critic.actor_optimizer, actor_critic.actor);
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;

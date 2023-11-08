@@ -120,7 +120,7 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void transpose(DEVICE& device, Matrix<SPEC_1>& target, Matrix<SPEC_2>& source){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void transpose(DEVICE& device, Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
         static_assert(SPEC_1::ROWS == SPEC_2::COLS);
         static_assert(SPEC_1::COLS == SPEC_2::ROWS);
         for(typename SPEC_1::TI i = 0; i < SPEC_1::ROWS; i++){
@@ -203,10 +203,10 @@ namespace backprop_tools{
             }
         }
     }
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto UNARY_OPERATOR>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void vectorize_unary(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
-        static_assert(containers::check_structure<SPEC_1, SPEC_2>);
-        using SPEC = SPEC_1;
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC, auto UNARY_OPERATOR>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void vectorize_unary(DEVICE& device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
+        static_assert(containers::check_structure<SOURCE_SPEC, TARGET_SPEC>);
+        using SPEC = SOURCE_SPEC;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
                 set(target, i, j, UNARY_OPERATOR(device.math, get(source, i, j)));
@@ -238,7 +238,7 @@ namespace backprop_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, const  Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
         vectorize_binary<DEVICE, SPEC_1, SPEC_2, SPEC_1, containers::vectorization::operators::add<typename SPEC::T>>(device, target, source, target);
@@ -252,22 +252,22 @@ namespace backprop_tools{
         vectorize_binary<DEVICE, SPEC_1, SPEC_2, SPEC_3, containers::vectorization::operators::sub<typename SPEC::T>>(device, a, b, c);
     }
 
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add_broadcast(DEVICE& device, const Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
-        static_assert(SPEC_1::COLS == SPEC_2::COLS);
-        static_assert(SPEC_2::ROWS == 1);
-        using SPEC = SPEC_1;
-        for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
-            for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
-                get(target, i, j) += get(source, 0, j);
-            }
-        }
-    }
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void set_broadcast(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source){
-        static_assert(SPEC_1::COLS == SPEC_2::COLS);
-        static_assert(SPEC_2::ROWS == 1);
-        using SPEC = SPEC_1;
+//    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+//    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add_broadcast(DEVICE& device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
+//        static_assert(SPEC_1::COLS == SPEC_2::COLS);
+//        static_assert(SPEC_2::ROWS == 1);
+//        using SPEC = SPEC_1;
+//        for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
+//            for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
+//                get(target, i, j) += get(source, 0, j);
+//            }
+//        }
+//    }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    BACKPROP_TOOLS_FUNCTION_PLACEMENT void set_broadcast(DEVICE& device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
+        static_assert(SOURCE_SPEC::ROWS == 1);
+        static_assert(TARGET_SPEC::COLS == SOURCE_SPEC::COLS);
+        using SPEC = TARGET_SPEC;
         for(typename SPEC::TI i = 0; i < SPEC::ROWS; i++){
             for(typename SPEC::TI j = 0; j < SPEC::COLS; j++){
                 set(target, i, j, get(source, 0, j));
@@ -353,23 +353,23 @@ namespace backprop_tools{
             }
         }
     }
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, bool BOUNDS_CHECKING=true>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void slice(DEVICE& device, Matrix<SPEC_1>& target, const Matrix<SPEC_2>& source, typename SPEC_1::TI row, typename SPEC_1::TI col, typename SPEC_1::TI rows = SPEC_1::ROWS, typename SPEC_1::TI cols = SPEC_1::COLS, typename SPEC_1::TI target_row=0, typename SPEC_1::TI target_col=0){
-//        static_assert(SPEC_1::ROWS <= SPEC_2::ROWS);
-//        static_assert(SPEC_1::COLS <= SPEC_2::COLS);
-        using TI = typename SPEC_1::TI;
-        if constexpr(BOUNDS_CHECKING){
-            utils::assert_exit(device, row + rows <= SPEC_2::ROWS, "row + rows <= SPEC_2::ROWS");
-            utils::assert_exit(device, col + cols <= SPEC_2::COLS, "col + cols <= SPEC_2::COLS");
-            utils::assert_exit(device, target_row + rows <= SPEC_1::ROWS, "target_row + rows <= SPEC_1::ROWS");
-            utils::assert_exit(device, target_col + cols <= SPEC_1::COLS, "target_col + cols <= SPEC_1::COLS");
-        }
-        for(TI i = 0; i < rows; i++){
-            for(TI j = 0; j < cols; j++){
-                set(target, target_row + i, target_col + j, get(source, row + i, col + j));
-            }
-        }
-    }
+//    template<typename DEVICE, typename SPEC_1, typename SPEC_2, bool BOUNDS_CHECKING=true>
+//    BACKPROP_TOOLS_FUNCTION_PLACEMENT void slice(DEVICE& device, const  Matrix<SPEC_1>& source, Matrix<SPEC_2>& target, typename SPEC_1::TI row, typename SPEC_1::TI col, typename SPEC_1::TI rows = SPEC_1::ROWS, typename SPEC_1::TI cols = SPEC_1::COLS, typename SPEC_1::TI target_row=0, typename SPEC_1::TI target_col=0){
+////        static_assert(SPEC_1::ROWS <= SPEC_2::ROWS);
+////        static_assert(SPEC_1::COLS <= SPEC_2::COLS);
+//        using TI = typename SPEC_1::TI;
+//        if constexpr(BOUNDS_CHECKING){
+//            utils::assert_exit(device, row + rows <= SPEC_2::ROWS, "row + rows <= SPEC_2::ROWS");
+//            utils::assert_exit(device, col + cols <= SPEC_2::COLS, "col + cols <= SPEC_2::COLS");
+//            utils::assert_exit(device, target_row + rows <= SPEC_1::ROWS, "target_row + rows <= SPEC_1::ROWS");
+//            utils::assert_exit(device, target_col + cols <= SPEC_1::COLS, "target_col + cols <= SPEC_1::COLS");
+//        }
+//        for(TI i = 0; i < rows; i++){
+//            for(TI j = 0; j < cols; j++){
+//                set(target, target_row + i, target_col + j, get(source, row + i, col + j));
+//            }
+//        }
+//    }
 
     template<typename DEVICE, typename SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT typename SPEC::T sum(DEVICE& device, const Matrix<SPEC>& m){
@@ -424,11 +424,11 @@ namespace backprop_tools{
         T init = get(m, 0, 0);
         return reduce_unary<DEVICE, SPEC, T, containers::vectorization::operators::min<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, init);
     }
-    template<typename TARGET_DEVICE, typename SPEC, typename T>
-    void assign(TARGET_DEVICE& target_device, Matrix<SPEC>& target, const T* source, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
+    template<typename SOURCE_DEVICE, typename SPEC, typename T>
+    void assign(SOURCE_DEVICE& source_device, const T* source, Matrix<SPEC>& target, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
         using TI = typename SPEC::TI;
-        utils::assert_exit(target_device, row + rows <= SPEC::ROWS, "row + rows <= SPEC::ROWS");
-        utils::assert_exit(target_device, col + cols <= SPEC::COLS, "col + cols <= SPEC::COLS");
+        utils::assert_exit(source_device, row + rows <= SPEC::ROWS, "row + rows <= SPEC::ROWS");
+        utils::assert_exit(source_device, col + cols <= SPEC::COLS, "col + cols <= SPEC::COLS");
         for(TI i = 0; i < rows; i++){
             for(TI j = 0; j < cols; j++){
                 set(target, row + i, col+j, source[i * row_pitch + j * col_pitch]);
@@ -436,14 +436,14 @@ namespace backprop_tools{
         }
     }
 
-    template<typename TARGET_DEVICE, typename SPEC, typename T>
-    void assign(TARGET_DEVICE& source_device, T* target, Matrix<SPEC>& source, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
+    template<typename SOURCE_DEVICE, typename SPEC, typename T>
+    void assign(SOURCE_DEVICE& target_device, Matrix<SPEC>& source, T* target, typename SPEC::TI row = 0, typename SPEC::TI col = 0, typename SPEC::TI rows = SPEC::ROWS, typename SPEC::TI cols = SPEC::COLS, typename SPEC::TI row_pitch = SPEC::COLS, typename SPEC::TI col_pitch = 1){
         using TI = typename SPEC::TI;
-        utils::assert_exit(source_device, row + rows <= SPEC::ROWS, "row + rows <= SPEC::ROWS");
-        utils::assert_exit(source_device, col + cols <= SPEC::COLS, "col + cols <= SPEC::COLS");
+        utils::assert_exit(target_device, row + rows <= SPEC::ROWS, "row + rows <= SPEC::ROWS");
+        utils::assert_exit(target_device, col + cols <= SPEC::COLS, "col + cols <= SPEC::COLS");
         for(TI i = 0; i < rows; i++){
             for(TI j = 0; j < cols; j++){
-//                set(target, row + i, col+j, source[i * row_pitch + j * col_pitch]);
+//                set(source, row + i, col+j, target[i * row_pitch + j * col_pitch]);
                 target[i * cols + j] = get(source, row + i, col+j);
             }
         }

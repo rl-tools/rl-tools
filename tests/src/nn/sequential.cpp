@@ -153,13 +153,13 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     bpt::malloc(device, sequential);
 
     bpt::init_weights(device, mlp, rng);
-    bpt::copy(device, device, layer_1, mlp.input_layer);
-    bpt::copy(device, device, layer_2, mlp.hidden_layers[0]);
-    bpt::copy(device, device, layer_3, mlp.output_layer);
+    bpt::copy(device, device, mlp.input_layer, layer_1);
+    bpt::copy(device, device, mlp.hidden_layers[0], layer_2);
+    bpt::copy(device, device, mlp.output_layer, layer_3);
 
-    bpt::copy(device, device, sequential.content, mlp.input_layer);
-    bpt::copy(device, device, sequential.next_module.content, mlp.hidden_layers[0]);
-    bpt::copy(device, device, sequential.next_module.next_module.content, mlp.output_layer);
+    bpt::copy(device, device, mlp.input_layer, sequential.content);
+    bpt::copy(device, device, mlp.hidden_layers[0], sequential.next_module.content);
+    bpt::copy(device, device, mlp.output_layer, sequential.next_module.next_module.content);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 5>> input;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 10>> hidden_tick;
@@ -204,9 +204,9 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
         ASSERT_LT(abs_diff_chain, 1e-8);
 
         bpt::init_weights(device, sequential, rng);
-        bpt::copy(device, device, mlp.input_layer, sequential.content);
-        bpt::copy(device, device, mlp.hidden_layers[0], sequential.next_module.content);
-        bpt::copy(device, device, mlp.output_layer, sequential.next_module.next_module.content);
+        bpt::copy(device, device, sequential.content, mlp.input_layer);
+        bpt::copy(device, device, sequential.next_module.content, mlp.hidden_layers[0]);
+        bpt::copy(device, device, sequential.next_module.next_module.content, mlp.output_layer);
     }
 }
 
@@ -331,13 +331,13 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     bpt::malloc(device, buffer_sequential);
 
     bpt::init_weights(device, mlp, rng);
-    bpt::copy(device, device, layer_1, mlp.input_layer);
-    bpt::copy(device, device, layer_2, mlp.hidden_layers[0]);
-    bpt::copy(device, device, layer_3, mlp.output_layer);
+    bpt::copy(device, device, mlp.input_layer, layer_1);
+    bpt::copy(device, device, mlp.hidden_layers[0], layer_2);
+    bpt::copy(device, device, mlp.output_layer, layer_3);
 
-    bpt::copy(device, device, sequential.content, mlp.input_layer);
-    bpt::copy(device, device, sequential.next_module.content, mlp.hidden_layers[0]);
-    bpt::copy(device, device, sequential.next_module.next_module.content, mlp.output_layer);
+    bpt::copy(device, device, mlp.input_layer, sequential.content);
+    bpt::copy(device, device, mlp.hidden_layers[0], sequential.next_module.content);
+    bpt::copy(device, device, mlp.output_layer, sequential.next_module.next_module.content);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 5>> input;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, 5>> d_input_mlp, d_input_chain, d_input_sequential;

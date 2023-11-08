@@ -134,7 +134,7 @@ namespace backprop_tools{
                 if(task.step == 0 || !get(eb.terminated, task.step - 1, 0)){
                     auto action = row(device, task.action_buffer, episode_i);
                     auto action_buffer = row(device, eb.actions, task.step);
-                    copy(device, device, action_buffer, action);
+                    copy(device, device, action, action_buffer);
                     set(eb.states, task.step, 0, task.state[episode_i]);
                     step(device, task.environment[episode_i], task.state[episode_i], action, get(eb.next_states, task.step, 0), rng);
                     T step_reward = reward(device, task.environment[episode_i], task.state[episode_i], action, get(eb.next_states, task.step, 0), rng);

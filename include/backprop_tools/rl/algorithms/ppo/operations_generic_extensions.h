@@ -74,7 +74,7 @@ namespace backprop_tools{
         // batch needs observations, original log-probs, advantages
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
-            copy(device, device, ppo_buffers.rollout_log_std, ppo.actor.log_std.parameters);
+            copy(device, device, ppo.actor.log_std.parameters, ppo_buffers.rollout_log_std);
         }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // shuffling
@@ -126,13 +126,13 @@ namespace backprop_tools{
 //                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
-                copy(device_evaluation, device, hybrid_buffers.observations, batch_observations);
+                copy(device, device_evaluation, batch_observations, hybrid_buffers.observations);
                 forward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.actions);
-                copy(device, device_evaluation, ppo_buffers.current_batch_actions, hybrid_buffers.actions);
+                copy(device_evaluation, device, hybrid_buffers.actions, ppo_buffers.current_batch_actions);
 //                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
 
-                copy(device, device_evaluation, ppo.actor.log_std.parameters, ppo_evaluation.actor.log_std.parameters);
-                copy(device, device_evaluation, ppo.actor.log_std.gradient, ppo_evaluation.actor.log_std.gradient);
+                copy(device_evaluation, device, ppo_evaluation.actor.log_std.parameters, ppo.actor.log_std.parameters);
+                copy(device_evaluation, device, ppo_evaluation.actor.log_std.gradient, ppo.actor.log_std.gradient);
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     T action_log_prob = 0;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
@@ -210,12 +210,12 @@ namespace backprop_tools{
                         actor_optimizer.alpha = math::min(device.math, actor_optimizer.alpha / PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MAX);
                     }
                 }
-                copy(device_evaluation, device, ppo_evaluation.actor.log_std.parameters, ppo.actor.log_std.parameters);
-                copy(device_evaluation, device, ppo_evaluation.actor.log_std.gradient, ppo.actor.log_std.gradient);
+                copy(device, device_evaluation, ppo.actor.log_std.parameters, ppo_evaluation.actor.log_std.parameters);
+                copy(device, device_evaluation, ppo.actor.log_std.gradient, ppo_evaluation.actor.log_std.gradient);
 
-                copy(device_evaluation, device, hybrid_buffers.d_action_log_prob_d_action, ppo_buffers.d_action_log_prob_d_action);
+                copy(device, device_evaluation, ppo_buffers.d_action_log_prob_d_action, hybrid_buffers.d_action_log_prob_d_action);
                 backward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.d_action_log_prob_d_action, actor_buffers);
-                copy(device_evaluation, device, hybrid_buffers.target_values, batch_target_values);
+                copy(device, device_evaluation, batch_target_values, hybrid_buffers.target_values);
 //                forward_backward_mse(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.target_values, critic_buffers);
                 {
                     forward(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations);

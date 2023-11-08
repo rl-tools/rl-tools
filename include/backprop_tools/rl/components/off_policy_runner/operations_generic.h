@@ -159,26 +159,26 @@ namespace backprop_tools{
 
         auto observation_target = row(device, batch.observations, batch_step_i);
         auto observation_source = row(device, replay_buffer.observations, sample_index);
-        copy(device, device, observation_target, observation_source);
+        copy(device, device, observation_source, observation_target);
 
         if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
             auto observation_privileged_target = row(device, batch.observations_privileged        , batch_step_i);
             auto observation_privileged_source = row(device, replay_buffer.observations_privileged, sample_index);
-            copy(device, device, observation_privileged_target, observation_privileged_source);
+            copy(device, device, observation_privileged_source, observation_privileged_target);
         }
 
         auto action_target = row(device, batch.actions, batch_step_i);
         auto action_source = row(device, replay_buffer.actions, sample_index);
-        copy(device, device, action_target, action_source);
+        copy(device, device, action_source, action_target);
 
         auto next_observation_target = row(device, batch.next_observations, batch_step_i);
         auto next_observation_source = row(device, replay_buffer.next_observations, sample_index);
-        copy(device, device, next_observation_target, next_observation_source);
+        copy(device, device, next_observation_source, next_observation_target);
 
         if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
             auto next_observation_privileged_target = row(device, batch.next_observations_privileged        , batch_step_i);
             auto next_observation_privileged_source = row(device, replay_buffer.next_observations_privileged, sample_index);
-            copy(device, device, next_observation_privileged_target, next_observation_privileged_source);
+            copy(device, device, next_observation_privileged_source, next_observation_privileged_target);
         }
 
         set(batch.rewards, 0, batch_step_i, get(replay_buffer.rewards, sample_index, 0));
@@ -198,39 +198,39 @@ namespace backprop_tools{
             gather_batch<DEVICE, typename RUNNER::REPLAY_BUFFER_SPEC, BATCH_SPEC, RNG, DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
         }
     }
-//    template<typename TARGET_DEVICE, typename SOURCE_DEVICE,  typename TARGET_SPEC, typename SOURCE_SPEC>
-//    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::off_policy_runner::Batch<TARGET_SPEC>& target, const nn_models::mlp::NeuralNetworkBuffersForwardBackward<SOURCE_SPEC>& source){
-//        copy(target_device, source_device, (nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>&)target, (nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>&)source);
-//        copy(target_device, source_device, target.d_input, source.d_input);
-//        copy(target_device, source_device, target.d_output, source.d_output);
+//    template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE_SPEC, typename TARGET_SPEC>
+//    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  rl::components::off_policy_runner::Batch<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkBuffersForwardBackward<TARGET_SPEC>& target){
+//        copy(source_device, target_device, (nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>&)source, (nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>&)target);
+//        copy(source_device, target_device, source.d_input, target.d_input);
+//        copy(source_device, target_device, source.d_output, target.d_output);
 //    }
-    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::off_policy_runner::Batch<TARGET_SPEC>& target, rl::components::off_policy_runner::Batch<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.observations_actions_next_observations, source.observations_actions_next_observations);
-        copy(target_device, source_device, target.rewards, source.rewards);
-        copy(target_device, source_device, target.terminated, source.terminated);
-        copy(target_device, source_device, target.truncated, source.truncated);
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::Batch<SOURCE_SPEC>& source, rl::components::off_policy_runner::Batch<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.observations_actions_next_observations, target.observations_actions_next_observations);
+        copy(source_device, target_device, source.rewards, target.rewards);
+        copy(source_device, target_device, source.terminated, target.terminated);
+        copy(source_device, target_device, source.truncated, target.truncated);
     }
-    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::off_policy_runner::Buffers<TARGET_SPEC>& target, rl::components::off_policy_runner::Buffers<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.observations, source.observations);
-        copy(target_device, source_device, target.actions, source.actions);
-        copy(target_device, source_device, target.next_observations, source.next_observations);
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::Buffers<SOURCE_SPEC>& source, rl::components::off_policy_runner::Buffers<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.observations, target.observations);
+        copy(source_device, target_device, source.actions, target.actions);
+        copy(source_device, target_device, source.next_observations, target.next_observations);
     }
-    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::off_policy_runner::EpisodeStats<TARGET_SPEC>& target, rl::components::off_policy_runner::EpisodeStats<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.data, source.data);
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::off_policy_runner::EpisodeStats<SOURCE_SPEC>& source, rl::components::off_policy_runner::EpisodeStats<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.data, target.data);
     }
-    template <typename TARGET_DEVICE, typename SOURCE_DEVICE, typename TARGET_SPEC, typename SOURCE_SPEC>
-    void copy(TARGET_DEVICE& target_device, SOURCE_DEVICE& source_device, rl::components::OffPolicyRunner<TARGET_SPEC>& target, rl::components::OffPolicyRunner<SOURCE_SPEC>& source){
-        copy(target_device, source_device, target.buffers, source.buffers);
-        copy(target_device, source_device, target.states, source.states);
-        copy(target_device, source_device, target.episode_return, source.episode_return);
-        copy(target_device, source_device, target.episode_step, source.episode_step);
-        copy(target_device, source_device, target.truncated, source.truncated);
-        for (typename TARGET_DEVICE::index_t env_i = 0; env_i < TARGET_SPEC::N_ENVIRONMENTS; env_i++){
-            copy(target_device, source_device, target.replay_buffers[env_i], source.replay_buffers[env_i]);
-            copy(target_device, source_device, target.episode_stats[env_i], source.episode_stats[env_i]);
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::components::OffPolicyRunner<SOURCE_SPEC>& source, rl::components::OffPolicyRunner<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.buffers, target.buffers);
+        copy(source_device, target_device, source.states, target.states);
+        copy(source_device, target_device, source.episode_return, target.episode_return);
+        copy(source_device, target_device, source.episode_step, target.episode_step);
+        copy(source_device, target_device, source.truncated, target.truncated);
+        for (typename SOURCE_DEVICE::index_t env_i = 0; env_i < SOURCE_SPEC::N_ENVIRONMENTS; env_i++){
+            copy(source_device, target_device, source.replay_buffers[env_i], target.replay_buffers[env_i]);
+            copy(source_device, target_device, source.episode_stats[env_i], target.episode_stats[env_i]);
             target.envs[env_i] = source.envs[env_i];
         }
 #ifdef BACKPROP_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT

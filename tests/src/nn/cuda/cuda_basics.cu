@@ -55,8 +55,8 @@ void COPY_CONTAINER() {
 
         bpt::set_all(device_cpu, matrix_cpu, 1337.0f);
 
-        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
-        bpt::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
+        bpt::copy(device_cpu, device_cuda, matrix_cpu, matrix_cuda);
+        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu2);
         auto diff = bpt::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 0.0f);
         bpt::free(device_cpu, matrix_cpu);
@@ -74,11 +74,11 @@ void COPY_CONTAINER() {
 
         bpt::set_all(device_cpu, matrix_cpu, 1337.0f);
 
-        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
+        bpt::copy(device_cpu, device_cuda, matrix_cpu, matrix_cuda);
         static_assert(DIM_1 > OFFSET_1);
         static_assert(DIM_2 > OFFSET_2);
         increment(matrix_cpu, OFFSET_1, OFFSET_2, 17);
-        bpt::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda);
+        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu2);
         auto diff = bpt::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 17.0f);
         bpt::free(device_cpu, matrix_cpu);
@@ -109,10 +109,10 @@ void COPY_CONTAINER() {
             }
         }
 
-        bpt::copy(device_cuda, device_cpu, matrix_cuda, matrix_cpu);
+        bpt::copy(device_cpu, device_cuda, matrix_cpu, matrix_cuda);
         increment(matrix_cpu, OFFSET_1, OFFSET_2, 17);
-        bpt::copy(device_cuda, device_cuda, matrix_cuda2, matrix_cuda);
-        bpt::copy(device_cpu, device_cuda, matrix_cpu2, matrix_cuda2);
+        bpt::copy(device_cuda, device_cuda, matrix_cuda, matrix_cuda2);
+        bpt::copy(device_cuda, device_cpu, matrix_cuda2, matrix_cpu2);
         auto diff = bpt::abs_diff(device_cpu, matrix_cpu, matrix_cpu2);
         ASSERT_FLOAT_EQ(diff, 17.0f);
         bpt::free(device_cpu, matrix_cpu);
@@ -231,10 +231,10 @@ TEST(BACKPROP_TOOLS_NN_CUDA, COPYING_VIEWS){
             bpt::randn(device_cpu, matrix_cpu_data, rng);
             bpt::randn(device_cpu, matrix_cpu_data_2, rng);
             bpt::randn(device_cpu, matrix_cpu_data_3, rng);
-            bpt::copy(device_cpu, device_cpu, matrix_cpu_data_3_orig, matrix_cpu_data_3);
-            bpt::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data_2);
-            bpt::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view);
-            bpt::copy(device_cpu, device_cuda, matrix_cpu_data_3, matrix_cuda_data);
+            bpt::copy(device_cpu, device_cpu, matrix_cpu_data_3, matrix_cpu_data_3_orig);
+            bpt::copy(device_cpu, device_cuda, matrix_cpu_data_2, matrix_cuda_data);
+            bpt::copy(device_cpu, device_cuda, matrix_cpu_view, matrix_cuda_view);
+            bpt::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data_3);
             DTYPE abs_diff = bpt::abs_diff(device_cpu, matrix_cpu_view, matrix_cpu_view_3);
             EXPECT_LT(abs_diff, 1e-5);
         }
@@ -242,21 +242,21 @@ TEST(BACKPROP_TOOLS_NN_CUDA, COPYING_VIEWS){
             bpt::randn(device_cpu, matrix_cpu_data, rng);
             bpt::randn(device_cpu, matrix_cpu_data_2, rng);
             bpt::randn(device_cpu, matrix_cpu_data_3, rng);
-            bpt::copy(device_cpu, device_cpu, matrix_cpu_data_3_orig, matrix_cpu_data_3);
-            bpt::copy(device_cpu, device_cpu, matrix_cpu_view_3, matrix_cpu_view);
+            bpt::copy(device_cpu, device_cpu, matrix_cpu_data_3, matrix_cpu_data_3_orig);
+            bpt::copy(device_cpu, device_cpu, matrix_cpu_view, matrix_cpu_view_3);
 
             DTYPE abs_diff_3_orig = bpt::abs_diff(device_cpu, matrix_cpu_view_3_alt, matrix_cpu_view_3_alt_orig);
             EXPECT_LT(abs_diff_3_orig, 1e-5);
 
-            bpt::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data);
-            bpt::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_2);
+            bpt::copy(device_cpu, device_cuda, matrix_cpu_data, matrix_cuda_data);
+            bpt::copy(device_cpu, device_cuda, matrix_cpu_view_2, matrix_cuda_view);
 
-            bpt::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
+            bpt::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data_4);
             DTYPE abs_diff = bpt::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
             EXPECT_GT(abs_diff, 1e-5);
 
-            bpt::copy(device_cuda, device_cpu, matrix_cuda_view, matrix_cpu_view_3);
-            bpt::copy(device_cpu, device_cuda, matrix_cpu_data_4, matrix_cuda_data);
+            bpt::copy(device_cpu, device_cuda, matrix_cpu_view_3, matrix_cuda_view);
+            bpt::copy(device_cuda, device_cpu, matrix_cuda_data, matrix_cpu_data_4);
             abs_diff = bpt::abs_diff(device_cpu, matrix_cpu_data, matrix_cpu_data_4);
             EXPECT_LT(abs_diff, 1e-5);
         }
@@ -318,8 +318,8 @@ TEST(BACKPROP_TOOLS_NN_CUDA, COPY) {
     std::cout << "CPU network diff: " << cpu_network_diff << std::endl;
     ASSERT_GT(cpu_network_diff, 0);
 
-    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
-    bpt::copy(device_cpu, device_cuda, network_cpu_2, network_cuda);
+    bpt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu_2);
     auto cpu_network_diff_round_trip = bpt::abs_diff(device_cpu, network_cpu, network_cpu_2);
     std::cout << "CPU network round-trip: " << cpu_network_diff_round_trip << std::endl;
     ASSERT_FLOAT_EQ(cpu_network_diff_round_trip, 0);
@@ -330,8 +330,8 @@ TEST(BACKPROP_TOOLS_NN_CUDA, COPY) {
     std::cout << "CPU network diff: " << cpu_network_diff << std::endl;
     ASSERT_FLOAT_EQ(cpu_network_diff, 5);
 
-    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
-    bpt::copy(device_cpu, device_cuda, network_cpu_2, network_cuda);
+    bpt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu_2);
     cpu_network_diff_round_trip = bpt::abs_diff(device_cpu, network_cpu, network_cpu_2);
     ASSERT_FLOAT_EQ(cpu_network_diff_round_trip, 0);
     std::cout << "CPU network round-trip: " << cpu_network_diff_round_trip << std::endl;
@@ -375,7 +375,7 @@ void GEMM() {
 
     bpt::init_weights(device_cpu, network_cpu, rng);
     bpt::reset_optimizer_state(device_cpu, optimizer, network_cpu);
-    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     bpt::malloc(device_cpu, input_cpu);
@@ -426,13 +426,13 @@ void GEMM() {
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM>> output_first_layer_cuda;
     bpt::malloc(device_cuda, output_first_layer_cuda);
 
-    bpt::copy(device_cuda, device_cpu, input_cuda, input_cpu);
+    bpt::copy(device_cpu, device_cuda, input_cpu, input_cuda);
 
     bpt::evaluate(device_cpu, network_cpu.input_layer, input_cpu, output_first_layer_cpu);
     bpt::evaluate(device_cuda, network_cuda.input_layer, input_cuda, output_first_layer_cuda);
     cudaDeviceSynchronize();
 
-    bpt::copy(device_cpu, device_cuda, output_first_layer_cuda_cpu, output_first_layer_cuda);
+    bpt::copy(device_cuda, device_cpu, output_first_layer_cuda, output_first_layer_cuda_cpu);
     auto evaluation_diff = bpt::abs_diff(device_cpu, output_first_layer_cuda_cpu, output_first_layer_cpu)/(BATCH_SIZE * NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM);
 
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::SPEC::STRUCTURE_SPEC::HIDDEN_DIM <= 10){
@@ -535,7 +535,7 @@ void FORWARD() {
     auto rng = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
 
     bpt::init_weights(device_cpu, network_cpu, rng);
-    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     bpt::malloc(device_cpu, input_cpu);
@@ -586,13 +586,13 @@ void FORWARD() {
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_cuda;
     bpt::malloc(device_cuda, output_cuda);
 
-    bpt::copy(device_cuda, device_cpu, input_cuda, input_cpu);
+    bpt::copy(device_cpu, device_cuda, input_cpu, input_cuda);
 
     bpt::forward(device_cpu, network_cpu, input_cpu);
     bpt::forward(device_cuda, network_cuda, input_cuda);
     cudaDeviceSynchronize();
 
-    bpt::copy(device_cpu, device_cuda, output_cuda_cpu, network_cuda.output_layer.output);
+    bpt::copy(device_cuda, device_cpu, network_cuda.output_layer.output, output_cuda_cpu);
     auto evaluation_diff = bpt::abs_diff(device_cpu, output_cuda_cpu, network_cpu.output_layer.output)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
 //    if(BATCH_SIZE <= 10 && NetworkTypeCPU::OUTPUT_DIM <= 10){
@@ -710,7 +710,7 @@ void BACKWARD() {
     bpt::init_weights(device_cpu, network_cpu, rng);
     bpt::zero_gradient(device_cpu, network_cpu);
     bpt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
-    bpt::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
+    bpt::copy(device_cpu, device_cpu, network_cpu, network_cpu_pre);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     bpt::malloc(device_cpu, input_cpu);
@@ -737,7 +737,7 @@ void BACKWARD() {
     bpt::forward(device_cpu, network_cpu, input_cpu);
     bpt::nn::loss_functions::mse::gradient(device_cpu, bpt::output(network_cpu), output_target_cpu, d_output_cpu);
     bpt::backward(device_cpu, network_cpu, input_cpu, d_output_cpu, network_cpu_buffers);
-    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
 
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
@@ -747,8 +747,8 @@ void BACKWARD() {
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
     bpt::malloc(device_cuda, output_target_cuda);
 
-    bpt::copy(device_cuda, device_cpu, input_cuda, input_cpu);
-    bpt::copy(device_cuda, device_cpu, output_target_cuda, output_target_cpu);
+    bpt::copy(device_cpu, device_cuda, input_cpu, input_cuda);
+    bpt::copy(device_cpu, device_cuda, output_target_cpu, output_target_cuda);
 
     bpt::zero_gradient(device_cpu, network_cpu);
     bpt::zero_gradient(device_cuda, network_cuda);
@@ -766,7 +766,7 @@ void BACKWARD() {
     }
     cudaDeviceSynchronize();
 
-    bpt::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cuda_cpu);
 //    auto evaluation_diff_pre = bpt::abs_diff(device_cpu, network_cuda_cpu, network_cpu_pre)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
     auto evaluation_diff = bpt::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
@@ -795,7 +795,7 @@ void BACKWARD() {
         cudaDeviceSynchronize();
 
         {
-            bpt::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
+            bpt::copy(device_cuda, device_cpu, network_cuda, network_cuda_cpu);
             auto evaluation_diff = bpt::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
 
@@ -807,7 +807,7 @@ void BACKWARD() {
         }
         {
 
-            bpt::copy(device_cpu, device_cuda, d_input_cuda_cpu, d_input_cuda);
+            bpt::copy(device_cuda, device_cpu, d_input_cuda, d_input_cuda_cpu);
             auto evaluation_diff = bpt::abs_diff(device_cpu, d_input_cuda_cpu, d_input_cpu);
 
 
@@ -889,7 +889,7 @@ void ADAM_UPDATE() {
     bpt::init_weights(device_cpu, network_cpu, rng);
     bpt::zero_gradient(device_cpu, network_cpu);
     bpt::reset_optimizer_state(device_cpu, optimizer_cpu, network_cpu);
-    bpt::copy(device_cpu, device_cpu, network_cpu_pre, network_cpu);
+    bpt::copy(device_cpu, device_cpu, network_cpu, network_cpu_pre);
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cpu;
     bpt::malloc(device_cpu, input_cpu);
@@ -919,7 +919,7 @@ void ADAM_UPDATE() {
         bpt::nn::loss_functions::mse::gradient(device_cpu, bpt::output(network_cpu), output_target_cpu, d_output_cpu);
         bpt::backward(device_cpu, network_cpu, input_cpu, d_output_cpu, network_cpu_buffers);
     }
-    bpt::copy(device_cuda, device_cpu, network_cuda, network_cpu);
+    bpt::copy(device_cpu, device_cuda, network_cpu, network_cuda);
 
 
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CUDA::index_t, BATCH_SIZE, NetworkTypeCPU::INPUT_DIM>> input_cuda;
@@ -929,8 +929,8 @@ void ADAM_UPDATE() {
     bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, NetworkTypeCPU::OUTPUT_DIM>> output_target_cuda;
     bpt::malloc(device_cuda, output_target_cuda);
 
-    bpt::copy(device_cuda, device_cpu, input_cuda, input_cpu);
-    bpt::copy(device_cuda, device_cpu, output_target_cuda, output_target_cpu);
+    bpt::copy(device_cpu, device_cuda, input_cpu, input_cuda);
+    bpt::copy(device_cpu, device_cuda, output_target_cpu, output_target_cuda);
 
     bpt::zero_gradient(device_cpu, network_cpu);
     bpt::zero_gradient(device_cuda, network_cuda);
@@ -952,7 +952,7 @@ void ADAM_UPDATE() {
     bpt::step(device_cuda, optimizer_cuda, network_cuda);
     cudaDeviceSynchronize();
 
-    bpt::copy(device_cpu, device_cuda, network_cuda_cpu, network_cuda);
+    bpt::copy(device_cuda, device_cpu, network_cuda, network_cuda_cpu);
     auto evaluation_diff_pre = bpt::abs_diff(device_cpu, network_cuda_cpu, network_cpu_pre)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
     auto evaluation_diff = bpt::abs_diff(device_cpu, network_cuda_cpu, network_cpu)/(BATCH_SIZE * NetworkTypeCPU::OUTPUT_DIM);
 
