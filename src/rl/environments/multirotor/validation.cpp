@@ -19,7 +19,7 @@
 #include <backprop_tools/nn/optimizers/adam/adam.h>
 
 //#include "../../../../checkpoints/multirotor_td3/multirotor_td3_2023_10_04_19_28_21/actor_000000003000000.h"
-#include "../../../../checkpoints/multirotor_td3/2023_11_07_15_09_40_BENCHMARK_d+o+a+r+h+c-f+w+e+_040/actor_000000000300000.h"
+#include "../../../../tests/data/actor_checkpoint.h"
 
 #include <thread>
 
