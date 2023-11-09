@@ -271,6 +271,13 @@ if(BACKPROP_TOOLS_BUILD_TYPE STREQUAL "Release")
     elseif (WIN32)
     endif()
     target_compile_definitions(backprop_tools_core_definitions PRIVATE -DBACKPROP_TOOLS_RELEASE)
+
+endif()
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(NOT APPLE AND NOT WIN32)
+        target_compile_options(backprop_tools_minimal INTERFACE -ffast-math -march=native -mtune=native)
+        target_compile_options(backprop_tools_minimal INTERFACE -mavx2)
+    endif()
 endif()
 
 function(BACKPROP_TOOLS_INSTALL TARGET)
