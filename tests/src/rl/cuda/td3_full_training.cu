@@ -191,7 +191,6 @@ TEST(BACKPROP_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         // 90s, 15x of CPU BLAS => todo: investigate individual kernel timings
         // on device rollout: 24s, 6x of CPU BLAS => todo: investigate individual kernel timings
         // no device sync: 14s, 2.5x of CPU BLAS => todo: investigate individual kernel timings
-        // multirotor no device sync: 500k 140s, 2x of CPU BLAS => todo: investigate individual kernel timings
 
     }
     bpt::free(device, critic_batch);
