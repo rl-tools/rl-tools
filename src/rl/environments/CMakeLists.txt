@@ -1,5 +1,4 @@
 add_subdirectory(pendulum)
-#add_subdirectory(multirotor)
 add_subdirectory(car)
 if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     add_subdirectory(mujoco)
