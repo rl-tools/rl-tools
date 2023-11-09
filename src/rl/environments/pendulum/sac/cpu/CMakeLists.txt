@@ -11,14 +11,6 @@ target_compile_definitions(rl_environments_pendulum_sac_training_standalone PRIV
 target_compile_definitions(rl_environments_pendulum_sac_training_standalone PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_sac_training_standalone PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_sac_training_standalone)
-if(BACKPROP_TOOLS_ENABLE_HDF5)
-    target_link_libraries(
-            rl_environments_pendulum_sac_training_standalone
-            PRIVATE
-            HighFive
-    )
-    target_compile_definitions(rl_environments_pendulum_sac_training_standalone PRIVATE BACKPROP_TOOLS_ENABLE_HDF5)
-endif()
 
 # RL Algorithm sac test full training blas
 if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
@@ -34,12 +26,4 @@ target_link_libraries(
 target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_sac_training_blas)
-if(BACKPROP_TOOLS_ENABLE_HDF5)
-    target_link_libraries(
-            rl_environments_pendulum_sac_training_blas
-            PRIVATE
-            HighFive
-    )
-    target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE BACKPROP_TOOLS_ENABLE_HDF5)
-endif()
 endif()

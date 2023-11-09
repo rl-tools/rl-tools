@@ -1,6 +1,3 @@
 add_executable(rl_environments_acrobot_td3_training acrobot.cpp)
 target_link_libraries(rl_environments_acrobot_td3_training PRIVATE backprop_tools)
 target_compile_definitions(rl_environments_acrobot_td3_training PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-if(BACKPROP_TOOLS_ENABLE_GTK)
-    BACKPROP_TOOLS_TARGET_LINK_GTK(rl_environments_acrobot_td3_training)
-endif()

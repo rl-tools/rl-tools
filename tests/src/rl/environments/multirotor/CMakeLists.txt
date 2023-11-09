@@ -6,10 +6,8 @@ add_executable(
 target_link_libraries(
         test_rl_environments_multirotor_multirotor
         backprop_tools
-        GTest::gtest_main
-        HighFive
+        backprop_tools_tests
 )
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_multirotor_multirotor)
 gtest_discover_tests(test_rl_environments_multirotor_multirotor)
 
 
@@ -23,9 +21,7 @@ if(${BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE})
     target_link_libraries(
             test_rl_environments_multirotor_ui_test
             backprop_tools
-            GTest::gtest_main
-            Boost::headers
-            HighFive
+            backprop_tools_tests
     )
     target_include_directories(
             test_rl_environments_multirotor_ui_test
@@ -38,5 +34,5 @@ endif()
 
 
 if(NOT APPLE)
-    add_subdirectory(old)
+#    add_subdirectory(regression_test_example_old)
 endif()

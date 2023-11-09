@@ -110,7 +110,7 @@ int main(int argc, char** argv){
         app.add_option("--checkpoints", actor_checkpoints_dir_stub, "path to the checkpoint directory");
         app.add_option("--logs", logs_dir, "path to the logs directory");
         app.add_option("--seed", job_seed, "seed for this job");
-        app.add_option("--runs", num_runs, "number of runs with different seeds");
+//        app.add_option("--runs", num_runs, "number of runs with different seeds");
         CLI11_PARSE(app, argc, argv);
     }
 #endif

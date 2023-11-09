@@ -7,12 +7,14 @@ FetchContent_Declare(test_rl_environments_multirotor_regression_test_code
 #        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/regression_test
         GIT_TAG 9f6f106e54db69931320938720b7fcbcdea9d241
         GIT_SUBMODULES ""
+        GIT_SHALLOW FALSE
 )
 FetchContent_Declare(test_rl_environments_multirotor_regression_test_code_new
         GIT_REPOSITORY file://${PROJECT_SOURCE_DIR}
         #        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/regression_test
         GIT_TAG 6635568fda3d54ccbb41f8799f04fa213d2d9967
         GIT_SUBMODULES ""
+        GIT_SHALLOW FALSE
 )
 
 if(NOT test_rl_environments_multirotor_regression_test_code_POPULATED)

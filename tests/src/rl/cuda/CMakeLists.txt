@@ -25,16 +25,12 @@ add_executable(
 target_link_libraries(
         test_rl_cuda
         PRIVATE
-        backprop_tools
-        GTest::gtest_main
-        CUDA::cublas
-        HighFive
+        backprop_tools::minimal
+        backprop_tools_tests
 )
 set_target_properties(test_rl_cuda PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 BACKPROP_TOOLS_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_cuda)
 BACKPROP_TOOLS_TAG_IS_CUDA(test_rl_cuda)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_cuda)
 gtest_discover_tests(test_rl_cuda)
 
 add_executable(
@@ -44,17 +40,12 @@ add_executable(
 target_link_libraries(
         test_rl_cuda_td3_full_training
         PRIVATE
-        backprop_tools
-        GTest::gtest_main
-        CUDA::cublas
-        HighFive
-        tensorboard_logger
+        backprop_tools::minimal
+        backprop_tools_tests
 )
 set_target_properties(test_rl_cuda_td3_full_training PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 BACKPROP_TOOLS_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda_td3_full_training)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_cuda_td3_full_training)
 BACKPROP_TOOLS_TAG_IS_CUDA(test_rl_cuda_td3_full_training)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_cuda_td3_full_training)
 gtest_discover_tests(test_rl_cuda_td3_full_training)
 
 # todo: renable this

@@ -7,15 +7,9 @@ target_link_libraries(
         test_rl_environments_mujoco_ant
         PRIVATE
         backprop_tools
-        GTest::gtest_main
-        HighFive
-        tensorboard_logger
-        mujoco
+        backprop_tools_tests
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant)
-BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_environments_mujoco_ant)
 
 add_executable(
         test_rl_environments_mujoco_ant_training_td3_test
@@ -25,10 +19,7 @@ target_link_libraries(
         test_rl_environments_mujoco_ant_training_td3_test
         PRIVATE
         backprop_tools
-        GTest::gtest_main
-        HighFive
-        tensorboard_logger
-        mujoco
+        backprop_tools_tests
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3_test)
 target_compile_definitions(
@@ -36,8 +27,6 @@ target_compile_definitions(
         PRIVATE
         -DBACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST
 )
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_td3_test)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_environments_mujoco_ant_training_td3_test)
 
 
 if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
@@ -49,15 +38,9 @@ target_link_libraries(
         test_rl_environments_mujoco_ant_ui
         PRIVATE
         backprop_tools
-        GTest::gtest_main
-        HighFive
-        tensorboard_logger
-        mujoco
-        glfw
+        backprop_tools_tests
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_ui)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_environments_mujoco_ant_ui)
 endif()
 
 
@@ -75,8 +58,6 @@ target_link_libraries(
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_training_ppo_test)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_training_ppo_test)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_environments_mujoco_ant_training_ppo_test)
 
 
 add_executable(
@@ -93,6 +74,4 @@ target_link_libraries(
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_throughput)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_rl_environments_mujoco_ant_throughput)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_rl_environments_mujoco_ant_throughput)
 

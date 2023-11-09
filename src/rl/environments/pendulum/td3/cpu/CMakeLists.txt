@@ -55,7 +55,6 @@ target_link_libraries(
         rl_environments_pendulum_td3_training_blas_tensorboard
         PRIVATE
         backprop_tools
-        tensorboard_logger
 )
 BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas_tensorboard)
 endif()

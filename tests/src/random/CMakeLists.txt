@@ -8,7 +8,6 @@ target_link_libraries(
         test_random_arm
         PRIVATE
         backprop_tools
-        GTest::gtest_main
+        backprop_tools_tests
 )
 gtest_discover_tests(test_random_arm)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_random_arm)

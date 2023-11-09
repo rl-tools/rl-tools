@@ -24,8 +24,6 @@ target_link_libraries(
         rl_environments_mujoco_ant_training_td3_blas
         PRIVATE
         backprop_tools
-        HighFive
-        tensorboard_logger
 )
 BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_training_td3_blas)
 endif()

@@ -9,6 +9,3 @@ target_link_libraries(
         GTest::gtest_main
 )
 gtest_discover_tests(test_nn_layers_concat_constant)
-BACKPROP_TOOLS_TESTS_ADD_DEFINITIONS(test_nn_layers_concat_constant)
-BACKPROP_TOOLS_ADD_DEFINITIONS(test_nn_layers_concat_constant)
-BACKPROP_TOOLS_TARGET_LINK_DEPENDENCIES(test_nn_layers_concat_constant)

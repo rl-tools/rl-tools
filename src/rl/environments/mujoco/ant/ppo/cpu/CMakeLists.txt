@@ -11,8 +11,6 @@ target_link_libraries(
         Threads::Threads
 )
 # todo: link mujoco like this everywhere
-BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_training_ppo_standalone)
-BACKPROP_TOOLS_ADD_DEFINITIONS(rl_environments_mujoco_ant_training_ppo_standalone)
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_standalone PRIVATE BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_standalone PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_standalone PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
@@ -30,7 +28,6 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
             Threads::Threads
     )
     # todo: link mujoco like this everywhere
-    BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_training_ppo_blas_benchmark)
     target_compile_definitions(rl_environments_mujoco_ant_training_ppo_blas_benchmark PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
     target_compile_definitions(rl_environments_mujoco_ant_training_ppo_blas_benchmark PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
     BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_blas_benchmark)
@@ -46,11 +43,8 @@ target_link_libraries(
         PRIVATE
         backprop_tools
         Threads::Threads
-        HighFive
-        tensorboard_logger
 )
 # todo: link mujoco like this everywhere
-BACKPROP_TOOLS_TARGET_LINK_MUJOCO(rl_environments_mujoco_ant_training_ppo_blas)
 BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_blas)
 endif()
 

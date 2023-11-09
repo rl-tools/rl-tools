@@ -1,6 +1,6 @@
 #include <backprop_tools/operations/cpu.h>
 
-#include "../../../../data/nn_models_sequential_persist_code.h"
+#include "../../../data/nn_models_sequential_persist_code.h"
 
 #include <backprop_tools/nn/operations_generic.h>
 #include <backprop_tools/nn_models/sequential/operations_generic.h>
