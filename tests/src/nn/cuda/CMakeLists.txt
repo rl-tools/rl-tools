@@ -23,7 +23,7 @@ target_link_libraries(
         test_nn_cuda_basics
         PRIVATE
         backprop_tools::minimal
-        GTest::gtest_main
+        backprop_tools_tests
 )
 set_target_properties(test_nn_cuda_basics PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 BACKPROP_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)

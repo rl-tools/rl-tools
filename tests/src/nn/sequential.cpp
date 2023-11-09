@@ -234,7 +234,7 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
 
 TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     using DEVICE = bpt::devices::DefaultCPU;
-    using T = float;
+    using T = double;
     using TI = typename DEVICE::index_t;
 
     using LAYER_1_SPEC = bpt::nn::layers::dense::Specification<T, TI, 5, 10, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam>;

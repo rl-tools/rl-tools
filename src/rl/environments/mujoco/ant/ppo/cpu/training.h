@@ -30,6 +30,11 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #endif
 
 
+#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST
+#include <gtest/gtest.h>
+#endif
+
+
 namespace parameters = parameters_0;
 
 #if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
@@ -209,6 +214,12 @@ void run(){
                 bpt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
                 std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
+#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST
+                if(on_policy_runner.step > 700000){
+                    ASSERT_GT(result.returns_mean, 2000);
+                }
+#endif
+
                 next_evaluation_id++;
             }
             bpt::set_step(device, device.logger, on_policy_runner.step);

@@ -29,6 +29,7 @@ target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_cuda_standalone
         PRIVATE
         backprop_tools::minimal
+        backprop_tools::optimizations_cuda
         mujoco
 )
 set_target_properties(rl_environments_mujoco_ant_training_ppo_cuda_standalone PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
@@ -48,6 +49,7 @@ target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_cuda_benchmark
         PRIVATE
         backprop_tools::minimal
+        backprop_tools::optimizations_cuda
         mujoco
 )
 set_target_properties(rl_environments_mujoco_ant_training_ppo_cuda_benchmark PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
@@ -75,6 +77,7 @@ target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_cuda_full
         PRIVATE
         backprop_tools::minimal
+        backprop_tools::optimizations_cuda
         mujoco
 )
 set_target_properties(rl_environments_mujoco_ant_training_ppo_cuda_full PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})

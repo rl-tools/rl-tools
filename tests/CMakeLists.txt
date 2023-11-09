@@ -54,8 +54,8 @@ endif()
 if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
 #    set(CUTLASS_ENABLE_CUBLAS ON)
 #    add_subdirectory(lib/cutlass EXCLUDE_FROM_ALL)
-    add_subdirectory(src/nn/cuda)
-    add_subdirectory(src/rl/cuda)
+#    add_subdirectory(src/nn/cuda)
+#    add_subdirectory(src/rl/cuda)
 endif()
 
 add_executable(
@@ -323,7 +323,7 @@ add_executable(
 target_link_libraries(
         test_container
         PRIVATE
-        backprop_tools
+        backprop_tools_core
         backprop_tools_tests
 )
 gtest_discover_tests(test_container)

@@ -50,7 +50,10 @@ target_include_directories(backprop_tools_core INTERFACE include)
 add_library(backprop_tools_core_definitions INTERFACE) # This target additionally contains definitions
 target_link_libraries(backprop_tools_core_definitions INTERFACE backprop_tools_core)
 add_library(backprop_tools_minimal INTERFACE) # This target additionally contains main and relatively harmless dependencies (BLAS, CLI11, TENSORBOARD, HDF5), the minimal config works with the CUDA comnpiler, when adding heavier dependencies in INTERFACE mode some cuda targets fail
+add_library(backprop_tools_optimizations INTERFACE) # This target contains optimization options
+add_library(backprop_tools_optimizations_cuda INTERFACE) # This target contains optimization options for CUDA
 add_library(backprop_tools INTERFACE) # This is the full target (containing, all configured dependencies including UI, Mujoco etc.)
+
 
 set(BACKPROP_TOOLS_INSTALL_PREFIX backprop_tools)
 
@@ -275,8 +278,8 @@ if(BACKPROP_TOOLS_BUILD_TYPE STREQUAL "Release")
 endif()
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     if(NOT APPLE AND NOT WIN32)
-        target_compile_options(backprop_tools_minimal INTERFACE -ffast-math -march=native -mtune=native)
-        target_compile_options(backprop_tools_minimal INTERFACE -mavx2)
+        target_compile_options(backprop_tools_optimizations INTERFACE -ffast-math -march=native -mtune=native -mavx2)
+#        target_compile_options(backprop_tools_optimizations_cuda INTERFACE -use_fast_math --optimize 3)# --dlink-time-opt --gen-opt-lto)
     endif()
 endif()
 
@@ -290,6 +293,7 @@ endfunction()
 
 
 if (BACKPROP_TOOLS_ENABLE_TESTS)
+    message(STATUS "Tests enabled")
     include(CTest)
     enable_testing()
     add_subdirectory(tests)
@@ -315,11 +319,14 @@ if(BACKPROP_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
 endif()
 
 target_link_libraries(backprop_tools_minimal INTERFACE backprop_tools_core_definitions)
-target_link_libraries(backprop_tools INTERFACE backprop_tools_minimal)
+target_link_libraries(backprop_tools_optimizations INTERFACE backprop_tools_minimal)
+target_link_libraries(backprop_tools INTERFACE backprop_tools_optimizations)
 
 add_library(backprop_tools::core ALIAS backprop_tools_core)
 add_library(backprop_tools::core_definitions ALIAS backprop_tools_core_definitions)
 add_library(backprop_tools::minimal ALIAS backprop_tools_minimal)
+add_library(backprop_tools::optimizations ALIAS backprop_tools_optimizations)
+add_library(backprop_tools::optimizations_cuda ALIAS backprop_tools_optimizations_cuda)
 add_library(backprop_tools::backprop_tools ALIAS backprop_tools)
 
 add_subdirectory(src)
