@@ -22,7 +22,6 @@ using DEVICE = bpt::devices::DefaultCUDA;
 using DEV_SPEC = DEVICE::SPEC;
 
 #include "td3_full_training_parameters_pendulum.h"
-//#include "td3_full_training_parameters_multirotor.h"
 
 #include <backprop_tools/nn_models/operations_generic.h>
 #include <backprop_tools/rl/components/off_policy_runner/operations_cuda.h>
@@ -38,7 +37,6 @@ using DEV_SPEC = DEVICE::SPEC;
 using DTYPE = float;
 
 
-//using p = parameters_multirotor_0<DEVICE, DTYPE>;
 using p = parameters_pendulum_0<DEVICE, DTYPE>;
 using rlp = p::rl<p::env::ENVIRONMENT>;
 
