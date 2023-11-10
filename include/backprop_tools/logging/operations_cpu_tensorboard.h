@@ -25,9 +25,18 @@ namespace backprop_tools{
 
             return output;
         }
+        template <typename DEVICE, typename KEY_TYPE>
+        void count_topic(DEVICE& device, devices::logging::CPU_TENSORBOARD<>& logger, KEY_TYPE key){ }
+        template <typename DEVICE, typename KEY_TYPE>
+        void count_topic(DEVICE& device, devices::logging::CPU_TENSORBOARD_FREQUENCY_EXTENSION& logger, KEY_TYPE key){
+            if(!logger.topic_frequency_dict.count(key)){
+                logger.topic_frequency_dict.insert({key, 0});
+            }
+            logger.topic_frequency_dict[key] += 1;
+        }
     }
-    template <typename DEVICE>
-    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, std::string logs_dir, std::string name){
+    template <typename DEVICE, typename SPEC>
+    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, std::string logs_dir, std::string name){
         if (!std::filesystem::is_directory(logs_dir.c_str()) || !std::filesystem::exists(logs_dir.c_str())) {
             std::filesystem::create_directory(logs_dir.c_str());
         }
@@ -42,8 +51,8 @@ namespace backprop_tools{
         opts.flush_period_s(1);
         logger.tb = new TensorBoardLogger(log_file.string(), opts);
     }
-    template <typename DEVICE>
-    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger){
+    template <typename DEVICE, typename SPEC>
+    void construct(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger){
         time_t now;
         time(&now);
         char buf[sizeof "0000-00-00T00:00:00Z"];
@@ -53,42 +62,44 @@ namespace backprop_tools{
 
         construct(device, logger, std::string("logs"), logging::tensorboard::sanitize_file_name(run_name));
     }
-    template <typename DEVICE>
-    void destruct(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger){
+    template <typename DEVICE, typename SPEC>
+    void destruct(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger){
         delete logger.tb;
     }
-    template <typename DEVICE>
-    void set_step(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, typename DEVICE::index_t step){
+    template <typename DEVICE, typename SPEC>
+    void set_step(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, typename DEVICE::index_t step){
         logger.step = step;
     }
-    template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE, typename CADANCE_TYPE>
-    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const VALUE_TYPE value, const CADANCE_TYPE cadence){
+    template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE, typename CADANCE_TYPE, typename SPEC>
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const VALUE_TYPE value, const CADANCE_TYPE cadence){
         std::lock_guard<std::mutex> lock(logger.mutex);
         if(logger.step % cadence == 0){
             logger.tb->add_scalar(key, logger.step, (float)value);
+            logging::tensorboard::count_topic(device, logger, key);
         }
     }
-    template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE>
-    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const VALUE_TYPE value){
+    template <typename DEVICE, typename KEY_TYPE, typename VALUE_TYPE, typename SPEC>
+    void add_scalar(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const VALUE_TYPE value){
         add_scalar(device, logger, key, value, (typename DEVICE::index_t)1);
     }
-    template <typename DEVICE, typename KEY_TYPE, typename T, typename TI, typename CADANCE_TYPE>
-    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const T* values, const TI n_values, const CADANCE_TYPE cadence = (typename DEVICE::index_t)1){
+    template <typename DEVICE, typename KEY_TYPE, typename T, typename TI, typename CADANCE_TYPE, typename SPEC>
+    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const T* values, const TI n_values, const CADANCE_TYPE cadence = (typename DEVICE::index_t)1){
         if(logger.tb == nullptr){
             return;
         }
         std::lock_guard<std::mutex> lock(logger.mutex);
         if(logger.step % cadence == 0){
             logger.tb->add_histogram(key, logger.step, values, n_values);
+            logging::tensorboard::count_topic(device, logger, key);
         }
     }
-    template <typename DEVICE, typename KEY_TYPE, typename T, typename TI>
-    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, const T* values, const TI n_values){
+    template <typename DEVICE, typename KEY_TYPE, typename T, typename TI, typename SPEC>
+    void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const T* values, const TI n_values){
         add_histogram(device, logger, key, values, n_values, (typename DEVICE::index_t)1);
     }
 #ifdef BACKPROP_TOOLS_ENABLE_LIBATTOPNG
-    template <typename DEVICE, typename KEY_TYPE, typename SPEC>
-    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, const KEY_TYPE key, backprop_tools::Matrix<SPEC> values){
+    template <typename DEVICE, typename KEY_TYPE, typename LOGGING_SPEC, typename SPEC>
+    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGING_SPEC>& logger, const KEY_TYPE key, backprop_tools::Matrix<SPEC> values){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         libattopng_t* png = libattopng_new(SPEC::COLS, SPEC::ROWS, PNG_RGBA);
@@ -109,10 +120,11 @@ namespace backprop_tools{
         std::cout << "adding image at step: " << logger.step << std::endl;
         logger.tb->add_image(key, logger.step, image_data, SPEC::ROWS, SPEC::COLS, 4, "Test", "Image");
         libattopng_destroy(png);
+        logging::tensorboard::count_topic(device, logger, key);
     }
 #else
-    template <typename DEVICE, typename SPEC>
-    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD& logger, backprop_tools::Matrix<SPEC> values){ }
+    template <typename DEVICE, typename LOGGER_SPEC, typename SPEC>
+    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGER_SPEC>& logger, backprop_tools::Matrix<SPEC> values){ }
 #endif
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
