@@ -23,7 +23,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 namespace parameters = parameters_0;
 
-using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
+using LOGGER = bpt::devices::logging::CPU_TENSORBOARD<>;
 
 using DEV_SPEC_SUPER = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
 using TI = typename bpt::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;

@@ -2,7 +2,7 @@
 #include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
 namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
+using LOGGER = bpt::devices::logging::CPU_TENSORBOARD<>;
 #else
 using LOGGER = bpt::devices::logging::CPU;
 #endif

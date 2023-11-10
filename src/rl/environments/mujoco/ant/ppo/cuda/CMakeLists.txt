@@ -18,7 +18,6 @@ message("CUDA Host Compiler: ${CMAKE_CUDA_HOST_COMPILER}")
 #         tensorboard_logger
 #         CUDA::cublas
 # )
-# set_target_properties(rl_environments_mujoco_ant_throughput_cuda PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 
 
 add_executable(
@@ -32,7 +31,6 @@ target_link_libraries(
         backprop_tools::optimizations_cuda
         mujoco
 )
-set_target_properties(rl_environments_mujoco_ant_training_ppo_cuda_standalone PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 BACKPROP_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_standalone)
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
@@ -52,7 +50,6 @@ target_link_libraries(
         backprop_tools::optimizations_cuda
         mujoco
 )
-set_target_properties(rl_environments_mujoco_ant_training_ppo_cuda_benchmark PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 BACKPROP_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
 
 if(NOT WIN32)
@@ -80,7 +77,6 @@ target_link_libraries(
         backprop_tools::optimizations_cuda
         mujoco
 )
-set_target_properties(rl_environments_mujoco_ant_training_ppo_cuda_full PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 BACKPROP_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_full)
 BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_cuda_full)
 endif()
@@ -98,5 +94,4 @@ endif()
 #         mujoco
 #         CUDA::cublas
 # )
-# set_target_properties(rl_environments_mujoco_ant_collection_cuda PROPERTIES CUDA_ARCHITECTURES ${BACKPROP_TOOLS_BACKEND_CUDA_ARCHITECTURES})
 # BACKPROP_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_collection_cuda)

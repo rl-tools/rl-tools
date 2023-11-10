@@ -15,7 +15,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 
 #include <backprop_tools/nn/operations_cuda.h>
 #include <backprop_tools/nn/operations_cpu_mkl.h>
-using DEV_SPEC_INIT = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD>;
+using DEV_SPEC_INIT = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD<>>;
 using DEVICE_INIT = bpt::devices::CPU<DEV_SPEC_INIT>;
 //using DEVICE = bpt::devices::CPU_MKL<DEV_SPEC_INIT>;
 using DEVICE = bpt::devices::DefaultCUDA;

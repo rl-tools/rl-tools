@@ -27,7 +27,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #endif
 
 #if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-    using LOGGER = bpt::devices::logging::CPU_TENSORBOARD;
+    using LOGGER = bpt::devices::logging::CPU_TENSORBOARD<>;
 #else
     using LOGGER = bpt::devices::logging::CPU;
 #endif
