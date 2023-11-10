@@ -280,6 +280,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     if(NOT APPLE AND NOT WIN32)
         target_compile_options(backprop_tools_optimizations INTERFACE -ffast-math -march=native -mtune=native -mavx2)
         target_compile_options(backprop_tools_optimizations_cuda INTERFACE -use_fast_math --optimize 3)# --dlink-time-opt --gen-opt-lto)
+    elseif(APPLE)
+        target_compile_options(backprop_tools_optimizations INTERFACE -Ofast)
     endif()
 endif()
 
