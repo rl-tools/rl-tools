@@ -5,6 +5,12 @@
 [submodule "src/rl/environments/pendulum/td3/wasm/static/media"]
 	path = src/rl/environments/pendulum/td3/wasm/static/media
 	url = https://github.com/BackpropTools/media.git
+[submodule "docs"]
+	path = docs
+	url = https://github.com/rl-tools/documentation.git
+[submodule "tests/data"]
+	path = tests/data
+	url = https://gitlab.com/backprop_tools/test-data.git
 
 # Dependencies
 [submodule "external/cli11"]
@@ -25,6 +31,12 @@
 [submodule "external/gymnasium"]
 	path = external/gymnasium
 	url = https://github.com/Farama-Foundation/Gymnasium.git
+[submodule "external/json"]
+	path = external/json
+	url = https://github.com/nlohmann/json.git
+[submodule "external/libattopng"]
+	path = external/libattopng
+	url = https://github.com/misc0110/libattopng.git
 
 # Test dependencies
 [submodule "tests/lib/matplotlib"]
@@ -40,15 +52,3 @@
 	path = tests/lib/cutlass
 	url = https://github.com/NVIDIA/cutlass.git
 
-[submodule "external/json"]
-	path = external/json
-	url = https://github.com/nlohmann/json.git
-[submodule "tests/data"]
-	path = tests/data
-	url = https://gitlab.com/backprop_tools/test-data.git
-[submodule "docs"]
-	path = docs
-	url = https://github.com/BackpropTools/documentation.git
-[submodule "external/libattopng"]
-	path = external/libattopng
-	url = https://github.com/misc0110/libattopng.git
