@@ -1,23 +1,23 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_GENERIC_INTEGRATORS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_UTILS_GENERIC_INTEGRATORS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_UTILS_GENERIC_INTEGRATORS_H
+#define RL_TOOLS_UTILS_GENERIC_INTEGRATORS_H
 
-#ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
-#define BACKPROP_TOOLS_FUNCTION_PLACEMENT
+#ifndef RL_TOOLS_FUNCTION_PLACEMENT
+#define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils::integrators{
     template<typename DEVICE, typename T, typename PARAMETER_TYPE, typename STATE, auto ACTION_DIM, auto DYNAMICS>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void euler(DEVICE& device, const PARAMETER_TYPE& params, const STATE& state, const T action[ACTION_DIM], const T dt, STATE& next_state) {
+    RL_TOOLS_FUNCTION_PLACEMENT void euler(DEVICE& device, const PARAMETER_TYPE& params, const STATE& state, const T action[ACTION_DIM], const T dt, STATE& next_state) {
         DYNAMICS(device, params, state, action, next_state);
         scalar_multiply(device, next_state, dt);
         add_accumulate(device, state, next_state);
     }
 
     template<typename DEVICE, typename T, typename PARAMETER_TYPE, typename STATE, auto ACTION_DIM, auto DYNAMICS>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void rk4(DEVICE& device, const PARAMETER_TYPE& params, const STATE& state, const T action[ACTION_DIM], const T dt, STATE& next_state) {
+    RL_TOOLS_FUNCTION_PLACEMENT void rk4(DEVICE& device, const PARAMETER_TYPE& params, const STATE& state, const T action[ACTION_DIM], const T dt, STATE& next_state) {
         next_state = state;
         STATE& k1 = next_state; //[STATE_DIM];
 
@@ -65,6 +65,6 @@ namespace rl_tools::utils::integrators{
         // total flops: 157 + 13 + 157 + 13 + 13 + 157 + 13 + 13 + 157 + 13 = 706
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

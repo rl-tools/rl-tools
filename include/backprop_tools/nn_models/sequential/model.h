@@ -1,11 +1,11 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H
+#define RL_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H
 
 #include "../../utils/generic/typing.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::sequential{
     struct OutputModule{
         struct CONTENT{
@@ -130,7 +130,7 @@ namespace rl_tools::nn_models::sequential{
         struct Module: rl_tools::nn_models::sequential::Module<Specification<T_CONTENT, T_NEXT_MODULE>>{};
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

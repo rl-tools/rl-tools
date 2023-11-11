@@ -4,7 +4,7 @@
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_cpu.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 #include <gtest/gtest.h>
@@ -15,7 +15,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 constexpr bool const_declaration = false;
 
-TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST){
+TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -34,7 +34,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST){
 
 #include "../../../data/test_rl_tools_nn_layers_dense_persist_code.h"
 
-TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
+TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -47,7 +47,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
-TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
+TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
     using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
@@ -77,7 +77,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
 
 #include "../../../data/test_rl_tools_nn_models_mlp_persist_code.h"
 
-TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
+TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -91,7 +91,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
-TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
+TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -112,7 +112,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
-TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
+TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
     constexpr typename DEVICE::index_t BATCH_SIZE = 10;

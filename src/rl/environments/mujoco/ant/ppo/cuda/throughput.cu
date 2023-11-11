@@ -1,14 +1,14 @@
-#define BACKPROP_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
+#define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_cpu.h>
 #include <rl_tools/nn_models/persist.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../parameters_ppo.h"
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+#ifdef RL_TOOLS_BACKEND_ENABLE_ACCELERATE
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
@@ -44,7 +44,7 @@ using envp = parameters::environment<double, TI>;
 using rlp = parameters::rl<T, TI, envp::ENVIRONMENT>;
 using STATE = envp::ENVIRONMENT::State;
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA){
     constexpr TI NUM_ROLLOUT_STEPS = 760;
     constexpr TI NUM_STEPS_PER_ENVIRONMENT = 64;
     constexpr TI NUM_ENVIRONMENTS = 64;

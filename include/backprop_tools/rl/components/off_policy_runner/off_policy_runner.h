@@ -1,7 +1,7 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OFF_POLICY_RUNNER_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OFF_POLICY_RUNNER_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OFF_POLICY_RUNNER_H
+#define RL_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OFF_POLICY_RUNNER_H
 
 // Please include the file containing the environments operations before including this file
 #include "../../../rl/components/replay_buffer/replay_buffer.h"
@@ -14,7 +14,7 @@
 
 */
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components::off_policy_runner {
     template <typename TI, TI T_NUM_THREADS>
     struct ExecutionHints{
@@ -113,9 +113,9 @@ namespace rl_tools::rl::components::off_policy_runner {
         STATS_VIEW<1> steps;
     };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     template<typename T_SPEC>
     struct OffPolicyRunner {
@@ -145,11 +145,11 @@ namespace rl_tools::rl::components{
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, N_ENVIRONMENTS>> episode_return;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<TI, TI, 1, N_ENVIRONMENTS>> episode_step;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<bool, TI, 1, N_ENVIRONMENTS>> truncated; // init to true !!
-#ifdef BACKPROP_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
+#ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         bool initialized = false;
 #endif
     };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

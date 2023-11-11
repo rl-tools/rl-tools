@@ -4,7 +4,7 @@
 
 template <auto MIN, auto MAX, int NUM_RUNS = 10000>
 void test_int_uniform_limits(){
-    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
     using DEVICE = bpt::devices::DefaultARM;
     using T = float;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
@@ -14,7 +14,7 @@ void test_int_uniform_limits(){
         ASSERT_TRUE(number <= MAX);
     }
 }
-TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_LIMITS) {
+TEST(RL_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_LIMITS) {
     test_int_uniform_limits<0, 10>();
     test_int_uniform_limits<-10, 10>();
     test_int_uniform_limits<-10, 0>();
@@ -23,7 +23,7 @@ TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_LIMITS) {
 
 template <auto MIN, auto MAX, int NUM_RUNS = 10000>
 void test_int_uniform_distribution(){
-    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
     using DEVICE = bpt::devices::DefaultARM;
     using T = float;
     using TI = typename DEVICE::index_t;
@@ -44,7 +44,7 @@ void test_int_uniform_distribution(){
     }
     std::cout << "smaller_than_half: " << (float)smaller_than_half/NUM_RUNS << " bigger_than_half: " << (float)bigger_than_half/NUM_RUNS << std::endl;
 }
-TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_DISTRIBUTION) {
+TEST(RL_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_DISTRIBUTION) {
     test_int_uniform_distribution<0, 10>();
     test_int_uniform_distribution<-10, 10>();
     test_int_uniform_distribution<-10, 0>();
@@ -55,7 +55,7 @@ TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_DISTRIBUTION) {
 
 template <typename T, auto MIN, auto MAX, auto DENOMINATOR, int NUM_RUNS = 10000>
 void test_real_uniform_limits(){
-    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
     using DEVICE = bpt::devices::DefaultARM;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
     T min = (T)MIN / (T)DENOMINATOR;
@@ -69,7 +69,7 @@ void test_real_uniform_limits(){
         ASSERT_TRUE(number <= max);
     }
 }
-TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_LIMITS) {
+TEST(RL_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_LIMITS) {
     test_real_uniform_limits<float, 0, 10, 1000>();
     test_real_uniform_limits<float, -10, 10, 1000>();
     test_real_uniform_limits<float, -10, 0, 1000>();
@@ -78,7 +78,7 @@ TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_LIMITS) {
 
 template <typename T, auto MIN, auto MAX, auto DENOMINATOR, int NUM_RUNS = 10000>
 void test_real_uniform_distribution(){
-    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
     using DEVICE = bpt::devices::DefaultARM;
     using TI = typename DEVICE::index_t;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
@@ -101,7 +101,7 @@ void test_real_uniform_distribution(){
     }
     std::cout << "smaller_than_half: " << (float)smaller_than_half/NUM_RUNS << " bigger_than_half: " << (float)bigger_than_half/NUM_RUNS << std::endl;
 }
-TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_DISTRIBUTION) {
+TEST(RL_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_DISTRIBUTION) {
     test_real_uniform_distribution<float, 0, 10, 1000>();
     test_real_uniform_distribution<float, -10, 10, 1000>();
     test_real_uniform_distribution<float, -10, 0, 1000>();
@@ -112,7 +112,7 @@ TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_DISTRIBUTION) {
 
 template <typename T, auto MEAN, auto STD, auto DENOMINATOR, int NUM_RUNS = 10000000>
 void test_normal_distribution(){
-    namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
     using DEVICE = bpt::devices::DefaultARM;
     using TI = typename DEVICE::index_t;
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
@@ -203,7 +203,7 @@ void test_normal_distribution(){
     ASSERT_LT(mass_bigger_than_four_sigma_diff, thres);
 
 }
-TEST(BACKPROP_TOOLS_RANDOM_ARM, TEST_NORMAL_DISTRIBUTION) {
+TEST(RL_TOOLS_RANDOM_ARM, TEST_NORMAL_DISTRIBUTION) {
     test_normal_distribution<float, 0, 10, 1>();
     test_normal_distribution<float, -10, 10, 10>();
     test_normal_distribution<float, -10, 1, 1>();

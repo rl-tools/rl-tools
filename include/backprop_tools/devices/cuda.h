@@ -1,14 +1,14 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_DEVICES_CUDA_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_DEVICES_CUDA_H
+#define RL_TOOLS_DEVICES_CUDA_H
 
 #include "../rl_tools.h"
 #include "../utils/generic/typing.h"
 #include "devices.h"
 #include "cpu.h"
 #include <cublas_v2.h>
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace cuda{
         struct Base{
@@ -40,10 +40,10 @@ namespace rl_tools::devices{
         cublasHandle_t handle;
         typename SPEC::MATH math;
         typename SPEC::RANDOM random;
-#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
+#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;
 #endif
-#ifdef BACKPROP_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
+#ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
         bool initialized = false;
 #endif
     };
@@ -56,16 +56,16 @@ namespace rl_tools::devices{
     };
     using DefaultCUDA = CUDA<DefaultCUDASpecification>;
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #include <iostream>
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template <typename SPEC>
     void init(devices::CUDA<SPEC>& device){
         cublasStatus_t stat;
         stat = cublasCreate(&device.handle);
-#ifdef BACKPROP_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
+#ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
         device.initialized = true;
 #endif
         if (stat != CUBLAS_STATUS_SUCCESS) {
@@ -75,12 +75,12 @@ namespace rl_tools {
     }
     template <typename SPEC>
     void check_status(devices::CUDA<SPEC>& device){
-#ifdef BACKPROP_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
+#ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
         if(!device.initialized){
             std::cerr << "CUDA device not initialized" << std::endl;
         }
 #endif
-#ifdef BACKPROP_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
+#ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
         cudaDeviceSynchronize();
 #endif
         cudaError_t cudaStatus = cudaGetLastError();
@@ -91,12 +91,12 @@ namespace rl_tools {
     }
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::CUDA<DEV_SPEC>& device, TI size){
-#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
+#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         device.malloc_counter += size;
 #endif
     }
 
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

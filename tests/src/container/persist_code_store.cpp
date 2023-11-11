@@ -7,7 +7,7 @@
 #include <rl_tools/nn_models/mlp/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/persist_code.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 #include <gtest/gtest.h>
@@ -19,7 +19,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 constexpr bool const_declaration = true;
 
 
-TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
+TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -39,7 +39,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
     ASSERT_TRUE(true);
 }
 
-TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
+TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     using DEVICE = bpt::devices::DefaultCPU;
     using TI = DEVICE::index_t;
     using DTYPE = float;
@@ -71,7 +71,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     ASSERT_TRUE(true);
 }
 
-TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
+TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;

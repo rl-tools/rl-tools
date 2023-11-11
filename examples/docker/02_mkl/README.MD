@@ -12,7 +12,7 @@ docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),ta
 ```
 Configure RLtools using CMake
 ```
-cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
+cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
 ```
 Building the targets
 ```

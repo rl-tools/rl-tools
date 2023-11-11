@@ -1,4 +1,4 @@
-//#define BACKPROP_TOOLS_DISABLE_EVALUATION
+//#define RL_TOOLS_DISABLE_EVALUATION
 #include "training.h"
 int main(){
     run();

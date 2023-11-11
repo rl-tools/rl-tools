@@ -9,10 +9,10 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
-TEST(BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {
+TEST(RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {
     std::string replay_buffer_path = "test_cuda_replay_buffer.h5";
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;

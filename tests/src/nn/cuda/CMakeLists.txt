@@ -5,13 +5,13 @@ project(test_rl_tools_nn_cuda CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD  17)
 
-function(BACKPROP_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS TARGET)
-    #    if(BACKPROP_TOOLS_DEBUG)
+function(RL_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS TARGET)
+    #    if(RL_TOOLS_DEBUG)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-#        target_compile_definitions(${TARGET} PRIVATE -DBACKPROP_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS)
-#        target_compile_definitions(${TARGET} PRIVATE -DBACKPROP_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC)
-        target_compile_definitions(${TARGET} PRIVATE -DBACKPROP_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN)
-        target_compile_definitions(${TARGET} PRIVATE -DBACKPROP_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT)
+#        target_compile_definitions(${TARGET} PRIVATE -DRL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS)
+#        target_compile_definitions(${TARGET} PRIVATE -DRL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC)
+        target_compile_definitions(${TARGET} PRIVATE -DRL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN)
+        target_compile_definitions(${TARGET} PRIVATE -DRL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT)
     endif()
 endfunction()
 
@@ -25,8 +25,8 @@ target_link_libraries(
         rl_tools::minimal
         rl_tools_tests
 )
-BACKPROP_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
-BACKPROP_TOOLS_TAG_IS_CUDA(test_nn_cuda_basics)
+RL_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
+RL_TOOLS_TAG_IS_CUDA(test_nn_cuda_basics)
 gtest_discover_tests(test_nn_cuda_basics)
 
 #add_executable(

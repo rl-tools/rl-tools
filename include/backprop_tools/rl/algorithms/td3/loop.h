@@ -4,7 +4,7 @@
 #include "../../../rl/utils/evaluation.h"
 
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::td3::loop {
     template<typename T_SPEC>
     struct CoreTrainingState {
@@ -42,10 +42,10 @@ namespace rl_tools::rl::algorithms::td3::loop {
 //        T evaluation_results[N_EVALUATIONS];
     };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::td3::loop{
     template <typename TRAINING_STATE>
     void init(TRAINING_STATE& ts, typename TRAINING_STATE::SPEC::DEVICE::index_t seed){
@@ -159,6 +159,6 @@ namespace rl_tools::rl::algorithms::td3::loop{
         return ts.finished;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 

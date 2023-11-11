@@ -1,11 +1,11 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ALGORITHMS_SAC_SAC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_SAC_SAC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_ALGORITHMS_SAC_SAC_H
+#define RL_TOOLS_RL_ALGORITHMS_SAC_SAC_H
 //#include "../../../nn_models/output_view/model.h"
 
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::sac {
     template<typename T, typename TI, TI ACTION_DIM=1>
     struct DefaultParameters {
@@ -141,7 +141,7 @@ namespace rl_tools::rl::algorithms::sac {
 //        ActorCritic(): actor_view(actor){};
     };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 

@@ -1,13 +1,13 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_BLAS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_BLAS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_BLAS_H
+#define RL_TOOLS_NN_LAYERS_DENSE_OPERATIONS_CPU_BLAS_H
 
 #include "operations_cpu.h"
 #include "../../../utils/generic/memcpy.h"
 #include "../../../devices/cpu_blas.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
@@ -173,6 +173,6 @@ namespace rl_tools{
         backward_input_additional(device, layer, d_output, d_input);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -1,7 +1,7 @@
-#define BACKPROP_TOOLS_DISABLE_TENSORBOARD
-#define BACKPROP_TOOLS_BACKEND_ENABLE_BLAS
-#define BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
-//#define BACKPROP_TOOLS_BACKEND_DISABLE_BLAS
+#define RL_TOOLS_DISABLE_TENSORBOARD
+#define RL_TOOLS_BACKEND_ENABLE_BLAS
+#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+//#define RL_TOOLS_BACKEND_DISABLE_BLAS
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/concat_constant/operations_generic.h>
@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 #include <thread>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using T = float;
 //using DEVICE = bpt::devices::DefaultCPU;
@@ -41,7 +41,7 @@ namespace sequential_model_factory{
 }
 using SEQUENTIAL_MODEL = sequential_model_factory::MODEL;
 
-TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, TEST){
+TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, TEST){
     MODEL model;
     DEVICE device;
     SEQUENTIAL_MODEL sequential_model;

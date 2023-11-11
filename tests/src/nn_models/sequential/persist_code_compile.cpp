@@ -6,7 +6,7 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <fstream>
@@ -15,7 +15,7 @@ using T = float;
 using DEVICE = bpt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 
-TEST(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, COMPILE) {
+TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, COMPILE) {
     DEVICE device;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
     rl_tools_export::model::MODEL::DoubleBuffer<1> buffer;

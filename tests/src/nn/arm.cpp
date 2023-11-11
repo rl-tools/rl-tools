@@ -11,7 +11,7 @@
 #include <rl_tools/nn_models/mlp/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 #include <iostream>
@@ -48,7 +48,7 @@ void test_mlp_evaluate() {
     auto abs_diff = bpt::abs_diff(device, output_orig, output_arm);
 
     ASSERT_LT(abs_diff, 1e-5);
-}TEST(BACKPROP_TOOLS_NN_ARM, TEST_MLP_EVALUATE) {
+}TEST(RL_TOOLS_NN_ARM, TEST_MLP_EVALUATE) {
     test_mlp_evaluate<double, 13, 4, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_evaluate<double, 1, 4, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_evaluate<double, 13, 1, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
@@ -95,7 +95,7 @@ void test_mlp_forward() {
     ASSERT_LT(abs_diff_network, 1e-5);
 }
 
-TEST(BACKPROP_TOOLS_NN_ARM, TEST_MLP_FORWARD){
+TEST(RL_TOOLS_NN_ARM, TEST_MLP_FORWARD){
     test_mlp_forward<double, 13, 4, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_forward<double, 1, 4, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_forward<double, 13, 1, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();

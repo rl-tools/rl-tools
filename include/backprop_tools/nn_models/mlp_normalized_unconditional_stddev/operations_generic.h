@@ -2,7 +2,7 @@
 #include "../../nn_models/mlp/operations_generic.h"
 
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& m){
@@ -46,4 +46,4 @@ namespace rl_tools{
         copy(source_device, target_device, source.log_std, target.log_std);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END

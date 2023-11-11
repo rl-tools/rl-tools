@@ -2,7 +2,7 @@
 
 #include <rl_tools/rl/environments/car/car.h>
 #include <rl_tools/rl/environments/car/operations_generic.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 

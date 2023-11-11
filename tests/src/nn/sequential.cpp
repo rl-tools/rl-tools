@@ -4,7 +4,7 @@
 #include <rl_tools/nn_models/operations_cpu.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 
@@ -28,7 +28,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 
-TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
+TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = typename DEVICE::index_t;
@@ -114,7 +114,7 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
 
 }
 
-TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
+TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = typename DEVICE::index_t;
@@ -210,7 +210,7 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     }
 }
 
-TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
+TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = typename DEVICE::index_t;
@@ -232,7 +232,7 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
     static_assert(bpt::nn_models::sequential::check_batch_size_consistency<SEQUENTIAL>);
 }
 
-TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
+TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     using DEVICE = bpt::devices::DefaultCPU;
     using T = double;
     using TI = typename DEVICE::index_t;
@@ -286,7 +286,7 @@ TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
 
 }
 
-TEST(BACKPROP_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
+TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = typename DEVICE::index_t;

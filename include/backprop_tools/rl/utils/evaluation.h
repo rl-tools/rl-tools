@@ -1,14 +1,14 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_UTILS_EVALUATION_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_UTILS_EVALUATION_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_UTILS_EVALUATION_H
+#define RL_TOOLS_RL_UTILS_EVALUATION_H
 /*
  * This file relies on the environments methods hence it should be included after the operations of the environments that it will be used with
  */
 
 #include "../../math/operations_generic.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::utils::evaluation{
     template <typename T, typename TI, typename ENV_STATE>
     struct State{
@@ -33,9 +33,9 @@ namespace rl_tools::rl::utils::evaluation{
         T episode_length_std;
     };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
 
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVAL_BUFFERS, typename RNG>
@@ -46,7 +46,7 @@ namespace rl_tools{
         constexpr bool STOCHASTIC_POLICY = ENVIRONMENT::ACTION_DIM*2 == POLICY::OUTPUT_DIM;
         typename ENVIRONMENT::State state = eval_state.state;
 
-#ifndef BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+#ifndef RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
         MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> action_full;
         MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
 #else
@@ -145,6 +145,6 @@ namespace rl_tools{
         return results;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

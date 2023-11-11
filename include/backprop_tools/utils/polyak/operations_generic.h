@@ -1,10 +1,10 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_UTILS_POLYAK_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_UTILS_POLYAK_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_UTILS_POLYAK_OPERATIONS_GENERIC_H
+#define RL_TOOLS_NN_UTILS_POLYAK_OPERATIONS_GENERIC_H
 
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils::polyak {
     // todo: polyak factor as template parameter (reciprocal INT e.g.)
     template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
@@ -30,7 +30,7 @@ namespace rl_tools::utils::polyak {
         }
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

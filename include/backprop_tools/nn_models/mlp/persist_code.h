@@ -7,7 +7,7 @@
 
 #include <string>
 #include <sstream>
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     persist::Code save_split(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0) {
@@ -64,4 +64,4 @@ namespace rl_tools{
         return code.header + code.body;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END

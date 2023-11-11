@@ -2,12 +2,12 @@
 
 #include <rl_tools/rl/environments/acrobot/operations_generic.h>
 #include <rl_tools/rl/environments/acrobot/ui.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include "../../../utils/utils.h"
 #include <gtest/gtest.h>
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, UI) {
+TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, UI) {
     using T = float;
     using DEVICE = bpt::devices::DefaultCPU;
     using TI = DEVICE::index_t;

@@ -1,7 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/components/off_policy_runner/off_policy_runner.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
 using LOGGER = bpt::devices::logging::CPU_TENSORBOARD<>;
 #else
 using LOGGER = bpt::devices::logging::CPU;
@@ -29,7 +29,7 @@ using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 #include <rl_tools/rl/algorithms/td3/operations_cpu_mux.h>
 
 // additional includes for the ui and persisting
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn_models/persist.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>
 #endif
@@ -39,7 +39,7 @@ using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 #include "parameters.h"
 
 #include <iostream>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <highfive/H5File.hpp>
 #endif
 #include <filesystem>
@@ -62,7 +62,7 @@ using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
 using parameters_rl = parameter_set::rl<DTYPE, typename DEVICE::index_t, ENVIRONMENT>;
 static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
+#if !defined(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
 constexpr bool ENABLE_EVALUATION = false;
 #else
 constexpr bool ENABLE_EVALUATION = true;
@@ -75,12 +75,12 @@ constexpr bool ACTOR_OVERWRITE_CHECKPOINTS = false;
 constexpr DEVICE::index_t ACTOR_CHECKPOINT_INTERVAL = 10000;
 const std::string ACTOR_CHECKPOINT_DIRECTORY = "checkpoints/td3_ant";
 const std::string REPLAY_BUFFER_OUTPUT_PATH = "replay_buffer.h5";
-constexpr bool BACKPROP_TOOLS_SAVE_REPLAY_BUFFER = false;
+constexpr bool RL_TOOLS_SAVE_REPLAY_BUFFER = false;
 
-#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
+#ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_DEBUG
 constexpr DEVICE::index_t STEP_LIMIT = parameters_rl::N_WARMUP_STEPS_ACTOR + 5000;
 #else
-#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST
+#ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST
 constexpr DEVICE::index_t STEP_LIMIT = 30000;
 #else
 constexpr DEVICE::index_t STEP_LIMIT = parameters_rl::REPLAY_BUFFER_CAP * 100;
@@ -101,7 +101,7 @@ std::string sanitize_file_name(const std::string &input) {
 }
 
 void run(){
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
     if(ACTOR_ENABLE_CHECKPOINTS){
         std::cout << "Saving checkpoints to: " << ACTOR_CHECKPOINT_DIRECTORY << std::endl;
     }
@@ -223,7 +223,7 @@ void run(){
                         auto rng1 = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
                         auto rng2 = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
 
-                        if(std::getenv("BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
+                        if(std::getenv("RL_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
                             auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
                             auto critic_2_training = std::async([&](){return train_critic(actor_critic.critic_2, critic_batches[1], critic_optimizers[1], actor_buffers[1], critic_buffers[1], critic_training_buffers[1], rng2);});
                             critic_1_training.wait();
@@ -320,7 +320,7 @@ void run(){
                     checkpoint_name = checkpoint_name_ss.str();
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
                 try{
                     auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
                     bpt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
@@ -330,7 +330,7 @@ void run(){
                 }
 #endif
             }
-//#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+//#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 //            if(step_i % ACTOR_CHECKPOINT_INTERVAL == 0){
 //                std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
 //                try {
@@ -351,8 +351,8 @@ void run(){
 //            }
 //#endif
         }
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
-        if constexpr(BACKPROP_TOOLS_SAVE_REPLAY_BUFFER){
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+        if constexpr(RL_TOOLS_SAVE_REPLAY_BUFFER){
             try{
                 auto actor_file = HighFive::File(REPLAY_BUFFER_OUTPUT_PATH, HighFive::File::Overwrite);
                 auto replay_buffer_group = actor_file.createGroup("replay_buffer");
@@ -385,7 +385,7 @@ void run(){
     }
 
 
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
     for(typename DEVICE::index_t run_i = 0; run_i < episode_step.size(); run_i++){
         auto group = data_file.createGroup(std::to_string(run_i));

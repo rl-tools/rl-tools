@@ -5,8 +5,8 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
 #include <rl_tools/rl/algorithms/sac/loop.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-#ifdef BACKPROP_TOOLS_ENABLE_HDF5
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+#ifdef RL_TOOLS_ENABLE_HDF5
 #include <highfive/H5DataSet.hpp>
 #include <highfive/H5DataSpace.hpp>
 #include <highfive/H5File.hpp>
@@ -117,7 +117,7 @@ int main(){
     using TI = typename TrainingConfig::TI;
     using DEVICE = typename TrainingConfig::DEVICE;
     TI NUM_RUNS = 10;
-#ifdef BACKPROP_TOOLS_ENABLE_HDF5
+#ifdef RL_TOOLS_ENABLE_HDF5
     std::string DATA_FILE_PATH = "rl_environments_pendulum_sac_learning_curves.h5";
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
 #endif
@@ -129,7 +129,7 @@ int main(){
         TI seed = run_i;
         bpt::rl::algorithms::sac::loop::init(ts, seed);
         ts.off_policy_runner.parameters.exploration_noise = 0;
-#ifdef BACKPROP_TOOLS_ENABLE_HDF5
+#ifdef RL_TOOLS_ENABLE_HDF5
         auto run_group = data_file.createGroup(std::to_string(run_i));
 #endif
         for(TI step_i=0; step_i < TrainingConfig::STEP_LIMIT; step_i++){

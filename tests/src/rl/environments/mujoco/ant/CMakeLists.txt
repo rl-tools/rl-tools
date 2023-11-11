@@ -25,11 +25,11 @@ gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3_test)
 target_compile_definitions(
         test_rl_environments_mujoco_ant_training_td3_test
         PRIVATE
-        -DBACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST
+        -DRL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST
 )
 
 
-if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
+if(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 add_executable(
         test_rl_environments_mujoco_ant_ui
         ui.cpp

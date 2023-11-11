@@ -15,7 +15,7 @@
 #include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/nn_models/operations_cpu.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 
@@ -122,7 +122,7 @@ void COPY_CONTAINER() {
     }
 }
 
-TEST(BACKPROP_TOOLS_NN_CUDA, COPY_CONTAINER){
+TEST(RL_TOOLS_NN_CUDA, COPY_CONTAINER){
 /*
 template <typename T, typename TI, TI DIM_1, TI DIM_2, TI OFFSET_1, TI OFFSET_2, TI ALIGNMENT_1, TI ALIGNMENT_2, TI DIM_3, TI DIM_4, TI OFFSET_3, TI OFFSET_4, TI ALIGNMENT_3, TI ALIGNMENT_4>
     julia code to generate fuzzing calls
@@ -195,7 +195,7 @@ template <typename T, typename TI, TI DIM_1, TI DIM_2, TI OFFSET_1, TI OFFSET_2,
 }
 
 
-TEST(BACKPROP_TOOLS_NN_CUDA, COPYING_VIEWS){
+TEST(RL_TOOLS_NN_CUDA, COPYING_VIEWS){
     using DEVICE_CPU = bpt::devices::DefaultCPU;
     using DEVICE_CUDA = bpt::devices::DefaultCUDA;
 
@@ -291,7 +291,7 @@ namespace copy{
 }
 
 
-TEST(BACKPROP_TOOLS_NN_CUDA, COPY) {
+TEST(RL_TOOLS_NN_CUDA, COPY) {
     using NetworkTypeCPU = bpt::nn_models::mlp::NeuralNetworkAdam<copy::NNSPEC<copy::DTYPE, copy::DEVICE_CPU::index_t, bpt::nn::activation_functions::RELU>>;
     using NetworkTypeCUDA = bpt::nn_models::mlp::NeuralNetworkAdam<copy::NNSPEC<copy::DTYPE, copy::DEVICE_CUDA::index_t, bpt::nn::activation_functions::RELU>>;
     copy::OPTIMIZER optimizer;
@@ -489,7 +489,7 @@ void GEMM() {
         std::cout << "CUDA evaluation time: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / ((T)ITERATIONS) << "us" << std::endl;
     }
 }
-TEST(BACKPROP_TOOLS_NN_CUDA, GEMM) {
+TEST(RL_TOOLS_NN_CUDA, GEMM) {
     using DEFAULT_DTYPE = float;
     GEMM<DEFAULT_DTYPE, unsigned int, 1, 1>();
     GEMM<DEFAULT_DTYPE, unsigned int, 2, 1>();
@@ -650,7 +650,7 @@ void FORWARD() {
     }
 }
 
-TEST(BACKPROP_TOOLS_NN_CUDA, FORWARD) {
+TEST(RL_TOOLS_NN_CUDA, FORWARD) {
     FORWARD<float, unsigned int, 1, 1>();
     FORWARD<float, unsigned int, 2, 1>();
     FORWARD<float, unsigned int, 32, 1>();
@@ -837,7 +837,7 @@ void BACKWARD() {
     }
 }
 
-TEST(BACKPROP_TOOLS_NN_CUDA, BACKWARD) {
+TEST(RL_TOOLS_NN_CUDA, BACKWARD) {
     using DEFAULT_DTYPE = float;
     BACKWARD<DEFAULT_DTYPE, unsigned int,    1, 1, 1, 1, 1>();
     BACKWARD<DEFAULT_DTYPE, unsigned int,    1, 256,  10, 100, 1>();
@@ -981,7 +981,7 @@ void ADAM_UPDATE() {
     }
 }
 
-TEST(BACKPROP_TOOLS_NN_CUDA, ADAM_UPDATE) {
+TEST(RL_TOOLS_NN_CUDA, ADAM_UPDATE) {
     using DEFAULT_DTYPE = float;
     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    1, 256,  10, 100, 1>();
     ADAM_UPDATE<DEFAULT_DTYPE, unsigned int,    2, 256,  10, 100, 1>();

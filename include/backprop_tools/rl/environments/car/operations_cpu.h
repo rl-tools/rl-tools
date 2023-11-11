@@ -1,15 +1,15 @@
 
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_OPERATIONS_CPU_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_CAR_OPERATIONS_CPU_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_ENVIRONMENTS_CAR_OPERATIONS_CPU_H
+#define RL_TOOLS_RL_ENVIRONMENTS_CAR_OPERATIONS_CPU_H
 
 #include <stdint.h>
 #include <fstream>
 #include "operations_generic.h"
 #include <cassert>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::car{
     uint16_t read_u16(std::ifstream& stream) {
         uint16_t result;
@@ -29,9 +29,9 @@ namespace rl_tools::rl::environments::car{
         return result;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
@@ -99,6 +99,6 @@ namespace rl_tools{
         }
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

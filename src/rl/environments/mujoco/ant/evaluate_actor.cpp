@@ -6,9 +6,9 @@
 #include <rl_tools/nn_models/persist.h>
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
-#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+#ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
 #include "ppo/parameters.h"
 #else
 #include "td3/parameters.h"
@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
     while(true){
         std::filesystem::path actor_run;
         if(run == "" && checkpoint == ""){
-#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+#ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
             std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "ppo_ant";
 #else
             std::filesystem::path actor_checkpoints_dir = std::filesystem::path("checkpoints") / "td3_ant";
@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
             try{
                 auto data_file = HighFive::File(checkpoint, HighFive::File::ReadOnly);
                 bpt::load(dev, actor, data_file.getGroup("actor"));
-#ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
+#ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
                 bpt::load(dev, observation_normalizer.mean, data_file.getGroup("observation_normalizer"), "mean");
                 bpt::load(dev, observation_normalizer.std, data_file.getGroup("observation_normalizer"), "std");
 #endif

@@ -20,7 +20,7 @@
 
 #include <gtest/gtest.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using DTYPE = float;
 using index_t = unsigned;
 constexpr index_t OUTER_INPUT_DIM = 10;
@@ -49,7 +49,7 @@ static_assert(bpt::utils::typing::is_same_v<LayerSpec1, LayerSpec2>);
 
 
 
-TEST(BACKPROP_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
+TEST(RL_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     using Device1 = bpt::devices::DefaultDummy;
     using Layer1 = bpt::nn::layers::dense::Layer<LayerSpec1>;
 

@@ -1,7 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/containers/persist.h>
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
@@ -68,7 +68,7 @@ void test(){
     }
 }
 
-TEST(BACKPROP_TOOLS_RL_COMPONENTS_RUNNING_NORMALIZER, TEST){
+TEST(RL_TOOLS_RL_COMPONENTS_RUNNING_NORMALIZER, TEST){
     test<double, 100, 10, 10>();
     test<double, 20, 20, 20>();
     test<double, 20, 1, 20>();

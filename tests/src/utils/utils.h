@@ -2,8 +2,8 @@
 #define TEST_UTILS_H
 #include <vector>
 
-#define BACKPROP_TOOLS_STRINGIZE(x) #x
-#define BACKPROP_TOOLS_MACRO_TO_STR(macro) BACKPROP_TOOLS_STRINGIZE(macro)
+#define RL_TOOLS_STRINGIZE(x) #x
+#define RL_TOOLS_MACRO_TO_STR(macro) RL_TOOLS_STRINGIZE(macro)
 
 template <typename T, int DIM>
 void standardise(const T input[DIM], const T mean[DIM], const T std[DIM], T output[DIM]){
@@ -12,7 +12,7 @@ void standardise(const T input[DIM], const T mean[DIM], const T std[DIM], T outp
     }
 }
 template <typename T, typename SPEC>
-T abs_diff_matrix(const BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
+T abs_diff_matrix(const RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::Matrix<SPEC> A, const std::vector<std::vector<T>>& B) {
     T acc = 0;
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
@@ -23,7 +23,7 @@ T abs_diff_matrix(const BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools::Matrix<SPEC
 }
 
 template <typename T, typename SPEC>
-T abs_diff_matrix(BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools::Matrix<SPEC> A, const T* B) {
+T abs_diff_matrix(RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::Matrix<SPEC> A, const T* B) {
     T acc = 0;
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
@@ -43,7 +43,7 @@ T abs_diff_vector(const T A[N_ROWS], const T B[N_ROWS]) {
 }
 
 template <typename T, typename SPEC>
-void assign(const std::vector<std::vector<T>>& source, BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools::Matrix<SPEC> target) {
+void assign(const std::vector<std::vector<T>>& source, RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::Matrix<SPEC> target) {
     for (int i = 0; i < SPEC::ROWS; i++){
         for (int j = 0; j < SPEC::COLS; j++){
             set(target, i, j, source[i][j]);

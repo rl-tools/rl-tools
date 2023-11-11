@@ -16,7 +16,7 @@ namespace plt = matplotlibcpp;
 #include <rl_tools/utils/rng_std.h>
 #include <rl_tools/rl/utils/evaluation.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #define DTYPE float
 
 typedef bpt::rl::environments::pendulum::Spec<DTYPE, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
@@ -55,7 +55,7 @@ static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCritic
 OFF_POLICY_RUNNER_TYPE off_policy_runners[N_CORES];
 ActorCriticType actor_critics[N_CORES];
 
-TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
+TEST(RL_TOOLS_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
 
     std::vector<typename DEVICE::index_t> mean_returns_steps;
     std::vector<std::vector<DTYPE>> mean_returns(N_TRAINING_RUNS);

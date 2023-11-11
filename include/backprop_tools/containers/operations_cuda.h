@@ -1,7 +1,7 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_CONTAINERS_OPERATIONS_CUDA_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CUDA_H
+#define RL_TOOLS_CONTAINERS_OPERATIONS_CUDA_H
 
 #include "../containers.h"
 #include "../devices/cuda.h"
@@ -9,9 +9,9 @@
 #include <cuda_runtime.h>
 #include <cuda.h>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-#ifndef BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+#ifndef RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
     template<typename DEV_SPEC, typename SPEC>
     void malloc(devices::CUDA<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
         /* for checking the pitch
@@ -21,14 +21,14 @@ namespace rl_tools{
 
         }
         */
-#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
         auto result = cudaMalloc(&matrix._data, SPEC::SIZE_BYTES);
         check_status(device);
         count_malloc(device, SPEC::SIZE_BYTES);
 
-#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         if (result != cudaSuccess) {
             std::cerr << "Failed to allocate container: " << cudaGetErrorString(result) << std::endl;
         }
@@ -76,7 +76,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         constexpr TI BLOCKSIZE_COLS = 32;
-        constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
         dim3 grid(N_BLOCKS_COLS);
         dim3 block(BLOCKSIZE_COLS);
         containers::cuda::kernels::copy<DEVICE, SOURCE_SPEC, TARGET_SPEC><<<grid, block>>>(source, target);
@@ -123,7 +123,7 @@ namespace rl_tools{
             copy(source_device, target_device, source, temp);
 //            {
 //                constexpr TI BLOCKSIZE_COLS = 32;
-//                constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
+//                constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
 //                dim3 grid(N_BLOCKS_COLS);
 //                dim3 block(BLOCKSIZE_COLS);
 //                containers::cuda::kernels::copy<DEVICE_CUDA, TARGET_SPEC, typename decltype(temp)::SPEC><<<grid, block>>>(target, temp);
@@ -160,7 +160,7 @@ namespace rl_tools{
         malloc(source_device, temp_gpu);
 //        {
 //            constexpr TI BLOCKSIZE_COLS = 32;
-//            constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
+//            constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
 //            dim3 grid(N_BLOCKS_COLS);
 //            dim3 block(BLOCKSIZE_COLS);
 //            containers::cuda::kernels::copy<DEVICE_CUDA, typename decltype(temp_gpu)::SPEC, SOURCE_SPEC><<<grid, block>>>(temp_gpu, source);
@@ -194,13 +194,13 @@ namespace rl_tools{
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         constexpr TI BLOCKSIZE_COLS = 32;
-        constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(SPEC::COLS, BLOCKSIZE_COLS);
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::COLS, BLOCKSIZE_COLS);
         dim3 grid(N_BLOCKS_COLS);
         dim3 block(BLOCKSIZE_COLS);
         containers::cuda::kernels::set_all<DEVICE, SPEC, VALUE_T><<<grid, block>>>(m, value);
         check_status(device);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

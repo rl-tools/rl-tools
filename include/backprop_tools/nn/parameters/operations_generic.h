@@ -1,11 +1,11 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_PARAMETERS_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_PARAMETERS_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_PARAMETERS_OPERATIONS_GENERIC_H
+#define RL_TOOLS_NN_PARAMETERS_OPERATIONS_GENERIC_H
 
 #include "parameters.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename CONTAINER>
     void malloc(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& p){
@@ -56,5 +56,5 @@ namespace rl_tools{
         return acc;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

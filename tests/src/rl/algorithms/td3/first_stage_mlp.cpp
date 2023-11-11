@@ -1,5 +1,5 @@
 #include <rl_tools/operations/cpu.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <rl_tools/rl/environments/environments.h>
 #include <rl_tools/rl/algorithms/td3/td3.h>
@@ -15,7 +15,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 std::string get_data_file_path(){
     std::string DATA_FILE_NAME = "model_first_stage.hdf5";
-    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "Using data file: " << DATA_FILE_PATH << std::endl;
     return DATA_FILE_PATH;
@@ -135,7 +135,7 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     acc += abs_diff_matrix<T, NT::SPEC::LAYER_1::OUTPUT_DIM, NT::SPEC::LAYER_1::INPUT_DIM>(network.layer_1.weights, weights);
     return acc;
 }
-TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
+TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     AC_DEVICE device;
     first_stage_first_stage::NN_DEVICE nn_device;
     first_stage_first_stage::ActorCriticType actor_critic;
@@ -176,7 +176,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     }
 
 }
-TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
+TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 //    using ActorCriticSpec = bpt::rl::algorithms::td3::ActorCriticSpecification<bpt::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3_PARAMETERS>;
 //    typedef bpt::rl::algorithms::td3::ActorCritic<bpt::devices::Generic, ActorCriticSpec> ActorCriticType;
     AC_DEVICE device;
@@ -275,7 +275,7 @@ namespace first_stage_second_stage{
     using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 }
-TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
+TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     constexpr bool verbose = true;
 //    typedef bpt::rl::algorithms::td3::ActorCriticSpecification<bpt::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3_PARAMETERS> ActorCriticSpec;
 //    typedef bpt::rl::algorithms::td3::ActorCritic<bpt::devices::Generic, ActorCriticSpec> ActorCriticType;
@@ -437,7 +437,7 @@ TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 }
 
 
-TEST(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
+TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     constexpr bool verbose = true;
 //    typedef bpt::rl::algorithms::td3::ActorCriticSpecification<bpt::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3_PARAMETERS> ActorCriticSpec;
 //    typedef bpt::rl::algorithms::td3::ActorCritic<bpt::devices::Generic, ActorCriticSpec> ActorCriticType;

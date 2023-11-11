@@ -50,7 +50,7 @@ Target: "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" && "C:\Users\Jonas.Esc
 ```
 Instead of using VS code after sourcing the `setvars.bat` in the terminal like described before you can also build it from the cli:
 ```
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
 ```
 After that build and run the target as before:
 ```
@@ -82,7 +82,7 @@ conan install . --output-folder=build_conan --build=missing --settings=build_typ
 
 ### CLI
 ```
-cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
+cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
 ```
 ```
 cmake --build . --config Release --target rl_environments_mujoco_ant_training_ppo_standalone

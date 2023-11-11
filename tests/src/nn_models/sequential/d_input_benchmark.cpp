@@ -1,9 +1,9 @@
-#define BACKPROP_TOOLS_DISABLE_TENSORBOARD
-#define BACKPROP_TOOLS_BACKEND_ENABLE_BLAS
-//#define BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+#define RL_TOOLS_DISABLE_TENSORBOARD
+#define RL_TOOLS_BACKEND_ENABLE_BLAS
+//#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/nn/operations_cpu.h>
-//#define BACKPROP_TOOLS_BACKEND_DISABLE_BLAS
+//#define RL_TOOLS_BACKEND_DISABLE_BLAS
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/concat_constant/operations_generic.h>
@@ -14,7 +14,7 @@
 #include <gtest/gtest.h>
 #include <thread>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace config{
     using namespace bpt::nn_models::sequential::interface;
@@ -204,7 +204,7 @@ void test_correctness(){
     }
 
 }
-TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS){
+TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS){
     using T = float;
 //using DEVICE = bpt::devices::DefaultCPU;
     using DEVICE = bpt::DEVICE_FACTORY<bpt::devices::DefaultCPUSpecification>;
@@ -213,7 +213,7 @@ TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS)
     test_correctness<DEVICE, DEVICE, config::CONFIG<T, TI>>();
 }
 
-TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS_CPU){
+TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS_CPU){
     using T = double;
 //using DEVICE = bpt::devices::DefaultCPU;
     using DEVICE = bpt::DEVICE_FACTORY<bpt::devices::DefaultCPUSpecification>;
@@ -223,7 +223,7 @@ TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS_
     test_correctness<DEVICE, SEQUENTIAL_DEVICE, config::CONFIG<T, TI>>();
 }
 
-TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
+TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
     using T = double;
 //using DEVICE = bpt::devices::DefaultCPU;
     using DEVICE = bpt::DEVICE_FACTORY<bpt::devices::DefaultCPUSpecification>;
@@ -233,7 +233,7 @@ TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_CPU_B
     test_correctness<SEQUENTIAL_DEVICE, DEVICE, config::CONFIG<T, TI>>();
 }
 
-//TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, BENCHMARK){
+//TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, BENCHMARK){
 template <typename DEVICE, typename CONFIG>
 void test_benchmark(){
     typename CONFIG::MODEL model;
@@ -315,7 +315,7 @@ void test_benchmark(){
 
 }
 
-TEST(BACKPROP_TOOLS_NN_LAYERS_CONCAT_CONSTANT, BENCHMARK){
+TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, BENCHMARK){
     using T = double;
     using DEVICE = bpt::DEVICE_FACTORY<bpt::devices::DefaultCPUSpecification>;
     using TI = typename DEVICE::index_t;

@@ -1,11 +1,11 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_MODELS_MLP_UNCONDITIONAL_STDDEV_NETWORK_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_MLP_UNCONDITIONAL_STDDEV_NETWORK_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_MODELS_MLP_UNCONDITIONAL_STDDEV_NETWORK_H
+#define RL_TOOLS_NN_MODELS_MLP_UNCONDITIONAL_STDDEV_NETWORK_H
 
 #include "../../nn_models/mlp/network.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp_unconditional_stddev {
 
     template<template <typename> typename BASE, typename SPEC>
@@ -29,6 +29,6 @@ namespace rl_tools::nn_models::mlp_unconditional_stddev {
 
 
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

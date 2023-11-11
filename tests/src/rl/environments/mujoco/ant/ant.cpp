@@ -4,7 +4,7 @@
 
 #include "../../../../utils/utils.h"
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <chrono>
 #include <iostream>
@@ -21,7 +21,7 @@ namespace TEST_DEFINITIONS{
 }
 
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;
@@ -45,7 +45,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
 
 }
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;
@@ -108,7 +108,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
     ASSERT_LT(acc, 1e-12);
 }
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;
@@ -116,7 +116,7 @@ TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
     std::string DATA_FILE_NAME = "tests_rl_environments_mujoco_ant_data.h5";
-    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     std::vector<std::vector<T>> observations, next_observations, states, next_states, actions;

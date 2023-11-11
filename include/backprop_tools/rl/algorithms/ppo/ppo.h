@@ -1,11 +1,11 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ALGORITHMS_PPO_PPO_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_PPO_PPO_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_ALGORITHMS_PPO_PPO_H
+#define RL_TOOLS_RL_ALGORITHMS_PPO_PPO_H
 
 #include "../../../rl/components/running_normalizer/running_normalizer.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms{
     namespace ppo{
         template<typename T, typename TI>
@@ -80,12 +80,12 @@ namespace rl_tools::rl::algorithms{
 
         typename SPEC::ACTOR_TYPE actor;
         typename SPEC::CRITIC_TYPE critic;
-#ifdef BACKPROP_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
+#ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         bool initialized = false;
 #endif
 
     };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

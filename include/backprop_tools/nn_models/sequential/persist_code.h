@@ -1,14 +1,14 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_H
+#define RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_H
 #include "../../containers/persist_code.h"
 #include "../../persist/code.h"
 #include "model.h"
 
 #include <string>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     persist::Code save_code_split(DEVICE& device, nn_models::sequential::Module<SPEC>& model, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0, typename DEVICE::index_t layer_i = 0) {
@@ -35,7 +35,7 @@ namespace rl_tools{
         }
         if(layer_i == 0){
             ss << ind << "    " << "namespace model_definition {\n";
-            ss << ind << "    " << "    " << "using namespace BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
+            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
             ss << ind << "    " << "    " << "using MODEL = Module<";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << "layer_" << layer_i << "::TYPE";
@@ -61,7 +61,7 @@ namespace rl_tools{
             }
             ss << ";\n";
 
-//            ss << ind << "    " << (const_declaration ? "const " : "") << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<" << layer_i << "> module = {layer_0::container, " << get_type_string<typename SPEC::NEXT_MODULE>() << "::module, };\n";
+//            ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<" << layer_i << "> module = {layer_0::container, " << get_type_string<typename SPEC::NEXT_MODULE>() << "::module, };\n";
             ss << ind << "}";
         }
         return {ss_header.str(), ss.str()};
@@ -72,5 +72,5 @@ namespace rl_tools{
         return code.header + code.body;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

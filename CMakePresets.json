@@ -9,8 +9,8 @@
             "displayName": "rl_tools: MKL",
             "cacheVariables": {
                 "CMAKE_POLICY_DEFAULT_CMP0091": "NEW",
-                "BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
-                "BACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON"
+                "RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
+                "RL_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON"
             },
             "inherits": "conan-default"
         },
@@ -19,11 +19,11 @@
             "displayName": "rl_tools: MKL, TensorBoard, HDF5",
             "cacheVariables": {
                 "CMAKE_POLICY_DEFAULT_CMP0091": "NEW",
-                "BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
-                "BACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_HDF5:BOOL": "ON",
-                "BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL": "ON"
+                "RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
+                "RL_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON",
+                "RL_TOOLS_ENABLE_HDF5:BOOL": "ON",
+                "RL_TOOLS_HDF5_HIGHFIVE_FROM_CONAN:BOOL": "ON",
+                "RL_TOOLS_ENABLE_TENSORBOARD:BOOL": "ON"
             },
             "inherits": "conan-default"
         },
@@ -32,13 +32,13 @@
             "displayName": "rl_tools: MKL, TensorBoard, HDF5, MuJoCo UI",
             "cacheVariables": {
                 "CMAKE_POLICY_DEFAULT_CMP0091": "NEW",
-                "BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
-                "BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL": "ON",
-                "BACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_HDF5:BOOL": "ON",
-                "BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_CLI11:BOOL": "ON"
+                "RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
+                "RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL": "ON",
+                "RL_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON",
+                "RL_TOOLS_ENABLE_HDF5:BOOL": "ON",
+                "RL_TOOLS_HDF5_HIGHFIVE_FROM_CONAN:BOOL": "ON",
+                "RL_TOOLS_ENABLE_TENSORBOARD:BOOL": "ON",
+                "RL_TOOLS_ENABLE_CLI11:BOOL": "ON"
             },
             "inherits": "conan-default"
         },
@@ -47,14 +47,14 @@
             "displayName": "rl_tools: MKL, TensorBoard, HDF5, MuJoCo UI, CUDA",
             "cacheVariables": {
                 "CMAKE_POLICY_DEFAULT_CMP0091": "NEW",
-                "BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
-                "BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL": "ON",
-                "BACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON",
-                "BACKPROP_TOOLS_BACKEND_ENABLE_CUDA:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_HDF5:BOOL": "ON",
-                "BACKPROP_TOOLS_HDF5_HIGHFIVE_FROM_CONAN:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL": "ON",
-                "BACKPROP_TOOLS_ENABLE_CLI11:BOOL": "ON"
+                "RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL": "ON",
+                "RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL": "ON",
+                "RL_TOOLS_BACKEND_ENABLE_MKL:BOOL": "ON",
+                "RL_TOOLS_BACKEND_ENABLE_CUDA:BOOL": "ON",
+                "RL_TOOLS_ENABLE_HDF5:BOOL": "ON",
+                "RL_TOOLS_HDF5_HIGHFIVE_FROM_CONAN:BOOL": "ON",
+                "RL_TOOLS_ENABLE_TENSORBOARD:BOOL": "ON",
+                "RL_TOOLS_ENABLE_CLI11:BOOL": "ON"
             },
             "inherits": "conan-default"
         }

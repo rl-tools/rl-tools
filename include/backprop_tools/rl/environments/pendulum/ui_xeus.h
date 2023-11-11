@@ -1,14 +1,14 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_UI_XEUS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_UI_XEUS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_UI_XEUS_H
+#define RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_UI_XEUS_H
 
 #include "xcanvas/xcanvas.hpp"
 #include <thread>
 #include <chrono>
 // #include <string>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::pendulum::ui::xeus {
     template<typename T_T, typename T_TI, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED>
     struct Specification{
@@ -36,10 +36,10 @@ namespace rl_tools::rl::environments::pendulum::ui::xeus {
         typename SPEC::T action;
     };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
     void render(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui){
@@ -114,6 +114,6 @@ namespace rl_tools{
         ui.action = get(action, 0, 0);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

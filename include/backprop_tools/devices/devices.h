@@ -1,13 +1,13 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_DEVICES_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_DEVICES_DEVICES_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_DEVICES_DEVICES_H
+#define RL_TOOLS_DEVICES_DEVICES_H
 
 #include "../rl_tools.h"
 
 #include "../utils/generic/typing.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace devices {
         struct ExecutionHints{};
@@ -35,15 +35,15 @@ namespace rl_tools {
         };
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC>
     void init(devices::Device<DEV_SPEC>& device){ };
     template <typename DEV_SPEC, typename T>
     void count_malloc(devices::Device<DEV_SPEC>& device, T){ };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

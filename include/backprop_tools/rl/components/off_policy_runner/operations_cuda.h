@@ -1,12 +1,12 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CUDA_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CUDA_H
+#define RL_TOOLS_RL_COMPONENTS_OFF_POLICY_RUNNER_OPERATIONS_CUDA_H
 
 #include "operations_generic.h"
 #include "../../../devices/dummy.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::components::off_policy_runner{
         template <typename DEVICE, typename RUNNER_SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
@@ -37,7 +37,7 @@ namespace rl_tools{
             if(batch_step_i < BATCH_SPEC::BATCH_SIZE){
                 set(batch->observations, batch_step_i, 0, get(replay_buffer.observations, batch_step_i, 0));
                 typename DEVICE::index_t sample_index_max = (replay_buffer.full ? RUNNER_SPEC::REPLAY_BUFFER_CAPACITY : replay_buffer.position);
-#ifdef BACKPROP_TOOLS_DEBUG_DEVICE_CUDA_CHECK_BOUNDS
+#ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_BOUNDS
                 if(sample_index_max < 1){
                     printf("sample_index_max: %d\n", sample_index_max);
                     assert(sample_index_max > 0);
@@ -79,7 +79,7 @@ namespace rl_tools{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             constexpr TI BLOCKSIZE_COLS = 32;
-            constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
+            constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
             prologue_kernel<<<grid, block>>>(device, runner, rng);
@@ -110,7 +110,7 @@ namespace rl_tools{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             constexpr TI BLOCKSIZE_COLS = 32;
-            constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
+            constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
             epilogue_kernel<<<grid, block>>>(device, runner, rng);
@@ -126,14 +126,14 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         constexpr TI BLOCKSIZE_COLS = 32;
-        constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(runner, batch, rng);
         check_status(device);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

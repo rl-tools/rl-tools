@@ -2,14 +2,14 @@
 #include <rl_tools/nn/operations_cpu_mux.h>
 
 #include <rl_tools/rl/environments/acrobot/operations_generic.h>
-#if BACKPROP_TOOLS_ENABLE_GTK
+#if RL_TOOLS_ENABLE_GTK
 #include <rl_tools/rl/environments/acrobot/ui.h>
 #endif
 
 #include <rl_tools/nn_models/operations_generic.h>
 
 #include <rl_tools/rl/algorithms/td3/loop.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace training_config {
     using namespace bpt::nn_models::sequential::interface; // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
@@ -24,7 +24,7 @@ namespace training_config {
         using ENV_SPEC = bpt::rl::environments::acrobot::Specification<T, TI, bpt::rl::environments::acrobot::DefaultParameters<T>>;
         using ENVIRONMENT = bpt::rl::environments::Acrobot<ENV_SPEC>;
         using ENVIRONMENT_EVALUATION = ENVIRONMENT;
-#if BACKPROP_TOOLS_ENABLE_GTK
+#if RL_TOOLS_ENABLE_GTK
 //        using UI = bpt::rl::environments::acrobot::UI<bpt::rl::environments::acrobot::ui::Specification<T, TI, ENVIRONMENT, 300, 1600, false>>;
         using UI = bool;
 #else
@@ -94,10 +94,10 @@ namespace training_config {
 
         static constexpr int N_WARMUP_STEPS_ACTOR = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr int N_WARMUP_STEPS_CRITIC = TD3_PARAMETERS::CRITIC_BATCH_SIZE;
-#ifndef BACKPROP_TOOLS_STEP_LIMIT
+#ifndef RL_TOOLS_STEP_LIMIT
         static constexpr DEVICE::index_t STEP_LIMIT = 50000; //2 * N_WARMUP_STEPS;
 #else
-        static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
+        static constexpr DEVICE::index_t STEP_LIMIT = RL_TOOLS_STEP_LIMIT;
 #endif
         static constexpr bool DETERMINISTIC_EVALUATION = false;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;

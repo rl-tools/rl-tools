@@ -1,12 +1,12 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_OPERATIONS_GENERIC_H
+#define RL_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_OPERATIONS_GENERIC_H
 
 #include "replay_buffer.h"
 #include "../../../utils/generic/memcpy.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::ReplayBuffer<SPEC>& rb) {
@@ -44,7 +44,7 @@ namespace rl_tools {
         rb.position = 0;
     }
     template <typename DEVICE, typename SPEC, typename STATE, typename OBSERVATION_SPEC, typename OBSERVATION_PRIVILEGED_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC, typename NEXT_OBSERVATION_PRIVILEGED_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const STATE& state, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const STATE& next_state, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
+    RL_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBuffer<SPEC>& buffer, const STATE& state, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const STATE& next_state, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
         // todo: change to memcpy?
         for(typename DEVICE::index_t i = 0; i < SPEC::OBSERVATION_DIM; i++) {
             set(buffer.observations, buffer.position, i, get(observation, 0, i));
@@ -67,7 +67,7 @@ namespace rl_tools {
 //        add_scalar(device, device.logger, "replay_buffer/position", (typename SPEC::T)(buffer.full ? SPEC::CAPACITY : buffer.position), 1000);
     }
     template <typename DEVICE, typename SPEC, typename STATE, typename OBSERVATION_SPEC, typename OBSERVATION_PRIVILEGED_SPEC, typename ACTION_SPEC, typename NEXT_OBSERVATION_SPEC, typename NEXT_OBSERVATION_PRIVILEGED_SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& buffer, const STATE& state, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const STATE& next_state, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
+    RL_TOOLS_FUNCTION_PLACEMENT void add(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& buffer, const STATE& state, const Matrix<OBSERVATION_SPEC>& observation, const Matrix<OBSERVATION_PRIVILEGED_SPEC>& observation_privileged, const Matrix<ACTION_SPEC>& action, const typename SPEC::T reward, const STATE& next_state, const Matrix<NEXT_OBSERVATION_SPEC>& next_observation, const Matrix<NEXT_OBSERVATION_PRIVILEGED_SPEC>& next_observation_privileged, const bool terminated, const bool truncated) {
         set(buffer.states, buffer.position, 0, state);
         set(buffer.next_states, buffer.position, 0, next_state);
         add(device, (rl::components::ReplayBuffer<typename SPEC::BASE_SPEC>&) buffer, state, observation, observation_privileged, action, reward, next_state, next_observation, next_observation_privileged, terminated, truncated);
@@ -93,7 +93,7 @@ namespace rl_tools {
         return acc;
     }
     template <typename DEVICE, typename SPEC, typename RNG>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void recalculate_rewards(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& buffer, const typename SPEC::ENVIRONMENT& env, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void recalculate_rewards(DEVICE& device, rl::components::ReplayBufferWithStates<SPEC>& buffer, const typename SPEC::ENVIRONMENT& env, RNG& rng) {
         using TI = typename DEVICE::index_t;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         using STATE = typename ENVIRONMENT::State;
@@ -107,5 +107,5 @@ namespace rl_tools {
         }
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -1,5 +1,5 @@
-#ifndef BACKPROP_TOOLS_TESTS_UTILS_NN_COMPARISON_H
-#define BACKPROP_TOOLS_TESTS_UTILS_NN_COMPARISON_H
+#ifndef RL_TOOLS_TESTS_UTILS_NN_COMPARISON_H
+#define RL_TOOLS_TESTS_UTILS_NN_COMPARISON_H
 
 //template <typename DEVICE, typename SPEC>
 //typename SPEC::T abs_diff(const rl_tools::nn::layers::dense::Layer<DEVICE, SPEC>& l1, const rl_tools::nn::layers::dense::Layer<DEVICE, SPEC>& l2) {

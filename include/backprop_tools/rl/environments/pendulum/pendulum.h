@@ -1,11 +1,11 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H
+#define RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H
 
 #include "../../../math/operations_generic.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::pendulum {
     template <typename T>
     struct DefaultParameters {
@@ -35,9 +35,9 @@ namespace rl_tools::rl::environments::pendulum {
     };
 
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments{
     template <typename T_SPEC>
     struct Pendulum{
@@ -51,7 +51,7 @@ namespace rl_tools::rl::environments{
         static constexpr TI ACTION_DIM = 1;
     };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 

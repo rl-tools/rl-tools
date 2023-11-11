@@ -1,9 +1,9 @@
-#ifndef BACKPROP_TOOLS_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
-#define BACKPROP_TOOLS_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
+#ifndef RL_TOOLS_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
+#define RL_TOOLS_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
 
 #include <rl_tools/rl/components/replay_buffer/replay_buffer.h>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::test::rl::components::replay_buffer{
     template <typename DEVICE, typename SPEC, typename RNG>
     void sample(DEVICE& device, rl_tools::rl::components::ReplayBuffer<SPEC>& rb, RNG& rng){
@@ -23,6 +23,6 @@ namespace rl_tools::test::rl::components::replay_buffer{
         rb.full = true;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

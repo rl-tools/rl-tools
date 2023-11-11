@@ -4,7 +4,7 @@
 #include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/containers/persist.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <random>
 #include <chrono>
@@ -45,7 +45,7 @@ using NETWORK_TYPE = mnist_model::MODEL;
 
 int main(){
     std::string dataset_path = "examples/docker/00_basic_mnist/mnist.hdf5";
-    const char* dataset_path_env = std::getenv("BACKPROP_TOOLS_NN_MNIST_DATA_FILE");
+    const char* dataset_path_env = std::getenv("RL_TOOLS_NN_MNIST_DATA_FILE");
     if (dataset_path_env != NULL){
         dataset_path = std::string(dataset_path_env);
     }

@@ -8,13 +8,13 @@ target_link_libraries(
         PRIVATE
         rl_tools
 )
-target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
-target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
-target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_td3_training_standalone)
+target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
+target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE RL_TOOLS_DISABLE_HDF5)
+target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+RL_TOOLS_INSTALL(rl_environments_pendulum_td3_training_standalone)
 
 # RL Algorithm td3 test full training blas
-if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
+if(RL_TOOLS_BACKEND_ENABLE_BLAS)
 add_executable(
         rl_environments_pendulum_td3_training_blas
         standalone.cpp
@@ -24,13 +24,13 @@ target_link_libraries(
         PRIVATE
         rl_tools
 )
-target_compile_definitions(rl_environments_pendulum_td3_training_blas PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
-target_compile_definitions(rl_environments_pendulum_td3_training_blas PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas)
+target_compile_definitions(rl_environments_pendulum_td3_training_blas PRIVATE RL_TOOLS_DISABLE_HDF5)
+target_compile_definitions(rl_environments_pendulum_td3_training_blas PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+RL_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas)
 endif()
 
 # RL Algorithm td3 test full training benchmark (disabling evaluation)
-if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
+if(RL_TOOLS_BACKEND_ENABLE_BLAS)
 add_executable(
         rl_environments_pendulum_td3_training_blas_benchmark
         standalone.cpp
@@ -40,13 +40,13 @@ target_link_libraries(
         PRIVATE
         rl_tools
 )
-target_compile_definitions(rl_environments_pendulum_td3_training_blas_benchmark PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-target_compile_definitions(rl_environments_pendulum_td3_training_blas_benchmark PRIVATE BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_DISABLE_EVALUATION)
-BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas_benchmark)
+target_compile_definitions(rl_environments_pendulum_td3_training_blas_benchmark PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+target_compile_definitions(rl_environments_pendulum_td3_training_blas_benchmark PRIVATE RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_DISABLE_EVALUATION)
+RL_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas_benchmark)
 endif()
 
 # RL Algorithm td3 test full training tensorboard
-if(BACKPROP_TOOLS_ENABLE_TENSORBOARD AND BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
+if(RL_TOOLS_ENABLE_TENSORBOARD AND RL_TOOLS_BACKEND_ENABLE_BLAS)
 add_executable(
         rl_environments_pendulum_td3_training_blas_tensorboard
         standalone.cpp
@@ -56,5 +56,5 @@ target_link_libraries(
         PRIVATE
         rl_tools
 )
-BACKPROP_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas_tensorboard)
+RL_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas_tensorboard)
 endif()

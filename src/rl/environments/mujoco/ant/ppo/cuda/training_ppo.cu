@@ -1,21 +1,21 @@
-#define BACKPROP_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
+#define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 // -------------- added for cuda training ----------------
 #include <rl_tools/nn/optimizers/adam/operations_cuda.h>
 // -------------------------------------------------------
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_cpu.h>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn_models/persist.h>
 #endif
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 // --------------- changed for cuda training -----------------
 #include "../parameters.h"
 // -------------------------------------------------------
-#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
+#if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
+#if defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
@@ -29,16 +29,16 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <rl_tools/rl/algorithms/ppo/operations_generic_extensions.h>
 // -------------------------------------------------------
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/rl/components/running_normalizer/persist.h>
 #endif
 #include <rl_tools/rl/utils/evaluation.h>
 
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <highfive/H5File.hpp>
 #endif
 
-#if defined(BACKPROP_TOOLS_ENABLE_CLI11) && !defined(BACKPROP_TOOLS_DISABLE_CLI11)
+#if defined(RL_TOOLS_ENABLE_CLI11) && !defined(RL_TOOLS_DISABLE_CLI11)
 #include <CLI/CLI.hpp>
 #endif
 
@@ -48,7 +48,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace parameters = parameters_0;
 
-#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
 using LOGGER = bpt::devices::logging::CPU_TENSORBOARD<>;
 #else
 using LOGGER = bpt::devices::logging::CPU;
@@ -73,13 +73,13 @@ using TI = typename DEVICE::index_t;
 
 
 constexpr TI BASE_SEED = 600;
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 #else
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
 #endif
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
+#if !defined(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
 constexpr bool ENABLE_EVALUATION = true;
 #else
 constexpr bool ENABLE_EVALUATION = false;
@@ -104,7 +104,7 @@ int main(int argc, char** argv){
     std::string actor_checkpoints_dir_stub = "checkpoints";
     std::string logs_dir = "logs";
     TI job_seed = 0;
-#if defined(BACKPROP_TOOLS_ENABLE_CLI11) && !defined(BACKPROP_TOOLS_DISABLE_CLI11)
+#if defined(RL_TOOLS_ENABLE_CLI11) && !defined(RL_TOOLS_DISABLE_CLI11)
     {
         CLI::App app;
         app.add_option("--checkpoints", actor_checkpoints_dir_stub, "path to the checkpoint directory");
@@ -252,7 +252,7 @@ int main(int argc, char** argv){
             // -------------- added for cuda training ----------------
             bpt::copy(device_gpu, device, ppo_gpu, ppo);
             // -------------------------------------------------------
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
             if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
                 std::filesystem::path actor_output_dir = std::filesystem::path(actor_checkpoints_dir) / run_name;
                 try {

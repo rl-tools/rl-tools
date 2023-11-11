@@ -3,7 +3,7 @@
 #include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
 #include <rl_tools/rl/environments/mujoco/ant/ui.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <chrono>
 #include <iostream>
@@ -20,7 +20,7 @@ namespace TEST_DEFINITIONS{
 }
 
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;

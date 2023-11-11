@@ -1,14 +1,14 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_MODELS_MLP_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_MLP_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_MODELS_MLP_OPERATIONS_GENERIC_H
+#define RL_TOOLS_NN_MODELS_MLP_OPERATIONS_GENERIC_H
 
 #include "../../nn_models/mlp/network.h"
 #include "../../nn/operations_generic.h"
 #include "../../nn/parameters/operations_generic.h"
 #include "../../nn/optimizers/adam/operations_generic.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network) {
@@ -99,7 +99,7 @@ namespace rl_tools {
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = typename MODEL_SPEC::T;
         using TICK_TOCK_SPEC = matrix::Specification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>;
-#ifndef BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+#ifndef RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
         MatrixDynamic<TICK_TOCK_SPEC> layer_output_tick;
         MatrixDynamic<TICK_TOCK_SPEC> layer_output_tock;
 #else
@@ -319,6 +319,6 @@ namespace rl_tools {
         copy(source_device, target_device, source.tock, target.tock);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

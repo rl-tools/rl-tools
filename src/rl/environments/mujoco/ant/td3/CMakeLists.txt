@@ -10,12 +10,12 @@ target_link_libraries(
         rl_tools
         Threads::Threads
 )
-target_compile_definitions(rl_environments_mujoco_ant_training_td3_standalone PRIVATE BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
-target_compile_definitions(rl_environments_mujoco_ant_training_td3_standalone PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
-target_compile_definitions(rl_environments_mujoco_ant_training_td3_standalone PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)
-BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_training_td3_standalone)
+target_compile_definitions(rl_environments_mujoco_ant_training_td3_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
+target_compile_definitions(rl_environments_mujoco_ant_training_td3_standalone PRIVATE RL_TOOLS_DISABLE_HDF5)
+target_compile_definitions(rl_environments_mujoco_ant_training_td3_standalone PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_td3_standalone)
 
-if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS AND BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPROP_TOOLS_ENABLE_TENSORBOARD)
+if(RL_TOOLS_BACKEND_ENABLE_BLAS AND RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_ENABLE_TENSORBOARD)
 add_executable(
         rl_environments_mujoco_ant_training_td3_blas
         standalone.cpp
@@ -25,5 +25,5 @@ target_link_libraries(
         PRIVATE
         rl_tools
 )
-BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_training_td3_blas)
+RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_td3_blas)
 endif()

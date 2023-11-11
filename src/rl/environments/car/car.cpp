@@ -2,14 +2,14 @@
 #include <rl_tools/nn/operations_cpu_mux.h>
 
 #include <rl_tools/rl/environments/car/operations_cpu.h>
-#if BACKPROP_TOOLS_ENABLE_GTK
+#if RL_TOOLS_ENABLE_GTK
 #include <rl_tools/rl/environments/car/ui.h>
 #endif
 
 #include <rl_tools/nn_models/operations_generic.h>
 
 #include <rl_tools/rl/algorithms/td3/loop.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace training_config {
     using namespace bpt::nn_models::sequential::interface; // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
@@ -23,7 +23,7 @@ namespace training_config {
         using ENV_SPEC = bpt::rl::environments::car::SpecificationTrack<T, TI, 100, 100, 20>;
         using ENVIRONMENT = bpt::rl::environments::CarTrack<ENV_SPEC>;
         using ENVIRONMENT_EVALUATION = ENVIRONMENT;
-#if BACKPROP_TOOLS_ENABLE_GTK
+#if RL_TOOLS_ENABLE_GTK
         using UI = bpt::rl::environments::car::UI<bpt::rl::environments::car::ui::Specification<T, TI, ENVIRONMENT, 1000, 60>>;
 #else
         using UI = bool;
@@ -88,10 +88,10 @@ namespace training_config {
 
         static constexpr int N_WARMUP_STEPS_ACTOR = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr int N_WARMUP_STEPS_CRITIC = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-#ifndef BACKPROP_TOOLS_STEP_LIMIT
+#ifndef RL_TOOLS_STEP_LIMIT
         static constexpr TI STEP_LIMIT = 500000000; //2 * N_WARMUP_STEPS;
 #else
-        static constexpr TI STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
+        static constexpr TI STEP_LIMIT = RL_TOOLS_STEP_LIMIT;
 #endif
         static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr TI NUM_EVALUATION_EPISODES = 10;

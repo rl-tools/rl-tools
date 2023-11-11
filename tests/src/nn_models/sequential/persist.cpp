@@ -3,7 +3,7 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
 #include <rl_tools/nn_models/sequential/persist.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 
 using T = float;
@@ -22,7 +22,7 @@ namespace MODEL_1{
     using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
 }
 
-TEST(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load) {
+TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load) {
     using MODEL = MODEL_1::MODEL;
 
     DEVICE device;

@@ -3,10 +3,10 @@
 
 #include <gtest/gtest.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, SLICE){
+TEST(RL_TOOLS_TEST_CONTAINER, SLICE){
     using DEVICE = bpt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
@@ -79,7 +79,7 @@ void test_view(){
     bpt::free(device, m_dense);
 
 }
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, VIEW) {
+TEST(RL_TOOLS_TEST_CONTAINER, VIEW) {
     test_view<10, 10, 10, 1, 5, 5>();
     test_view<10, 10, 20, 2, 5, 5>();
     test_view<15, 13, 100, 3, 3, 2>();
@@ -120,7 +120,7 @@ void test_view_col(){
 
 }
 
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, VIEW_ROW_COL) {
+TEST(RL_TOOLS_TEST_CONTAINER, VIEW_ROW_COL) {
     test_view_col<10, 10, 10, 1>();
     test_view_col<10, 10, 20, 2>();
     test_view_col<15, 13, 100, 3>();
@@ -148,7 +148,7 @@ void test_is_nan(){
     bpt::free(device, m);
 }
 
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, IS_NAN) {
+TEST(RL_TOOLS_TEST_CONTAINER, IS_NAN) {
     test_is_nan<10, 10, 10, 1>();
     test_is_nan<10, 10, 20, 2>();
     test_is_nan<15, 13, 100, 3>();
@@ -181,14 +181,14 @@ void test_is_finite(){
     bpt::free(device, m);
 }
 
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, IS_FINITE) {
+TEST(RL_TOOLS_TEST_CONTAINER, IS_FINITE) {
     test_is_finite<10, 10, 10, 1>();
     test_is_finite<10, 10, 20, 2>();
     test_is_finite<15, 13, 100, 3>();
     test_is_finite<15, 13, 3, 100>();
 }
 
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, WRAP) {
+TEST(RL_TOOLS_TEST_CONTAINER, WRAP) {
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -203,7 +203,7 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, WRAP) {
     }
 }
 
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, MIN_DETERMINISTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, MIN_DETERMINISTIC) {
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -216,7 +216,7 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, MIN_DETERMINISTIC) {
     ASSERT_FLOAT_EQ(min, 1);
 }
 
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, MAX_DETERMINISTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, MAX_DETERMINISTIC) {
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -249,7 +249,7 @@ void test_max_stochastic(){
         }
     }
 }
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, MAX_STOCHASTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, MAX_STOCHASTIC) {
     test_max_stochastic<10, 10>();
     test_max_stochastic<10, 1000>();
     test_max_stochastic<1, 1>();
@@ -257,7 +257,7 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, MAX_STOCHASTIC) {
     test_max_stochastic<10, 1>();
 }
 
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, ARGMAX_DETERMINISTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, ARGMAX_DETERMINISTIC) {
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -305,7 +305,7 @@ void test_argmax_stochastic(){
         }
     }
 }
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, ARGMAX_STOCHASTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, ARGMAX_STOCHASTIC) {
     test_argmax_stochastic<10, 10>();
     test_argmax_stochastic<10, 1000>();
     test_argmax_stochastic<1, 1>();
@@ -314,7 +314,7 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, ARGMAX_STOCHASTIC) {
 }
 
 
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_GENERIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_GENERIC) {
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -347,10 +347,10 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_GENERIC) {
     ASSERT_TRUE(diff < 1e-6);
 }
 
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#define BACKPROP_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
+#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
+#define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 #include <rl_tools/operations/cpu_mkl.h>
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL) {
+TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL) {
     using DEVICE = bpt::devices::DefaultCPU_MKL;
     using T = float;
     using TI = DEVICE::index_t;
@@ -384,10 +384,10 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL) {
 }
 #endif
 
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_OPENBLAS
-#define BACKPROP_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
+#ifdef RL_TOOLS_BACKEND_ENABLE_OPENBLAS
+#define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 #include <rl_tools/operations/cpu_openblas.h>
-TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_OPENBLAS) {
+TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_OPENBLAS) {
     using DEVICE = bpt::devices::DefaultCPU_OPENBLAS;
     using T = float;
     using TI = DEVICE::index_t;

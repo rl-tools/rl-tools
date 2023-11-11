@@ -2,7 +2,7 @@ constexpr bool test_full_network = true;
 //constexpr bool test_full_network = false;
 constexpr bool test_first_layer = true;
 //constexpr bool test_first_layer = false;
-#define BACKPROP_TOOLS_FUNCTION_PLACEMENT __device__ __host__
+#define RL_TOOLS_FUNCTION_PLACEMENT __device__ __host__
 
 // Group 1
 #include <rl_tools/devices/cpu.h>
@@ -34,11 +34,11 @@ constexpr bool test_first_layer = true;
 #include <chrono>
 #include <highfive/H5File.hpp>
 
-#ifdef BACKPROP_TOOLS_TESTS_NN_CUDA_ENABLE_CUTLASS
+#ifdef RL_TOOLS_TESTS_NN_CUDA_ENABLE_CUTLASS
 #include "cutlass/gemm/device/gemm.h"
 #endif
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DTYPE = double;
 
@@ -65,7 +65,7 @@ DEVICE_CUDA::SPEC::LOGGING logger_cuda;
 DEVICE_CUDA device_cuda(logger_cuda);
 NetworkType_CUDA network_cuda;
 
-//TEST(BACKPROP_TOOLS_NN_MLP_CUDA, FULL_TRAINING) {
+//TEST(RL_TOOLS_NN_MLP_CUDA, FULL_TRAINING) {
 int main(){
 
     bpt::malloc(device_cpu, network_cpu);
@@ -151,7 +151,7 @@ int main(){
 
 
 
-#ifdef BACKPROP_TOOLS_TESTS_NN_CUDA_ENABLE_CUTLASS
+#ifdef RL_TOOLS_TESTS_NN_CUDA_ENABLE_CUTLASS
     // Speed tests CUTLASS
     {
         constexpr unsigned M = NETWORK_SPEC_CPU::STRUCTURE_SPEC::OUTPUT_DIM;

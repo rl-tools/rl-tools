@@ -8,12 +8,12 @@
 #include <rl_tools/rl/algorithms/td3/operations_generic.h>
 
 
-#ifndef BACKPROP_TOOLS_BENCHMARK
+#ifndef RL_TOOLS_BENCHMARK
 #include <rl_tools/rl/utils/evaluation.h>
 #include <chrono>
 #endif
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 struct TrainingConfig{
@@ -57,10 +57,10 @@ struct TrainingConfig{
 
 
     static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-#ifndef BACKPROP_TOOLS_STEP_LIMIT
+#ifndef RL_TOOLS_STEP_LIMIT
     static constexpr DEVICE::index_t STEP_LIMIT = 100000; //2 * N_WARMUP_STEPS;
 #else
-    static constexpr DEVICE::index_t STEP_LIMIT = BACKPROP_TOOLS_STEP_LIMIT;
+    static constexpr DEVICE::index_t STEP_LIMIT = RL_TOOLS_STEP_LIMIT;
 #endif
     static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
     static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
@@ -111,11 +111,11 @@ template <typename TRAINING_CONFIG>
 struct TrainingState: CoreTrainingState<TRAINING_CONFIG>{
     using T = typename TRAINING_CONFIG::DTYPE;
     using TI = typename TRAINING_CONFIG::DEVICE::index_t;
-#ifndef BACKPROP_TOOLS_BENCHMARK
+#ifndef RL_TOOLS_BENCHMARK
     std::chrono::high_resolution_clock::time_point start_time;
 #endif
     TI step = 0;
-#ifndef BACKPROP_TOOLS_BENCHMARK
+#ifndef RL_TOOLS_BENCHMARK
     static constexpr TI N_EVALUATIONS = TRAINING_CONFIG::STEP_LIMIT / TRAINING_CONFIG::EVALUATION_INTERVAL;
     static_assert(N_EVALUATIONS > 0 && N_EVALUATIONS < 1000000);
     T evaluation_returns[N_EVALUATIONS];
@@ -156,7 +156,7 @@ void training_init(TRAINING_STATE& ts, typename TRAINING_STATE::TRAINING_CONFIG:
     bpt::set_all(ts.device, ts.observations_std, 1);
 
 
-#ifndef BACKPROP_TOOLS_BENCHMARK
+#ifndef RL_TOOLS_BENCHMARK
     ts.start_time = std::chrono::high_resolution_clock::now();
 #endif
     ts.step = 0;
@@ -180,7 +180,7 @@ bool training_step(TRAINING_STATE& ts){
     bool finished = false;
     using TRAINING_CONFIG = typename TRAINING_STATE::TRAINING_CONFIG;
     bpt::step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-#ifndef BACKPROP_TOOLS_BENCHMARK
+#ifndef RL_TOOLS_BENCHMARK
     if(ts.step % 1000 == 0){
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - ts.start_time;
@@ -205,7 +205,7 @@ bool training_step(TRAINING_STATE& ts){
             bpt::update_actor_target(ts.device, ts.actor_critic);
         }
     }
-#ifndef BACKPROP_TOOLS_BENCHMARK
+#ifndef RL_TOOLS_BENCHMARK
     if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
         auto result = bpt::evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, bpt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, true);
         std::cout << "Mean return: " << result.returns_mean << std::endl;
@@ -214,7 +214,7 @@ bool training_step(TRAINING_STATE& ts){
 #endif
     ts.step++;
     if(ts.step > TRAINING_CONFIG::STEP_LIMIT){
-#ifndef BACKPROP_TOOLS_BENCHMARK
+#ifndef RL_TOOLS_BENCHMARK
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - ts.start_time;
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;

@@ -1,17 +1,17 @@
 #include "../../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_OPERATIONS_CPU_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_OPERATIONS_CPU_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_OPERATIONS_CPU_H
+#define RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_OPERATIONS_CPU_H
 
 #include "ant.h"
 #include "../../operations_generic.h"
 #include <cstring>
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::mujoco::ant{
     #include "model.h"
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env) {
@@ -28,7 +28,7 @@ namespace rl_tools{
             mj_deleteFileVFS(vfs, "model.xml");
             delete vfs;
         }
-#ifdef BACKPROP_TOOLS_DEBUG_RL_ENVIRONMENTS_MUJOCO_CHECK_INIT
+#ifdef RL_TOOLS_DEBUG_RL_ENVIRONMENTS_MUJOCO_CHECK_INIT
         utils::assert_exit(device, env.model != nullptr, error);
 #endif
         env.data = mj_makeData(env.model);
@@ -136,5 +136,5 @@ namespace rl_tools{
         return env.last_terminated;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

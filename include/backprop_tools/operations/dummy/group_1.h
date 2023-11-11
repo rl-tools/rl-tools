@@ -1,9 +1,9 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_OPERATIONS_DUMMY_GROUP_1_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_OPERATIONS_DUMMY_GROUP_1_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_OPERATIONS_DUMMY_GROUP_1_H
-#if defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_OPERATIONS_DUMMY_GROUP_1)
-    #define BACKPROP_TOOLS_OPERATIONS_DUMMY_GROUP_1
+#define RL_TOOLS_OPERATIONS_DUMMY_GROUP_1_H
+#if defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_OPERATIONS_DUMMY_GROUP_1)
+    #define RL_TOOLS_OPERATIONS_DUMMY_GROUP_1
     #include "../../devices/dummy.h"
     #include "../../math/operations_dummy.h"
     #include "../../random/operations_dummy.h"

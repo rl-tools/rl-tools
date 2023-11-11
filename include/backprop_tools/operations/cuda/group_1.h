@@ -1,11 +1,11 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_OPERATIONS_CUDA_GROUP_1_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_OPERATIONS_CUDA_GROUP_1_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_OPERATIONS_CUDA_GROUP_1_H
-#if defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_OPERATIONS_CUDA_GROUP_1)
-    #define BACKPROP_TOOLS_OPERATIONS_CUDA_GROUP_1
-    #define BACKPROP_TOOLS_FUNCTION_PLACEMENT __device__ __host__
-    #define BACKPROP_TOOLS_DEVICES_CUDA_CEIL(A, B) (A / B + (A % B == 0 ? 0 : 1))
+#define RL_TOOLS_OPERATIONS_CUDA_GROUP_1_H
+#if defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_OPERATIONS_CUDA_GROUP_1)
+    #define RL_TOOLS_OPERATIONS_CUDA_GROUP_1
+    #define RL_TOOLS_FUNCTION_PLACEMENT __device__ __host__
+    #define RL_TOOLS_DEVICES_CUDA_CEIL(A, B) (A / B + (A % B == 0 ? 0 : 1))
 
     #include "../../devices/cuda.h"
     #include "../../math/operations_cuda.h"

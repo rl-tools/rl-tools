@@ -1,12 +1,12 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_UTILS_VALIDATION_ANALYSIS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_UTILS_VALIDATION_ANALYSIS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_UTILS_VALIDATION_ANALYSIS_H
+#define RL_TOOLS_RL_UTILS_VALIDATION_ANALYSIS_H
 
 #include <string>
 #include <vector>
 #include "../../utils/generic/typing.h"
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::utils::validation{
         template <typename DEVICE, typename SPEC, typename CONTENT, typename NEXT_COMPONENT>

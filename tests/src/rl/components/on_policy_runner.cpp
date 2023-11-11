@@ -6,13 +6,13 @@
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/persist.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 #include <gtest/gtest.h>
 
 
-TEST(BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
+TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
     using DEVICE = bpt::devices::DefaultCPU;
     using T = float;
     using TI = typename DEVICE::index_t;

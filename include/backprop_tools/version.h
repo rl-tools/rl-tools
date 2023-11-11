@@ -1,20 +1,20 @@
-#if !defined(BACKPROP_TOOLS_COMMIT_HASH)
-#pragma message "BACKPROP_TOOLS_COMMIT_HASH and BACKPROP_TOOLS_COMMIT_HASH_SHORT are not passed by the build system"
+#if !defined(RL_TOOLS_COMMIT_HASH)
+#pragma message "RL_TOOLS_COMMIT_HASH and RL_TOOLS_COMMIT_HASH_SHORT are not passed by the build system"
 // Note that this commit hash will always be delayed
-#define BACKPROP_TOOLS_COMMIT_HASH 111f0b82ba87ee4f1938f4d85ee2d266e70f4498
-#define BACKPROP_TOOLS_COMMIT_HASH_SHORT 1122059 // decimal of the first 24 bits of the commit hash: julia -e 'println(parse(Int, "111f0b", base=16))'
+#define RL_TOOLS_COMMIT_HASH 111f0b82ba87ee4f1938f4d85ee2d266e70f4498
+#define RL_TOOLS_COMMIT_HASH_SHORT 1122059 // decimal of the first 24 bits of the commit hash: julia -e 'println(parse(Int, "111f0b", base=16))'
 #endif
 
-#define BACKPROP_TOOLS_STRINGIFY_INNER(x) #x
-#define BACKPROP_TOOLS_STRINGIFY(x) BACKPROP_TOOLS_STRINGIFY_INNER(x)
+#define RL_TOOLS_STRINGIFY_INNER(x) #x
+#define RL_TOOLS_STRINGIFY(x) RL_TOOLS_STRINGIFY_INNER(x)
 
-#if (defined(BACKPROP_TOOLS_TARGET_COMMIT_HASH) && !defined(BACKPROP_TOOLS_TARGET_COMMIT_HASH_SHORT)) || (!defined(BACKPROP_TOOLS_TARGET_COMMIT_HASH) && defined(BACKPROP_TOOLS_TARGET_COMMIT_HASH_SHORT))
-#error "BACKPROP_TOOLS_TARGET_COMMIT_HASH and BACKPROP_TOOLS_TARGET_COMMIT_HASH_SHORT must be defined together"
+#if (defined(RL_TOOLS_TARGET_COMMIT_HASH) && !defined(RL_TOOLS_TARGET_COMMIT_HASH_SHORT)) || (!defined(RL_TOOLS_TARGET_COMMIT_HASH) && defined(RL_TOOLS_TARGET_COMMIT_HASH_SHORT))
+#error "RL_TOOLS_TARGET_COMMIT_HASH and RL_TOOLS_TARGET_COMMIT_HASH_SHORT must be defined together"
 #endif
 
-#if defined(BACKPROP_TOOLS_TARGET_COMMIT_HASH_SHORT) && BACKPROP_TOOLS_COMMIT_HASH_SHORT != BACKPROP_TOOLS_TARGET_COMMIT_HASH_SHORT
-#pragma message "Discarding rl_tools commit " BACKPROP_TOOLS_STRINGIFY(BACKPROP_TOOLS_COMMIT_HASH) " because it does not match the target commit " BACKPROP_TOOLS_STRINGIFY(BACKPROP_TOOLS_TARGET_COMMIT_HASH)
-#define BACKPROP_TOOLS_USE_THIS_VERSION 0
+#if defined(RL_TOOLS_TARGET_COMMIT_HASH_SHORT) && RL_TOOLS_COMMIT_HASH_SHORT != RL_TOOLS_TARGET_COMMIT_HASH_SHORT
+#pragma message "Discarding rl_tools commit " RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) " because it does not match the target commit " RL_TOOLS_STRINGIFY(RL_TOOLS_TARGET_COMMIT_HASH)
+#define RL_TOOLS_USE_THIS_VERSION 0
 #else
-#define BACKPROP_TOOLS_USE_THIS_VERSION 1
+#define RL_TOOLS_USE_THIS_VERSION 1
 #endif

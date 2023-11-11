@@ -34,9 +34,9 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
-class BACKPROP_TOOLS_RL_CUDA : public ::testing::Test {
+class RL_TOOLS_RL_CUDA : public ::testing::Test {
 public:
     using DEVICE_CPU = bpt::devices::DefaultCPU_MKL;
     using DEVICE_GPU = bpt::devices::DefaultCUDA;
@@ -174,7 +174,7 @@ protected:
     }
 };
 
-TEST_F(BACKPROP_TOOLS_RL_CUDA, VIEW_COPY_PROBLEM) {
+TEST_F(RL_TOOLS_RL_CUDA, VIEW_COPY_PROBLEM) {
 
     auto rng_cpu = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = bpt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
@@ -190,7 +190,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, VIEW_COPY_PROBLEM) {
     ASSERT_LT(bpt::sum(device_cpu, batch_cpu_2.actions), EPSILON);
 }
 
-TEST_F(BACKPROP_TOOLS_RL_CUDA, GATHER_BATCH) {
+TEST_F(RL_TOOLS_RL_CUDA, GATHER_BATCH) {
 
     auto rng_cpu = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = bpt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
@@ -219,7 +219,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, GATHER_BATCH) {
     abs_diff_batch += bpt::abs_diff(device_cpu, batch_cpu.truncated, batch_cpu_2.truncated);
     ASSERT_FLOAT_EQ(abs_diff_batch, 0);
 }
-TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
+TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
     constexpr DEVICE_CPU::index_t N_STEPS = 5;
 
     auto rng_cpu = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
@@ -367,7 +367,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
 }
 
-TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
+TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
     constexpr DEVICE_CPU::index_t N_STEPS = 50;
 
     auto rng_cpu = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
@@ -432,7 +432,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
     }
 }
 
-TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
+TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
     using DEVICE_MKL = bpt::devices::DefaultCPU_MKL;
     DEVICE_MKL device_mkl;
     constexpr DEVICE_CPU::index_t N_STEPS = 10000;
@@ -494,7 +494,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
     }
 }
 
-TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
+TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
     constexpr DEVICE_CPU::index_t N_STEPS = 50;
     auto rng_cpu = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = bpt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
@@ -524,7 +524,7 @@ TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
 
 }
 
-TEST_F(BACKPROP_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
+TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
     constexpr DEVICE_CPU::index_t N_STEPS = 10000;
     auto rng_cpu = bpt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = bpt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());

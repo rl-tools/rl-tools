@@ -1,13 +1,13 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_H
+#define RL_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_H
 
 #include "ppo.h"
 #include "../../../nn/loss_functions/mse/operations_generic.h"
 #include "../../../rl/components/on_policy_runner/on_policy_runner.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
@@ -37,7 +37,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
     void init(DEVICE& device, rl::algorithms::PPO<SPEC>& ppo, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, RNG& rng){
-#ifdef BACKPROP_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
+#ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         ppo.initialized = true;
 #endif
         init_weights(device, ppo.actor, rng);
@@ -64,7 +64,7 @@ namespace rl_tools{
                 TI pos = step_backward_i * OPR_SPEC::N_ENVIRONMENTS + env_i;
                 bool terminated = get(dataset.terminated, pos, 0);
                 bool truncated = get(dataset.truncated, pos, 0);
-#ifdef BACKPROP_TOOLS_DEBUG_RL_ALGORITHMS_PPO_GAE_CHECK_TERMINATED_TRUNCATED
+#ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_GAE_CHECK_TERMINATED_TRUNCATED
                 utils::assert_exit(device, !terminated || terminated && truncated, "terminationn should imply truncation");
 #endif
                 T current_step_value = get(dataset.values, pos, 0);
@@ -89,7 +89,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
     void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template DoubleBuffer<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template DoubleBuffer<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
-#ifdef BACKPROP_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
+#ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif
         using T = typename PPO_SPEC::T;
@@ -265,11 +265,11 @@ namespace rl_tools{
     void copy(DEVICE_SOURCE& device_source, DEVICE_TARGET& device_target, const rl::algorithms::PPO<PPO_SPEC>& source, rl::algorithms::PPO<PPO_SPEC>& target){
         copy(device_source, device_target, source.actor, target.actor);
         copy(device_source, device_target, source.critic, target.critic);
-#ifdef BACKPROP_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
+#ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         target.initialized = source.initialized;
 #endif
     }
 
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

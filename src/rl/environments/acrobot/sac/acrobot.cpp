@@ -2,14 +2,14 @@
 #include <rl_tools/nn/operations_cpu_mux.h>
 
 #include <rl_tools/rl/environments/acrobot/operations_generic.h>
-#if BACKPROP_TOOLS_ENABLE_GTK
+#if RL_TOOLS_ENABLE_GTK
 #include <rl_tools/rl/environments/acrobot/ui.h>
 #endif
 
 #include <rl_tools/nn_models/operations_generic.h>
 
 #include <rl_tools/rl/algorithms/sac/loop.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace training_config{
     using namespace bpt::nn_models::sequential::interface;

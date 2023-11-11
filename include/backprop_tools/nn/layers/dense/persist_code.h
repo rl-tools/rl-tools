@@ -1,14 +1,14 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H
+#define RL_TOOLS_NN_LAYERS_DENSE_PERSIST_CODE_H
 #include "layer.h"
 #include "../../../containers/persist_code.h"
 #include <sstream>
 #include "../../../persist/code.h"
 #include "../../../containers/persist_code.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace nn::layers::dense::persist{
         template<nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
@@ -21,15 +21,15 @@ namespace rl_tools {
                           ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::SIGMOID);
 
             if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::IDENTITY){
-                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::IDENTITY";
+                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::IDENTITY";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
-                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::RELU";
+                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::RELU";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::TANH){
-                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::TANH";
+                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::TANH";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::FAST_TANH){
-                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::FAST_TANH";
+                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::FAST_TANH";
             } else if constexpr (ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::SIGMOID){
-                return "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::SIGMOID";
+                return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::activation_functions::ActivationFunction::SIGMOID";
             }
         }
     }
@@ -53,7 +53,7 @@ namespace rl_tools {
         auto biases = save_split(device, layer.biases, "biases", const_declaration, indent+1);
         ss_header << biases.header;
         ss << biases.body;
-        ss << ind << "    using SPEC = " << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Specification<"
+        ss << ind << "    using SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Specification<"
             << containers::persist::get_type_string<typename SPEC::T>() << ", "
             << containers::persist::get_type_string<typename SPEC::TI>() << ", "
             << SPEC::INPUT_DIM << ", "
@@ -62,11 +62,11 @@ namespace rl_tools {
             << get_type_string(typename SPEC::PARAMETER_TYPE{}) << ", "
             << 1 << ", "
             << get_type_string_tag(device, typename SPEC::PARAMETER_GROUP{}) << ", "
-            << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag" << ", "
+            << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag" << ", "
             << "true, "
-            << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
+            << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
             << ">; \n";
-        ss << ind << "    " << "using TYPE = BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Layer<SPEC>;";
+        ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Layer<SPEC>;";
         ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE layer = {weights::parameters, biases::parameters};\n";
         ss << ind << "}\n";
 
@@ -78,6 +78,6 @@ namespace rl_tools {
         return code.header + code.body;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

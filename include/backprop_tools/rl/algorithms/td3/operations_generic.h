@@ -1,7 +1,7 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H
+#define RL_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H
 
 #include "td3.h"
 
@@ -13,7 +13,7 @@
 #include "../../../math/operations_generic.h"
 #include "../../../utils/generic/memcpy.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
@@ -288,6 +288,6 @@ namespace rl_tools{
         copy(source_device, target_device, source.next_state_action_value_critic_2, target.next_state_action_value_critic_2);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

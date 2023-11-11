@@ -1,13 +1,13 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_ARM_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_DEVICES_ARM_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_DEVICES_ARM_H
+#define RL_TOOLS_DEVICES_ARM_H
 
 #include "../utils/generic/typing.h"
 #include "devices.h"
 
 #include <cstddef>
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace arm{
         template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
@@ -46,7 +46,7 @@ namespace rl_tools::devices{
         typename SPEC::MATH math;
         typename SPEC::RANDOM random;
         typename SPEC::LOGGING* logger = nullptr;
-#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
+#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;
 #endif
     };
@@ -63,17 +63,17 @@ namespace rl_tools::devices{
     using DefaultARMSpecification = arm::Specification<math::ARM, random::ARM, logging::ARM>;
     using DefaultARM = arm::OPT<DefaultARMSpecification>;
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
+#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::ARM<DEV_SPEC>& device, TI size){
         device.malloc_counter += size;
     }
 #endif
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

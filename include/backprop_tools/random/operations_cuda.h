@@ -1,14 +1,14 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_UTILS_RANDOM_OPERATIONS_CUDA_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_CUDA_H
+#define RL_TOOLS_UTILS_RANDOM_OPERATIONS_CUDA_H
 
 
 #include "../utils/generic/typing.h"
 
 #include <curand_kernel.h>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
     namespace cuda{
         using RNG = unsigned int; // actually the seed
@@ -23,7 +23,7 @@ namespace rl_tools::random{
 
 
     template<typename T, typename RNG>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT T uniform_real_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
         static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>, "Only float and double are supported");
         if constexpr(utils::typing::is_same_v<T, float>){
             return curand_uniform(&rng) * (high - low) + low;
@@ -36,13 +36,13 @@ namespace rl_tools::random{
         return 0;
     }
     template<typename T, typename RNG>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
         auto r = uniform_real_distribution(dev, low, high, rng);
         return (T)r;
     }
     namespace normal_distribution{
         template<typename T, typename RNG>
-        BACKPROP_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::CUDA& dev, T mean, T std, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::CUDA& dev, T mean, T std, RNG& rng){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
             if constexpr(utils::typing::is_same_v<T, float>){
                 return curand_normal(&rng) * std + mean;
@@ -57,7 +57,7 @@ namespace rl_tools::random{
             }
         }
         template<typename DEVICE, typename T>
-        BACKPROP_TOOLS_FUNCTION_PLACEMENT T log_prob(const devices::random::CUDA& dev, T mean, T log_std, T value){
+        RL_TOOLS_FUNCTION_PLACEMENT T log_prob(const devices::random::CUDA& dev, T mean, T log_std, T value){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
             T neg_log_sqrt_pi = -0.5 * math::log(typename DEVICE::SPEC::MATH{}, 2 * math::PI<T>);
             T diff = (value - mean);
@@ -67,6 +67,6 @@ namespace rl_tools::random{
         }
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

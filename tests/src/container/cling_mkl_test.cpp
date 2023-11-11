@@ -4,10 +4,10 @@
 #pragma cling add_library_path("/opt/intel/oneapi/mkl/latest/lib/intel64/")
 #pragma cling add_library_path("/opt/intel/oneapi/compiler/latest/linux/compiler/lib/intel64_lin")
 
-#define BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#define RL_TOOLS_BACKEND_ENABLE_MKL
 #include <rl_tools/operations/cpu_mux.h>
 
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
 #pragma cling load("mkl_core")
 #pragma cling load("mkl_intel_thread")
 #pragma cling load("mkl_intel_ilp64")
@@ -17,7 +17,7 @@
 #pragma cling load("libdl.so.2")
 #endif
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DEVICE = bpt::devices::DefaultCPU;
 using DEVICE_MKL = bpt::devices::DefaultCPU_MKL;

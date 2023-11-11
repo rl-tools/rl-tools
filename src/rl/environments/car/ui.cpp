@@ -2,7 +2,7 @@
 
 #include <rl_tools/rl/environments/car/operations_cpu.h>
 #include <rl_tools/rl/environments/car/ui.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <SDL2/SDL.h>
 

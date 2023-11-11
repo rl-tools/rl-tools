@@ -1,5 +1,5 @@
 // this is a test to check if everything compiles without any dependencies (by replacing the dependency based math functions with dummy implementations)
-#ifdef BACKPROP_TOOLS_OPERATIONS_CPU
+#ifdef RL_TOOLS_OPERATIONS_CPU
 #include <rl_tools/operations/cpu.h>
 #else
 #include <rl_tools/operations/dummy.h>
@@ -14,9 +14,9 @@
 
 #include <rl_tools/rl/utils/evaluation.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
-#ifdef BACKPROP_TOOLS_OPERATIONS_CPU
+#ifdef RL_TOOLS_OPERATIONS_CPU
 using DEVICE = bpt::devices::DefaultCPU;
 using NN_DEVICE = bpt::devices::DefaultCPU;
 using AC_DEVICE = bpt::devices::DefaultCPU;

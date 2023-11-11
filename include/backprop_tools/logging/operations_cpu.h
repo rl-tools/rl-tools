@@ -1,13 +1,13 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_LOGGING_OPERATIONS_CPU_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_H
+#define RL_TOOLS_LOGGING_OPERATIONS_CPU_H
 
 
 
 #include <iostream>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace logging{
         template <typename DEVICE, typename A>
@@ -60,5 +60,5 @@ namespace rl_tools{
     template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN>
     void add_histogram(DEVICE& device, devices::logging::CPU& logger, const TOPIC, const ARG*, const ARG_LEN){ /* noop */ }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

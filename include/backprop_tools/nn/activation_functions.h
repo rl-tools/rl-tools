@@ -1,12 +1,12 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_ACTIVATION_FUNCTIONS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_ACTIVATION_FUNCTIONS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_ACTIVATION_FUNCTIONS_H
-#ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
-#define BACKPROP_TOOLS_FUNCTION_PLACEMENT
+#define RL_TOOLS_NN_ACTIVATION_FUNCTIONS_H
+#ifndef RL_TOOLS_FUNCTION_PLACEMENT
+#define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
 #include "../devices/devices.h"
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::activation_functions {
     enum ActivationFunction{
         IDENTITY,
@@ -19,11 +19,11 @@ namespace rl_tools::nn::activation_functions {
     template<enum ActivationFunction F>
     constexpr bool check_activation_function = F == IDENTITY || F == RELU || F == GELU || F == TANH || F == FAST_TANH || F == SIGMOID;
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename T, nn::activation_functions::ActivationFunction F>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T activation(T x){
+    RL_TOOLS_FUNCTION_PLACEMENT inline T activation(T x){
         using namespace nn::activation_functions;
         static_assert(DEVICE::TYPE == devices::Type::math, "DEVICE is not a math device");
         static_assert(nn::activation_functions::check_activation_function<F>, "Invalid activation function");
@@ -52,7 +52,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename T, nn::activation_functions::ActivationFunction F>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T d_activation_d_x(T x){
+    RL_TOOLS_FUNCTION_PLACEMENT inline T d_activation_d_x(T x){
         using namespace nn::activation_functions;
         static_assert(DEVICE::TYPE == devices::Type::math, "DEVICE is not a math device");
         static_assert(check_activation_function<F>, "Invalid activation function");
@@ -84,7 +84,7 @@ namespace rl_tools{
         }
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

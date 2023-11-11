@@ -1,34 +1,34 @@
 // Group 1
 #include <rl_tools/operations/cpu/group_1.h>
-//#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_CUDA
+//#ifdef RL_TOOLS_BACKEND_ENABLE_CUDA
 //    #include <rl_tools/operations/cuda/group_1.h>
 //#endif
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
     #include <rl_tools/operations/cpu_mkl/group_1.h>
 #endif
 
 // Group 2
 #include <rl_tools/operations/cpu/group_2.h>
-//#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_CUDA
+//#ifdef RL_TOOLS_BACKEND_ENABLE_CUDA
 //#include <rl_tools/operations/cuda/group_2.h>
 //#endif
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
 #include <rl_tools/operations/cpu_mkl/group_2.h>
 #endif
 
 // Group 3
 #include <rl_tools/operations/cpu/group_3.h>
-//#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_CUDA
+//#ifdef RL_TOOLS_BACKEND_ENABLE_CUDA
 //#include <rl_tools/operations/cuda/group_3.h>
 //#endif
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
 #include <rl_tools/operations/cpu_mkl/group_3.h>
 #endif
 
 #include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/nn_models/operations_cpu.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 
@@ -57,7 +57,7 @@ using NetworkType = bpt::nn_models::mlp::NeuralNetworkAdam<InferenceSpecificatio
 constexpr INDEX_TYPE ITERATIONS = 1;
 constexpr INDEX_TYPE NAIVE_ITERATIONS = 1;
 
-class BACKPROP_TOOLS_NN_DENSE_BENCHMARK : public ::testing::Test
+class RL_TOOLS_NN_DENSE_BENCHMARK : public ::testing::Test
 {
 protected:
     bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, NetworkType::INPUT_DIM>> input;
@@ -78,7 +78,7 @@ protected:
     bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, NetworkType::OUTPUT_DIM>> d_output;
     NetworkType network_mkl;
     NetworkType::Buffers<BATCH_SIZE> network_mkl_buffers;
-    BACKPROP_TOOLS_NN_DENSE_BENCHMARK(){
+    RL_TOOLS_NN_DENSE_BENCHMARK(){
         device.logger = &logger;
         bpt::malloc(device, input);
         bpt::malloc(device, expected_output_input_layer);
@@ -150,7 +150,7 @@ protected:
 
 
 
-TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
+TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
     bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, BATCH_SIZE, HIDDEN_DIM>> output_batch;
     bpt::malloc(device, output_batch);
     auto start = std::chrono::high_resolution_clock::now();
@@ -171,10 +171,10 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
 
 #define min(x,y) (((x) < (y)) ? (x) : (y))
 
-#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
+#ifdef RL_TOOLS_BACKEND_ENABLE_MKL
 #include <rl_tools/devices/cpu_mkl.h>
 #include <rl_tools/containers/operations_cpu_mkl.h>
-TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL) {
+TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL) {
     using T = DTYPE;
     int m, n, k;
     T alpha, beta;
@@ -230,7 +230,7 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL) {
 #include <rl_tools/containers/operations_generic.h>
 #include <rl_tools/utils/generic/typing.h>
 
-TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER) {
+TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER) {
     using DEVICE_MKL = bpt::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl;
     device_mkl.logger = &logger;
@@ -258,7 +258,7 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER) {
     std::cout << "Absolute difference: " << abs_diff << std::endl;
 }
 
-TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
+TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
     std::cout << "Layer batch size: " << decltype(network_mkl.input_layer)::SPEC::BATCH_SIZE << std::endl;
     using DEVICE_MKL = bpt::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl;
@@ -287,7 +287,7 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER_FORWARD) {
     std::cout << "Absolute difference: " << abs_diff << std::endl;
 }
 
-TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
+TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
     std::cout << "Layer batch size: " << decltype(network_mkl.input_layer)::SPEC::BATCH_SIZE << std::endl;
     using DEVICE_MKL = bpt::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl;
@@ -312,7 +312,7 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_FORWARD) {
     std::cout << "Absolute difference: " << abs_diff << std::endl;
 }
 
-TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
+TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
     using DEVICE_MKL = bpt::devices::CPU_MKL<DEVICE::SPEC>;
     DEVICE_MKL device_mkl;
     device_mkl.logger = device.logger;
@@ -354,9 +354,9 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_MODEL_BACKWARD) {
 }
 #endif
 
-//#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
+//#ifdef RL_TOOLS_BACKEND_ENABLE_ACCELERATE
 //#include <Accelerate/Accelerate.h>
-//TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, ACCELERATE) {
+//TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, ACCELERATE) {
 //    DTYPE *A, *B, *C;
 //    int m, n, k;
 //    DTYPE alpha, beta;

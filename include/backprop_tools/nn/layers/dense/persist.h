@@ -1,12 +1,12 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_DENSE_PERSIST_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_LAYERS_DENSE_PERSIST_H
+#define RL_TOOLS_NN_LAYERS_DENSE_PERSIST_H
 #include "../../../containers/persist.h"
 #include "layer.h"
 #include "../../../utils/persist.h"
 #include <iostream>
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer, HighFive::Group group) {
@@ -38,5 +38,5 @@ namespace rl_tools {
         load(device, (nn::layers::dense::LayerBackward<SPEC>&)layer, group);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

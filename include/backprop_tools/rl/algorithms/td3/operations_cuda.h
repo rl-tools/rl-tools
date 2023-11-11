@@ -2,7 +2,7 @@
 
 #include "../../../utils/polyak/operations_cuda.h"
 #include "../../../rl/algorithms/td3/td3.h"
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename RNG>
     __global__
@@ -35,7 +35,7 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         constexpr TI BATCH_SIZE = SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
         constexpr TI BLOCKSIZE_COLS = 32;
-        constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         target_action_noise_kernel<DEV_SPEC, SPEC, OUTPUT_SPEC, RNG><<<bias_grid, bias_block>>>(device, actor_critic, target_action_noise, rng);
@@ -66,7 +66,7 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         constexpr TI BATCH_SIZE = SPEC::PARAMETERS::CRITIC_BATCH_SIZE;
         constexpr TI BLOCKSIZE_COLS = 32;
-        constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         noisy_next_actions_kernel<DEV_SPEC, SPEC><<<bias_grid, bias_block>>>(device, training_buffers);
@@ -100,12 +100,12 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         constexpr TI BLOCKSIZE_COLS = 32;
-        constexpr TI N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         target_actions_kernel<<<bias_grid, bias_block>>>(device, batch, training_buffers, actor_critic.gamma);
         check_status(device);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "operations_generic.h"

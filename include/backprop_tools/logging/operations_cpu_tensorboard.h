@@ -1,15 +1,15 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H
+#define RL_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H
 #include <rl_tools/containers.h>
 
 #include <filesystem>
 #include <cassert>
 #include "operations_cpu.h"
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 
-#ifdef BACKPROP_TOOLS_ENABLE_LIBATTOPNG
+#ifdef RL_TOOLS_ENABLE_LIBATTOPNG
 #include <libattopng.h>
 #endif
 namespace rl_tools{
@@ -97,7 +97,7 @@ namespace rl_tools{
     void add_histogram(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, const KEY_TYPE key, const T* values, const TI n_values){
         add_histogram(device, logger, key, values, n_values, (typename DEVICE::index_t)1);
     }
-#ifdef BACKPROP_TOOLS_ENABLE_LIBATTOPNG
+#ifdef RL_TOOLS_ENABLE_LIBATTOPNG
     template <typename DEVICE, typename KEY_TYPE, typename LOGGING_SPEC, typename SPEC>
     void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGING_SPEC>& logger, const KEY_TYPE key, rl_tools::Matrix<SPEC> values){
         using T = typename SPEC::T;
@@ -127,5 +127,5 @@ namespace rl_tools{
     void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGER_SPEC>& logger, rl_tools::Matrix<SPEC> values){ }
 #endif
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

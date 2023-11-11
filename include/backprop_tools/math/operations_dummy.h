@@ -1,13 +1,13 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CPU_GENERIC_MATH_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_CPU_GENERIC_MATH_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_CPU_GENERIC_MATH_H
+#define RL_TOOLS_CPU_GENERIC_MATH_H
 
 #include "../devices/dummy.h"
 
 #include "operations_generic.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::math {
 
     template<typename T>
@@ -87,5 +87,5 @@ namespace rl_tools::math {
     }
 
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

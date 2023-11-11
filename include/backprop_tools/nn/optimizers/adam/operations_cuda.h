@@ -1,5 +1,5 @@
 #include "adam.h"
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace nn::optimizers::adam::cuda {
         template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
@@ -30,12 +30,12 @@ namespace rl_tools {
     void update(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::instance<SPEC>& p, nn::optimizers::Adam<PARAMETERS>& optimizer) {
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_INPUT = 32;
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(SPEC::CONTAINER::ROWS, BLOCKSIZE_ACTIVATION_OUTPUT);
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_INPUT = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(SPEC::CONTAINER::COLS, BLOCKSIZE_ACTIVATION_INPUT);
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::CONTAINER::ROWS, BLOCKSIZE_ACTIVATION_OUTPUT);
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_INPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::CONTAINER::COLS, BLOCKSIZE_ACTIVATION_INPUT);
         dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
         dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
         nn::optimizers::adam::cuda::update_kernel<<<activation_grid, activation_block>>>(device, p, optimizer);
         check_status(device);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END

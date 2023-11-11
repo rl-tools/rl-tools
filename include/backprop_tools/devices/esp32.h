@@ -1,12 +1,12 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_ESP32_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_DEVICES_ESP32_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_DEVICES_ESP32_H
+#define RL_TOOLS_DEVICES_ESP32_H
 #include "../utils/generic/typing.h"
 #include "devices.h"
 
 #include <cstddef>
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace esp32{
         enum class Hardware{
@@ -49,7 +49,7 @@ namespace rl_tools::devices{
         typename SPEC::LOGGING* logger = nullptr;
         typename SPEC::MATH math;
         typename SPEC::RANDOM random;
-#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
+#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;
 #endif
     };
@@ -66,18 +66,18 @@ namespace rl_tools::devices{
     using DefaultESP32Specification = esp32::Specification<math::ESP32, random::ESP32, logging::ESP32, T_HARDWARE>;
     using DefaultESP32 = esp32::OPT<DefaultESP32Specification<>>;
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
+#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::ESP32<DEV_SPEC>& device, TI size){
         device.malloc_counter += size;
     }
 #endif
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

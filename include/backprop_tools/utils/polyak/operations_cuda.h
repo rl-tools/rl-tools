@@ -1,10 +1,10 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_UTILS_POLYAK_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_UTILS_POLYAK_OPERATIONS_CUDA_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_UTILS_POLYAK_OPERATIONS_CUDA_H
+#define RL_TOOLS_NN_UTILS_POLYAK_OPERATIONS_CUDA_H
 
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils::polyak {
     // todo: polyak factor as template parameter (reciprocal INT e.g.)
     namespace internal {
@@ -35,8 +35,8 @@ namespace rl_tools::utils::polyak {
         using SPEC = SOURCE_SPEC;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ROWS = 32;
         constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_COLS = 32;
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ROWS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(SPEC::ROWS, BLOCKSIZE_ROWS);
-        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_COLS = BACKPROP_TOOLS_DEVICES_CUDA_CEIL(SPEC::COLS, BLOCKSIZE_COLS);
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ROWS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::ROWS, BLOCKSIZE_ROWS);
+        constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::COLS, BLOCKSIZE_COLS);
         dim3 activation_grid(N_BLOCKS_COLS, N_BLOCKS_ROWS);
         dim3 activation_block(BLOCKSIZE_COLS, BLOCKSIZE_ROWS);
         internal::update_kernel<DEVICE, SOURCE_SPEC, TARGET_SPEC, SQUARE><<<activation_grid, activation_block>>>(source, target, polyak);
@@ -47,7 +47,7 @@ namespace rl_tools::utils::polyak {
         update<DEV_SPEC, SOURCE_SPEC, TARGET_SPEC, true>(dev, source, target, polyak);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

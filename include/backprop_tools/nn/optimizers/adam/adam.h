@@ -1,11 +1,11 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H
+#define RL_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H
 
 #include "../../../nn/parameters/parameters.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::optimizers{
     namespace adam{
         template<typename T_T, typename T_TI>
@@ -62,8 +62,8 @@ namespace rl_tools::nn::optimizers{
 
 
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters {
     struct Adam: Gradient{
         template <typename T_SPEC>
@@ -75,6 +75,6 @@ namespace rl_tools::nn::parameters {
         };
     };
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

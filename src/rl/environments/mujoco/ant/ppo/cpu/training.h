@@ -1,15 +1,15 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_cpu.h>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn_models/persist.h>
 #endif
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../parameters.h"
-#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
+#if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
-#if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
+#if defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
@@ -17,7 +17,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #endif
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/rl/components/running_normalizer/persist.h>
 #endif
 #include <rl_tools/rl/utils/evaluation.h>
@@ -25,19 +25,19 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <filesystem>
 #include <sstream>
 #include <string>
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <highfive/H5File.hpp>
 #endif
 
 
-#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST
+#ifdef RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST
 #include <gtest/gtest.h>
 #endif
 
 
 namespace parameters = parameters_0;
 
-#if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
 using LOGGER = bpt::devices::logging::CPU_TENSORBOARD<>;
 #else
 using LOGGER = bpt::devices::logging::CPU;
@@ -60,20 +60,20 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI BASE_SEED = 600;
 constexpr DEVICE::index_t NUM_RUNS = 1;
-#if !defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST)
+#if !defined(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST)
 constexpr DEVICE::index_t NUM_STEPS = 2500;
 #else
 constexpr DEVICE::index_t NUM_STEPS = 200;
 #endif
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
-#if defined(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
+#if defined(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
 constexpr bool ENABLE_EVALUATION = false;
 #else
 constexpr bool ENABLE_EVALUATION = true;
 #endif
 constexpr TI NUM_EVALUATION_EPISODES = 10;
 constexpr TI EVALUATION_INTERVAL = 100000;
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = true;
 #else
 constexpr bool ACTOR_ENABLE_CHECKPOINTS = false;
@@ -196,7 +196,7 @@ void run(){
                     checkpoint_name = checkpoint_name_ss.str();
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
-#if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
                 try{
                     auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
                     bpt::save(device, ppo.actor, actor_file.createGroup("actor"));
@@ -214,7 +214,7 @@ void run(){
                 bpt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
                 std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
-#ifdef BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST
+#ifdef RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST
                 if(on_policy_runner.step > 700000){
                     ASSERT_GT(result.returns_mean, 2000);
                 }

@@ -1,17 +1,17 @@
 #include "../../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H
+#define RL_TOOLS_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H
 
 #include "../../../containers.h"
 #include "../../../nn/parameters/operations_generic.h"
 
 #include "../../../nn/layers/dense/layer.h"
-#ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
-#define BACKPROP_TOOLS_FUNCTION_PLACEMENT
+#ifndef RL_TOOLS_FUNCTION_PLACEMENT
+#define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer) {
@@ -66,7 +66,7 @@ namespace rl_tools{
         init_kaiming(device, layer, rng);
     }
 
-#ifndef BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void evaluate(DEVICE& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output) {
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
@@ -117,7 +117,7 @@ namespace rl_tools{
         copy(device, device, layer.output, output);
     }
 
-#ifndef BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
     void backward_input(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input){
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
@@ -300,6 +300,6 @@ namespace rl_tools{
             is_nan(device, l.output);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

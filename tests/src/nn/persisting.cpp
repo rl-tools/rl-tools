@@ -14,7 +14,7 @@
 #include <rl_tools/utils/persist.h>
 
 #include <random>
-TEST(BACKPROP_TOOLS_NN_PERSIST, Saving) {
+TEST(RL_TOOLS_NN_PERSIST, Saving) {
 
     NN_DEVICE device;
     OPTIMIZER optimizer;

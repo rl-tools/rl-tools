@@ -1,7 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_cpu.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "parameters_rl.h"
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
@@ -20,7 +20,7 @@ using TI = typename DEVICE::index_t;
 
 
 
-TEST(BACKPROP_TOOLS_RL_ALGORITHMS_PPO, TEST){
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     using penv = parameters::environment<T, TI>;
     using prl = parameters::rl<T, TI, penv::ENVIRONMENT>;
 

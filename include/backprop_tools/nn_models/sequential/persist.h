@@ -1,7 +1,7 @@
 #include "../../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_H
+#define RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_H
 #include "../../nn/parameters/persist.h"
 #include "../../nn/optimizers/adam/persist.h"
 #include "../../nn/persist.h"
@@ -10,7 +10,7 @@
 #include <highfive/H5Group.hpp>
 #include <string>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
         template<typename DEVICE, typename SPEC>
         void save(DEVICE& device, nn_models::sequential::Module<SPEC>& model, HighFive::Group group, typename DEVICE::index_t layer_i = 0) {
@@ -33,5 +33,5 @@ namespace rl_tools{
         }
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -1,8 +1,8 @@
-//#define BACKPROP_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
-#define BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
+//#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+#define RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
 #include <rl_tools/operations/arm.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
 //#include <rl_tools/nn/layers/dense/operations_arm/dsp.h>
@@ -15,7 +15,7 @@ using DEVICE = bpt::devices::arm::Generic<bpt::devices::DefaultARMSpecification>
 #include <rl_tools/rl/algorithms/td3/operations_generic.h>
 
 #include <rl_tools/rl/utils/evaluation.h>
-#ifndef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
+#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
 #include <chrono>
 #include <iostream>
 #endif
@@ -62,7 +62,7 @@ using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 constexpr DEVICE::index_t N_STEPS = 10000;
 constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
 constexpr DEVICE::index_t N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
-#ifndef BACKPROP_TOOLS_DISABLE_EVALUATION
+#ifndef RL_TOOLS_DISABLE_EVALUATION
 DTYPE evaluation_returns[N_EVALUATIONS];
 #endif
 
@@ -82,7 +82,7 @@ using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specifica
         0,
         CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER
  >;
-#ifdef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
+#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
 EXTMEM bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 #else
 bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
@@ -130,8 +130,8 @@ void train(){
     bpt::malloc(device, observations_mean);
     bpt::malloc(device, observations_std);
 
-#ifndef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
-#ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
+#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
+#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     std::cout << "malloc counter: " << device.malloc_counter << std::endl;
 #endif
 #endif
@@ -143,7 +143,7 @@ void train(){
     bpt::set_all(device, observations_std, 1);
 
 
-#ifndef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
+#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
     auto start_time = std::chrono::high_resolution_clock::now();
     std::cout << "ActorCritic size: " << sizeof(actor_critic) << std::endl;
     std::cout << "ActorCritic.actor size: " << sizeof(actor_critic.actor) << std::endl;
@@ -165,7 +165,7 @@ void train(){
 
     for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
-#ifdef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
+#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
         if(step_i % 100 == 0){
             Serial.printf("step: %d\n", step_i);
 #else
@@ -194,13 +194,13 @@ void train(){
                 bpt::update_actor_target(device, actor_critic);
             }
         }
-#ifndef BACKPROP_TOOLS_DISABLE_EVALUATION
+#ifndef RL_TOOLS_DISABLE_EVALUATION
         if(step_i % EVALUATION_INTERVAL == 0){
             auto result = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }
-#ifdef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
+#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
             Serial.printf("mean return: %f\n", result.mean);
 #else
             std::cout << "Mean return: " << result.returns_mean << std::endl;
@@ -208,7 +208,7 @@ void train(){
         }
 #endif
     }
-#ifndef BACKPROP_TOOLS_DEPLOYMENT_ARDUINO
+#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
     {
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;

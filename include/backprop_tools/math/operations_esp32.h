@@ -1,7 +1,7 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_MATH_OPERATIONS_ESP32_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_MATH_OPERATIONS_ESP32_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_MATH_OPERATIONS_ESP32_H
+#define RL_TOOLS_MATH_OPERATIONS_ESP32_H
 
 #include "operations_generic.h"
 
@@ -10,7 +10,7 @@
 #include <cmath>
 #include <algorithm>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::math {
 
     template<typename T>
@@ -88,5 +88,5 @@ namespace rl_tools::math {
         return std::atan2(a, b);
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

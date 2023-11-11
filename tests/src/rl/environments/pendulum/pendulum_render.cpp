@@ -2,11 +2,11 @@
 
 #include <rl_tools/rl/environments/environments.h>
 #include <rl_tools/rl/environments/pendulum/ui.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_RENCER, RENDER) {
+TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_RENCER, RENDER) {
     typedef double T;
     typedef bpt::rl::environments::pendulum::Spec<T, bpt::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
     typedef bpt::rl::environments::Pendulum::CPU<PENDULUM_SPEC> ENVIRONMENT;

@@ -9,7 +9,7 @@
 #include <rl_tools/nn_models/operations_cpu.h>
 
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -55,10 +55,10 @@ std::vector<T> Y_std;
 constexpr typename DEVICE::index_t INPUT_DIM = StructureSpecification::INPUT_DIM;
 constexpr typename DEVICE::index_t OUTPUT_DIM = StructureSpecification::OUTPUT_DIM;
 
-TEST(BACKPROP_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
+TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data
     std::string DATA_FILE_NAME = "mlp_data.hdf5";
-    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);

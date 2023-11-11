@@ -1,5 +1,5 @@
 
-if(BACKPROP_TOOLS_ENABLE_HDF5)
+if(RL_TOOLS_ENABLE_HDF5)
 add_executable(test_nn_models_sequential_persist persist.cpp)
 target_link_libraries(test_nn_models_sequential_persist
     PRIVATE

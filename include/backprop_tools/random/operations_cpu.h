@@ -1,14 +1,14 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_CPU_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_UTILS_RANDOM_OPERATIONS_CPU_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_UTILS_RANDOM_OPERATIONS_CPU_H
+#define RL_TOOLS_UTILS_RANDOM_OPERATIONS_CPU_H
 
 
 #include "../utils/generic/typing.h"
 
 #include <random>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
     auto default_engine(const devices::random::CPU& dev, devices::random::CPU::index_t seed = 0){
         return std::default_random_engine(seed+1);
@@ -65,6 +65,6 @@ namespace rl_tools::random{
 
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

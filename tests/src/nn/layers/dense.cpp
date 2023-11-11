@@ -1,7 +1,7 @@
 
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using DEVICE = bpt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -23,7 +23,7 @@ using LAYER_SPEC = bpt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPU
 
 
 
-TEST(BACKPROP_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
+TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
 
     bpt::nn::layers::dense::Layer<LAYER_SPEC> layer;
     bpt::malloc(device, layer);
@@ -46,7 +46,7 @@ TEST(BACKPROP_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     EXPECT_EQ(abs_diff, 0);
 }
 
-TEST(BACKPROP_TOOLS_NN_LAYERS_DENSE, COPY_TIMING) {
+TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_TIMING) {
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 100, 100>> input;
     bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 100, 100>> output;
     bpt::malloc(device, input);

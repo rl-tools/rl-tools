@@ -1,7 +1,7 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_DEVICES_CPU_OPENBLAS_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_DEVICES_CPU_OPENBLAS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_DEVICES_CPU_OPENBLAS_H
+#define RL_TOOLS_DEVICES_CPU_OPENBLAS_H
 
 #include "../utils/generic/typing.h"
 #include "devices.h"
@@ -10,7 +10,7 @@
 
 #include <cblas.h>
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     template <typename T_SPEC>
     struct CPU_OPENBLAS: CPU_BLAS<T_SPEC>{
@@ -18,7 +18,7 @@ namespace rl_tools::devices{
     };
     using DefaultCPU_OPENBLAS = CPU_OPENBLAS<DefaultCPUSpecification>;
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC>
     void init(devices::CPU_OPENBLAS<DEV_SPEC>& device){
@@ -26,6 +26,6 @@ namespace rl_tools{
     }
 
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

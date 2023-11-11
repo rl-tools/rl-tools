@@ -1,30 +1,30 @@
-option(BACKPROP_TOOLS_DOWNLOAD_GTEST OFF)
+option(RL_TOOLS_DOWNLOAD_GTEST OFF)
 
-option(BACKPROP_TOOLS_TEST_LOCAL "Local dev" OFF)
+option(RL_TOOLS_TEST_LOCAL "Local dev" OFF)
 
-#option(BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" ${BACKPROP_TOOLS_TEST_LOCAL})
-option(BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" OFF)
+#option(RL_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" ${RL_TOOLS_TEST_LOCAL})
+option(RL_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY "Visual Evaluation" OFF)
 
-option(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS "Visual Evaluation" OFF)
-#option(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY "Visual Evaluation" ${BACKPROP_TOOLS_TEST_LOCAL})
-option(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY "Visual Evaluation" OFF)
+option(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS "Visual Evaluation" OFF)
+#option(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY "Visual Evaluation" ${RL_TOOLS_TEST_LOCAL})
+option(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY "Visual Evaluation" OFF)
 
-#option(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS "Visual Evaluation" ON)
-option(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS "Visual Evaluation" OFF)
-#option(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY "Visual Evaluation" ${BACKPROP_TOOLS_TEST_LOCAL})
-option(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY "Visual Evaluation" OFF)
+#option(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS "Visual Evaluation" ON)
+option(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS "Visual Evaluation" OFF)
+#option(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY "Visual Evaluation" ${RL_TOOLS_TEST_LOCAL})
+option(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY "Visual Evaluation" OFF)
 
-option(BACKPROP_TOOLS_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE "Multirotor UI" OFF)
+option(RL_TOOLS_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE "Multirotor UI" OFF)
 
 set(INSTALL_GTEST OFF CACHE BOOL "")
 set(BUILD_GMOCK OFF CACHE BOOL "")
 add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)
 include(GoogleTest)
 
-set(BACKPROP_TOOLS_TESTS_DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data)
+set(RL_TOOLS_TESTS_DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data)
 add_library(rl_tools_tests INTERFACE)
 target_link_libraries(rl_tools_tests INTERFACE GTest::gtest_main)
-target_compile_definitions(rl_tools_tests INTERFACE BACKPROP_TOOLS_TESTS_DATA_PATH=${BACKPROP_TOOLS_TESTS_DATA_PATH})
+target_compile_definitions(rl_tools_tests INTERFACE RL_TOOLS_TESTS_DATA_PATH=${RL_TOOLS_TESTS_DATA_PATH})
 
 
 if(NOT APPLE)
@@ -32,26 +32,26 @@ if(NOT APPLE)
 endif()
 
 
-# function to do target_compile_definitions(test_neural_network_mlp PRIVATE BACKPROP_TOOLS_TESTS_DATA_PATH=${CMAKE_CURRENT_SOURCE_DIR}/data)
+# function to do target_compile_definitions(test_neural_network_mlp PRIVATE RL_TOOLS_TESTS_DATA_PATH=${CMAKE_CURRENT_SOURCE_DIR}/data)
 
 
 
 
-if(BACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
+if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
 add_subdirectory(src/rl/environments/mujoco/ant)
 endif()
 
 
-if(BACKPROP_TOOLS_TESTS_ENABLE_EIGEN)
+if(RL_TOOLS_TESTS_ENABLE_EIGEN)
 find_package(Eigen3 REQUIRED)
 endif()
 #find_package(OpenMP REQUIRED)
-if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
+if(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 find_package(Boost REQUIRED)
 endif()
 
 
-if(BACKPROP_TOOLS_BACKEND_ENABLE_CUDA)
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
 #    set(CUTLASS_ENABLE_CUBLAS ON)
 #    add_subdirectory(lib/cutlass EXCLUDE_FROM_ALL)
 #    add_subdirectory(src/nn/cuda)
@@ -69,7 +69,7 @@ target_link_libraries(
 )
 gtest_discover_tests(test_nn_models_sequential)
 
-if(BACKPROP_TOOLS_ENABLE_HDF5 AND BACKPROP_TOOLS_ENABLE_TENSORBOARD)
+if(RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_ENABLE_TENSORBOARD)
 # Neural Network Test MLP
 add_executable(
         test_neural_network_mlp
@@ -119,7 +119,7 @@ target_link_libraries(
 gtest_discover_tests(test_rl_environments_pendulum)
 
 
-if(BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
+if(RL_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
     # RL Environment Pendulum Render test
 
     find_package(Qt5 COMPONENTS Widgets REQUIRED)
@@ -171,20 +171,20 @@ target_link_libraries(
         rl_tools
         rl_tools_tests
 )
-if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
+if(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
     target_link_libraries(
             test_rl_algorithms_td3_second_stage_mlp
             matplotlib_cpp
     )
     target_include_directories(test_rl_algorithms_td3_second_stage_mlp PRIVATE lib)
-    target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
+    target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
 endif()
-if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
+if(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
     target_link_libraries(
             test_rl_algorithms_td3_second_stage_mlp
             Qt5::Widgets
     )
-    target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
+    target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
 endif()
 gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
 
@@ -200,22 +200,22 @@ target_link_libraries(
         rl_tools_tests
 )
 
-if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
+if(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
     target_link_libraries(
             test_rl_algorithms_td3_full_training_debug
             matplotlib_cpp
     )
     target_include_directories(test_rl_algorithms_td3_full_training_debug PRIVATE lib)
-    target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
+    target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
 endif()
-if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
+if(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
     target_link_libraries(
             test_rl_algorithms_td3_full_training_debug
             Qt5::Widgets
     )
-    target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
+    target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY)
 endif()
-target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG)
+target_compile_definitions(test_rl_algorithms_td3_full_training_debug PRIVATE RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_DEBUG)
 gtest_discover_tests(test_rl_algorithms_td3_full_training_debug)
 
 
@@ -252,7 +252,7 @@ add_executable(
         test_rl_algorithms_td3_full_training_dummy_dep_training
         src/rl/algorithms/td3/full_training_dummy_dep.cpp
 )
-target_compile_definitions(test_rl_algorithms_td3_full_training_dummy_dep_training PRIVATE BACKPROP_TOOLS_OPERATIONS_CPU)
+target_compile_definitions(test_rl_algorithms_td3_full_training_dummy_dep_training PRIVATE RL_TOOLS_OPERATIONS_CPU)
 target_link_libraries(
         test_rl_algorithms_td3_full_training_dummy_dep_training
         rl_tools
@@ -298,7 +298,7 @@ gtest_discover_tests(test_neural_network_conversions)
 
 
 
-if(BACKPROP_TOOLS_TESTS_ENABLE_EIGEN)
+if(RL_TOOLS_TESTS_ENABLE_EIGEN)
 add_executable(
         test_neural_network_benchmark
         src/nn/benchmark.cpp

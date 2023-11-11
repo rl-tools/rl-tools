@@ -5,7 +5,7 @@ namespace bpt = rl_tools;
 #include <gtest/gtest.h>
 
 
-TEST(BACKPROP_TOOLS_LOGGING_TENSORBOARD, INIT){
+TEST(RL_TOOLS_LOGGING_TENSORBOARD, INIT){
 
     using LOGGER = bpt::devices::logging::CPU_TENSORBOARD<bpt::devices::logging::CPU_TENSORBOARD_FREQUENCY_EXTENSION>;
     using DEV_SPEC = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;

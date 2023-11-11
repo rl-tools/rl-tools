@@ -87,7 +87,7 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/car/operations_cpu.h>
 #include <rl_tools/rl/environments/car/ui.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 int main(){
@@ -99,7 +99,7 @@ int main(){
 
     using ENV_SPEC = bpt::rl::environments::car::SpecificationTrack<T, DEVICE::index_t, 100, 100, 20>;
     using ENVIRONMENT = bpt::rl::environments::CarTrack<ENV_SPEC>;
-#if BACKPROP_TOOLS_ENABLE_GTK
+#if RL_TOOLS_ENABLE_GTK
     using UI = bpt::rl::environments::car::UI<bpt::rl::environments::car::ui::Specification<T, TI, ENVIRONMENT, 1000, 60>>;
 #else
     using UI = bool;

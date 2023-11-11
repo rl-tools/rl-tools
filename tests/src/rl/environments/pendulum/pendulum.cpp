@@ -6,16 +6,16 @@
 #include "../../../utils/utils.h"
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #define DTYPE double
 const DTYPE STATE_TOLERANCE = 0.00001;
 
-TEST(BACKPROP_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
+TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
     using DEVICE = bpt::devices::DefaultCPU;
     typedef bpt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
     typedef bpt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
     std::string DATA_FILE_NAME = "pendulum.hdf5";
-    const char *data_path_stub = BACKPROP_TOOLS_MACRO_TO_STR(BACKPROP_TOOLS_TESTS_DATA_PATH);
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
     DEVICE device;

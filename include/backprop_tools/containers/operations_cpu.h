@@ -1,13 +1,13 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_CONTAINERS_OPERATIONS_CPU_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_CONTAINERS_OPERATIONS_CPU_H
+#define RL_TOOLS_CONTAINERS_OPERATIONS_CPU_H
 
 #include "operations_generic.h"
 
 #include <iostream>
 #include <iomanip>
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void print(DEVICE& device, const Matrix<SPEC>& m){
@@ -35,14 +35,14 @@ namespace rl_tools{
         std::cout << "]" << std::endl;
     }
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SPEC_1, typename SPEC_2>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy_view(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_view(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
         using SOURCE_DEVICE = devices::CPU<SOURCE_DEV_SPEC>;
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
         using SPEC = SPEC_1;
         vectorize_unary<SOURCE_DEVICE, SPEC_1, SPEC_2, containers::vectorization::operators::copy<typename SOURCE_DEVICE::SPEC::MATH, typename SPEC::T>>(source_device, source, target);
     }
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SPEC_1, typename SPEC_2>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(devices::CPU<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
         using SOURCE_DEVICE = devices::CPU<SOURCE_DEV_SPEC>;
         using TI = typename SOURCE_DEVICE::index_t;
         static_assert(containers::check_structure<SPEC_1, SPEC_2>);
@@ -56,7 +56,7 @@ namespace rl_tools{
         }
     }
     template<typename DEV_SPEC, typename SPEC>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT std::vector<std::vector<typename SPEC::T>> std_vector(devices::CPU<DEV_SPEC>& device, Matrix<SPEC>& matrix){
+    RL_TOOLS_FUNCTION_PLACEMENT std::vector<std::vector<typename SPEC::T>> std_vector(devices::CPU<DEV_SPEC>& device, Matrix<SPEC>& matrix){
         using DEVICE = devices::CPU<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         std::vector<std::vector<typename SPEC::T>> result;
@@ -70,6 +70,6 @@ namespace rl_tools{
         return result;
     }
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -1,17 +1,17 @@
 #include "../version.h"
-#if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_MATH_OPERATIONS_CUDA_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_MATH_OPERATIONS_CUDA_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define BACKPROP_TOOLS_MATH_OPERATIONS_CUDA_H
+#define RL_TOOLS_MATH_OPERATIONS_CUDA_H
 
-#ifndef BACKPROP_TOOLS_FUNCTION_PLACEMENT
-#define BACKPROP_TOOLS_FUNCTION_PLACEMENT
+#ifndef RL_TOOLS_FUNCTION_PLACEMENT
+#define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
 
 #include "operations_generic.h"
 
 #include "../devices/cuda.h"
 
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::math {
     namespace cuda {
         template<typename T>
@@ -20,7 +20,7 @@ namespace rl_tools::math {
 
     // CUDA std
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T sqrt(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T sqrt(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::sqrtf(x);
@@ -30,7 +30,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T tanh(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T tanh(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::tanhf(x);
@@ -40,7 +40,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T exp(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T exp(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::expf(x);
@@ -50,7 +50,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T sin(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T sin(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::sinf(x);
@@ -59,7 +59,7 @@ namespace rl_tools::math {
         }
     }
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T asin(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T asin(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::asin(x);
@@ -69,7 +69,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T cos(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T cos(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::cosf(x);
@@ -79,7 +79,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T acos(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T acos(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::acosf(x);
@@ -89,7 +89,7 @@ namespace rl_tools::math {
     }
 
     template<typename TX, typename TY>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT auto pow(const devices::math::CUDA &, const TX x, const TY y) {
+    RL_TOOLS_FUNCTION_PLACEMENT auto pow(const devices::math::CUDA &, const TX x, const TY y) {
         static_assert(cuda::check<TX>, "CUDA math only supports float and double");
         static_assert(cuda::check<TY>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<TX, double> || utils::typing::is_same_v<TY, double>) {
@@ -100,7 +100,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT auto log(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT auto log(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::logf(x);
@@ -110,7 +110,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T floor(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T floor(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::floorf(x);
@@ -120,7 +120,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT bool is_nan(const devices::math::CUDA &, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_nan(const devices::math::CUDA &, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::isnan(x);
@@ -130,7 +130,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T clamp(const devices::math::CUDA&, const T x, const T min, const T max) {
+    RL_TOOLS_FUNCTION_PLACEMENT T clamp(const devices::math::CUDA&, const T x, const T min, const T max) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::fmin(max, ::fmax(x, min));
@@ -139,7 +139,7 @@ namespace rl_tools::math {
         }
     }
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T min(const devices::math::CUDA&, const T a, const T b) {
+    RL_TOOLS_FUNCTION_PLACEMENT T min(const devices::math::CUDA&, const T a, const T b) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::fmin(a, b);
@@ -148,7 +148,7 @@ namespace rl_tools::math {
         }
     }
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T max(const devices::math::CUDA&, const T a, const T b) {
+    RL_TOOLS_FUNCTION_PLACEMENT T max(const devices::math::CUDA&, const T a, const T b) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::fmax(a, b);
@@ -157,7 +157,7 @@ namespace rl_tools::math {
         }
     }
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T abs(const devices::math::CUDA&, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T abs(const devices::math::CUDA&, const T x) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::fabs(x);
@@ -166,13 +166,13 @@ namespace rl_tools::math {
         }
     }
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T fast_tanh(const devices::math::CUDA& dev, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T fast_tanh(const devices::math::CUDA& dev, T x) {
         x = clamp(dev, x, -(T)3.0, (T)3.0);
         T x_squared = x * x;
         return x * (27 + x_squared) / (27 + 9 * x_squared);
     }
     template<typename T>
-    BACKPROP_TOOLS_FUNCTION_PLACEMENT T atan2(const devices::math::CUDA&, const T a, const T b) {
+    RL_TOOLS_FUNCTION_PLACEMENT T atan2(const devices::math::CUDA&, const T a, const T b) {
         static_assert(cuda::check<T>, "CUDA math only supports float and double");
         if constexpr (utils::typing::is_same_v<T, float>) {
             return ::atan2f(a, b);
@@ -185,7 +185,7 @@ namespace rl_tools::math {
 //    // CUDA fast
 //
 //    template<typename T>
-//    BACKPROP_TOOLS_FUNCTION_PLACEMENT T sqrt(const devices::math::CUDA_FAST&, const T x) {
+//    RL_TOOLS_FUNCTION_PLACEMENT T sqrt(const devices::math::CUDA_FAST&, const T x) {
 //        static_assert(cuda::check<T>, "CUDA math only supports float and double");
 //        if constexpr(utils::typing::is_same_v<T, float>){
 //            return __sqrtf(x);
@@ -195,7 +195,7 @@ namespace rl_tools::math {
 //        }
 //    }
 //    template<typename T>
-//    BACKPROP_TOOLS_FUNCTION_PLACEMENT T tanh(const devices::math::CUDA_FAST&, const T x) {
+//    RL_TOOLS_FUNCTION_PLACEMENT T tanh(const devices::math::CUDA_FAST&, const T x) {
 //        static_assert(cuda::check<T>, "CUDA math only supports float and double");
 //        if constexpr(utils::typing::is_same_v<T, float>){
 //            return ::tanhf(x);
@@ -205,7 +205,7 @@ namespace rl_tools::math {
 //        }
 //    }
 //    template<typename T>
-//    BACKPROP_TOOLS_FUNCTION_PLACEMENT T exp(const devices::math::CUDA_FAST&, const T x) {
+//    RL_TOOLS_FUNCTION_PLACEMENT T exp(const devices::math::CUDA_FAST&, const T x) {
 //        static_assert(cuda::check<T>, "CUDA math only supports float and double");
 //        if constexpr (utils::typing::is_same_v<T, float>) {
 //            return __expf(x);
@@ -215,7 +215,7 @@ namespace rl_tools::math {
 //        }
 //    }
 //    template<typename T>
-//    BACKPROP_TOOLS_FUNCTION_PLACEMENT T sin(const devices::math::CUDA_FAST&, const T x) {
+//    RL_TOOLS_FUNCTION_PLACEMENT T sin(const devices::math::CUDA_FAST&, const T x) {
 //        static_assert(cuda::check<T>, "CUDA math only supports float and double");
 //        if constexpr (utils::typing::is_same_v<T, float>){
 //            return __sinf(x);
@@ -225,7 +225,7 @@ namespace rl_tools::math {
 //        }
 //    }
 //    template<typename T>
-//    BACKPROP_TOOLS_FUNCTION_PLACEMENT T cos(const devices::math::CUDA_FAST&, const T x) {
+//    RL_TOOLS_FUNCTION_PLACEMENT T cos(const devices::math::CUDA_FAST&, const T x) {
 //        static_assert(cuda::check<T>, "CUDA math only supports float and double");
 //        if constexpr (utils::typing::is_same_v<T, float>){
 //            return __cosf(x);
@@ -235,7 +235,7 @@ namespace rl_tools::math {
 //        }
 //    }
 //    template<typename TX, typename TY>
-//    BACKPROP_TOOLS_FUNCTION_PLACEMENT auto pow(const devices::math::CUDA_FAST&, const TX x, const TY y) {
+//    RL_TOOLS_FUNCTION_PLACEMENT auto pow(const devices::math::CUDA_FAST&, const TX x, const TY y) {
 //        static_assert(cuda::check<TX>, "CUDA math only supports float and double");
 //        static_assert(cuda::check<TY>, "CUDA math only supports float and double");
 //        if constexpr (utils::typing::is_same_v<TX, float> && utils::typing::is_same_v<TY, float>){
@@ -246,7 +246,7 @@ namespace rl_tools::math {
 //        }
 //    }
 //    template<typename T>
-//    BACKPROP_TOOLS_FUNCTION_PLACEMENT auto log(const devices::math::CUDA_FAST&, const T x) {
+//    RL_TOOLS_FUNCTION_PLACEMENT auto log(const devices::math::CUDA_FAST&, const T x) {
 //        static_assert(cuda::check<T>, "CUDA math only supports float and double");
 //        if constexpr (utils::typing::is_same_v<T, float>){
 //            return __logf(x);
@@ -256,7 +256,7 @@ namespace rl_tools::math {
 //        }
 //    }
 //    template<typename T>
-//    BACKPROP_TOOLS_FUNCTION_PLACEMENT T floor(const devices::math::CUDA_FAST&, const T x) {
+//    RL_TOOLS_FUNCTION_PLACEMENT T floor(const devices::math::CUDA_FAST&, const T x) {
 //        static_assert(cuda::check<T>, "CUDA math only supports float and double");
 //        if constexpr (utils::typing::is_same_v<T, float>){
 //            printf("floor %f %f\n", x, __floorf(x));
@@ -270,5 +270,5 @@ namespace rl_tools::math {
 //
 //
 }
-BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
