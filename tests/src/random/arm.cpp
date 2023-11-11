@@ -4,12 +4,12 @@
 
 template <auto MIN, auto MAX, int NUM_RUNS = 10000>
 void test_int_uniform_limits(){
-    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-    using DEVICE = bpt::devices::DefaultARM;
+    namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    using DEVICE = rlt::devices::DefaultARM;
     using T = float;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     for(unsigned i = 0; i < NUM_RUNS; ++i){
-        auto number = bpt::random::uniform_int_distribution(DEVICE::SPEC::RANDOM(), MIN, MAX, rng);
+        auto number = rlt::random::uniform_int_distribution(DEVICE::SPEC::RANDOM(), MIN, MAX, rng);
         ASSERT_TRUE(number >= MIN);
         ASSERT_TRUE(number <= MAX);
     }
@@ -23,16 +23,16 @@ TEST(RL_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_LIMITS) {
 
 template <auto MIN, auto MAX, int NUM_RUNS = 10000>
 void test_int_uniform_distribution(){
-    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-    using DEVICE = bpt::devices::DefaultARM;
+    namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    using DEVICE = rlt::devices::DefaultARM;
     using T = float;
     using TI = typename DEVICE::index_t;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     TI smaller_than_half = 0;
     TI bigger_than_half = 0;
     long int threshold = ((long int)MAX - (long int)MIN) / 2;
     for(unsigned i = 0; i < NUM_RUNS; ++i){
-        auto number = bpt::random::uniform_int_distribution(DEVICE::SPEC::RANDOM(), MIN, MAX, rng);
+        auto number = rlt::random::uniform_int_distribution(DEVICE::SPEC::RANDOM(), MIN, MAX, rng);
         if(number - MIN <= threshold) {
             smaller_than_half++;
         }
@@ -55,13 +55,13 @@ TEST(RL_TOOLS_RANDOM_ARM, TEST_INT_UNIFORM_DISTRIBUTION) {
 
 template <typename T, auto MIN, auto MAX, auto DENOMINATOR, int NUM_RUNS = 10000>
 void test_real_uniform_limits(){
-    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-    using DEVICE = bpt::devices::DefaultARM;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
+    namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    using DEVICE = rlt::devices::DefaultARM;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     T min = (T)MIN / (T)DENOMINATOR;
     T max = (T)MAX / (T)DENOMINATOR;
     for(unsigned i = 0; i < NUM_RUNS; ++i){
-        auto number = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), min, max, rng);
+        auto number = rlt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), min, max, rng);
         if(number < min || number > max){
             std::cout << "number: " << number << " min: " << min << " max: " << max << std::endl;
         }
@@ -78,10 +78,10 @@ TEST(RL_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_LIMITS) {
 
 template <typename T, auto MIN, auto MAX, auto DENOMINATOR, int NUM_RUNS = 10000>
 void test_real_uniform_distribution(){
-    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-    using DEVICE = bpt::devices::DefaultARM;
+    namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    using DEVICE = rlt::devices::DefaultARM;
     using TI = typename DEVICE::index_t;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     T min = (T)MIN / (T)DENOMINATOR;
     T max = (T)MAX / (T)DENOMINATOR;
     TI smaller_than_half = 0;
@@ -89,7 +89,7 @@ void test_real_uniform_distribution(){
 
     T threshold = (max - min) / 2;
     for(unsigned i = 0; i < NUM_RUNS; ++i){
-        auto number = bpt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), min, max, rng);
+        auto number = rlt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), min, max, rng);
         if(number - min <= threshold) {
             smaller_than_half++;
         }
@@ -112,10 +112,10 @@ TEST(RL_TOOLS_RANDOM_ARM, TEST_REAL_UNIFORM_DISTRIBUTION) {
 
 template <typename T, auto MEAN, auto STD, auto DENOMINATOR, int NUM_RUNS = 10000000>
 void test_normal_distribution(){
-    namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-    using DEVICE = bpt::devices::DefaultARM;
+    namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+    using DEVICE = rlt::devices::DefaultARM;
     using TI = typename DEVICE::index_t;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     T mean = (T)MEAN / (T)DENOMINATOR;
     T std = (T)STD / (T)DENOMINATOR;
     TI smaller_than_mean = 0;
@@ -131,7 +131,7 @@ void test_normal_distribution(){
 
 
     for(unsigned i = 0; i < NUM_RUNS; ++i){
-        auto number = bpt::random::normal_distribution::sample(DEVICE::SPEC::RANDOM(), mean, std, rng);
+        auto number = rlt::random::normal_distribution::sample(DEVICE::SPEC::RANDOM(), mean, std, rng);
         if(number <= mean) {
             smaller_than_mean++;
         }

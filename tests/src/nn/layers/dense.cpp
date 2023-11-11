@@ -1,20 +1,20 @@
 
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-using DEVICE = bpt::devices::DefaultCPU;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
 DEVICE device;
 TI seed = 1;
-auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
+auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
 
 constexpr TI INPUT_DIM = 5;
 constexpr TI OUTPUT_DIM = 5;
-constexpr auto ACTIVATION_FUNCTION = bpt::nn::activation_functions::RELU;
-using PARAMETER_TYPE = bpt::nn::parameters::Plain;
+constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::RELU;
+using PARAMETER_TYPE = rlt::nn::parameters::Plain;
 
-using LAYER_SPEC = bpt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE>;
+using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE>;
 
 
 
@@ -25,32 +25,32 @@ using LAYER_SPEC = bpt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPU
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
 
-    bpt::nn::layers::dense::Layer<LAYER_SPEC> layer;
-    bpt::malloc(device, layer);
-    bpt::init_kaiming(device, layer, rng);
+    rlt::nn::layers::dense::Layer<LAYER_SPEC> layer;
+    rlt::malloc(device, layer);
+    rlt::init_kaiming(device, layer, rng);
     constexpr TI BATCH_SIZE = 1;
-    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
-    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> output;
-    bpt::malloc(device, input);
-    bpt::malloc(device, output);
-    bpt::randn(device, input, rng);
-    bpt::print(device, input);
-    bpt::evaluate(device, layer, input, output);
-    using PARAMETER_TYPE_2 = bpt::nn::parameters::Gradient;
-    using LAYER_2_SPEC = bpt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE_2>;
-    bpt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC> layer_2;
-    bpt::malloc(device, layer_2);
-    bpt::copy(device, device, layer, layer_2);
-    bpt::zero_gradient(device, layer_2);
-    auto abs_diff = bpt::abs_diff(device, layer, layer_2);
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> output;
+    rlt::malloc(device, input);
+    rlt::malloc(device, output);
+    rlt::randn(device, input, rng);
+    rlt::print(device, input);
+    rlt::evaluate(device, layer, input, output);
+    using PARAMETER_TYPE_2 = rlt::nn::parameters::Gradient;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE_2>;
+    rlt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC> layer_2;
+    rlt::malloc(device, layer_2);
+    rlt::copy(device, device, layer, layer_2);
+    rlt::zero_gradient(device, layer_2);
+    auto abs_diff = rlt::abs_diff(device, layer, layer_2);
     EXPECT_EQ(abs_diff, 0);
 }
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_TIMING) {
-    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 100, 100>> input;
-    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 100, 100>> output;
-    bpt::malloc(device, input);
-    bpt::malloc(device, output);
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 100, 100>> input;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 100, 100>> output;
+    rlt::malloc(device, input);
+    rlt::malloc(device, output);
     constexpr TI ITERATIONS = 1000;
     {
         auto start = std::chrono::high_resolution_clock::now();
@@ -70,7 +70,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_TIMING) {
         auto end = std::chrono::high_resolution_clock::now();
         std::cout << "memcpy: " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;
     }
-    bpt::free(device, input);
-    bpt::free(device, output);
+    rlt::free(device, input);
+    rlt::free(device, output);
 }
 

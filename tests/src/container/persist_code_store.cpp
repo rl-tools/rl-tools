@@ -7,7 +7,7 @@
 #include <rl_tools/nn_models/mlp/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/persist_code.h>
 
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 #include <gtest/gtest.h>
@@ -20,15 +20,15 @@ constexpr bool const_declaration = true;
 
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> m;
-    bpt::malloc(device, m);
-    bpt::randn(device, m, rng);
-    bpt::print(device, m);
-    auto output = bpt::save_code(device, m, "matrix_1", const_declaration);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> m;
+    rlt::malloc(device, m);
+    rlt::randn(device, m, rng);
+    rlt::print(device, m);
+    auto output = rlt::save_code(device, m, "matrix_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;
@@ -40,27 +40,27 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST){
 }
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using TI = DEVICE::index_t;
     using DTYPE = float;
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, TI>;
-    using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, TI>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
     DEVICE device;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    bpt::nn::layers::dense::LayerBackwardGradient<bpt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam>> layer;
-    bpt::malloc(device, layer);
-    bpt::init_kaiming(device, layer, rng);
-    bpt::zero_gradient(device, layer);
-    bpt::reset_forward_state(device, layer);
-    bpt::reset_optimizer_state(device, optimizer, layer);
-    bpt::randn(device, layer.weights.gradient, rng);
-    bpt::randn(device, layer.weights.gradient_first_order_moment, rng);
-    bpt::randn(device, layer.weights.gradient_second_order_moment, rng);
-    bpt::randn(device, layer.biases.gradient, rng);
-    bpt::randn(device, layer.biases.gradient_first_order_moment, rng);
-    bpt::randn(device, layer.biases.gradient_second_order_moment, rng);
-    auto output = bpt::save_code(device, layer, "layer_1", const_declaration);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    rlt::nn::layers::dense::LayerBackwardGradient<rlt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam>> layer;
+    rlt::malloc(device, layer);
+    rlt::init_kaiming(device, layer, rng);
+    rlt::zero_gradient(device, layer);
+    rlt::reset_forward_state(device, layer);
+    rlt::reset_optimizer_state(device, optimizer, layer);
+    rlt::randn(device, layer.weights.gradient, rng);
+    rlt::randn(device, layer.weights.gradient_first_order_moment, rng);
+    rlt::randn(device, layer.weights.gradient_second_order_moment, rng);
+    rlt::randn(device, layer.biases.gradient, rng);
+    rlt::randn(device, layer.biases.gradient_first_order_moment, rng);
+    rlt::randn(device, layer.biases.gradient_second_order_moment, rng);
+    auto output = rlt::save_code(device, layer, "layer_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;
@@ -72,15 +72,15 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
 }
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = bpt::nn_models::mlp::InferenceSpecification<bpt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1, bpt::MatrixDynamicTag, true, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
-    bpt::nn_models::mlp::NeuralNetwork<SPEC> mlp;
-    bpt::malloc(device, mlp);
-    bpt::init_weights(device, mlp, rng);
-    auto output = bpt::save_code(device, mlp, "mlp_1", const_declaration);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    using SPEC = rlt::nn_models::mlp::InferenceSpecification<rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
+    rlt::nn_models::mlp::NeuralNetwork<SPEC> mlp;
+    rlt::malloc(device, mlp);
+    rlt::init_weights(device, mlp, rng);
+    auto output = rlt::save_code(device, mlp, "mlp_1", const_declaration);
     std::cout << "output: " << output << std::endl;
     std::filesystem::create_directories("data");
     std::ofstream file;

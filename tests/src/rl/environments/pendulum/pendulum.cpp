@@ -6,20 +6,20 @@
 #include "../../../utils/utils.h"
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #define DTYPE double
 const DTYPE STATE_TOLERANCE = 0.00001;
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
-    using DEVICE = bpt::devices::DefaultCPU;
-    typedef bpt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
-    typedef bpt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
+    using DEVICE = rlt::devices::DefaultCPU;
+    typedef rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+    typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
     std::string DATA_FILE_NAME = "pendulum.hdf5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
     DEVICE device;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
     HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto episodes_group = file.getGroup("episodes");
     for(int episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){
@@ -45,11 +45,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
         for(int step_i = 0; step_i < states.size(); step_i++){
             std::cout << "step i: " << step_i << std::endl;
             ENVIRONMENT::State next_state;
-            bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
-            bpt::malloc(device, action);
-            bpt::assign(device, actions[step_i].data(), action);
-            bpt::step(device, env, state, action, next_state, rng);
-            DTYPE r = bpt::reward(device, env, state, action, next_state, rng);
+            rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
+            rlt::malloc(device, action);
+            rlt::assign(device, actions[step_i].data(), action);
+            rlt::step(device, env, state, action, next_state, rng);
+            DTYPE r = rlt::reward(device, env, state, action, next_state, rng);
             EXPECT_NEAR(     states[step_i][0], state.theta, STATE_TOLERANCE);
             EXPECT_NEAR(     states[step_i][1], state.theta_dot, STATE_TOLERANCE);
             EXPECT_NEAR(    rewards[step_i]   , r, STATE_TOLERANCE);

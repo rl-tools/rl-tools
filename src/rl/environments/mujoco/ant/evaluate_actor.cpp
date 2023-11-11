@@ -6,7 +6,7 @@
 #include <rl_tools/nn_models/persist.h>
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
 
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
 #include "ppo/parameters.h"
@@ -23,7 +23,7 @@ namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <CLI/CLI.hpp>
 
 namespace TEST_DEFINITIONS{
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TI = typename DEVICE::index_t;
     namespace parameter_set = parameters_0;
@@ -32,9 +32,9 @@ namespace TEST_DEFINITIONS{
     struct ENVIRONMENT_EVALUATION_PARAMETERS: parameters_environment::ENVIRONMENT_SPEC::PARAMETERS{
         constexpr static TI FRAME_SKIP = 5; // for smoother playback
     };
-    using ENVIRONMENT_EVALUATION_SPEC = bpt::rl::environments::mujoco::ant::Specification<T, TI, ENVIRONMENT_EVALUATION_PARAMETERS>;
-    using ENVIRONMENT = bpt::rl::environments::mujoco::Ant<ENVIRONMENT_EVALUATION_SPEC>;
-    using UI = bpt::rl::environments::mujoco::ant::UI<ENVIRONMENT>;
+    using ENVIRONMENT_EVALUATION_SPEC = rlt::rl::environments::mujoco::ant::Specification<T, TI, ENVIRONMENT_EVALUATION_PARAMETERS>;
+    using ENVIRONMENT = rlt::rl::environments::mujoco::Ant<ENVIRONMENT_EVALUATION_SPEC>;
+    using UI = rlt::rl::environments::mujoco::ant::UI<ENVIRONMENT>;
 
     using parameters_rl = parameter_set::rl<T, TI, ENVIRONMENT>;
     constexpr TI MAX_EPISODE_LENGTH = 1000;
@@ -55,20 +55,20 @@ int main(int argc, char** argv) {
     ENVIRONMENT env;
     UI ui;
     parameters_rl::ACTOR_TYPE actor;
-    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     typename ENVIRONMENT::State state, next_state;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
-    bpt::rl::components::RunningNormalizer<bpt::rl::components::running_normalizer::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+    rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
 
-    bpt::malloc(dev, env);
-    bpt::malloc(dev, actor);
-    bpt::malloc(dev, action);
-    bpt::malloc(dev, observation);
-    bpt::malloc(dev, observation_normalizer);
+    rlt::malloc(dev, env);
+    rlt::malloc(dev, actor);
+    rlt::malloc(dev, action);
+    rlt::malloc(dev, observation);
+    rlt::malloc(dev, observation_normalizer);
 
-    bpt::init(dev, env, ui);
-    bpt::init(dev, observation_normalizer);
+    rlt::init(dev, env, ui);
+    rlt::init(dev, observation_normalizer);
     DEVICE::index_t episode_i = 0;
     while(true){
         std::filesystem::path actor_run;
@@ -106,10 +106,10 @@ int main(int argc, char** argv) {
         {
             try{
                 auto data_file = HighFive::File(checkpoint, HighFive::File::ReadOnly);
-                bpt::load(dev, actor, data_file.getGroup("actor"));
+                rlt::load(dev, actor, data_file.getGroup("actor"));
 #ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
-                bpt::load(dev, observation_normalizer.mean, data_file.getGroup("observation_normalizer"), "mean");
-                bpt::load(dev, observation_normalizer.std, data_file.getGroup("observation_normalizer"), "std");
+                rlt::load(dev, observation_normalizer.mean, data_file.getGroup("observation_normalizer"), "mean");
+                rlt::load(dev, observation_normalizer.std, data_file.getGroup("observation_normalizer"), "std");
 #endif
             }
             catch(HighFive::FileException& e){
@@ -119,17 +119,17 @@ int main(int argc, char** argv) {
             }
         }
 
-        bpt::sample_initial_state(dev, env, state, rng);
+        rlt::sample_initial_state(dev, env, state, rng);
         T reward_acc = 0;
         for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
-            bpt::observe(dev, env, state, observation, rng);
-            bpt::normalize(dev, observation_normalizer.mean, observation_normalizer.std, observation);
-            bpt::evaluate(dev, actor, observation, action);
-            T dt = bpt::step(dev, env, state, action, next_state, rng);
-            bool terminated_flag = bpt::terminated(dev, env, next_state, rng);
-            reward_acc += bpt::reward(dev, env, state, action, next_state, rng);
-            bpt::set_state(dev, ui, state);
+            rlt::observe(dev, env, state, observation, rng);
+            rlt::normalize(dev, observation_normalizer.mean, observation_normalizer.std, observation);
+            rlt::evaluate(dev, actor, observation, action);
+            T dt = rlt::step(dev, env, state, action, next_state, rng);
+            bool terminated_flag = rlt::terminated(dev, env, next_state, rng);
+            reward_acc += rlt::reward(dev, env, state, action, next_state, rng);
+            rlt::set_state(dev, ui, state);
             state = next_state;
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> diff = end-start;
@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
                 for(int timeout_step_i = 0; timeout_step_i < startup_timeout; timeout_step_i++){
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                     if(timeout_step_i % 100 == 0){
-                        bpt::set_state(dev, ui, state);
+                        rlt::set_state(dev, ui, state);
                     }
                 }
             }

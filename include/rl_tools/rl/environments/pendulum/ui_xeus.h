@@ -53,8 +53,8 @@ namespace rl_tools{
 
         using T = typename SPEC::T;
         T x, y;
-        x = std::sin(ui.state.theta + bpt::math::PI<T>)*SPEC::PENDULUM_LENGTH + SPEC::CENTER_X;
-        y = std::cos(ui.state.theta + bpt::math::PI<T>)*SPEC::PENDULUM_LENGTH + SPEC::CENTER_Y;
+        x = std::sin(ui.state.theta + rlt::math::PI<T>)*SPEC::PENDULUM_LENGTH + SPEC::CENTER_X;
+        y = std::cos(ui.state.theta + rlt::math::PI<T>)*SPEC::PENDULUM_LENGTH + SPEC::CENTER_Y;
 
         ui.canvas.cache();
         ui.canvas.clear();

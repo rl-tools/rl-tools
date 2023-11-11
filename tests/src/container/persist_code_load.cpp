@@ -4,7 +4,7 @@
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_cpu.h>
 
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 #include <gtest/gtest.h>
@@ -16,126 +16,126 @@ namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 constexpr bool const_declaration = false;
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> orig;
-    bpt::malloc(device, orig);
-    bpt::randn(device, orig, rng);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 3, 3>> orig;
+    rlt::malloc(device, orig);
+    rlt::randn(device, orig, rng);
     std::cout << "orig: " << std::endl;
-    bpt::print(device, orig);
+    rlt::print(device, orig);
     std::cout << "loaded: " << std::endl;
-    bpt::print(device, matrix_1::container);
+    rlt::print(device, matrix_1::container);
 
-    auto abs_diff = bpt::abs_diff(device, orig, matrix_1::container);
+    auto abs_diff = rlt::abs_diff(device, orig, matrix_1::container);
     ASSERT_FLOAT_EQ(0, abs_diff);
 }
 
 #include "../../../data/test_rl_tools_nn_layers_dense_persist_code.h"
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    bpt::nn::layers::dense::Layer<bpt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, bpt::nn::activation_functions::ActivationFunction::RELU>> layer;
-    bpt::malloc(device, layer);
-    bpt::init_kaiming(device, layer, rng);
-    bpt::increment(layer.weights.parameters, 2, 1, 10);
-    auto abs_diff = bpt::abs_diff(device, layer, layer_1::layer);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    rlt::nn::layers::dense::Layer<rlt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, rlt::nn::activation_functions::ActivationFunction::RELU>> layer;
+    rlt::malloc(device, layer);
+    rlt::init_kaiming(device, layer, rng);
+    rlt::increment(layer.weights.parameters, 2, 1, 10);
+    auto abs_diff = rlt::abs_diff(device, layer, layer_1::layer);
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
-    using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
     DEVICE device;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    bpt::nn::layers::dense::LayerBackwardGradient<bpt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::parameters::Adam>> layer;
-    bpt::malloc(device, layer);
-    bpt::init_kaiming(device, layer, rng);
-    bpt::zero_gradient(device, layer);
-    bpt::reset_forward_state(device, layer);
-    bpt::reset_optimizer_state(device, optimizer, layer);
-    bpt::randn(device, layer.weights.gradient, rng);
-    bpt::randn(device, layer.weights.gradient_first_order_moment, rng);
-    bpt::randn(device, layer.weights.gradient_second_order_moment, rng);
-    bpt::randn(device, layer.biases.gradient, rng);
-    bpt::randn(device, layer.biases.gradient_first_order_moment, rng);
-    bpt::randn(device, layer.biases.gradient_second_order_moment, rng);
-    bpt::increment(layer.weights.parameters, 2, 1, 10);
-    bpt::increment(layer.weights.gradient, 2, 1, 5);
-    bpt::increment(layer.weights.gradient_first_order_moment, 2, 1, 2);
-    bpt::increment(layer.weights.gradient_second_order_moment, 2, 1, 1);
-    auto abs_diff = bpt::abs_diff(device, layer, layer_1::layer);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    rlt::nn::layers::dense::LayerBackwardGradient<rlt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam>> layer;
+    rlt::malloc(device, layer);
+    rlt::init_kaiming(device, layer, rng);
+    rlt::zero_gradient(device, layer);
+    rlt::reset_forward_state(device, layer);
+    rlt::reset_optimizer_state(device, optimizer, layer);
+    rlt::randn(device, layer.weights.gradient, rng);
+    rlt::randn(device, layer.weights.gradient_first_order_moment, rng);
+    rlt::randn(device, layer.weights.gradient_second_order_moment, rng);
+    rlt::randn(device, layer.biases.gradient, rng);
+    rlt::randn(device, layer.biases.gradient_first_order_moment, rng);
+    rlt::randn(device, layer.biases.gradient_second_order_moment, rng);
+    rlt::increment(layer.weights.parameters, 2, 1, 10);
+    rlt::increment(layer.weights.gradient, 2, 1, 5);
+    rlt::increment(layer.weights.gradient_first_order_moment, 2, 1, 2);
+    rlt::increment(layer.weights.gradient_second_order_moment, 2, 1, 1);
+    auto abs_diff = rlt::abs_diff(device, layer, layer_1::layer);
     ASSERT_FLOAT_EQ(10 + 5 + 2 + 1, abs_diff);
 }
 
 #include "../../../data/test_rl_tools_nn_models_mlp_persist_code.h"
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = bpt::nn_models::mlp::InferenceSpecification<bpt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1, bpt::MatrixDynamicTag, true, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
-    bpt::nn_models::mlp::NeuralNetwork<SPEC> mlp;
-    bpt::malloc(device, mlp);
-    bpt::init_weights(device, mlp, rng);
-    bpt::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
-    auto abs_diff = bpt::abs_diff(device, mlp, mlp_1::mlp);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    using SPEC = rlt::nn_models::mlp::InferenceSpecification<rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
+    rlt::nn_models::mlp::NeuralNetwork<SPEC> mlp;
+    rlt::malloc(device, mlp);
+    rlt::init_weights(device, mlp, rng);
+    rlt::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
+    auto abs_diff = rlt::abs_diff(device, mlp, mlp_1::mlp);
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
-    using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = bpt::nn_models::mlp::AdamSpecification<bpt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1, bpt::MatrixDynamicTag, true, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
-    bpt::nn_models::mlp::NeuralNetworkAdam<SPEC> mlp;
-    bpt::malloc(device, mlp);
-    bpt::init_weights(device, mlp, rng);
-    bpt::zero_gradient(device, mlp);
-    bpt::reset_forward_state(device, mlp);
-    bpt::reset_optimizer_state(device, optimizer, mlp);
-    bpt::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
-    bpt::copy(device, device, mlp.input_layer, mlp_1::input_layer::layer);
-    auto abs_diff = bpt::abs_diff(device, mlp, mlp_1::mlp);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    using SPEC = rlt::nn_models::mlp::AdamSpecification<rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>>;
+    rlt::nn_models::mlp::NeuralNetworkAdam<SPEC> mlp;
+    rlt::malloc(device, mlp);
+    rlt::init_weights(device, mlp, rng);
+    rlt::zero_gradient(device, mlp);
+    rlt::reset_forward_state(device, mlp);
+    rlt::reset_optimizer_state(device, optimizer, mlp);
+    rlt::increment(mlp.hidden_layers[0].biases.parameters, 0, 2, 10);
+    rlt::copy(device, device, mlp.input_layer, mlp_1::input_layer::layer);
+    auto abs_diff = rlt::abs_diff(device, mlp, mlp_1::mlp);
     ASSERT_FLOAT_EQ(10, abs_diff);
 }
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     constexpr typename DEVICE::index_t BATCH_SIZE = 10;
     DEVICE device;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using STRUCTURE_SPEC = bpt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, bpt::nn::activation_functions::ActivationFunction::RELU, bpt::nn::activation_functions::ActivationFunction::IDENTITY, 1, bpt::MatrixDynamicTag, true, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
-    using SPEC = bpt::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>;
-    bpt::nn_models::mlp::NeuralNetwork<SPEC> mlp;
-    bpt::malloc(device, mlp);
-    bpt::init_weights(device, mlp, rng);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
+    using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using SPEC = rlt::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>;
+    rlt::nn_models::mlp::NeuralNetwork<SPEC> mlp;
+    rlt::malloc(device, mlp);
+    rlt::init_weights(device, mlp, rng);
 
-    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
-    bpt::MatrixDynamic<bpt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_loaded;
-    bpt::malloc(device, input);
-    bpt::malloc(device, output_orig);
-    bpt::malloc(device, output_loaded);
-    bpt::randn(device, input, rng);
-    bpt::evaluate(device, mlp, input, output_orig);
-    bpt::evaluate(device, mlp_1::mlp, input, output_loaded);
-    bpt::print(device, output_orig);
+    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
+    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_loaded;
+    rlt::malloc(device, input);
+    rlt::malloc(device, output_orig);
+    rlt::malloc(device, output_loaded);
+    rlt::randn(device, input, rng);
+    rlt::evaluate(device, mlp, input, output_orig);
+    rlt::evaluate(device, mlp_1::mlp, input, output_loaded);
+    rlt::print(device, output_orig);
 
-    auto output = bpt::save(device, input, "input", const_declaration);
-    output += bpt::save(device, output_orig, "expected_output", const_declaration);
+    auto output = rlt::save(device, input, "input", const_declaration);
+    output += rlt::save(device, output_orig, "expected_output", const_declaration);
 
     std::filesystem::create_directories("data");
     std::ofstream file;
@@ -143,6 +143,6 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
     file << output;
     file.close();
 
-    auto abs_diff = bpt::abs_diff(device, output_orig, output_loaded);
+    auto abs_diff = rlt::abs_diff(device, output_orig, output_loaded);
     ASSERT_FLOAT_EQ(0, abs_diff);
 }

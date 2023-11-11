@@ -2,31 +2,31 @@
 
 #include <rl_tools/rl/environments/car/car.h>
 #include <rl_tools/rl/environments/car/operations_generic.h>
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 
 TEST(RL_ENVIRONMENTS_CAR, COMPARISON){
-    using DEVICE = bpt::devices::DefaultCPU;
+    using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TI = typename DEVICE::index_t;
-    using ENV_SPEC = bpt::rl::environments::car::Specification<T, TI>;
-    using ENVIRONMENT = bpt::rl::environments::Car<ENV_SPEC>;
+    using ENV_SPEC = rlt::rl::environments::car::Specification<T, TI>;
+    using ENVIRONMENT = rlt::rl::environments::Car<ENV_SPEC>;
 
     DEVICE device;
     ENVIRONMENT env;
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
 
     ENVIRONMENT::State state, next_state;
-    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> a;
-    bpt::malloc(device, a);
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> a;
+    rlt::malloc(device, a);
 
     {
-        bpt::initial_state(device, env, state);
+        rlt::initial_state(device, env, state);
         set(a, 0, 0, 0.11);
-        set(a, 0, 1, -30.0/180.0*bpt::math::PI<T>);
+        set(a, 0, 1, -30.0/180.0*rlt::math::PI<T>);
         for(TI step_i=0; step_i < 100; step_i++){
-            bpt::step(device, env, state, a, next_state, rng);
+            rlt::step(device, env, state, a, next_state, rng);
             state = next_state;
             std::cout << "step: " << step_i << " x: " << state.x << ", y: " << state.y << ", mu: " << state.mu << ", vx: " << state.vx << ", vy: " << state.vy << ", omega: " << state.omega << "\n";
         }
@@ -41,12 +41,12 @@ TEST(RL_ENVIRONMENTS_CAR, COMPARISON){
     }
 
     {
-        bpt::initial_state(device, env, state);
-        state.mu = 90/180.0*bpt::math::PI<T>;
+        rlt::initial_state(device, env, state);
+        state.mu = 90/180.0*rlt::math::PI<T>;
         set(a, 0, 0, 0.11);
-        set(a, 0, 1, -30.0/180.0*bpt::math::PI<T>);
+        set(a, 0, 1, -30.0/180.0*rlt::math::PI<T>);
         for(TI step_i=0; step_i < 100; step_i++){
-            bpt::step(device, env, state, a, next_state, rng);
+            rlt::step(device, env, state, a, next_state, rng);
             state = next_state;
             std::cout << "step: " << step_i << " x: " << state.x << ", y: " << state.y << ", mu: " << state.mu << ", vx: " << state.vx << ", vy: " << state.vy << ", omega: " << state.omega << "\n";
         }

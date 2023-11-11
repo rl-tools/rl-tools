@@ -13,36 +13,36 @@
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
 
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
-using DEVICE = bpt::devices::DefaultCPU;
+using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
-using ENVIRONMENT_SPEC = bpt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
-using ENVIRONMENT = bpt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
-typedef bpt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, 1, false, 5000, 100, bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
-typedef bpt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
+using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
+using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
+typedef rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, 1, false, 5000, 100, rlt::rl::components::off_policy_runner::DefaultParameters<DTYPE>> OffPolicyRunnerSpec;
+typedef rlt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
 
-using PendulumStructureSpecification = bpt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, bpt::nn::activation_functions::GELU, bpt::nn::activation_functions::IDENTITY>;
+using PendulumStructureSpecification = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 
 TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
-    using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, TI>;
-    using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-    typedef bpt::nn_models::mlp::AdamSpecification<PendulumStructureSpecification> SPEC;
+    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, TI>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    typedef rlt::nn_models::mlp::AdamSpecification<PendulumStructureSpecification> SPEC;
     DEVICE device;
     OPTIMIZER optimizer;
-    bpt::nn_models::mlp::NeuralNetworkAdam<SPEC> policy;
-    bpt::malloc(device, policy);
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
-    bpt::init_weights(device, policy, rng);
+    rlt::nn_models::mlp::NeuralNetworkAdam<SPEC> policy;
+    rlt::malloc(device, policy);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
+    rlt::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner;
-    bpt::malloc(device, off_policy_runner);
+    rlt::malloc(device, off_policy_runner);
     ENVIRONMENT envs[OffPolicyRunnerSpec::N_ENVIRONMENTS];
-    bpt::init(device, off_policy_runner, envs);
+    rlt::init(device, off_policy_runner, envs);
     decltype(policy)::DoubleBuffer<OffPolicyRunnerSpec::N_ENVIRONMENTS> policy_buffers;
-    bpt::malloc(device, policy_buffers);
+    rlt::malloc(device, policy_buffers);
     for(int step_i = 0; step_i < 10000; step_i++){
-        bpt::step(device, off_policy_runner, policy, policy_buffers, rng);
+        rlt::step(device, off_policy_runner, policy, policy_buffers, rng);
     }
-    bpt::free(device, off_policy_runner);
+    rlt::free(device, off_policy_runner);
 }
 

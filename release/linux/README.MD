@@ -58,10 +58,10 @@ cmake --install .
 
 #### Testing the binaries
 ```
-docker run -it --rm -w /bpt/bin -v $(pwd)/install/rl_tools:/bpt archlinux 
+docker run -it --rm -w /rlt/bin -v $(pwd)/install/rl_tools:/rlt archlinux 
 ````
 ```
-docker run --rm -it -w /bpt/bin -v $(pwd)/install/rl_tools:/bpt --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 ./rl_environments_mujoco_ant_training_ppo_cuda_full 
+docker run --rm -it -w /rlt/bin -v $(pwd)/install/rl_tools:/rlt --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 ./rl_environments_mujoco_ant_training_ppo_cuda_full 
 ````
 
 

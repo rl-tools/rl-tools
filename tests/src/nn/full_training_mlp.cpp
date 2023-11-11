@@ -9,7 +9,7 @@
 #include <rl_tools/nn_models/operations_cpu.h>
 
 
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -22,7 +22,7 @@ namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 typedef double T;
 
 
-using DEVICE = bpt::devices::DefaultCPU;
+using DEVICE = rlt::devices::DefaultCPU;
 //template <typename T_T>
 //struct StructureSpecification{
 //    typedef T_T T;
@@ -30,18 +30,18 @@ using DEVICE = bpt::devices::DefaultCPU;
 //    static constexpr typename DEVICE::index_t OUTPUT_DIM = 13;
 //    static constexpr int NUM_LAYERS = 3;
 //    static constexpr int HIDDEN_DIM = 50;
-//    static constexpr bpt::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = bpt::nn::activation_functions::GELU;
-//    static constexpr bpt::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = bpt::nn::activation_functions::IDENTITY;
+//    static constexpr rlt::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION = rlt::nn::activation_functions::GELU;
+//    static constexpr rlt::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = rlt::nn::activation_functions::IDENTITY;
 //};
 
 constexpr int batch_size = 32;
-using StructureSpecification = bpt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, bpt::nn::activation_functions::GELU, bpt::nn::activation_functions::IDENTITY, 1>;
+using StructureSpecification = rlt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY, 1>;
 
 
-using OPTIMIZER_PARAMETERS = bpt::nn::optimizers::adam::DefaultParametersTF<T, typename DEVICE::index_t>;
-using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-using NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<StructureSpecification>;
-using NetworkType = bpt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
+using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTF<T, typename DEVICE::index_t>;
+using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<StructureSpecification>;
+using NetworkType = rlt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
 std::vector<std::vector<T>> Y_train;
@@ -75,17 +75,17 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     OPTIMIZER optimizer;
     NetworkType network;
     typename NetworkType::DoubleBuffer<1> buffers;
-    bpt::malloc(device, network);
-    bpt::malloc(device, buffers);
+    rlt::malloc(device, network);
+    rlt::malloc(device, buffers);
     std::vector<T> losses;
     std::vector<T> val_losses;
     std::vector<T> epoch_durations;
     constexpr int n_epochs = 3;
     //    this->reset();
-    bpt::reset_optimizer_state(device, optimizer, network);
+    rlt::reset_optimizer_state(device, optimizer, network);
 //    typename DEVICE::index_t rng = 2;
     std::mt19937 rng(2);
-    bpt::init_weights(device, network, rng);
+    rlt::init_weights(device, network, rng);
 
     int n_iter = X_train.size() / batch_size;
 
@@ -94,31 +94,31 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
         auto epoch_start_time = std::chrono::high_resolution_clock::now();
         for (int batch_i=0; batch_i < n_iter; batch_i++){
             T loss = 0;
-            bpt::zero_gradient(device, network);
+            rlt::zero_gradient(device, network);
             for (int sample_i=0; sample_i < batch_size; sample_i++){
                 T input[INPUT_DIM];
                 T output[OUTPUT_DIM];
                 standardise<T,  INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
                 standardise<T, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
-                bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
+                rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
                 input_matrix._data = input;
-                bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
+                rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
                 output_matrix._data = output;
-                bpt::forward(device, network, input_matrix);
+                rlt::forward(device, network, input_matrix);
                 T d_loss_d_output[OUTPUT_DIM];
-                bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
+                rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
-                bpt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
-                loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
+                rlt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
+                loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
 
-                bpt::backward(device, network, input_matrix, d_loss_d_output_matrix, buffers);
+                rlt::backward(device, network, input_matrix, d_loss_d_output_matrix, buffers);
             }
             loss /= batch_size;
             epoch_loss += loss;
 
             //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
-            bpt::step(device, optimizer, network);
+            rlt::step(device, optimizer, network);
             if(batch_i % 1000 == 0){
                 std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
             }
@@ -138,12 +138,12 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
             standardise<T,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
             standardise<T, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
 
-            bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
+            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
             input_matrix._data = input;
-            bpt::MatrixDynamic<bpt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, bpt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
+            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
             output_matrix._data = output;
-            bpt::forward(device, network, input_matrix);
-            val_loss += bpt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/batch_size);
+            rlt::forward(device, network, input_matrix);
+            val_loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/batch_size);
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);

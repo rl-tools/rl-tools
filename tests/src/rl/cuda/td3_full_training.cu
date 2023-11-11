@@ -11,14 +11,14 @@
 #include <rl_tools/operations/cpu_mkl/group_3.h>
 #include <rl_tools/operations/cpu_tensorboard/group_3.h>
 
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn/operations_cpu_mkl.h>
-using DEV_SPEC_INIT = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, bpt::devices::logging::CPU_TENSORBOARD<>>;
-using DEVICE_INIT = bpt::devices::CPU<DEV_SPEC_INIT>;
-//using DEVICE = bpt::devices::CPU_MKL<DEV_SPEC_INIT>;
-using DEVICE = bpt::devices::DefaultCUDA;
+using DEV_SPEC_INIT = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, rlt::devices::logging::CPU_TENSORBOARD<>>;
+using DEVICE_INIT = rlt::devices::CPU<DEV_SPEC_INIT>;
+//using DEVICE = rlt::devices::CPU_MKL<DEV_SPEC_INIT>;
+using DEVICE = rlt::devices::DefaultCUDA;
 using DEV_SPEC = DEVICE::SPEC;
 
 #include "td3_full_training_parameters_pendulum.h"
@@ -65,62 +65,62 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     rlp::ACTOR_NETWORK_TYPE::DoubleBuffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
     rlp::ACTOR_NETWORK_TYPE::DoubleBuffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
 
-    bpt::init(device);
-    bpt::construct(device_init, device_init.logger);
-    auto rng_init = bpt::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM());
+    rlt::init(device);
+    rlt::construct(device_init, device_init.logger);
+    auto rng_init = rlt::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     p::env::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
     bool ui = false;
     
     
-    bpt::malloc(device_init, actor_critic_init);
-    bpt::malloc(device, actor_critic);
-    bpt::malloc(device_init, off_policy_runner_init);
-    bpt::malloc(device, off_policy_runner);
+    rlt::malloc(device_init, actor_critic_init);
+    rlt::malloc(device, actor_critic);
+    rlt::malloc(device_init, off_policy_runner_init);
+    rlt::malloc(device, off_policy_runner);
     cudaMalloc(&off_policy_runner_pointer, sizeof(rlp::OFF_POLICY_RUNNER_TYPE));
-    bpt::check_status(device);
+    rlt::check_status(device);
 
-    bpt::malloc(device, critic_batch);
+    rlt::malloc(device, critic_batch);
     cudaMalloc(&critic_batch_pointer, sizeof(rlp::CRITIC_BATCH_TYPE));
-    bpt::check_status(device);
-    bpt::malloc(device, critic_training_buffers);
-    bpt::malloc(device, critic_buffers[0]);
-    bpt::malloc(device, critic_buffers[1]);
+    rlt::check_status(device);
+    rlt::malloc(device, critic_training_buffers);
+    rlt::malloc(device, critic_buffers[0]);
+    rlt::malloc(device, critic_buffers[1]);
 
-    bpt::malloc(device, actor_batch);
+    rlt::malloc(device, actor_batch);
     cudaMalloc(&actor_batch_pointer, sizeof(rlp::ACTOR_BATCH_TYPE));
-    bpt::check_status(device);
-    bpt::malloc(device, actor_training_buffers);
-    bpt::malloc(device, actor_buffers_eval);
-    bpt::malloc(device_init, actor_buffers_eval_init);
-    bpt::malloc(device, actor_buffers[0]);
-    bpt::malloc(device, actor_buffers[1]);
+    rlt::check_status(device);
+    rlt::malloc(device, actor_training_buffers);
+    rlt::malloc(device, actor_buffers_eval);
+    rlt::malloc(device_init, actor_buffers_eval_init);
+    rlt::malloc(device, actor_buffers[0]);
+    rlt::malloc(device, actor_buffers[1]);
 
-    bpt::init(device_init, actor_critic_init, rng_init);
-    bpt::copy(device_init, device, actor_critic_init, actor_critic);
+    rlt::init(device_init, actor_critic_init, rng_init);
+    rlt::copy(device_init, device, actor_critic_init, actor_critic);
 //    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
 //        auto parameters = p::env::parameters;
 //        envs[i].parameters = parameters;
 //    }
-    bpt::init(device_init, off_policy_runner_init, envs);
-    bpt::copy(device_init, device, off_policy_runner_init, off_policy_runner);
+    rlt::init(device_init, off_policy_runner_init, envs);
+    rlt::copy(device_init, device, off_policy_runner_init, off_policy_runner);
     cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(rlp::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
-    bpt::check_status(device);
+    rlt::check_status(device);
     cudaMemcpy(actor_batch_pointer, &actor_batch, sizeof(rlp::ACTOR_BATCH_TYPE), cudaMemcpyHostToDevice);
-    bpt::check_status(device);
+    rlt::check_status(device);
     cudaMemcpy(critic_batch_pointer, &critic_batch, sizeof(rlp::CRITIC_BATCH_TYPE), cudaMemcpyHostToDevice);
-    bpt::check_status(device);
+    rlt::check_status(device);
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
     constexpr DEVICE::index_t step_limit = 20000;
     for(int step_i = 0; step_i < step_limit; step_i += 1){
-        rng = bpt::random::next(DEVICE::SPEC::RANDOM(), rng);
-        bpt::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
-        rng = bpt::random::next(DEVICE::SPEC::RANDOM(), rng);
-        bpt::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
-        rng = bpt::random::next(DEVICE::SPEC::RANDOM(), rng);
-        bpt::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
+        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
+        rlt::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
+        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
+        rlt::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
+        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
+        rlt::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
 
         if(step_i % 1000 == 0){
             auto current_time = std::chrono::high_resolution_clock::now();
@@ -130,13 +130,13 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 
         if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_CRITIC && step_i % rlp::ACTOR_CRITIC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
             for (int critic_i = 0; critic_i < 2; critic_i++) {
-                rng = bpt::random::next(DEVICE::SPEC::RANDOM(), rng);
+                rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
 //                cudaDeviceSynchronize();
 //                auto start = std::chrono::high_resolution_clock::now();
-                bpt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
-                rng = bpt::random::next(DEVICE::SPEC::RANDOM(), rng);
-                bpt::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
-                bpt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
+                rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
+                rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
+                rlt::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
+                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
 //                cudaDeviceSynchronize();
 //                auto end = std::chrono::high_resolution_clock::now();
 //                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -147,9 +147,9 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_ACTOR && step_i % rlp::ACTOR_CRITIC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
             cudaDeviceSynchronize();
 //            auto start = std::chrono::high_resolution_clock::now();
-            rng = bpt::random::next(DEVICE::SPEC::RANDOM(), rng);
-            bpt::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
-            bpt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+            rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
+            rlt::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
+            rlt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
 //            cudaDeviceSynchronize();
 //            auto end = std::chrono::high_resolution_clock::now();
 //            auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -160,7 +160,7 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
             {
 //                cudaDeviceSynchronize();
 //                auto start = std::chrono::high_resolution_clock::now();
-                bpt::update_critic_targets(device, actor_critic);
+                rlt::update_critic_targets(device, actor_critic);
 //                cudaDeviceSynchronize();
 //                auto end = std::chrono::high_resolution_clock::now();
 //                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -171,7 +171,7 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
             {
 //                cudaDeviceSynchronize();
 //                auto start = std::chrono::high_resolution_clock::now();
-                bpt::update_actor_target(device, actor_critic);
+                rlt::update_actor_target(device, actor_critic);
 //                cudaDeviceSynchronize();
 //                auto end = std::chrono::high_resolution_clock::now();
 //                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -179,8 +179,8 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
             }
         }
         if(step_i % 1000 == 0){
-            bpt::copy(device, device_init, actor_critic, actor_critic_init);
-            auto results = bpt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, bpt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, false);
+            rlt::copy(device, device_init, actor_critic, actor_critic_init);
+            auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, false);
             std::cout << "Mean return: " << results.returns_mean << std::endl;
         }
     }
@@ -193,10 +193,10 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         // no device sync: 14s, 2.5x of CPU BLAS => todo: investigate individual kernel timings
 
     }
-    bpt::free(device, critic_batch);
-    bpt::free(device, critic_training_buffers);
-    bpt::free(device, actor_batch);
-    bpt::free(device, actor_training_buffers);
-    bpt::free(device, off_policy_runner);
-    bpt::free(device, actor_critic);
+    rlt::free(device, critic_batch);
+    rlt::free(device, critic_training_buffers);
+    rlt::free(device, actor_batch);
+    rlt::free(device, actor_training_buffers);
+    rlt::free(device, off_policy_runner);
+    rlt::free(device, actor_critic);
 }

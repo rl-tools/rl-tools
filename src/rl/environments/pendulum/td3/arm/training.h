@@ -2,12 +2,12 @@
 #define RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
 #include <rl_tools/operations/arm.h>
 
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
 //#include <rl_tools/nn/layers/dense/operations_arm/dsp.h>
 #include <rl_tools/nn/operations_generic.h>
-using DEVICE = bpt::devices::arm::Generic<bpt::devices::DefaultARMSpecification>;
+using DEVICE = rlt::devices::arm::Generic<rlt::devices::DefaultARMSpecification>;
 
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
@@ -21,41 +21,41 @@ using DEVICE = bpt::devices::arm::Generic<bpt::devices::DefaultARMSpecification>
 #endif
 
 using DTYPE = float;
-using CONTAINER_TYPE_TAG = bpt::MatrixDynamicTag;
-using CONTAINER_TYPE_TAG_CRITIC = bpt::MatrixStaticTag;
-using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = bpt::MatrixStaticTag;
-using CONTAINER_TYPE_TAG_TRAINING_BUFFERS = bpt::MatrixDynamicTag;
+using CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
+using CONTAINER_TYPE_TAG_CRITIC = rlt::MatrixStaticTag;
+using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = rlt::MatrixStaticTag;
+using CONTAINER_TYPE_TAG_TRAINING_BUFFERS = rlt::MatrixDynamicTag;
 
-using PENDULUM_SPEC = bpt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
-typedef bpt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
+using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
+typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 
-struct TD3PendulumParameters: bpt::rl::algorithms::td3::DefaultParameters<DTYPE, DEVICE::index_t>{
+struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<DTYPE, DEVICE::index_t>{
     constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-using ActorStructureSpec = bpt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG>;
-using CriticStructureSpec = bpt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, bpt::nn::activation_functions::RELU, bpt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG_CRITIC>;
+using ActorStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG>;
+using CriticStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG_CRITIC>;
 
 
-using OPTIMIZER_PARAMETERS = typename bpt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
-using OPTIMIZER = bpt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-using ACTOR_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
-using ACTOR_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
+using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
+using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
+using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
-using ACTOR_TARGET_NETWORK_SPEC = bpt::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
-using ACTOR_TARGET_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
+using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
-using CRITIC_NETWORK_SPEC = bpt::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
-using CRITIC_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
+using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
+using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-using CRITIC_TARGET_NETWORK_SPEC = bpt::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
-using CRITIC_TARGET_NETWORK_TYPE = bpt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
+using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
-using TD3_SPEC = bpt::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS, CONTAINER_TYPE_TAG>;
-using ActorCriticType = bpt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
+using TD3_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS, CONTAINER_TYPE_TAG>;
+using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
 
@@ -68,7 +68,7 @@ DTYPE evaluation_returns[N_EVALUATIONS];
 
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 10000;
 constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
-using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specification<
+using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
         DTYPE,
         DEVICE::index_t,
         ENVIRONMENT,
@@ -76,16 +76,16 @@ using OFF_POLICY_RUNNER_SPEC = bpt::rl::components::off_policy_runner::Specifica
         false,
         REPLAY_BUFFER_CAP,
         ENVIRONMENT_STEP_LIMIT,
-        bpt::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
+        rlt::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
         false,
         false,
         0,
         CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER
  >;
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
-EXTMEM bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
+EXTMEM rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 #else
-bpt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
+rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 #endif
 ActorCriticType actor_critic;
 
@@ -95,17 +95,17 @@ static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCritic
 
 ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
 
-bpt::rl::components::off_policy_runner::Batch<bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
-bpt::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
+rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
+rlt::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
 CRITIC_NETWORK_TYPE::DoubleBuffer<ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> critic_buffers;
 
-bpt::rl::components::off_policy_runner::Batch<bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
-bpt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
+rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
+rlt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
 ACTOR_NETWORK_TYPE::DoubleBuffer<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers;
 ACTOR_NETWORK_TYPE::DoubleBuffer<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers_eval;
 
-typename CONTAINER_TYPE_TAG::template type<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
-typename CONTAINER_TYPE_TAG::template type<bpt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
+typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
+typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
 
 
 void train(){
@@ -114,21 +114,21 @@ void train(){
     DEVICE device;
     device.logger = &logger;
 
-    auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
 
     bool ui = false;
 
-    bpt::malloc(device, actor_critic);
-    bpt::malloc(device, off_policy_runner);
-    bpt::malloc(device, critic_batch);
-    bpt::malloc(device, critic_training_buffers);
-    bpt::malloc(device, critic_buffers);
-    bpt::malloc(device, actor_batch);
-    bpt::malloc(device, actor_training_buffers);
-    bpt::malloc(device, actor_buffers_eval);
-    bpt::malloc(device, actor_buffers);
-    bpt::malloc(device, observations_mean);
-    bpt::malloc(device, observations_std);
+    rlt::malloc(device, actor_critic);
+    rlt::malloc(device, off_policy_runner);
+    rlt::malloc(device, critic_batch);
+    rlt::malloc(device, critic_training_buffers);
+    rlt::malloc(device, critic_buffers);
+    rlt::malloc(device, actor_batch);
+    rlt::malloc(device, actor_training_buffers);
+    rlt::malloc(device, actor_buffers_eval);
+    rlt::malloc(device, actor_buffers);
+    rlt::malloc(device, observations_mean);
+    rlt::malloc(device, observations_std);
 
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
@@ -137,10 +137,10 @@ void train(){
 #endif
 
 
-    bpt::init(device, actor_critic, rng);
-    bpt::init(device, off_policy_runner, envs);
-    bpt::set_all(device, observations_mean, 0);
-    bpt::set_all(device, observations_std, 1);
+    rlt::init(device, actor_critic, rng);
+    rlt::init(device, off_policy_runner, envs);
+    rlt::set_all(device, observations_mean, 0);
+    rlt::set_all(device, observations_std, 1);
 
 
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
@@ -164,7 +164,7 @@ void train(){
 #endif
 
     for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
-        bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
+        rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
         if(step_i % 100 == 0){
             Serial.printf("step: %d\n", step_i);
@@ -179,24 +179,24 @@ void train(){
         if(step_i > N_WARMUP_STEPS){
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
-                bpt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
-                bpt::gather_batch(device, off_policy_runner, critic_batch, rng);
-                bpt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers, critic_buffers, critic_training_buffers);
+                rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
+                rlt::gather_batch(device, off_policy_runner, critic_batch, rng);
+                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers, critic_buffers, critic_training_buffers);
             }
 
             if(step_i % 2 == 0){
                 {
-                    bpt::gather_batch(device, off_policy_runner, actor_batch, rng);
-                    bpt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers, critic_buffers, actor_training_buffers);
+                    rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
+                    rlt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers, critic_buffers, actor_training_buffers);
                 }
 
-                bpt::update_critic_targets(device, actor_critic);
-                bpt::update_actor_target(device, actor_critic);
+                rlt::update_critic_targets(device, actor_critic);
+                rlt::update_actor_target(device, actor_critic);
             }
         }
 #ifndef RL_TOOLS_DISABLE_EVALUATION
         if(step_i % EVALUATION_INTERVAL == 0){
-            auto result = bpt::evaluate(device, envs[0], ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
+            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }
@@ -215,16 +215,16 @@ void train(){
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
     }
 #endif
-    bpt::free(device, actor_critic);
-    bpt::free(device, off_policy_runner);
-    bpt::free(device, critic_batch);
-    bpt::free(device, critic_training_buffers);
-    bpt::free(device, critic_buffers);
-    bpt::free(device, actor_batch);
-    bpt::free(device, actor_training_buffers);
-    bpt::free(device, actor_buffers_eval);
-    bpt::free(device, actor_buffers);
-    bpt::free(device, observations_mean);
-    bpt::free(device, observations_std);
+    rlt::free(device, actor_critic);
+    rlt::free(device, off_policy_runner);
+    rlt::free(device, critic_batch);
+    rlt::free(device, critic_training_buffers);
+    rlt::free(device, critic_buffers);
+    rlt::free(device, actor_batch);
+    rlt::free(device, actor_training_buffers);
+    rlt::free(device, actor_buffers_eval);
+    rlt::free(device, actor_buffers);
+    rlt::free(device, observations_mean);
+    rlt::free(device, observations_std);
 }
 

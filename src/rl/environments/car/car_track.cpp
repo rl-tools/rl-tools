@@ -87,20 +87,20 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/car/operations_cpu.h>
 #include <rl_tools/rl/environments/car/ui.h>
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 int main(){
-    using DEV_SPEC = bpt::devices::DefaultCPUSpecification;
-    using DEVICE = bpt::devices::CPU<DEV_SPEC>;
-//    using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
+    using DEV_SPEC = rlt::devices::DefaultCPUSpecification;
+    using DEVICE = rlt::devices::CPU<DEV_SPEC>;
+//    using DEVICE = rlt::DEVICE_FACTORY<DEV_SPEC>;
     using T = float;
     using TI = typename DEVICE::index_t;
 
-    using ENV_SPEC = bpt::rl::environments::car::SpecificationTrack<T, DEVICE::index_t, 100, 100, 20>;
-    using ENVIRONMENT = bpt::rl::environments::CarTrack<ENV_SPEC>;
+    using ENV_SPEC = rlt::rl::environments::car::SpecificationTrack<T, DEVICE::index_t, 100, 100, 20>;
+    using ENVIRONMENT = rlt::rl::environments::CarTrack<ENV_SPEC>;
 #if RL_TOOLS_ENABLE_GTK
-    using UI = bpt::rl::environments::car::UI<bpt::rl::environments::car::ui::Specification<T, TI, ENVIRONMENT, 1000, 60>>;
+    using UI = rlt::rl::environments::car::UI<rlt::rl::environments::car::ui::Specification<T, TI, ENVIRONMENT, 1000, 60>>;
 #else
     using UI = bool;
 #endif
@@ -108,27 +108,27 @@ int main(){
     ENVIRONMENT env;
     UI ui;
     ENVIRONMENT::State state;
-    auto rng = bpt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
-    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-    bpt::MatrixDynamic<bpt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
-    bpt::malloc(device, action);
-    bpt::malloc(device, observation);
-    bpt::set_all(device, action, 0);
-    bpt::set(action, 0, 1, 20.0/180.0*bpt::math::PI<T>);
-    bpt::initial_state(device, env, state);
-    bpt::init(device, env);
-    bpt::init(device, env, ui);
+    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
+    rlt::malloc(device, action);
+    rlt::malloc(device, observation);
+    rlt::set_all(device, action, 0);
+    rlt::set(action, 0, 1, 20.0/180.0*rlt::math::PI<T>);
+    rlt::initial_state(device, env, state);
+    rlt::init(device, env);
+    rlt::init(device, env, ui);
     std::cout << "BOUND_X_LOWER: " << ENVIRONMENT::SPEC::BOUND_X_LOWER << std::endl;
     TI counter = 0;
     while(true){
         counter++;
         if(counter % 1 == 0){
-            bpt::sample_initial_state(device, env, state, rng);
+            rlt::sample_initial_state(device, env, state, rng);
         }
-        bpt::set_state(device, env, ui, state);
-        bpt::set_action(device, env, ui, action);
-        bpt::render(device, env, ui);
-        bpt::observe(device, env, state, observation, rng);
+        rlt::set_state(device, env, ui, state);
+        rlt::set_action(device, env, ui, action);
+        rlt::render(device, env, ui);
+        rlt::observe(device, env, state, observation, rng);
         std::cout << "lidar: " << get(observation, 0, 6) << ", " << get(observation, 0, 7) << ", " << get(observation, 0, 8) << std::endl;
     }
     return 0;

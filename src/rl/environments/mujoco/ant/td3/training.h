@@ -1,23 +1,23 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/components/off_policy_runner/off_policy_runner.h>
-namespace bpt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
-using LOGGER = bpt::devices::logging::CPU_TENSORBOARD<>;
+using LOGGER = rlt::devices::logging::CPU_TENSORBOARD<>;
 #else
-using LOGGER = bpt::devices::logging::CPU;
+using LOGGER = rlt::devices::logging::CPU;
 #endif
 
 
-using DEV_SPEC_SUPER = bpt::devices::cpu::Specification<bpt::devices::math::CPU, bpt::devices::random::CPU, LOGGER>;
-using TI = typename bpt::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
+using DEV_SPEC_SUPER = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
+using TI = typename rlt::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: bpt::rl::components::off_policy_runner::ExecutionHints<TI, 1>{};
+    struct HINTS: rlt::rl::components::off_policy_runner::ExecutionHints<TI, 1>{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
 
-using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE = rlt::DEVICE_FACTORY<DEV_SPEC>;
 
 #include <rl_tools/nn/operations_cpu_mux.h>
 
@@ -140,13 +140,13 @@ void run(){
         auto& run_eval_step = eval_step.back();
         auto& run_eval_return = eval_return.back();
 
-        auto rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), run_i);
-        auto evaluation_rng = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), run_i); // separate evaluation rng to make runs reproducible/deterministic even if evaluation is turned on or off
+        auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), run_i);
+        auto evaluation_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), run_i); // separate evaluation rng to make runs reproducible/deterministic even if evaluation is turned on or off
 
         // device
         typename DEVICE::SPEC::LOGGING logger;
         DEVICE device;
-        bpt::construct(device, device.logger);
+        rlt::construct(device, device.logger);
 
         // optimizer
         parameters_rl::OPTIMIZER actor_optimizer;
@@ -159,50 +159,50 @@ void run(){
 
         // rl
         parameters_rl::ActorCriticType actor_critic;
-        bpt::malloc(device, actor_critic);
-        bpt::init(device, actor_critic, rng);
+        rlt::malloc(device, actor_critic);
+        rlt::init(device, actor_critic, rng);
 
-        bpt::rl::components::OffPolicyRunner<parameters_rl::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
-        bpt::malloc(device, off_policy_runner);
+        rlt::rl::components::OffPolicyRunner<parameters_rl::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
+        rlt::malloc(device, off_policy_runner);
 
         ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS], evaluation_env;
         for (auto& env : envs) {
-            bpt::malloc(device, env);
+            rlt::malloc(device, env);
         }
-        bpt::malloc(device, evaluation_env);
+        rlt::malloc(device, evaluation_env);
 
-        bpt::init(device, off_policy_runner, envs);
+        rlt::init(device, off_policy_runner, envs);
 
-        using CRITIC_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
-        bpt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batches[2];
-        bpt::rl::algorithms::td3::CriticTrainingBuffers<parameters_rl::ActorCriticType::SPEC> critic_training_buffers[2];
+        using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
+        rlt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batches[2];
+        rlt::rl::algorithms::td3::CriticTrainingBuffers<parameters_rl::ActorCriticType::SPEC> critic_training_buffers[2];
         parameters_rl::CRITIC_TYPE::DoubleBuffer<> critic_buffers[2];
-        bpt::malloc(device, critic_batches[0]);
-        bpt::malloc(device, critic_batches[1]);
-        bpt::malloc(device, critic_training_buffers[0]);
-        bpt::malloc(device, critic_training_buffers[1]);
-        bpt::malloc(device, critic_buffers[0]);
-        bpt::malloc(device, critic_buffers[1]);
+        rlt::malloc(device, critic_batches[0]);
+        rlt::malloc(device, critic_batches[1]);
+        rlt::malloc(device, critic_training_buffers[0]);
+        rlt::malloc(device, critic_training_buffers[1]);
+        rlt::malloc(device, critic_buffers[0]);
+        rlt::malloc(device, critic_buffers[1]);
 
-        using ACTOR_BATCH_SPEC = bpt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
-        bpt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
-        bpt::rl::algorithms::td3::ActorTrainingBuffers<parameters_rl::ActorCriticType::SPEC> actor_training_buffers;
+        using ACTOR_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
+        rlt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
+        rlt::rl::algorithms::td3::ActorTrainingBuffers<parameters_rl::ActorCriticType::SPEC> actor_training_buffers;
         parameters_rl::ACTOR_TYPE::DoubleBuffer<> actor_buffers[2];
         parameters_rl::ACTOR_TYPE::DoubleBuffer<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
         parameters_rl::ACTOR_TYPE::DoubleBuffer<1> actor_buffers_deterministic_eval;
-        bpt::malloc(device, actor_batch);
-        bpt::malloc(device, actor_training_buffers);
-        bpt::malloc(device, actor_buffers[0]);
-        bpt::malloc(device, actor_buffers[1]);
-        bpt::malloc(device, actor_buffers_eval);
-        bpt::malloc(device, actor_buffers_deterministic_eval);
+        rlt::malloc(device, actor_batch);
+        rlt::malloc(device, actor_training_buffers);
+        rlt::malloc(device, actor_buffers[0]);
+        rlt::malloc(device, actor_buffers[1]);
+        rlt::malloc(device, actor_buffers_eval);
+        rlt::malloc(device, actor_buffers_deterministic_eval);
 
 
         // training
         for(int step_i = 0; step_i < STEP_LIMIT; step_i++){
             auto step_start = std::chrono::high_resolution_clock::now();
-            bpt::set_step(device, device.logger, step_i);
-            bpt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
+            rlt::set_step(device, device.logger, step_i);
+            rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
             if(step_i % 1000 == 0){
                 std::cout << "run_i: " << run_i << " step_i: " << step_i << std::endl;
             }
@@ -211,17 +211,17 @@ void run(){
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
                         auto train_critic = [&device, &actor_critic, &off_policy_runner](parameters_rl::CRITIC_TYPE& critic, decltype(critic_batches[0])& critic_batch, parameters_rl::OPTIMIZER& optimizer, decltype(actor_buffers[0])& actor_buffers, decltype(critic_buffers[0])& critic_buffers, decltype(critic_training_buffers[0])& critic_training_buffers, decltype(rng)& rng){
                             auto gather_batch_start = std::chrono::high_resolution_clock::now();
-                            bpt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
-                            bpt::gather_batch(device, off_policy_runner, critic_batch, rng);
+                            rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
+                            rlt::gather_batch(device, off_policy_runner, critic_batch, rng);
                             auto gather_batch_end = std::chrono::high_resolution_clock::now();
-                            bpt::add_scalar(device, device.logger, "performance/gather_batch_duration", std::chrono::duration_cast<std::chrono::microseconds>(gather_batch_end - gather_batch_start).count(), performance_logging_interval);
+                            rlt::add_scalar(device, device.logger, "performance/gather_batch_duration", std::chrono::duration_cast<std::chrono::microseconds>(gather_batch_end - gather_batch_start).count(), performance_logging_interval);
                             auto critic_training_start = std::chrono::high_resolution_clock::now();
-                            bpt::train_critic(device, actor_critic, critic, critic_batch, optimizer, actor_buffers, critic_buffers, critic_training_buffers);
+                            rlt::train_critic(device, actor_critic, critic, critic_batch, optimizer, actor_buffers, critic_buffers, critic_training_buffers);
                             auto critic_training_end = std::chrono::high_resolution_clock::now();
-                            bpt::add_scalar(device, device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
+                            rlt::add_scalar(device, device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
                         };
-                        auto rng1 = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
-                        auto rng2 = bpt::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
+                        auto rng1 = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
+                        auto rng2 = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), std::uniform_int_distribution<DEVICE::index_t>()(rng));
 
                         if(std::getenv("RL_TOOLS_TEST_RL_ENVIRONMENTS_MULTIROTOR_TRAINING_CONCURRENT") != nullptr){
                             auto critic_1_training = std::async([&](){return train_critic(actor_critic.critic_1, critic_batches[0], critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng1);});
@@ -236,31 +236,31 @@ void run(){
                     }
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0) {
                         auto update_critic_targets_start = std::chrono::high_resolution_clock::now();
-                        bpt::update_critic_targets(device, actor_critic);
+                        rlt::update_critic_targets(device, actor_critic);
                         auto update_critic_targets_end = std::chrono::high_resolution_clock::now();
-                        bpt::add_scalar(device, device.logger, "performance/update_critic_targets_duration", std::chrono::duration_cast<std::chrono::microseconds>(update_critic_targets_end - update_critic_targets_start).count(), performance_logging_interval);
+                        rlt::add_scalar(device, device.logger, "performance/update_critic_targets_duration", std::chrono::duration_cast<std::chrono::microseconds>(update_critic_targets_end - update_critic_targets_start).count(), performance_logging_interval);
                     }
                 }
                 if(step_i >= parameters_rl::N_WARMUP_STEPS_ACTOR){
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
-                        bpt::gather_batch(device, off_policy_runner, actor_batch, rng);
+                        rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
                         auto actor_training_start = std::chrono::high_resolution_clock::now();
-                        bpt::train_actor(device, actor_critic, actor_batch, actor_optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+                        rlt::train_actor(device, actor_critic, actor_batch, actor_optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
                         auto actor_training_end = std::chrono::high_resolution_clock::now();
-                        bpt::add_scalar(device, device.logger, "performance/actor_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(actor_training_end - actor_training_start).count(), performance_logging_interval);
+                        rlt::add_scalar(device, device.logger, "performance/actor_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(actor_training_end - actor_training_start).count(), performance_logging_interval);
                     }
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_TARGET_UPDATE_INTERVAL == 0) {
-                        bpt::update_actor_target(device, actor_critic);
+                        rlt::update_actor_target(device, actor_critic);
                     }
                 }
                 if(step_i % ACTOR_CRITIC_EVALUATION_SYNC_INTERVAL == 0){
-                    bpt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
-                    DTYPE critic_1_loss = bpt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0]);
-                    bpt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
+                    rlt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
+                    DTYPE critic_1_loss = rlt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0]);
+                    rlt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
 
-                    bpt::gather_batch(device, off_policy_runner, actor_batch, rng);
-                    DTYPE actor_value = bpt::mean(device, actor_training_buffers.state_action_value);
-                    bpt::add_scalar(device, device.logger, "actor_value", actor_value, 100);
+                    rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
+                    DTYPE actor_value = rlt::mean(device, actor_training_buffers.state_action_value);
+                    rlt::add_scalar(device, device.logger, "actor_value", actor_value, 100);
 
                     {
                         typename DEVICE::index_t num_episodes = 0;
@@ -282,8 +282,8 @@ void run(){
                             mean_return /= num_episodes;
                             mean_steps /= num_episodes;
 
-                            bpt::add_scalar(device, device.logger, "episode/return", mean_return);
-                            bpt::add_scalar(device, device.logger, "episode/length", mean_steps);
+                            rlt::add_scalar(device, device.logger, "episode/return", mean_return);
+                            rlt::add_scalar(device, device.logger, "episode/length", mean_steps);
                             run_episode_step.push_back(step_i);
                             run_episode_returns.push_back(mean_return);
                             run_episode_steps.push_back(mean_steps);
@@ -292,12 +292,12 @@ void run(){
                 }
             }
             auto step_end = std::chrono::high_resolution_clock::now();
-            bpt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
+            rlt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % DETERMINISTIC_EVALUATION_INTERVAL == 0){
-                auto result = bpt::evaluate(device, evaluation_env, ui, actor_critic.actor, bpt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_deterministic_eval, evaluation_rng);
-                bpt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
-                bpt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
-                bpt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
+                auto result = rlt::evaluate(device, evaluation_env, ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_deterministic_eval, evaluation_rng);
+                rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
+                rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
+                rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
                 std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
                 run_eval_step.push_back(step_i);
                 run_eval_return.push_back(result.returns_mean);
@@ -323,7 +323,7 @@ void run(){
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
                 try{
                     auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
-                    bpt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
+                    rlt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
                 }
                 catch(HighFive::Exception& e){
                     std::cout << "Error while saving actor: " << e.what() << std::endl;
@@ -343,7 +343,7 @@ void run(){
 //                std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name.str();
 //                try{
 //                    auto actor_file = HighFive::File(actor_output_path.string(), HighFive::File::Overwrite);
-//                    bpt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
+//                    rlt::save(device, actor_critic.actor, actor_file.createGroup("actor"));
 //                }
 //                catch(HighFive::Exception& e){
 //                    std::cout << "Error while saving actor: " << e.what() << std::endl;
@@ -357,7 +357,7 @@ void run(){
                 auto actor_file = HighFive::File(REPLAY_BUFFER_OUTPUT_PATH, HighFive::File::Overwrite);
                 auto replay_buffer_group = actor_file.createGroup("replay_buffer");
                 for(typename DEVICE::index_t env_i = 0; env_i < decltype(off_policy_runner)::N_ENVIRONMENTS; env_i++){
-                    bpt::save(device, off_policy_runner.replay_buffers[env_i], replay_buffer_group.createGroup(std::to_string(env_i)));
+                    rlt::save(device, off_policy_runner.replay_buffers[env_i], replay_buffer_group.createGroup(std::to_string(env_i)));
                 }
             }
             catch(HighFive::Exception& e){
@@ -365,23 +365,23 @@ void run(){
             }
         }
 #endif
-        bpt::destruct(device, device.logger);
+        rlt::destruct(device, device.logger);
 
-        bpt::free(device, actor_critic);
-        bpt::free(device, off_policy_runner);
+        rlt::free(device, actor_critic);
+        rlt::free(device, off_policy_runner);
 
-        bpt::free(device, critic_batches[0]);
-        bpt::free(device, critic_batches[1]);
-        bpt::free(device, critic_training_buffers[0]);
-        bpt::free(device, critic_training_buffers[1]);
-        bpt::free(device, critic_buffers[0]);
-        bpt::free(device, critic_buffers[1]);
+        rlt::free(device, critic_batches[0]);
+        rlt::free(device, critic_batches[1]);
+        rlt::free(device, critic_training_buffers[0]);
+        rlt::free(device, critic_training_buffers[1]);
+        rlt::free(device, critic_buffers[0]);
+        rlt::free(device, critic_buffers[1]);
 
-        bpt::free(device, actor_batch);
-        bpt::free(device, actor_training_buffers);
-        bpt::free(device, actor_buffers[0]);
-        bpt::free(device, actor_buffers[1]);
-        bpt::free(device, actor_buffers_eval);
+        rlt::free(device, actor_batch);
+        rlt::free(device, actor_training_buffers);
+        rlt::free(device, actor_buffers[0]);
+        rlt::free(device, actor_buffers[1]);
+        rlt::free(device, actor_buffers_eval);
     }
 
 
