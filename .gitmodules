@@ -1,13 +1,13 @@
 # RLtools components
+[submodule "docs"]
+	path = docs
+	url = https://github.com/rl-tools/documentation.git
 [submodule "redistributable"]
 	path = redistributable
 	url = https://gitlab.com/backprop_tools/backprop_tools_redistributable.git
 [submodule "src/rl/environments/pendulum/td3/wasm/static/media"]
 	path = src/rl/environments/pendulum/td3/wasm/static/media
 	url = https://github.com/BackpropTools/media.git
-[submodule "docs"]
-	path = docs
-	url = https://github.com/rl-tools/documentation.git
 [submodule "tests/data"]
 	path = tests/data
 	url = https://gitlab.com/backprop_tools/test-data.git
