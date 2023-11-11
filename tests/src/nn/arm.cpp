@@ -1,23 +1,23 @@
-#include <backprop_tools/operations/cpu/group_1.h>
-#include <backprop_tools/operations/arm/group_1.h>
-#include <backprop_tools/operations/cpu/group_2.h>
-#include <backprop_tools/operations/arm/group_2.h>
-#include <backprop_tools/operations/cpu/group_3.h>
-#include <backprop_tools/operations/arm/group_3.h>
+#include <rl_tools/operations/cpu/group_1.h>
+#include <rl_tools/operations/arm/group_1.h>
+#include <rl_tools/operations/cpu/group_2.h>
+#include <rl_tools/operations/arm/group_2.h>
+#include <rl_tools/operations/cpu/group_3.h>
+#include <rl_tools/operations/arm/group_3.h>
 
-#include <backprop_tools/containers/persist_code.h>
-#include <backprop_tools/nn/layers/dense/operations_arm/opt.h>
-#include <backprop_tools/nn/layers/dense/operations_cpu.h>
-#include <backprop_tools/nn_models/mlp/operations_cpu.h>
-#include <backprop_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/containers/persist_code.h>
+#include <rl_tools/nn/layers/dense/operations_arm/opt.h>
+#include <rl_tools/nn/layers/dense/operations_cpu.h>
+#include <rl_tools/nn_models/mlp/operations_cpu.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
-//#include "../../../data/test_backprop_tools_nn_models_mlp_persist_code.h"
+//#include "../../../data/test_rl_tools_nn_models_mlp_persist_code.h"
 
 constexpr bool const_declaration = false;
 

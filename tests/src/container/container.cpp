@@ -1,9 +1,9 @@
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 
 
 #include <gtest/gtest.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 TEST(BACKPROP_TOOLS_TEST_CONTAINER, SLICE){
@@ -349,7 +349,7 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_GENERIC) {
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 #define BACKPROP_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
-#include <backprop_tools/operations/cpu_mkl.h>
+#include <rl_tools/operations/cpu_mkl.h>
 TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL) {
     using DEVICE = bpt::devices::DefaultCPU_MKL;
     using T = float;
@@ -386,7 +386,7 @@ TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL) {
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_OPENBLAS
 #define BACKPROP_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
-#include <backprop_tools/operations/cpu_openblas.h>
+#include <rl_tools/operations/cpu_openblas.h>
 TEST(BACKPROP_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_OPENBLAS) {
     using DEVICE = bpt::devices::DefaultCPU_OPENBLAS;
     using T = float;

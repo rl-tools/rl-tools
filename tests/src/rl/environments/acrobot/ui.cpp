@@ -1,8 +1,8 @@
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 
-#include <backprop_tools/rl/environments/acrobot/operations_generic.h>
-#include <backprop_tools/rl/environments/acrobot/ui.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+#include <rl_tools/rl/environments/acrobot/operations_generic.h>
+#include <rl_tools/rl/environments/acrobot/ui.h>
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include "../../../utils/utils.h"
 #include <gtest/gtest.h>

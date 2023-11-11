@@ -22,9 +22,9 @@ add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)
 include(GoogleTest)
 
 set(BACKPROP_TOOLS_TESTS_DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data)
-add_library(backprop_tools_tests INTERFACE)
-target_link_libraries(backprop_tools_tests INTERFACE GTest::gtest_main)
-target_compile_definitions(backprop_tools_tests INTERFACE BACKPROP_TOOLS_TESTS_DATA_PATH=${BACKPROP_TOOLS_TESTS_DATA_PATH})
+add_library(rl_tools_tests INTERFACE)
+target_link_libraries(rl_tools_tests INTERFACE GTest::gtest_main)
+target_compile_definitions(rl_tools_tests INTERFACE BACKPROP_TOOLS_TESTS_DATA_PATH=${BACKPROP_TOOLS_TESTS_DATA_PATH})
 
 
 if(NOT APPLE)
@@ -64,8 +64,8 @@ add_executable(
 )
 target_link_libraries(
         test_nn_models_sequential
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_nn_models_sequential)
 
@@ -77,8 +77,8 @@ add_executable(
 )
 target_link_libraries(
         test_neural_network_mlp
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_neural_network_mlp)
 
@@ -89,8 +89,8 @@ add_executable(
 )
 target_link_libraries(
         test_neural_network_full_training_mlp
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_neural_network_full_training_mlp)
 
@@ -101,8 +101,8 @@ add_executable(
 )
 target_link_libraries(
         test_neural_network_persistence
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_neural_network_persistence)
 
@@ -113,8 +113,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_environments_pendulum
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_environments_pendulum)
 
@@ -129,8 +129,8 @@ if(BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
     )
     target_link_libraries(
             test_rl_environments_pendulum_render
-            backprop_tools
-            backprop_tools_tests
+            rl_tools
+            rl_tools_tests
             Qt5::Widgets
     )
     gtest_discover_tests(test_rl_environments_pendulum_render)
@@ -143,8 +143,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_algorithms_td3_off_policy_runner
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_algorithms_td3_off_policy_runner)
 
@@ -155,8 +155,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_algorithms_td3_first_stage_mlp
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
 
@@ -168,8 +168,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_algorithms_td3_second_stage_mlp
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
     target_link_libraries(
@@ -196,8 +196,8 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_td3_full_training_debug
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 
 if(BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
@@ -227,8 +227,8 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_td3_full_training
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
 
@@ -239,8 +239,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_algorithms_td3_full_training_dummy_dep_compilation
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 add_test(
         NAME test_rl_algorithms_td3_full_training_dummy_dep_compilation
@@ -255,8 +255,8 @@ add_executable(
 target_compile_definitions(test_rl_algorithms_td3_full_training_dummy_dep_training PRIVATE BACKPROP_TOOLS_OPERATIONS_CPU)
 target_link_libraries(
         test_rl_algorithms_td3_full_training_dummy_dep_training
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 add_test(
         NAME test_rl_algorithms_td3_full_training_dummy_dep_training
@@ -271,7 +271,7 @@ add_test(
 #)
 #target_link_libraries(
 #        test_rl_algorithms_td3_pendulum_training_stats
-#        backprop_tools
+#        rl_tools
 #        GTest::gtest_main
 #        HighFive
 #        matplotlib_cpp
@@ -290,8 +290,8 @@ add_executable(
 target_link_libraries(
         test_neural_network_conversions
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_neural_network_conversions)
 
@@ -306,8 +306,8 @@ add_executable(
 target_link_libraries(
         test_neural_network_benchmark
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
         Eigen3::Eigen
 #        CUDA::cudart
 )
@@ -323,8 +323,8 @@ add_executable(
 target_link_libraries(
         test_container
         PRIVATE
-        backprop_tools_core
-        backprop_tools_tests
+        rl_tools_core
+        rl_tools_tests
 )
 gtest_discover_tests(test_container)
 
@@ -335,8 +335,8 @@ add_executable(
 target_link_libraries(
         test_rl_components_replay_buffer
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_components_replay_buffer)
 
@@ -347,8 +347,8 @@ add_executable(
 )
 target_link_libraries(
         test_container_persist_code_store
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_container_persist_code_store)
 
@@ -359,7 +359,7 @@ gtest_discover_tests(test_container_persist_code_store)
 #)
 #target_link_libraries(
 #        test_container_persist_code_load
-#        backprop_tools
+#        rl_tools
 #        GTest::gtest_main
 #)
 #gtest_discover_tests(test_container_persist_code_load)
@@ -371,8 +371,8 @@ add_executable(
 )
 target_link_libraries(
         test_nn_arm
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_nn_arm)
 
@@ -383,8 +383,8 @@ add_executable(
 )
 target_link_libraries(
         test_rl_components_on_policy_runner
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_components_on_policy_runner)
 
@@ -396,8 +396,8 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_ppo
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_algorithms_ppo)
 
@@ -409,8 +409,8 @@ add_executable(
 target_link_libraries(
         test_rl_components_running_normalizer
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_components_running_normalizer)
 

@@ -1,12 +1,12 @@
 #ifndef BACKPROP_TOOLS_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
 #define BACKPROP_TOOLS_TESTS_SRC_RL_COMPONENTS_REPLAY_BUFFER_H
 
-#include <backprop_tools/rl/components/replay_buffer/replay_buffer.h>
+#include <rl_tools/rl/components/replay_buffer/replay_buffer.h>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::test::rl::components::replay_buffer{
+namespace rl_tools::test::rl::components::replay_buffer{
     template <typename DEVICE, typename SPEC, typename RNG>
-    void sample(DEVICE& device, backprop_tools::rl::components::ReplayBuffer<SPEC>& rb, RNG& rng){
+    void sample(DEVICE& device, rl_tools::rl::components::ReplayBuffer<SPEC>& rb, RNG& rng){
         using T = typename SPEC::T;
         randn(device, rb.observations, rng);
         randn(device, rb.actions, rng);

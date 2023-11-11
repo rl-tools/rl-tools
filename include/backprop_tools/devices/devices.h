@@ -3,12 +3,12 @@
 #pragma once
 #define BACKPROP_TOOLS_DEVICES_DEVICES_H
 
-#include "../backprop_tools.h"
+#include "../rl_tools.h"
 
 #include "../utils/generic/typing.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools {
+namespace rl_tools {
     namespace devices {
         struct ExecutionHints{};
         template <typename DEV_SPEC>
@@ -38,7 +38,7 @@ namespace backprop_tools {
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEV_SPEC>
     void init(devices::Device<DEV_SPEC>& device){ };
     template <typename DEV_SPEC, typename T>

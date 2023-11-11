@@ -5,7 +5,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::algorithms::td3::loop {
+namespace rl_tools::rl::algorithms::td3::loop {
     template<typename T_SPEC>
     struct CoreTrainingState {
         using SPEC = T_SPEC;
@@ -46,7 +46,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::algorithms::td3::loop{
+namespace rl_tools::rl::algorithms::td3::loop{
     template <typename TRAINING_STATE>
     void init(TRAINING_STATE& ts, typename TRAINING_STATE::SPEC::DEVICE::index_t seed){
         using SPEC = typename TRAINING_STATE::SPEC;
@@ -60,7 +60,7 @@ namespace backprop_tools::rl::algorithms::td3::loop{
 
         malloc(ts.device, ts.off_policy_runner);
         init(ts.device, ts.off_policy_runner, ts.envs);
-        backprop_tools::init(ts.device, ts.envs[0], ts.ui);
+        rl_tools::init(ts.device, ts.envs[0], ts.ui);
 
         malloc(ts.device, ts.critic_batch);
         malloc(ts.device, ts.critic_training_buffers);

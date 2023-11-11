@@ -5,7 +5,7 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_sac_training_standalone
         PRIVATE
-        backprop_tools
+        rl_tools
 )
 target_compile_definitions(rl_environments_pendulum_sac_training_standalone PRIVATE BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
 target_compile_definitions(rl_environments_pendulum_sac_training_standalone PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
@@ -21,7 +21,7 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_sac_training_blas
         PRIVATE
-        backprop_tools
+        rl_tools
 )
 target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE BACKPROP_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE BACKPROP_TOOLS_DISABLE_TENSORBOARD)

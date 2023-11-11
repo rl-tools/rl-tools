@@ -7,7 +7,7 @@
 #include "../../../devices/cpu_mkl.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void evaluate(devices::CPU_MKL<DEV_SPEC>& device, const nn::layers::dense::Layer<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output){
         evaluate((devices::CPU_BLAS<DEV_SPEC>&) device, layer, input, output);

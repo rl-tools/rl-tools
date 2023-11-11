@@ -10,7 +10,7 @@
 #include <mutex>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::devices{
+namespace rl_tools::devices{
     namespace logging{
         struct CPU_TENSORBOARD_FREQUENCY_EXTENSION: logging::CPU{
             using TI = typename logging::CPU::index_t;

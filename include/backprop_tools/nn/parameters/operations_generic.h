@@ -6,7 +6,7 @@
 #include "parameters.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename CONTAINER>
     void malloc(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& p){
         malloc(device, p.parameters);

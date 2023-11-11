@@ -7,7 +7,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void copy(devices::Dummy<SOURCE_DEV_SPEC>& source_device, devices::Dummy<TARGET_DEV_SPEC>& target_device, const Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
         using SOURCE_DEVICE = devices::Dummy<SOURCE_DEV_SPEC>;

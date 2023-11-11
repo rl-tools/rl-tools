@@ -8,7 +8,7 @@
 #include <iostream>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     namespace logging{
         template <typename DEVICE, typename A>
         void text(DEVICE& dev, devices::logging::CPU& logger, const A a){

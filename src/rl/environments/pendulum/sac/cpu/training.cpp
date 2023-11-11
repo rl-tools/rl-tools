@@ -1,11 +1,11 @@
-#include <backprop_tools/operations/cpu_mux.h>
-#include <backprop_tools/nn/operations_cpu_mux.h>
-//#include <backprop_tools/nn_models/output_view/model.h>
-#include <backprop_tools/rl/environments/pendulum/operations_cpu.h>
-#include <backprop_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
+//#include <rl_tools/nn_models/output_view/model.h>
+#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
-#include <backprop_tools/rl/algorithms/sac/loop.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+#include <rl_tools/rl/algorithms/sac/loop.h>
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #ifdef BACKPROP_TOOLS_ENABLE_HDF5
 #include <highfive/H5DataSet.hpp>
 #include <highfive/H5DataSpace.hpp>

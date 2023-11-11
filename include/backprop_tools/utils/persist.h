@@ -6,7 +6,7 @@
 #include <cassert>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::utils::persist::array_conversion{
+namespace rl_tools::utils::persist::array_conversion{
     template <typename DEVICE, typename SPEC>
     auto matrix_to_std_vector(DEVICE& device, Matrix<SPEC> M){
         using T = typename SPEC::T;

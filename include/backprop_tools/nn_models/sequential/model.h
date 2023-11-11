@@ -6,7 +6,7 @@
 #include "../../utils/generic/typing.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn_models::sequential{
+namespace rl_tools::nn_models::sequential{
     struct OutputModule{
         struct CONTENT{
             static constexpr auto INPUT_DIM = 0;
@@ -127,7 +127,7 @@ namespace backprop_tools::nn_models::sequential{
 
     namespace interface{
         template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
-        struct Module: backprop_tools::nn_models::sequential::Module<Specification<T_CONTENT, T_NEXT_MODULE>>{};
+        struct Module: rl_tools::nn_models::sequential::Module<Specification<T_CONTENT, T_NEXT_MODULE>>{};
     }
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

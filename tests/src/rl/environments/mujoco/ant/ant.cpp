@@ -1,10 +1,10 @@
-#include <backprop_tools/operations/cpu_tensorboard.h>
+#include <rl_tools/operations/cpu_tensorboard.h>
 
-#include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
+#include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
 
 #include "../../../../utils/utils.h"
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <chrono>
 #include <iostream>

@@ -7,7 +7,7 @@
 #include "operations_generic_per_env.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
         malloc(device, dataset.data);

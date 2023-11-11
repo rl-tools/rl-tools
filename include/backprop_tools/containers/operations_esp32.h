@@ -6,7 +6,7 @@
 #include "operations_generic.h"
 #include <cstring> // formemcpy
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SPEC_1, typename SPEC_2>
     void copy_view( const devices::ESP32<SOURCE_DEV_SPEC>& source_device, devices::ESP32<TARGET_DEV_SPEC>& target_device, Matrix<SPEC_1>& source, Matrix<SPEC_2>& target){
         using SOURCE_DEVICE = devices::ESP32<SOURCE_DEV_SPEC>;

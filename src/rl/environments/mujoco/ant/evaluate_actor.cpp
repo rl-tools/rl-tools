@@ -1,12 +1,12 @@
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 
-#include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
-#include <backprop_tools/rl/environments/mujoco/ant/ui.h>
-#include <backprop_tools/nn_models/operations_cpu.h>
-#include <backprop_tools/nn_models/persist.h>
-#include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
+#include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
+#include <rl_tools/rl/environments/mujoco/ant/ui.h>
+#include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn_models/persist.h>
+#include <rl_tools/rl/components/running_normalizer/operations_generic.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #ifdef BACKPROP_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_EVALUATE_ACTOR_PPO
 #include "ppo/parameters.h"

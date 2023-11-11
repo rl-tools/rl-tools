@@ -6,7 +6,7 @@
 #include "../operations_generic.h"
 // adapted from (and tested agains) https://github.com/Farama-Foundation/Gymnasium/blob/v0.28.1/gymnasium/envs/classic_control/acrobot.py
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::acrobot {
+namespace rl_tools::rl::environments::acrobot {
     template <typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T clip(T x, T min, T max){
         x = x < min ? min : (x > max ? max : x);
@@ -24,7 +24,7 @@ namespace backprop_tools::rl::environments::acrobot {
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state, RNG& rng){
         state.theta_0     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);

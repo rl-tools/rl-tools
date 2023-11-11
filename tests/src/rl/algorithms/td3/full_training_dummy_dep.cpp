@@ -1,20 +1,20 @@
 // this is a test to check if everything compiles without any dependencies (by replacing the dependency based math functions with dummy implementations)
 #ifdef BACKPROP_TOOLS_OPERATIONS_CPU
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 #else
-#include <backprop_tools/operations/dummy.h>
+#include <rl_tools/operations/dummy.h>
 #endif
 
-#include <backprop_tools/rl/environments/pendulum/operations_generic.h>
-#include <backprop_tools/nn_models/models.h>
-#include <backprop_tools/nn_models/operations_generic.h>
-#include <backprop_tools/rl/rl.h>
-#include <backprop_tools/rl/components/off_policy_runner/operations_generic.h>
-#include <backprop_tools/rl/algorithms/td3/operations_generic.h>
+#include <rl_tools/rl/environments/pendulum/operations_generic.h>
+#include <rl_tools/nn_models/models.h>
+#include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/rl/rl.h>
+#include <rl_tools/rl/components/off_policy_runner/operations_generic.h>
+#include <rl_tools/rl/algorithms/td3/operations_generic.h>
 
-#include <backprop_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/utils/evaluation.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #ifdef BACKPROP_TOOLS_OPERATIONS_CPU
 using DEVICE = bpt::devices::DefaultCPU;

@@ -1,11 +1,11 @@
-#include <backprop_tools/operations/cpu.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+#include <rl_tools/operations/cpu.h>
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
-#include <backprop_tools/rl/environments/environments.h>
-#include <backprop_tools/rl/algorithms/td3/td3.h>
+#include <rl_tools/rl/environments/environments.h>
+#include <rl_tools/rl/algorithms/td3/td3.h>
 
-#include <backprop_tools/rl/algorithms/td3/operations_cpu.h>
-#include <backprop_tools/nn_models/persist.h>
+#include <rl_tools/rl/algorithms/td3/operations_cpu.h>
+#include <rl_tools/nn_models/persist.h>
 
 #include "../../../utils/utils.h"
 #include "../../../utils/nn_comparison_mlp.h"

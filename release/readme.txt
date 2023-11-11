@@ -1,4 +1,4 @@
-This release of BackpropTools contains binaries for the training and evaluation of PPO and TD3 deep reinforcement learning agents in the MujoCo Ant-v4 and the Gym Pendulum-v1 environments.
+This release of RLtools contains binaries for the training and evaluation of PPO and TD3 deep reinforcement learning agents in the MujoCo Ant-v4 and the Gym Pendulum-v1 environments.
 Pendulum-v1 (TD3):
     rl_environments_pendulum_td3_training_standalone:
         - Training of the Pendulum-v1 without dependecies

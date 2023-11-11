@@ -1,5 +1,5 @@
 ## BLAS Examples
-In the following, we show how to run BackpropTools accelerated by platform/hardware specific BLAS libraries. It is important to set `PLATFORM_BLAS_OPTION` to the appropriate option for your platform:
+In the following, we show how to run RLtools accelerated by platform/hardware specific BLAS libraries. It is important to set `PLATFORM_BLAS_OPTION` to the appropriate option for your platform:
 #### macOS (Apple Accelerate):
 ```
 export PLATFORM_BLAS_OPTION=-DBACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE:BOOL=ON
@@ -10,12 +10,12 @@ export PLATFORM_BLAS_OPTION=-DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
 ```
 Note: the `PLATFORM_BLAS_OPTION` setting is only required for the configuration commands below and you can also just replace the `$PLATFORM_BLAS_OPTION` with the appropriate option when it is more convenient (e.g. in the context of IDE settings).
 
-Next, in the terminal, go to the BackpropTools repository you cloned via `git` before
+Next, in the terminal, go to the RLtools repository you cloned via `git` before
 ```
-cd path/to/backprop_tools
+cd path/to/rl_tools
 ```
 
-Configure the BackpropTools using CMake
+Configure the RLtools using CMake
 ```
 mkdir build
 cd build
@@ -52,7 +52,7 @@ Execute the built binary (with Tensorboard logging)
 ```
 
 #### Example: Benchmarking MuJoCo Ant-v4 using PPO
-Configure BackpropTools to enable MuJoCo
+Configure RLtools to enable MuJoCo
 ```
 cmake .. -DCMAKE_BUILD_TYPE=Release {PLATFORM_BLAS_OPTION} -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
 ```
@@ -66,7 +66,7 @@ Execute the built binary
 ```
 
 #### Example: MuJoCo Ant-v4 using PPO (including checkpointing and Tensorboard logging)
-Configure BackpropTools to enable MuJoCo
+Configure RLtools to enable MuJoCo
 ```
 cmake .. -DCMAKE_BUILD_TYPE=Release $PLATFORM_BLAS_OPTION -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
 ```
@@ -80,7 +80,7 @@ Execute the built binary
 ```
 
 #### Example: MuJoCo Ant-v4 using TD3
-Configure BackpropTools to enable MuJoCo
+Configure RLtools to enable MuJoCo
 ```
 cmake .. -DCMAKE_BUILD_TYPE=Release $PLATFORM_BLAS_OPTION -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
 ```
@@ -93,7 +93,7 @@ Execute the built binary
 ```
 
 #### Example: MuJoCo Ant-v4 PPO policy evaluation in the UI
-Configure BackpropTools to enable MuJoCo and the MuJoCo UI (using `-DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL=ON`). Additionally the command line argument parsing library CLI11 (contained as a submodule in `/external`) is activated
+Configure RLtools to enable MuJoCo and the MuJoCo UI (using `-DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL=ON`). Additionally the command line argument parsing library CLI11 (contained as a submodule in `/external`) is activated
 ```
 cmake .. -DCMAKE_BUILD_TYPE=Release $PLATFORM_BLAS_OPTION -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON
 ```

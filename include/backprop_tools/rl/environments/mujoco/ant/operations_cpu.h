@@ -7,12 +7,12 @@
 #include "../../operations_generic.h"
 #include <cstring>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::mujoco::ant{
+namespace rl_tools::rl::environments::mujoco::ant{
     #include "model.h"
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env) {
         using TI = typename DEVICE::index_t;
@@ -21,9 +21,9 @@ namespace backprop_tools{
         {
             mjVFS* vfs = new mjVFS; // needs to be allocated on the heap because it is huge and putting it on the stack resulted in a stack overflow on windows
             mj_defaultVFS(vfs);
-            mj_makeEmptyFileVFS(vfs, "model.xml", backprop_tools::rl::environments::mujoco::ant::model_xml_len);
+            mj_makeEmptyFileVFS(vfs, "model.xml", rl_tools::rl::environments::mujoco::ant::model_xml_len);
             int file_idx = mj_findFileVFS(vfs, "model.xml");
-            std::memcpy(vfs->filedata[file_idx], backprop_tools::rl::environments::mujoco::ant::model_xml, backprop_tools::rl::environments::mujoco::ant::model_xml_len);
+            std::memcpy(vfs->filedata[file_idx], rl_tools::rl::environments::mujoco::ant::model_xml, rl_tools::rl::environments::mujoco::ant::model_xml_len);
             env.model = mj_loadXML("model.xml", vfs, error, error_length);
             mj_deleteFileVFS(vfs, "model.xml");
             delete vfs;

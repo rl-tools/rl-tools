@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_UTILS_GENERIC_TYPING_H
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::utils::typing {
+namespace rl_tools::utils::typing {
     template<class T, T v>
     struct integral_constant {
         static constexpr T value = v;
@@ -80,6 +80,6 @@ namespace backprop_tools::utils::typing {
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
-#define backprop_tools_static_warn(x, ...) ((void) warn_if<x>())
+#define rl_tools_static_warn(x, ...) ((void) warn_if<x>())
 
 #endif

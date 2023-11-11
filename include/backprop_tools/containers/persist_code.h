@@ -8,7 +8,7 @@
 #include <sstream>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     namespace containers::persist{
         using STORAGE_TYPE = unsigned char;
         static_assert(sizeof(STORAGE_TYPE) == 1);
@@ -57,7 +57,7 @@ namespace backprop_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss_header;
-        ss_header << "#include <backprop_tools/containers.h>\n";
+        ss_header << "#include <rl_tools/containers.h>\n";
         std::stringstream ss;
         ss << ind << "namespace " << name << " {\n";
         ss << ind << "    static_assert(sizeof(" << containers::persist::get_type_string<containers::persist::STORAGE_TYPE>() << ") == 1);\n";
@@ -77,8 +77,8 @@ namespace backprop_tools{
             }
         }
         ss << "};\n";
-        ss << ind << "    using CONTAINER_SPEC = BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>;\n";
-        ss << ind << "    using CONTAINER_TYPE = BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::backprop_tools::MatrixDynamic<CONTAINER_SPEC>;\n";
+        ss << ind << "    using CONTAINER_SPEC = BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::Specification<" << containers::persist::get_type_string<T>() << ", " << containers::persist::get_type_string<TI>() << ", " << SPEC::ROWS << ", " << SPEC::COLS << ", " << "BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", " << 1 << ">>;\n";
+        ss << ind << "    using CONTAINER_TYPE = BACKPROP_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamic<CONTAINER_SPEC>;\n";
         ss << ind << "    " << (const_declaration ? "const " : "") << "CONTAINER_TYPE container = {(" << containers::persist::get_type_string<T>() << "*)" << "memory}; \n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};

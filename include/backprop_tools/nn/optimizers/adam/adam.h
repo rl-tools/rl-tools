@@ -6,7 +6,7 @@
 #include "../../../nn/parameters/parameters.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn::optimizers{
+namespace rl_tools::nn::optimizers{
     namespace adam{
         template<typename T_T, typename T_TI>
         struct DefaultParametersTF {
@@ -64,7 +64,7 @@ namespace backprop_tools::nn::optimizers{
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn::parameters {
+namespace rl_tools::nn::parameters {
     struct Adam: Gradient{
         template <typename T_SPEC>
         struct instance: Gradient::instance<T_SPEC>{

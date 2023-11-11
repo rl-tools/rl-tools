@@ -1,11 +1,11 @@
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 
 
-#include <backprop_tools/rl/environments/environments.h>
-#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
+#include <rl_tools/rl/environments/environments.h>
+#include <rl_tools/rl/components/off_policy_runner/off_policy_runner.h>
 
-#include <backprop_tools/rl/environments/operations_cpu.h>
-#include <backprop_tools/rl/algorithms/td3/operations_cpu.h>
+#include <rl_tools/rl/environments/operations_cpu.h>
+#include <rl_tools/rl/algorithms/td3/operations_cpu.h>
 
 #include <gtest/gtest.h>
 
@@ -13,7 +13,7 @@
 #define DTYPE float
 const DTYPE STATE_TOLERANCE = 0.00001;
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DEVICE = bpt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;

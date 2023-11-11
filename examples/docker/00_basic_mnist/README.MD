@@ -1,20 +1,20 @@
-### This example shows the deep learning capabilities of the BackpropTools library
+### This example shows the deep learning capabilities of the RLtools library
 #### Here we are training a fully connected neural network to classify the MNIST handwritten digit dataset to reach > 90% accuracy
 You can verify the lack of dependencies in the [Dockerfile](Dockerfile) used for this example.
 ```
 cd examples/docker/00_basic_mnist
 ```
-Build the docker image (tagged as `backprop_tools:basic_mnist`)
+Build the docker image (tagged as `rl_tools:basic_mnist`)
 ```
-docker build -f Dockerfile -t backprop_tools:basic_mnist . --no-cache
+docker build -f Dockerfile -t rl_tools:basic_mnist . --no-cache
 ```
 Run the image just built (mounting the source code from the host in readonly mode)
 ```
-docker run --rm -it --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly backprop_tools:basic_mnist
+docker run --rm -it --mount type=bind,source=$(cd ../../..; pwd),target=/rl_tools,readonly rl_tools:basic_mnist
 ```
-Configure the BackpropTools using CMake (we enable HDF5 because the MNIST dataset is stored in the HDF5 format)
+Configure the RLtools using CMake (we enable HDF5 because the MNIST dataset is stored in the HDF5 format)
 ```
-cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
+cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON
 ```
 Build the nn_mnist_training target which trains to classify the MNIST digit dataset
 ```

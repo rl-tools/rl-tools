@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_NN_LOSS_FUNCTIONS_MSE_OPERATIONS_GENERIC_H
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn::loss_functions::mse{
+namespace rl_tools::nn::loss_functions::mse{
     template<typename DEVICE, typename SPEC_A, typename SPEC_B>
     typename SPEC_A::T evaluate(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, typename SPEC_A::T loss_weight = 1) {
         static_assert(containers::check_structure<SPEC_A, SPEC_B>);

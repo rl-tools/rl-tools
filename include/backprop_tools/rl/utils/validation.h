@@ -7,7 +7,7 @@
 #include "../../utils/generic/typing.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::utils::validation{
+namespace rl_tools::rl::utils::validation{
     template <typename T_T, typename T_TI, typename T_ENVIRONMENT>
     struct Specification{
         using T = T_T;
@@ -78,7 +78,7 @@ namespace backprop_tools::rl::utils::validation{
             set::Component<metrics::TerminatedFraction,
             NEXT_COMPONENT>>>>>;
 }
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename SPEC::TI SIZE>
     void malloc(DEVICE& device, rl::utils::validation::EpisodeBuffer<SPEC, SIZE>& eb){
         malloc(device, eb.states);

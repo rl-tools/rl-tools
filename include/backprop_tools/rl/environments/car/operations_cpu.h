@@ -10,7 +10,7 @@
 #include <cassert>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::car{
+namespace rl_tools::rl::environments::car{
     uint16_t read_u16(std::ifstream& stream) {
         uint16_t result;
         stream.read(reinterpret_cast<char*>(&result), sizeof(result));
@@ -32,7 +32,7 @@ namespace backprop_tools::rl::environments::car{
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
         using TI = typename DEVICE::index_t;

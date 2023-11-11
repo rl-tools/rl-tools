@@ -7,7 +7,7 @@
 #include "../devices/cuda.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     namespace logging{
         template <typename DEVICE, typename A>
         void text(DEVICE& device, devices::logging::CUDA* logger, const char * a, const char * b){

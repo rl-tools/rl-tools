@@ -8,7 +8,7 @@
 #include <iostream>
 #include <iomanip>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void print(DEVICE& device, const Matrix<SPEC>& m){
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){

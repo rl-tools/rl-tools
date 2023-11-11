@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_GENERIC_PER_ENV_H
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::components::on_policy_runner::per_env{
+namespace rl_tools::rl::components::on_policy_runner::per_env{
     template <typename DEVICE, typename OBSERVATIONS_SPEC, typename OBSERVATIONS_NORMALIZED_SPEC, typename SPEC, typename OBSERVATIONS_MEAN_SPEC, typename OBSERVATIONS_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
     void prologue(DEVICE& device, Matrix<OBSERVATIONS_SPEC>& observations, Matrix<OBSERVATIONS_NORMALIZED_SPEC>& observations_normalized, rl::components::OnPolicyRunner<SPEC>& runner, Matrix<OBSERVATIONS_MEAN_SPEC>& observations_mean, Matrix<OBSERVATIONS_STD_SPEC>& observations_std, RNG& rng, typename DEVICE::index_t env_i){
         static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);

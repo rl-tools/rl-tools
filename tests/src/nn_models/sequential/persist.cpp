@@ -1,9 +1,9 @@
-#include <backprop_tools/operations/cpu.h>
-#include <backprop_tools/nn/layers/dense/operations_generic.h>
-#include <backprop_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/operations/cpu.h>
+#include <rl_tools/nn/layers/dense/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
-#include <backprop_tools/nn_models/sequential/persist.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+#include <rl_tools/nn_models/sequential/persist.h>
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 
 using T = float;
@@ -36,12 +36,12 @@ TEST(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load) {
     bpt::init_weights(device, model, rng);
 
     {
-        auto file = HighFive::File("test_backprop_tools_nn_models_sequential_save.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
         bpt::save(device, model, file.createGroup("sequential_model"));
     }
 
     {
-        auto file = HighFive::File("test_backprop_tools_nn_models_sequential_save.h5", HighFive::File::ReadOnly);
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save.h5", HighFive::File::ReadOnly);
         bpt::load(device, model_loaded, file.getGroup("sequential_model"));
     }
 

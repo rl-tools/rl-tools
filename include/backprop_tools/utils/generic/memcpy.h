@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_UTILS_GENERIC_MEMCPY_H
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-//namespace backprop_tools::utils{
+//namespace rl_tools::utils{
 //    template<typename T, typename ST>
 //    void memcpy(T* source, const T* target, ST size) {
 //        for(ST i = 0; i < size; i++) {

@@ -8,7 +8,7 @@
 
 #include <cstddef>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::devices{
+namespace rl_tools::devices{
     namespace arm{
         template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
         struct Specification{
@@ -66,7 +66,7 @@ namespace backprop_tools::devices{
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::ARM<DEV_SPEC>& device, TI size){

@@ -6,8 +6,8 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant)
 
@@ -18,8 +18,8 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_training_td3_test
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3_test)
 target_compile_definitions(
@@ -37,8 +37,8 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_ui
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
 endif()
@@ -51,7 +51,7 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_training_ppo_test
         PRIVATE
-        backprop_tools
+        rl_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger
@@ -67,7 +67,7 @@ add_executable(
 target_link_libraries(
         test_rl_environments_mujoco_ant_throughput
         PRIVATE
-        backprop_tools
+        rl_tools
         GTest::gtest_main
         HighFive
         tensorboard_logger

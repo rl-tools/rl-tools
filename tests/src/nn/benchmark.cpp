@@ -1,34 +1,34 @@
 // Group 1
-#include <backprop_tools/operations/cpu/group_1.h>
+#include <rl_tools/operations/cpu/group_1.h>
 //#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_CUDA
-//    #include <backprop_tools/operations/cuda/group_1.h>
+//    #include <rl_tools/operations/cuda/group_1.h>
 //#endif
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-    #include <backprop_tools/operations/cpu_mkl/group_1.h>
+    #include <rl_tools/operations/cpu_mkl/group_1.h>
 #endif
 
 // Group 2
-#include <backprop_tools/operations/cpu/group_2.h>
+#include <rl_tools/operations/cpu/group_2.h>
 //#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_CUDA
-//#include <backprop_tools/operations/cuda/group_2.h>
+//#include <rl_tools/operations/cuda/group_2.h>
 //#endif
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/operations/cpu_mkl/group_2.h>
+#include <rl_tools/operations/cpu_mkl/group_2.h>
 #endif
 
 // Group 3
-#include <backprop_tools/operations/cpu/group_3.h>
+#include <rl_tools/operations/cpu/group_3.h>
 //#ifdef BACKPROP_TOOLS_BACKEND_ENABLE_CUDA
-//#include <backprop_tools/operations/cuda/group_3.h>
+//#include <rl_tools/operations/cuda/group_3.h>
 //#endif
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/operations/cpu_mkl/group_3.h>
+#include <rl_tools/operations/cpu_mkl/group_3.h>
 #endif
 
-#include <backprop_tools/nn_models/operations_generic.h>
-#include <backprop_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn_models/operations_cpu.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 
@@ -172,8 +172,8 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
 #define min(x,y) (((x) < (y)) ? (x) : (y))
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/devices/cpu_mkl.h>
-#include <backprop_tools/containers/operations_cpu_mkl.h>
+#include <rl_tools/devices/cpu_mkl.h>
+#include <rl_tools/containers/operations_cpu_mkl.h>
 TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL) {
     using T = DTYPE;
     int m, n, k;
@@ -226,9 +226,9 @@ TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL) {
 
 }
 
-#include <backprop_tools/nn/operations_cpu_mkl.h>
-#include <backprop_tools/containers/operations_generic.h>
-#include <backprop_tools/utils/generic/typing.h>
+#include <rl_tools/nn/operations_cpu_mkl.h>
+#include <rl_tools/containers/operations_generic.h>
+#include <rl_tools/utils/generic/typing.h>
 
 TEST_F(BACKPROP_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER) {
     using DEVICE_MKL = bpt::devices::CPU_MKL<DEVICE::SPEC>;

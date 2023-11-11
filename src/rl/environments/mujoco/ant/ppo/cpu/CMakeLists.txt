@@ -7,7 +7,7 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_standalone
         PRIVATE
-        backprop_tools
+        rl_tools
         Threads::Threads
 )
 # todo: link mujoco like this everywhere
@@ -24,7 +24,7 @@ if(BACKPROP_TOOLS_BACKEND_ENABLE_BLAS)
     target_link_libraries(
             rl_environments_mujoco_ant_training_ppo_blas_benchmark
             PRIVATE
-            backprop_tools
+            rl_tools
             Threads::Threads
     )
     # todo: link mujoco like this everywhere
@@ -41,7 +41,7 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_blas
         PRIVATE
-        backprop_tools
+        rl_tools
         Threads::Threads
 )
 # todo: link mujoco like this everywhere

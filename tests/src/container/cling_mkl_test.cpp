@@ -1,11 +1,11 @@
 #!/usr/bin/env cling -std=c++17
-#pragma cling add_include_path("/home/jonas/phd/projects/rl_for_control/backprop_tools/include")
+#pragma cling add_include_path("/home/jonas/phd/projects/rl_for_control/rl_tools/include")
 #pragma cling add_include_path("/opt/intel/oneapi/mkl/latest/include")
 #pragma cling add_library_path("/opt/intel/oneapi/mkl/latest/lib/intel64/")
 #pragma cling add_library_path("/opt/intel/oneapi/compiler/latest/linux/compiler/lib/intel64_lin")
 
 #define BACKPROP_TOOLS_BACKEND_ENABLE_MKL
-#include <backprop_tools/operations/cpu_mux.h>
+#include <rl_tools/operations/cpu_mux.h>
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 #pragma cling load("mkl_core")
@@ -17,7 +17,7 @@
 #pragma cling load("libdl.so.2")
 #endif
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DEVICE = bpt::devices::DefaultCPU;
 using DEVICE_MKL = bpt::devices::DefaultCPU_MKL;

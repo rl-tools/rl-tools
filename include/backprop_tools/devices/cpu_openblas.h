@@ -11,7 +11,7 @@
 #include <cblas.h>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::devices{
+namespace rl_tools::devices{
     template <typename T_SPEC>
     struct CPU_OPENBLAS: CPU_BLAS<T_SPEC>{
         static constexpr DeviceId DEVICE_ID = DeviceId::CPU_OPENBLAS;
@@ -19,7 +19,7 @@ namespace backprop_tools::devices{
     using DefaultCPU_OPENBLAS = CPU_OPENBLAS<DefaultCPUSpecification>;
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEV_SPEC>
     void init(devices::CPU_OPENBLAS<DEV_SPEC>& device){
 //        openblas_set_num_threads(4);

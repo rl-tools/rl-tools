@@ -1,5 +1,5 @@
-#include <backprop_tools/operations/cpu_tensorboard.h>
-namespace bpt = backprop_tools;
+#include <rl_tools/operations/cpu_tensorboard.h>
+namespace bpt = rl_tools;
 
 
 #include <gtest/gtest.h>

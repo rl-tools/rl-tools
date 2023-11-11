@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_CONTAINERS_H
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     namespace matrix{
         namespace layouts{
 

@@ -11,7 +11,7 @@
 #include <algorithm> // required for clamp(...)
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::math {
+namespace rl_tools::math {
 
     template<typename T>
     T sqrt(const devices::math::CPU&, const T x) {

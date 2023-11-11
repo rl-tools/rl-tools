@@ -1,7 +1,7 @@
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 
-#include <backprop_tools/rl/components/replay_buffer/operations_cpu.h>
-#include <backprop_tools/rl/components/replay_buffer/persist.h>
+#include <rl_tools/rl/components/replay_buffer/operations_cpu.h>
+#include <rl_tools/rl/components/replay_buffer/persist.h>
 
 #include "replay_buffer.h"
 
@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 TEST(BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER, PERSISTENCE) {

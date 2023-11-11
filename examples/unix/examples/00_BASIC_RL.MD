@@ -1,11 +1,11 @@
-### This examples shows the most basic example of using BackpropTools without any dependencies.
+### This examples shows the most basic example of using RLtools without any dependencies.
 
-In the terminal, go to the BackpropTools repository you cloned via `git` before
+In the terminal, go to the RLtools repository you cloned via `git` before
 ```
-cd path/to/backprop_tools
+cd path/to/rl_tools
 ```
 
-Configure the BackpropTools using CMake
+Configure the RLtools using CMake
 ```
 mkdir build
 cd build

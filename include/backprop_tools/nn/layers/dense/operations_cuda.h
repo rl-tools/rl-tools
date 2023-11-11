@@ -11,7 +11,7 @@
 #include <cublas_v2.h>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     namespace nn::dense::cuda{
         template<typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC>
         __global__ void
@@ -52,7 +52,7 @@ namespace backprop_tools{
             TI output_pos_x = blockIdx.x * blockDim.x + threadIdx.x;
             TI output_pos_y = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
-                set(output, output_pos_y, output_pos_x, backprop_tools::activation<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, output_pos_y, output_pos_x)));
+                set(output, output_pos_y, output_pos_x, rl_tools::activation<typename DEV_SPEC::MATH, T, SPEC::ACTIVATION_FUNCTION>(get(pre_activations, output_pos_y, output_pos_x)));
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename OUTPUT_SPEC>

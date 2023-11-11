@@ -6,7 +6,7 @@
 #include "../../../math/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::pendulum {
+namespace rl_tools::rl::environments::pendulum {
     template <typename T>
     struct DefaultParameters {
         constexpr static T g = 10;
@@ -38,7 +38,7 @@ namespace backprop_tools::rl::environments::pendulum {
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments{
+namespace rl_tools::rl::environments{
     template <typename T_SPEC>
     struct Pendulum{
         using SPEC = T_SPEC;

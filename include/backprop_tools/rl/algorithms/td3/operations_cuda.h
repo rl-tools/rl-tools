@@ -3,7 +3,7 @@
 #include "../../../utils/polyak/operations_cuda.h"
 #include "../../../rl/algorithms/td3/td3.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename RNG>
     __global__
     void target_action_noise_kernel(devices::CUDA<DEV_SPEC>& device, const rl::algorithms::td3::ActorCritic<SPEC> actor_critic, Matrix<OUTPUT_SPEC> target_action_noise, RNG rng ) {

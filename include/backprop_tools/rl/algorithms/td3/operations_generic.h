@@ -14,7 +14,7 @@
 #include "../../../utils/generic/memcpy.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic){
         malloc(device, actor_critic.actor);

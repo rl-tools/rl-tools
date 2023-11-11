@@ -1,4 +1,4 @@
-# BackpropTools components
+# RLtools components
 [submodule "redistributable"]
 	path = redistributable
 	url = https://gitlab.com/backprop_tools/backprop_tools_redistributable.git

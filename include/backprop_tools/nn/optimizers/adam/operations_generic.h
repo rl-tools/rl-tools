@@ -9,7 +9,7 @@
 #include "../../../utils/polyak/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::parameters::Adam::instance<SPEC>& p){
         malloc(device, (nn::parameters::Gradient::instance<SPEC>&) p);

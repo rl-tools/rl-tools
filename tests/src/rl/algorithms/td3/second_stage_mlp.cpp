@@ -1,19 +1,19 @@
-#include <backprop_tools/operations/cpu.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+#include <rl_tools/operations/cpu.h>
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
-#include <backprop_tools/rl/environments/operations_cpu.h>
-#include <backprop_tools/rl/algorithms/td3/operations_cpu.h>
+#include <rl_tools/rl/environments/operations_cpu.h>
+#include <rl_tools/rl/algorithms/td3/operations_cpu.h>
 
-#include <backprop_tools/nn_models/persist.h>
-#include <backprop_tools/rl/utils/evaluation.h>
-#include <backprop_tools/utils/generic/memcpy.h>
+#include <rl_tools/nn_models/persist.h>
+#include <rl_tools/rl/utils/evaluation.h>
+#include <rl_tools/utils/generic/memcpy.h>
 
 #include "../../../utils/utils.h"
 #include "../../../utils/nn_comparison_mlp.h"
 
 #ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
-#include <backprop_tools/rl/environments/pendulum/ui.h>
-#include <backprop_tools/rl/utils/evaluation_visual.h>
+#include <rl_tools/rl/environments/pendulum/ui.h>
+#include <rl_tools/rl/utils/evaluation_visual.h>
 #endif
 
 #ifdef BACKPROP_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS

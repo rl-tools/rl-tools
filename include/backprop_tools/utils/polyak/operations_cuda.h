@@ -5,7 +5,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::utils::polyak {
+namespace rl_tools::utils::polyak {
     // todo: polyak factor as template parameter (reciprocal INT e.g.)
     namespace internal {
         template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC, bool SQUARE=false>

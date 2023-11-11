@@ -13,7 +13,7 @@ message("CUDA Host Compiler: ${CMAKE_CUDA_HOST_COMPILER}")
 # target_link_libraries(
 #         rl_environments_mujoco_ant_throughput_cuda
 #         PRIVATE
-#         backprop_tools
+#         rl_tools
 #         HighFive
 #         tensorboard_logger
 #         CUDA::cublas
@@ -27,8 +27,8 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_cuda_standalone
         PRIVATE
-        backprop_tools::minimal
-        backprop_tools::optimizations_cuda
+        rl_tools::minimal
+        rl_tools::optimizations_cuda
         mujoco
 )
 BACKPROP_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_standalone)
@@ -46,8 +46,8 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_cuda_benchmark
         PRIVATE
-        backprop_tools::minimal
-        backprop_tools::optimizations_cuda
+        rl_tools::minimal
+        rl_tools::optimizations_cuda
         mujoco
 )
 BACKPROP_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
@@ -73,8 +73,8 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_cuda_full
         PRIVATE
-        backprop_tools::minimal
-        backprop_tools::optimizations_cuda
+        rl_tools::minimal
+        rl_tools::optimizations_cuda
         mujoco
 )
 BACKPROP_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_full)
@@ -88,7 +88,7 @@ endif()
 # target_link_libraries(
 #         rl_environments_mujoco_ant_collection_cuda
 #         PRIVATE
-#         backprop_tools
+#         rl_tools
 #         HighFive
 #         tensorboard_logger
 #         mujoco

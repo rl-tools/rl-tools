@@ -6,7 +6,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename ENV>
     void init(DEVICE&, ENV&, bool){};
     template <typename DEVICE, typename ENV>

@@ -9,9 +9,9 @@
 #include <string>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     std::string get_type_string(nn::parameters::Adam p){
-        return "backprop_tools::nn::parameters::Adam";
+        return "rl_tools::nn::parameters::Adam";
     }
     template<typename DEVICE, typename CONTAINER>
     persist::Code save_split(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
@@ -33,10 +33,10 @@ namespace backprop_tools{
         ss_header << gradient_second_order_moment.header;
         ss << gradient_second_order_moment.body;
         if(!output_memory_only){
-            ss << ind << "    " << "static_assert(backprop_tools::utils::typing::is_same_v<parameters_memory::CONTAINER_TYPE, gradient_memory::CONTAINER_TYPE>);\n";
-            ss << ind << "    " << "static_assert(backprop_tools::utils::typing::is_same_v<gradient_memory::CONTAINER_TYPE, gradient_first_order_moment_memory::CONTAINER_TYPE>);\n";
-            ss << ind << "    " << "static_assert(backprop_tools::utils::typing::is_same_v<gradient_memory::CONTAINER_TYPE, gradient_second_order_moment_memory::CONTAINER_TYPE>);\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "backprop_tools::nn::parameters::Adam::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container, gradient_memory::container, gradient_first_order_moment_memory::container, gradient_second_order_moment_memory::container, };\n";
+            ss << ind << "    " << "static_assert(rl_tools::utils::typing::is_same_v<parameters_memory::CONTAINER_TYPE, gradient_memory::CONTAINER_TYPE>);\n";
+            ss << ind << "    " << "static_assert(rl_tools::utils::typing::is_same_v<gradient_memory::CONTAINER_TYPE, gradient_first_order_moment_memory::CONTAINER_TYPE>);\n";
+            ss << ind << "    " << "static_assert(rl_tools::utils::typing::is_same_v<gradient_memory::CONTAINER_TYPE, gradient_second_order_moment_memory::CONTAINER_TYPE>);\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "rl_tools::nn::parameters::Adam::instance<parameters_memory::CONTAINER_TYPE> parameters = {parameters_memory::container, gradient_memory::container, gradient_first_order_moment_memory::container, gradient_second_order_moment_memory::container, };\n";
         }
         ss << ind << "}\n";
         return {"", ss.str()};

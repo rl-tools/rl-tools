@@ -1,13 +1,13 @@
-#include <backprop_tools/operations/cpu.h>
-#include <backprop_tools/nn/layers/dense/operations_generic.h>
-#include <backprop_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/operations/cpu.h>
+#include <rl_tools/nn/layers/dense/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
-#include <backprop_tools/nn/parameters/persist_code.h>
-#include <backprop_tools/nn/optimizers/adam/persist_code.h>
-#include <backprop_tools/nn/layers/dense/persist_code.h>
-#include <backprop_tools/nn_models/sequential/persist_code.h>
+#include <rl_tools/nn/parameters/persist_code.h>
+#include <rl_tools/nn/optimizers/adam/persist_code.h>
+#include <rl_tools/nn/layers/dense/persist_code.h>
+#include <rl_tools/nn_models/sequential/persist_code.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <fstream>
@@ -59,7 +59,7 @@ TEST(BACKPROP_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
         auto header = model_code.header + "\n" + input_code.header + "\n" + output_code.header;
         auto body = model_code.body + "\n" + input_code.body + "\n" + output_code.body;
 
-        auto wrapped = bpt::embed_in_namespace(device, {header, body}, "backprop_tools_export", 0);
+        auto wrapped = bpt::embed_in_namespace(device, {header, body}, "rl_tools_export", 0);
 
         auto output = wrapped.header + "\n" + wrapped.body;
 //        std::cout << "output: " << output << std::endl;

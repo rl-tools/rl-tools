@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_ACROBOT_ACROBOT_H
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::acrobot {
+namespace rl_tools::rl::environments::acrobot {
     template <typename T>
     struct DefaultParameters {
         static constexpr T DT = 0.2;
@@ -48,7 +48,7 @@ namespace backprop_tools::rl::environments::acrobot {
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments{
+namespace rl_tools::rl::environments{
     template <typename T_SPEC>
     struct Acrobot{
         using SPEC = T_SPEC;

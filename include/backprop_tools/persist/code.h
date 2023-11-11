@@ -6,7 +6,7 @@
 #include <sstream>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::persist{
+namespace rl_tools::persist{
     struct Code{
         std::string header;
         std::string body;
@@ -15,7 +15,7 @@ namespace backprop_tools::persist{
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE>
     persist::Code embed_in_namespace(DEVICE&, persist::Code c, std::string name, typename DEVICE::index_t indent = 0){
         using TI = typename DEVICE::index_t;

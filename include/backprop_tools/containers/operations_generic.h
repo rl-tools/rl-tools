@@ -15,7 +15,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, MatrixStatic<SPEC>& matrix){
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
@@ -495,9 +495,9 @@ namespace backprop_tools{
     }
 
     template <typename DEVICE, typename T, typename INPUT_SPEC, typename MEAN_SPEC, typename STD_SPEC, typename OUTPUT_SPEC>
-    void standardise(DEVICE& device, const backprop_tools::Matrix<INPUT_SPEC>& input, const backprop_tools::Matrix<MEAN_SPEC> mean, const backprop_tools::Matrix<STD_SPEC> std, backprop_tools::Matrix<OUTPUT_SPEC> output){
-        static_assert(backprop_tools::containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
-        static_assert(backprop_tools::containers::check_structure<MEAN_SPEC, STD_SPEC>);
+    void standardise(DEVICE& device, const rl_tools::Matrix<INPUT_SPEC>& input, const rl_tools::Matrix<MEAN_SPEC> mean, const rl_tools::Matrix<STD_SPEC> std, rl_tools::Matrix<OUTPUT_SPEC> output){
+        static_assert(rl_tools::containers::check_structure<INPUT_SPEC, OUTPUT_SPEC>);
+        static_assert(rl_tools::containers::check_structure<MEAN_SPEC, STD_SPEC>);
         static_assert(INPUT_SPEC::COLS == MEAN_SPEC::COLS);
         static_assert(MEAN_SPEC::ROWS == 1);
         for(typename DEVICE::index_t row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
@@ -508,7 +508,7 @@ namespace backprop_tools{
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
-    void randn(DEVICE& device, backprop_tools::Matrix<SPEC>& m, RNG& rng){
+    void randn(DEVICE& device, rl_tools::Matrix<SPEC>& m, RNG& rng){
         using T = typename SPEC::T;
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
@@ -517,7 +517,7 @@ namespace backprop_tools{
         }
     }
     template <typename DEVICE, typename SPEC>
-    typename SPEC::T mean(DEVICE& device, backprop_tools::Matrix<SPEC>& m){
+    typename SPEC::T mean(DEVICE& device, rl_tools::Matrix<SPEC>& m){
         using T = typename SPEC::T;
         T acc = 0;
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
@@ -528,7 +528,7 @@ namespace backprop_tools{
         return acc/(SPEC::ROWS * SPEC::COLS);
     }
     template <typename DEVICE, typename SPEC>
-    typename SPEC::T std(DEVICE& device, backprop_tools::Matrix<SPEC>& m){
+    typename SPEC::T std(DEVICE& device, rl_tools::Matrix<SPEC>& m){
         using T = typename SPEC::T;
         T acc = 0;
         T avg = mean(device, m);
@@ -547,7 +547,7 @@ namespace backprop_tools{
     }
 
     template <typename DEVICE, typename SPEC>
-    void clamp(DEVICE& device, backprop_tools::Matrix<SPEC>& m, typename SPEC::T lower, typename SPEC::T upper){
+    void clamp(DEVICE& device, rl_tools::Matrix<SPEC>& m, typename SPEC::T lower, typename SPEC::T upper){
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
             for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
                 set(m, row_i, col_i, math::clamp<typename SPEC::T>(device.math, get(m, row_i, col_i), lower, upper));

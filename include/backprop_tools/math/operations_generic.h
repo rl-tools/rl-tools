@@ -8,7 +8,7 @@
 #endif
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::math {
+namespace rl_tools::math {
 
     template<typename T>
     constexpr T PI = 3.141592653589793238462643383279502884L;

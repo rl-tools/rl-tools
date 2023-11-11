@@ -3,18 +3,18 @@
 cd examples/docker/03_cuda
 ```
 ### Building the environment
-Build the docker container (based on an NVIDIA cuda ubuntu image) installing Intel MKL as well as a recent version of CMake. The image is tagged as `backprop_tools:cuda`
+Build the docker container (based on an NVIDIA cuda ubuntu image) installing Intel MKL as well as a recent version of CMake. The image is tagged as `rl_tools:cuda`
 ```
-docker build -f Dockerfile -t backprop_tools:cuda . --no-cache
+docker build -f Dockerfile -t rl_tools:cuda . --no-cache
 ```
-### Running the container and configuring BackpropTools
+### Running the container and configuring RLtools
 Run the container in interactive mode, mounting the source code from the host in readonly mode. We expose port 6006 for tensorboard and allow the sys_nice capability to be able to run the tests with a high priority
 ```
-docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly --cap-add=sys_nice --mount type=bind,source=$(pwd)/../checkpoints,target=/build/checkpoints --runtime=nvidia --gpus all backprop_tools:cuda
+docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),target=/rl_tools,readonly --cap-add=sys_nice --mount type=bind,source=$(pwd)/../checkpoints,target=/build/checkpoints --runtime=nvidia --gpus all rl_tools:cuda
 ```
-Configure the BackpropTools using CMake
+Configure the RLtools using CMake
 ```
-CC=clang CXX=clang++ cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
+CC=clang CXX=clang++ cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON -DBACKPROP_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_CLI11:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
 ```
 And build the targets
 ```

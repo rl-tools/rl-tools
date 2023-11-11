@@ -5,25 +5,25 @@ constexpr bool test_first_layer = true;
 #define BACKPROP_TOOLS_FUNCTION_PLACEMENT __device__ __host__
 
 // Group 1
-#include <backprop_tools/devices/cpu.h>
-#include <backprop_tools/math/operations_cpu.h>
-#include <backprop_tools/random/operations_cpu.h>
-#include <backprop_tools/logging/operations_cpu.h>
-#include <backprop_tools/devices/cuda.h>
-#include <backprop_tools/math/operations_cuda.h>
-#include <backprop_tools/random/operations_cuda.h>
-#include <backprop_tools/logging/operations_cuda.h>
+#include <rl_tools/devices/cpu.h>
+#include <rl_tools/math/operations_cpu.h>
+#include <rl_tools/random/operations_cpu.h>
+#include <rl_tools/logging/operations_cpu.h>
+#include <rl_tools/devices/cuda.h>
+#include <rl_tools/math/operations_cuda.h>
+#include <rl_tools/random/operations_cuda.h>
+#include <rl_tools/logging/operations_cuda.h>
 
 // Group 2: depends on logging
-#include <backprop_tools/utils/assert/operations_cpu.h>
-#include <backprop_tools/utils/assert/operations_cuda.h>
+#include <rl_tools/utils/assert/operations_cpu.h>
+#include <rl_tools/utils/assert/operations_cuda.h>
 // Group 3: dependent on assert
-#include <backprop_tools/containers/operations_cpu.h>
-#include <backprop_tools/containers/operations_generic.h>
+#include <rl_tools/containers/operations_cpu.h>
+#include <rl_tools/containers/operations_generic.h>
 
-#include <backprop_tools/nn/operations_cuda.h>
-#include <backprop_tools/nn_models/operations_cuda.h>
-#include <backprop_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn/operations_cuda.h>
+#include <rl_tools/nn_models/operations_cuda.h>
+#include <rl_tools/nn_models/operations_cpu.h>
 
 
 #include "../../utils/utils.h"
@@ -38,7 +38,7 @@ constexpr bool test_first_layer = true;
 #include "cutlass/gemm/device/gemm.h"
 #endif
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DTYPE = double;
 

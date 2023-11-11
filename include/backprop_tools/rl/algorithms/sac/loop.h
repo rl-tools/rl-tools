@@ -12,7 +12,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::algorithms::sac::loop{
+namespace rl_tools::rl::algorithms::sac::loop{
     template <typename T_SPEC>
     struct CoreTrainingState{
         using SPEC = T_SPEC;
@@ -60,7 +60,7 @@ namespace backprop_tools::rl::algorithms::sac::loop{
 
         malloc(ts.device, ts.off_policy_runner);
         init(ts.device, ts.off_policy_runner, ts.envs);
-        backprop_tools::init(ts.device, ts.envs[0], ts.ui);
+        rl_tools::init(ts.device, ts.envs[0], ts.ui);
 
         malloc(ts.device, ts.critic_batch);
         malloc(ts.device, ts.critic_training_buffers);

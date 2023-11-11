@@ -7,7 +7,7 @@
 #endif
 #include "../devices/devices.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn::activation_functions {
+namespace rl_tools::nn::activation_functions {
     enum ActivationFunction{
         IDENTITY,
         RELU,
@@ -21,7 +21,7 @@ namespace backprop_tools::nn::activation_functions {
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEVICE, typename T, nn::activation_functions::ActivationFunction F>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT inline T activation(T x){
         using namespace nn::activation_functions;

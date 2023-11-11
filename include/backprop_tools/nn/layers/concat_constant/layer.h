@@ -7,7 +7,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn::layers::concat_constant {
+namespace rl_tools::nn::layers::concat_constant {
     template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     constexpr bool check_input_output_f(){
         static_assert(INPUT_SPEC::COLS == LAYER_SPEC::INPUT_DIM);

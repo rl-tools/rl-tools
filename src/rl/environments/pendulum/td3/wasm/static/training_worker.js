@@ -1,5 +1,5 @@
-import createBackpropToolsInterfaceBenchmark from './build/wasm_interface_benchmark.js';
-import createBackpropToolsInterface from './build/wasm_interface.js';
+import createRLtoolsInterfaceBenchmark from './build/wasm_interface_benchmark.js';
+import createRLtoolsInterface from './build/wasm_interface.js';
 
 let mode = null;
 let bpt = null;
@@ -14,7 +14,7 @@ self.addEventListener("message", async (event) => {
         console.assert(bpt === null)
 
         mode = event.data.payload.benchmark ? 'benchmark' : 'normal';
-        const bpt_interface_factory = mode === "benchmark" ? createBackpropToolsInterfaceBenchmark : createBackpropToolsInterface;
+        const bpt_interface_factory = mode === "benchmark" ? createRLtoolsInterfaceBenchmark : createRLtoolsInterface;
 
         bpt = await bpt_interface_factory().then((bpt_emscripten) => {
             console.log("Initializing worker");

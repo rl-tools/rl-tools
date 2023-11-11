@@ -7,7 +7,7 @@
 #include "../utils/generic/typing.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::random{
+namespace rl_tools::random{
     auto default_engine(const devices::random::Dummy& dev){
         return devices::random::Dummy::State(0);
     }

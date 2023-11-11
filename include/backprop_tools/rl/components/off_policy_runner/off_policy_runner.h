@@ -15,7 +15,7 @@
 */
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::components::off_policy_runner {
+namespace rl_tools::rl::components::off_policy_runner {
     template <typename TI, TI T_NUM_THREADS>
     struct ExecutionHints{
         static constexpr TI NUM_THREADS = T_NUM_THREADS;
@@ -116,7 +116,7 @@ namespace backprop_tools::rl::components::off_policy_runner {
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::components{
+namespace rl_tools::rl::components{
     template<typename T_SPEC>
     struct OffPolicyRunner {
         using SPEC = T_SPEC;

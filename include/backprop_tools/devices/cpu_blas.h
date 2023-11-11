@@ -9,7 +9,7 @@
 #include "cpu.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::devices{
+namespace rl_tools::devices{
     template <typename T_SPEC>
     struct CPU_BLAS: CPU<T_SPEC>{
         static constexpr DeviceId DEVICE_ID = DeviceId::CPU_BLAS;

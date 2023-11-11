@@ -1,17 +1,17 @@
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 
-#include <backprop_tools/containers/persist_code.h>
-#include <backprop_tools/nn/layers/dense/operations_cpu.h>
-#include <backprop_tools/nn_models/mlp/operations_cpu.h>
+#include <rl_tools/containers/persist_code.h>
+#include <rl_tools/nn/layers/dense/operations_cpu.h>
+#include <rl_tools/nn_models/mlp/operations_cpu.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 #include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
-#include "../../../data/test_backprop_tools_container_persist_matrix.h"
+#include "../../../data/test_rl_tools_container_persist_matrix.h"
 
 constexpr bool const_declaration = false;
 
@@ -32,7 +32,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST){
     ASSERT_FLOAT_EQ(0, abs_diff);
 }
 
-#include "../../../data/test_backprop_tools_nn_layers_dense_persist_code.h"
+#include "../../../data/test_rl_tools_nn_layers_dense_persist_code.h"
 
 TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     using DEVICE = bpt::devices::DefaultCPU;
@@ -75,7 +75,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
     ASSERT_FLOAT_EQ(10 + 5 + 2 + 1, abs_diff);
 }
 
-#include "../../../data/test_backprop_tools_nn_models_mlp_persist_code.h"
+#include "../../../data/test_rl_tools_nn_models_mlp_persist_code.h"
 
 TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP){
     using DEVICE = bpt::devices::DefaultCPU;
@@ -139,7 +139,7 @@ TEST(BACKPROP_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_EVALUATE){
 
     std::filesystem::create_directories("data");
     std::ofstream file;
-    file.open ("data/test_backprop_tools_nn_models_mlp_evaluation.h");
+    file.open ("data/test_rl_tools_nn_models_mlp_evaluation.h");
     file << output;
     file.close();
 

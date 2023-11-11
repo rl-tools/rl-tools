@@ -1,6 +1,6 @@
 #include "adam.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools {
+namespace rl_tools {
     namespace nn::optimizers::adam::cuda {
         template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
         __global__

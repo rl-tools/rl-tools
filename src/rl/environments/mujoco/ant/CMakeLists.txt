@@ -9,7 +9,7 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
     target_link_libraries(
             rl_environments_mujoco_ant_evaluation_td3
             PRIVATE
-            backprop_tools
+            rl_tools
     )
     BACKPROP_TOOLS_INSTALL(rl_environments_mujoco_ant_evaluation_td3)
 endif()
@@ -22,7 +22,7 @@ if(BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
     target_link_libraries(
             rl_environments_mujoco_ant_evaluation_ppo
             PRIVATE
-            backprop_tools
+            rl_tools
     )
     target_compile_definitions(
             rl_environments_mujoco_ant_evaluation_ppo

@@ -6,7 +6,7 @@ add_executable(logging_tensorboard
 target_link_libraries(
         logging_tensorboard
         PRIVATE
-        backprop_tools
+        rl_tools
         GTest::gtest_main
 )
 

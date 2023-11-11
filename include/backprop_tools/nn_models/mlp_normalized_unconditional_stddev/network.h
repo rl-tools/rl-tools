@@ -6,7 +6,7 @@
 #include "../../nn_models/mlp/network.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn_models::mlp_unconditional_stddev {
+namespace rl_tools::nn_models::mlp_unconditional_stddev {
 
     template<template <typename> typename BASE, typename SPEC>
     struct NEURAL_NETWORK_FACTORY: public BASE<SPEC>{

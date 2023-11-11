@@ -5,7 +5,7 @@
 #include "car.h"
 #include "../operations_generic.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::car {
+namespace rl_tools::rl::environments::car {
     template <typename DEVICE, typename T>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT T f_mod_python(const DEVICE& dev, T a, T b){
         return a - b * math::floor(dev, a / b);
@@ -18,7 +18,7 @@ namespace backprop_tools::rl::environments::car {
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     static void init(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>

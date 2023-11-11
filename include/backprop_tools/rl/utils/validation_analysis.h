@@ -7,7 +7,7 @@
 #include <vector>
 #include "../../utils/generic/typing.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     namespace rl::utils::validation{
         template <typename DEVICE, typename SPEC, typename CONTENT, typename NEXT_COMPONENT>
         void analyse_step_log(DEVICE& device, Task<SPEC>& task, rl::utils::validation::set::Component<CONTENT, NEXT_COMPONENT>){
@@ -16,7 +16,7 @@ namespace backprop_tools{
             std::string n = name(CONTENT{});
             T value = evaluate(device, CONTENT{}, task);
             add_scalar(device, device.logger, std::string("validation/") + n, value);
-            if constexpr (!backprop_tools::utils::typing::is_same_v<NEXT_COMPONENT, rl::utils::validation::set::FinalComponent>){
+            if constexpr (!rl_tools::utils::typing::is_same_v<NEXT_COMPONENT, rl::utils::validation::set::FinalComponent>){
                 analyse_step_log(device, task, typename COMPONENT::NEXT_COMPONENT{});
             }
         }
@@ -29,7 +29,7 @@ namespace backprop_tools{
             add_scalar(device, device.logger, std::string("validation/") + n, value);
             metric_names.push_back(n);
             metric_values.push_back(value);
-            if constexpr (!backprop_tools::utils::typing::is_same_v<NEXT_COMPONENT, rl::utils::validation::set::FinalComponent>){
+            if constexpr (!rl_tools::utils::typing::is_same_v<NEXT_COMPONENT, rl::utils::validation::set::FinalComponent>){
                 analyse_step_string(device, task, metric_names, metric_values, typename COMPONENT::NEXT_COMPONENT{});
             }
         }

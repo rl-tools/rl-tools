@@ -6,7 +6,7 @@
 #include "../../../devices/cuda.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn::loss_functions::mse {
+namespace rl_tools::nn::loss_functions::mse {
     namespace internal::mse{
         template<typename DEV_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
         __global__

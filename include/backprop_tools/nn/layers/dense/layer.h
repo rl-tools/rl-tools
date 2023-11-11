@@ -9,7 +9,7 @@
 #include "../../../nn/parameters/parameters.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn::layers::dense {
+namespace rl_tools::nn::layers::dense {
     template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     constexpr bool check_input_output_f(){
         static_assert(INPUT_SPEC::COLS == LAYER_SPEC::INPUT_DIM);

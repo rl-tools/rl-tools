@@ -7,7 +7,7 @@
 #define BACKPROP_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_CPU_DELAY_OPERATIONS_GENERIC_INCLUDE
 #include "operations_cpu.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::components::on_policy_runner{
+namespace rl_tools::rl::components::on_policy_runner{
     template <typename DEV_SPEC, typename DATASET_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
     void prologue(devices::CPU_MKL<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& buffer, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, RNG& rng, typename devices::CPU<DEV_SPEC>::index_t step_i){
         prologue((devices::CPU<DEV_SPEC>&)device, buffer, runner, rng, step_i);

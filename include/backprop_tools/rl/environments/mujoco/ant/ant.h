@@ -7,7 +7,7 @@
 #include "../../../../utils/generic/typing.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::mujoco{
+namespace rl_tools::rl::environments::mujoco{
     namespace ant{
         template <typename T_T, typename T_TI>
         struct DefaultParameters{
@@ -47,7 +47,7 @@ namespace backprop_tools::rl::environments::mujoco{
     struct Ant{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
-        static_assert(backprop_tools::utils::typing::is_same_v<T, mjtNum>);
+        static_assert(rl_tools::utils::typing::is_same_v<T, mjtNum>);
         using TI = typename SPEC::TI;
         using State = ant::State<SPEC>;
         mjModel* model;

@@ -1,10 +1,10 @@
-#include <backprop_tools/operations/cpu_mux.h>
-#include <backprop_tools/nn_models/models.h>
-#include <backprop_tools/nn/operations_cpu_mux.h>
-#include <backprop_tools/nn_models/operations_generic.h>
-#include <backprop_tools/containers/persist.h>
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn_models/models.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/containers/persist.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <random>
 #include <chrono>

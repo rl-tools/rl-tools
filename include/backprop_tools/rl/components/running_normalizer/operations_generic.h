@@ -5,7 +5,7 @@
 
 #include "running_normalizer.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::components::RunningNormalizer<SPEC>& normalizer){
         malloc(device, normalizer.mean);

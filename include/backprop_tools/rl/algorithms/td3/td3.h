@@ -5,7 +5,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::algorithms::td3 {
+namespace rl_tools::rl::algorithms::td3 {
     template<typename T, typename TI>
     struct DefaultParameters {
         static constexpr T GAMMA = 0.99;

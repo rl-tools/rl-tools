@@ -1,26 +1,26 @@
-#include <backprop_tools/operations/cpu_mux.h>
-#include <backprop_tools/nn/operations_cpu_mux.h>
-#include <backprop_tools/nn_models/operations_cpu.h>
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn_models/operations_cpu.h>
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
-#include <backprop_tools/nn_models/persist.h>
+#include <rl_tools/nn_models/persist.h>
 #endif
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../parameters.h"
 #if defined(BACKPROP_TOOLS_BACKEND_ENABLE_MKL) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
-#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
 #if defined(BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(BACKPROP_TOOLS_BACKEND_DISABLE_BLAS)
-#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
-#include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
 #endif
 #endif
-#include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
-#include <backprop_tools/rl/components/running_normalizer/operations_generic.h>
+#include <rl_tools/rl/algorithms/ppo/operations_generic.h>
+#include <rl_tools/rl/components/running_normalizer/operations_generic.h>
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
-#include <backprop_tools/rl/components/running_normalizer/persist.h>
+#include <rl_tools/rl/components/running_normalizer/persist.h>
 #endif
-#include <backprop_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/utils/evaluation.h>
 
 #include <filesystem>
 #include <sstream>

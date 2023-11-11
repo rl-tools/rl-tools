@@ -12,7 +12,7 @@
 #endif
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer) {
         malloc(device, layer.weights);
@@ -227,7 +227,7 @@ namespace backprop_tools{
 
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const backprop_tools::nn::layers::dense::Layer<SPEC_1>* l1, const backprop_tools::nn::layers::dense::Layer<SPEC_2>* l2) {
+    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::Layer<SPEC_1>* l1, const rl_tools::nn::layers::dense::Layer<SPEC_2>* l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         using T = typename SPEC_1::T;
         T acc = 0;
@@ -236,67 +236,67 @@ namespace backprop_tools{
         return acc;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const backprop_tools::nn::layers::dense::Layer<SPEC_1>& l1, const backprop_tools::nn::layers::dense::Layer<SPEC_2>& l2) {
+    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::Layer<SPEC_1>& l1, const rl_tools::nn::layers::dense::Layer<SPEC_2>& l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         return abs_diff(device, &l1, &l2);
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const backprop_tools::nn::layers::dense::LayerBackward<SPEC_1>* l1, const backprop_tools::nn::layers::dense::LayerBackward<SPEC_2>* l2) {
+    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC_1>* l1, const rl_tools::nn::layers::dense::LayerBackward<SPEC_2>* l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         using T = typename SPEC_1::T;
-        T acc = abs_diff(device, (backprop_tools::nn::layers::dense::Layer<SPEC_1>*) l1, (backprop_tools::nn::layers::dense::Layer<SPEC_2>*) l2);
+        T acc = abs_diff(device, (rl_tools::nn::layers::dense::Layer<SPEC_1>*) l1, (rl_tools::nn::layers::dense::Layer<SPEC_2>*) l2);
         acc += abs_diff(device, l1->pre_activations, l2->pre_activations);
         return acc;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const backprop_tools::nn::layers::dense::LayerBackward<SPEC_1>& l1, const backprop_tools::nn::layers::dense::LayerBackward<SPEC_2>& l2) {
+    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC_1>& l1, const rl_tools::nn::layers::dense::LayerBackward<SPEC_2>& l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         return abs_diff(device, &l1, &l2);
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const backprop_tools::nn::layers::dense::LayerBackwardGradient<SPEC_1>* l1, const backprop_tools::nn::layers::dense::LayerBackwardGradient<SPEC_2>* l2) {
+    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackwardGradient<SPEC_1>* l1, const rl_tools::nn::layers::dense::LayerBackwardGradient<SPEC_2>* l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         using T = typename SPEC_1::T;
-        T acc = abs_diff(device, (backprop_tools::nn::layers::dense::LayerBackward<SPEC_1>*) l1, (backprop_tools::nn::layers::dense::LayerBackward<SPEC_2>*) l2);
+        T acc = abs_diff(device, (rl_tools::nn::layers::dense::LayerBackward<SPEC_1>*) l1, (rl_tools::nn::layers::dense::LayerBackward<SPEC_2>*) l2);
         acc += abs_diff(device, l1->output, l2->output);
         return acc;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const backprop_tools::nn::layers::dense::LayerBackwardGradient<SPEC_1>& l1, const backprop_tools::nn::layers::dense::LayerBackwardGradient<SPEC_2>& l2) {
+    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackwardGradient<SPEC_1>& l1, const rl_tools::nn::layers::dense::LayerBackwardGradient<SPEC_2>& l2) {
         static_assert(nn::layers::dense::check_spec_memory<SPEC_1, SPEC_2>);
         return abs_diff(device, &l1, &l2);
     }
     template <typename DEVICE, typename SPEC>
-    void reset_forward_state(DEVICE& device, backprop_tools::nn::layers::dense::LayerBackward<SPEC>* l) {
+    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerBackward<SPEC>* l) {
         set_all(device, l->pre_activations, 0);
     }
     template <typename DEVICE, typename SPEC>
-    void reset_forward_state(DEVICE& device, backprop_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
-        reset_forward_state(device, (backprop_tools::nn::layers::dense::Layer<SPEC>*) l);
+    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
+        reset_forward_state(device, (rl_tools::nn::layers::dense::Layer<SPEC>*) l);
     }
     template <typename DEVICE, typename SPEC>
-    void reset_forward_state(DEVICE& device, backprop_tools::nn::layers::dense::LayerBackwardGradient<SPEC>* l) {
-        reset_forward_state(device, (backprop_tools::nn::layers::dense::LayerBackward<SPEC>*) l);
+    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerBackwardGradient<SPEC>* l) {
+        reset_forward_state(device, (rl_tools::nn::layers::dense::LayerBackward<SPEC>*) l);
         set_all(device, l->output, 0);
     }
     template <typename DEVICE, typename SPEC>
-    void reset_forward_state(DEVICE& device, backprop_tools::nn::layers::dense::LayerBackwardGradient<SPEC>& l) {
+    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerBackwardGradient<SPEC>& l) {
         reset_forward_state(device, &l);
     }
     template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const backprop_tools::nn::layers::dense::Layer<SPEC>& l) {
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::Layer<SPEC>& l) {
         return is_nan(device, l.weights) || is_nan(device, l.biases);
     }
     template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const backprop_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
         return
-                is_nan(device, (backprop_tools::nn::layers::dense::Layer<SPEC>&) l) ||
+                is_nan(device, (rl_tools::nn::layers::dense::Layer<SPEC>&) l) ||
                 is_nan(device, l.pre_activations);
     }
     template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const backprop_tools::nn::layers::dense::LayerBackwardGradient<SPEC>& l) {
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackwardGradient<SPEC>& l) {
         return
-            is_nan(device, (backprop_tools::nn::layers::dense::LayerBackward<SPEC>&) l) ||
+            is_nan(device, (rl_tools::nn::layers::dense::LayerBackward<SPEC>&) l) ||
             is_nan(device, l.output);
     }
 }

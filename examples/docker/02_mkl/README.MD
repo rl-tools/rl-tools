@@ -2,17 +2,17 @@ Change to the current directory
 ```
 cd examples/docker/02_mkl
 ```
-Build the docker image (saved as `backprop_tools:mkl`)
+Build the docker image (saved as `rl_tools:mkl`)
 ```
-docker build -f Dockerfile -t backprop_tools:mkl . --no-cache
+docker build -f Dockerfile -t rl_tools:mkl . --no-cache
 ```
 Run a docker container based on the image just built (exposing port `6006` for Tensorboard and mounting the source code from the host in readonly mode)
 ```
-docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),target=/backprop_tools,readonly --cap-add=sys_nice backprop_tools:mkl
+docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),target=/rl_tools,readonly --cap-add=sys_nice rl_tools:mkl
 ```
-Configure BackpropTools using CMake
+Configure RLtools using CMake
 ```
-cmake /backprop_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
+cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DBACKPROP_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DBACKPROP_TOOLS_ENABLE_HDF5:BOOL=ON -DBACKPROP_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
 ```
 Building the targets
 ```

@@ -6,7 +6,7 @@
 #include "../utils/generic/typing.h"
 #include "devices.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::devices{
+namespace rl_tools::devices{
     namespace dummy{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::Dummy;

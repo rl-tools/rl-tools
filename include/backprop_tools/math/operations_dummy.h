@@ -8,7 +8,7 @@
 #include "operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::math {
+namespace rl_tools::math {
 
     template<typename T>
     T sqrt(const devices::math::Dummy&, const T x) {

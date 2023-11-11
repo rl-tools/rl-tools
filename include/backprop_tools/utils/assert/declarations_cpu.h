@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_UTILS_ASSERT_DECLARATIONS_CPU_H
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::utils{
+namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T>
     void assert_exit(devices::CPU<DEV_SPEC>& device, bool condition, T message);
 }

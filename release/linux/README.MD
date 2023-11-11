@@ -1,26 +1,26 @@
 ### Recommended: Using docker to create the release
 ```
-docker build -t backprop_tools:release_linux . --no-cache
+docker build -t rl_tools:release_linux . --no-cache
 ```
 ```
-docker run --rm -it --mount type=bind,source=$(cd ../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/install,target=/install -v $(pwd)/build.sh:/build.sh:ro backprop_tools:release_linux
+docker run --rm -it --mount type=bind,source=$(cd ../..; pwd),target=/rl_tools,readonly --mount type=bind,source=$(pwd)/install,target=/install -v $(pwd)/build.sh:/build.sh:ro rl_tools:release_linux
 /build.sh /install
 ````
 
 #### Testing the release
 #### Headless
 ```
-docker run --rm -it -w / --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints --mount type=bind,source=$(pwd)/install,target=/install --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 /install/backprop_tools/bin/rl_environments_mujoco_ant_training_ppo_cuda_full 
+docker run --rm -it -w / --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints --mount type=bind,source=$(pwd)/install,target=/install --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 /install/rl_tools/bin/rl_environments_mujoco_ant_training_ppo_cuda_full 
 ```
 #### With UI
 ```
-docker build -f Dockerfile_ui -t backprop_tools:release_linux_ui . --no-cache
+docker build -f Dockerfile_ui -t rl_tools:release_linux_ui . --no-cache
 ```
 ```
 xhost +local:docker
 ```
 ```
-docker run --rm -it -e DISPLAY=$DISPLAY --device=/dev/dri -v /tmp/.X11-unix:/tmp/.X11-unix --mount type=bind,source=$(pwd)/install,target=/install --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints,readonly backprop_tools:release_linux_ui /install/backprop_tools/bin/rl_environments_mujoco_ant_evaluation_ppo
+docker run --rm -it -e DISPLAY=$DISPLAY --device=/dev/dri -v /tmp/.X11-unix:/tmp/.X11-unix --mount type=bind,source=$(pwd)/install,target=/install --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints,readonly rl_tools:release_linux_ui /install/rl_tools/bin/rl_environments_mujoco_ant_evaluation_ppo
 ```
 
 ### For debugging the release process: Using a native machine to create the release
@@ -53,15 +53,15 @@ cmake --install .
 ```
 
 ```
-(cd install/backprop_tools && tar -czvf backprop_tools-0.1.0-linux-x64_64.tar.gz *)
+(cd install/rl_tools && tar -czvf rl_tools-0.1.0-linux-x64_64.tar.gz *)
 ```
 
 #### Testing the binaries
 ```
-docker run -it --rm -w /bpt/bin -v $(pwd)/install/backprop_tools:/bpt archlinux 
+docker run -it --rm -w /bpt/bin -v $(pwd)/install/rl_tools:/bpt archlinux 
 ````
 ```
-docker run --rm -it -w /bpt/bin -v $(pwd)/install/backprop_tools:/bpt --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 ./rl_environments_mujoco_ant_training_ppo_cuda_full 
+docker run --rm -it -w /bpt/bin -v $(pwd)/install/rl_tools:/bpt --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 ./rl_environments_mujoco_ant_training_ppo_cuda_full 
 ````
 
 

@@ -6,7 +6,7 @@
 #include <highfive/H5File.hpp>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools {
+namespace rl_tools {
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, Matrix<SPEC>& m, HighFive::Group group, std::string dataset_name) {
         using T = typename SPEC::T;

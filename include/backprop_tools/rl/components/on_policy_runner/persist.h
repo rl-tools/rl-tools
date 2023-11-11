@@ -7,7 +7,7 @@
 #include "../../../containers/persist.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void save(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, HighFive::Group group){
         save(device, dataset.data, group, "data");

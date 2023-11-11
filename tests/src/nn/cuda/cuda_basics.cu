@@ -1,21 +1,21 @@
 // Group 1
-#include <backprop_tools/operations/cpu/group_1.h>
-#include <backprop_tools/operations/cuda/group_1.h>
+#include <rl_tools/operations/cpu/group_1.h>
+#include <rl_tools/operations/cuda/group_1.h>
 
 // Group 2
-#include <backprop_tools/operations/cpu/group_2.h>
-#include <backprop_tools/operations/cuda/group_2.h>
+#include <rl_tools/operations/cpu/group_2.h>
+#include <rl_tools/operations/cuda/group_2.h>
 
 // Group 3
-#include <backprop_tools/operations/cpu/group_3.h>
-#include <backprop_tools/operations/cuda/group_3.h>
+#include <rl_tools/operations/cpu/group_3.h>
+#include <rl_tools/operations/cuda/group_3.h>
 
-#include <backprop_tools/nn/operations_cuda.h>
-#include <backprop_tools/nn/loss_functions/mse/operations_cuda.h>
-#include <backprop_tools/nn_models/operations_generic.h>
-#include <backprop_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn/operations_cuda.h>
+#include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
+#include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn_models/operations_cpu.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 

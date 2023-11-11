@@ -1,7 +1,7 @@
 
-#include <backprop_tools/operations/cpu.h>
-#include <backprop_tools/nn/layers/dense/operations_cpu.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+#include <rl_tools/operations/cpu.h>
+#include <rl_tools/nn/layers/dense/operations_cpu.h>
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using DEVICE = bpt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;

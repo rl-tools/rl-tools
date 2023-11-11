@@ -2,17 +2,17 @@
 #define BACKPROP_TOOLS_BACKEND_ENABLE_BLAS
 #define BACKPROP_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 //#define BACKPROP_TOOLS_BACKEND_DISABLE_BLAS
-#include <backprop_tools/operations/cpu_mux.h>
-#include <backprop_tools/nn/operations_cpu_mux.h>
-#include <backprop_tools/nn/layers/concat_constant/operations_generic.h>
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/layers/concat_constant/operations_generic.h>
 
-#include <backprop_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <backprop_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
 #include <gtest/gtest.h>
 #include <thread>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using T = float;
 //using DEVICE = bpt::devices::DefaultCPU;

@@ -10,7 +10,7 @@
 #include <highfive/H5Group.hpp>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, HighFive::Group group) {
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;

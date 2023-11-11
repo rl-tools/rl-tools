@@ -1,26 +1,26 @@
 // Group 1
-#include <backprop_tools/devices/cpu.h>
-#include <backprop_tools/math/operations_cpu.h>
-#include <backprop_tools/random/operations_cpu.h>
-#include <backprop_tools/logging/operations_cpu.h>
-#include <backprop_tools/devices/dummy.h>
-#include <backprop_tools/math/operations_dummy.h>
-#include <backprop_tools/random/operations_dummy.h>
-#include <backprop_tools/logging/operations_dummy.h>
+#include <rl_tools/devices/cpu.h>
+#include <rl_tools/math/operations_cpu.h>
+#include <rl_tools/random/operations_cpu.h>
+#include <rl_tools/logging/operations_cpu.h>
+#include <rl_tools/devices/dummy.h>
+#include <rl_tools/math/operations_dummy.h>
+#include <rl_tools/random/operations_dummy.h>
+#include <rl_tools/logging/operations_dummy.h>
 
 // Group 2: depends on logging
-#include <backprop_tools/utils/assert/operations_cpu.h>
-#include <backprop_tools/utils/assert/operations_dummy.h>
+#include <rl_tools/utils/assert/operations_cpu.h>
+#include <rl_tools/utils/assert/operations_dummy.h>
 // Group 3: dependent on assert
-#include <backprop_tools/containers/operations_cpu.h>
-#include <backprop_tools/containers/operations_dummy.h>
+#include <rl_tools/containers/operations_cpu.h>
+#include <rl_tools/containers/operations_dummy.h>
 
-#include <backprop_tools/nn/operations_cpu.h>
-#include <backprop_tools/utils/generic/typing.h>
+#include <rl_tools/nn/operations_cpu.h>
+#include <rl_tools/utils/generic/typing.h>
 
 #include <gtest/gtest.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using DTYPE = float;
 using index_t = unsigned;
 constexpr index_t OUTER_INPUT_DIM = 10;

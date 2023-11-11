@@ -6,7 +6,7 @@
 #include "../../../rl/components/running_normalizer/running_normalizer.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::algorithms{
+namespace rl_tools::rl::algorithms{
     namespace ppo{
         template<typename T, typename TI>
         struct DefaultParameters {

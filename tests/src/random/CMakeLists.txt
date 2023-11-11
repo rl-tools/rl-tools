@@ -1,4 +1,4 @@
-project(backprop_tools_random_arm)
+project(rl_tools_random_arm)
 
 add_executable(
         test_random_arm
@@ -7,7 +7,7 @@ add_executable(
 target_link_libraries(
         test_random_arm
         PRIVATE
-        backprop_tools
-        backprop_tools_tests
+        rl_tools
+        rl_tools_tests
 )
 gtest_discover_tests(test_random_arm)

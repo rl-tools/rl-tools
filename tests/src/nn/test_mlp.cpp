@@ -1,10 +1,10 @@
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
-#include <backprop_tools/nn/optimizers/adam/operations_generic.h>
-#include <backprop_tools/nn_models/operations_cpu.h>
-#include <backprop_tools/utils/generic/memcpy.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
+#include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/utils/generic/memcpy.h>
 #include "../utils/utils.h"
 #include <sstream>
 #include <random>
@@ -15,7 +15,7 @@ namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
 #include <highfive/H5File.hpp>
 
 #include "default_network_mlp.h"
-#include <backprop_tools/nn_models/persist.h>
+#include <rl_tools/nn_models/persist.h>
 //#define SKIP_TESTS
 //#define SKIP_BACKPROP_TESTS
 //#define SKIP_ADAM_TESTS

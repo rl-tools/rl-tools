@@ -9,14 +9,14 @@
 #pragma pop_macro("slots")
 namespace plt = matplotlibcpp;
 
-#include <backprop_tools/nn_models/models.h>
-#include <backprop_tools/rl/algorithms/td3/td3.h>
-#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
-#include <backprop_tools/rl/environments/environments.h>
-#include <backprop_tools/utils/rng_std.h>
-#include <backprop_tools/rl/utils/evaluation.h>
+#include <rl_tools/nn_models/models.h>
+#include <rl_tools/rl/algorithms/td3/td3.h>
+#include <rl_tools/rl/components/off_policy_runner/off_policy_runner.h>
+#include <rl_tools/rl/environments/environments.h>
+#include <rl_tools/utils/rng_std.h>
+#include <rl_tools/rl/utils/evaluation.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #define DTYPE float
 
 typedef bpt::rl::environments::pendulum::Spec<DTYPE, bpt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;

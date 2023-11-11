@@ -1,10 +1,10 @@
-#include <backprop_tools/rl/environments/pendulum/pendulum.h>
-#include <backprop_tools/rl/environments/pendulum/operations_generic.h>
-#include <backprop_tools/nn_models/models.h>
-#include <backprop_tools/rl/algorithms/td3/td3.h>
-#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
+#include <rl_tools/rl/environments/pendulum/pendulum.h>
+#include <rl_tools/rl/environments/pendulum/operations_generic.h>
+#include <rl_tools/nn_models/models.h>
+#include <rl_tools/rl/algorithms/td3/td3.h>
+#include <rl_tools/rl/components/off_policy_runner/off_policy_runner.h>
 
-#include <backprop_tools/utils/generic/typing.h>
+#include <rl_tools/utils/generic/typing.h>
 
 template<typename DEVICE, typename T>
 struct parameters_pendulum_0{

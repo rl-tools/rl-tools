@@ -9,7 +9,7 @@
 #include "../../math/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::utils::evaluation{
+namespace rl_tools::rl::utils::evaluation{
     template <typename T, typename TI, typename ENV_STATE>
     struct State{
         T episode_return = 0;
@@ -36,7 +36,7 @@ namespace backprop_tools::rl::utils::evaluation{
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
 
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVAL_BUFFERS, typename RNG>
     bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVAL_BUFFERS& policy_eval_buffers, RNG& rng) {
@@ -110,7 +110,7 @@ namespace backprop_tools{
         for(TI i = 0; i < SPEC::N_EPISODES; i++) {
             typename ENVIRONMENT::State initial_state;
             if(deterministic) {
-                backprop_tools::initial_state(device, env, initial_state);
+                rl_tools::initial_state(device, env, initial_state);
             }
             else{
                 sample_initial_state(device, env, initial_state, rng);

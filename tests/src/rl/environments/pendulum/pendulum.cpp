@@ -1,12 +1,12 @@
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 
-#include <backprop_tools/rl/environments/environments.h>
-#include <backprop_tools/rl/environments/operations_cpu.h>
+#include <rl_tools/rl/environments/environments.h>
+#include <rl_tools/rl/environments/operations_cpu.h>
 
 #include "../../../utils/utils.h"
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #define DTYPE double
 const DTYPE STATE_TOLERANCE = 0.00001;
 

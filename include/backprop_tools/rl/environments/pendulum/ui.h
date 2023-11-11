@@ -18,7 +18,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::pendulum {
+namespace rl_tools::rl::environments::pendulum {
     template <typename T>
     class PendulumWidget : public QWidget
     {
@@ -56,7 +56,7 @@ namespace backprop_tools::rl::environments::pendulum {
             this->window = new PendulumWidget<T>();
             this->window->resize(320, 240);
             this->window->show();
-            this->window->setWindowTitle("backprop_tools::rl::environments::pendulum");
+            this->window->setWindowTitle("rl_tools::rl::environments::pendulum");
 //            QPushButton hello("Hello world!");
 //            hello.setParent(&window);
             QTimer timer;
@@ -86,7 +86,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename T>
     void set_state(rl::environments::pendulum::UI<T>& ui, const rl::environments::pendulum::State<T>& state){
         ui.angle = state.theta;

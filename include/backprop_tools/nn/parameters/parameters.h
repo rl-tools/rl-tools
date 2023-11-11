@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_NN_PARAMETERS_PARAMETERS_H
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::nn::parameters{
+namespace rl_tools::nn::parameters{
     namespace groups{
         struct Normal{};
         struct Input{};

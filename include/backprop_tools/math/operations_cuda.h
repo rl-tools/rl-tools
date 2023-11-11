@@ -12,7 +12,7 @@
 #include "../devices/cuda.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::math {
+namespace rl_tools::math {
     namespace cuda {
         template<typename T>
         constexpr bool check = utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>;

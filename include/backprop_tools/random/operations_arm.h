@@ -7,7 +7,7 @@
 #include "../utils/generic/typing.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::random{
+namespace rl_tools::random{
    devices::random::ARM::index_t default_engine(const devices::random::ARM& dev, devices::random::ARM::index_t seed = 1){
        return 0b10101010101010101010101010101010 + seed;
    };

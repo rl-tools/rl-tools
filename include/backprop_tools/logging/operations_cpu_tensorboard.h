@@ -2,7 +2,7 @@
 #if (defined(BACKPROP_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H)) && (BACKPROP_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define BACKPROP_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H
-#include <backprop_tools/containers.h>
+#include <rl_tools/containers.h>
 
 #include <filesystem>
 #include <cassert>
@@ -12,7 +12,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
 #ifdef BACKPROP_TOOLS_ENABLE_LIBATTOPNG
 #include <libattopng.h>
 #endif
-namespace backprop_tools{
+namespace rl_tools{
     namespace logging::tensorboard{
         std::string sanitize_file_name(const std::string &input) {
             std::string output = input;
@@ -99,7 +99,7 @@ namespace backprop_tools{
     }
 #ifdef BACKPROP_TOOLS_ENABLE_LIBATTOPNG
     template <typename DEVICE, typename KEY_TYPE, typename LOGGING_SPEC, typename SPEC>
-    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGING_SPEC>& logger, const KEY_TYPE key, backprop_tools::Matrix<SPEC> values){
+    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGING_SPEC>& logger, const KEY_TYPE key, rl_tools::Matrix<SPEC> values){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         libattopng_t* png = libattopng_new(SPEC::COLS, SPEC::ROWS, PNG_RGBA);
@@ -124,7 +124,7 @@ namespace backprop_tools{
     }
 #else
     template <typename DEVICE, typename LOGGER_SPEC, typename SPEC>
-    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGER_SPEC>& logger, backprop_tools::Matrix<SPEC> values){ }
+    void add_image(DEVICE& device, devices::logging::CPU_TENSORBOARD<LOGGER_SPEC>& logger, rl_tools::Matrix<SPEC> values){ }
 #endif
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

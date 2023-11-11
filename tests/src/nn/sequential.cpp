@@ -1,10 +1,10 @@
-#include <backprop_tools/operations/cpu.h>
-#include <backprop_tools/nn/optimizers/adam/operations_generic.h>
-#include <backprop_tools/nn/operations_cpu.h>
-#include <backprop_tools/nn_models/operations_cpu.h>
-#include <backprop_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/operations/cpu.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
+#include <rl_tools/nn/operations_cpu.h>
+#include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 

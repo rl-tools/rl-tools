@@ -6,7 +6,7 @@
 #include "model.h"
 #include "../../utils/generic/typing.h"
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename MODULE_SPEC>
     void malloc(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module){
         using namespace nn_models::sequential;
@@ -89,7 +89,7 @@ namespace backprop_tools{
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT>
     void forward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module, INPUT& input, OUTPUT& output){
         forward(device, module, input);
-        copy(device, device, backprop_tools::output(module), output);
+        copy(device, device, rl_tools::output(module), output);
     }
     template <typename DEVICE, typename MODULE_SPEC>
     void zero_gradient(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module){

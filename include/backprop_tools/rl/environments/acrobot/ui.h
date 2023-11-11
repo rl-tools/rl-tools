@@ -10,7 +10,7 @@
 #include <chrono>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::acrobot{
+namespace rl_tools::rl::environments::acrobot{
     namespace ui{
         template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED, bool T_BLOCK = true>
         struct Specification{
@@ -42,7 +42,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::acrobot::ui{
+namespace rl_tools::rl::environments::acrobot::ui{
     template <typename T>
     void R(T alpha, T result[2][2]) {
         result[0][0] = cos(alpha);
@@ -96,7 +96,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
     void render(DEVICE& device, const rl::environments::Acrobot<ENV_SPEC>& env, rl::environments::acrobot::UI<SPEC>& ui){
         auto now = std::chrono::high_resolution_clock::now();

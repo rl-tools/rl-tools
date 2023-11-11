@@ -6,7 +6,7 @@
 #include "../../../math/operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::car {
+namespace rl_tools::rl::environments::car {
     template <typename T>
     struct Tire{
         T B;
@@ -73,7 +73,7 @@ namespace backprop_tools::rl::environments::car {
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments{
+namespace rl_tools::rl::environments{
     template <typename T_SPEC>
     struct Car{
         using SPEC = T_SPEC;

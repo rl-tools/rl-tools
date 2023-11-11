@@ -1,17 +1,17 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-#include <backprop_tools/operations/cpu.h>
+#include <rl_tools/operations/cpu.h>
 
-#include "backprop_tools/nn_models/persist.h"
-#include "backprop_tools/nn_models/operations_cpu.h"
+#include "rl_tools/nn_models/persist.h"
+#include "rl_tools/nn_models/operations_cpu.h"
 
 #include "../utils/utils.h"
 
 #include "default_network_mlp.h"
 #include "../utils/nn_comparison_mlp.h"
 
-#include <backprop_tools/utils/persist.h>
+#include <rl_tools/utils/persist.h>
 
 #include <random>
 TEST(BACKPROP_TOOLS_NN_PERSIST, Saving) {

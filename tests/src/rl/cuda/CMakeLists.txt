@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(test_backprop_tools_rl_cuda CUDA)
+project(test_rl_tools_rl_cuda CUDA)
 
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD  17)
@@ -25,8 +25,8 @@ add_executable(
 target_link_libraries(
         test_rl_cuda
         PRIVATE
-        backprop_tools::minimal
-        backprop_tools_tests
+        rl_tools::minimal
+        rl_tools_tests
 )
 #BACKPROP_TOOLS_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda)
 #BACKPROP_TOOLS_TAG_IS_CUDA(test_rl_cuda)
@@ -39,8 +39,8 @@ add_executable(
 target_link_libraries(
         test_rl_cuda_td3_full_training
         PRIVATE
-        backprop_tools::minimal
-        backprop_tools_tests
+        rl_tools::minimal
+        rl_tools_tests
 )
 #BACKPROP_TOOLS_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda_td3_full_training)
 #BACKPROP_TOOLS_TAG_IS_CUDA(test_rl_cuda_td3_full_training)

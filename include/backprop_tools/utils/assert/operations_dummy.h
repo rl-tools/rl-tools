@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_UTILS_ASSERT_OPERATIONS_DUMMY_H
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::utils{
+namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T>
     void assert_exit(const devices::Dummy<DEV_SPEC>& dev, bool condition, T message){
         if(!condition){

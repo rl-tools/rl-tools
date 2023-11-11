@@ -1,29 +1,29 @@
 #define BACKPROP_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 
-#include <backprop_tools/operations/cpu_mux.h>
-#include <backprop_tools/nn/operations_cpu_mux.h>
-#include <backprop_tools/nn_models/operations_cpu.h>
-#include <backprop_tools/nn_models/persist.h>
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn_models/persist.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include "../parameters_ppo.h"
 
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_MKL
 
-#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
-#include <backprop_tools/rl/components/on_policy_runner/operations_generic_extensions.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_generic_extensions.h>
 
 #else
 #ifdef BACKPROP_TOOLS_BACKEND_ENABLE_ACCELERATE
-#include <backprop_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
 #else
-#include <backprop_tools/rl/components/on_policy_runner/operations_cpu.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
 #endif
 #endif
 
-#include <backprop_tools/rl/algorithms/ppo/operations_generic.h>
-#include <backprop_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/algorithms/ppo/operations_generic.h>
+#include <rl_tools/rl/utils/evaluation.h>
 
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>

@@ -9,7 +9,7 @@
 #include <random>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::random{
+namespace rl_tools::random{
     auto default_engine(const devices::random::CPU& dev, devices::random::CPU::index_t seed = 0){
         return std::default_random_engine(seed+1);
     };

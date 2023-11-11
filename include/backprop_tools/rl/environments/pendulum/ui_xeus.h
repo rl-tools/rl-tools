@@ -9,7 +9,7 @@
 // #include <string>
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::pendulum::ui::xeus {
+namespace rl_tools::rl::environments::pendulum::ui::xeus {
     template<typename T_T, typename T_TI, T_TI T_SIZE, T_TI T_PLAYBACK_SPEED>
     struct Specification{
         using T = T_T;
@@ -40,7 +40,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
     void render(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui){
         auto now = std::chrono::high_resolution_clock::now();

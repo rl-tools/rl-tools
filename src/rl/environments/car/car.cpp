@@ -1,15 +1,15 @@
-#include <backprop_tools/operations/cpu_mux.h>
-#include <backprop_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
 
-#include <backprop_tools/rl/environments/car/operations_cpu.h>
+#include <rl_tools/rl/environments/car/operations_cpu.h>
 #if BACKPROP_TOOLS_ENABLE_GTK
-#include <backprop_tools/rl/environments/car/ui.h>
+#include <rl_tools/rl/environments/car/ui.h>
 #endif
 
-#include <backprop_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn_models/operations_generic.h>
 
-#include <backprop_tools/rl/algorithms/td3/loop.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+#include <rl_tools/rl/algorithms/td3/loop.h>
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace training_config {
     using namespace bpt::nn_models::sequential::interface; // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace

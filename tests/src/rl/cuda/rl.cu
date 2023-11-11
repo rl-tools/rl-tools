@@ -1,32 +1,32 @@
 // Group 1
-#include <backprop_tools/operations/cuda/group_1.h>
-#include <backprop_tools/operations/cpu/group_1.h>
-#include <backprop_tools/operations/cpu_mkl/group_1.h>
+#include <rl_tools/operations/cuda/group_1.h>
+#include <rl_tools/operations/cpu/group_1.h>
+#include <rl_tools/operations/cpu_mkl/group_1.h>
 
 // Group 2
-#include <backprop_tools/operations/cuda/group_2.h>
-#include <backprop_tools/operations/cpu/group_2.h>
-#include <backprop_tools/operations/cpu_mkl/group_2.h>
+#include <rl_tools/operations/cuda/group_2.h>
+#include <rl_tools/operations/cpu/group_2.h>
+#include <rl_tools/operations/cpu_mkl/group_2.h>
 
 // Group 3
-#include <backprop_tools/operations/cuda/group_3.h>
-#include <backprop_tools/operations/cpu/group_3.h>
-#include <backprop_tools/operations/cpu_mkl/group_3.h>
+#include <rl_tools/operations/cuda/group_3.h>
+#include <rl_tools/operations/cpu/group_3.h>
+#include <rl_tools/operations/cpu_mkl/group_3.h>
 
-#include <backprop_tools/nn/operations_cpu_mkl.h>
-#include <backprop_tools/nn/operations_cuda.h>
-#include <backprop_tools/nn/loss_functions/mse/operations_cuda.h>
-#include <backprop_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn/operations_cpu_mkl.h>
+#include <rl_tools/nn/operations_cuda.h>
+#include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
+#include <rl_tools/nn_models/operations_generic.h>
 
-#include <backprop_tools/rl/components/replay_buffer/operations_cpu.h>
-#include <backprop_tools/rl/components/replay_buffer/persist.h>
-#include <backprop_tools/rl/components/off_policy_runner/operations_cpu.h>
+#include <rl_tools/rl/components/replay_buffer/operations_cpu.h>
+#include <rl_tools/rl/components/replay_buffer/persist.h>
+#include <rl_tools/rl/components/off_policy_runner/operations_cpu.h>
 
-#include <backprop_tools/rl/environments/pendulum/operations_cpu.h>
+#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 
-#include <backprop_tools/rl/components/off_policy_runner/operations_cuda.h>
-#include <backprop_tools/rl/algorithms/td3/operations_cuda.h>
-#include <backprop_tools/rl/algorithms/td3/operations_cpu.h>
+#include <rl_tools/rl/components/off_policy_runner/operations_cuda.h>
+#include <rl_tools/rl/algorithms/td3/operations_cuda.h>
+#include <rl_tools/rl/algorithms/td3/operations_cpu.h>
 
 #include "../components/replay_buffer.h"
 
@@ -34,7 +34,7 @@
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 class BACKPROP_TOOLS_RL_CUDA : public ::testing::Test {
 public:

@@ -8,7 +8,7 @@
 #include "../../../rl/components/on_policy_runner/on_policy_runner.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::algorithms::ppo::Buffers<SPEC>& buffers){
         malloc(device, buffers.current_batch_actions);

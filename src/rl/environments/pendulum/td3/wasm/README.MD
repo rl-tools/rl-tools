@@ -3,13 +3,13 @@
 cd src/rl/environments/pendulum/td3/wasm
 ```
 ```
-docker build -f ../../../../../../examples/docker/05_wasm/Dockerfile -t backprop_tools:wasm_build . --no-cache
+docker build -f ../../../../../../examples/docker/05_wasm/Dockerfile -t rl_tools:wasm_build . --no-cache
 ```
 ```
-docker run --rm -it -p 8000:8000 --mount type=bind,source=$(cd ../../../../../..; pwd),target=/backprop_tools,readonly --mount type=bind,source=$(pwd)/static/build,target=/build backprop_tools:wasm
+docker run --rm -it -p 8000:8000 --mount type=bind,source=$(cd ../../../../../..; pwd),target=/rl_tools,readonly --mount type=bind,source=$(pwd)/static/build,target=/build rl_tools:wasm
 ```
 ```
-BACKPROP_TOOLS_INCLUDE_DIR=/backprop_tools/include BACKPROP_TOOLS_BUILD_DIR=/build /backprop_tools/src/rl/environments/pendulum/td3/wasm/build.sh
+BACKPROP_TOOLS_INCLUDE_DIR=/rl_tools/include BACKPROP_TOOLS_BUILD_DIR=/build /rl_tools/src/rl/environments/pendulum/td3/wasm/build.sh
 ```
 
 ## Native
@@ -28,5 +28,5 @@ python3 -m http.server --directory static
 
 ## Deploy
 ```
-scp -r static/* server3.jonas.es:DockerContainer/backprop_tools/static/
+scp -r static/* server3.jonas.es:DockerContainer/rl_tools/static/
 ```

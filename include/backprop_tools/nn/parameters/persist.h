@@ -7,7 +7,7 @@
 
 #include <highfive/H5Group.hpp>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEVICE, typename CONTAINER>
     void save(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& parameter, HighFive::Group group) {
         save(device, parameter.parameters, group, "parameters");

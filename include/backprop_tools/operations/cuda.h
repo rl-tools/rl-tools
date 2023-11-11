@@ -3,10 +3,10 @@
 #pragma once
 #define BACKPROP_TOOLS_OPERATIONS_CUDA_H
 
-#include "../backprop_tools.h"
+#include "../rl_tools.h"
 #ifndef BACKPROP_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     constexpr bool compile_time_redefinition_detector = true; // When importing different devices don't import the full header. The operations need to be imporeted interleaved (e.g. include cpu group 1 -> include cuda group 1 -> include cpu group 2 -> include cuda group 2 -> ...)
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END

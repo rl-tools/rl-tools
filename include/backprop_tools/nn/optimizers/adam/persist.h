@@ -8,7 +8,7 @@
 #include "adam.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename DEVICE, typename CONTAINER>
     void save(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, HighFive::Group group) {
         save(device, (nn::parameters::Gradient::instance<CONTAINER>&)parameter, group);

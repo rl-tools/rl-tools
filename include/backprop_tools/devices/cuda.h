@@ -3,13 +3,13 @@
 #pragma once
 #define BACKPROP_TOOLS_DEVICES_CUDA_H
 
-#include "../backprop_tools.h"
+#include "../rl_tools.h"
 #include "../utils/generic/typing.h"
 #include "devices.h"
 #include "cpu.h"
 #include <cublas_v2.h>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::devices{
+namespace rl_tools::devices{
     namespace cuda{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::CUDA;
@@ -60,7 +60,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 #include <iostream>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools {
+namespace rl_tools {
     template <typename SPEC>
     void init(devices::CUDA<SPEC>& device){
         cublasStatus_t stat;

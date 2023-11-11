@@ -1,6 +1,6 @@
-#include <backprop_tools/operations/cpu_mux.h>
-#include <backprop_tools/rl/components/off_policy_runner/off_policy_runner.h>
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/rl/components/off_policy_runner/off_policy_runner.h>
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #if defined(BACKPROP_TOOLS_ENABLE_TENSORBOARD) && !defined(BACKPROP_TOOLS_DISABLE_TENSORBOARD)
 using LOGGER = bpt::devices::logging::CPU_TENSORBOARD<>;
 #else
@@ -19,22 +19,22 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 
 using DEVICE = bpt::DEVICE_FACTORY<DEV_SPEC>;
 
-#include <backprop_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
 
 // generic nn_model operations use the specialized layer operations depending on the backend device
-#include <backprop_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn_models/operations_generic.h>
 // simulation is run on the cpu and the environments functions are required in the off_policy_runner operations included afterwards
-#include <backprop_tools/rl/environments/mujoco/ant/operations_cpu.h>
+#include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
 
-#include <backprop_tools/rl/algorithms/td3/operations_cpu_mux.h>
+#include <rl_tools/rl/algorithms/td3/operations_cpu_mux.h>
 
 // additional includes for the ui and persisting
 #if defined(BACKPROP_TOOLS_ENABLE_HDF5) && !defined(BACKPROP_TOOLS_DISABLE_HDF5)
-#include <backprop_tools/nn_models/persist.h>
-#include <backprop_tools/rl/components/replay_buffer/persist.h>
+#include <rl_tools/nn_models/persist.h>
+#include <rl_tools/rl/components/replay_buffer/persist.h>
 #endif
 
-#include <backprop_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/utils/evaluation.h>
 
 #include "parameters.h"
 

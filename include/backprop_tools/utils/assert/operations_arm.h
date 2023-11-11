@@ -5,7 +5,7 @@
 
 #include <cstdlib>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::utils{
+namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T>
     void assert_exit(devices::ARM<DEV_SPEC>& device, bool condition, T message){
         if(!condition){

@@ -7,7 +7,7 @@
 #include "../../../rl/components/on_policy_runner/on_policy_runner.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     namespace rl::algorithms::ppo{
 
         template <typename PPO_SPEC>

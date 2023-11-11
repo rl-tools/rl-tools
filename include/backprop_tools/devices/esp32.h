@@ -7,7 +7,7 @@
 
 #include <cstddef>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::devices{
+namespace rl_tools::devices{
     namespace esp32{
         enum class Hardware{
             DEFAULT,
@@ -69,7 +69,7 @@ namespace backprop_tools::devices{
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
 #ifdef BACKPROP_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::ESP32<DEV_SPEC>& device, TI size){

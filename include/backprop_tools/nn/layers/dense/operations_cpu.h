@@ -6,7 +6,7 @@
 #include "operations_generic.h"
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 

@@ -8,7 +8,7 @@
 #endif
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::utils::vector_operations{
+namespace rl_tools::utils::vector_operations{
     template <typename DEVICE, typename T, auto N>
     BACKPROP_TOOLS_FUNCTION_PLACEMENT void scalar_multiply(const T v[N], const T s, T out[N]) {
         for(typename DEVICE::index_t i = 0; i < N; i++) {

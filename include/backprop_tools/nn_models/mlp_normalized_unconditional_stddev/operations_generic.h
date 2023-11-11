@@ -3,7 +3,7 @@
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>& m){
         malloc(device, (nn_models::mlp::NeuralNetworkAdam<SPEC>&)m);
@@ -41,7 +41,7 @@ namespace backprop_tools{
 
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SOURCE_SPEC>& source, nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<TARGET_SPEC>& target){
-        static_assert(backprop_tools::nn_models::mlp::check_spec_memory<typename SOURCE_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The source and target network must have the same structure");
+        static_assert(rl_tools::nn_models::mlp::check_spec_memory<typename SOURCE_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The source and target network must have the same structure");
         copy(source_device, target_device, (nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>&)source, (nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>&)target);
         copy(source_device, target_device, source.log_std, target.log_std);
     }

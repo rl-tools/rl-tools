@@ -1,12 +1,12 @@
-#include <backprop_tools/operations/cpu.h>
-#include <backprop_tools/rl/environments/pendulum/pendulum.h>
-#include <backprop_tools/rl/environments/pendulum/operations_generic.h>
-#include <backprop_tools/nn_models/mlp_unconditional_stddev/operations_cpu.h>
-#include <backprop_tools/rl/components/on_policy_runner/on_policy_runner.h>
-#include <backprop_tools/rl/components/on_policy_runner/operations_generic.h>
-#include <backprop_tools/rl/components/on_policy_runner/persist.h>
+#include <rl_tools/operations/cpu.h>
+#include <rl_tools/rl/environments/pendulum/pendulum.h>
+#include <rl_tools/rl/environments/pendulum/operations_generic.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_cpu.h>
+#include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
+#include <rl_tools/rl/components/on_policy_runner/persist.h>
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
 #include <gtest/gtest.h>

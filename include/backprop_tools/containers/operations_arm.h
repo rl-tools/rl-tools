@@ -6,7 +6,7 @@
 #include "operations_generic.h"
 #include <cstring> // formemcpy
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy_view(devices::ARM<SOURCE_DEV_SPEC>& source_device, devices::ARM<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using SOURCE_DEVICE = devices::ARM<SOURCE_DEV_SPEC>;

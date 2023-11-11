@@ -3,7 +3,7 @@
 #pragma once
 #define BACKPROP_TOOLS_RL_COMPONENTS_REPLAY_BUFFER_REPLAY_BUFFER_H
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::components::replay_buffer{
+namespace rl_tools::rl::components::replay_buffer{
     template<typename T_T, typename T_TI, T_TI T_OBSERVATION_DIM, T_TI T_OBSERVATION_DIM_PRIVILEGED, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_ACTION_DIM, T_TI T_CAPACITY, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification{
         using T = T_T;
@@ -28,7 +28,7 @@ namespace backprop_tools::rl::components::replay_buffer{
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::components {
+namespace rl_tools::rl::components {
     template <typename T_SPEC>
     struct ReplayBuffer {
         using SPEC = T_SPEC;
@@ -69,7 +69,7 @@ namespace backprop_tools::rl::components {
 }
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::components::replay_buffer{
+namespace rl_tools::rl::components::replay_buffer{
     template <typename T_SPEC, auto T_SIZE>
     struct SetSpecification{
         static constexpr auto SIZE = T_SIZE;

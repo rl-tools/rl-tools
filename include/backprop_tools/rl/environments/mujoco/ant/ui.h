@@ -4,7 +4,7 @@
 #define BACKPROP_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_UI_H
 #include <GLFW/glfw3.h>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::environments::mujoco::ant {
+namespace rl_tools::rl::environments::mujoco::ant {
     template <typename T_ENVIRONMENT>
     struct UI{
         using ENVIRONMENT = T_ENVIRONMENT;
@@ -74,7 +74,7 @@ BACKPROP_TOOLS_NAMESPACE_WRAPPER_END
 
 
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools{
+namespace rl_tools{
     template <typename DEVICE, typename ENVIRONMENT>
     void init(DEVICE& dev, ENVIRONMENT& env, rl::environments::mujoco::ant::UI<ENVIRONMENT>& ui){
         using UI = rl::environments::mujoco::ant::UI<ENVIRONMENT>;

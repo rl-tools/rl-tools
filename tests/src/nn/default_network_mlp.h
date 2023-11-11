@@ -1,8 +1,8 @@
-#include <backprop_tools/nn/nn.h>
+#include <rl_tools/nn/nn.h>
 #include "../utils/utils.h"
 
 
-namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::backprop_tools;
+namespace bpt = BACKPROP_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DTYPE = double;
 

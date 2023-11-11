@@ -2,7 +2,7 @@
 #include "operations_generic_per_env.h"
 #include <thread>
 BACKPROP_TOOLS_NAMESPACE_WRAPPER_START
-namespace backprop_tools::rl::components::on_policy_runner{
+namespace rl_tools::rl::components::on_policy_runner{
     constexpr auto get_num_threads(devices::ExecutionHints hints) {
         return 1;
     }
@@ -36,7 +36,7 @@ namespace backprop_tools::rl::components::on_policy_runner{
             for (TI thread_i = 0; thread_i < NUM_THREADS; thread_i++) {
                 threads.emplace_back([NUM_THREADS, &device, thread_i, &dataset, &runner, &actions_mean, &actions, &action_log_std, &step_i, &base](){
                     for (TI env_i = thread_i; env_i < SPEC::N_ENVIRONMENTS; env_i += NUM_THREADS) {
-                        auto rng = backprop_tools::random::default_engine(typename DEV_SPEC::RANDOM(), base + env_i);
+                        auto rng = rl_tools::random::default_engine(typename DEV_SPEC::RANDOM(), base + env_i);
                         TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
                         per_env::epilogue(device, dataset, runner, actions_mean, actions, action_log_std, rng, pos, env_i);
                     }
