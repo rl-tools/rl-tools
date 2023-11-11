@@ -23,6 +23,9 @@ mkdir build
 
 ## Host
 ```
+git submodule update --init -- static/media
+```
+```
 python3 -m http.server --directory static
 ```
 
