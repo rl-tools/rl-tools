@@ -3,12 +3,12 @@
 </div>
 
 <p align="center">
-  <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://backprop.tools">Live demo (browser)</a> 
+  <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://rl.tools">Live demo (browser)</a> 
   </br>
   <a href="https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb">
   <img src="https://mybinder.org/badge_logo.svg" alt="Run tutorials on Binder">
   </a>
-  <a href="https://backproptools.readthedocs.io">
+  <a href="https://rltools.readthedocs.io">
   <img src="https://img.shields.io/badge/Documentation-Read%20the%20Docs-blue.svg" alt="Documentation">
   </a>
 </p>
@@ -60,15 +60,15 @@ When using RLtools in an academic work please cite our publication using the fol
 ## Getting Started
 The getting started documentation is divided in two parts: a tutorial on how RLtools works internally and replication instructions for the results from the paper. 
 ### Tutorial on RLtools internals
-| Chapter | Name | Documentation | Interactive Notebook                                                                                                                                        |
-| ------- | ---- | ------------  |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 0 | Overview                    | [readthedocs](https://backproptools.readthedocs.io/en/latest/overview.html)                           | -                                                                                                                                                           
-| 1 | Containers                  | [readthedocs](https://backproptools.readthedocs.io/en/latest/01-Containers.html)                      | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb)                      | 
-| 2 | Multiple Dispatch           | [readthedocs](https://backproptools.readthedocs.io/en/latest/02-Multiple%20Dispatch.html)             | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=02-Multiple%20Dispatch.ipynb)             | 
-| 3 | Deep Learning               | [readthedocs](https://backproptools.readthedocs.io/en/latest/03-Deep%20Learning.html)                 | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=03-Deep%20Learning.ipynb)                 | 
-| 4 | CPU Acceleration            | [readthedocs](https://backproptools.readthedocs.io/en/latest/04-CPU%20Acceleration.html)              | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=04-CPU%20Acceleration.ipynb)              | 
-| 5 | MNIST Classification        | [readthedocs](https://backproptools.readthedocs.io/en/latest/05-MNIST%20Classification.html)          | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=05-MNIST%20Classification.ipynb)          | 
-| 6 | Deep Reinforcement Learning | [readthedocs](https://backproptools.readthedocs.io/en/latest/06-Deep%20Reinforcement%20Learning.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=06-Deep%20Reinforcement%20Learning.ipynb) | 
+| Chapter | Name | Documentation                                                                                   | Interactive Notebook                                                                                                                                        |
+| ------- | ---- |-------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0 | Overview                    | [readthedocs](https://rltools.readthedocs.io/en/latest/overview.html)                           | -                                                                                                                                                           
+| 1 | Containers                  | [readthedocs](https://rltools.readthedocs.io/en/latest/01-Containers.html)                      | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb)                      | 
+| 2 | Multiple Dispatch           | [readthedocs](https://rltools.readthedocs.io/en/latest/02-Multiple%20Dispatch.html)             | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=02-Multiple%20Dispatch.ipynb)             | 
+| 3 | Deep Learning               | [readthedocs](https://rltools.readthedocs.io/en/latest/03-Deep%20Learning.html)                 | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=03-Deep%20Learning.ipynb)                 | 
+| 4 | CPU Acceleration            | [readthedocs](https://rltools.readthedocs.io/en/latest/04-CPU%20Acceleration.html)              | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=04-CPU%20Acceleration.ipynb)              | 
+| 5 | MNIST Classification        | [readthedocs](https://rltools.readthedocs.io/en/latest/05-MNIST%20Classification.html)          | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=05-MNIST%20Classification.ipynb)          | 
+| 6 | Deep Reinforcement Learning | [readthedocs](https://rltools.readthedocs.io/en/latest/06-Deep%20Reinforcement%20Learning.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=06-Deep%20Reinforcement%20Learning.ipynb) | 
 ### Running Prebuilt Binaries
 For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/RLtools/RLtools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
 
