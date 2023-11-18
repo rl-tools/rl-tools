@@ -47,6 +47,7 @@ endif()
 set(BUILD_SHARED_LIBS OFF)
 
 add_library(rl_tools_core INTERFACE) # This is the most "clean" target it just contains the include directories
+target_compile_features(rl_tools_core INTERFACE cxx_std_17)
 target_include_directories(rl_tools_core INTERFACE include)
 add_library(rl_tools_core_definitions INTERFACE) # This target additionally contains definitions
 target_link_libraries(rl_tools_core_definitions INTERFACE rl_tools_core)
