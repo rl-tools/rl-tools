@@ -70,7 +70,7 @@ The getting started documentation is divided in two parts: a tutorial on how RLt
 | 5 | MNIST Classification        | [readthedocs](https://rltools.readthedocs.io/en/latest/05-MNIST%20Classification.html)          | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=05-MNIST%20Classification.ipynb)          | 
 | 6 | Deep Reinforcement Learning | [readthedocs](https://rltools.readthedocs.io/en/latest/06-Deep%20Reinforcement%20Learning.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=06-Deep%20Reinforcement%20Learning.ipynb) | 
 ### Running Prebuilt Binaries
-For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/RLtools/RLtools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
+For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/rl_tools/rl_tools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
 
 Note: The macOS and Windows binaries should work out of the box for the versions: macOS >= 12 and Windows >= 10. 
 
@@ -84,7 +84,7 @@ When running the Linux binaries on a headless version of Ubuntu (e.g. inside Doc
 To build the examples from source (either in Docker or natively), first the repository should be cloned.
 Instead of cloning all submodules using `git clone --recursive` which takes a lot of space and bandwidth we recommend cloning the main repo containing all the standalone code for `RLtools` and then cloning the required sets of submodules later:
 ```
-git clone https://github.com/RLtools/RLtools.git
+git clone https://github.com/rl-tools/rl-tools.git rl_tools
 ```
 #### Cloning submodules
 There are three classes of submodules:
