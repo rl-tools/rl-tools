@@ -8,6 +8,7 @@
 #include <fstream>
 #include "operations_generic.h"
 #include <cassert>
+#include <filesystem>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::car{
@@ -38,9 +39,13 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         using namespace rl::environments::car;
-        std::ifstream file("src/rl/environments/car/track.bmp", std::ios::binary);
+        std::filesystem::path file_path = "src/rl/environments/car/track.bmp";
+        std::ifstream file(file_path, std::ios::binary);
 
-        assert(file);
+        if(!file){
+            std::cout << "Error opening file" << file_path << " (the working directory for this executable is assumed to be the root of the repo)" << std::endl;
+            std::abort();
+        }
 
         uint16_t fileType = read_u16(file);
         assert(fileType == 0x4D42);  //File is not a bmp
