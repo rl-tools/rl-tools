@@ -118,7 +118,7 @@ namespace rl_tools::rl::algorithms::td3::loop{
         set_step(ts.device, ts.device.logger, ts.step);
         if constexpr(SPEC::DETERMINISTIC_EVALUATION == true){
             if(ts.step % SPEC::EVALUATION_INTERVAL == 0){
-                auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
+                auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT_EVALUATION>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
                 logging::text(ts.device, ts.device.logger, "Step: ", ts.step, " (mean return: ", result.returns_mean, ", mean episode length: ", result.episode_length_mean, ")");
                 TI current_evaluation_i = ts.step / SPEC::EVALUATION_INTERVAL;
                 assert(current_evaluation_i < TRAINING_STATE::N_EVALUATIONS);

@@ -41,10 +41,13 @@ namespace training_config {
 #else
         static constexpr bool CONSTRUCT_LOGGER = false;
 #endif
+        static constexpr T EXPLORATION_NOISE_MULTIPLE = 0.5;
         struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
-            constexpr static TI CRITIC_BATCH_SIZE = 100;
-            constexpr static TI ACTOR_BATCH_SIZE = 100;
+            constexpr static TI CRITIC_BATCH_SIZE = 256;
+            constexpr static TI ACTOR_BATCH_SIZE = 256;
             constexpr static T GAMMA = 0.997;
+            static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2 * EXPLORATION_NOISE_MULTIPLE;
+            static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5 * EXPLORATION_NOISE_MULTIPLE;
         };
 
         using TD3_PARAMETERS = TD3PendulumParameters;
@@ -94,8 +97,8 @@ namespace training_config {
         using ACTOR_CRITIC_TYPE = rlt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
 
-        static constexpr int N_WARMUP_STEPS_ACTOR = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-        static constexpr int N_WARMUP_STEPS_CRITIC = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr int N_WARMUP_STEPS_ACTOR = 10000; //ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr int N_WARMUP_STEPS_CRITIC = 10000; //ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 #ifndef RL_TOOLS_STEP_LIMIT
         static constexpr TI STEP_LIMIT = 500000000; //2 * N_WARMUP_STEPS;
 #else
@@ -105,7 +108,8 @@ namespace training_config {
         static constexpr TI NUM_EVALUATION_EPISODES = 1;
         static constexpr TI EVALUATION_INTERVAL = 20000;
         static constexpr TI REPLAY_BUFFER_CAP = 1000000;
-        static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
+        static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
+        static constexpr TI ENVIRONMENT_STEP_LIMIT_EVALUATION = 1000;
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
         using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
@@ -134,8 +138,8 @@ int main(){
         rlt::init(ts.device, env);
     }
     rlt::init(ts.device, ts.env_eval);
-//    ts.envs[0].parameters.dt = 0.01;
-    rlt::rl::algorithms::td3::loop::init(ts, 3);
+    ts.off_policy_runner.parameters.exploration_noise *= CONFIG::EXPLORATION_NOISE_MULTIPLE;
+    rlt::rl::algorithms::td3::loop::init(ts, 5);
     for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
         rlt::rl::algorithms::td3::loop::step(ts);
     }

@@ -9,6 +9,7 @@
 
 #include <cmath>
 #include <algorithm> // required for clamp(...)
+#include <stdint.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::math {
