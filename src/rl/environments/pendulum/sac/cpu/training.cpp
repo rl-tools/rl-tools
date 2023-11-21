@@ -144,7 +144,9 @@ int main(){
             mean_returns.push_back(ts.evaluation_results[i].returns_mean);
         }
 
+#ifdef RL_TOOLS_ENABLE_HDF5
         run_group.createDataSet("episode_returns", mean_returns);
+#endif
 
         rlt::rl::algorithms::sac::loop::destroy(ts);
         auto end = std::chrono::high_resolution_clock::now();
