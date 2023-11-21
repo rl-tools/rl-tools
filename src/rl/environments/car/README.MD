@@ -35,7 +35,7 @@ To run the training execute:
 ```
 ./build/src/rl/environments/car/rl_environments_car_training
 ```
-It should learn to navigate the corners after around `100000-200000` steps which should take a couple of minutes. The hyperparameters and reward function are not tuned at all. I believe it could train much faster and more reliably with better tuning.
+It should learn to navigate the corners after around `100000-200000` steps which should take a couple of minutes. The training is running in the background (which is why the UI freezes for some time) and every N steps the evaluation of the current policy is run and displayed in the UI. The hyperparameters and reward function are not tuned at all. I believe it could train much faster and more reliably with better tuning.
 
 If you would like to change the layout of the track, you can modify the `.bmp` image in `src/rl/environments/track.bmp` using e.g. Gimp (all non-black pixels are converted to drivable space).
 
