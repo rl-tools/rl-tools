@@ -94,7 +94,7 @@ namespace training_config {
         static constexpr TI STEP_LIMIT = RL_TOOLS_STEP_LIMIT;
 #endif
         static constexpr bool DETERMINISTIC_EVALUATION = true;
-        static constexpr TI NUM_EVALUATION_EPISODES = 10;
+        static constexpr TI NUM_EVALUATION_EPISODES = 1;
         static constexpr TI EVALUATION_INTERVAL = 20000;
         static constexpr TI REPLAY_BUFFER_CAP = 1000000;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
@@ -122,8 +122,10 @@ int main(){
     using CONFIG = typename training_config::Config;
     using TI = typename CONFIG::TI ;
     rlt::rl::algorithms::td3::loop::TrainingState<CONFIG> ts;
-    rlt::init(ts.device, ts.envs[0]);
-    rlt::rl::algorithms::td3::loop::init(ts, 3);
+    for(auto& env : ts.envs){
+        rlt::init(ts.device, env);
+    }
+    rlt::init(ts.device, ts.env_eval);
 //    ts.envs[0].parameters.dt = 0.01;
     for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
         rlt::rl::algorithms::td3::loop::step(ts);
