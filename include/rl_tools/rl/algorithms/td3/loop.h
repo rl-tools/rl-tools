@@ -60,7 +60,7 @@ namespace rl_tools::rl::algorithms::td3::loop{
 
         malloc(ts.device, ts.off_policy_runner);
         init(ts.device, ts.off_policy_runner, ts.envs);
-        rl_tools::init(ts.device, ts.envs[0], ts.ui);
+        rl_tools::init(ts.device, ts.env_eval, ts.ui);
 
         malloc(ts.device, ts.critic_batch);
         malloc(ts.device, ts.critic_training_buffers);

@@ -127,6 +127,7 @@ int main(){
     }
     rlt::init(ts.device, ts.env_eval);
 //    ts.envs[0].parameters.dt = 0.01;
+    rlt::rl::algorithms::td3::loop::init(ts, 3);
     for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
         rlt::rl::algorithms::td3::loop::step(ts);
     }
