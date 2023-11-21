@@ -17,7 +17,7 @@ MKL_ROOT=/opt/intel/oneapi/mkl/latest cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_T
 
 Then build the ui and training targets:
 ```
-cmake --build . --target rl_environments_car_ui -j$(nproc)
+cmake --build . --target rl_environments_car_ui rl_environments_car_training -j$(nproc)
 ```
 
 Back to the root directory of the repo:
