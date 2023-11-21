@@ -5,7 +5,7 @@ target_link_libraries(rl_environments_car_training
         PRIVATE
         rl_tools
 )
-target_compile_definitions(rl_environments_car_training PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+#target_compile_definitions(rl_environments_car_training PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 if(RL_TOOLS_ENABLE_GTK)
     target_include_directories(rl_environments_car_training PRIVATE ${GTK3_INCLUDE_DIRS})
     target_link_directories(rl_environments_car_training PRIVATE ${GTK3_LIBRARY_DIRS})

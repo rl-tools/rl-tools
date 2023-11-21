@@ -14,7 +14,11 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 namespace training_config {
     using namespace rlt::nn_models::sequential::interface; // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
     struct Config{
+#if !defined(RL_TOOLS_ENABLE_TENSORBOARD) || defined(RL_TOOLS_DISABLE_TENSORBOARD)
         using DEV_SPEC = rlt::devices::DefaultCPUSpecification;
+#else
+        using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, rlt::devices::logging::CPU_TENSORBOARD<>>;
+#endif
 //    using DEVICE = rlt::devices::CPU<DEV_SPEC>;
         using DEVICE = rlt::DEVICE_FACTORY<DEV_SPEC>;
         using T = float;
@@ -32,7 +36,11 @@ namespace training_config {
         struct DEVICE_SPEC: rlt::devices::DefaultCPUSpecification {
             using LOGGING = rlt::devices::logging::CPU;
         };
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
+        static constexpr bool CONSTRUCT_LOGGER = true;
+#else
         static constexpr bool CONSTRUCT_LOGGER = false;
+#endif
         struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
             constexpr static TI CRITIC_BATCH_SIZE = 100;
             constexpr static TI ACTOR_BATCH_SIZE = 100;

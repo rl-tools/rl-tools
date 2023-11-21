@@ -115,6 +115,7 @@ namespace rl_tools::rl::algorithms::td3::loop{
         using SPEC = typename TRAINING_STATE::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        set_step(ts.device, ts.device.logger, ts.step);
         if constexpr(SPEC::DETERMINISTIC_EVALUATION == true){
             if(ts.step % SPEC::EVALUATION_INTERVAL == 0){
                 auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
