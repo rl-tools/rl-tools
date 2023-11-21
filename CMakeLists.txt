@@ -221,6 +221,7 @@ if(RL_TOOLS_ENABLE_GTK)
     target_include_directories(rl_tools INTERFACE ${GTK3_INCLUDE_DIRS})
     target_compile_options(rl_tools INTERFACE ${GTK3_CFLAGS_OTHER})
     target_link_directories(rl_tools INTERFACE ${GTK3_LIBRARY_DIRS})
+    target_compile_definitions(rl_tools INTERFACE RL_TOOLS_ENABLE_GTK)
 endif()
 
 if(RL_TOOLS_ENABLE_SDL2)
