@@ -17,9 +17,21 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE>
-    void add_scalar(DEVICE& device, devices::logging::Dummy* logger, const char* key, const float value, const typename devices::logging::Dummy::index_t cadence = 1){
-        //noop
-    }
+    void set_step(DEVICE& device, devices::logging::Dummy& logger, typename DEVICE::index_t step){ /* noop */ }
+    template <typename DEVICE, typename ARG_1, typename ARG_2>
+    void construct(DEVICE& device, devices::logging::Dummy& logger, ARG_1, ARG_2){ /* noop */ }
+    template <typename DEVICE>
+    void construct(DEVICE& device, devices::logging::Dummy& logger){ /* noop */ }
+    template <typename DEVICE>
+    void destruct(DEVICE& device, devices::logging::Dummy& logger){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename ARG>
+    void add_scalar(DEVICE& device, devices::logging::Dummy& logger, const TOPIC, const ARG){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename ARG, typename CADENCE>
+    void add_scalar(DEVICE& device, devices::logging::Dummy& logger, const TOPIC, const ARG, const CADENCE){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN, typename CADENCE>
+    void add_histogram(DEVICE& device, devices::logging::Dummy& logger, const TOPIC, const ARG*, const ARG_LEN, const CADENCE){ /* noop */ }
+    template <typename DEVICE, typename TOPIC, typename ARG, typename ARG_LEN>
+    void add_histogram(DEVICE& device, devices::logging::Dummy& logger, const TOPIC, const ARG*, const ARG_LEN){ /* noop */ }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

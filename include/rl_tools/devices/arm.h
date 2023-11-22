@@ -45,7 +45,7 @@ namespace rl_tools::devices{
         using SPEC = T_SPEC;
         typename SPEC::MATH math;
         typename SPEC::RANDOM random;
-        typename SPEC::LOGGING* logger = nullptr;
+        typename SPEC::LOGGING logger;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;
 #endif
