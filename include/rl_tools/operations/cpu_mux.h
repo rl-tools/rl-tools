@@ -64,7 +64,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
 namespace rl_tools{
     template <typename... ARGS>
-    using LOGGER_FACTORY = devices::logging::CPU_TENSORBOARD<ARGS>;
+    using LOGGER_FACTORY = devices::logging::CPU_TENSORBOARD<ARGS...>;
 }
 #else
 namespace rl_tools{

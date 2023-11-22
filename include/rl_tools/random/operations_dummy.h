@@ -5,6 +5,7 @@
 
 #include "../devices/dummy.h"
 #include "../utils/generic/typing.h"
+#include "operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{

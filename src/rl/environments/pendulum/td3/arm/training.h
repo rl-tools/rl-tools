@@ -112,7 +112,7 @@ void train(){
 
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
-    device.logger = &logger;
+    device.logger = logger;
 
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
 

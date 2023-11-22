@@ -3,6 +3,10 @@
 #pragma once
 #define RL_TOOLS_CONTAINERS_OPERATIONS_GENERIC_H
 
+#ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
+#include <stdlib.h>
+#endif
+
 #include "../containers.h"
 #ifndef RL_TOOLS_FUNCTION_PLACEMENT
     #define RL_TOOLS_FUNCTION_PLACEMENT
@@ -41,7 +45,11 @@ namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
+#ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
+        matrix._data = (typename SPEC::T*) ::malloc(SPEC::SIZE_BYTES);
+#else
         matrix._data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
+#endif
         count_malloc(device, SPEC::SIZE_BYTES);
 
 #ifdef RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
@@ -57,7 +65,11 @@ namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data != nullptr, "Matrix has not been allocated");
 #endif
+#ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
+        ::free(matrix._data);
+#else
         delete matrix._data;
+#endif
         matrix._data = nullptr;
     }
 #endif

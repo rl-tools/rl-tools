@@ -5,6 +5,7 @@
 
 
 #include "../utils/generic/typing.h"
+#include "operations_generic.h"
 
 #include <curand_kernel.h>
 

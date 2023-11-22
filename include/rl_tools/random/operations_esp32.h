@@ -4,6 +4,7 @@
 #define RL_TOOLS_UTILS_RANDOM_OPERATIONS_ESP32_H
 
 
+#include "operations_generic.h"
 #include "../utils/generic/typing.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
