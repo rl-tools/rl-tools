@@ -1,0 +1,5 @@
+set(CTEST_BINARY_DIRECTORY ".")
+set(CTEST_SOURCE_DIRECTORY "..")
+ctest_start(ExperimentalTest)
+#ctest_test()
+ctest_submit(HTTPHEADER "Authorization: Bearer fb346ca5d0630f8f3378d329967cfda5")
