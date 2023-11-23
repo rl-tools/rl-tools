@@ -48,7 +48,7 @@
 ## Citing
 When using RLtools in an academic work please cite our publication using the following Bibtex citation:
 ```
-@misc{eschmann2023backproptools,
+@misc{eschmann2023rltools,
       title={RLtools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control}, 
       author={Jonas Eschmann and Dario Albani and Giuseppe Loianno},
       year={2023},
