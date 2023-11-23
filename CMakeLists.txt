@@ -142,6 +142,7 @@ if(RL_TOOLS_BACKEND_ENABLE_OPENBLAS)
 endif()
 
 if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+    cmake_minimum_required(VERSION 3.17)
     if(RL_TOOLS_BUILD_TYPE STREQUAL "Release")
         set(CMAKE_CUDA_ARCHITECTURES "all")
     else()
