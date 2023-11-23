@@ -11,4 +11,6 @@ WORKDIR /rl_tools
 RUN git submodule update --init -- external/highfive external/tensorboard
 RUN git submodule update --init -- tests/lib/googletest
 RUN git submodule update --init -- tests/data
+RUN git submodule update --init -- external/cli11
 WORKDIR /
+ENV RL_TOOLS_FEATURE_FLAGS="-DRL_TOOLS_ENABLE_HDF5=ON -DRL_TOOLS_ENABLE_TENSORBOARD=ON -DRL_TOOLS_ENABLE_CLI11=ON"
