@@ -5,7 +5,7 @@
 namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DefaultCPU;
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
+TEST(RL_TOOLS_MATH, MAIN){
     float nan_0 = 0.0f / 0.0f;
     float nan_1 = NAN;
     float nan_2 = std::numeric_limits<float>::quiet_NaN();

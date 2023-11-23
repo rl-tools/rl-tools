@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE}
+WORKDIR /rl_tools
+RUN git pull && echo bump_1
+WORKDIR /
+RUN mkdir /build
+WORKDIR /build
+ENV CUDA_PATH=/usr/local/cuda-12.3
+RUN cmake /rl_tools -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TESTS=ON ${RL_TOOLS_BACKEND_FLAGS} -DRL_TOOLS_ENABLE_HDF5=ON -DRL_TOOLS_ENABLE_TENSORBOARD=ON
+RUN cmake --build . -j$(nproc)
