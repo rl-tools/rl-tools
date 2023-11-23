@@ -35,7 +35,6 @@
 
 
 ## Content
-- [Citing](#citing)
 - [Getting Started](#getting-started)
   - [Running Prebuilt Binaries](#running-prebuilt-binaries)
   - [Cloning the Repository](#cloning-the-repository)
@@ -45,18 +44,8 @@
     - [Windows](#windows)
 - [Embedded Platforms](#embedded-platforms)
 - [Naming Convention](#naming-convention)
-## Citing
-When using RLtools in an academic work please cite our publication using the following Bibtex citation:
-```
-@misc{eschmann2023rltools,
-      title={RLtools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control}, 
-      author={Jonas Eschmann and Dario Albani and Giuseppe Loianno},
-      year={2023},
-      eprint={2306.03530},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG}
-}
-```
+- [Citing](#citing)
+
 ## Getting Started
 The getting started documentation is divided in two parts: a tutorial on how RLtools works internally and replication instructions for the results from the paper. 
 ### Tutorial on RLtools internals
@@ -131,3 +120,16 @@ For maximum performance and malleability for research and development we recomme
 
 ## Naming Convention
 We use `snake_case` for variables/instances, functions as well as namespaces and `PascalCase` for structs/classes. Furthermore, we use upper case `SNAKE_CASE` for compile-time constants. 
+
+## Citing
+When using RLtools in an academic work please cite our publication using the following Bibtex citation:
+```
+@misc{eschmann2023rltools,
+      title={RLtools: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control}, 
+      author={Jonas Eschmann and Dario Albani and Giuseppe Loianno},
+      year={2023},
+      eprint={2306.03530},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
+```
