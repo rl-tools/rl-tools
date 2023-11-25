@@ -101,6 +101,10 @@ namespace rl_tools::math {
         return std::numeric_limits<T>::quiet_NaN();
     }
     template<typename T>
+    T infinity(const devices::math::CPU&){
+        return std::numeric_limits<T>::infinity();
+    }
+    template<typename T>
     T fast_tanh(const devices::math::CPU& dev, T x) {
         x = clamp(dev, x, -(T)3.0, (T)3.0);
         T x_squared = x * x;

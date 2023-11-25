@@ -6,6 +6,10 @@
 #include <string>
 #include <vector>
 #include "../../utils/generic/typing.h"
+#ifdef RL_TOOLS_ENABLE_JSON
+#include <nlohmann/json.hpp>
+#include <map>
+#endif
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::utils::validation{
@@ -52,6 +56,21 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         analyse_step_log(device, task, METRICS{});
     }
+#ifdef RL_TOOLS_ENABLE_JSON
+    template <typename DEVICE, typename SPEC, typename METRICS>
+    nlohmann::json analyse_json(DEVICE& device, rl::utils::validation::Task<SPEC>& task, METRICS){
+        using TI = typename SPEC::TI;
+        std::vector<std::string> metric_names;
+        std::vector<typename SPEC::T> metric_values;
+        analyse_step_string(device, task, metric_names, metric_values, METRICS{});
+        std::map<std::string, typename SPEC::T> metrics;
+        for(typename SPEC::TI metric_i = 0; metric_i < metric_names.size(); metric_i++){
+            std::string name = metric_names[metric_i];
+            metrics[name] = metric_values[metric_i];
+        }
+        return metrics;
+    }
+#endif
 }
 
 #endif

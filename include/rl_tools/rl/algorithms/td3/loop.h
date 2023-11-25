@@ -13,7 +13,7 @@ namespace rl_tools::rl::algorithms::td3::loop {
         using TI = typename DEVICE::index_t;
         DEVICE device;
         typename SPEC::OPTIMIZER actor_optimizer, critic_optimizers[2];
-        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng, rng_eval;
+        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng, rng_eval, rng_validation, rng_log, rng_checkpoint;
         typename SPEC::UI ui;
         rl::components::OffPolicyRunner<typename SPEC::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
         typename SPEC::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
@@ -54,6 +54,9 @@ namespace rl_tools::rl::algorithms::td3::loop{
 
         ts.rng = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
         ts.rng_eval = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
+        ts.rng_validation = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
+        ts.rng_log = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
+        ts.rng_checkpoint = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
 
         malloc(ts.device, ts.actor_critic);
         init(ts.device, ts.actor_critic, ts.rng);
