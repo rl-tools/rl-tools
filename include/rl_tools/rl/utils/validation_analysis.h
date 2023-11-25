@@ -5,10 +5,10 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include "../../utils/generic/typing.h"
 #ifdef RL_TOOLS_ENABLE_JSON
 #include <nlohmann/json.hpp>
-#include <map>
 #endif
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -56,9 +56,8 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         analyse_step_log(device, task, METRICS{});
     }
-#ifdef RL_TOOLS_ENABLE_JSON
     template <typename DEVICE, typename SPEC, typename METRICS>
-    nlohmann::json analyse_json(DEVICE& device, rl::utils::validation::Task<SPEC>& task, METRICS){
+    std::map<std::string, typename SPEC::T> analyse_dict(DEVICE& device, rl::utils::validation::Task<SPEC>& task, METRICS){
         using TI = typename SPEC::TI;
         std::vector<std::string> metric_names;
         std::vector<typename SPEC::T> metric_values;
@@ -69,6 +68,16 @@ namespace rl_tools{
             metrics[name] = metric_values[metric_i];
         }
         return metrics;
+    }
+#ifdef RL_TOOLS_ENABLE_JSON
+    template <typename DEVICE, typename SPEC, typename METRICS>
+    nlohmann::json analyse_json(DEVICE& device, rl::utils::validation::Task<SPEC>& task, METRICS){
+        auto metrics = analyse_dict(device, task, METRICS{});
+        std::map<std::string, double> metrics_double;
+        for(auto& [name, value]: metrics){
+            metrics_double[name] = value;
+        }
+        return metrics_double;
     }
 #endif
 }
