@@ -36,7 +36,6 @@
 
 ## Content
 - [Getting Started](#getting-started)
-  - [Running Prebuilt Binaries](#running-prebuilt-binaries)
   - [Cloning the Repository](#cloning-the-repository)
   - [Docker](#docker)
   - [Native](#native)
@@ -64,17 +63,6 @@ Note: you can also run the tutorial (Jupyter Notebooks) locally using as single 
 docker run -p 8888:8888 rltools/documentation
 ```
 After running the Docker container, open the link that is displayed in the CLI (http://127.0.0.1:8888/...) in your browser and enjoy tinkering with the tutorial!
-
-### Running Prebuilt Binaries
-For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/rl_tools/rl_tools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
-
-Note: The macOS and Windows binaries should work out of the box for the versions: macOS >= 12 and Windows >= 10. 
-
-The Linux binaries should work on distributions with a not too old libstdc++ (e.g. Ubuntu >= 20.04 or up to date Arch Linux). 
-
-The Linux binaries can also be run under WSL2 on Windows 10 (even including GPU acceleration). 
-
-When running the Linux binaries on a headless version of Ubuntu (e.g. inside Docker or WSL) the training should work out of the box but additional dependencies are required for running the MuJoCo user interface to visualize the policy after training. The instructions to install the aforementioned dependencies is in the `readme_linux.txt` of the Linux release. 
 
 ### Cloning the repository
 To build the examples from source (either in Docker or natively), first the repository should be cloned.
