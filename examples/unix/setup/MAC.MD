@@ -17,7 +17,7 @@ Note: Tested on macOS Monterey using the specified versions (it is highly likely
 #### HDF5: Persisting models to disk
 To conveniently persist trained models and other numeric data to disk RLtools uses the popular `HDF5` format hence for the more advanced examples, the `HDF5` library is required. On macOS, this can be installed using `brew`:
 ```
-brew install hdf5@1.12
+brew install hdf5
 ```
 #### Tensorboard: Logging and visualizing the training progress
 RLtools supports Tensorboard logging, hence it is convenient to have Tensorboard installed. Assuming `python3` and `pip` have been already installed:
