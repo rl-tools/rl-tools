@@ -22,8 +22,7 @@
     Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> TD3
 </div>
 </br>
-</br>
-</br>
+
 <div align="center">
 <img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" width='350'/>  
 </div>
@@ -33,7 +32,7 @@
 </div>
 
 </br>
-
+</br>
 </br>
 <div align="center">
 <img src="https://github.com/rl-tools/media/blob/master/benchmark.png"/ width=600>  
