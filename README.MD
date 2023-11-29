@@ -31,6 +31,8 @@
 </div>
 
 </br>
+
+</br>
 <div align="center">
 <img src="https://github.com/rl-tools/media/blob/master/benchmark.png"/>  
 </div>
