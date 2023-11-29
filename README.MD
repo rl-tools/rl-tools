@@ -16,18 +16,35 @@
 
 
 <div align="center">
-<img src="https://github.com/rl-tools/media/blob/master/pendulum_v1_inference.gif" alt="animated" height='200'/>
+<img src="https://github.com/rl-tools/media/blob/master/pendulum_v1_inference.gif" alt="animated" width='200'/>
 </div>
 <div align="center">
     Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> TD3
 </div>
 </br>
+
 <div align="center">
-<img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" height='300'/>  
+<img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" width='350'/>  
 </div>
 
 <div align="center">
     Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> PPO
+</div>
+</br>
+</br>
+<div align="center">
+<img src="https://github.com/rl-tools/media/blob/master/benchmark.png"/ width=600>  
+</div>
+<div align="center">
+    Benchmarks of training the Pendulum swing-up using different RL libraries and across different devices (RLtools)
+</div>
+
+</br>
+<div align="center">
+<img src="https://github.com/rl-tools/media/blob/master/microcontroller_inference.png"/ width=600>  
+</div>
+<div align="center">
+    Benchmarks of the inference frequency for a two-layer [64, 64] fully-connected neural network across different microcontrollers (types and architectures).
 </div>
 
 
@@ -36,7 +53,6 @@
 
 ## Content
 - [Getting Started](#getting-started)
-  - [Running Prebuilt Binaries](#running-prebuilt-binaries)
   - [Cloning the Repository](#cloning-the-repository)
   - [Docker](#docker)
   - [Native](#native)
@@ -58,16 +74,12 @@ The getting started documentation is divided in two parts: a tutorial on how RLt
 | 4 | CPU Acceleration            | [readthedocs](https://rltools.readthedocs.io/en/latest/04-CPU%20Acceleration.html)              | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=04-CPU%20Acceleration.ipynb)              | 
 | 5 | MNIST Classification        | [readthedocs](https://rltools.readthedocs.io/en/latest/05-MNIST%20Classification.html)          | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=05-MNIST%20Classification.ipynb)          | 
 | 6 | Deep Reinforcement Learning | [readthedocs](https://rltools.readthedocs.io/en/latest/06-Deep%20Reinforcement%20Learning.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=06-Deep%20Reinforcement%20Learning.ipynb) | 
-### Running Prebuilt Binaries
-For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/rl_tools/rl_tools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
 
-Note: The macOS and Windows binaries should work out of the box for the versions: macOS >= 12 and Windows >= 10. 
-
-The Linux binaries should work on distributions with a not too old libstdc++ (e.g. Ubuntu >= 20.04 or up to date Arch Linux). 
-
-The Linux binaries can also be run under WSL2 on Windows 10 (even including GPU acceleration). 
-
-When running the Linux binaries on a headless version of Ubuntu (e.g. inside Docker or WSL) the training should work out of the box but additional dependencies are required for running the MuJoCo user interface to visualize the policy after training. The instructions to install the aforementioned dependencies is in the `readme_linux.txt` of the Linux release. 
+Note: you can also run the tutorial (Jupyter Notebooks) locally using as single command:
+```
+docker run -p 8888:8888 rltools/documentation
+```
+After running the Docker container, open the link that is displayed in the CLI (http://127.0.0.1:8888/...) in your browser and enjoy tinkering with the tutorial!
 
 ### Cloning the repository
 To build the examples from source (either in Docker or natively), first the repository should be cloned.
