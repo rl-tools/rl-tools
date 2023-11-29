@@ -3,7 +3,7 @@
 #include <rl_tools/nn/operations_generic.h>
 #else
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/nn/operations_cpu.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
 #endif
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
