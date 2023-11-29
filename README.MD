@@ -8,7 +8,7 @@
   <a href="https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb">
   <img src="https://mybinder.org/badge_logo.svg" alt="Run tutorials on Binder">
   </a>
-  <a href="https://rltools.readthedocs.io">
+  <a href="https://docs.rl.tools">
   <img src="https://img.shields.io/badge/Documentation-Read%20the%20Docs-blue.svg" alt="Documentation">
   </a>
 </p>
