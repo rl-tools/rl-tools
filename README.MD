@@ -79,7 +79,7 @@ The getting started documentation is divided in two parts: a tutorial on how RLt
 | 5 | MNIST Classification        | [readthedocs](https://rltools.readthedocs.io/en/latest/05-MNIST%20Classification.html)          | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=05-MNIST%20Classification.ipynb)          | 
 | 6 | Deep Reinforcement Learning | [readthedocs](https://rltools.readthedocs.io/en/latest/06-Deep%20Reinforcement%20Learning.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=06-Deep%20Reinforcement%20Learning.ipynb) | 
 
-Note: you can also run the tutorial (Jupyter Notebooks) locally using as single command:
+Note: you can also run the tutorial (Jupyter Notebooks) locally using a single command:
 ```
 docker run -p 8888:8888 rltools/documentation
 ```
