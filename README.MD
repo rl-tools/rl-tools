@@ -58,6 +58,13 @@ The getting started documentation is divided in two parts: a tutorial on how RLt
 | 4 | CPU Acceleration            | [readthedocs](https://rltools.readthedocs.io/en/latest/04-CPU%20Acceleration.html)              | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=04-CPU%20Acceleration.ipynb)              | 
 | 5 | MNIST Classification        | [readthedocs](https://rltools.readthedocs.io/en/latest/05-MNIST%20Classification.html)          | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=05-MNIST%20Classification.ipynb)          | 
 | 6 | Deep Reinforcement Learning | [readthedocs](https://rltools.readthedocs.io/en/latest/06-Deep%20Reinforcement%20Learning.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=06-Deep%20Reinforcement%20Learning.ipynb) | 
+
+Note: you can also run the tutorial (Jupyter Notebooks) locally using as single command:
+```
+docker run -p 8888:8888 rltools/documentation
+```
+After running the Docker container, open the link that is displayed in the CLI (http://127.0.0.1:8888/...) in your browser and enjoy tinkering with the tutorial!
+
 ### Running Prebuilt Binaries
 For easy replication we provide prebuilt, standalone binaries for macOS, Linux and Windows. Just download the [latest release](https://github.com/rl_tools/rl_tools/releases/) for your platform and run the executables out of the box without installing any dependencies. 
 
