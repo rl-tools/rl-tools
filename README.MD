@@ -16,18 +16,34 @@
 
 
 <div align="center">
-<img src="https://github.com/rl-tools/media/blob/master/pendulum_v1_inference.gif" alt="animated" height='200'/>
+<img src="https://github.com/rl-tools/media/blob/master/pendulum_v1_inference.gif" alt="animated" width='300'/>
 </div>
 <div align="center">
     Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> TD3
 </div>
 </br>
 <div align="center">
-<img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" height='300'/>  
+<img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" width='400'/>  
 </div>
 
 <div align="center">
     Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> PPO
+</div>
+
+</br>
+<div align="center">
+<img src="https://github.com/rl-tools/media/blob/master/benchmark.png"/>  
+</div>
+<div align="center">
+    Benchmarks of training the Pendulum swing-up using different RL libraries and across different devices (RLtools)
+</div>
+
+</br>
+<div align="center">
+<img src="https://github.com/rl-tools/media/blob/master/microcontroller_inference.png"/>  
+</div>
+<div align="center">
+    Benchmarks of the inference frequency for a two-layer [64, 64] fully-connected neural network across different microcontrollers (types and architectures).
 </div>
 
 
