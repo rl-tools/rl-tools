@@ -48,12 +48,23 @@ namespace rl_tools{
         return acc;
     }
 
+    template<typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const nn::parameters::Plain::instance<SPEC>& p){
+        return is_nan(device, p.parameters);
+    }
+
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Gradient::instance<SPEC_1>& p1, const nn::parameters::Gradient::instance<SPEC_2>& p2){
         typename SPEC_1::CONTAINER::T acc = 0;
         acc += abs_diff(device, (nn::parameters::Plain::instance<SPEC_1>&) p1, (nn::parameters::Plain::instance<SPEC_2>&) p2);
         acc += abs_diff(device, p1.gradient, p2.gradient);
         return acc;
+    }
+
+    template<typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const nn::parameters::Gradient::instance<SPEC>& p){
+        bool param_nan = is_nan(device, (nn::parameters::Plain::instance<SPEC>&) p);
+        return param_nan | is_nan(device, p.gradient);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

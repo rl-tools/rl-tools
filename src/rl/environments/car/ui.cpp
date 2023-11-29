@@ -6,7 +6,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <SDL2/SDL.h>
 
-int main(){
+int main(int argc, char** argv){
     if (SDL_Init(SDL_INIT_JOYSTICK) != 0) {
         fprintf(stderr, "Unable to initialize SDL: %s\n", SDL_GetError());
         return 1;
@@ -30,6 +30,35 @@ int main(){
     using DEVICE = rlt::devices::CPU<DEV_SPEC>;
     using T = float;
     using TI = typename DEVICE::index_t;
+
+
+    TI throttle_axis = 3;
+    TI steering_axis = 0;
+    bool invert_throttle = false, invert_steering = false;
+    bool test_axes = false;
+    if(argc == 3){
+        int throttle_axis_signed = std::atoi(argv[1]);
+        int steering_axis_signed = std::atoi(argv[2]);
+        if(steering_axis_signed < 0){
+            steering_axis = -steering_axis_signed;
+            invert_steering = true;
+        }
+        else{
+            steering_axis = steering_axis_signed;
+        }
+        if(throttle_axis_signed < 0){
+            throttle_axis = -throttle_axis_signed;
+            invert_throttle = true;
+        }
+        else{
+            throttle_axis = throttle_axis_signed;
+        }
+        std::cout << "Using throttle axis " << throttle_axis << " and steering axis " << steering_axis << std::endl;
+    }
+    else{
+        std::cout << "No gamepad axes provided, you can provide as arguments to the program: \"rl_environments_car_ui [steering_axis] [throttle_axis]\" (wiggle your gamepad to find the axis values)" << std::endl;
+        test_axes = true;
+    }
 //    using ENV_SPEC = rlt::rl::environments::car::SpecificationTrack<T, DEVICE::index_t>;
     using ENV_SPEC = rlt::rl::environments::car::SpecificationTrack<T, DEVICE::index_t, 100, 100, 20>;
     using ENVIRONMENT = rlt::rl::environments::CarTrack<ENV_SPEC>;
@@ -62,13 +91,21 @@ int main(){
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) return 0;
             if (event.type == SDL_JOYAXISMOTION) {
-                if(event.jaxis.axis == 0){
-                    steering = -event.jaxis.value / 32768.0 * 60.0/180.0*rlt::math::PI<T>;
+                if(!test_axes){
+                    if(event.jaxis.axis == steering_axis){
+                        steering = -event.jaxis.value / 32768.0 * 60.0/180.0*rlt::math::PI<T>;
+                        steering *= invert_steering ? -1 : 1;
+                    }
+                    if(event.jaxis.axis == throttle_axis){
+                        throttle = event.jaxis.value / 32768.0;
+                        throttle *= invert_throttle ? -1 : 1;
+                    }
                 }
-                if(event.jaxis.axis == 3){
-                    throttle = -event.jaxis.value / 32768.0;
+                else{
+                    if(std::abs(event.jaxis.value) > 32768 / 2){
+                        printf("Joystick %d axis %d value: %d\n", event.jaxis.which, event.jaxis.axis, event.jaxis.value);
+                    }
                 }
-//                printf("Joystick %d axis %d value: %d\n", event.jaxis.which, event.jaxis.axis, event.jaxis.value);
             }
 //            if (event.type == SDL_JOYBUTTONDOWN || event.type == SDL_JOYBUTTONUP) {
 //                printf("Joystick %d button %d state: %d\n", event.jbutton.which, event.jbutton.button, event.jbutton.state);
@@ -83,10 +120,8 @@ int main(){
         rlt::set_action(device, env, ui, action);
         rlt::set_state(device, env, ui, state);
         rlt::render(device, env, ui);
-//        std::cout << "terminated: " << rlt::terminated(device, env, state, rng) << std::endl;
 
         rlt::observe(device, env, state, observation, rng);
-        std::cout << "lidar: " << get(observation, 0, 6) << ", " << get(observation, 0, 7) << ", " << get(observation, 0, 8) << std::endl;
         if(rlt::terminated(device, env, state, rng)){
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             rlt::sample_initial_state(device, env, state, rng);

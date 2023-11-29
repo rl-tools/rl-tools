@@ -58,8 +58,11 @@ namespace rl_tools::rl::environments::car::ui{
     }
     template <typename T, typename TI>
     void draw_wheel(cairo_t* cr, T x_offset, T y_offset, T x, T y, T size, T width, T delta, const rl::environments::car::State<T, TI>& s, T scale){
-        T start[2] = { -size / 2 * cos(delta), -size / 2 * sin(delta) };
-        T finish[2] = { size / 2 * cos(delta), size / 2 * sin(delta) };
+        T start[2], finish[2];
+        start[0] = -size / 2 * cos(delta);
+        start[1] = -size / 2 * sin(delta);
+        finish[0] = size / 2 * cos(delta);
+        finish[1] = size / 2 * sin(delta);
 
         T position[2];
         global_position(x_offset, y_offset, position, x + start[0], y + start[1], s.mu, s, scale);

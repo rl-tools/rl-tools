@@ -185,6 +185,15 @@ namespace rl_tools{
         }
     }
 
+    template<typename DEVICE, typename MODULE_SPEC>
+    bool is_nan(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& model){
+        bool current_module_nan = is_nan(device, model.content);
+        if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            current_module_nan = current_module_nan || is_nan(device, model.next_module);
+        }
+        return current_module_nan;
+    }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

@@ -1,5 +1,10 @@
+#ifdef RL_TOOLS_TEST_BARE
+#include <rl_tools/operations/arm.h>
+#include <rl_tools/nn/operations_generic.h>
+#else
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
+#endif
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
@@ -13,41 +18,26 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <rl_tools/rl/utils/evaluation.h>
 
-#include <filesystem>
-
-
-#ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
-#include <rl_tools/rl/environments/pendulum/ui.h>
-#include <rl_tools/rl/utils/evaluation_visual.h>
+#ifndef RL_TOOLS_TEST_BARE
+#include <chrono>
 #endif
 
 
-#ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
-#include "plot_policy_and_value_function.h"
-#endif
-
-#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
-    using LOGGER = rlt::devices::logging::CPU_TENSORBOARD<>;
+#ifdef RL_TOOLS_TEST_BARE
+using DEVICE = rlt::devices::DefaultARM; // The arm device just uses plain C++
 #else
-    using LOGGER = rlt::devices::logging::CPU;
-#endif
-
-#if defined(RL_TOOLS_BACKEND_ENABLE_MKL) || defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) || defined(RL_TOOLS_BACKEND_ENABLE_OPENBLAS) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
+using LOGGER = rlt::LOGGER_FACTORY<>;
 using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
 using DEVICE = rlt::DEVICE_FACTORY<DEV_SPEC>;
-#else
-using DEVICE = rlt::devices::DefaultCPU;
 #endif
+
 
 
 using T = float;
 using TI = typename DEVICE::index_t;
 
-typedef rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
-typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
-#ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
-typedef rlt::rl::environments::pendulum::UI<T> UI;
-#endif
+using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 
 
 struct TD3_PENDULUM_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
@@ -90,10 +80,6 @@ namespace function_approximators{ // to simplify the model definition we import 
     };
 }
 
-
-//using ACTOR_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-//using CRITIC_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
-
 using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<T, TI>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using ACTOR_NETWORK_TYPE = typename function_approximators::ACTOR<rlt::nn::parameters::Adam>::MODEL;
@@ -126,19 +112,19 @@ using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specifica
         rlt::rl::components::off_policy_runner::DefaultParameters<T>
 >;
 using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
-OFF_POLICY_RUNNER_TYPE off_policy_runner;
-ACTOR_CRITIC_TYPE actor_critic;
-const T STATE_TOLERANCE = 0.00001;
+constexpr T STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-void run(){
-#ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
-    UI ui;
-#endif
+TI run(TI seed=0){
+    TI return_code = 100;
     DEVICE device;
 
-    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 6);
+    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
+
+    OFF_POLICY_RUNNER_TYPE off_policy_runner;
+    ACTOR_CRITIC_TYPE actor_critic;
+
     rlt::malloc(device, actor_critic);
     rlt::init(device, actor_critic, rng);
 
@@ -150,7 +136,6 @@ void run(){
     ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
     rlt::init(device, off_policy_runner, envs);
 
-//    rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
     OFF_POLICY_RUNNER_TYPE::Batch<TD3_PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     rlt::rl::algorithms::td3::CriticTrainingBuffers<ACTOR_CRITIC_TYPE::SPEC> critic_training_buffers;
     CRITIC_NETWORK_TYPE::DoubleBuffer<ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
@@ -177,25 +162,21 @@ void run(){
     rlt::set_all(device, observations_std, 1);
 
 
+#ifndef RL_TOOLS_TEST_BARE
     auto start_time = std::chrono::high_resolution_clock::now();
+#endif
 
     for(int step_i = 0; step_i < STEP_LIMIT; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
         rlt::set_step(device, device.logger, step_i);
-#ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
-        if(step_i % 20 == 0){
-            plot_policy_and_value_function<T, ENVIRONMENT, decltype(actor_critic.actor), decltype(actor_critic.critic_1)>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
-        }
-#endif
         rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
-#ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
-        rlt::set_state(ui, off_policy_runner.state);
-#endif
 
         if(step_i > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
+#ifndef RL_TOOLS_TEST_BARE
                 auto current_time = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> elapsed_seconds = current_time - start_time;
                 std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
+#endif
             }
 
             for(int critic_i = 0; critic_i < 2; critic_i++){
@@ -204,9 +185,6 @@ void run(){
                 rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
             }
 
-//            T critic_1_loss = rlt::train_critic(device, actor_critic, actor_critic.critic_1, off_policy_runner.replay_buffer, rng);
-//            rlt::train_critic(device, actor_critic, actor_critic.critic_2, off_policy_runner.replay_buffer, rng);
-//            std::cout << "Critic 1 loss: " << critic_1_loss << std::endl;
             if(step_i % 2 == 0){
                 {
                     rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
@@ -219,35 +197,24 @@ void run(){
         }
 #ifndef RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_DISABLE_EVALUATION
         if(step_i % 1000 == 0){
-//            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<1, EPISODE_STEP_LIMIT>(), rng, true);
             auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, EPISODE_STEP_LIMIT>{}, observations_mean, observations_std, actor_buffers_eval, rng);
+#ifndef RL_TOOLS_TEST_BARE
             std::cout << "Mean return: " << result.returns_mean << std::endl;
-            rlt::add_scalar(device, device.logger, "mean_return", result.returns_mean);
-//            if(step_i >= 6000){
-//                ASSERT_GT(mean_return, -1000);
-//            }
-//            if(step_i >= 14000){
-//                ASSERT_GT(mean_return, -400);
-//            }
-
-//#ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS
-//            plot_policy_and_value_function<T, ENVIRONMENT, ACTOR_CRITIC_TYPE::ACTOR_NETWORK_TYPE, ACTOR_CRITIC_TYPE::CRITIC_NETWORK_TYPE>(actor_critic.actor, actor_critic.critic_1, std::string("full_training"), step_i);
-//#endif
-#ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY
-            //            for(int evaluation_i = 0; evaluation_i < 10; evaluation_i++){
-//                ENVIRONMENT::State initial_state;
-//                rlt::sample_initial_state(env, initial_state, rng);
-//                rlt::evaluate_visual<ENVIRONMENT, UI, ACTOR_CRITIC_TYPE::ACTOR_NETWORK_TYPE, EPISODE_STEP_LIMIT, 5>(env, ui, actor_critic.actor, initial_state);
-//            }
 #endif
+            rlt::add_scalar(device, device.logger, "mean_return", result.returns_mean);
+            return_code = rlt::math::min(DEVICE::SPEC::MATH(), (TI)(-result.returns_mean / 100), return_code);
         }
+#else
+        return_code = 0;
 #endif
     }
     {
+#ifndef RL_TOOLS_TEST_BARE
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;
         std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
         // expect 2.25s for 10k steps with all optimizations @ Lenovo P1 Intel(R) Core(TM) i9-10885H
+#endif
     }
     rlt::free(device, critic_batch);
     rlt::free(device, critic_training_buffers);
@@ -259,5 +226,6 @@ void run(){
     rlt::free(device, observations_std);
 
     rlt::destruct(device, device.logger);
+    return return_code;
 }
 

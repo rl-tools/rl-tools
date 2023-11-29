@@ -14,6 +14,7 @@ namespace rl_tools::devices{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::CUDA;
             using index_t = unsigned int;
+            static constexpr index_t MAX_INDEX = -1;
         };
     }
     namespace math{

@@ -38,6 +38,20 @@ namespace rl_tools {
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::devices{
+    namespace generic{
+    }
+    namespace random{
+        template <typename T_MATH_DEVICE>
+        struct Generic{
+            static constexpr Type TYPE = Type::random;
+            using MATH_DEVICE = T_MATH_DEVICE;
+        };
+    }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC>
     void init(devices::Device<DEV_SPEC>& device){ };

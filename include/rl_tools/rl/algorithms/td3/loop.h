@@ -13,7 +13,7 @@ namespace rl_tools::rl::algorithms::td3::loop {
         using TI = typename DEVICE::index_t;
         DEVICE device;
         typename SPEC::OPTIMIZER actor_optimizer, critic_optimizers[2];
-        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng, rng_eval;
+        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng, rng_eval, rng_validation, rng_log, rng_checkpoint;
         typename SPEC::UI ui;
         rl::components::OffPolicyRunner<typename SPEC::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
         typename SPEC::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
@@ -54,13 +54,16 @@ namespace rl_tools::rl::algorithms::td3::loop{
 
         ts.rng = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
         ts.rng_eval = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
+        ts.rng_validation = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
+        ts.rng_log = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
+        ts.rng_checkpoint = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
 
         malloc(ts.device, ts.actor_critic);
         init(ts.device, ts.actor_critic, ts.rng);
 
         malloc(ts.device, ts.off_policy_runner);
         init(ts.device, ts.off_policy_runner, ts.envs);
-        rl_tools::init(ts.device, ts.envs[0], ts.ui);
+        rl_tools::init(ts.device, ts.env_eval, ts.ui);
 
         malloc(ts.device, ts.critic_batch);
         malloc(ts.device, ts.critic_training_buffers);
@@ -115,9 +118,10 @@ namespace rl_tools::rl::algorithms::td3::loop{
         using SPEC = typename TRAINING_STATE::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        set_step(ts.device, ts.device.logger, ts.step);
         if constexpr(SPEC::DETERMINISTIC_EVALUATION == true){
             if(ts.step % SPEC::EVALUATION_INTERVAL == 0){
-                auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
+                auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT_EVALUATION>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
                 logging::text(ts.device, ts.device.logger, "Step: ", ts.step, " (mean return: ", result.returns_mean, ", mean episode length: ", result.episode_length_mean, ")");
                 TI current_evaluation_i = ts.step / SPEC::EVALUATION_INTERVAL;
                 assert(current_evaluation_i < TRAINING_STATE::N_EVALUATIONS);

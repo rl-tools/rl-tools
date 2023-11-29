@@ -60,6 +60,18 @@ namespace rl_tools {
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
+
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
+namespace rl_tools{
+    template <typename... ARGS>
+    using LOGGER_FACTORY = devices::logging::CPU_TENSORBOARD<ARGS...>;
+}
+#else
+namespace rl_tools{
+    template <typename... ARGS>
+    using LOGGER_FACTORY = devices::logging::CPU;
+}
+#endif
 // ------------ Groups 2 ------------
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
 #include "../operations/cpu_tensorboard/group_2.h"

@@ -24,6 +24,7 @@ namespace rl_tools::devices{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::ESP32;
             using index_t = size_t;
+            static constexpr index_t MAX_INDEX = -1;
         };
     }
     namespace math{

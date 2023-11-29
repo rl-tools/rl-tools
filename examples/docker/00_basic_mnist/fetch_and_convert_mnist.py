@@ -1,10 +1,11 @@
 import numpy as np
 from datasets import load_dataset
+import datasets
 import h5py
 from tqdm import tqdm
 
 splits = ["train", "test"]
-ds = load_dataset("mnist")
+ds = load_dataset("mnist", keep_in_memory=True, download_mode=datasets.DownloadMode.FORCE_REDOWNLOAD)
 ds = ds.with_format("numpy")
 
 with h5py.File("mnist.hdf5", "w") as f:

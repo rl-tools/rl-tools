@@ -1,0 +1,14 @@
+ARG BASE_IMAGE
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE}
+ARG CMAKE_VERSION
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake
+RUN if [ ! "$CMAKE_VERSION" = "default" ]; then \
+        apt-get remove --purge --auto-remove -y cmake && \
+        apt-get update && apt-get install -y software-properties-common lsb-release && \
+        apt-get clean all && \
+        wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \
+        apt-add-repository "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" && \
+        apt-get update && apt-get install -y cmake=${CMAKE_VERSION}; \
+fi

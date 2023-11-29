@@ -9,9 +9,35 @@
 
 #include <cmath>
 #include <algorithm> // required for clamp(...)
+#include <stdint.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::math {
+    union is_nan_struct_float{
+        uint32_t i;
+        float f;
+    };
+    union is_nan_struct_double{
+        uint64_t i;
+        double f;
+    };
+#ifndef RL_TOOLS_ENABLE_FAST_MATH
+    template<typename T>
+    auto is_nan(const devices::math::CPU&, const T x) {
+        return std::isnan(x);
+    }
+#else
+    bool is_nan(const devices::math::CPU, const float x){
+        is_nan_struct_float u;
+        u.f = x;
+        return (u.i & 0x7f800000) == 0x7f800000 && (u.i & 0x007fffff) != 0;
+    }
+    bool is_nan(const devices::math::CPU, const double x){
+        is_nan_struct_double u;
+        u.f = x;
+        return (u.i & 0x7ff0000000000000) == 0x7ff0000000000000 && (u.i & 0x000fffffffffffff) != 0;
+    }
+#endif
 
     template<typename T>
     T sqrt(const devices::math::CPU&, const T x) {
@@ -49,10 +75,7 @@ namespace rl_tools::math {
     auto floor(const devices::math::CPU&, const T x) {
         return std::floor(x);
     }
-    template<typename T>
-    auto is_nan(const devices::math::CPU&, const T x) {
-        return std::isnan(x);
-    }
+
     template<typename T>
     auto is_finite(const devices::math::CPU&, const T x) {
         return std::isfinite(x);
@@ -76,6 +99,10 @@ namespace rl_tools::math {
     template<typename T>
     T nan(const devices::math::CPU&){
         return std::numeric_limits<T>::quiet_NaN();
+    }
+    template<typename T>
+    T infinity(const devices::math::CPU&){
+        return std::numeric_limits<T>::infinity();
     }
     template<typename T>
     T fast_tanh(const devices::math::CPU& dev, T x) {

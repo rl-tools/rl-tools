@@ -56,17 +56,17 @@ namespace rl_tools{
         T alpha_r = math::atan2(device.math, (s.vy - p.lr * s.omega), s.vx);
         T FnF = p.lr / (p.lf + p.lr) * p.m * p.g;
         T FnR = p.lf / (p.lf + p.lr) * p.m * p.g;
-        T FyF = s.vx > p.vt || s.vy > p.vt ? FnF * p.tf.D * sin(p.tf.C * atan(p.tf.B * (-alpha_f))) : 0;
-        T FyR = s.vx > p.vt || s.vy > p.vt ? FnR * p.tr.D * sin(p.tr.C * atan(p.tr.B * (-alpha_r))) : 0;
+        T FyF = s.vx > p.vt || s.vy > p.vt ? FnF * p.tf.D * math::sin(device.math, p.tf.C * atan(p.tf.B * (-alpha_f))) : 0;
+        T FyR = s.vx > p.vt || s.vy > p.vt ? FnR * p.tr.D * math::sin(device.math, p.tr.C * atan(p.tr.B * (-alpha_r))) : 0;
 
         T Fx = p.cm * throttle_break - p.cr0 - p.cr2 * s.vx * s.vx;
         next_state = s;
-        next_state.x     += p.dt * (cos(s.mu) * s.vx - sin(s.mu) * s.vy);
-        next_state.y     += p.dt * (sin(s.mu) * s.vx + cos(s.mu) * s.vy);
+        next_state.x     += p.dt * (math::cos(device.math, s.mu) * s.vx - math::sin(device.math, s.mu) * s.vy);
+        next_state.y     += p.dt * (math::sin(device.math, s.mu) * s.vx + math::cos(device.math, s.mu) * s.vy);
         next_state.mu    += p.dt * (s.omega);
-        next_state.vx    += p.dt * (1/p.m*(Fx - FyF * sin(delta)) + s.omega * s.vy);
-        next_state.vy    += p.dt * (1/p.m*(FyF * cos(delta) + FyR) - s.omega * s.vx);
-        next_state.omega += p.dt * (1/p.I*(FyF * p.lf * cos(delta) - FyR * p.lr));
+        next_state.vx    += p.dt * (1/p.m*(Fx - FyF * math::sin(device.math, delta)) + s.omega * s.vy);
+        next_state.vy    += p.dt * (1/p.m*(FyF * math::cos(device.math, delta) + FyR) - s.omega * s.vx);
+        next_state.omega += p.dt * (1/p.I*(FyF * p.lf * math::cos(device.math, delta) - FyR * p.lr));
 
         return p.dt;
     }
@@ -114,8 +114,8 @@ namespace rl_tools{
 
         for(TI direction_i=0; direction_i < N_DIRECTIONS; direction_i++){
             T direction = directions[direction_i];
-            T direction_x = cos(state.mu + direction) * step_size;
-            T direction_y = sin(state.mu + direction) * step_size;
+            T direction_x = math::cos(device.math, state.mu + direction) * step_size;
+            T direction_y = math::sin(device.math, state.mu + direction) * step_size;
             T distance = NUM_STEPS * step_size;
 
             for(TI step_i = 0; step_i < NUM_STEPS; step_i++){

@@ -1,0 +1,17 @@
+ARG BASE_IMAGE
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE}
+RUN apt-get update && apt-get install -y \
+    git \
+    libhdf5-dev \
+    libboost-all-dev \
+    protobuf-compiler \
+    libprotobuf-dev
+RUN git clone https://github.com/rl-tools/rl-tools.git /rl_tools && echo bump_1
+WORKDIR /rl_tools
+RUN git submodule update --init -- external/highfive external/tensorboard
+RUN git submodule update --init -- tests/lib/googletest
+RUN git submodule update --init -- tests/data
+RUN git submodule update --init -- external/cli11
+RUN git submodule update --init -- external/mujoco
+WORKDIR /
+ENV RL_TOOLS_FEATURE_FLAGS="-DRL_TOOLS_ENABLE_HDF5=ON -DRL_TOOLS_ENABLE_TENSORBOARD=ON -DRL_TOOLS_ENABLE_CLI11=ON -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON"

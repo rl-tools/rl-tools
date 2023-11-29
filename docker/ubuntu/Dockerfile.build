@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE}
+WORKDIR /rl_tools
+RUN git pull && echo bump_1
+WORKDIR /
+RUN mkdir /build
+WORKDIR /build
+RUN echo cmake /rl_tools -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TESTS=ON ${RL_TOOLS_BACKEND_FLAGS}  ${RL_TOOLS_FEATURE_FLAGS} > /build/configure.sh && chmod +x /build/configure.sh
+#RUN echo cmake --build . -j$(nproc) > /build/build.sh && chmod +x /build/build.sh
+RUN echo cmake --build . -j$(nproc) > /build/build.sh && chmod +x /build/build.sh
