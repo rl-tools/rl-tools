@@ -30,8 +30,6 @@
 <div align="center">
     Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> PPO
 </div>
-
-</br>
 </br>
 </br>
 <div align="center">
