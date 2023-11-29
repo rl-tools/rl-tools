@@ -26,12 +26,12 @@ pip install tensorboard
 ```
 The [Tensorboard C++ interface](https://github.com/RustingSword/tensorboard_logger) depends on Protocol buffers which can be installed using `brew`:
 ```
-brew install protobuf@21.12
+brew install protobuf
 ```
 #### MuJoCo UI: Visualizing trained policies
 The MuJoCo UI requires `glfw3` which can be installed on macOS using `brew`:
 ```
-brew install glfw@3.3.8
+brew install glfw
 ```
 
 From here you can continue with the instructions for the accelerated examples:
