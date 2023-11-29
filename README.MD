@@ -23,6 +23,7 @@
 </div>
 </br>
 </br>
+</br>
 <div align="center">
 <img src="https://github.com/rl-tools/media/blob/master/rl_tools_mujoco_ant_ppo.gif" alt="animated" width='350'/>  
 </div>
