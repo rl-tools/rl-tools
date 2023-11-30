@@ -66,6 +66,12 @@
 - [Naming Convention](#naming-convention)
 - [Citing](#citing)
 
+## Algorithms
+| Algorithm | Example                                                                                                                                                                                                                             |
+|-----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| TD3       | [Pendulum](./src/rl/environments/pendulum/td3/standalone.cpp), [Car](./src/rl/environments/car/car.cpp), [MuJoCo Ant-v4](./src/rl/environments/mujoco/ant/td3/training.h), [Acrobot](./src/rl/environments/acrobot/td3/acrobot.cpp) |
+| PPO       | [MuJoCo Ant-v4](./src/rl/environments/mujoco/ant/ppo/training.h)                                                                                                                                                                    |
+| SAC       | Example                                                                                                                                                                                                                             |
 ## Getting Started
 The getting started documentation is divided in two parts: a tutorial on how RLtools works internally and replication instructions for the results from the paper. 
 ### Tutorial on RLtools internals
