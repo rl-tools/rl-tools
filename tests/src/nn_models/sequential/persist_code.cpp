@@ -18,11 +18,11 @@ using TI = typename DEVICE::index_t;
 
 namespace MODEL_1{
     using namespace rlt::nn_models::sequential::interface;
-    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 15, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain, 1, rlt::nn::parameters::groups::Input>;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain, 1, rlt::nn::parameters::groups::Input>;
     using LAYER_1 = rlt::nn::layers::dense::Layer<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 15, 20, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain, 1, rlt::nn::parameters::groups::Normal>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain, 1, rlt::nn::parameters::groups::Normal>;
     using LAYER_2 = rlt::nn::layers::dense::Layer<LAYER_2_SPEC>;
-    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 20, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Plain, 1, rlt::nn::parameters::groups::Output>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Plain, 1, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::Layer<LAYER_3_SPEC>;
 
     using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -51,6 +51,8 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
     rlt::evaluate(device, model, input, output, buffer);
 
     rlt::print(device, output);
+
+
 
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);
