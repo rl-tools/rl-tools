@@ -76,7 +76,7 @@
 The getting started documentation is divided in two parts: a tutorial on how RLtools works internally and replication instructions for the results from the paper. 
 ### Tutorial on RLtools internals
 | Chapter |  Documentation                                                                                | Interactive Notebook                                                                                                                                    |
-| ------- |-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+|---------|-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 0       | [Overview                    ](https://docs.rl.tools/overview.html)                           | -                                                                                                                                                       |
 | 1       | [Containers                  ](https://docs.rl.tools/01-Containers.html)                      | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb)                  | 
 | 2       | [Multiple Dispatch           ](https://docs.rl.tools/02-Multiple%20Dispatch.html)             | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=02-Multiple%20Dispatch.ipynb)         | 
