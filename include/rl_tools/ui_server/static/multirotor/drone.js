@@ -1,4 +1,4 @@
-import * as THREE from "./lib/three.module.js"
+import * as THREE from "../lib/three.module.js"
 import {CoordinateSystem} from "./coordinate_system.js"
 import {norm, Matrix4FromRotMat, Matrix4FromRotMatTranspose} from "./math.js"
 

@@ -1,4 +1,4 @@
-import * as THREE from "./lib/three.module.js"
+import * as THREE from "../lib/three.module.js"
 import {Drone} from "./drone.js"
 import {CoordinateSystem} from "./coordinate_system.js"
 import {Simulator} from "./simulator.js"

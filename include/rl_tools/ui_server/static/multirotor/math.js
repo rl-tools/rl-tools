@@ -1,5 +1,5 @@
 
-import * as THREE from "./lib/three.module.js"
+import * as THREE from "../lib/three.module.js"
 
 function norm(a){
   return Math.sqrt(a.map(x => x**2).reduce((a, c) => a + c, 0))

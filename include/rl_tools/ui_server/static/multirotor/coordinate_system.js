@@ -1,4 +1,4 @@
-import * as THREE from "./lib/three.module.js"
+import * as THREE from "../lib/three.module.js"
 
 class CoordinateSystem{
   constructor(origin, length=1, diameter=0.01) {
