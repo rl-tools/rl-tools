@@ -77,6 +77,10 @@ namespace rl_tools::utils::typing {
     template< bool B, class T, class F >
     using conditional_t = typename conditional<B,T,F>::type;
 
+    template <bool value, typename... Args>
+    inline constexpr bool dependent_bool_value = value;
+    template <typename... Args>
+    inline constexpr bool dependent_false = dependent_bool_value<false, Args...>;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
