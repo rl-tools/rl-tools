@@ -1,5 +1,5 @@
 ```
-docker build . -t rltools/ui-server
+docker build . --platform linux/amd64 -t rltools/ui-server
 ```
 ```
 docker run -it --rm -p 8000:8000 rltools/ui-server
