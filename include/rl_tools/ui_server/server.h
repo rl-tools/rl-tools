@@ -320,7 +320,7 @@ namespace rl_tools::ui_server{
                     response_.result(http::status::not_found);
                     response_.set(http::field::content_type, "text/plain");
                     beast::ostream(response_.body()) << "File not found\r\n";
-                    std::cout << "File not found: " << path << " (you might need to run \"get_dependencies.sh\" to download the UI dependencies into the static folder)" << std::endl;
+                    std::cout << "File not found: " << path << " (you might need to run \"download_dependencies.sh\" to download the UI dependencies into the static folder)" << std::endl;
                 }
 
 //            response_.result(http::status::not_found);
@@ -370,6 +370,39 @@ namespace rl_tools::ui_server{
                 std::make_shared<http_connection>(std::move(socket), state, static_path)->start();
             http_server(acceptor, socket, state, static_path);
         });
+    }
+
+    struct UIServer{
+        boost::asio::ip::address address;
+        unsigned short port;
+        net::io_context* ioc;
+        tcp::acceptor* acceptor;
+        boost::asio::ip::tcp::socket* socket;
+        State state;
+        std::thread thread;
+        std::string static_path;
+    };
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools{
+    template <typename DEVICE>
+    void init(DEVICE& device, ui_server::UIServer& ui_server, std::string address, unsigned short port, std::string static_path){
+        namespace beast = boost::beast;
+        namespace http = beast::http;
+        namespace net = boost::asio;
+        using tcp = boost::asio::ip::tcp;
+        ui_server.static_path = static_path;
+        ui_server.address = net::ip::make_address(address);
+        ui_server.port = static_cast<unsigned short>(port);
+        ui_server.ioc = new net::io_context{1};
+        ui_server.acceptor = new tcp::acceptor{*ui_server.ioc, {ui_server.address, ui_server.port}};
+        ui_server.socket = new tcp::socket{*ui_server.ioc};
+        ui_server::http_server(*ui_server.acceptor, *ui_server.socket, ui_server.state, ui_server.static_path);
+        std::cout << "Web interface coming up at: http://" << address << ":" << port << std::endl;
+        ui_server.thread = std::thread([&](){ui_server.ioc->run();});
+        ui_server.thread.detach();
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
