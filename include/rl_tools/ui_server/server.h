@@ -33,6 +33,7 @@ namespace rl_tools::ui_server{
 
     class State{
     public:
+        std::string scenario;
         std::vector<int> namespaces;
         std::vector<std::weak_ptr<websocket_session>> ui_sessions;
         std::vector<std::weak_ptr<websocket_session>> backend_sessions;
@@ -284,6 +285,11 @@ namespace rl_tools::ui_server{
             else if(request_.target() == "/backend"){
                 maybe_upgrade(websocket_session::TYPE::BACKEND);
             }
+            else if(request_.target() == "/scenario"){
+                response_.set(http::field::content_type, "text/html");
+                beast::ostream(response_.body())
+                        <<  state.scenario;
+            }
             else{
                 std::filesystem::path path(std::string(request_.target()));
                 if(path.empty() || path == "/"){
@@ -388,12 +394,13 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE>
-    void init(DEVICE& device, ui_server::UIServer& ui_server, std::string address, unsigned short port, std::string static_path){
+    void init(DEVICE& device, ui_server::UIServer& ui_server, std::string address, unsigned short port, std::string static_path, std::string scenario){
         namespace beast = boost::beast;
         namespace http = beast::http;
         namespace net = boost::asio;
         using tcp = boost::asio::ip::tcp;
         ui_server.static_path = static_path;
+        ui_server.state.scenario = scenario;
         ui_server.address = net::ip::make_address(address);
         ui_server.port = static_cast<unsigned short>(port);
         ui_server.ioc = new net::io_context{1};

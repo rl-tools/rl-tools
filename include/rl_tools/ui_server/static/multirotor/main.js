@@ -4,15 +4,21 @@ import {CoordinateSystem} from "./coordinate_system.js"
 import {Simulator} from "./simulator.js"
 import {default_model} from "./default_model.js"
 
-
-window.onload = function(){
+async function onload(){
+  let scenario = await fetch('scenario')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Fetching scenario was not successful ' + response.statusText);
+      }
+      return response.text();
+    })
+  console.log("The scenario is: " + scenario)
   let parameters = {
     "capture": false,
     "width": 1920,
     "height": 1080,
     "cameraDistanceToOrigin": 1,
   }
-
 
   var canvasContainer = document.getElementById("canvasContainer")
   let simulator = new Simulator(canvasContainer, parameters)
@@ -34,14 +40,14 @@ window.onload = function(){
     }
   }
   window.addDrone = (
-    id,
-    origin,
-    model,
-    {
-      displayGlobalCoordinateSystem = true,
-      displayIMUCoordinateSystem = true,
-      displayActions = true
-    }
+      id,
+      origin,
+      model,
+      {
+        displayGlobalCoordinateSystem = true,
+        displayIMUCoordinateSystem = true,
+        displayActions = true
+      }
   ) => {
     window.removeDrone(id)
     window.drones[id] = new Drone(model, origin, null, displayIMUCoordinateSystem, displayActions)
@@ -165,4 +171,8 @@ window.onload = function(){
       }
     }))
   }, false)
+}
+
+window.onload = function(){
+  onload()
 }
