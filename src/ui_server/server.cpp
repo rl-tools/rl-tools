@@ -57,8 +57,8 @@ int main(int argc, char* argv[]) {
 
     rlt::init(device, server, address, port, static_path);
 
-    while(true){
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    while(server.running){
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
 }

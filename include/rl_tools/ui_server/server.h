@@ -380,6 +380,7 @@ namespace rl_tools::ui_server{
         State state;
         std::thread thread;
         std::string static_path;
+        bool running;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
@@ -400,8 +401,20 @@ namespace rl_tools{
         ui_server.socket = new tcp::socket{*ui_server.ioc};
         ui_server::http_server(*ui_server.acceptor, *ui_server.socket, ui_server.state, ui_server.static_path);
         std::cout << "Web interface coming up at: http://" << address << ":" << port << std::endl;
-        ui_server.thread = std::thread([&](){ui_server.ioc->run();});
+        ui_server.thread = std::thread([&](){
+
+            boost::asio::signal_set signals(*ui_server.ioc, SIGINT);
+
+            signals.async_wait(
+                    [&](const boost::system::error_code& error, int signal_number) {
+                        ui_server.ioc->stop();
+                        ui_server.running = false;
+                    }
+            );
+            ui_server.ioc->run();
+        });
         ui_server.thread.detach();
+        ui_server.running = true;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
