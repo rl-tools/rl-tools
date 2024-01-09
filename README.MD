@@ -136,7 +136,7 @@ For maximum performance and malleability for research and development we recomme
 - [iOS](https://github.com/RLtools/iOS)
 - [teensy](https://github.com/RLtools/teensy)
 ### Inference
-- [CrazyFlie](embedded_platforms/crazyflie)
+- [Crazyflie](embedded_platforms/crazyflie)
 - [ESP32](embedded_platforms/esp32)
 - [PX4](https://github.com/RLtools/rl_tools_px4)
 
