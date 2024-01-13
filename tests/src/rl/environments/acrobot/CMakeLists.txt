@@ -1,3 +1,4 @@
+if(RL_TOOLS_ENABLE_HDF5)
 add_executable(test_rl_environments_acrobot_comparison comparison.cpp)
 
 target_link_libraries(test_rl_environments_acrobot_comparison
@@ -15,4 +16,6 @@ target_link_libraries(test_rl_environments_acrobot_ui
         rl_tools
         rl_tools_tests
         )
+endif()
+
 endif()

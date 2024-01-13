@@ -16,14 +16,6 @@ TEST(RL_TOOLS_MATH, MAIN){
     float normal_3 = 1;
 
     DEVICE device;
-    ASSERT_TRUE(rlt::math::is_nan(device.math, nan_0));
-    ASSERT_TRUE(rlt::math::is_nan(device.math, nan_1));
-    ASSERT_TRUE(rlt::math::is_nan(device.math, nan_2));
-    ASSERT_TRUE(rlt::math::is_nan(device.math, nan_3));
-    ASSERT_FALSE(rlt::math::is_nan(device.math, normal_0));
-    ASSERT_FALSE(rlt::math::is_nan(device.math, normal_1));
-    ASSERT_FALSE(rlt::math::is_nan(device.math, normal_2));
-    ASSERT_FALSE(rlt::math::is_nan(device.math, normal_3));
 
 #ifndef RL_TOOLS_ENABLE_FAST_MATH
     ASSERT_TRUE(rlt::math::is_nan(device.math, nan_0) == std::isnan(nan_0));
@@ -34,5 +26,14 @@ TEST(RL_TOOLS_MATH, MAIN){
     ASSERT_TRUE(rlt::math::is_nan(device.math, normal_1) == std::isnan(normal_1));
     ASSERT_TRUE(rlt::math::is_nan(device.math, normal_2) == std::isnan(normal_2));
     ASSERT_TRUE(rlt::math::is_nan(device.math, normal_3) == std::isnan(normal_3));
+#else
+    ASSERT_TRUE(rlt::math::is_nan(device.math, nan_0));
+    ASSERT_TRUE(rlt::math::is_nan(device.math, nan_1));
+    ASSERT_TRUE(rlt::math::is_nan(device.math, nan_2));
+    ASSERT_TRUE(rlt::math::is_nan(device.math, nan_3));
+    ASSERT_FALSE(rlt::math::is_nan(device.math, normal_0));
+    ASSERT_FALSE(rlt::math::is_nan(device.math, normal_1));
+    ASSERT_FALSE(rlt::math::is_nan(device.math, normal_2));
+    ASSERT_FALSE(rlt::math::is_nan(device.math, normal_3));
 #endif
 }

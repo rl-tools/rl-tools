@@ -1,5 +1,5 @@
 
-
+if(RL_TOOLS_ENABLE_TENSORBOARD)
 add_executable(logging_tensorboard
     tensorboard.cpp
 )
@@ -11,3 +11,4 @@ target_link_libraries(
 )
 
 gtest_discover_tests(logging_tensorboard)
+endif()
