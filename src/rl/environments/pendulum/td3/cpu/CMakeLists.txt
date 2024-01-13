@@ -6,7 +6,7 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_td3_training_bare
         PRIVATE
-        rl_tools
+        RLtools::Core
 )
 target_compile_definitions(rl_environments_pendulum_td3_training_bare PRIVATE RL_TOOLS_TEST_BARE)
 target_compile_definitions(rl_environments_pendulum_td3_training_bare PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
@@ -23,11 +23,8 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_td3_training_standalone
         PRIVATE
-        rl_tools
+        RLtools::Core
 )
-target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
-target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE RL_TOOLS_DISABLE_HDF5)
-target_compile_definitions(rl_environments_pendulum_td3_training_standalone PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 RL_TOOLS_INSTALL(rl_environments_pendulum_td3_training_standalone)
 
 # RL Algorithm td3 test full training blas
@@ -39,7 +36,7 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_td3_training_blas
         PRIVATE
-        rl_tools
+        RLtools::RLtools
 )
 target_compile_definitions(rl_environments_pendulum_td3_training_blas PRIVATE RL_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_td3_training_blas PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
@@ -55,7 +52,7 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_td3_training_blas_benchmark
         PRIVATE
-        rl_tools
+        RLtools::RLtools
 )
 target_compile_definitions(rl_environments_pendulum_td3_training_blas_benchmark PRIVATE RL_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_td3_training_blas_benchmark PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
@@ -74,7 +71,7 @@ add_executable(
 target_link_libraries(
         rl_environments_pendulum_td3_training_blas_tensorboard
         PRIVATE
-        rl_tools
+        RLtools::RLtools
 )
 RL_TOOLS_INSTALL(rl_environments_pendulum_td3_training_blas_tensorboard)
 endif()

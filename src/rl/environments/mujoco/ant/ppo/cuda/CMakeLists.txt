@@ -27,9 +27,9 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_cuda_standalone
         PRIVATE
-        rl_tools::minimal
-        rl_tools::optimizations_cuda
-        mujoco
+        RLtools::Minimal
+        RLtools::OptimizationsCUDA
+        mujoco::mujoco
 )
 RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_standalone)
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
@@ -46,9 +46,9 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_cuda_benchmark
         PRIVATE
-        rl_tools::minimal
-        rl_tools::optimizations_cuda
-        mujoco
+        RLtools::Minimal
+        RLtools::OptimizationsCUDA
+        mujoco::mujoco
 )
 RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
 
@@ -73,9 +73,9 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_ppo_cuda_full
         PRIVATE
-        rl_tools::minimal
-        rl_tools::optimizations_cuda
-        mujoco
+        RLtools::Minimal
+        RLtools::OptimizationsCUDA
+        mujoco::mujoco
 )
 RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_full)
 RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_cuda_full)

@@ -1,0 +1,49 @@
+cmake_policy(SET CMP0012 NEW)
+if("@RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO@")
+    find_package(mujoco REQUIRED)
+    if("@RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI@")
+        message(STATUS "mujoco ui enabled")
+        find_package(glfw3 REQUIRED)
+    endif()
+endif()
+
+if("@RL_TOOLS_BACKEND_ENABLE_MKL@")
+    find_package(MKL REQUIRED)
+endif()
+
+if("@RL_TOOLS_BACKEND_ENABLE_ACCELERATE@")
+    find_package(BLAS REQUIRED)
+endif()
+
+if("@RL_TOOLS_BACKEND_ENABLE_OPENBLAS@")
+    find_package(BLAS REQUIRED)
+endif()
+
+if("@RL_TOOLS_BACKEND_ENABLE_CUDA@")
+    find_package(CUDAToolkit REQUIRED)
+endif()
+
+if("@RL_TOOLS_ENABLE_HDF5@")
+    find_package(HighFive REQUIRED)
+endif()
+
+if("@RL_TOOLS_ENABLE_TENSORBOARD@")
+	find_package(Protobuf REQUIRED)
+    find_package(tensorboard_logger REQUIRED)
+endif()
+if("@RL_TOOLS_ENABLE_JSON@")
+    find_package(nlohmann_json REQUIRED)
+endif()
+if("@RL_TOOLS_ENABLE_BOOST_BEAST@")
+    find_package(Boost REQUIRED)
+endif()
+
+if("@RL_TOOLS_ENABLE_GTK@")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+endif()
+
+
+@PACKAGE_INIT@
+include("${CMAKE_CURRENT_LIST_DIR}/RLtoolsTargets.cmake")
+check_required_components(""@PROJECT_NAME@"")

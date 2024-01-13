@@ -7,7 +7,8 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_td3_standalone
         PRIVATE
-        rl_tools
+        RLtools::Core
+        mujoco::mujoco
         Threads::Threads
 )
 target_compile_definitions(rl_environments_mujoco_ant_training_td3_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
@@ -23,7 +24,8 @@ add_executable(
 target_link_libraries(
         rl_environments_mujoco_ant_training_td3_blas
         PRIVATE
-        rl_tools
+        RLtools::RLtools
+        mujoco::mujoco
 )
 RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_td3_blas)
 endif()
