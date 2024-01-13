@@ -69,7 +69,7 @@ target_link_libraries(
 )
 gtest_discover_tests(test_nn_models_sequential)
 
-if(RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_ENABLE_TENSORBOARD)
+if(RL_TOOLS_ENABLE_HDF5)
 # Neural Network Test MLP
 add_executable(
         test_neural_network_mlp
@@ -389,6 +389,7 @@ target_link_libraries(
 gtest_discover_tests(test_rl_components_on_policy_runner)
 
 # PPO tests
+if(RL_TOOLS_ENABLE_TENSORBOARD)
 add_executable(
         test_rl_algorithms_ppo
         src/rl/algorithms/ppo/ppo.cpp
@@ -400,6 +401,7 @@ target_link_libraries(
         rl_tools_tests
 )
 gtest_discover_tests(test_rl_algorithms_ppo)
+endif()
 
 
 add_executable(
