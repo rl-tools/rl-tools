@@ -65,12 +65,10 @@ namespace training_config{
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
         };
 
-        struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DefaultParametersTorch<T, typename DEVICE::index_t>{
-            static constexpr T ALPHA = 3e-4;
-        };
+        using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
 
-        using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-        using ALPHA_OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+        using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
+        using ALPHA_OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
         using ACTOR_TYPE = ACTOR<rlt::nn::parameters::Adam>::MODEL;
         using ACTOR_TARGET_TYPE = ACTOR<rlt::nn::parameters::Adam, rlt::nn::layers::dense::Layer>::MODEL;

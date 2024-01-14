@@ -79,12 +79,9 @@ namespace training_config {
         //using ACTOR_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
         //using CRITIC_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
-        struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DefaultParametersTorch<T, TI>{
-            static constexpr T ALPHA = 1e-3;
-        };
+        using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
 
-//        using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<T, TI>;
-        using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+        using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
         using ACTOR_TYPE = typename ACTOR<rlt::nn::parameters::Adam>::MODEL;
         using ACTOR_TARGET_TYPE = typename ACTOR<rlt::nn::parameters::Plain>::MODEL;
         using CRITIC_TYPE = typename CRITIC<rlt::nn::parameters::Adam>::MODEL;
@@ -126,12 +123,18 @@ namespace training_config {
 
 int main(){
     using CONFIG = typename training_config::Config;
-    using TI = typename CONFIG::TI ;
+    using TI = typename CONFIG::TI;
+    using T = typename CONFIG::T;
     rlt::rl::algorithms::td3::loop::TrainingState<CONFIG> ts;
 //    rlt::init(ts.device, ts.envs[0]);
     rlt::rl::algorithms::td3::loop::init(ts, 3);
     ts.off_policy_runner.parameters.exploration_noise = 0.1;
 //    ts.envs[0].parameters.dt = 0.01;
+    static constexpr T ALPHA = 1e-3;
+    ts.actor_criticl.actor_optimizer.parameters.alpha = ALPHA;
+    ts.actor_criticl.critic_optimizers[0].parameters.alpha = ALPHA;
+    ts.actor_criticl.critic_optimizers[1].parameters.alpha = ALPHA;
+
     for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
         if(step_i % 1000 == 0){
             std::cout << "Step: " << step_i << std::endl;

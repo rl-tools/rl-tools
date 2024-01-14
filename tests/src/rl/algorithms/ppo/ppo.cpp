@@ -27,6 +27,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     DEVICE::SPEC::LOGGING logger;
     DEVICE device;
     prl::OPTIMIZER actor_optimizer, critic_optimizer;
+    {
+        static constexpr T ALPHA = 0.001;
+    };
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;

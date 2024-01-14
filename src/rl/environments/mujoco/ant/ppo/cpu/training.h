@@ -129,6 +129,8 @@ void run(){
         DEVICE device;
         prl::ACTOR_OPTIMIZER actor_optimizer;
         prl::CRITIC_OPTIMIZER critic_optimizer;
+        actor_optimizer.parameters.alpha = 3e-4;
+        critic_optimizer.parameters.alpha = 3e-4 * 2;
         auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), seed);
         auto evaluation_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 12);
         prl::PPO_TYPE ppo;
@@ -228,8 +230,8 @@ void run(){
                 std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;
                 std::cout << "PPO step: " << ppo_step_i << " environment step: " << on_policy_runner.step << " elapsed: " << training_elapsed.count() << "s" << std::endl;
                 rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
-                rlt::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
-                rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);
+                rlt::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.parameters.alpha);
+                rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.parameters.alpha);
             }
             for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
                 T action_log_std = rlt::get(ppo.actor.log_std.parameters, 0, action_i);

@@ -13,14 +13,10 @@ namespace parameters_0{
         static constexpr TI BATCH_SIZE = 2048;
         using ACTOR_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY, BATCH_SIZE>;
 
-        struct ACTOR_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DefaultParametersTorch<T, TI>{
-            static constexpr T ALPHA = 3e-4;
-        };
-        struct CRITIC_OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DefaultParametersTorch<T, TI>{
-            static constexpr T ALPHA = 3e-4 * 2;
-        };
-        using ACTOR_OPTIMIZER = rlt::nn::optimizers::Adam<ACTOR_OPTIMIZER_PARAMETERS>;
-        using CRITIC_OPTIMIZER = rlt::nn::optimizers::Adam<CRITIC_OPTIMIZER_PARAMETERS>;
+        using ACTOR_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
+        using CRITIC_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
+        using ACTOR_OPTIMIZER = rlt::nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
+        using CRITIC_OPTIMIZER = rlt::nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
         using ACTOR_SPEC = rlt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
         using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<ACTOR_SPEC>;
         using ACTOR_TYPE_INFERENCE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<ACTOR_SPEC>;

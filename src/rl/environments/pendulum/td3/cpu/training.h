@@ -80,8 +80,8 @@ namespace function_approximators{ // to simplify the model definition we import 
     };
 }
 
-using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<T, TI>;
-using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, TI>;
+using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ACTOR_NETWORK_TYPE = typename function_approximators::ACTOR<rlt::nn::parameters::Adam>::MODEL;
 
 using ACTOR_TARGET_NETWORK_TYPE = typename function_approximators::ACTOR<rlt::nn::parameters::Plain>::MODEL;

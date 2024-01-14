@@ -108,8 +108,8 @@ namespace first_stage_first_stage{
     using CriticStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, 1>;
 
     using NN_DEVICE = rlt::devices::DefaultCPU;
-    using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
-    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
     using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
@@ -139,6 +139,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     AC_DEVICE device;
     first_stage_first_stage::NN_DEVICE nn_device;
     first_stage_first_stage::ActorCriticType actor_critic;
+    actor_critic.actor_optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[0].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+
     rlt::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
@@ -182,13 +186,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     AC_DEVICE device;
     first_stage_first_stage::NN_DEVICE nn_device;
     first_stage_first_stage::ActorCriticType actor_critic;
+    actor_critic.actor_optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[0].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
     typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::Buffer<> critic_buffers;
     typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_TYPE::Buffer<> actor_buffers;
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, 1>> d_output_critic;
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM>> d_input_critic;
-    using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
-    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     OPTIMIZER optimizer;
+    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
 
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, critic_buffers);
@@ -257,8 +265,8 @@ namespace first_stage_second_stage{
     using CriticStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
     using NN_DEVICE = rlt::devices::DefaultCPU;
-    using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
-    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
     using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
@@ -283,6 +291,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
 //    first_stage_second_stage::OPTIMIZER optimizer;
     first_stage_second_stage::NN_DEVICE nn_device;
     first_stage_second_stage::ActorCriticType actor_critic;
+    actor_critic.actor_optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[0].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
     rlt::malloc(device, actor_critic);
 
     std::mt19937 rng(0);
@@ -445,6 +456,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
 //    first_stage_second_stage::OPTIMIZER optimizer;
     first_stage_second_stage::NN_DEVICE nn_device;
     first_stage_second_stage::ActorCriticType actor_critic;
+    actor_critic.actor_optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[0].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
     rlt::malloc(device, actor_critic);
 
     std::mt19937 rng(0);

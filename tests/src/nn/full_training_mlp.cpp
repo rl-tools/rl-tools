@@ -38,7 +38,7 @@ constexpr int batch_size = 32;
 using StructureSpecification = rlt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY, 1>;
 
 
-using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTF<T, typename DEVICE::index_t>;
+using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 using NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 using NetworkType = rlt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;

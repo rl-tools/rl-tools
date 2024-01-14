@@ -39,8 +39,8 @@ namespace config{
         using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Adam, BATCH_SIZE>;
         using LAYER_3 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
 
-        using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::DefaultParametersTF<T, TI>>;
-        using SEQUENTIAL_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::DefaultParametersTF<T, TI>>;
+        using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI>>;
+        using SEQUENTIAL_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI>>;
 
         using SEQUENTIAL_MODEL = Module<CONFIG::LAYER_1, Module<CONFIG::LAYER_2, Module<CONFIG::LAYER_3>>>;
     };

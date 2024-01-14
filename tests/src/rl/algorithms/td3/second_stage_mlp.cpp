@@ -50,8 +50,8 @@ using ActorStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DE
 using CriticStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3ParametersCopyTraining::CRITIC_BATCH_SIZE>;
 
 using NN_DEVICE = rlt::devices::DefaultCPU;
-using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
-using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>;
+using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
 using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
@@ -74,6 +74,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     AC_DEVICE device;
     NN_DEVICE nn_device;
     ActorCriticType actor_critic;
+    actor_critic.actor_optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[0].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+
     ActorCriticType::SPEC::ACTOR_TYPE::Buffer<1> eval_buffers;
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, eval_buffers);
@@ -152,6 +156,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     AC_DEVICE device;
     NN_DEVICE nn_device;
     ActorCriticType actor_critic;
+    actor_critic.actor_optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[0].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
     ActorCriticType::SPEC::ACTOR_TYPE::Buffer<1> actor_eval_buffers;
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, actor_eval_buffers);
