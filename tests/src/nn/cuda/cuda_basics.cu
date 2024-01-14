@@ -362,9 +362,9 @@ void GEMM() {
     DEVICE_CUDA device_cuda;
     rlt::init(device_cuda);
     NetworkTypeCPU network_cpu;
-    typename NetworkTypeCPU::template DoubleBuffer<BATCH_SIZE> network_cpu_buffers;
+    typename NetworkTypeCPU::template Buffer<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
-    typename NetworkTypeCUDA::template DoubleBuffer<BATCH_SIZE> network_cuda_buffers;
+    typename NetworkTypeCUDA::template Buffer<BATCH_SIZE> network_cuda_buffers;
     OPTIMIZER optimizer;
     rlt::malloc(device_cpu, network_cpu);
     rlt::malloc(device_cpu, network_cpu_buffers);
@@ -524,9 +524,9 @@ void FORWARD() {
     DEVICE_CUDA device_cuda;
     rlt::init(device_cuda);
     NetworkTypeCPU network_cpu;
-    typename NetworkTypeCPU::template DoubleBuffer<BATCH_SIZE> network_cpu_buffers;
+    typename NetworkTypeCPU::template Buffer<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
-    typename NetworkTypeCPU::template DoubleBuffer<BATCH_SIZE> network_cuda_buffers;
+    typename NetworkTypeCPU::template Buffer<BATCH_SIZE> network_cuda_buffers;
     rlt::malloc(device_cpu, network_cpu);
     rlt::malloc(device_cpu, network_cpu_buffers);
     rlt::malloc(device_cuda, network_cuda);
@@ -684,9 +684,9 @@ void BACKWARD() {
     NetworkTypeCPU network_cpu;
     NetworkTypeCPU network_cpu_pre;
     NetworkTypeCPU network_cuda_cpu;
-    typename NetworkTypeCPU::template DoubleBuffer<BATCH_SIZE> network_cpu_buffers;
+    typename NetworkTypeCPU::template Buffer<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
-    typename NetworkTypeCPU::template DoubleBuffer<BATCH_SIZE> network_cuda_buffers;
+    typename NetworkTypeCPU::template Buffer<BATCH_SIZE> network_cuda_buffers;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> d_output_cpu;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, OUTPUT_DIM>> d_output_cuda;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE_CPU::index_t, BATCH_SIZE, INPUT_DIM>> d_input_cpu;
@@ -873,9 +873,9 @@ void ADAM_UPDATE() {
     NetworkTypeCPU network_cpu;
     NetworkTypeCPU network_cpu_pre;
     NetworkTypeCPU network_cuda_cpu;
-    typename NetworkTypeCPU::template DoubleBuffer<BATCH_SIZE> network_cpu_buffers;
+    typename NetworkTypeCPU::template Buffer<BATCH_SIZE> network_cpu_buffers;
     NetworkTypeCUDA network_cuda;
-    typename NetworkTypeCPU::template DoubleBuffer<BATCH_SIZE> network_cuda_buffers;
+    typename NetworkTypeCPU::template Buffer<BATCH_SIZE> network_cuda_buffers;
     OPTIMIZER optimizer_cpu, optimizer_cuda;
     rlt::malloc(device_cpu, network_cpu);
     rlt::malloc(device_cpu, network_cpu_pre);

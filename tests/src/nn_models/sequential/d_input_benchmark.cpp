@@ -52,11 +52,11 @@ namespace config{
 template <typename DEVICE, typename SEQUENTIAL_DEVICE, typename CONFIG>
 void test_correctness(){
     typename CONFIG::MODEL model, model_temp;
-    typename CONFIG::MODEL::template DoubleBuffer<CONFIG::BATCH_SIZE> buffer;
+    typename CONFIG::MODEL::template Buffer<CONFIG::BATCH_SIZE> buffer;
     DEVICE device;
     SEQUENTIAL_DEVICE sdevice;
     typename CONFIG::SEQUENTIAL_MODEL sequential_model, sequential_model_temp;
-    typename CONFIG::SEQUENTIAL_MODEL::template DoubleBuffer<CONFIG::BATCH_SIZE> sequential_buffer;
+    typename CONFIG::SEQUENTIAL_MODEL::template Buffer<CONFIG::BATCH_SIZE> sequential_buffer;
     typename CONFIG::OPTIMIZER optimizer;
     typename CONFIG::SEQUENTIAL_OPTIMIZER sequential_optimizer;
     using T = typename CONFIG::T;
@@ -239,7 +239,7 @@ void test_benchmark(){
     typename CONFIG::MODEL model;
     DEVICE device;
     typename CONFIG::SEQUENTIAL_MODEL sequential_model;
-    typename CONFIG::SEQUENTIAL_MODEL::template DoubleBuffer<CONFIG::BATCH_SIZE> sequential_buffer;
+    typename CONFIG::SEQUENTIAL_MODEL::template Buffer<CONFIG::BATCH_SIZE> sequential_buffer;
     using T = typename CONFIG::T;
     using TI = typename CONFIG::TI;
 

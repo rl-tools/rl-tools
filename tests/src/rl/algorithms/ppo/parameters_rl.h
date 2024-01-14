@@ -37,9 +37,9 @@ namespace parameters_0{
         using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, ON_POLICY_RUNNER_STEPS_PER_ENV>;
         using ON_POLICY_RUNNER_DATASET_TYPE = rlt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;
 
-        using ACTOR_EVAL_BUFFERS = typename ACTOR_TYPE::template DoubleBuffer<ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
-        using ACTOR_BUFFERS = typename ACTOR_TYPE::template DoubleBuffer<BATCH_SIZE>;
-        using CRITIC_BUFFERS = typename CRITIC_TYPE::template DoubleBuffer<BATCH_SIZE>;
-        using CRITIC_BUFFERS_ALL = typename CRITIC_TYPE::template DoubleBuffer<ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
+        using ACTOR_EVAL_BUFFERS = typename ACTOR_TYPE::template Buffer<ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
+        using ACTOR_BUFFERS = typename ACTOR_TYPE::template Buffer<BATCH_SIZE>;
+        using CRITIC_BUFFERS = typename CRITIC_TYPE::template Buffer<BATCH_SIZE>;
+        using CRITIC_BUFFERS_ALL = typename CRITIC_TYPE::template Buffer<ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
     };
 }

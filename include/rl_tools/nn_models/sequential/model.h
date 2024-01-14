@@ -89,7 +89,7 @@ namespace rl_tools::nn_models::sequential{
     };
 
     template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG, typename T_MEMORY_LAYOUT>
-    struct ModuleDoubleBufferSpecification {
+    struct ModuleBufferSpecification {
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
@@ -97,7 +97,7 @@ namespace rl_tools::nn_models::sequential{
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
     };
     template <typename T_BUFFER_SPEC>
-    struct ModuleDoubleBuffer{
+    struct ModuleBuffer{
         using BUFFER_SPEC = T_BUFFER_SPEC;
         using SPEC = typename BUFFER_SPEC::SPEC;
         using T = typename SPEC::T;
@@ -122,7 +122,7 @@ namespace rl_tools::nn_models::sequential{
         static constexpr auto OUTPUT_DIM = SPEC::OUTPUT_DIM;
 
         template <typename SPEC::TI BATCH_SIZE, typename CONTAINER_TYPE_TAG = MatrixDynamicTag, typename MEMORY_LAYOUT = matrix::layouts::DEFAULT<typename SPEC::TI>>
-        using DoubleBuffer = ModuleDoubleBuffer<ModuleDoubleBufferSpecification<SPEC, BATCH_SIZE, CONTAINER_TYPE_TAG, MEMORY_LAYOUT>>;
+        using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC, BATCH_SIZE, CONTAINER_TYPE_TAG, MEMORY_LAYOUT>>;
     };
 
     namespace interface{

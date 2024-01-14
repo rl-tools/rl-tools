@@ -74,7 +74,7 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     DEVICE device;
     OPTIMIZER optimizer;
     NetworkType network;
-    typename NetworkType::DoubleBuffer<1> buffers;
+    typename NetworkType::Buffer<1> buffers;
     rlt::malloc(device, network);
     rlt::malloc(device, buffers);
     std::vector<T> losses;

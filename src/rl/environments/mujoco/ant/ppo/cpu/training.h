@@ -136,7 +136,7 @@ void run(){
         prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
         prl::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers;
-        prl::PPO_TYPE::SPEC::ACTOR_TYPE::DoubleBuffer<1> actor_deterministic_eval_buffers;
+        prl::PPO_TYPE::SPEC::ACTOR_TYPE::Buffer<1> actor_deterministic_eval_buffers;
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;

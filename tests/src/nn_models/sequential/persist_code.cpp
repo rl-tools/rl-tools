@@ -33,7 +33,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
 
     DEVICE device;
     MODEL model;
-    MODEL::DoubleBuffer<1> buffer;
+    MODEL::Buffer<1> buffer;
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
 
@@ -75,5 +75,5 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
     }
 
     std::cout << "output dim " << MODEL::OUTPUT_DIM << std::endl;
-    std::cout << "max hidden dim " << MODEL::DoubleBuffer<1>::SPEC::MAX_HIDDEN_DIM << std::endl;
+    std::cout << "max hidden dim " << MODEL::Buffer<1>::SPEC::MAX_HIDDEN_DIM << std::endl;
 }

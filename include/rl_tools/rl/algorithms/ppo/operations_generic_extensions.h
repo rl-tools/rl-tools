@@ -51,8 +51,8 @@ namespace rl_tools{
         CRITIC_OPTIMIZER& critic_optimizer,
         rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers,
         rl::algorithms::ppo::TrainingBuffersHybrid<PPO_SPEC>& hybrid_buffers,
-        typename PPO_SPEC::ACTOR_TYPE::template DoubleBuffer<PPO_SPEC::BATCH_SIZE>& actor_buffers,
-        typename PPO_SPEC::CRITIC_TYPE::template DoubleBuffer<PPO_SPEC::BATCH_SIZE>& critic_buffers,
+        typename PPO_SPEC::ACTOR_TYPE::template Buffer<PPO_SPEC::BATCH_SIZE>& actor_buffers,
+        typename PPO_SPEC::CRITIC_TYPE::template Buffer<PPO_SPEC::BATCH_SIZE>& critic_buffers,
         RNG& rng){
 #ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");

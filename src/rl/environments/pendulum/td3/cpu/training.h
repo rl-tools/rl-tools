@@ -138,7 +138,7 @@ TI run(TI seed=0){
 
     OFF_POLICY_RUNNER_TYPE::Batch<TD3_PARAMETERS::CRITIC_BATCH_SIZE> critic_batch;
     rlt::rl::algorithms::td3::CriticTrainingBuffers<ACTOR_CRITIC_TYPE::SPEC> critic_training_buffers;
-    CRITIC_NETWORK_TYPE::DoubleBuffer<ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    CRITIC_NETWORK_TYPE::Buffer<ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
     rlt::malloc(device, critic_batch);
     rlt::malloc(device, critic_training_buffers);
     rlt::malloc(device, critic_buffers[0]);
@@ -146,8 +146,8 @@ TI run(TI seed=0){
 
     OFF_POLICY_RUNNER_TYPE::Batch<TD3_PARAMETERS::ACTOR_BATCH_SIZE> actor_batch;
     rlt::rl::algorithms::td3::ActorTrainingBuffers<ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
-    ACTOR_NETWORK_TYPE::DoubleBuffer<ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-    ACTOR_NETWORK_TYPE::DoubleBuffer<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    ACTOR_NETWORK_TYPE::Buffer<ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+    ACTOR_NETWORK_TYPE::Buffer<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
     rlt::malloc(device, actor_batch);
     rlt::malloc(device, actor_training_buffers);
     rlt::malloc(device, actor_buffers_eval);

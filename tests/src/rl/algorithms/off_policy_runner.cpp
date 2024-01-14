@@ -38,7 +38,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     rlt::malloc(device, off_policy_runner);
     ENVIRONMENT envs[OffPolicyRunnerSpec::N_ENVIRONMENTS];
     rlt::init(device, off_policy_runner, envs);
-    decltype(policy)::DoubleBuffer<OffPolicyRunnerSpec::N_ENVIRONMENTS> policy_buffers;
+    decltype(policy)::Buffer<OffPolicyRunnerSpec::N_ENVIRONMENTS> policy_buffers;
     rlt::malloc(device, policy_buffers);
     for(int step_i = 0; step_i < 10000; step_i++){
         rlt::step(device, off_policy_runner, policy, policy_buffers, rng);

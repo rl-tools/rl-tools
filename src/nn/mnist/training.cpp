@@ -54,7 +54,7 @@ int main(){
     DEVICE device;
     OPTIMIZER optimizer;
     NETWORK_TYPE network;
-    typename NETWORK_TYPE::DoubleBuffer<1> buffers;
+    typename NETWORK_TYPE::Buffer<1> buffers;
 
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, DATASET_SIZE_TRAIN, INPUT_DIM>> x_train;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, DATASET_SIZE_VAL, INPUT_DIM>> x_val;

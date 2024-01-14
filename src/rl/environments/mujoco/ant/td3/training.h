@@ -176,7 +176,7 @@ void run(){
         using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
         rlt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batches[2];
         rlt::rl::algorithms::td3::CriticTrainingBuffers<parameters_rl::ActorCriticType::SPEC> critic_training_buffers[2];
-        parameters_rl::CRITIC_TYPE::DoubleBuffer<> critic_buffers[2];
+        parameters_rl::CRITIC_TYPE::Buffer<> critic_buffers[2];
         rlt::malloc(device, critic_batches[0]);
         rlt::malloc(device, critic_batches[1]);
         rlt::malloc(device, critic_training_buffers[0]);
@@ -187,9 +187,9 @@ void run(){
         using ACTOR_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
         rlt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
         rlt::rl::algorithms::td3::ActorTrainingBuffers<parameters_rl::ActorCriticType::SPEC> actor_training_buffers;
-        parameters_rl::ACTOR_TYPE::DoubleBuffer<> actor_buffers[2];
-        parameters_rl::ACTOR_TYPE::DoubleBuffer<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
-        parameters_rl::ACTOR_TYPE::DoubleBuffer<1> actor_buffers_deterministic_eval;
+        parameters_rl::ACTOR_TYPE::Buffer<> actor_buffers[2];
+        parameters_rl::ACTOR_TYPE::Buffer<decltype(off_policy_runner)::N_ENVIRONMENTS> actor_buffers_eval;
+        parameters_rl::ACTOR_TYPE::Buffer<1> actor_buffers_deterministic_eval;
         rlt::malloc(device, actor_batch);
         rlt::malloc(device, actor_training_buffers);
         rlt::malloc(device, actor_buffers[0]);

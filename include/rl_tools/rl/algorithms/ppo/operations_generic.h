@@ -88,7 +88,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename PPO_SPEC, typename OPR_SPEC, auto STEPS_PER_ENV, typename ACTOR_OPTIMIZER, typename CRITIC_OPTIMIZER, typename RNG>
-    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template DoubleBuffer<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template DoubleBuffer<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
+    void train(DEVICE& device, rl::algorithms::PPO<PPO_SPEC>& ppo, rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>& dataset, ACTOR_OPTIMIZER& actor_optimizer, CRITIC_OPTIMIZER& critic_optimizer, rl::algorithms::ppo::Buffers<PPO_SPEC>& ppo_buffers, typename PPO_SPEC::ACTOR_TYPE::template Buffer<PPO_SPEC::BATCH_SIZE>& actor_buffers, typename PPO_SPEC::CRITIC_TYPE::template Buffer<PPO_SPEC::BATCH_SIZE>& critic_buffers, RNG& rng){
 #ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_CHECK_INIT
         utils::assert_exit(device, ppo.initialized, "PPO not initialized");
 #endif

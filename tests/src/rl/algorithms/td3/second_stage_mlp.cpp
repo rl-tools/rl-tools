@@ -74,7 +74,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     AC_DEVICE device;
     NN_DEVICE nn_device;
     ActorCriticType actor_critic;
-    ActorCriticType::SPEC::ACTOR_TYPE::DoubleBuffer<1> eval_buffers;
+    ActorCriticType::SPEC::ACTOR_TYPE::Buffer<1> eval_buffers;
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, eval_buffers);
 
@@ -152,7 +152,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     AC_DEVICE device;
     NN_DEVICE nn_device;
     ActorCriticType actor_critic;
-    ActorCriticType::SPEC::ACTOR_TYPE::DoubleBuffer<1> actor_eval_buffers;
+    ActorCriticType::SPEC::ACTOR_TYPE::Buffer<1> actor_eval_buffers;
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, actor_eval_buffers);
 
@@ -201,7 +201,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
     rlt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batch;
     rlt::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-    CRITIC_TYPE::DoubleBuffer<> critic_buffers[2];
+    CRITIC_TYPE::Buffer<> critic_buffers[2];
     rlt::malloc(device, critic_batch);
     rlt::malloc(device, critic_training_buffers);
     rlt::malloc(device, critic_buffers[0]);
@@ -210,7 +210,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     using ACTOR_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
     rlt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
     rlt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
-    ACTOR_TYPE::DoubleBuffer<> actor_buffers[2];
+    ACTOR_TYPE::Buffer<> actor_buffers[2];
     rlt::malloc(device, actor_batch);
     rlt::malloc(device, actor_training_buffers);
     rlt::malloc(device, actor_buffers[0]);

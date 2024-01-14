@@ -24,13 +24,13 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename BUFFER_SPEC>
-    void malloc(DEVICE& device, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC>& buffers){
+    void malloc(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
         using namespace nn_models::sequential;
         malloc(device, buffers.tick);
         malloc(device, buffers.tock);
     }
     template <typename DEVICE, typename BUFFER_SPEC>
-    void free(DEVICE& device, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC>& buffers){
+    void free(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
         using namespace nn_models::sequential;
         free(device, buffers.tick);
         free(device, buffers.tock);
@@ -62,7 +62,7 @@ namespace rl_tools{
     }
     // Evaluate is like a forward pass but without saving intermediate activations (so a backward pass is not possible). Hence we can reuse the memory of the intermediate outputs and just require a double buffer where each buffer has to be able to contain the maximum hidden dimension of the module
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
-    void evaluate(DEVICE& device, const nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC>& buffers){
+    void evaluate(DEVICE& device, const nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         static_assert(BUFFER_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
@@ -113,7 +113,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
-    void backward_full(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC> buffers) {
+    void backward_full(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers) {
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
@@ -129,7 +129,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
-    void backward_input(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& model, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC> buffers) {
+    void backward_input(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& model, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers) {
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
@@ -144,7 +144,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC>
-    void backward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn_models::sequential::ModuleDoubleBuffer<BUFFER_SPEC> buffers) {
+    void backward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers) {
         static_assert(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>);
         backward_full<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(model.content.output)::SPEC, D_OUTPUT_SPEC, typename decltype(buffers.tick)::SPEC, BUFFER_SPEC, false>(device, model.next_module, model.content.output, d_output, buffers.tick, buffers);
         backward_param(device, model.content, input, buffers.tick);

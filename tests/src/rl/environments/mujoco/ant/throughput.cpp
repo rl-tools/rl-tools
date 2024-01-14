@@ -238,7 +238,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
     STATE states[NUM_ENVIRONMENTS], next_states[NUM_ENVIRONMENTS];
     envp::ENVIRONMENT envs[NUM_ENVIRONMENTS];
     ACTOR_TYPE actor;
-    ACTOR_TYPE::DoubleBuffer<NUM_ENVIRONMENTS> actor_buffers;
+    ACTOR_TYPE::Buffer<NUM_ENVIRONMENTS> actor_buffers;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
     auto proto_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
@@ -313,7 +313,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDENT_FORW
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::ACTION_DIM>> actions;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_THREADS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
     ACTOR_TYPE actors[NUM_THREADS];
-    ACTOR_TYPE::DoubleBuffer<1> actor_buffers[NUM_THREADS];
+    ACTOR_TYPE::Buffer<1> actor_buffers[NUM_THREADS];
     auto proto_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     decltype(proto_rng) rngs[NUM_THREADS];
 
@@ -375,7 +375,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWA
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
     ACTOR_TYPE actor;
-    ACTOR_TYPE::DoubleBuffer<NUM_ENVIRONMENTS> actor_buffers;
+    ACTOR_TYPE::Buffer<NUM_ENVIRONMENTS> actor_buffers;
     auto proto_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     decltype(proto_rng) rngs[NUM_THREADS];
     TwoWayBarrier<NUM_THREADS> barrier_1, barrier_2;
@@ -482,7 +482,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWA
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations;
     ACTOR_TYPE actor;
-    ACTOR_TYPE::DoubleBuffer<NUM_ENVIRONMENTS> actor_buffers;
+    ACTOR_TYPE::Buffer<NUM_ENVIRONMENTS> actor_buffers;
     auto proto_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     decltype(proto_rng) rngs[NUM_THREADS];
     TwoWayBarrier<NUM_THREADS> barrier_1, barrier_2;

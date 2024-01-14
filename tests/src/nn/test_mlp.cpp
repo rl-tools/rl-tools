@@ -105,7 +105,7 @@ protected:
 
     NN_DEVICE device;
     NetworkType network;
-    typename NetworkType::template DoubleBuffer<> network_buffers;
+    typename NetworkType::template Buffer<> network_buffers;
     std::vector<std::vector<DTYPE>> input_layer_weights;
     std::vector<DTYPE> input_layer_biases;
     std::vector<std::vector<DTYPE>> hidden_layer_0_weights;

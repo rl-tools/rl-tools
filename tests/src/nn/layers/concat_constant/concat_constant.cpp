@@ -45,7 +45,7 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, TEST){
     MODEL model;
     DEVICE device;
     SEQUENTIAL_MODEL sequential_model;
-    SEQUENTIAL_MODEL::DoubleBuffer<BATCH_SIZE> sequential_buffer;
+    SEQUENTIAL_MODEL::Buffer<BATCH_SIZE> sequential_buffer;
 
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
 

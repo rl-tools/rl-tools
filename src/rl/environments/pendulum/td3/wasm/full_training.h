@@ -96,15 +96,15 @@ struct CoreTrainingState{
     rlt::rl::components::OffPolicyRunner<typename TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
     typename TRAINING_CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
     typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE actor_critic;
-    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template DoubleBuffer<1> actor_deterministic_evaluation_buffers;
+    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<1> actor_deterministic_evaluation_buffers;
     rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
     rlt::rl::algorithms::td3::CriticTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_SPEC> critic_training_buffers;
     rlt::MatrixDynamic<rlt::matrix::Specification<typename TRAINING_CONFIG::DTYPE, TI, 1, TRAINING_CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
-    typename TRAINING_CONFIG::CRITIC_NETWORK_TYPE::template DoubleBuffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    typename TRAINING_CONFIG::CRITIC_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
     rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
     rlt::rl::algorithms::td3::ActorTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
-    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template DoubleBuffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template DoubleBuffer<TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
 };
 
 template <typename TRAINING_CONFIG>

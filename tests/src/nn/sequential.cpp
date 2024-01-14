@@ -257,7 +257,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     LAYER_3 layer_3;
 
     SEQUENTIAL sequential;
-    typename SEQUENTIAL::DoubleBuffer<1> buffer;
+    typename SEQUENTIAL::Buffer<1> buffer;
 
     rlt::malloc(device, sequential);
     rlt::malloc(device, buffer);
@@ -311,7 +311,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
 
     DEVICE device;
     MLP mlp;
-    typename MLP::DoubleBuffer<1> mlp_buffers;
+    typename MLP::Buffer<1> mlp_buffers;
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
 
     LAYER_1 layer_1;
@@ -319,7 +319,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     LAYER_3 layer_3;
 
     SEQUENTIAL sequential;
-    SEQUENTIAL::DoubleBuffer<1> buffer_sequential;
+    SEQUENTIAL::Buffer<1> buffer_sequential;
 
     rlt::malloc(device, mlp);
     rlt::malloc(device, layer_1);

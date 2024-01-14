@@ -182,8 +182,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     AC_DEVICE device;
     first_stage_first_stage::NN_DEVICE nn_device;
     first_stage_first_stage::ActorCriticType actor_critic;
-    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::DoubleBuffer<> critic_buffers;
-    typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_TYPE::DoubleBuffer<> actor_buffers;
+    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::Buffer<> critic_buffers;
+    typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_TYPE::Buffer<> actor_buffers;
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, 1>> d_output_critic;
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM>> d_input_critic;
     using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
@@ -322,11 +322,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     rlt::malloc(device, critic_training_buffers);
     rlt::malloc(device, critic_training_buffers_target);
 
-    first_stage_second_stage::CRITIC_TYPE::DoubleBuffer<> critic_buffers[2];
+    first_stage_second_stage::CRITIC_TYPE::Buffer<> critic_buffers[2];
     rlt::malloc(device, critic_buffers[0]);
     rlt::malloc(device, critic_buffers[1]);
 
-    first_stage_second_stage::ACTOR_TYPE::DoubleBuffer<> actor_buffers[2];
+    first_stage_second_stage::ACTOR_TYPE::Buffer<> actor_buffers[2];
     rlt::malloc(device, actor_buffers[0]);
     rlt::malloc(device, actor_buffers[1]);
 
@@ -476,11 +476,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     rlt::malloc(device, actor_batch);
     rlt::malloc(device, actor_training_buffers);
 
-    first_stage_second_stage::CRITIC_TYPE::DoubleBuffer<> critic_buffers[2];
+    first_stage_second_stage::CRITIC_TYPE::Buffer<> critic_buffers[2];
     rlt::malloc(device, critic_buffers[0]);
     rlt::malloc(device, critic_buffers[1]);
 
-    first_stage_second_stage::ACTOR_TYPE::DoubleBuffer<> actor_buffers[2];
+    first_stage_second_stage::ACTOR_TYPE::Buffer<> actor_buffers[2];
     rlt::malloc(device, actor_buffers[0]);
     rlt::malloc(device, actor_buffers[1]);
 

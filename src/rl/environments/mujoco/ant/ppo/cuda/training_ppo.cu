@@ -178,7 +178,7 @@ int main(int argc, char** argv){
         // -------------------------------------------------------
         // -------------- replaced for cuda training ----------------
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;
-        prl::PPO_TYPE::SPEC::ACTOR_TYPE::DoubleBuffer<1> actor_deterministic_eval_buffers;
+        prl::PPO_TYPE::SPEC::ACTOR_TYPE::Buffer<1> actor_deterministic_eval_buffers;
         // ----------------------------------------------------------
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
