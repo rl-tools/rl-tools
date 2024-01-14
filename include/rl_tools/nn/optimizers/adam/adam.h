@@ -8,55 +8,56 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::optimizers{
     namespace adam{
-        template<typename T_T, typename T_TI>
-        struct DefaultParametersTF {
+        template<typename T_T>
+        struct Parameters{
             using T = T_T;
-            using TI = T_TI;
-            static constexpr T ALPHA = 0.001;
-            static constexpr T BETA_1 = 0.9;
-            static constexpr T BETA_2 = 0.999;
-            static constexpr T EPSILON = 1e-7;
-            static constexpr T WEIGHT_DECAY = 0;
-            static constexpr T WEIGHT_DECAY_INPUT = 0;
-            static constexpr T WEIGHT_DECAY_OUTPUT = 0;
-            static constexpr T BIAS_LR_FACTOR = 1;
-
+            T alpha;
+            T beta_1;
+            T beta_2;
+            T epsilon;
+            T weight_decay;
+            T weight_decay_input;
+            T weight_decay_output;
+            T bias_lr_factor;
         };
-        template<typename T_T, typename T_TI>
-        struct DefaultParametersTorch {
-            using T = T_T;
-            using TI = T_TI;
-            static constexpr T ALPHA = 0.001;
-            static constexpr T BETA_1 = 0.9;
-            static constexpr T BETA_2 = 0.999;
-            static constexpr T EPSILON = 1e-8;
-            static constexpr T WEIGHT_DECAY = 0;
-            static constexpr T WEIGHT_DECAY_INPUT = 0;
-            static constexpr T WEIGHT_DECAY_OUTPUT = 0;
-            static constexpr T BIAS_LR_FACTOR = 1;
+        template <typename T>
+        constexpr Parameters<T> default_parameters_tensorflow = {
+            0.001,
+            0.9,
+            0.999,
+            1e-7,
+            0,
+            0,
+            0,
+            1,
         };
-        template<typename T_T, typename T_TI>
-        struct DefaultParameters{
+        template<typename T>
+        constexpr Parameters<T> default_parameters_torch = {
+            0.001,
+            0.9,
+            0.999,
+            1e-8,
+            0,
+            0,
+            0,
+            1,
+        };
+        template <typename T_T, typename T_TI, bool T_ENABLE_WEIGHT_DECAY = false, bool T_ENABLE_BIAS_LR_FACTOR = false>
+        struct Specification{
             using T = T_T;
             using TI = T_TI;
-            static constexpr T ALPHA = 0.001;
-            static constexpr T BETA_1 = 0.9;
-            static constexpr T BETA_2 = 0.999;
-            static constexpr T EPSILON = 1e-8;
-            static constexpr T WEIGHT_DECAY = 0;
-            static constexpr T WEIGHT_DECAY_INPUT = 0;
-            static constexpr T WEIGHT_DECAY_OUTPUT = 0;
-            static constexpr T BIAS_LR_FACTOR = 1;
+            static constexpr bool ENABLE_WEIGHT_DECAY = T_ENABLE_WEIGHT_DECAY;
+            static constexpr bool ENABLE_BIAS_LR_FACTOR = T_ENABLE_BIAS_LR_FACTOR;
         };
     }
-    template<typename T_PARAMETERS>
+    template<typename T_SPEC>
     struct Adam{
-        using PARAMETERS = T_PARAMETERS;
-        using T = typename PARAMETERS::T;
-        using TI = typename PARAMETERS::TI;
-        typename PARAMETERS::T first_order_moment_bias_correction;
-        typename PARAMETERS::T second_order_moment_bias_correction;
-        T alpha = PARAMETERS::ALPHA;
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        adam::Parameters<T> parameters = adam::default_parameters_torch<T>;
+        T first_order_moment_bias_correction;
+        T second_order_moment_bias_correction;
         TI age = 1;
     };
 

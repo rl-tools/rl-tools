@@ -24,36 +24,36 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
     void update(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer) {
-        utils::polyak::update(device, parameter.gradient, parameter.gradient_first_order_moment, PARAMETERS::BETA_1);
-        utils::polyak::update_squared(device, parameter.gradient, parameter.gradient_second_order_moment, PARAMETERS::BETA_2);
+        utils::polyak::update(device, parameter.gradient, parameter.gradient_first_order_moment, optimizer.parameters.beta_1);
+        utils::polyak::update_squared(device, parameter.gradient, parameter.gradient_second_order_moment, optimizer.parameters.beta_2);
         gradient_descent(device, parameter, optimizer);
     }
 
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
-        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::CONTAINER::ROWS; row_i++) {
-            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::CONTAINER::COLS; col_i++) {
-                typename SPEC::CONTAINER::T parameter_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-                if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && PARAMETERS::BIAS_LR_FACTOR > 1){
-                    parameter_update *= PARAMETERS::BIAS_LR_FACTOR;
+    template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC>
+    void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
+        for(typename DEVICE::index_t row_i = 0; row_i < PARAMETER_SPEC::CONTAINER::ROWS; row_i++) {
+            for(typename DEVICE::index_t col_i = 0; col_i < PARAMETER_SPEC::CONTAINER::COLS; col_i++) {
+                typename PARAMETER_SPEC::CONTAINER::T parameter_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + optimizer.parameters.epsilon);
+                if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && SPEC::ENABLE_BIAS_LR_FACTOR){
+                    parameter_update *= optimizer.parameters.bias_lr_factor;
                 }
-                if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
-                    if constexpr(utils::typing::is_same_v<typename SPEC::GROUP_TAG, nn::parameters::groups::Normal>){
-                        parameter_update += get(parameter.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY / 2;
+                if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
+                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Normal> && SPEC::ENABLE_WEIGHT_DECAY){
+                        parameter_update += get(parameter.parameters, row_i, col_i) * optimizer.parameters.weight_decay / 2;
                     }
-                    if constexpr(utils::typing::is_same_v<typename SPEC::GROUP_TAG, nn::parameters::groups::Input>  && PARAMETERS::WEIGHT_DECAY_INPUT > 0){
-                        parameter_update += get(parameter.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY_INPUT / 2;
+                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Input> && SPEC::ENABLE_WEIGHT_DECAY){
+                        parameter_update += get(parameter.parameters, row_i, col_i) * optimizer.parameters.weight_decay_input / 2;
                     }
-                    if constexpr(utils::typing::is_same_v<typename SPEC::GROUP_TAG, nn::parameters::groups::Output> && PARAMETERS::WEIGHT_DECAY_OUTPUT > 0){
-                        parameter_update += get(parameter.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY_OUTPUT / 2;
+                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Output> && SPEC::ENABLE_WEIGHT_DECAY){
+                        parameter_update += get(parameter.parameters, row_i, col_i) * optimizer.parameters.weight_decay_output / 2;
                     }
                 }
                 increment(parameter.parameters, row_i, col_i, -parameter_update);
             }
         }
     }
-    template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    void _reset_optimizer_state(DEVICE& device, nn::parameters::Adam::instance<SPEC>& parameter, nn::optimizers::Adam<PARAMETERS>& optimizer){
+    template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC>
+    void _reset_optimizer_state(DEVICE& device, nn::parameters::Adam::instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
         set_all(device, parameter.gradient_first_order_moment, 0);
         set_all(device, parameter.gradient_second_order_moment, 0);
     }
@@ -77,23 +77,23 @@ namespace rl_tools{
 //        set_all(device, p1.gradient_first_order_moment, 0);
 //        set_all(device, p1.gradient_second_order_moment, 0);
 //    }
-    template<typename DEVICE, typename PARAMETERS, typename MODEL>
-    void reset_optimizer_state(DEVICE& device, nn::optimizers::Adam<PARAMETERS>& optimizer, MODEL& model) {
+    template<typename DEVICE, typename SPEC, typename MODEL>
+    void reset_optimizer_state(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
         optimizer.age = 1;
         _reset_optimizer_state(device, model, optimizer);
     }
 
-    template<typename DEVICE, typename PARAMETERS, typename MODEL>
-    void step(DEVICE& device, nn::optimizers::Adam<PARAMETERS>& optimizer, MODEL& model) {
-        using T = typename PARAMETERS::T;
-        optimizer.first_order_moment_bias_correction  = 1/(1 - math::pow(device.math, PARAMETERS::BETA_1, (T)optimizer.age));
-        optimizer.second_order_moment_bias_correction = 1/(1 - math::pow(device.math, PARAMETERS::BETA_2, (T)optimizer.age));
+    template<typename DEVICE, typename SPEC, typename MODEL>
+    void step(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
+        using T = typename SPEC::T;
+        optimizer.first_order_moment_bias_correction  = 1/(1 - math::pow(device.math, optimizer.parameters.beta_1, (T)optimizer.age));
+        optimizer.second_order_moment_bias_correction = 1/(1 - math::pow(device.math, optimizer.parameters.beta_2, (T)optimizer.age));
         optimizer.age += 1;
         update(device, model, optimizer);
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::optimizers::Adam<SOURCE_SPEC>& source, nn::optimizers::Adam<TARGET_SPEC>& target){
-        target.alpha = source.alpha;
+        target.parameters = source.parameters;
         target.age = source.age;
     }
 

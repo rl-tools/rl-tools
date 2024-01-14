@@ -139,16 +139,21 @@ namespace rl_tools::rl::algorithms::td3::loop{
                 gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
             }
-            T critic_1_loss = critic_loss(ts.device, ts.actor_critic, ts.actor_critic.critic_1, ts.critic_batch, ts.actor_buffers[0], ts.critic_buffers[0], ts.critic_training_buffers);
-            add_scalar(ts.device, ts.device.logger, "critic_1_loss", critic_1_loss, 100);
+            if(ts.step % (SPEC::TD3_PARAMETERS::CRITIC_TRAINING_INTERVAL * 50) == 0){
+                T critic_1_loss = critic_loss(ts.device, ts.actor_critic, ts.actor_critic.critic_1, ts.critic_batch, ts.actor_buffers[0], ts.critic_buffers[0], ts.critic_training_buffers);
+                add_scalar(ts.device, ts.device.logger, "critic_1_loss", critic_1_loss, 100);
+            }
         }
 
         if(ts.step > SPEC::N_WARMUP_STEPS_ACTOR && ts.step % SPEC::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
             gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
             train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
 
-            T actor_value = mean(ts.device, ts.actor_training_buffers.state_action_value);
-            add_scalar(ts.device, ts.device.logger, "actor_value", actor_value, 100);
+
+            if(ts.step % (SPEC::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL * 50) == 0){
+                T actor_value = mean(ts.device, ts.actor_training_buffers.state_action_value);
+                add_scalar(ts.device, ts.device.logger, "actor_value", actor_value, 100);
+            }
         }
         if(ts.step > SPEC::N_WARMUP_STEPS_CRITIC && ts.step % SPEC::TD3_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0){
             update_critic_targets(ts.device, ts.actor_critic);
