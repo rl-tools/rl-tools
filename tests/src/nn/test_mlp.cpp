@@ -196,7 +196,8 @@ typedef RL_TOOLS_NN_MLP_BACKWARD_PASS RL_TOOLS_NN_MLP_ADAM_UPDATE;
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::DefaultParametersTF<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_tensorflow<DTYPE>;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     std::vector<std::vector<DTYPE>> batch_0_input_layer_weights;
@@ -287,7 +288,8 @@ protected:
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::DefaultParametersTF<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_tensorflow<DTYPE>;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     HighFive::Group g = data_file.getGroup("model_2/overfit_small_batch");
@@ -352,7 +354,7 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     std::vector<DTYPE> losses;
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
     constexpr int n_batches = 10;
     for(int batch_i_real=0; batch_i_real < n_batches; batch_i_real++){
         this->reset();
@@ -455,7 +457,7 @@ protected:
 #ifndef SKIP_TRAINING_TESTS
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
     constexpr int n_epochs = 3;
@@ -548,7 +550,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
 
 #ifndef SKIP_TESTS
 TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
-    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>> optimizer;
+    rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
     NN_DEVICE device;
     NetworkType network;
     rlt::malloc(device, network);

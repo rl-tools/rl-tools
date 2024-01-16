@@ -860,8 +860,8 @@ void ADAM_UPDATE() {
     constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::IDENTITY;
     using StructureSpecification = rlt::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::RELU, ACTIVATION_FUNCTION, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<T, TI>;
-    using OPTIMIZER = rlt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<copy::OPTIMIZER_SPEC>;
     using NNSpecification = rlt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
     std::cout << "BACKWARD<" << (rlt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;

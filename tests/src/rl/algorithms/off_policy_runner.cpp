@@ -25,8 +25,8 @@ typedef rlt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunne
 using PendulumStructureSpecification = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 
 TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
-    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, TI>;
-    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, TI>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     typedef rlt::nn_models::mlp::AdamSpecification<PendulumStructureSpecification> SPEC;
     DEVICE device;
     OPTIMIZER optimizer;

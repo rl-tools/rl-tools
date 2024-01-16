@@ -55,7 +55,7 @@ namespace rl_tools::nn::optimizers{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        adam::Parameters<T> parameters = adam::default_parameters_torch<T>;
+        adam::Parameters<T> parameters = adam::default_parameters_tensorflow<T>;
         T first_order_moment_bias_correction;
         T second_order_moment_bias_correction;
         TI age = 1;

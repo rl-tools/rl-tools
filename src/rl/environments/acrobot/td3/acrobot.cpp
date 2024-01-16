@@ -77,12 +77,9 @@ namespace training_config {
         //using ACTOR_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
         //using CRITIC_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
 
-        struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DefaultParametersTorch<T, TI>{
-//            static constexpr T ALPHA = 1e-3;
-        };
+        using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
 
-//        using OPTIMIZER_PARAMETERS = typename rlt::nn::optimizers::adam::DefaultParametersTorch<T, TI>;
-        using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+        using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
         using ACTOR_TYPE = typename ACTOR<rlt::nn::parameters::Adam>::MODEL;
         using ACTOR_TARGET_TYPE = typename ACTOR<rlt::nn::parameters::Plain>::MODEL;
         using CRITIC_TYPE = typename CRITIC<rlt::nn::parameters::Adam>::MODEL;

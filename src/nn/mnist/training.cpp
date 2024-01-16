@@ -25,7 +25,7 @@ constexpr TI DATASET_SIZE_VAL = 10000;
 constexpr TI VALIDATION_LIMIT = 50;
 
 
-using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTF<T, TI>;
+using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, TI>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 
 namespace mnist_model{ // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace

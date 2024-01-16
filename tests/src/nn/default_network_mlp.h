@@ -11,8 +11,8 @@ using NN_DEVICE = rlt::devices::DefaultCPU;
 using StructureSpecification = rlt::nn_models::mlp::StructureSpecification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
 using STRUCTURE_SPEC = StructureSpecification;
-using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTF<DTYPE, typename NN_DEVICE::index_t>;
-using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, typename NN_DEVICE::index_t>;
+using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC>;
 using NetworkType = rlt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
 

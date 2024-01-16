@@ -46,8 +46,8 @@ constexpr DEVICE::index_t HIDDEN_DIM = BATCH_SIZE;
 template <typename T, typename TI, rlt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
 using StructureSpecification = rlt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::RELU, BATCH_SIZE>;
 
-using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE, typename DEVICE::index_t>;
-using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
+using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>;
+using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 template <typename T, typename TI, rlt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION>
 using InferenceSpecification = rlt::nn_models::mlp::AdamSpecification<StructureSpecification<T, TI, ACTIVATION_FUNCTION>>;
 

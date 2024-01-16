@@ -151,6 +151,10 @@ void run(){
         // optimizer
         parameters_rl::OPTIMIZER actor_optimizer;
         parameters_rl::OPTIMIZER critic_optimizers[2];
+        typename parameters_rl::OPTIMIZER::SPEC::T alpha = 1e-3;
+        actor_optimizer.parameters.alpha = alpha;
+        critic_optimizers[0].parameters.alpha = alpha;
+        critic_optimizers[1].parameters.alpha = alpha;
 
         // environment
         DTYPE ui_speed_factor = 1;

@@ -50,7 +50,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
     using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
-    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<DTYPE, DEVICE::index_t>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
     DEVICE device;
@@ -95,7 +95,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_MLP_ADAM){
     using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<DTYPE>;
+    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<DTYPE, DEVICE::index_t>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
     OPTIMIZER optimizer;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
