@@ -75,6 +75,8 @@ install(FILES "${PROJECT_BINARY_DIR}/RLtoolsConfigVersion.cmake"
 add_library(rl_tools_core_definitions INTERFACE) # This target additionally contains definitions
 set_property(TARGET rl_tools_core_definitions PROPERTY EXPORT_NAME CoreDefinitions)
 target_link_libraries(rl_tools_core_definitions INTERFACE rl_tools_core)
+add_library(rl_tools_backend INTERFACE)
+set_property(TARGET rl_tools_backend PROPERTY EXPORT_NAME Backend)
 add_library(rl_tools_minimal INTERFACE) # This target additionally contains main and relatively harmless dependencies (BLAS, CLI11, TENSORBOARD, HDF5), the minimal config works with the CUDA comnpiler, when adding heavier dependencies in INTERFACE mode some cuda targets fail
 set_property(TARGET rl_tools_minimal PROPERTY EXPORT_NAME Minimal)
 add_library(rl_tools_optimizations INTERFACE) # This target contains optimization options
@@ -87,6 +89,7 @@ set_property(TARGET rl_tools PROPERTY EXPORT_NAME RLtools)
 install(TARGETS
         rl_tools_core
         rl_tools_core_definitions
+        rl_tools_backend
         rl_tools_minimal
         rl_tools_optimizations
         rl_tools_optimizations_cuda
@@ -147,7 +150,7 @@ endif()
 if(RL_TOOLS_BACKEND_ENABLE_MKL)
     find_package(MKL REQUIRED)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_BACKEND_ENABLE_MKL)
-    target_link_libraries(rl_tools_minimal INTERFACE MKL::MKL)
+    target_link_libraries(rl_tools_backend INTERFACE MKL::MKL)
     if(RL_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
         if(WIN32)
             file(GLOB MKL_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/mkl/*.dll")
@@ -167,7 +170,7 @@ endif()
 if(RL_TOOLS_BACKEND_ENABLE_ACCELERATE)
     find_package(BLAS REQUIRED)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_BACKEND_ENABLE_ACCELERATE)
-    target_link_libraries(rl_tools_minimal INTERFACE BLAS)
+    target_link_libraries(rl_tools_backend INTERFACE BLAS)
     set(RL_TOOLS_BACKEND_ENABLE_BLAS ON)
 endif()
 
@@ -175,7 +178,7 @@ if(RL_TOOLS_BACKEND_ENABLE_OPENBLAS)
 #    find_package(OpenBLAS REQUIRED)
     find_package(BLAS REQUIRED)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_BACKEND_ENABLE_OPENBLAS)
-    target_link_libraries(rl_tools_minimal INTERFACE ${BLAS_LIBRARIES})
+    target_link_libraries(rl_tools_backend INTERFACE ${BLAS_LIBRARIES})
 
 #    message(STATUS "OpenBLAS_INCLUDE_DIRS: ${OpenBLAS_INCLUDE_DIRS}")
 #    message(STATUS "OpenBLAS_LIBRARIES: ${OpenBLAS_LIBRARIES}")
@@ -196,7 +199,7 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     message(STATUS "CUDA libraries: ${CUDA_LIBRARIES}")
     message(STATUS "CUDA cublas library: ${CUDA_CUBLAS_LIBRARIES}")
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_BACKEND_ENABLE_CUDA)
-    target_link_libraries(rl_tools_minimal INTERFACE CUDA::cublas)
+    target_link_libraries(rl_tools_backend INTERFACE CUDA::cublas)
     if(RL_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
         if(WIN32)
             file(GLOB CUDA_REDISTRIBUTABLES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/windows/cuda/*.dll")
@@ -381,12 +384,14 @@ if(RL_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES)
     endif()
 endif()
 
-target_link_libraries(rl_tools_minimal INTERFACE rl_tools_core_definitions)
+target_link_libraries(rl_tools_backend INTERFACE rl_tools_core_definitions)
+target_link_libraries(rl_tools_minimal INTERFACE rl_tools_backend)
 target_link_libraries(rl_tools_optimizations INTERFACE rl_tools_minimal)
 target_link_libraries(rl_tools INTERFACE rl_tools_optimizations)
 
 add_library(RLtools::Core ALIAS rl_tools_core)
 add_library(RLtools::CoreDefinitions ALIAS rl_tools_core_definitions)
+add_library(RLtools::Backend ALIAS rl_tools_backend)
 add_library(RLtools::Minimal ALIAS rl_tools_minimal)
 add_library(RLtools::Optimizations ALIAS rl_tools_optimizations)
 add_library(RLtools::OptimizationsCUDA ALIAS rl_tools_optimizations_cuda)
