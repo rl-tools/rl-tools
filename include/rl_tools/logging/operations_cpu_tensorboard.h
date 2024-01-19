@@ -10,7 +10,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 
 #ifdef RL_TOOLS_ENABLE_LIBATTOPNG
-#include <libattopng.h>
+#include <libattopng/libattopng.h>
 #endif
 namespace rl_tools{
     namespace logging::tensorboard{

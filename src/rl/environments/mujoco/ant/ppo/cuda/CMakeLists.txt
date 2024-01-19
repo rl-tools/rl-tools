@@ -20,6 +20,7 @@ message("CUDA Host Compiler: ${CMAKE_CUDA_HOST_COMPILER}")
 # )
 
 
+if(RL_TOOLS_ENABLE_CLI11)
 add_executable(
         rl_environments_mujoco_ant_training_ppo_cuda_standalone
         training_ppo.cu
@@ -30,6 +31,7 @@ target_link_libraries(
         RLtools::Minimal
         RLtools::OptimizationsCUDA
         mujoco::mujoco
+        CLI11::CLI11
 )
 RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_standalone)
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
@@ -37,6 +39,7 @@ target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalo
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE RL_TOOLS_DISABLE_CLI11)
 target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_cuda_standalone)
+endif()
 
 if(RL_TOOLS_BACKEND_ENABLE_BLAS AND RL_TOOLS_ENABLE_CLI11)
 add_executable(
@@ -49,6 +52,7 @@ target_link_libraries(
         RLtools::Minimal
         RLtools::OptimizationsCUDA
         mujoco::mujoco
+        CLI11::CLI11
 )
 RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
 
@@ -76,6 +80,7 @@ target_link_libraries(
         RLtools::Minimal
         RLtools::OptimizationsCUDA
         mujoco::mujoco
+        CLI11::CLI11
 )
 RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_full)
 RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_cuda_full)

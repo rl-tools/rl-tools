@@ -2,27 +2,38 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace nn::optimizers::adam::cuda {
-        template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
+        template<typename DEV_SPEC, typename PARAMETER_SPEC, typename SPEC>
         __global__
-        void update_kernel(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::instance<SPEC> p, nn::optimizers::Adam<PARAMETERS> optimizer) {
+        void update_kernel(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::instance<PARAMETER_SPEC> parameter, nn::optimizers::Adam<SPEC> optimizer) {
             // fully fused adam update
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            using T = typename SPEC::CONTAINER::T;
+            using T = typename PARAMETER_SPEC::CONTAINER::T;
             using TI = typename DEVICE::index_t;
 
             TI col_i = blockIdx.x * blockDim.x + threadIdx.x;
             TI row_i = blockIdx.y * blockDim.y + threadIdx.y;
-            if(col_i < SPEC::CONTAINER::COLS && row_i < SPEC::CONTAINER::ROWS){
-                T d_weight = get(p.gradient, row_i, col_i);
-                T d_weight_first_order_moment = PARAMETERS::BETA_1 * get(p.gradient_first_order_moment, row_i, col_i) + (1 - PARAMETERS::BETA_1) * d_weight;
-                set(p.gradient_first_order_moment, row_i, col_i, d_weight_first_order_moment);
-                T d_weight_second_order_moment = PARAMETERS::BETA_2 * get(p.gradient_second_order_moment, row_i, col_i) + (1 - PARAMETERS::BETA_2) * d_weight * d_weight;
-                set(p.gradient_second_order_moment, row_i, col_i, d_weight_second_order_moment);
-                T weight_update = optimizer.alpha * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * optimizer.second_order_moment_bias_correction) + PARAMETERS::EPSILON);
-                if constexpr(utils::typing::is_same_v<typename SPEC::CATEGORY_TAG, nn::parameters::categories::Weights> &&  PARAMETERS::WEIGHT_DECAY > 0){
-                    weight_update += get(p.parameters, row_i, col_i) * PARAMETERS::WEIGHT_DECAY / 2;
+            if(col_i < PARAMETER_SPEC::CONTAINER::COLS && row_i < PARAMETER_SPEC::CONTAINER::ROWS){
+                T d_weight = get(parameter.gradient, row_i, col_i);
+                T d_weight_first_order_moment = optimizer.parameters.beta_1 * get(parameter.gradient_first_order_moment, row_i, col_i) + (1 - optimizer.parameters.beta_1) * d_weight;
+                set(parameter.gradient_first_order_moment, row_i, col_i, d_weight_first_order_moment);
+                T d_weight_second_order_moment = optimizer.parameters.beta_2 * get(parameter.gradient_second_order_moment, row_i, col_i) + (1 - optimizer.parameters.beta_2) * d_weight * d_weight;
+                set(parameter.gradient_second_order_moment, row_i, col_i, d_weight_second_order_moment);
+                T parameter_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * optimizer.second_order_moment_bias_correction) + optimizer.parameters.epsilon);
+                if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && SPEC::ENABLE_BIAS_LR_FACTOR){
+                    parameter_update *= optimizer.parameters.bias_lr_factor;
                 }
-                increment(p.parameters, row_i, col_i, -weight_update);
+                if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
+                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Normal> && SPEC::ENABLE_WEIGHT_DECAY){
+                        parameter_update += get(parameter.parameters, row_i, col_i) * optimizer.parameters.weight_decay / 2;
+                    }
+                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Input> && SPEC::ENABLE_WEIGHT_DECAY){
+                        parameter_update += get(parameter.parameters, row_i, col_i) * optimizer.parameters.weight_decay_input / 2;
+                    }
+                    if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Output> && SPEC::ENABLE_WEIGHT_DECAY){
+                        parameter_update += get(parameter.parameters, row_i, col_i) * optimizer.parameters.weight_decay_output / 2;
+                    }
+                }
+                increment(parameter.parameters, row_i, col_i, -parameter_update);
             }
         }
     }
