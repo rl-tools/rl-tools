@@ -197,9 +197,18 @@ namespace rl_tools{
             return get<TARGET_INDEX_INPUT-1>(NEXT_ELEMENT{});
         }
     }
-    namespace tensor{
-//        template <typename T_SHAPE>
-//        struct _RowMajorStride: utils::typing::conditional<!utils::typing::is_same_v<T_SHAPE, FinalElement>, Element<typename T_SHAPE::TI, product(T_SHAPE::NEXT_ELEMENT), RowMajorStride<T_SHAPE::NEXT_ELEMENT>;
+    namespace tensor {
+        template<typename ELEMENT, auto NEW_ELEMENT> // since the last Element is a dummy element containing 0, we need to insert the new element once the NEXT_ELEMENT is the FinalElement
+        struct Append: Element<
+                typename ELEMENT::TI,
+                !utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement> ? ELEMENT::VALUE : NEW_ELEMENT,
+                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
+                        Append<typename ELEMENT::NEXT_ELEMENT, NEW_ELEMENT>,
+                        Element<typename ELEMENT::TI, 0, FinalElement>
+                >>{};
+        template<typename ELEMENT, auto NEW_ELEMENT> // since the last Element is a dummy element containing 0, we need to insert the new element once the NEXT_ELEMENT is the FinalElement
+        struct Prepend: Element<typename ELEMENT::TI, NEW_ELEMENT, ELEMENT>{};
+
 
         template <typename ELEMENT>
         struct Product: Element<
