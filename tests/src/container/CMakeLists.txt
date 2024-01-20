@@ -1,0 +1,10 @@
+add_executable(tensor_test
+        tensor.cpp
+)
+target_link_libraries(
+        tensor_test
+        PRIVATE
+        RLtools::Core
+        GTest::gtest_main
+)
+gtest_discover_tests(tensor_test)

@@ -111,6 +111,110 @@ namespace rl_tools{
         template<typename SPEC_1, typename SPEC_2>
         constexpr bool check_memory_layout = check_structure<SPEC_1, SPEC_2> && SPEC_1::ROW_PITCH == SPEC_2::ROW_PITCH && SPEC_1::COL_PITCH == SPEC_2::COL_PITCH && SPEC_1::IS_VIEW == false && SPEC_2::IS_VIEW == false && utils::typing::is_same_v<typename SPEC_1::T, typename SPEC_2::T> && SPEC_1::SIZE_BYTES == SPEC_2::SIZE_BYTES; // check if e.g. direct memory copy is possible
     }
+
+    namespace tensor{
+        struct FinalElement{};
+        template <typename T_TI, T_TI T_VALUE, typename T_NEXT_ELEMENT>
+        struct Element{
+            using TI = T_TI;
+            static constexpr TI VALUE = T_VALUE;
+            static constexpr bool FINAL_ELEMENT = utils::typing::is_same_v<T_NEXT_ELEMENT, FinalElement>;
+            using NEXT_ELEMENT = T_NEXT_ELEMENT;
+        };
+
+
+        template <typename T_TI, T_TI... T_VALUES>
+        struct Tuple: Element<T_TI, 0, FinalElement>{
+        };
+
+        template <typename T_TI, T_TI T_VALUE, T_TI... T_VALUES>
+        struct Tuple<T_TI, T_VALUE, T_VALUES...>: Element<T_TI, T_VALUE, Tuple<T_TI, T_VALUES...>>{
+            using TI = T_TI;
+            static constexpr TI VALUE = T_VALUE;
+        };
+
+        template <typename TI, TI... T_DIMS>
+        struct Shape: Tuple<TI, T_DIMS...> {
+        };
+
+        template <typename TI, TI... T_DIMS>
+        struct Stride: Tuple<TI, T_DIMS...> {
+        };
+
+
+//        template <typename T_TI, T_TI T_DIM, T_TI... T_DIMS>
+//        struct _RowMajorStride{
+//            using TI = T_TI;
+//            static constexpr bool FINAL_DIMENSION = true;
+//            static constexpr TI DIM = 1;
+//        };
+//
+//        template <typename T_TI, T_TI T_DIM, T_TI T_DIM_NEXT, T_TI... T_DIMS>
+//        struct _RowMajorStride<T_TI, T_DIM, T_DIM_NEXT, T_DIMS...>{
+//            using TI = T_TI;
+//            static constexpr TI DIM = Product<TI, T_DIMS...>::VALUE;
+//            static constexpr bool FINAL_DIMENSION = false;
+//            using NEXT_DIMENSION = _RowMajorStride<T_TI, T_DIM_NEXT, T_DIMS...>;
+//        };
+
+
+        template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE>
+        struct Specification{
+            using T = T_T;
+            using TI = T_TI;
+            using SHAPE = T_SHAPE;
+            using STRIDE = T_STRIDE;
+        };
+
+    }
+    template <typename TI, TI VALUE, typename NEXT_ELEMENT>
+    TI constexpr length(tensor::Element<TI, VALUE, NEXT_ELEMENT>, TI current_length=0){
+        if constexpr(utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>){
+            return current_length;
+        }
+        else{
+            return length(NEXT_ELEMENT{}, current_length+1);
+        }
+    }
+    template <typename TI, TI VALUE, typename NEXT_ELEMENT>
+    TI constexpr product(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
+        if constexpr(utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>){
+            return 1;
+        }
+        else{
+            return VALUE * product(NEXT_ELEMENT{});
+        }
+    }
+    template <auto TARGET_INDEX_INPUT, typename TI, TI VALUE, typename NEXT_ELEMENT>
+    TI constexpr get(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
+        constexpr TI TARGET_INDEX = TARGET_INDEX_INPUT;
+//        constexpr bool LAST_ELEMENT = utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>;
+        static_assert(TARGET_INDEX <= length(NEXT_ELEMENT{}), "Index out of bounds");
+        if constexpr(TARGET_INDEX == 0){
+            return VALUE;
+        }
+        else{
+            return get<TARGET_INDEX_INPUT-1>(NEXT_ELEMENT{});
+        }
+    }
+    namespace tensor{
+//        template <typename T_SHAPE>
+//        struct _RowMajorStride: utils::typing::conditional<!utils::typing::is_same_v<T_SHAPE, FinalElement>, Element<typename T_SHAPE::TI, product(T_SHAPE::NEXT_ELEMENT), RowMajorStride<T_SHAPE::NEXT_ELEMENT>;
+
+        template <typename ELEMENT>
+        struct Product: Element<
+                typename ELEMENT::TI,
+                product(ELEMENT{}),
+                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
+                    Product<typename ELEMENT::NEXT_ELEMENT>,
+                    FinalElement
+                >>{};
+    }
+
+    template <typename T_SPEC>
+    struct Tensor{
+        using SPEC = T_SPEC;
+    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
