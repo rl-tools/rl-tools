@@ -118,7 +118,7 @@ namespace rl_tools{
         struct Element{
             using TI = T_TI;
             static constexpr TI VALUE = T_VALUE;
-            static constexpr bool FINAL_ELEMENT = utils::typing::is_same_v<T_NEXT_ELEMENT, FinalElement>;
+//            static constexpr bool FINAL_ELEMENT = utils::typing::is_same_v<T_NEXT_ELEMENT, FinalElement>;
             using NEXT_ELEMENT = T_NEXT_ELEMENT;
         };
 
@@ -209,6 +209,21 @@ namespace rl_tools{
         template<typename ELEMENT, auto NEW_ELEMENT> // since the last Element is a dummy element containing 0, we need to insert the new element once the NEXT_ELEMENT is the FinalElement
         struct Prepend: Element<typename ELEMENT::TI, NEW_ELEMENT, ELEMENT>{};
 
+        template<typename ELEMENT>
+        struct PopFront: ELEMENT::NEXT_ELEMENT{
+            static_assert(length(ELEMENT{}) > 1);
+        };
+
+        template<typename ELEMENT>
+        struct PopBack: Element<
+                typename ELEMENT::TI,
+                ELEMENT::VALUE,
+                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT, FinalElement>,
+                        PopBack<typename ELEMENT::NEXT_ELEMENT>,
+                        Element<typename ELEMENT::TI, 0, FinalElement>
+                >>{
+            static_assert(length(ELEMENT{}) > 1);
+        };
 
         template <typename ELEMENT>
         struct Product: Element<
