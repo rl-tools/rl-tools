@@ -20,7 +20,7 @@ namespace rl_tools::rl::algorithms::sac::loop{
         using TI = typename DEVICE::index_t;
         DEVICE device;
         typename SPEC::OPTIMIZER actor_optimizer, critic_optimizers[2];
-        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng;
+        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng, rng_eval;
         typename SPEC::UI ui;
         rl::components::OffPolicyRunner<typename SPEC::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
         typename SPEC::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
@@ -54,6 +54,7 @@ namespace rl_tools::rl::algorithms::sac::loop{
         using T = typename SPEC::T;
 
         ts.rng = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
+        ts.rng_eval = random::default_engine(typename SPEC::DEVICE::SPEC::RANDOM(), seed);
 
         malloc(ts.device, ts.actor_critic);
         init(ts.device, ts.actor_critic, ts.rng);
@@ -82,6 +83,8 @@ namespace rl_tools::rl::algorithms::sac::loop{
         set_all(ts.device, ts.observations_std, 1);
 
         ts.off_policy_runner.parameters = rl::components::off_policy_runner::default_parameters<T>;
+
+        construct(ts.device, ts.device.logger);
 
         ts.step = 0;
     }

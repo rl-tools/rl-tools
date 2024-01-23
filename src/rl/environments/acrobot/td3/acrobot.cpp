@@ -21,8 +21,11 @@ namespace training_config {
         using T = float;
         using TI = typename DEVICE::index_t;
 
-        using ENV_SPEC = rlt::rl::environments::acrobot::Specification<T, TI, rlt::rl::environments::acrobot::DefaultParameters<T>>;
-        using ENVIRONMENT = rlt::rl::environments::Acrobot<ENV_SPEC>;
+//        using ENV_PARAMETERS = rlt::rl::environments::acrobot::DefaultParameters<T>;
+        using ENV_PARAMETERS = rlt::rl::environments::acrobot::EasyParameters<T>;
+        using ENV_SPEC = rlt::rl::environments::acrobot::Specification<T, TI, ENV_PARAMETERS>;
+//        using ENVIRONMENT = rlt::rl::environments::Acrobot<ENV_SPEC>;
+        using ENVIRONMENT = rlt::rl::environments::AcrobotSwingup<ENV_SPEC>;
         using ENVIRONMENT_EVALUATION = ENVIRONMENT;
 #if RL_TOOLS_ENABLE_GTK
 //        using UI = rlt::rl::environments::acrobot::UI<rlt::rl::environments::acrobot::ui::Specification<T, TI, ENVIRONMENT, 300, 1600, false>>;
@@ -37,7 +40,7 @@ namespace training_config {
         struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
             constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
             constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
-            constexpr static T GAMMA = 0.997;
+            constexpr static T GAMMA = 0.95;
             static constexpr bool IGNORE_TERMINATION = false;
         };
 
@@ -92,15 +95,16 @@ namespace training_config {
         static constexpr int N_WARMUP_STEPS_ACTOR = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr int N_WARMUP_STEPS_CRITIC = TD3_PARAMETERS::CRITIC_BATCH_SIZE;
 #ifndef RL_TOOLS_STEP_LIMIT
-        static constexpr DEVICE::index_t STEP_LIMIT = 50000; //2 * N_WARMUP_STEPS;
+        static constexpr DEVICE::index_t STEP_LIMIT = 500000; //2 * N_WARMUP_STEPS;
 #else
         static constexpr DEVICE::index_t STEP_LIMIT = RL_TOOLS_STEP_LIMIT;
 #endif
-        static constexpr bool DETERMINISTIC_EVALUATION = false;
+        static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
         static constexpr TI NUM_EVALUATION_EPISODES = 10;
         static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
-        static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 500;
+        static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 100;
+        static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT_EVALUATION = 100;
         static constexpr bool COLLECT_EPISODE_STATS = false;
         static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
         using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
@@ -127,7 +131,7 @@ int main(){
     rlt::rl::algorithms::td3::loop::TrainingState<CONFIG> ts;
 //    rlt::init(ts.device, ts.envs[0]);
     rlt::rl::algorithms::td3::loop::init(ts, 3);
-//    ts.off_policy_runner.parameters.exploration_noise = 0.1;
+    ts.off_policy_runner.parameters.exploration_noise = 0.5;
 //    ts.envs[0].parameters.dt = 0.01;
     for(TI step_i=0; step_i < CONFIG::STEP_LIMIT; step_i++){
         rlt::rl::algorithms::td3::loop::step(ts);

@@ -124,7 +124,7 @@ namespace rl_tools::rl::algorithms::td3::loop{
                 auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, utils::evaluation::Specification<SPEC::NUM_EVALUATION_EPISODES, SPEC::ENVIRONMENT_STEP_LIMIT_EVALUATION>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
                 logging::text(ts.device, ts.device.logger, "Step: ", ts.step, " (mean return: ", result.returns_mean, ", mean episode length: ", result.episode_length_mean, ")");
                 TI current_evaluation_i = ts.step / SPEC::EVALUATION_INTERVAL;
-                assert(current_evaluation_i < TRAINING_STATE::N_EVALUATIONS);
+                rl_tools::utils::assert_exit(ts.device, current_evaluation_i < TRAINING_STATE::N_EVALUATIONS, "Evaluation index out of bounds");
                 ts.evaluation_results[current_evaluation_i] = result;
                 add_scalar(ts.device, ts.device.logger, "evaluation/returns_mean", result.returns_mean);
                 add_scalar(ts.device, ts.device.logger, "evaluation/returns_std", result.returns_std);

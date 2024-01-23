@@ -13,7 +13,7 @@ int main(){
     using T = typename TrainingConfig::T;
     using TI = typename TrainingConfig::TI;
     using DEVICE = typename TrainingConfig::DEVICE;
-    TI NUM_RUNS = 10;
+    TI NUM_RUNS = 1;
 #ifdef RL_TOOLS_ENABLE_HDF5
     std::string DATA_FILE_PATH = "rl_environments_pendulum_sac_learning_curves.h5";
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
@@ -35,11 +35,13 @@ int main(){
 ////                std::cout << "alpha: " << rlt::math::exp(DEVICE::SPEC::MATH{}, rlt::get(ts.actor_critic.log_alpha.parameters, 0, 0)) << std::endl;
 //            }
         }
+#ifndef BENCHMARK
         std::vector<size_t> dims{decltype(ts)::N_EVALUATIONS};
         std::vector<T> mean_returns;
         for(TI i=0; i < decltype(ts)::N_EVALUATIONS; i++){
             mean_returns.push_back(ts.evaluation_results[i].returns_mean);
         }
+#endif
 
 #ifdef RL_TOOLS_ENABLE_HDF5
         run_group.createDataSet("episode_returns", mean_returns);
