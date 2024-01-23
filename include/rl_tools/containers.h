@@ -141,23 +141,6 @@ namespace rl_tools{
         struct Stride: Tuple<TI, T_DIMS...> {
         };
 
-
-//        template <typename T_TI, T_TI T_DIM, T_TI... T_DIMS>
-//        struct _RowMajorStride{
-//            using TI = T_TI;
-//            static constexpr bool FINAL_DIMENSION = true;
-//            static constexpr TI DIM = 1;
-//        };
-//
-//        template <typename T_TI, T_TI T_DIM, T_TI T_DIM_NEXT, T_TI... T_DIMS>
-//        struct _RowMajorStride<T_TI, T_DIM, T_DIM_NEXT, T_DIMS...>{
-//            using TI = T_TI;
-//            static constexpr TI DIM = Product<TI, T_DIMS...>::VALUE;
-//            static constexpr bool FINAL_DIMENSION = false;
-//            using NEXT_DIMENSION = _RowMajorStride<T_TI, T_DIM_NEXT, T_DIMS...>;
-//        };
-
-
         template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE>
         struct Specification{
             using T = T_T;
@@ -233,6 +216,18 @@ namespace rl_tools{
                     Product<typename ELEMENT::NEXT_ELEMENT>,
                     FinalElement
                 >>{};
+        template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET>
+        struct Replace: Element<
+                typename ELEMENT::TI,
+                NEW_ELEMENT_OFFSET == 0 ? NEW_ELEMENT : ELEMENT::VALUE,
+                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
+                        Replace<typename ELEMENT::NEXT_ELEMENT, NEW_ELEMENT, NEW_ELEMENT_OFFSET-1>,
+                        FinalElement
+                >>{
+        };
+
+        template <typename SHAPE>
+        using RowMajorStride = Append<PopFront<Product<SHAPE>>, 1>;
     }
 
     template <typename T_SPEC>
