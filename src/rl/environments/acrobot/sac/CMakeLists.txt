@@ -1,3 +1,2 @@
 add_executable(rl_environments_acrobot_sac_training acrobot.cpp)
 target_link_libraries(rl_environments_acrobot_sac_training PRIVATE rl_tools)
-target_compile_definitions(rl_environments_acrobot_sac_training PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)

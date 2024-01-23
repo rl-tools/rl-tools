@@ -27,3 +27,20 @@ target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE RL
 target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 RL_TOOLS_INSTALL(rl_environments_pendulum_sac_training_blas)
 endif()
+
+if(RL_TOOLS_BACKEND_ENABLE_BLAS)
+    add_executable(
+            rl_environments_pendulum_sac_training_benchmark
+            training.cpp
+    )
+    target_link_libraries(
+            rl_environments_pendulum_sac_training_benchmark
+            PRIVATE
+            rl_tools
+    )
+    target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE RL_TOOLS_DISABLE_HDF5)
+    target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+    target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE BENCHMARK)
+    target_compile_options(rl_environments_pendulum_sac_training_blas PRIVATE -Ofast -march=native -mtune=native)
+    RL_TOOLS_INSTALL(rl_environments_pendulum_sac_training_blas)
+endif()

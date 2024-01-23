@@ -85,12 +85,20 @@ namespace training_config{
 
         static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr DEVICE::index_t STEP_LIMIT = 10000; //2 * N_WARMUP_STEPS;
+#ifndef BENCHMARK
         static constexpr bool DETERMINISTIC_EVALUATION = true;
+#else
+        static constexpr bool DETERMINISTIC_EVALUATION = false;
+#endif
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
         static constexpr TI NUM_EVALUATION_EPISODES = 10;
         static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = STEP_LIMIT;
         static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
+#ifndef BENCHMARK
+        static constexpr bool COLLECT_EPISODE_STATS = true;
+#else
         static constexpr bool COLLECT_EPISODE_STATS = false;
+#endif
         static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
         using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
                 T,
@@ -114,7 +122,7 @@ int main(){
     using T = typename TrainingConfig::T;
     using TI = typename TrainingConfig::TI;
     using DEVICE = typename TrainingConfig::DEVICE;
-    TI NUM_RUNS = 10;
+    TI NUM_RUNS = 1;
 #ifdef RL_TOOLS_ENABLE_HDF5
     std::string DATA_FILE_PATH = "rl_environments_pendulum_sac_learning_curves.h5";
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::Overwrite);
@@ -136,11 +144,13 @@ int main(){
 ////                std::cout << "alpha: " << rlt::math::exp(DEVICE::SPEC::MATH{}, rlt::get(ts.actor_critic.log_alpha.parameters, 0, 0)) << std::endl;
 //            }
         }
+#ifndef BENCHMARK
         std::vector<size_t> dims{decltype(ts)::N_EVALUATIONS};
         std::vector<T> mean_returns;
         for(TI i=0; i < decltype(ts)::N_EVALUATIONS; i++){
             mean_returns.push_back(ts.evaluation_results[i].returns_mean);
         }
+#endif
 
 #ifdef RL_TOOLS_ENABLE_HDF5
         run_group.createDataSet("episode_returns", mean_returns);
