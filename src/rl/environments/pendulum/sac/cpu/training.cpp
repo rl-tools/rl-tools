@@ -41,11 +41,11 @@ int main(){
         for(TI i=0; i < decltype(ts)::N_EVALUATIONS; i++){
             mean_returns.push_back(ts.evaluation_results[i].returns_mean);
         }
-#endif
-
 #ifdef RL_TOOLS_ENABLE_HDF5
         run_group.createDataSet("episode_returns", mean_returns);
 #endif
+#endif
+
 
         rlt::rl::algorithms::sac::loop::destroy(ts);
         auto end = std::chrono::high_resolution_clock::now();
