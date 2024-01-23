@@ -8,8 +8,6 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 
-
-
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_generic.h>

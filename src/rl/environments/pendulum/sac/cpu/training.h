@@ -9,7 +9,7 @@
 
 using TrainingConfig = training_config::TrainingConfig;
 
-int run(){
+int run(int base_seed = 0){
     using T = typename TrainingConfig::T;
     using TI = typename TrainingConfig::TI;
     using DEVICE = typename TrainingConfig::DEVICE;
@@ -23,7 +23,7 @@ int run(){
         auto start = std::chrono::high_resolution_clock::now();
         std::cout << "Run: " << run_i << std::endl;
         rlt::rl::algorithms::sac::loop::TrainingState<TrainingConfig> ts;
-        TI seed = run_i;
+        TI seed = base_seed + run_i;
         rlt::rl::algorithms::sac::loop::init(ts, seed);
         ts.off_policy_runner.parameters.exploration_noise = 0;
 #ifdef RL_TOOLS_ENABLE_HDF5
