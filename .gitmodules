@@ -12,7 +12,7 @@
 	path = media
 	url = https://github.com/rl-tools/media.git
 [submodule "src/rl/environments/pendulum/td3/wasm/static/media"]
-	path = src/rl/environments/pendulum/td3/wasm/static/media
+	path = src/rl/environments/pendulum/sac/wasm/static/media
 	url = https://github.com/rl-tools/media
 
 # Embedded Platforms
