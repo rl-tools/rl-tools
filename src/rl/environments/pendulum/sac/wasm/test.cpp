@@ -3,7 +3,7 @@
 int main(){
     TrainingState<TrainingConfig> ts;
 
-    training_init(ts, 1);
+    training_init(ts, 10);
 
     bool finished = false;
     while(!finished){

@@ -1,9 +1,9 @@
 add_executable(
-        rl_environments_pendulum_td3_wasm_training_test
+        rl_environments_pendulum_sac_wasm_training_test
         test.cpp
 )
 target_link_libraries(
-        rl_environments_pendulum_td3_wasm_training_test
+        rl_environments_pendulum_sac_wasm_training_test
         PRIVATE
         rl_tools
 )

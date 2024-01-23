@@ -5,7 +5,7 @@
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_generic.h>
-#include <rl_tools/rl/algorithms/td3/operations_generic.h>
+#include <rl_tools/rl/algorithms/sac/operations_generic.h>
 
 
 #ifndef RL_TOOLS_BENCHMARK
@@ -27,15 +27,15 @@ struct TrainingConfig{
     struct DEVICE_SPEC: rlt::devices::DefaultCPUSpecification {
         using LOGGING = rlt::devices::logging::CPU;
     };
-    struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<DTYPE, DEVICE::index_t>{
+    struct SACPendulumParameters: rlt::rl::algorithms::sac::DefaultParameters<DTYPE, DEVICE::index_t>{
         constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
         constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
     };
 
-    using TD3_PARAMETERS = TD3PendulumParameters;
+    using SAC_PARAMETERS = SACPendulumParameters;
 
-    using ActorStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-    using CriticStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
+    using ActorStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
+    using CriticStructureSpec = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
 
 
     using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>;
@@ -52,8 +52,9 @@ struct TrainingConfig{
     using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
     using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
 
-    using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
-    using ACTOR_CRITIC_TYPE = rlt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
+    using ALPHA_PARAMETER_TYPE = rlt::nn::parameters::Adam;
+    using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::sac::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, ALPHA_PARAMETER_TYPE, OPTIMIZER, OPTIMIZER, OPTIMIZER, SAC_PARAMETERS>;
+    using ACTOR_CRITIC_TYPE = rlt::rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 
 
     static constexpr int N_WARMUP_STEPS = ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
@@ -67,6 +68,7 @@ struct TrainingConfig{
     static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
     static constexpr bool COLLECT_EPISODE_STATS = true;
     static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
+    static constexpr bool STOCHASTIC_POLICY = true;
     using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
             DTYPE,
             DEVICE::index_t,
@@ -76,7 +78,7 @@ struct TrainingConfig{
             REPLAY_BUFFER_CAP,
             ENVIRONMENT_STEP_LIMIT,
             rlt::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
-            false,
+            STOCHASTIC_POLICY,
             COLLECT_EPISODE_STATS,
             EPISODE_STATS_BUFFER_SIZE
     >;
@@ -98,11 +100,11 @@ struct CoreTrainingState{
     typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE actor_critic;
     typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<1> actor_deterministic_evaluation_buffers;
     rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
-    rlt::rl::algorithms::td3::CriticTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_SPEC> critic_training_buffers;
+    rlt::rl::algorithms::sac::CriticTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_SPEC> critic_training_buffers;
     rlt::MatrixDynamic<rlt::matrix::Specification<typename TRAINING_CONFIG::DTYPE, TI, 1, TRAINING_CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
     typename TRAINING_CONFIG::CRITIC_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
     rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
-    rlt::rl::algorithms::td3::ActorTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
+    rlt::rl::algorithms::sac::ActorTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
     typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
     typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
 };
@@ -190,20 +192,16 @@ bool training_step(TRAINING_STATE& ts){
     if(ts.step > TRAINING_CONFIG::N_WARMUP_STEPS){
 
         for(int critic_i = 0; critic_i < 2; critic_i++){
-            rlt::target_action_noise(ts.device, ts.actor_critic, ts.critic_training_buffers.target_next_action_noise, ts.rng);
             rlt::gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-            rlt::train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
+            rlt::train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers, ts.rng);
         }
 
-        if(ts.step % 2 == 0){
-            {
-                rlt::gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                rlt::train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
-            }
-
-            rlt::update_critic_targets(ts.device, ts.actor_critic);
-            rlt::update_actor_target(ts.device, ts.actor_critic);
+        {
+            rlt::gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+            rlt::train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
         }
+
+        rlt::update_critic_targets(ts.device, ts.actor_critic);
     }
 #ifndef RL_TOOLS_BENCHMARK
     if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
