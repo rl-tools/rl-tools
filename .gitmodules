@@ -22,6 +22,9 @@
 [submodule "embedded_platforms/crazyflie/firmware"]
 	path = embedded_platforms/crazyflie/firmware
 	url = https://github.com/rl-tools/crazyflie-firmware.git
+[submodule "embedded_platforms/ios"]
+	path = embedded_platforms/ios
+	url = https://github.com/rl-tools/ios
 
 # Dependencies
 [submodule "external/cli11"]
