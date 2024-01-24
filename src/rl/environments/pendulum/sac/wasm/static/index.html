@@ -107,7 +107,14 @@
             });
         }
 
+        let sleep = (ms) => {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        await sleep(500);
         await sendMessageToWorker("initialize", {benchmark: false});
+        document.getElementById("training-button").disabled = false;
+        document.getElementById("training-button").value = "Start training";
+
 
         let training = false;
         document.getElementById("training-button").addEventListener("click", async () => {
@@ -210,7 +217,7 @@
         <input id="seed-input" class="fancy-number-input" type="number" placeholder="seed">
     </div>
     <div class="controls-container">
-        <input class="fancy-button" type="button" value="Start training" id="training-button">
+        <input class="fancy-button" type="button" value="Loading..." id="training-button" disabled>
     </div>
     <div class="returns-chart-container">
         <canvas id="returns-chart"></canvas>

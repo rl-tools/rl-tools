@@ -130,6 +130,15 @@ body {
     box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
+.fancy-button:disabled {
+    background: linear-gradient(to right, #cccccc, #dddddd);
+    color: #666666;
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 0.7;
+}
+
+
 .fancy-button-small {
     letter-spacing: 1px;
     padding: 10px 20px;
