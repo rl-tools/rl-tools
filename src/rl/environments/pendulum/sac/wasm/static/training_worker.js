@@ -8,7 +8,7 @@ let training_finished = false;
 let state_dim = null;
 let current_episode = null;
 self.addEventListener("message", async (event) => {
-    console.log("Message received from main script: ", event.data);
+    // console.log("Message received from main script: ", event.data);
     if (event.data.type === 'initialize') {
         console.log("Initializing worker, benchmark: " + event.data.payload.benchmark);
         console.assert(rlt === null)

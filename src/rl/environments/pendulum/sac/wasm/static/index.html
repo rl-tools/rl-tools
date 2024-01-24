@@ -88,13 +88,13 @@
                     appendToTerminal(event.data.type);
                 }
             }
-            console.log("Message from worker", event.data);
+            // console.log("Message from worker", event.data);
         });
         function sendMessageToWorker(type, payload) {
             return new Promise((resolve, reject) => {
                 const id = Math.random().toString(36); // Generate a unique ID for the message
                 const msg = {id, type, payload}
-                console.log("Sending message to worker", msg);
+                // console.log("Sending message to worker", msg);
                 worker.postMessage(msg);
 
                 const handleMessage = (event) => {
@@ -137,7 +137,7 @@
                     let answer = await sendMessageToWorker("train_one_step");
                     finished = answer.training_finished;
                     let state = answer.state;
-                    console.log("Step: ", answer.step, " Finished: ", finished, " State: ", state, " Episode: ", answer.episode, " Episode return: ", answer.episode_return)
+                    // console.log("Step: ", answer.step, " Finished: ", finished, " State: ", state, " Episode: ", answer.episode, " Episode return: ", answer.episode_return)
                     if(answer.episode_return){
                         returns_chart.data.labels.push(answer.step);
                         returns_chart.data.datasets[0].data.push(answer.episode_return);
@@ -162,8 +162,8 @@
                     let end = performance.now();
                     let dt = (end - start) / 1000;
                     let sleep_time = Math.max(0, target_dt - dt);
-                    console.log("Sleeping for ", sleep_time, " seconds")
                     if(realtime_checkbox.checked){
+                        // console.log("Sleeping for ", sleep_time, " seconds")
                         await new Promise(resolve => setTimeout(resolve, sleep_time * 1000));
                     }
                 }
