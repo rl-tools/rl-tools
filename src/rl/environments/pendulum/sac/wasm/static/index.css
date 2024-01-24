@@ -110,6 +110,8 @@ body {
 }
 
 .fancy-button {
+    display: inline-block;
+    margin: 5px;
     font-family: "Open Sans", sans-serif;
     font-weight: bold;
     text-transform: uppercase;
@@ -123,6 +125,7 @@ body {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     transition: all 0.2s ease-in-out;
+    white-space: nowrap;
 }
 
 .fancy-button:hover {
