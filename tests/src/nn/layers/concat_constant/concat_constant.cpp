@@ -16,7 +16,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using T = float;
 //using DEVICE = rlt::devices::DefaultCPU;
-using DEVICE = rlt::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
 using TI = typename DEVICE::index_t;
 
 constexpr TI INPUT_DIM = 4;

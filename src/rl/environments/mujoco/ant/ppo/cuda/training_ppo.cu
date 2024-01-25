@@ -55,7 +55,7 @@ using LOGGER = rlt::devices::logging::CPU;
 #endif
 
 using DEV_SPEC_SUPER = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
-using TI = typename rlt::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
+using TI = typename rlt::devices::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 constexpr TI NUM_RUNS = 1;
 namespace execution_hints{
     struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
@@ -64,9 +64,9 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
 
-using DEVICE = rlt::DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 // -------------- added for cuda training ----------------
-using DEVICE_GPU = rlt::DEVICE_FACTORY_GPU<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_GPU<rlt::devices::DefaultCUDASpecification>;
 // -------------------------------------------------------
 using T = float;
 using TI = typename DEVICE::index_t;

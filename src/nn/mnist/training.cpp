@@ -11,7 +11,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <highfive/H5File.hpp>
 
 using T = float;
-using DEVICE = rlt::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
 using TI = typename DEVICE::index_t;
 
 constexpr TI BATCH_SIZE = 32;

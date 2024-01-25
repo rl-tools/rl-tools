@@ -62,15 +62,19 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename... ARGS>
     using LOGGER_FACTORY = devices::logging::CPU_TENSORBOARD<ARGS...>;
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename... ARGS>
     using LOGGER_FACTORY = devices::logging::CPU;
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 // ------------ Groups 2 ------------
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
@@ -118,5 +122,15 @@ namespace rl_tools::devices{
     template<typename DEV_SPEC=devices::cpu::Specification<devices::math::CPU, devices::random::CPU, LOGGER_FACTORY<>>>
     using DEVICE_FACTORY = DEVICE_FACTORY_INTERNAL<DEV_SPEC>;
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#if defined(RL_TOOLS_BACKEND_ENABLE_CUDA) && defined(RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA)
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::devices{
+    template<typename DEV_SPEC>
+    using DEVICE_FACTORY_GPU = DEVICE_FACTORY_INTERNAL_GPU<DEV_SPEC>;
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+#endif
 
 #endif

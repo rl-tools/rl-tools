@@ -26,7 +26,7 @@ using DEVICE = rlt::devices::DefaultARM; // The arm device just uses plain C++
 #else
 using LOGGER = rlt::LOGGER_FACTORY<>;
 using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
-using DEVICE = rlt::DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 #endif
 
 

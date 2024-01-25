@@ -13,7 +13,7 @@ namespace parameters = parameters_0;
 using LOGGER = rlt::devices::logging::CPU_TENSORBOARD<>;
 using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
 
-using DEVICE = rlt::DEVICE_FACTORY<DEV_SPEC>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using T = float;
 using TI = typename DEVICE::index_t;
 

@@ -16,7 +16,7 @@ namespace training_config {
     struct Config{
         using DEV_SPEC = rlt::devices::DefaultCPUSpecification;
 //    using DEVICE = rlt::devices::CPU<DEV_SPEC>;
-        using DEVICE = rlt::DEVICE_FACTORY<DEV_SPEC>;
+        using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
         using T = float;
         using TI = typename DEVICE::index_t;
 

@@ -6,7 +6,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <highfive/H5File.hpp>
 
 
-using DEVICE = rlt::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
 using TI = typename DEVICE::index_t;
 
 template <typename T, TI ROWS, TI COLS, TI BATCH_SIZE>

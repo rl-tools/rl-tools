@@ -207,7 +207,7 @@ void test_correctness(){
 TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS){
     using T = float;
 //using DEVICE = rlt::devices::DefaultCPU;
-    using DEVICE = rlt::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
+    using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
     using TI = typename DEVICE::index_t;
 
     test_correctness<DEVICE, DEVICE, config::CONFIG<T, TI>>();
@@ -216,7 +216,7 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS){
 TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS_CPU){
     using T = double;
 //using DEVICE = rlt::devices::DefaultCPU;
-    using DEVICE = rlt::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
+    using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
     using SEQUENTIAL_DEVICE = rlt::devices::DefaultCPU;
     using TI = typename DEVICE::index_t;
 
@@ -226,7 +226,7 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS_CPU){
 TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
     using T = double;
 //using DEVICE = rlt::devices::DefaultCPU;
-    using DEVICE = rlt::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
+    using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
     using SEQUENTIAL_DEVICE = rlt::devices::DefaultCPU;
     using TI = typename DEVICE::index_t;
 
@@ -317,7 +317,7 @@ void test_benchmark(){
 
 TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, BENCHMARK){
     using T = double;
-    using DEVICE = rlt::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
+    using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
     using TI = typename DEVICE::index_t;
 
     test_benchmark<DEVICE, config::CONFIG<T, TI>>();
