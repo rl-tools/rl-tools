@@ -4,6 +4,7 @@
 #define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_CONFIG_H
 
 #include "../../../../../nn_models/sequential/model.h"
+#include "../../../../../nn_models/mlp/network.h"
 #include "../../../../../rl/algorithms/sac/sac.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
 #include "state.h"
@@ -22,25 +23,20 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
 
         static constexpr TI ACTOR_HIDDEN_DIM = 64;
+        static constexpr TI ACTOR_NUM_LAYERS = 3;
         static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
         static constexpr TI CRITIC_HIDDEN_DIM = 64;
+        static constexpr TI CRITIC_NUM_LAYERS = 3;
         static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
 
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
     };
 
-    template<typename T_DEVICE, typename T_T, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, typename T_DEVICE::index_t, T_ENVIRONMENT>>
-    struct DefaultConfig {
-        using DEVICE = T_DEVICE;
-        using T = T_T;
-        using TI = typename DEVICE::index_t;
-        using ENVIRONMENT = T_ENVIRONMENT;
-        using DEV_SPEC = devices::DefaultCPUSpecification;
-        using UI = bool;
-
-        using PARAMETERS = T_PARAMETERS;
-
+    // The approximator config sets up any types that support the usual rl_tools::forward and rl_tools::backward operations (can be custom as well)
+    // We provide approximators based on the sequential and mlp models. The latter (mlp) allows for a variable number of layers, but is restricted to a uniform hidden layer size while the former allows for arbitrary layers to be combined in a sequential manner. Both support compile-time autodiff
+    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+    struct DefaultConfigApproximatorsSequential{
         template <typename PARAMETER_TYPE, template<typename> class LAYER_TYPE = nn::layers::dense::LayerBackwardGradient>
         struct ACTOR{
             static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
@@ -76,16 +72,51 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
 
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
-        using ALPHA_OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
         using ACTOR_TYPE = typename ACTOR<nn::parameters::Adam>::MODEL;
         using ACTOR_TARGET_TYPE = typename ACTOR<nn::parameters::Adam, nn::layers::dense::Layer>::MODEL;
         using CRITIC_TYPE = typename CRITIC<nn::parameters::Adam>::MODEL;
         using CRITIC_TARGET_TYPE = typename CRITIC<nn::parameters::Adam, nn::layers::dense::Layer>::MODEL;
+    };
+
+    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+    struct DefaultConfigApproximatorsMLP{
+        using ACTOR_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::TANH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
+        using CRITIC_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
+        using OPTIMIZER_SPEC = typename nn::optimizers::adam::Specification<T, TI>;
+        using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
+        using ACTOR_SPEC = nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC >;
+        using ACTOR_TYPE = nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
+
+        using ACTOR_TARGET_SPEC = nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
+        using ACTOR_TARGET_TYPE = nn_models::mlp::NeuralNetwork<ACTOR_TARGET_SPEC>;
+
+        using CRITIC_SPEC = nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
+        using CRITIC_TYPE = nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
+
+        using CRITIC_TARGET_SPEC = nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC >;
+        using CRITIC_TARGET_TYPE = nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
+    };
+
+    template<typename T_DEVICE, typename T_T, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, typename T_DEVICE::index_t, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=DefaultConfigApproximatorsSequential>
+    struct DefaultConfig{
+        using DEVICE = T_DEVICE;
+        using T = T_T;
+        using TI = typename DEVICE::index_t;
+        using ENVIRONMENT = T_ENVIRONMENT;
+        using DEV_SPEC = devices::DefaultCPUSpecification;
+        using UI = bool;
+
+        using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
+//        using NN = DefaultConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
+
+        using PARAMETERS = T_PARAMETERS;
+
 
         using ALPHA_PARAMETER_TYPE = nn::parameters::Adam;
+        using ALPHA_OPTIMIZER = nn::optimizers::Adam<typename NN::OPTIMIZER_SPEC>;
 
-        using ACTOR_CRITIC_SPEC = rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, OPTIMIZER, OPTIMIZER, ALPHA_OPTIMIZER, typename PARAMETERS::SAC_PARAMETERS>;
+        using ACTOR_CRITIC_SPEC = rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::ACTOR_TARGET_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, typename NN::OPTIMIZER, typename NN::OPTIMIZER, ALPHA_OPTIMIZER, typename PARAMETERS::SAC_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<
