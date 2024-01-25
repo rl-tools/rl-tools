@@ -5,9 +5,9 @@
 
 
 #include <rl_tools/rl/algorithms/sac/loop/core/config.h>
-#include <rl_tools/rl/algorithms/sac/loop/evaluation/config.h>
+#include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations.h>
-#include <rl_tools/rl/algorithms/sac/loop/evaluation/operations.h>
+#include <rl_tools/rl/loop/steps/evaluation/operations.h>
 
 namespace rlt = rl_tools;
 
@@ -21,7 +21,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI STEP_LIMIT = 11000;
 };
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
-using LOOP_EVAL_CONFIG = rlt::rl::algorithms::sac::loop::evaluation::DefaultConfig<LOOP_CORE_CONFIG>;
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::DefaultConfig<LOOP_CORE_CONFIG>;
 using LOOP_CONFIG = LOOP_EVAL_CONFIG;
 
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;

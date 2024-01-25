@@ -1,17 +1,16 @@
-#include "../../../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_EVALUATION_CONFIG_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#include "../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_LOOP_STEPS_EVALUATION_CONFIG_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_EVALUATION_CONFIG_H
+#define RL_TOOLS_RL_LOOP_STEPS_EVALUATION_CONFIG_H
 
-#include "../../../../../rl/algorithms/sac/operations_generic.h"
-#include "../../../../../rl/components/off_policy_runner/operations_generic.h"
+#include "../../../../rl/components/off_policy_runner/operations_generic.h"
 
-#include "../../../../../rl/utils/evaluation.h"
+#include "../../../../rl/utils/evaluation.h"
 
 #include "state.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::algorithms::sac::loop::evaluation{
+namespace rl_tools::rl::loop::steps::evaluation{
     template <typename T, typename TI, typename NEXT>
     struct DefaultParameters{
         static constexpr bool DETERMINISTIC_EVALUATION = true;

@@ -1,35 +1,35 @@
-#include "../../../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_EVALUATION_OPERATIONS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#include "../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_LOOP_STEPS_EVALUATION_OPERATIONS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_EVALUATION_OPERATIONS_H
+#define RL_TOOLS_RL_LOOP_STEPS_EVALUATION_OPERATIONS_H
 
-#include "../../../../../rl/algorithms/sac/operations_generic.h"
-#include "../../../../../rl/components/off_policy_runner/operations_generic.h"
+#include "../../../../rl/algorithms/sac/operations_generic.h"
+#include "../../../../rl/components/off_policy_runner/operations_generic.h"
 
 
-#include "../../../../../rl/utils/evaluation.h"
+#include "../../../../rl/utils/evaluation.h"
 
 #include "config.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename T_CONFIG>
-    void init(rl::algorithms::sac::loop::evaluation::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
-        using STATE = rl::algorithms::sac::loop::evaluation::TrainingState<T_CONFIG>;
+    void init(rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        using STATE = rl::loop::steps::evaluation::TrainingState<T_CONFIG>;
         init(static_cast<typename STATE::NEXT&>(ts), seed);
     }
 
     template <typename T_CONFIG>
-    void destroy(rl::algorithms::sac::loop::evaluation::TrainingState<T_CONFIG>& ts){
-        using STATE = rl::algorithms::sac::loop::evaluation::TrainingState<T_CONFIG>;
+    void destroy(rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts){
+        using STATE = rl::loop::steps::evaluation::TrainingState<T_CONFIG>;
         destroy(static_cast<typename STATE::NEXT&>(ts));
     }
 
     template <typename CONFIG>
-    bool step(rl::algorithms::sac::loop::evaluation::TrainingState<CONFIG>& ts){
+    bool step(rl::loop::steps::evaluation::TrainingState<CONFIG>& ts){
         using TI = typename CONFIG::TI;
         using PARAMETERS = typename CONFIG::PARAMETERS;
-        using STATE = rl::algorithms::sac::loop::evaluation::TrainingState<CONFIG>;
+        using STATE = rl::loop::steps::evaluation::TrainingState<CONFIG>;
         if constexpr(PARAMETERS::DETERMINISTIC_EVALUATION == true){
 
             TI evaluation_index = ts.step / PARAMETERS::EVALUATION_INTERVAL;
