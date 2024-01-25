@@ -13,9 +13,9 @@
 #pragma message "RLtools: Using MKL backend"
 #include "../operations/cpu_mkl/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools{
+namespace rl_tools::devices{
     template <typename DEV_SPEC>
-    using DEVICE_FACTORY = rl_tools::devices::CPU_MKL<DEV_SPEC>;
+    using DEVICE_FACTORY_INTERNAL = rl_tools::devices::CPU_MKL<DEV_SPEC>;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
@@ -23,9 +23,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #pragma message "RLtools: Using Apple Accelerate backend"
 #include "../operations/cpu_accelerate/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools{
+namespace rl_tools::devices{
     template <typename DEV_SPEC>
-    using DEVICE_FACTORY = rl_tools::devices::CPU_ACCELERATE<DEV_SPEC>;
+    using DEVICE_FACTORY_INTERNAL = rl_tools::devices::CPU_ACCELERATE<DEV_SPEC>;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
@@ -33,18 +33,18 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #pragma message "RLtools: Uing OpenBLAS backend"
 #include "../operations/cpu_openblas/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools{
+namespace rl_tools::devices{
     template <typename DEV_SPEC>
-    using DEVICE_FACTORY = rl_tools::devices::CPU_OPENBLAS<DEV_SPEC>;
+    using DEVICE_FACTORY_INTERNAL = rl_tools::devices::CPU_OPENBLAS<DEV_SPEC>;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
 #pragma message "RLtools: Using Generic Backend"
 #include "../operations/cpu/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools{
+namespace rl_tools::devices{
     template <typename DEV_SPEC>
-    using DEVICE_FACTORY = rl_tools::devices::CPU<DEV_SPEC>;
+    using DEVICE_FACTORY_INTERNAL = rl_tools::devices::CPU<DEV_SPEC>;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
@@ -54,9 +54,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #pragma message "RLtools: Enabling CUDA"
 #include "../operations/cuda/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools {
+namespace rl_tools::devices{
     template<typename DEV_SPEC>
-    using DEVICE_FACTORY_GPU = rl_tools::devices::CUDA<DEV_SPEC>;
+    using DEVICE_FACTORY_INTERNAL_GPU = rl_tools::devices::CUDA<DEV_SPEC>;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
@@ -112,5 +112,11 @@ namespace rl_tools{
 #if defined(RL_TOOLS_BACKEND_ENABLE_CUDA) && defined(RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA)
 #include "../operations/cuda/group_3.h"
 #endif
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::devices{
+    template<typename DEV_SPEC=devices::cpu::Specification<devices::math::CPU, devices::random::CPU, LOGGER_FACTORY<>>>
+    using DEVICE_FACTORY = DEVICE_FACTORY_INTERNAL<DEV_SPEC>;
+}
 
 #endif

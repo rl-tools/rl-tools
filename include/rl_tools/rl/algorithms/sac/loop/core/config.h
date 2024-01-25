@@ -5,13 +5,8 @@
 
 #include "../../../../../nn_models/sequential/model.h"
 #include "../../../../../rl/algorithms/sac/sac.h"
-
-
+#include "../../../../../nn/optimizers/adam/adam.h"
 #include "state.h"
-
-#include "../../../../../rl/utils/evaluation.h"
-
-
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::sac::loop::core{

@@ -6,12 +6,14 @@
 
 #include <rl_tools/rl/algorithms/sac/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
+#include <rl_tools/rl/loop/steps/timing/config.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations.h>
+#include <rl_tools/rl/loop/steps/timing/operations.h>
 
 namespace rlt = rl_tools;
 
-using DEVICE = rlt::devices::DefaultCPU;
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -20,9 +22,16 @@ using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     static constexpr TI STEP_LIMIT = 11000;
 };
+#ifdef BENCHMARK
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_CORE_CONFIG>;
+using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+#else
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::DefaultConfig<LOOP_CORE_CONFIG>;
-using LOOP_CONFIG = LOOP_EVAL_CONFIG;
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_EVAL_CONFIG>;
+using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+#endif
 
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 

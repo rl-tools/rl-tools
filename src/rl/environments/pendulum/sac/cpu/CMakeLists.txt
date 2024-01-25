@@ -25,6 +25,7 @@ target_link_libraries(
 )
 target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE RL_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+#target_compile_options(rl_environments_pendulum_sac_training_blas PRIVATE -Ofast -march=native -mtune=native)
 RL_TOOLS_INSTALL(rl_environments_pendulum_sac_training_blas)
 endif()
 
@@ -38,9 +39,9 @@ if(RL_TOOLS_BACKEND_ENABLE_BLAS)
             PRIVATE
             rl_tools
     )
-    target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE RL_TOOLS_DISABLE_HDF5)
-    target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
-    target_compile_definitions(rl_environments_pendulum_sac_training_blas PRIVATE BENCHMARK)
-    target_compile_options(rl_environments_pendulum_sac_training_blas PRIVATE -Ofast -march=native -mtune=native)
-    RL_TOOLS_INSTALL(rl_environments_pendulum_sac_training_blas)
+    target_compile_definitions(rl_environments_pendulum_sac_training_benchmark PRIVATE RL_TOOLS_DISABLE_HDF5)
+    target_compile_definitions(rl_environments_pendulum_sac_training_benchmark PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+    target_compile_definitions(rl_environments_pendulum_sac_training_benchmark PRIVATE BENCHMARK)
+    target_compile_options(rl_environments_pendulum_sac_training_benchmark PRIVATE -Ofast -march=native -mtune=native)
+    RL_TOOLS_INSTALL(rl_environments_pendulum_sac_training_benchmark)
 endif()

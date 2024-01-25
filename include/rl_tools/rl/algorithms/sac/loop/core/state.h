@@ -3,9 +3,8 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_STATE_H
 
-#include "../../../../../rl/algorithms/sac/operations_generic.h"
-#include "../../../../../rl/components/off_policy_runner/operations_generic.h"
-
+#include "../../../../../rl/algorithms/sac/sac.h"
+#include "../../../../../rl/components/off_policy_runner/off_policy_runner.h"
 #include "../../../../../rl/utils/evaluation.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
