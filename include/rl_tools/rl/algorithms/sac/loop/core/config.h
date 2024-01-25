@@ -26,6 +26,11 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
 
+        static constexpr TI ACTOR_HIDDEN_DIM = 64;
+        static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
+        static constexpr TI CRITIC_HIDDEN_DIM = 64;
+        static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
+
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
     };
@@ -43,11 +48,12 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         template <typename PARAMETER_TYPE, template<typename> class LAYER_TYPE = nn::layers::dense::LayerBackwardGradient>
         struct ACTOR{
-            static constexpr TI HIDDEN_DIM = 64;
+            static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
             static constexpr TI BATCH_SIZE = PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE;
-            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
+            static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
+            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_1 = LAYER_TYPE<LAYER_1_SPEC>;
-            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_2 = LAYER_TYPE<LAYER_2_SPEC>;
             static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
             using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
@@ -58,12 +64,13 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         template <typename PARAMETER_TYPE, template<typename> class LAYER_TYPE = nn::layers::dense::LayerBackwardGradient>
         struct CRITIC{
-            static constexpr TI HIDDEN_DIM = 64;
+            static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
             static constexpr TI BATCH_SIZE = PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE;
+            static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
 
-            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_1 = LAYER_TYPE<LAYER_1_SPEC>;
-            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_2 = LAYER_TYPE<LAYER_2_SPEC>;
             using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_3 = LAYER_TYPE<LAYER_3_SPEC>;
