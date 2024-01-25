@@ -44,9 +44,11 @@ int main(){
     LOOP_STATE ts;
     rlt::init(ts, 0);
     while(!rlt::step(ts)){
+#ifndef BENCHMARK
         if(ts.step == 5000){
             std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
         }
+#endif
     }
     rlt::destroy(ts);
 }
