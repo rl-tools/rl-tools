@@ -1,23 +1,23 @@
 #include "../../../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_CONFIG_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_TD3_LOOP_CORE_CONFIG_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_CONFIG_H
+#define RL_TOOLS_RL_ALGORITHMS_TD3_LOOP_CORE_CONFIG_H
 
 #include "../../../../../nn_models/sequential/model.h"
 #include "../../../../../nn_models/mlp/network.h"
-#include "../../../../../rl/algorithms/sac/sac.h"
+#include "../../../../../rl/algorithms/td3/td3.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
 #include "state.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::algorithms::sac::loop::core{
+namespace rl_tools::rl::algorithms::td3::loop::core{
     // Config State (Init/Step)
     using namespace nn_models::sequential::interface;
 
     template<typename T, typename TI, typename ENVIRONMENT>
     struct DefaultParameters{
-        using SAC_PARAMETERS = rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>;
-        static constexpr int N_WARMUP_STEPS = SAC_PARAMETERS::ACTOR_BATCH_SIZE;
+        using TD3_PARAMETERS = rl::algorithms::td3::DefaultParameters<T, TI>;
+        static constexpr int N_WARMUP_STEPS = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr TI STEP_LIMIT = 10000;
         static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
@@ -40,13 +40,13 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         template <typename PARAMETER_TYPE, template<typename> class LAYER_TYPE = nn::layers::dense::LayerBackwardGradient>
         struct ACTOR{
             static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
-            static constexpr TI BATCH_SIZE = PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE;
+            static constexpr TI BATCH_SIZE = PARAMETERS::TD3_PARAMETERS::ACTOR_BATCH_SIZE;
             static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
             using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_1 = LAYER_TYPE<LAYER_1_SPEC>;
             using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_2 = LAYER_TYPE<LAYER_2_SPEC>;
-            static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
+            static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
             using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
             using LAYER_3 = LAYER_TYPE<LAYER_3_SPEC>;
 
@@ -56,7 +56,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         template <typename PARAMETER_TYPE, template<typename> class LAYER_TYPE = nn::layers::dense::LayerBackwardGradient>
         struct CRITIC{
             static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
-            static constexpr TI BATCH_SIZE = PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE;
+            static constexpr TI BATCH_SIZE = PARAMETERS::TD3_PARAMETERS::CRITIC_BATCH_SIZE;
             static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
 
             using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
@@ -81,8 +81,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
     template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
     struct DefaultConfigApproximatorsMLP{
-        using ACTOR_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::TANH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
-        using CRITIC_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
+        using ACTOR_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::TANH, PARAMETERS::TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
+        using CRITIC_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
         using OPTIMIZER_SPEC = typename nn::optimizers::adam::Specification<T, TI>;
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
         using ACTOR_SPEC = nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC >;
@@ -116,9 +116,10 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using ALPHA_PARAMETER_TYPE = nn::parameters::Adam;
         using ALPHA_OPTIMIZER = nn::optimizers::Adam<typename NN::OPTIMIZER_SPEC>;
 
-        using ACTOR_CRITIC_SPEC = rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::ACTOR_TARGET_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, typename NN::OPTIMIZER, typename NN::OPTIMIZER, ALPHA_OPTIMIZER, typename PARAMETERS::SAC_PARAMETERS>;
-        using ACTOR_CRITIC_TYPE = rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
+        using ACTOR_CRITIC_SPEC = rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::ACTOR_TARGET_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, typename NN::OPTIMIZER, typename PARAMETERS::TD3_PARAMETERS>;
+        using ACTOR_CRITIC_TYPE = rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
+        static constexpr bool STOCHASTIC_POLICY = false;
         using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<
                 T,
                 TI,
@@ -128,7 +129,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
                 PARAMETERS::REPLAY_BUFFER_CAP,
                 PARAMETERS::ENVIRONMENT_STEP_LIMIT,
                 rl::components::off_policy_runner::DefaultParameters<T>,
-                true,
+                STOCHASTIC_POLICY,
                 PARAMETERS::COLLECT_EPISODE_STATS,
                 PARAMETERS::EPISODE_STATS_BUFFER_SIZE
         >;

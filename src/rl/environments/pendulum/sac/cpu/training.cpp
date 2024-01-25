@@ -52,3 +52,6 @@ int main(){
     }
     rlt::destroy(ts);
 }
+
+
+// benchmark training should take < 2s on P1, < 0.75 on M3

@@ -1,7 +1,7 @@
 #include "../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_SAC_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ALGORITHMS_TD3_OPERATIONS_GENERIC_H
+#define RL_TOOLS_RL_ALGORITHMS_SAC_OPERATIONS_GENERIC_H
 
 #include "sac.h"
 
@@ -316,32 +316,34 @@ namespace rl_tools{
         return mean(device, training_buffers.state_action_value);
     }
 
-    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void update_target_layer(DEVICE& device, const  nn::layers::dense::Layer<SOURCE_SPEC>& source, nn::layers::dense::Layer<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) {
-        utils::polyak::update(device, source.weights.parameters, target.weights.parameters, polyak);
-        utils::polyak::update(device, source.biases.parameters , target.biases.parameters , polyak);
-    }
-    template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void update_target_network(DEVICE& device, const  nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, T polyak) {
-        using TargetNetworkType = nn_models::mlp::NeuralNetwork<TARGET_SPEC>;
-        update_target_layer(device, source.input_layer, target.input_layer, polyak);
-        for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
-            update_target_layer(device, source.hidden_layers[layer_i], target.hidden_layers[layer_i], polyak);
+    namespace rl::algorithms::sac{
+        template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+        void update_target_layer(DEVICE& device, const  nn::layers::dense::Layer<SOURCE_SPEC>& source, nn::layers::dense::Layer<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) {
+            rl_tools::utils::polyak::update(device, source.weights.parameters, target.weights.parameters, polyak);
+            rl_tools::utils::polyak::update(device, source.biases.parameters , target.biases.parameters , polyak);
         }
-        update_target_layer(device, source.output_layer, target.output_layer, polyak);
-    }
-    template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void update_target_network(DEVICE& device, const  nn_models::sequential::Module<SOURCE_SPEC>& source, nn_models::sequential::Module<TARGET_SPEC>& target, T polyak) {
-        update_target_layer(device, source.content, target.content, polyak);
-        if constexpr(!utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            update_target_network(device, source.next_module, target.next_module, polyak);
+        template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+        void update_target_network(DEVICE& device, const  nn_models::mlp::NeuralNetwork<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetwork<TARGET_SPEC>& target, T polyak) {
+            using TargetNetworkType = nn_models::mlp::NeuralNetwork<TARGET_SPEC>;
+            update_target_layer(device, source.input_layer, target.input_layer, polyak);
+            for(typename DEVICE::index_t layer_i=0; layer_i < TargetNetworkType::NUM_HIDDEN_LAYERS; layer_i++){
+                update_target_layer(device, source.hidden_layers[layer_i], target.hidden_layers[layer_i], polyak);
+            }
+            update_target_layer(device, source.output_layer, target.output_layer, polyak);
+        }
+        template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+        void update_target_network(DEVICE& device, const  nn_models::sequential::Module<SOURCE_SPEC>& source, nn_models::sequential::Module<TARGET_SPEC>& target, T polyak) {
+            update_target_layer(device, source.content, target.content, polyak);
+            if constexpr(!rl_tools::utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+                update_target_network(device, source.next_module, target.next_module, polyak);
+            }
         }
     }
 
     template <typename DEVICE, typename SPEC>
     void update_critic_targets(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic) {
-        update_target_network(device, actor_critic.critic_1, actor_critic.critic_target_1, SPEC::PARAMETERS::CRITIC_POLYAK);
-        update_target_network(device, actor_critic.critic_2, actor_critic.critic_target_2, SPEC::PARAMETERS::CRITIC_POLYAK);
+        rl::algorithms::sac::update_target_network(device, actor_critic.critic_1, actor_critic.critic_target_1, SPEC::PARAMETERS::CRITIC_POLYAK);
+        rl::algorithms::sac::update_target_network(device, actor_critic.critic_2, actor_critic.critic_target_2, SPEC::PARAMETERS::CRITIC_POLYAK);
     }
 
     template <typename DEVICE, typename SPEC>

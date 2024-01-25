@@ -119,6 +119,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using ACTOR_CRITIC_SPEC = rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::ACTOR_TARGET_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, typename NN::OPTIMIZER, typename NN::OPTIMIZER, ALPHA_OPTIMIZER, typename PARAMETERS::SAC_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 
+        static constexpr bool STOCHASTIC_POLICY = true;
         using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<
                 T,
                 TI,
@@ -128,7 +129,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
                 PARAMETERS::REPLAY_BUFFER_CAP,
                 PARAMETERS::ENVIRONMENT_STEP_LIMIT,
                 rl::components::off_policy_runner::DefaultParameters<T>,
-                true,
+                STOCHASTIC_POLICY,
                 PARAMETERS::COLLECT_EPISODE_STATS,
                 PARAMETERS::EPISODE_STATS_BUFFER_SIZE
         >;

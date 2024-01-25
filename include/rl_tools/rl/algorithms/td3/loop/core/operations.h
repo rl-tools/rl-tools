@@ -1,9 +1,9 @@
 #include "../../../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_OPERATIONS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_TD3_LOOP_CORE_OPERATIONS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_OPERATIONS_H
+#define RL_TOOLS_RL_ALGORITHMS_TD3_LOOP_CORE_OPERATIONS_H
 
-#include "../../../../../rl/algorithms/sac/operations_generic.h"
+#include "../../../../../rl/algorithms/td3/operations_generic.h"
 #include "../../../../../rl/components/off_policy_runner/operations_generic.h"
 #include "../../../../../rl/utils/evaluation.h"
 
@@ -12,7 +12,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename T_CONFIG>
-    void init(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    void init(rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
 
@@ -53,7 +53,7 @@ namespace rl_tools{
     }
 
     template <typename T_CONFIG>
-    void destroy(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts){
+    void destroy(rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts){
         free(ts.device, ts.critic_batch);
         free(ts.device, ts.critic_training_buffers);
         free(ts.device, ts.actor_batch);
@@ -66,19 +66,19 @@ namespace rl_tools{
 
 
     template <typename T_CONFIG>
-    bool step(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts){
+    bool step(rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts){
         bool finished = false;
         using CONFIG = T_CONFIG;
         step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         if(ts.step > CONFIG::PARAMETERS::N_WARMUP_STEPS){
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers, ts.rng);
+                train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
             }
             if(ts.step % 1 == 0){
                 {
                     gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                    train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
+                    train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
                 }
                 update_critic_targets(ts.device, ts.actor_critic);
             }
