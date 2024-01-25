@@ -21,14 +21,18 @@ using TI = typename DEVICE::index_t;
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    static constexpr TI STEP_LIMIT = 11000;
+    static constexpr TI STEP_LIMIT = 10000;
+    static constexpr TI ACTOR_NUM_LAYERS = 3;
+    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI CRITIC_NUM_LAYERS = 3;
+    static constexpr TI CRITIC_HIDDEN_DIM = 64;
 };
 #ifdef BENCHMARK
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_CORE_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #else
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::DefaultConfigApproximatorsMLP>;
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::DefaultConfig<LOOP_CORE_CONFIG>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_EVAL_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
