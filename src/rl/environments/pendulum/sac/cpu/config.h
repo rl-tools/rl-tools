@@ -4,7 +4,7 @@
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
-#include <rl_tools/rl/algorithms/sac/loop.h>
+#include <rl_tools/rl/algorithms/sac/loop/config.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace training_config{
