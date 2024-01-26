@@ -17,7 +17,6 @@ namespace rl_tools{
         using T = typename CONFIG::T;
 
         ts.rng = random::default_engine(typename CONFIG::DEVICE::SPEC::RANDOM(), seed);
-        ts.rng_eval = random::default_engine(typename CONFIG::DEVICE::SPEC::RANDOM(), seed);
 
         malloc(ts.device, ts.actor_critic);
         init(ts.device, ts.actor_critic, ts.rng);

@@ -104,7 +104,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         using T = T_T;
         using TI = typename DEVICE::index_t;
         using ENVIRONMENT = T_ENVIRONMENT;
-        using DEV_SPEC = devices::DefaultCPUSpecification;
+        using ENVIRONMENT_EVALUATION = T_ENVIRONMENT;
         using UI = bool;
 
         using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, T_PARAMETERS>;

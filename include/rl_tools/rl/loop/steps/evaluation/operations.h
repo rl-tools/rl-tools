@@ -17,6 +17,7 @@ namespace rl_tools{
     void init(rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::evaluation::TrainingState<T_CONFIG>;
         init(static_cast<typename STATE::NEXT&>(ts), seed);
+        ts.rng_eval = random::default_engine(typename T_CONFIG::DEVICE::SPEC::RANDOM(), seed);
     }
 
     template <typename T_CONFIG>
@@ -34,8 +35,8 @@ namespace rl_tools{
 
             TI evaluation_index = ts.step / PARAMETERS::EVALUATION_INTERVAL;
             if(ts.step % PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < PARAMETERS::N_EVALUATIONS){
-                auto result = evaluate(ts.device, ts.envs[0], ts.ui, ts.actor_critic.actor, rl::utils::evaluation::Specification<PARAMETERS::NUM_EVALUATION_EPISODES, CONFIG::NEXT::PARAMETERS::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
-                std::cout << "Step: " << ts.step << " Mean return: " << result.returns_mean << std::endl;
+                auto result = evaluate(ts.device, ts.env_eval, ts.ui, ts.actor_critic.actor, rl::utils::evaluation::Specification<PARAMETERS::NUM_EVALUATION_EPISODES, CONFIG::NEXT::PARAMETERS::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
+                logging::text(ts.device, ts.device.logger, "Step: ", ts.step, " Mean return: ", result.returns_mean);
                 ts.evaluation_results[evaluation_index] = result;
             }
         }

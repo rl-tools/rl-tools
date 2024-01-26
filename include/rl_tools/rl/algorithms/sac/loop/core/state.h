@@ -17,7 +17,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using TI = typename DEVICE::index_t;
         DEVICE device;
         typename SPEC::NN::OPTIMIZER actor_optimizer, critic_optimizers[2];
-        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng, rng_eval;
+        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng;
         typename SPEC::UI ui;
         rl::components::OffPolicyRunner<typename SPEC::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
         typename SPEC::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];

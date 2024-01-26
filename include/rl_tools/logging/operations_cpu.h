@@ -18,6 +18,10 @@ namespace rl_tools{
         void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b){
             std::cout << a << b << std::endl;
         }
+        template <typename DEVICE, typename A, typename B, typename C>
+        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c){
+            std::cout << a << b << c << std::endl;
+        }
         template <typename DEVICE, typename A, typename B, typename C, typename D>
         void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d){
             std::cout << a << b << c << d << std::endl;

@@ -14,6 +14,8 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
         rl::utils::evaluation::Result<T, TI, CONFIG::PARAMETERS::NUM_EVALUATION_EPISODES> evaluation_results[CONFIG::PARAMETERS::N_EVALUATIONS];
+        decltype(random::default_engine(typename NEXT::DEVICE::SPEC::RANDOM())) rng_eval;
+        typename NEXT::SPEC::ENVIRONMENT_EVALUATION env_eval;
     };
 }
 #endif
