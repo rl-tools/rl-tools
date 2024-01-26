@@ -1,0 +1,10 @@
+add_executable(
+        rl_environments_pendulum_ppo_training
+        training.cpp
+)
+target_link_libraries(
+        rl_environments_pendulum_ppo_training
+        PRIVATE
+        RLtools::Core
+)
+RL_TOOLS_INSTALL(rl_environments_pendulum_ppo_training)
