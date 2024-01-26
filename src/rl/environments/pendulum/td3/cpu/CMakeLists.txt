@@ -1,17 +1,13 @@
 # RL Algorithm td3 test full training standalone
 add_executable(
         rl_environments_pendulum_td3_training_bare
-        standalone.cpp
+        bare.cpp
 )
 target_link_libraries(
         rl_environments_pendulum_td3_training_bare
         PRIVATE
         RLtools::Core
 )
-target_compile_definitions(rl_environments_pendulum_td3_training_bare PRIVATE RL_TOOLS_TEST_BARE)
-target_compile_definitions(rl_environments_pendulum_td3_training_bare PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
-target_compile_definitions(rl_environments_pendulum_td3_training_bare PRIVATE RL_TOOLS_DISABLE_HDF5)
-target_compile_definitions(rl_environments_pendulum_td3_training_bare PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 target_compile_options(rl_environments_pendulum_td3_training_bare PRIVATE -nostdlib)
 RL_TOOLS_INSTALL(rl_environments_pendulum_td3_training_bare)
 
@@ -47,7 +43,7 @@ endif()
 if(RL_TOOLS_BACKEND_ENABLE_BLAS)
 add_executable(
         rl_environments_pendulum_td3_training_blas_benchmark
-        standalone.cpp
+        benchmark.cpp
 )
 target_link_libraries(
         rl_environments_pendulum_td3_training_blas_benchmark
