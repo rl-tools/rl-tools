@@ -29,6 +29,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using State = TrainingState<CONFIG>;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 
 

@@ -63,6 +63,10 @@ namespace rl_tools{
         free(ts.device, ts.observations_std);
     }
 
+    template <typename T_CONFIG>
+    auto& get_actor(rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts){
+        return ts.actor_critic.actor;
+    }
 
     template <typename T_CONFIG>
     bool step(rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts){

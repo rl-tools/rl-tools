@@ -1,36 +1,40 @@
 #include "../../../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_STATE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_STATE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_STATE_H
+#define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_STATE_H
 
-#include "../../../../../rl/algorithms/sac/sac.h"
+#include "../../../../../rl/algorithms/ppo/ppo.h"
 #include "../../../../../rl/components/off_policy_runner/off_policy_runner.h"
 #include "../../../../../rl/utils/evaluation.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::algorithms::sac::loop::core{
+namespace rl_tools::rl::algorithms::ppo::loop::core{
     // Config State (Init/Step)
-    template<typename T_SPEC>
+    template<typename T_CONFIG>
     struct TrainingState{
-        using SPEC = T_SPEC;
-        using DEVICE = typename SPEC::DEVICE;
-        using TI = typename DEVICE::index_t;
+        using CONFIG = T_CONFIG;
+        using DEVICE = typename CONFIG::DEVICE;
+        using T = typename CONFIG::T;
+        using TI = typename CONFIG::TI;
         DEVICE device;
-        typename SPEC::NN::OPTIMIZER actor_optimizer, critic_optimizers[2];
+        typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
+        typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizer;
         decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng;
-        typename SPEC::UI ui;
-        rl::components::OffPolicyRunner<typename SPEC::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
-        typename SPEC::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
-        typename SPEC::ACTOR_CRITIC_TYPE actor_critic;
-        typename SPEC::NN::ACTOR_TYPE::template Buffer<1> actor_deterministic_evaluation_buffers;
-        rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, SPEC::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
-        rl::algorithms::sac::CriticTrainingBuffers<typename SPEC::ACTOR_CRITIC_SPEC> critic_training_buffers;
-        MatrixDynamic<matrix::Specification<typename SPEC::T, TI, 1, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
-        typename SPEC::NN::CRITIC_TYPE::template Buffer<SPEC::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
-        rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, SPEC::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
-        rl::algorithms::sac::ActorTrainingBuffers<typename SPEC::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
-        typename SPEC::NN::ACTOR_TYPE::template Buffer<SPEC::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-        typename SPEC::NN::ACTOR_TYPE::template Buffer<SPEC::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+        typename CONFIG::PPO_TYPE ppo;
+        typename CONFIG::PPO_BUFFERS_TYPE ppo_buffers;
+        typename CONFIG::ON_POLICY_RUNNER_TYPE on_policy_runner;
+        typename CONFIG::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
+        typename CONFIG::ACTOR_EVAL_BUFFERS actor_eval_buffers;
+        typename CONFIG::PPO_TYPE::SPEC::ACTOR_TYPE::template Buffer<1> actor_deterministic_evaluation_buffers;
+        typename CONFIG::ACTOR_BUFFERS actor_buffers;
+        typename CONFIG::CRITIC_BUFFERS critic_buffers;
+        typename CONFIG::CRITIC_BUFFERS_GAE critic_buffers_gae;
+        rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<T, TI, CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
+        typename CONFIG::ENVIRONMENT envs[CONFIG::PARAMETERS::N_ENVIRONMENTS];
+        MatrixDynamic<matrix::Specification<typename CONFIG::T, TI, 1, CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
+        bool ui = false;
+        TI next_checkpoint_id = 0;
+        TI next_evaluation_id = 0;
         TI step;
     };
 }
