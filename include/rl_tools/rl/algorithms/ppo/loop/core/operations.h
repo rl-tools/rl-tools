@@ -44,7 +44,7 @@ namespace rl_tools{
         set_all(ts.device, ts.observations_mean, 0);
         set_all(ts.device, ts.observations_std, 1);
         init(ts.device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng);
-        construct(ts.device, ts.device.logger, std::string("logs"), "test");
+        init(ts.device, ts.device.logger);
 
         ts.step = 0;
     }

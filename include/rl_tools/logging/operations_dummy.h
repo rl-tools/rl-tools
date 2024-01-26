@@ -5,16 +5,14 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    namespace logging{
-        template <typename DEVICE, typename A>
-        void text(DEVICE& device, devices::logging::Dummy* logger, const A a){
-        }
-        template <typename DEVICE, typename A, typename B>
-        void text(DEVICE& device, devices::logging::Dummy* logger, const A a, const B b){
-        }
-        template <typename DEVICE, typename A, typename B, typename C, typename D>
-        void text(DEVICE& device, devices::logging::Dummy* logger, const A a, const B b, const C c, const D d){
-        }
+    template <typename DEVICE, typename A>
+    void log(DEVICE& device, devices::logging::Dummy* logger, const A a){
+    }
+    template <typename DEVICE, typename A, typename B>
+    void log(DEVICE& device, devices::logging::Dummy* logger, const A a, const B b){
+    }
+    template <typename DEVICE, typename A, typename B, typename C, typename D>
+    void log(DEVICE& device, devices::logging::Dummy* logger, const A a, const B b, const C c, const D d){
     }
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::Dummy& logger, typename DEVICE::index_t step){ /* noop */ }

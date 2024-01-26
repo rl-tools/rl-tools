@@ -46,7 +46,8 @@ namespace rl_tools{
 
         ts.off_policy_runner.parameters = rl::components::off_policy_runner::default_parameters<T>;
 
-        construct(ts.device, ts.device.logger);
+        init(ts.device);
+        init(ts.device, ts.device.logger);
 
         ts.step = 0;
     }

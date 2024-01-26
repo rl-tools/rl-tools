@@ -70,7 +70,7 @@ namespace rl_tools {
         device.initialized = true;
 #endif
         if (stat != CUBLAS_STATUS_SUCCESS) {
-//            logging::text(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
+//            log(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
             std::cout << "CUBLAS initialization failed " << cublasGetStatusString(stat) << std::endl;
         }
     }

@@ -8,7 +8,7 @@ namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T>
     void assert_exit(devices::CUDA<DEV_SPEC>& dev, bool condition, T message){
         if(!condition){
-//            logging::text(dev.logger, message);
+//            log(dev.logger, message);
             assert(condition);
         }
     }

@@ -230,6 +230,7 @@ target_link_libraries(
         rl_tools
         rl_tools_tests
 )
+target_compile_options(test_rl_algorithms_td3_full_training PRIVATE -Ofast)
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
 
 # RL Algorithm td3 test full training dummy dependencies compilation without any deps

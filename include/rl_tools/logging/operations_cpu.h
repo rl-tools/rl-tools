@@ -9,43 +9,43 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    namespace logging{
-        template <typename DEVICE, typename A>
-        void text(DEVICE& dev, devices::logging::CPU& logger, const A a){
-            std::cout << a << std::endl;
-        }
-        template <typename DEVICE, typename A, typename B>
-        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b){
-            std::cout << a << b << std::endl;
-        }
-        template <typename DEVICE, typename A, typename B, typename C>
-        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c){
-            std::cout << a << b << c << std::endl;
-        }
-        template <typename DEVICE, typename A, typename B, typename C, typename D>
-        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d){
-            std::cout << a << b << c << d << std::endl;
-        }
-        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E>
-        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e){
-            std::cout << a << b << c << d << e << std::endl;
-        }
-        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F>
-        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f){
-            std::cout << a << b << c << d << e << f << std::endl;
-        }
-        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G>
-        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g){
-            std::cout << a << b << c << d << e << f << g << std::endl;
-        }
-        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
-        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h){
-            std::cout << a << b << c << d << e << f << g << h << std::endl;
-        }
-        template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
-        void text(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i){
-            std::cout << a << b << c << d << e << f << g << h << i << std::endl;
-        }
+    template <typename DEVICE>
+    void init(DEVICE& dev, devices::logging::CPU& logger){ }
+    template <typename DEVICE, typename A>
+    void log(DEVICE& dev, devices::logging::CPU& logger, const A a){
+        std::cout << a << std::endl;
+    }
+    template <typename DEVICE, typename A, typename B>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b){
+        std::cout << a << b << std::endl;
+    }
+    template <typename DEVICE, typename A, typename B, typename C>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c){
+        std::cout << a << b << c << std::endl;
+    }
+    template <typename DEVICE, typename A, typename B, typename C, typename D>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d){
+        std::cout << a << b << c << d << std::endl;
+    }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e){
+        std::cout << a << b << c << d << e << std::endl;
+    }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f){
+        std::cout << a << b << c << d << e << f << std::endl;
+    }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g){
+        std::cout << a << b << c << d << e << f << g << std::endl;
+    }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h){
+        std::cout << a << b << c << d << e << f << g << h << std::endl;
+    }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
+    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i){
+        std::cout << a << b << c << d << e << f << g << h << i << std::endl;
     }
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::CPU& logger, typename DEVICE::index_t step){ /* noop */ }

@@ -115,7 +115,7 @@ int main() {
 
         if(step_i > N_WARMUP_STEPS){
             if(step_i % 1000 == 0){
-                rlt::logging::text(device, device.logger, "step_i: ", step_i);
+                rlt::log(device, device.logger, "step_i: ", step_i);
             }
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
@@ -131,7 +131,7 @@ int main() {
         }
         if(step_i % 1000 == 0){
             auto result = rlt::evaluate(device, env, ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval, rng, true);
-            rlt::logging::text(device, device.logger, "Mean return: ", result.returns_mean);
+            rlt::log(device, device.logger, "Mean return: ", result.returns_mean);
             if(result.returns_mean > -200000){
                 return 0;
             }

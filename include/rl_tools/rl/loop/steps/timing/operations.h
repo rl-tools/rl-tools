@@ -27,7 +27,7 @@ namespace rl_tools{
         bool finished = step(static_cast<typename STATE::NEXT&>(ts));
         if(finished){
             auto now = std::chrono::high_resolution_clock::now();
-            logging::text(ts.device, ts.device.logger, "Time: ", std::chrono::duration_cast<std::chrono::milliseconds>(now - ts.start_time).count()/1000.0, "s");
+            log(ts.device, ts.device.logger, "Time: ", std::chrono::duration_cast<std::chrono::milliseconds>(now - ts.start_time).count()/1000.0, "s");
         }
         return finished;
     }

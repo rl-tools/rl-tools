@@ -140,7 +140,7 @@ int main(){
         }
         val_loss /= DATASET_SIZE_VAL;
         accuracy /= VALIDATION_LIMIT;
-        rlt::logging::text(device, device.logger, "Validation accuracy: ", accuracy * 100, "%", "");
+        rlt::log(device, device.logger, "Validation accuracy: ", accuracy * 100, "%", "");
     }
     return 0;
 }

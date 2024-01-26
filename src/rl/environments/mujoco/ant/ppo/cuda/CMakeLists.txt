@@ -54,6 +54,7 @@ target_link_libraries(
         mujoco::mujoco
         CLI11::CLI11
 )
+target_compile_options(rl_environments_mujoco_ant_training_ppo_cuda_benchmark PRIVATE -O3 -ffast-math)
 RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
 
 if(NOT WIN32)
@@ -82,6 +83,7 @@ target_link_libraries(
         mujoco::mujoco
         CLI11::CLI11
 )
+target_compile_options(rl_environments_mujoco_ant_training_ppo_cuda_full PRIVATE -O3 -ffast-math)
 RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_full)
 RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_cuda_full)
 endif()

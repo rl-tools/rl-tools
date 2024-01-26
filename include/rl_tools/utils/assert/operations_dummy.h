@@ -8,7 +8,7 @@ namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T>
     void assert_exit(const devices::Dummy<DEV_SPEC>& dev, bool condition, T message){
         if(!condition){
-            logging::text(dev, dev.logger, message);
+            log(dev, dev.logger, message);
         }
     }
 }

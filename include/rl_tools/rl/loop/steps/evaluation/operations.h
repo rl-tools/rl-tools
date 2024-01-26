@@ -37,7 +37,9 @@ namespace rl_tools{
             TI evaluation_index = ts.step / PARAMETERS::EVALUATION_INTERVAL;
             if(ts.step % PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < PARAMETERS::N_EVALUATIONS){
                 auto result = evaluate(ts.device, ts.env_eval, ts.ui, get_actor(ts), rl::utils::evaluation::Specification<PARAMETERS::NUM_EVALUATION_EPISODES, CONFIG::NEXT::PARAMETERS::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
-                logging::text(ts.device, ts.device.logger, "Step: ", ts.step, " Mean return: ", result.returns_mean);
+                log(ts.device, ts.device.logger, "Step: ", ts.step, " Mean return: ", result.returns_mean);
+                add_scalar(ts.device, ts.device.logger, "evaluation/return/mean", result.returns_mean);
+                add_scalar(ts.device, ts.device.logger, "evaluation/return/std", result.returns_std);
                 ts.evaluation_results[evaluation_index] = result;
             }
         }

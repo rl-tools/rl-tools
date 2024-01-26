@@ -7,6 +7,8 @@
 #include "../utils/generic/typing.h"
 
 #include <cstddef>
+#include <string>
+#include <algorithm>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace cpu{
@@ -46,6 +48,10 @@ namespace rl_tools::devices{
         typename SPEC::MATH math;
         typename SPEC::RANDOM random;
         typename SPEC::LOGGING logger;
+        std::string run_name;
+        std::string runs_path;
+        std::string run_path;
+        bool initialized = false;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
         index_t malloc_counter = 0;
 #endif
@@ -58,6 +64,32 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    namespace devices::cpu{
+        std::string sanitize_file_name(const std::string &input) {
+            std::string output = input;
+
+            const std::string invalid_chars = R"(<>:\"/\|?*)";
+
+            std::replace_if(output.begin(), output.end(), [&invalid_chars](const char &c) {
+                return invalid_chars.find(c) != std::string::npos;
+            }, '_');
+
+            return output;
+        }
+    }
+    template <typename DEV_SPEC>
+    void init(devices::CPU<DEV_SPEC>& device){
+        if(!device.initialized){
+            time_t now;
+            time(&now);
+            char buf[sizeof "0000-00-00T00:00:00Z"];
+            strftime(buf, sizeof buf, "%FT%TZ", localtime(&now));
+            device.run_name = devices::cpu::sanitize_file_name(buf);
+            device.runs_path = std::string("runs");
+            device.run_path = device.runs_path + "/" + device.run_name;
+            device.initialized = true;
+        }
+    }
     template <typename DEV_SPEC, typename TI>
     void count_malloc(devices::CPU<DEV_SPEC>& device, TI size){
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
