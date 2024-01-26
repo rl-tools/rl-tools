@@ -25,6 +25,9 @@
 [submodule "embedded_platforms/ios"]
 	path = embedded_platforms/ios
 	url = https://github.com/rl-tools/ios
+[submodule "embedded_platforms/teensy"]
+	path = embedded_platforms/teensy
+	url = https://github.com/rl-tools/teensy.git
 
 # Dependencies
 [submodule "external/cli11"]
