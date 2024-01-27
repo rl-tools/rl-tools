@@ -12,34 +12,34 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename T_CONFIG>
+    void malloc(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        malloc(ts.device, ts.actor_critic);
+        malloc(ts.device, ts.off_policy_runner);
+        malloc(ts.device, ts.critic_batch);
+        malloc(ts.device, ts.critic_training_buffers);
+        malloc(ts.device, ts.critic_buffers[0]);
+        malloc(ts.device, ts.critic_buffers[1]);
+        malloc(ts.device, ts.actor_batch);
+        malloc(ts.device, ts.actor_training_buffers);
+        malloc(ts.device, ts.actor_buffers_eval);
+        malloc(ts.device, ts.actor_buffers[0]);
+        malloc(ts.device, ts.actor_buffers[1]);
+        malloc(ts.device, ts.observations_mean);
+        malloc(ts.device, ts.observations_std);
+        malloc(ts.device, ts.actor_deterministic_evaluation_buffers);
+    }
+    template <typename T_CONFIG>
     void init(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
 
         ts.rng = random::default_engine(typename CONFIG::DEVICE::SPEC::RANDOM(), seed);
 
-        malloc(ts.device, ts.actor_critic);
         init(ts.device, ts.actor_critic, ts.rng);
 
-        malloc(ts.device, ts.off_policy_runner);
         init(ts.device, ts.off_policy_runner, ts.envs);
         rl_tools::init(ts.device, ts.envs[0], ts.ui);
 
-        malloc(ts.device, ts.critic_batch);
-        malloc(ts.device, ts.critic_training_buffers);
-        malloc(ts.device, ts.critic_buffers[0]);
-        malloc(ts.device, ts.critic_buffers[1]);
-
-        malloc(ts.device, ts.actor_batch);
-        malloc(ts.device, ts.actor_training_buffers);
-        malloc(ts.device, ts.actor_buffers_eval);
-        malloc(ts.device, ts.actor_buffers[0]);
-        malloc(ts.device, ts.actor_buffers[1]);
-
-        malloc(ts.device, ts.observations_mean);
-        malloc(ts.device, ts.observations_std);
-
-        malloc(ts.device, ts.actor_deterministic_evaluation_buffers);
 
         set_all(ts.device, ts.observations_mean, 0);
         set_all(ts.device, ts.observations_std, 1);
@@ -50,6 +50,26 @@ namespace rl_tools{
         init(ts.device, ts.device.logger);
 
         ts.step = 0;
+    }
+    template <typename T_CONFIG_SOURCE, typename T_CONFIG_TARGET>
+    void copy(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG_SOURCE>& source, rl::algorithms::sac::loop::core::TrainingState<T_CONFIG_TARGET>& target){
+        copy(source.device, target.device, source.actor_critic, target.actor_critic);
+        copy(source.device, target.device, source.off_policy_runner, target.off_policy_runner);
+        copy(source.device, target.device, source.critic_batch, target.critic_batch);
+        copy(source.device, target.device, source.critic_training_buffers, target.critic_training_buffers);
+        copy(source.device, target.device, source.critic_buffers[0], target.critic_buffers[0]);
+        copy(source.device, target.device, source.critic_buffers[1], target.critic_buffers[1]);
+        copy(source.device, target.device, source.actor_batch, target.actor_batch);
+        copy(source.device, target.device, source.actor_training_buffers, target.actor_training_buffers);
+        copy(source.device, target.device, source.actor_buffers_eval, target.actor_buffers_eval);
+        copy(source.device, target.device, source.actor_buffers[0], target.actor_buffers[0]);
+        copy(source.device, target.device, source.actor_buffers[1], target.actor_buffers[1]);
+        copy(source.device, target.device, source.observations_mean, target.observations_mean);
+        copy(source.device, target.device, source.observations_std, target.observations_std);
+        copy(source.device, target.device, source.actor_deterministic_evaluation_buffers, target.actor_deterministic_evaluation_buffers);
+//        target.rng = source.rng;
+        target.off_policy_runner.parameters = source.off_policy_runner.parameters;
+        target.step = source.step;
     }
 
     template <typename T_CONFIG>

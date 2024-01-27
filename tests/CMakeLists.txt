@@ -431,4 +431,5 @@ add_subdirectory(src/rl/cuda)
 add_subdirectory(src/logging)
 add_subdirectory(src/math)
 add_subdirectory(src/container)
+add_subdirectory(src/rl/algorithms/sac)
 

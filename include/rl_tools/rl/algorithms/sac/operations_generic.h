@@ -388,6 +388,18 @@ namespace rl_tools{
         copy(source_device, target_device, source.critic_target_2, target.critic_target_2);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::ActorTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::ActorTrainingBuffers<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.state_action_value_input, target.state_action_value_input);
+        copy(source_device, target_device, source.d_output, target.d_output);
+        copy(source_device, target_device, source.d_critic_1_input, target.d_critic_1_input);
+        copy(source_device, target_device, source.d_critic_2_input, target.d_critic_2_input);
+        copy(source_device, target_device, source.d_critic_action_input, target.d_critic_action_input);
+        copy(source_device, target_device, source.action_sample, target.action_sample);
+        copy(source_device, target_device, source.action_noise, target.action_noise);
+        copy(source_device, target_device, source.d_actor_output, target.d_actor_output);
+        copy(source_device, target_device, source.d_actor_input, target.d_actor_input);
+    }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::CriticTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::CriticTrainingBuffers<TARGET_SPEC>& target){
         copy(source_device, target_device, source.next_state_action_value_input_full, target.next_state_action_value_input_full);
         copy(source_device, target_device, source.target_action_value, target.target_action_value);

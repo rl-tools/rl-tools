@@ -71,7 +71,7 @@ namespace rl_tools{
     void copy_layout_mismatch(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
-        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
+//        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -101,7 +101,7 @@ namespace rl_tools{
 //        static_assert(!TARGET_SPEC::IS_VIEW);
         using DEVICE_CUDA = devices::CUDA<TARGET_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
-        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
+//        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -151,7 +151,7 @@ namespace rl_tools{
     void copy_layout_mismatch(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CPU<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
         using DEVICE_CUDA = devices::CUDA<SOURCE_DEV_SPEC>;
         static_assert(containers::check_structure<TARGET_SPEC, SOURCE_SPEC>);
-        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
+//        static_assert(utils::typing::is_same_v<typename TARGET_SPEC::T, typename SOURCE_SPEC::T>);
         using SPEC = TARGET_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

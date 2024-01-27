@@ -14,8 +14,8 @@ namespace rl_tools::random{
     namespace cuda{
         using RNG = unsigned int; // actually the seed
     }
-    cuda::RNG default_engine(const devices::random::CUDA& dev){
-        return 1337;
+    cuda::RNG default_engine(const devices::random::CUDA& dev, devices::random::CUDA::index_t seed = 1){
+        return 1337 + 1;
     };
 
     cuda::RNG next(const devices::random::CUDA& dev, cuda::RNG& rng){
