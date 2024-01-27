@@ -20,8 +20,7 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
         using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<T, TI>;
         static constexpr int N_WARMUP_STEPS = PPO_PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr TI STEP_LIMIT = 10000;
-        static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
-        
+
         static constexpr TI ACTOR_HIDDEN_DIM = 64;
         static constexpr TI ACTOR_NUM_LAYERS = 3;
         static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
@@ -29,7 +28,7 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
         static constexpr TI CRITIC_NUM_LAYERS = 3;
         static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::RELU;
 
-        static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 1000;
+        static constexpr TI ENVIRONMENT_STEP_LIMIT = 1000;
         static constexpr TI N_ENVIRONMENTS = 64;
         static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
         static constexpr TI BATCH_SIZE = ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS;
@@ -69,7 +68,7 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
         using PPO_TYPE = rl::algorithms::PPO<PPO_SPEC>;
         using PPO_BUFFERS_TYPE = rl::algorithms::ppo::Buffers<PPO_SPEC>;
 
-        using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<T, TI, ENVIRONMENT, PARAMETERS::N_ENVIRONMENTS, PARAMETERS::ON_POLICY_RUNNER_STEP_LIMIT>;
+        using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<T, TI, ENVIRONMENT, PARAMETERS::N_ENVIRONMENTS, PARAMETERS::ENVIRONMENT_STEP_LIMIT>;
         using ON_POLICY_RUNNER_TYPE = rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
         using ON_POLICY_RUNNER_DATASET_SPEC = rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV>;
         using ON_POLICY_RUNNER_DATASET_TYPE = rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;

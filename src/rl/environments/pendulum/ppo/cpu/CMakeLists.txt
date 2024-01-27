@@ -19,4 +19,6 @@ target_link_libraries(
         RLtools::RLtools
 )
 target_compile_definitions(rl_environments_pendulum_ppo_benchmark PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+target_compile_definitions(rl_environments_pendulum_ppo_benchmark PRIVATE BENCHMARK)
+target_compile_options(rl_environments_pendulum_ppo_benchmark PRIVATE -Ofast -march=native)
 RL_TOOLS_INSTALL(rl_environments_pendulum_ppo_benchmark)

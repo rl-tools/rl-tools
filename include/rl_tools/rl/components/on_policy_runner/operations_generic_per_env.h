@@ -25,7 +25,6 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         observe(device, env, state, observation, rng);
         normalize(device, observations_mean, observations_std, observation, observation_normalized);
     }
-    int n_steps = 0;
     template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
     void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename DEVICE::index_t pos, typename DEVICE::index_t env_i){
         using SPEC = typename DATASET_SPEC::SPEC;
@@ -49,8 +48,6 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         typename SPEC::ENVIRONMENT::State next_state;
         auto action = row(device, actions, env_i);
         step(device, env, state, action, next_state, rng);
-        n_steps++;
-        add_scalar(device, device.logger, "n_steps", n_steps);
         bool terminated_flag = terminated(device, env, next_state, rng);
         set(dataset.terminated, pos, 0, terminated_flag);
         T reward_value = reward(device, env, state, action, next_state, rng);
