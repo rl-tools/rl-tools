@@ -25,7 +25,7 @@ add_executable(
 target_link_libraries(
         test_rl_cuda
         PRIVATE
-        rl_tools::minimal
+        RLtools::Minimal
         rl_tools_tests
 )
 #RL_TOOLS_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda)
@@ -39,7 +39,7 @@ add_executable(
 target_link_libraries(
         test_rl_cuda_td3_full_training
         PRIVATE
-        rl_tools::minimal
+        RLtools::Minimal
         rl_tools_tests
 )
 #RL_TOOLS_TESTS_RL_CUDA_ADD_DEBUG_DEFINITIONS(test_rl_cuda_td3_full_training)

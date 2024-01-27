@@ -1,12 +1,12 @@
 
 
 #include "../../../utils/polyak/operations_cuda.h"
-#include "../../../rl/algorithms/td3/td3.h"
+#include "../../../rl/algorithms/sac/sac.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename RNG>
     __global__
-    void target_action_noise_kernel(devices::CUDA<DEV_SPEC>& device, const rl::algorithms::td3::ActorCritic<SPEC> actor_critic, Matrix<OUTPUT_SPEC> target_action_noise, RNG rng ) {
+    void target_action_noise_kernel(devices::CUDA<DEV_SPEC>& device, const rl::algorithms::sac::ActorCritic<SPEC> actor_critic, Matrix<OUTPUT_SPEC> target_action_noise, RNG rng ) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -27,7 +27,7 @@ namespace rl_tools{
         }
     }
     template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename RNG>
-    void target_action_noise(devices::CUDA<DEV_SPEC>& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, Matrix<OUTPUT_SPEC>& target_action_noise, RNG& rng ) {
+    void target_action_noise(devices::CUDA<DEV_SPEC>& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, Matrix<OUTPUT_SPEC>& target_action_noise, RNG& rng ) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         static_assert(OUTPUT_SPEC::ROWS == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static_assert(OUTPUT_SPEC::COLS == SPEC::ENVIRONMENT::ACTION_DIM);
@@ -44,11 +44,11 @@ namespace rl_tools{
 
     template <typename DEV_SPEC, typename SPEC>
     __global__
-    void noisy_next_actions_kernel(devices::CUDA<DEV_SPEC>& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
+    void noisy_next_actions_kernel(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC> training_buffers) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
+        using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
         constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(batch_step_i < BATCH_SIZE){
@@ -60,7 +60,7 @@ namespace rl_tools{
         }
     }
     template <typename DEV_SPEC, typename SPEC>
-    void noisy_next_actions(devices::CUDA<DEV_SPEC>& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
+    void noisy_next_actions(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC> training_buffers) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -75,11 +75,11 @@ namespace rl_tools{
 
     template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
     __global__
-    void target_actions_kernel(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
+    void target_actions_kernel(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC> training_buffers) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
+        using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(batch_step_i < BATCH_SIZE){
@@ -95,7 +95,7 @@ namespace rl_tools{
         }
     }
     template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
-    void target_actions(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
+    void target_actions(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC> training_buffers) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
