@@ -20,8 +20,8 @@ namespace rl_tools{
 
         ts.rng = random::default_engine(typename CONFIG::DEVICE::SPEC::RANDOM(), seed);
 
-        ts.actor_optimizer.parameters.alpha = 3e-4;
-        ts.critic_optimizer.parameters.alpha = 3e-4 * 2;
+//        ts.actor_optimizer.parameters.alpha = 3e-4;
+//        ts.critic_optimizer.parameters.alpha = 3e-4 * 2;
 
         malloc(ts.device, ts.ppo);
         malloc(ts.device, ts.ppo_buffers);
@@ -44,6 +44,8 @@ namespace rl_tools{
         set_all(ts.device, ts.observations_mean, 0);
         set_all(ts.device, ts.observations_std, 1);
         init(ts.device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng);
+
+        init(ts.device);
         init(ts.device, ts.device.logger);
 
         ts.step = 0;
@@ -73,10 +75,9 @@ namespace rl_tools{
 
     template <typename T_CONFIG>
     bool step(rl::algorithms::ppo::loop::core::TrainingState<T_CONFIG>& ts){
-        bool finished = false;
         using CONFIG = T_CONFIG;
-
-
+        set_step(ts.device, ts.device.logger, ts.step);
+        bool finished = false;
         collect(ts.device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.observation_normalizer.mean, ts.observation_normalizer.std, ts.rng);
         auto on_policy_runner_dataset_all_observations = CONFIG::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? ts.on_policy_runner_dataset.all_observations_normalized : ts.on_policy_runner_dataset.all_observations;
         evaluate(ts.device, ts.ppo.critic, on_policy_runner_dataset_all_observations, ts.on_policy_runner_dataset.all_values, ts.critic_buffers_gae);

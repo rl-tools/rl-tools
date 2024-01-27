@@ -201,7 +201,7 @@ void train(){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
-            Serial.printf("mean return: %f\n", result.mean);
+            Serial.printf("mean return: %f\n", result.returns_mean);
 #else
             std::cout << "Mean return: " << result.returns_mean << std::endl;
 #endif

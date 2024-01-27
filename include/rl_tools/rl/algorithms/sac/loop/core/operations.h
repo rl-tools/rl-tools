@@ -46,7 +46,8 @@ namespace rl_tools{
 
         ts.off_policy_runner.parameters = rl::components::off_policy_runner::default_parameters<T>;
 
-        construct(ts.device, ts.device.logger);
+        init(ts.device);
+        init(ts.device, ts.device.logger);
 
         ts.step = 0;
     }
@@ -70,8 +71,9 @@ namespace rl_tools{
 
     template <typename T_CONFIG>
     bool step(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts){
-        bool finished = false;
         using CONFIG = T_CONFIG;
+        set_step(ts.device, ts.device.logger, ts.step);
+        bool finished = false;
         step(ts.device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         if(ts.step > CONFIG::PARAMETERS::N_WARMUP_STEPS){
             for(int critic_i = 0; critic_i < 2; critic_i++){

@@ -21,19 +21,32 @@ using TI = typename DEVICE::index_t;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
+struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI>{
+    static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
+    static constexpr T INITIAL_ACTION_STD = 1.0;
+};
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    static constexpr TI STEP_LIMIT = 1000000;
+    using PPO_PARAMETERS = ::PPO_PARAMETERS;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
+    static constexpr TI N_ENVIRONMENTS = 4;
+    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 1024/N_ENVIRONMENTS;
+    static constexpr TI BATCH_SIZE = 256;
+    static constexpr TI STEP_LIMIT = 100000/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
+    static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 200;
+    static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
+    static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
 };
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::DefaultConfigApproximatorsMLP>;
-struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::DefaultParameters<T, TI, LOOP_CORE_CONFIG>{
+template <typename NEXT=LOOP_CORE_CONFIG>
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::DefaultParameters<T, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 10;
     static constexpr TI NUM_EVALUATION_EPISODES = 100;
+    static constexpr TI N_EVALUATIONS = NEXT::PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };
-using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::DefaultConfig<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS>;
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::DefaultConfig<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS<>>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_EVAL_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
@@ -45,6 +58,8 @@ int main(int argc, char** argv) {
     }
     LOOP_STATE ts;
     rlt::init(ts, seed);
+    ts.actor_optimizer.parameters.alpha = 1e-3;
+    ts.critic_optimizer.parameters.alpha = 1e-3;
     while(!rlt::step(ts)){
         if(ts.step == 5000){
             std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;

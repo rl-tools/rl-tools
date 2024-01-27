@@ -24,7 +24,8 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using PARAMETERS = T_PARAMETERS;
         using T = typename NEXT::T;
         using TI = typename NEXT::TI;
-        static_assert(PARAMETERS::N_EVALUATIONS > 0 && PARAMETERS::N_EVALUATIONS < 1000000);
+        static_assert(PARAMETERS::N_EVALUATIONS > 0);
+        static_assert(PARAMETERS::N_EVALUATIONS < 1000000);
         template <typename CONFIG>
         using State = TrainingState<CONFIG>;
     };
