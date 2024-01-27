@@ -38,7 +38,7 @@ namespace rl_tools::random{
     }
     template<typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
-        auto r = uniform_real_distribution(dev, low, high, rng);
+        auto r = uniform_real_distribution(dev, (float)low, (float)high, rng);
         return (T)r;
     }
     namespace normal_distribution{

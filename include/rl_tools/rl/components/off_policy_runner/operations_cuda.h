@@ -73,7 +73,7 @@ namespace rl_tools{
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename RNG>
-        void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
+        void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -81,11 +81,11 @@ namespace rl_tools{
             constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
-            prologue_kernel<<<grid, block>>>(device, &runner, rng);
+            prologue_kernel<<<grid, block>>>(device, runner, rng);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename POLICY>
-        void interlude(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
+        void interlude(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
             // runner struct should be on the CPU while its buffers should be on the GPU
             evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
         }
@@ -104,7 +104,7 @@ namespace rl_tools{
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename RNG>
-        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG& rng) {
+        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG& rng) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -112,12 +112,12 @@ namespace rl_tools{
             constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
-            epilogue_kernel<<<grid, block>>>(device, &runner, rng);
+            epilogue_kernel<<<grid, block>>>(device, runner, rng);
             check_status(device);
         }
     }
     template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
-    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng){
+    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng){
         static_assert(utils::typing::is_same_v<RNG, random::cuda::RNG>);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
@@ -128,7 +128,7 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(&runner, batch, rng);
+        rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(runner, batch, rng);
         check_status(device);
     }
 }
