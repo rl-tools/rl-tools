@@ -27,9 +27,11 @@ namespace rl_tools{
         malloc(ts.device, ts.observations_mean);
         malloc(ts.device, ts.observations_std);
         malloc(ts.device, ts.actor_deterministic_evaluation_buffers);
+        ts.allocated = true;
     }
     template <typename T_CONFIG>
     void init(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        utils::assert_exit(ts.device, ts.allocated, "TrainingState not allocated");
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
 

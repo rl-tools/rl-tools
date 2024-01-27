@@ -117,7 +117,7 @@ namespace rl_tools{
         void prologue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
             using TI = typename DEVICE::index_t;
             for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
-                prologue_per_env(device, &runner, rng, env_i);
+                prologue_per_env(device, runner, rng, env_i);
             }
         }
         template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS>
@@ -129,7 +129,7 @@ namespace rl_tools{
         void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng){
             using TI = typename DEVICE::index_t;
             for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-                epilogue_per_env(device, &runner, rng, env_i);
+                epilogue_per_env(device, runner, rng, env_i);
             }
         }
     }

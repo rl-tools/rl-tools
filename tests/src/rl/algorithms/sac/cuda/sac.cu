@@ -68,6 +68,10 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     rlt::copy(ts, ts_init2);
     rlt::copy(ts_init2, ts_init);
 
-    while(!rlt::step(ts_init)){ }
+    bool finished = false;
+    while(!finished){
+//        rlt::step(ts_init);
+        rlt::step(ts);
+    }
     rlt::destroy(ts);
 }

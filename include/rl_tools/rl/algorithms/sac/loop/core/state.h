@@ -32,6 +32,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
         typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
         TI step;
+        bool allocated = false;
     };
 }
 #endif

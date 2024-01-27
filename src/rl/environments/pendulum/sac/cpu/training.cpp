@@ -42,6 +42,7 @@ using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
 int main(){
     LOOP_STATE ts;
+    rlt::malloc(ts);
     rlt::init(ts, 0);
     while(!rlt::step(ts)){
 #ifndef BENCHMARK
