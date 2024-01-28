@@ -17,10 +17,13 @@ namespace rl_tools{
         malloc(ts.device, ts.off_policy_runner);
         malloc(ts.device, ts.critic_batch);
         malloc(ts.device, ts.critic_training_buffers);
+        malloc(ts.device, ts.action_noise_critic[0]);
+        malloc(ts.device, ts.action_noise_critic[1]);
         malloc(ts.device, ts.critic_buffers[0]);
         malloc(ts.device, ts.critic_buffers[1]);
         malloc(ts.device, ts.actor_batch);
         malloc(ts.device, ts.actor_training_buffers);
+        malloc(ts.device, ts.action_noise_actor);
         malloc(ts.device, ts.actor_buffers_eval);
         malloc(ts.device, ts.actor_buffers[0]);
         malloc(ts.device, ts.actor_buffers[1]);
@@ -100,7 +103,8 @@ namespace rl_tools{
         if(ts.step > CONFIG::PARAMETERS::N_WARMUP_STEPS){
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 gather_batch(ts.device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers, ts.rng);
+                randn(ts.device, ts.action_noise_critic[critic_i], ts.rng);
+                train_critic(ts.device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers, ts.action_noise_critic[critic_i]);
             }
             if(ts.step % 1 == 0){
                 {
