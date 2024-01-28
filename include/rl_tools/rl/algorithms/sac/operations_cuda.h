@@ -100,23 +100,23 @@ namespace rl_tools{
         check_status(device);
     }
 
-    template <typename DEV_SPEC, typename SPEC, typename RNG>
+    template <typename DEV_SPEC, typename SPEC, typename ACTION_NOISE_SPEC>
     __global__
-    void sample_actions_critic_kernel(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC> training_buffers, RNG rng) {
+    void sample_actions_critic_kernel(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC> training_buffers, Matrix<ACTION_NOISE_SPEC> action_noise) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
         constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
-        curandState rng_state;
-        curand_init(rng, batch_step_i, 0, &rng_state);
+//        curandState rng_state;
+//        curand_init(rng, batch_step_i, 0, &rng_state);
         if(batch_step_i < BATCH_SIZE){
-            sample_actions_critic_per_sample(device, training_buffers, rng_state, batch_step_i);
+            sample_actions_critic_per_sample(device, training_buffers, action_noise, batch_step_i);
         }
     }
-    template <typename DEV_SPEC, typename SPEC, typename RNG>
-    void sample_actions_critic(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
+    template <typename DEV_SPEC, typename SPEC, typename ACTION_NOISE_SPEC>
+    void sample_actions_critic(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -125,27 +125,27 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        sample_actions_critic_kernel<<<bias_grid, bias_block>>>(device, training_buffers, rng);
+        sample_actions_critic_kernel<<<bias_grid, bias_block>>>(device, training_buffers, action_noise);
         check_status(device);
     }
 
-    template <typename DEV_SPEC, typename OUTPUT_SPEC, typename SPEC, typename RNG>
+    template <typename DEV_SPEC, typename OUTPUT_SPEC, typename SPEC, typename ACTION_NOISE_SPEC>
     __global__
-    void sample_actions_actor_kernel(devices::CUDA<DEV_SPEC>& device, Matrix<OUTPUT_SPEC> output, rl::algorithms::sac::ActorTrainingBuffers<SPEC> training_buffers, RNG rng) {
+    void sample_actions_actor_kernel(devices::CUDA<DEV_SPEC>& device, Matrix<OUTPUT_SPEC> output, rl::algorithms::sac::ActorTrainingBuffers<SPEC> training_buffers, Matrix<ACTION_NOISE_SPEC> action_noise) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::ActorTrainingBuffers<SPEC>;
         constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
         TI batch_step_i = threadIdx.x + blockIdx.x * blockDim.x;
-        curandState rng_state;
-        curand_init(rng, batch_step_i, 0, &rng_state);
+//        curandState rng_state;
+//        curand_init(rng, batch_step_i, 0, &rng_state);
         if(batch_step_i < BATCH_SIZE){
-            sample_actions_actor_per_sample(device, output, training_buffers, rng_state, batch_step_i);
+            sample_actions_actor_per_sample(device, output, training_buffers, action_noise, batch_step_i);
         }
     }
-    template <typename DEV_SPEC, typename SPEC, typename RNG>
-    void sample_actions_actor(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
+    template <typename DEV_SPEC, typename SPEC, typename ACTION_NOISE_SPEC>
+    void sample_actions_actor(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -155,7 +155,7 @@ namespace rl_tools{
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         auto actions_full = output(actor_critic.actor);
-        sample_actions_actor_kernel<<<bias_grid, bias_block>>>(device, actions_full, training_buffers, rng);
+        sample_actions_actor_kernel<<<bias_grid, bias_block>>>(device, actions_full, training_buffers, action_noise);
         check_status(device);
     }
 
