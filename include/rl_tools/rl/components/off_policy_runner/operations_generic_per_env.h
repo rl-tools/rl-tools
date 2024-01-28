@@ -44,24 +44,24 @@ namespace rl_tools::rl::components::off_policy_runner{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT auto process_and_get_action(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT auto process_and_get_action(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng, typename DEVICE::index_t env_i) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         if constexpr(SPEC::STOCHASTIC_POLICY){
             for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
-                T std = math::exp(typename DEVICE::SPEC::MATH{}, get(runner.buffers.actions, 0, ENVIRONMENT::ACTION_DIM+i));
+                T std = math::exp(typename DEVICE::SPEC::MATH{}, get(runner.buffers.actions, env_i, ENVIRONMENT::ACTION_DIM+i));
                 T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), get(runner.buffers.actions, 0, i), std, rng);
-                set(runner.buffers.actions, 0, i, math::clamp<T>(device.math, action_noisy, -1, 1));
+                set(runner.buffers.actions, env_i, i, math::clamp<T>(device.math, action_noisy, -1, 1));
             }
-            return view(device, runner.buffers.actions, matrix::ViewSpec<1, SPEC::ENVIRONMENT::ACTION_DIM>{});
+            return view(device, runner.buffers.actions, matrix::ViewSpec<1, SPEC::ENVIRONMENT::ACTION_DIM>{}, env_i, 0);
         }
         else{
             for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
-                T action_noisy = get(runner.buffers.actions, 0, i) + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T) 0, runner.parameters.exploration_noise, rng);
-                set(runner.buffers.actions, 0, i, math::clamp<T>(device.math, action_noisy, -1, 1));
+                T action_noisy = get(runner.buffers.actions, env_i, i) + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T) 0, runner.parameters.exploration_noise, rng);
+                set(runner.buffers.actions, env_i, i, math::clamp<T>(device.math, action_noisy, -1, 1));
             }
-            return runner.buffers.actions;
+            return row(device, runner.buffers.actions, env_i);
         }
 
     }
@@ -80,7 +80,7 @@ namespace rl_tools::rl::components::off_policy_runner{
         auto& state = get(runner.states, 0, env_i);
         typename ENVIRONMENT::State next_state;
 
-        auto action = process_and_get_action(device, runner, rng);
+        auto action = process_and_get_action(device, runner, rng, env_i);
 
         step(device, env, state, action, next_state, rng);
 

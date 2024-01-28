@@ -58,13 +58,21 @@ namespace rl_tools::random{
             }
         }
         template<typename DEVICE, typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT T log_prob(const devices::random::CUDA& dev, T mean, T log_std, T value){
+        T log_prob(const devices::random::CUDA& dev, T mean, T log_std, T value){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
-            T neg_log_sqrt_pi = -0.5 * math::log(typename DEVICE::SPEC::MATH{}, 2 * math::PI<T>);
-            T diff = (value - mean);
-            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);
-            T pre_square = diff/std;
-            return neg_log_sqrt_pi - log_std - 0.5 * pre_square * pre_square;
+            return log_prob(devices::random::Generic<devices::math::CUDA>{}, mean, log_std, value);
+        }
+        template<typename DEVICE, typename T>
+        T d_log_prob_d_mean(const devices::random::CUDA& dev, T mean, T log_std, T value){
+            return d_log_prob_d_mean(devices::random::Generic<devices::math::CUDA>{}, mean, log_std, value);
+        }
+        template<typename DEVICE, typename T>
+        T d_log_prob_d_log_std(const devices::random::CUDA& dev, T mean, T log_std, T value){
+            return d_log_prob_d_log_std(devices::random::Generic<devices::math::CUDA>{}, mean, log_std, value);
+        }
+        template<typename DEVICE, typename T>
+        T d_log_prob_d_sample(const devices::random::CUDA& dev, T mean, T log_std, T value){
+            return d_log_prob_d_sample(devices::random::Generic<devices::math::CUDA>{}, mean, log_std, value);
         }
     }
 }
