@@ -55,6 +55,17 @@ namespace rl_tools{
             copy_view(source_device, target_device, source, target);
         }
     }
+    template<typename DEV_SPEC, typename SPEC, typename SPEC::TI ROWS, typename SPEC::TI COLS>
+    RL_TOOLS_FUNCTION_PLACEMENT auto view(devices::CPU<DEV_SPEC>& device, const Matrix<SPEC>& m, typename SPEC::TI row, typename SPEC::TI col){
+        using DEVICE = devices::CPU<DEV_SPEC>;
+        static_assert(SPEC::ROWS >= ROWS);
+        static_assert(SPEC::COLS >= COLS);
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+        utils::assert_exit(device, (row + ROWS) <= SPEC::ROWS, "row + ROWS <= SPEC::ROWS");
+        utils::assert_exit(device, (col + COLS) <= SPEC::COLS, "col + COLS <= SPEC::COLS");
+#endif
+        return _view<DEVICE, SPEC, ROWS, COLS>(device, m, row, col);
+    }
     template<typename DEV_SPEC, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT std::vector<std::vector<typename SPEC::T>> std_vector(devices::CPU<DEV_SPEC>& device, Matrix<SPEC>& matrix){
         using DEVICE = devices::CPU<DEV_SPEC>;
