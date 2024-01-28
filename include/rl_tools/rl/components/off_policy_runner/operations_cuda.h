@@ -81,7 +81,7 @@ namespace rl_tools{
             constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
-            devices::cuda::TAG<DEVICE, true> tag_device;
+            devices::cuda::TAG<DEVICE, true> tag_device{};
             prologue_kernel<<<grid, block>>>(tag_device, runner, rng);
             check_status(device);
         }

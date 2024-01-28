@@ -9,7 +9,6 @@
 
     #include "../../devices/cuda.h"
     #include "../../math/operations_cuda.h"
-    #include "../../random/operations_cuda.h"
     #include "../../logging/operations_cuda.h"
 #else
     #error "Group 1 already imported"

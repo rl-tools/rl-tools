@@ -20,7 +20,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER::rl_tools;
 #include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn/operations_cpu_mkl.h>
 using DEV_SPEC_INIT = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, rlt::devices::logging::CPU_TENSORBOARD<>>;
-using DEVICE_INIT = rlt::devices::CPU<DEV_SPEC_INIT>;
+using DEVICE_INIT = rlt::devices::CPU_MKL<DEV_SPEC_INIT>;
 //using DEVICE = rlt::devices::CPU_MKL<DEV_SPEC_INIT>;
 using DEVICE = rlt::devices::DefaultCUDA;
 using DEV_SPEC = DEVICE::SPEC;
@@ -52,20 +52,20 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     DEVICE_INIT device_init;
     rlp::OPTIMIZER optimizer;
 
-    rlp::ACTOR_CRITIC_TYPE actor_critic_init;
+    rlp::ACTOR_CRITIC_TYPE actor_critic_init, actor_critic_init2;
     rlp::ACTOR_CRITIC_TYPE actor_critic;
     rlp::OFF_POLICY_RUNNER_TYPE off_policy_runner_init, off_policy_runner;
     rlp::OFF_POLICY_RUNNER_TYPE* off_policy_runner_pointer;
 
-    rlp::CRITIC_BATCH_TYPE critic_batch;
+    rlp::CRITIC_BATCH_TYPE critic_batch, critic_batch_init;
     rlp::CRITIC_BATCH_TYPE* critic_batch_pointer;
-    rlp::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers;
-    rlp::CRITIC_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
+    rlp::CRITIC_TRAINING_BUFFERS_TYPE critic_training_buffers, critic_training_buffers_init;
+    rlp::CRITIC_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2], critic_buffers_init[2];
 
-    rlp::ACTOR_BATCH_TYPE actor_batch;
+    rlp::ACTOR_BATCH_TYPE actor_batch, actor_batch_init;
     rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;
-    rlp::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers;
-    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
+    rlp::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers, actor_training_buffers_init;
+    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2], actor_buffers_init[2];
     rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
     rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
 
@@ -78,29 +78,47 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
 
 
     rlt::malloc(device_init, actor_critic_init);
+    rlt::malloc(device_init, actor_critic_init2);
     rlt::malloc(device, actor_critic);
     rlt::malloc(device_init, off_policy_runner_init);
     rlt::malloc(device, off_policy_runner);
     cudaMalloc(&off_policy_runner_pointer, sizeof(rlp::OFF_POLICY_RUNNER_TYPE));
     rlt::check_status(device);
 
+    rlt::malloc(device_init, critic_batch_init);
     rlt::malloc(device, critic_batch);
     cudaMalloc(&critic_batch_pointer, sizeof(rlp::CRITIC_BATCH_TYPE));
     rlt::check_status(device);
+    rlt::malloc(device_init, critic_training_buffers_init);
     rlt::malloc(device, critic_training_buffers);
+    rlt::malloc(device_init, critic_buffers_init[0]);
+    rlt::malloc(device_init, critic_buffers_init[1]);
     rlt::malloc(device, critic_buffers[0]);
     rlt::malloc(device, critic_buffers[1]);
 
+    rlt::malloc(device_init, actor_batch_init);
     rlt::malloc(device, actor_batch);
     cudaMalloc(&actor_batch_pointer, sizeof(rlp::ACTOR_BATCH_TYPE));
     rlt::check_status(device);
+    rlt::malloc(device_init, actor_training_buffers_init);
     rlt::malloc(device, actor_training_buffers);
     rlt::malloc(device, actor_buffers_eval);
     rlt::malloc(device_init, actor_buffers_eval_init);
+    rlt::malloc(device_init, actor_buffers_init[0]);
+    rlt::malloc(device_init, actor_buffers_init[1]);
     rlt::malloc(device, actor_buffers[0]);
     rlt::malloc(device, actor_buffers[1]);
 
     rlt::init(device_init, actor_critic_init, rng_init);
+    rlt::zero_gradient(device_init, actor_critic_init.critic_1);
+    rlt::zero_gradient(device_init, actor_critic_init.critic_2);
+    rlt::zero_gradient(device_init, actor_critic_init.actor);
+    rlt::reset_forward_state(device_init, actor_critic_init.critic_1);
+    rlt::reset_forward_state(device_init, actor_critic_init.critic_2);
+    rlt::reset_forward_state(device_init, actor_critic_init.actor);
+//    rlt::reset_optimizer_state(device_init, optimizer, actor_critic_init.critic_1);
+//    rlt::reset_optimizer_state(device_init, optimizer, actor_critic_init.critic_2);
+//    rlt::reset_optimizer_state(device_init, optimizer, actor_critic_init.actor);
     rlt::copy(device_init, device, actor_critic_init, actor_critic);
 //    for(int i = 0; i < decltype(off_policy_runner_init)::N_ENVIRONMENTS; i += 1){
 //        auto parameters = p::env::parameters;
@@ -139,7 +157,15 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
 //                auto start = std::chrono::high_resolution_clock::now();
                 rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
                 rlt::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
+                rlt::copy(device, device_init, critic_batch, critic_batch_init);
+                rlt::copy(device, device_init, actor_critic, actor_critic_init2);
+                DTYPE diff_before = rlt::abs_diff(device_init, actor_critic_init.critic_1, actor_critic_init2.critic_1);
+//                std::cout << "diff before: " << diff_before << std::endl;
                 rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers, rng);
+                rlt::train_critic(device_init, actor_critic_init, critic_i == 0 ? actor_critic_init.critic_1 : actor_critic_init.critic_2, critic_batch_init, optimizer, actor_buffers_init[critic_i], critic_buffers_init[critic_i], critic_training_buffers_init, rng_init);
+                rlt::copy(device, device_init, actor_critic, actor_critic_init2);
+                DTYPE diff_after = rlt::abs_diff(device_init, actor_critic_init.critic_1, actor_critic_init2.critic_1);
+//                std::cout << "diff after: " << diff_after << std::endl;
 //                cudaDeviceSynchronize();
 //                auto end = std::chrono::high_resolution_clock::now();
 //                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -152,7 +178,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
 //            auto start = std::chrono::high_resolution_clock::now();
             rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
             rlt::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
+            rlt::copy(device, device_init, critic_batch, actor_batch_init);
             rlt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers, rng);
+            rlt::train_actor(device_init, actor_critic_init, actor_batch_init, optimizer, actor_buffers_init[0], critic_buffers_init[0], actor_training_buffers_init, rng_init);
 //            cudaDeviceSynchronize();
 //            auto end = std::chrono::high_resolution_clock::now();
 //            auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -164,6 +192,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
 //                cudaDeviceSynchronize();
 //                auto start = std::chrono::high_resolution_clock::now();
                 rlt::update_critic_targets(device, actor_critic);
+                rlt::update_critic_targets(device_init, actor_critic_init);
 //                cudaDeviceSynchronize();
 //                auto end = std::chrono::high_resolution_clock::now();
 //                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -171,9 +200,15 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
             }
         }
         if(step_i % 1000 == 0){
-            rlt::copy(device, device_init, actor_critic, actor_critic_init);
-            auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, false);
-            std::cout << "Mean return: " << results.returns_mean << std::endl;
+            {
+                rlt::copy(device, device_init, actor_critic, actor_critic_init2);
+                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init2.actor, rlt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, false);
+                std::cout << "Mean return (GPU): " << results.returns_mean << std::endl;
+            }
+            {
+                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, false);
+                std::cout << "Mean return (CPU): " << results.returns_mean << std::endl;
+            }
         }
     }
     {
