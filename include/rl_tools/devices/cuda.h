@@ -32,28 +32,53 @@ namespace rl_tools::devices{
             static constexpr Type TYPE = Type::logging;
         };
     }
-    template <typename T_SPEC>
-    struct CUDA: cuda::Base{
-        template <typename OTHER_DEVICE>
-        static constexpr bool compatible = OTHER_DEVICE::DEVICE_ID == DeviceId::CUDA;
-        using SPEC = T_SPEC;
-        typename SPEC::LOGGING* logger = nullptr;
-        cublasHandle_t handle;
-        typename SPEC::MATH math;
-        typename SPEC::RANDOM random;
+    namespace cuda{
+        template <typename T_SPEC>
+        struct CUDA_FAT: cuda::Base{
+            template <typename OTHER_DEVICE>
+            static constexpr bool compatible = OTHER_DEVICE::DEVICE_ID == DeviceId::CUDA;
+            using SPEC = T_SPEC;
+            typename SPEC::LOGGING* logger = nullptr;
+            cublasHandle_t handle;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
-        index_t malloc_counter = 0;
+            index_t malloc_counter = 0;
 #endif
 #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
-        bool initialized = false;
+            bool initialized = false;
 #endif
+        };
+    }
+    // there is a "FAT" version (containing logger pointer and other context) and a "TAG" version that can be  just used for tag dispatch without runtime overhead
+    template <typename T_SPEC>
+    struct CUDA: utils::typing::conditional_t<T_SPEC::TAG, cuda::Base, cuda::CUDA_FAT<T_SPEC>>{
+        using SPEC = T_SPEC;
+        typename SPEC::MATH math;
+        typename SPEC::RANDOM random;
+        static constexpr bool TAG = SPEC::TAG;
+        static constexpr bool KERNEL = SPEC::KERNEL;
     };
+    namespace cuda{
+//        template <typename DEVICE, typename std::enable_if<sizeof(CUDA<typename DEVICE::SPEC, true>) == 0>::type* = nullptr>
+        template <typename SPEC, bool T_KERNEL=false>
+        struct TAG_SPEC: SPEC{
+            static constexpr bool TAG = true;
+            static constexpr bool KERNEL = T_KERNEL;
+        };
+        template <typename DEVICE, bool KERNEL = false>
+        using _TAG = CUDA<TAG_SPEC<typename DEVICE::SPEC, KERNEL>>;
+        template <typename DEVICE, bool KERNEL = false, typename utils::typing::enable_if<sizeof(_TAG<DEVICE, KERNEL>) == 3>::type* = nullptr> // size three because C++ requires a size of at least one byte per struct (for distinct addresses) and since it has two empty member structs (random and math device structs)
+        using TAG = _TAG<DEVICE, KERNEL>;
+
+    }
+
     struct DefaultCUDASpecification{
 //        using MATH_HOST = devices::math::CPU;
         using MATH = devices::math::CUDA;
         using MATH_DEVICE_ACCURATE = math::CUDA;
         using RANDOM = random::CUDA;
         using LOGGING = logging::CUDA;
+        static constexpr bool TAG = false;
+        static constexpr bool KERNEL = false;
     };
     using DefaultCUDA = CUDA<DefaultCUDASpecification>;
 }

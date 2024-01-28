@@ -61,7 +61,7 @@ namespace rl_tools{
 
         template<typename DEVICE, typename SPEC, typename RNG>
         __global__
-        void prologue_kernel(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
+        void prologue_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             // if the episode is done (step limit activated for STEP_LIMIT > 0) or if the step is the first step for this runner, reset the environment
@@ -81,7 +81,8 @@ namespace rl_tools{
             constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
-            prologue_kernel<<<grid, block>>>(device, runner, rng);
+            devices::cuda::TAG<DEVICE, true> tag_device;
+            prologue_kernel<<<grid, block>>>(tag_device, runner, rng);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename POLICY>
