@@ -79,14 +79,23 @@ namespace rl_tools{
 
     template <typename T_CONFIG>
     void destroy(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts){
+        free(ts.device, ts.actor_critic);
+        free(ts.device, ts.off_policy_runner);
         free(ts.device, ts.critic_batch);
         free(ts.device, ts.critic_training_buffers);
+        free(ts.device, ts.action_noise_critic[0]);
+        free(ts.device, ts.action_noise_critic[1]);
+        free(ts.device, ts.critic_buffers[0]);
+        free(ts.device, ts.critic_buffers[1]);
         free(ts.device, ts.actor_batch);
         free(ts.device, ts.actor_training_buffers);
-        free(ts.device, ts.off_policy_runner);
-        free(ts.device, ts.actor_critic);
+        free(ts.device, ts.action_noise_actor);
+        free(ts.device, ts.actor_buffers_eval);
+        free(ts.device, ts.actor_buffers[0]);
+        free(ts.device, ts.actor_buffers[1]);
         free(ts.device, ts.observations_mean);
         free(ts.device, ts.observations_std);
+        free(ts.device, ts.actor_deterministic_evaluation_buffers);
     }
 
     template <typename T_CONFIG>
@@ -109,7 +118,8 @@ namespace rl_tools{
             if(ts.step % 1 == 0){
                 {
                     gather_batch(ts.device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                    train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.rng);
+                    randn(ts.device, ts.action_noise_actor, ts.rng);
+                    train_actor(ts.device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor);
                 }
                 update_critic_targets(ts.device, ts.actor_critic);
             }

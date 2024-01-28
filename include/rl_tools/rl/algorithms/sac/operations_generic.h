@@ -221,15 +221,16 @@ namespace rl_tools{
         evaluate(device, critic, batch.observations_and_actions, training_buffers.action_value, critic_buffers);
         return nn::loss_functions::mse::evaluate(device, training_buffers.action_value, training_buffers.target_action_value);
     }
-    template <typename DEVICE, typename OUTPUT_SPEC, typename SPEC, typename RNG, typename TI_SAMPLE>
-    RL_TOOLS_FUNCTION_PLACEMENT void sample_actions_actor_per_sample(DEVICE& device, Matrix<OUTPUT_SPEC>& output, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng, TI_SAMPLE batch_i) {
+    template <typename DEVICE, typename OUTPUT_SPEC, typename SPEC, typename ACTION_NOISE_SPEC, typename TI_SAMPLE>
+    RL_TOOLS_FUNCTION_PLACEMENT void sample_actions_actor_per_sample(DEVICE& device, Matrix<OUTPUT_SPEC>& output, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, TI_SAMPLE batch_i) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T std = math::exp(typename DEVICE::SPEC::MATH{}, get(output, batch_i, action_i + ACTION_DIM));
             // action_sample = noise * std + mean
-            T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, (T)1, rng);
+//            T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, (T)1, rng);
+            T noise = get(action_noise, batch_i, action_i);
             set(training_buffers.action_noise, batch_i, action_i, noise);
             T action_sample = get(output, batch_i, action_i) + std * noise;
             set(training_buffers.action_sample, batch_i, action_i, action_sample);
@@ -237,14 +238,14 @@ namespace rl_tools{
             set(training_buffers.actions, batch_i, action_i, action);
         }
     }
-    template <typename DEVICE, typename SPEC, typename RNG>
-    void sample_actions_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
+    template <typename DEVICE, typename SPEC, typename ACTION_NOISE_SPEC>
+    void sample_actions_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = rl::algorithms::sac::ActorTrainingBuffers<SPEC>::BATCH_SIZE;
         auto actions_full = output(actor_critic.actor);
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-            sample_actions_actor_per_sample(device, actions_full, training_buffers, rng, batch_i);
+            sample_actions_actor_per_sample(device, actions_full, training_buffers, action_noise, batch_i);
         }
     }
     template <typename DEVICE, typename SPEC, typename ACTION_SPEC, typename CRITIC_1_OUTPUT_SPEC, typename CRITIC_2_OUTPUT_SPEC, typename T_ALPHA, typename TI_SAMPLE>
@@ -331,8 +332,8 @@ namespace rl_tools{
         T d_log_alpha = d_alpha;
         set(actor_critic.log_alpha.gradient, 0, 0, d_log_alpha);
     }
-    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename RNG>
-    void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
+    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename ACTION_NOISE_SPEC>
+    void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
@@ -344,7 +345,7 @@ namespace rl_tools{
         zero_gradient(device, actor_critic.actor);
         zero_gradient(device, actor_critic.log_alpha);
         forward(device, actor_critic.actor, batch.observations);
-        sample_actions_actor(device, actor_critic, training_buffers, rng);
+        sample_actions_actor(device, actor_critic, training_buffers, action_noise);
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         forward(device, actor_critic.critic_1, training_buffers.state_action_value_input);
         forward(device, actor_critic.critic_2, training_buffers.state_action_value_input);
