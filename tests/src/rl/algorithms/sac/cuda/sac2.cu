@@ -1,3 +1,5 @@
+#define RL_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
+
 // ------------ Groups 1 ------------
 #include <rl_tools/operations/cuda/group_1.h>
 #include <rl_tools/operations/cpu_mkl/group_1.h>
