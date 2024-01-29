@@ -210,6 +210,9 @@ bool training_step(TRAINING_STATE& ts){
         ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
     }
 #endif
+    if(ts.step > 5000){
+        ts.off_policy_runner.parameters.exploration_noise = 0;
+    }
     ts.step++;
     if(ts.step > TRAINING_CONFIG::STEP_LIMIT){
 #ifndef RL_TOOLS_BENCHMARK
