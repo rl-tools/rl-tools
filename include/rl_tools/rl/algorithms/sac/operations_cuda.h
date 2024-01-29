@@ -7,7 +7,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC, typename ALPHA_PARAMETER>
     __global__
-    void target_actions_kernel(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC> training_buffers, ALPHA_PARAMETER log_alpha) {
+    void target_actions_kernel(devices::CUDA<DEV_SPEC> device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC> training_buffers, ALPHA_PARAMETER log_alpha) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -28,7 +28,8 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        target_actions_kernel<<<bias_grid, bias_block>>>(device, batch, training_buffers, log_alpha);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        target_actions_kernel<<<bias_grid, bias_block>>>(tag_device, batch, training_buffers, log_alpha);
         check_status(device);
     }
 

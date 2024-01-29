@@ -46,11 +46,13 @@ using rlp = p::rl<p::env::ENVIRONMENT>;
 
 static_assert(rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
+
+static constexpr bool check_diff = true;
+
 TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     DEVICE_INIT::SPEC::LOGGING logger;
     DEVICE device;
     DEVICE_INIT device_init;
-    rlp::OPTIMIZER optimizer;
     using T = DTYPE;
     using TI = DEVICE::index_t;
 
@@ -148,18 +150,27 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     constexpr DEVICE::index_t step_limit = 20000;
+    T epsilon_decay = 1;
+    T epsilon_decay_rate = 1.02;
     for(int step_i = 0; step_i < step_limit; step_i += 1){
+        bool check_diff_now = check_diff && (step_i < rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_CRITIC + 100);
         if(step_i % 1000 == 0){
             {
                 auto rng_init_copy = rng_init;
                 rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init2.actor, rlt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy, false);
+                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init2.actor, rlt::rl::utils::evaluation::Specification<100, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
                 std::cout << "Mean return (GPU): " << results.returns_mean << std::endl;
+                if(step_i > 10000){
+                    ASSERT_GT(results.returns_mean, -200);
+                }
             }
             {
                 auto rng_init_copy = rng_init;
-                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<1, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy, false);
+                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<100, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
                 std::cout << "Mean return (CPU): " << results.returns_mean << std::endl;
+                if(step_i > 10000){
+                    ASSERT_GT(results.returns_mean, -200);
+                }
             }
         }
         rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
@@ -183,42 +194,50 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
                 rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
                 rlt::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
                 rlt::copy(device, device_init, critic_batch, critic_batch_init);
-                rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                DTYPE diff_before = rlt::abs_diff(device_init, actor_critic_init.critic_1, actor_critic_init2.critic_1);
-//                std::cout << "diff before: " << diff_before << std::endl;
+                if(check_diff_now){
+                    rlt::copy(device, device_init, actor_critic, actor_critic_init2);
+                    DTYPE diff_before = rlt::abs_diff(device_init, actor_critic_init.critic_1, actor_critic_init2.critic_1);
+                    std::cout << "step: " << step_i << " " << "diff before: " << diff_before << std::endl;
+                }
                 rlt::randn(device_init, action_noise_critic_init[critic_i], rng_init);
                 rlt::copy(device_init, device, action_noise_critic_init[critic_i], action_noise_critic[critic_i]);
-                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers, action_noise_critic[critic_i]);
-                rlt::train_critic(device_init, actor_critic_init, critic_i == 0 ? actor_critic_init.critic_1 : actor_critic_init.critic_2, critic_batch_init, optimizer, actor_buffers_init[critic_i], critic_buffers_init[critic_i], critic_training_buffers_init, action_noise_critic_init[critic_i]);
-                rlt::copy(device, device_init, critic_training_buffers, critic_training_buffers_init2);
+                rlt::train_critic(device     , actor_critic     , critic_i == 0 ? actor_critic.critic_1      : actor_critic.critic_2     , critic_batch     , actor_critic.critic_optimizers[critic_i]     , actor_buffers[critic_i]     , critic_buffers[critic_i]     , critic_training_buffers     , action_noise_critic[critic_i]);
+                rlt::train_critic(device_init, actor_critic_init, critic_i == 0 ? actor_critic_init.critic_1 : actor_critic_init.critic_2, critic_batch_init, actor_critic_init.critic_optimizers[critic_i], actor_buffers_init[critic_i], critic_buffers_init[critic_i], critic_training_buffers_init, action_noise_critic_init[critic_i]);
+                if(check_diff_now){
+                    rlt::copy(device, device_init, critic_training_buffers, critic_training_buffers_init2);
 //                rlt::copy(device, device_init, critic_training_buffers.next_actions_mean, critic_training_buffers_init2.next_actions_mean);
-                T next_action_log_std_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_actions_log_std, critic_training_buffers_init2.next_actions_log_std);
-                if(false){
-                    std::cout << "next_action_log_std_diff: " << next_action_log_std_diff << std::endl;
-                    ASSERT_LT(next_action_log_std_diff, 1e-14);
+                    T next_action_log_std_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_actions_log_std, critic_training_buffers_init2.next_actions_log_std);
+                    std::cout << "step: " << step_i << " " << "next_action_log_std_diff: " << next_action_log_std_diff << std::endl;
+                    ASSERT_LT(next_action_log_std_diff, 1e-14*epsilon_decay);
                     T next_actions_mean_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_actions_mean, critic_training_buffers_init2.next_actions_mean);
-                    std::cout << "next_actions_mean_diff: " << next_actions_mean_diff << std::endl;
-                    ASSERT_LT(next_actions_mean_diff, 1e-14);
+                    std::cout << "step: " << step_i << " " << "next_actions_mean_diff: " << next_actions_mean_diff << std::endl;
+                    ASSERT_LT(next_actions_mean_diff, 1e-14*epsilon_decay);
                     T next_state_action_value_input_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_state_action_value_input, critic_training_buffers_init2.next_state_action_value_input);
-                    std::cout << "next_state_action_value_input_diff: " << next_state_action_value_input_diff << std::endl;
-                    ASSERT_LT(next_state_action_value_input_diff, 1e-14);
+                    std::cout << "step: " << step_i << " " << "next_state_action_value_input_diff: " << next_state_action_value_input_diff << std::endl;
+                    ASSERT_LT(next_state_action_value_input_diff, 1e-14*epsilon_decay);
                     T next_state_action_value_critic_1_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_state_action_value_critic_1, critic_training_buffers_init2.next_state_action_value_critic_1);
-                    std::cout << "next_state_action_value_critic_1_diff: " << next_state_action_value_critic_1_diff << std::endl;
-                    ASSERT_LT(next_state_action_value_critic_1_diff, 1e-14);
+                    std::cout << "step: " << step_i << " " << "next_state_action_value_critic_1_diff: " << next_state_action_value_critic_1_diff << std::endl;
+                    ASSERT_LT(next_state_action_value_critic_1_diff, 1e-14*epsilon_decay);
                     T next_state_action_value_critic_2_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_state_action_value_critic_2, critic_training_buffers_init2.next_state_action_value_critic_2);
-                    std::cout << "next_state_action_value_critic_2_diff: " << next_state_action_value_critic_2_diff << std::endl;
-                    ASSERT_LT(next_state_action_value_critic_2_diff, 1e-14);
+                    std::cout << "step: " << step_i << " " << "next_state_action_value_critic_2_diff: " << next_state_action_value_critic_2_diff << std::endl;
+                    ASSERT_LT(next_state_action_value_critic_2_diff, 1e-14*epsilon_decay);
                     T target_action_value_diff = rlt::abs_diff(device_init, critic_training_buffers_init.target_action_value, critic_training_buffers_init2.target_action_value);
-                    std::cout << "target_action_value_diff: " << target_action_value_diff << std::endl;
-                    ASSERT_LT(target_action_value_diff, 1e-14);
+                    std::cout << "step: " << step_i << " " << "target_action_value_diff: " << target_action_value_diff << std::endl;
+                    ASSERT_LT(target_action_value_diff, 1e-14*epsilon_decay);
                     T d_output_diff = rlt::abs_diff(device_init, critic_training_buffers_init.d_output, critic_training_buffers_init2.d_output);
-                    std::cout << "d_output_diff: " << d_output_diff << std::endl;
-                    ASSERT_LT(d_output_diff, 1e-14);
+                    std::cout << "step: " << step_i << " " << "d_output_diff: " << d_output_diff << std::endl;
+                    ASSERT_LT(d_output_diff, 1e-14*epsilon_decay);
 
                     rlt::copy(device, device_init, actor_critic, actor_critic_init2);
+                    T diff_gradient_first_layer = rlt::abs_diff(device_init, actor_critic_init.critic_1.input_layer.weights.gradient, actor_critic_init2.critic_1.input_layer.weights.gradient);
+                    std::cout << "step: " << step_i << " " << "diff_gradient_first_layer: " << diff_gradient_first_layer << std::endl;
+                    ASSERT_LT(diff_gradient_first_layer, 1e-14*epsilon_decay);
+                    T diff_weights_first_layer = rlt::abs_diff(device_init, actor_critic_init.critic_1.input_layer.weights.parameters, actor_critic_init2.critic_1.input_layer.weights.parameters);
+                    std::cout << "step: " << step_i << " " << "diff_weights_first_layer: " << diff_weights_first_layer << std::endl;
+                    ASSERT_LT(diff_weights_first_layer, 1e-14*epsilon_decay);
                     DTYPE diff_after = rlt::abs_diff(device_init, actor_critic_init.critic_1, actor_critic_init2.critic_1);
-                    std::cout << "diff after: " << diff_after << std::endl;
-                    ASSERT_LT(diff_after, 1e-14);
+                    std::cout << "step: " << step_i << " " << "diff after: " << diff_after << std::endl;
+                    ASSERT_LT(diff_after, 1e-10*epsilon_decay);
 
                 }
 //                cudaDeviceSynchronize();
@@ -231,17 +250,41 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
         if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_ACTOR && step_i % rlp::ACTOR_CRITIC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
             cudaDeviceSynchronize();
 //            auto start = std::chrono::high_resolution_clock::now();
+            if(check_diff_now){
+                rlt::copy(device, device_init, actor_critic, actor_critic_init2);
+                T diff_before = rlt::abs_diff(device_init, actor_critic_init.actor, actor_critic_init2.actor);
+                std::cout << "step: " << step_i << " " << "actor diff before: " << diff_before << std::endl;
+            }
             rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
             rlt::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
-            rlt::copy(device, device_init, critic_batch, actor_batch_init);
+            rlt::copy(device, device_init, actor_batch, actor_batch_init);
             rlt::randn(device_init, action_noise_actor_init, rng_init);
             rlt::copy(device_init, device, action_noise_actor_init, action_noise_actor);
-            rlt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers, action_noise_actor);
-            rlt::train_actor(device_init, actor_critic_init, actor_batch_init, optimizer, actor_buffers_init[0], critic_buffers_init[0], actor_training_buffers_init, action_noise_actor_init);
+            rlt::train_actor(device     , actor_critic     , actor_batch     , actor_critic.actor_optimizer     , actor_buffers[0]     , critic_buffers[0]     , actor_training_buffers     , action_noise_actor);
+            rlt::train_actor(device_init, actor_critic_init, actor_batch_init, actor_critic_init.actor_optimizer, actor_buffers_init[0], critic_buffers_init[0], actor_training_buffers_init, action_noise_actor_init);
+            if(check_diff_now){
+                rlt::copy(device, device_init, actor_training_buffers, actor_training_buffers_init2);
+                rlt::copy(device, device_init, actor_critic, actor_critic_init2);
+                T diff_output = rlt::abs_diff(device_init, actor_critic_init.actor.output_layer.output, actor_critic_init2.actor.output_layer.output);
+                std::cout << "step: " << step_i << " " << "diff_output: " << diff_output << std::endl;
+                ASSERT_LT(diff_output, 1e-14*epsilon_decay);
+                T diff_actions = rlt::abs_diff(device_init, actor_training_buffers_init.actions, actor_training_buffers_init2.actions);
+                std::cout << "step: " << step_i << " " << "diff_actions: " << diff_actions << std::endl;
+                ASSERT_LT(diff_actions, 1e-14*epsilon_decay);
+                T diff_after = rlt::abs_diff(device_init, actor_critic_init.actor, actor_critic_init2.actor);
+                std::cout << "step: " << step_i << " " << "actor diff after: " << diff_after << std::endl;
+                ASSERT_LT(diff_after, 1e-10*epsilon_decay);
+            }
 //            cudaDeviceSynchronize();
 //            auto end = std::chrono::high_resolution_clock::now();
 //            auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 //                    std::cout << "actor: " << duration_microseconds << "us" << std::endl;
+            if(epsilon_decay == 1){
+                epsilon_decay *=  10000000;
+            }
+            else{
+                epsilon_decay *= epsilon_decay_rate;
+            }
         }
 
         if(step_i > rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_CRITIC && step_i % rlp::ACTOR_CRITIC_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0) {

@@ -422,6 +422,12 @@ namespace rl_tools{
 
         copy(source_device, target_device, source.critic_target_1, target.critic_target_1);
         copy(source_device, target_device, source.critic_target_2, target.critic_target_2);
+        copy(source_device, target_device, source.log_alpha, target.log_alpha);
+
+        copy(source_device, target_device, source.actor_optimizer, target.actor_optimizer);
+        copy(source_device, target_device, source.critic_optimizers[0], target.critic_optimizers[0]);
+        copy(source_device, target_device, source.critic_optimizers[1], target.critic_optimizers[1]);
+        copy(source_device, target_device, source.alpha_optimizer, target.alpha_optimizer);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::ActorTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::ActorTrainingBuffers<TARGET_SPEC>& target){
