@@ -173,12 +173,13 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
                 }
             }
         }
-        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-        rlt::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
-        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-        rlt::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
-        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-        rlt::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
+        rlt::step(device, off_policy_runner, *off_policy_runner_pointer, actor_critic.actor, actor_buffers_eval, rng);
+//        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
+//        rlt::rl::components::off_policy_runner::prologue(device, *off_policy_runner_pointer, rng);
+//        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
+//        rlt::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
+//        rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
+//        rlt::rl::components::off_policy_runner::epilogue(device, *off_policy_runner_pointer, rng);
 
         if(step_i % 1000 == 0){
             auto current_time = std::chrono::high_resolution_clock::now();
@@ -192,7 +193,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
 //                cudaDeviceSynchronize();
 //                auto start = std::chrono::high_resolution_clock::now();
                 rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-                rlt::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
+                rlt::gather_batch(device, *off_policy_runner_pointer, *critic_batch_pointer, rng);
                 rlt::copy(device, device_init, critic_batch, critic_batch_init);
                 if(check_diff_now){
                     rlt::copy(device, device_init, actor_critic, actor_critic_init2);
@@ -256,7 +257,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
                 std::cout << "step: " << step_i << " " << "actor diff before: " << diff_before << std::endl;
             }
             rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-            rlt::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
+            rlt::gather_batch(device, *off_policy_runner_pointer, *actor_batch_pointer, rng);
             rlt::copy(device, device_init, actor_batch, actor_batch_init);
             rlt::randn(device_init, action_noise_actor_init, rng_init);
             rlt::copy(device_init, device, action_noise_actor_init, action_noise_actor);

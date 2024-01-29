@@ -73,7 +73,7 @@ namespace rl_tools{
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename RNG>
-        void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {
+        void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -82,11 +82,11 @@ namespace rl_tools{
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            prologue_kernel<<<grid, block>>>(tag_device, runner, rng);
+            prologue_kernel<<<grid, block>>>(tag_device, &runner, rng);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename POLICY>
-        void interlude(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, typename POLICY::template Buffers<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
+        void interlude(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, typename POLICY::template Buffer<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
             // runner struct should be on the CPU while its buffers should be on the GPU
             evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
         }
@@ -105,7 +105,7 @@ namespace rl_tools{
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename RNG>
-        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG& rng) {
+        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG& rng) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -113,12 +113,12 @@ namespace rl_tools{
             constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
-            epilogue_kernel<<<grid, block>>>(device, runner, rng);
+            epilogue_kernel<<<grid, block>>>(device, &runner, rng);
             check_status(device);
         }
     }
     template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
-    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng){
+    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, RNG rng){
         static_assert(utils::typing::is_same_v<RNG, random::cuda::RNG>);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
@@ -129,8 +129,33 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(runner, batch, rng);
+        rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(&runner, &batch, rng);
         check_status(device);
+    }
+    template<typename DEV_SPEC, typename SPEC, typename POLICY, typename RNG>
+    void step(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy_host, typename POLICY::template Buffer<SPEC::N_ENVIRONMENTS>& policy_eval_buffers_host, RNG &rng){
+        utils::assert_exit(device, false, "please use the step function signature passing a host and device (GPU) version of the runner");
+    }
+    template<typename DEV_SPEC, typename HOST_SPEC, typename DEVICE_SPEC, typename POLICY, typename RNG>
+    void step(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<HOST_SPEC>& runner_host, rl::components::OffPolicyRunner<DEVICE_SPEC>& runner_device, POLICY& policy_host, typename POLICY::template Buffer<HOST_SPEC::N_ENVIRONMENTS>& policy_eval_buffers_host, RNG &rng){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+#ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
+        utils::assert_exit(device, runner_host.initialized, "OffPolicyRunner not initialized");
+#endif
+        static_assert(POLICY::INPUT_DIM == HOST_SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
+        static_assert(POLICY::INPUT_DIM == DEVICE_SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
+        static_assert(POLICY::OUTPUT_DIM == (HOST_SPEC::ENVIRONMENT::ACTION_DIM * (HOST_SPEC::STOCHASTIC_POLICY ? 2 : 1)), "The policy's output dimension must match the environment's action dimension.");
+        static_assert(POLICY::OUTPUT_DIM == (DEVICE_SPEC::ENVIRONMENT::ACTION_DIM * (DEVICE_SPEC::STOCHASTIC_POLICY ? 2 : 1)), "The policy's output dimension must match the environment's action dimension.");
+        // todo: increase efficiency by removing the double observation of each state
+        using T = typename DEVICE_SPEC::T;
+        using TI = typename DEVICE_SPEC::TI;
+        using ENVIRONMENT = typename DEVICE_SPEC::ENVIRONMENT;
+
+        rng = rlt::random::next(typename DEVICE::SPEC::RANDOM{}, rng);
+        rl::components::off_policy_runner::prologue(device, runner_device, rng);
+        rl::components::off_policy_runner::interlude(device, runner_host, policy_host, policy_eval_buffers_host);
+        rng = rlt::random::next(typename DEVICE::SPEC::RANDOM{}, rng);
+        rl::components::off_policy_runner::epilogue(device, runner_device, rng);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
