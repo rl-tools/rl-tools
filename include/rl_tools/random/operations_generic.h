@@ -42,7 +42,7 @@ namespace rl_tools::random{
    }
     namespace normal_distribution{
         template<typename MATH_DEV, typename T, typename RNG>
-        T sample(const devices::random::Generic<MATH_DEV>& dev, T mean, T std, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::Generic<MATH_DEV>& dev, T mean, T std, RNG& rng){
             static_assert(utils::typing::is_same_v<RNG, typename MATH_DEV::index_t>);
             static_assert(utils::typing::is_same_v<T, double> || utils::typing::is_same_v<T, float>);
             next(dev, rng);
@@ -55,7 +55,7 @@ namespace rl_tools::random{
             return z * std + mean;
         }
         template<typename MATH_DEV, typename T>
-        T log_prob(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
+        RL_TOOLS_FUNCTION_PLACEMENT T log_prob(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
             T neg_log_sqrt_pi = -0.5 * math::log(MATH_DEV{}, 2 * math::PI<T>);
             T diff = (value - mean);
@@ -64,21 +64,21 @@ namespace rl_tools::random{
             return neg_log_sqrt_pi - log_std - 0.5 * pre_square * pre_square;
         }
         template<typename MATH_DEV, typename T>
-        T d_log_prob_d_mean(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
+        RL_TOOLS_FUNCTION_PLACEMENT T d_log_prob_d_mean(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
             T diff = (value - mean);
             T std = math::exp(MATH_DEV{}, log_std);
             T pre_square = diff/std;
             return pre_square / std;
         }
         template<typename MATH_DEV, typename T>
-        T d_log_prob_d_log_std(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
+        RL_TOOLS_FUNCTION_PLACEMENT T d_log_prob_d_log_std(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
             T diff = (value - mean);
             T std = math::exp(MATH_DEV{}, log_std);
             T pre_square = diff/std;
             return - 1 + pre_square * pre_square;
         }
         template<typename MATH_DEV, typename T>
-        T d_log_prob_d_sample(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
+        RL_TOOLS_FUNCTION_PLACEMENT T d_log_prob_d_sample(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
             T diff = (value - mean);
             T std = math::exp(MATH_DEV{}, log_std);
             T pre_square = diff/std;

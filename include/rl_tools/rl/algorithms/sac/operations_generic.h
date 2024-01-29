@@ -147,8 +147,8 @@ namespace rl_tools{
             target_actions_per_sample(device, batch, training_buffers, alpha, batch_step_i);
         }
     }
-    template <typename DEVICE, typename SPEC, typename ACTION_NOISE_SPEC, typename TI_SAMPLE>
-    RL_TOOLS_FUNCTION_PLACEMENT void sample_actions_critic_per_sample(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, TI_SAMPLE sample_i) {
+    template <typename DEVICE, typename SPEC, typename ACTION_NOISE_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void sample_actions_critic_per_sample(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, typename DEVICE::index_t sample_i) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
@@ -438,9 +438,13 @@ namespace rl_tools{
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::CriticTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::CriticTrainingBuffers<TARGET_SPEC>& target){
         copy(source_device, target_device, source.next_state_action_value_input_full, target.next_state_action_value_input_full);
+        copy(source_device, target_device, source.action_value, target.action_value);
         copy(source_device, target_device, source.target_action_value, target.target_action_value);
         copy(source_device, target_device, source.next_state_action_value_critic_1, target.next_state_action_value_critic_1);
         copy(source_device, target_device, source.next_state_action_value_critic_2, target.next_state_action_value_critic_2);
+        copy(source_device, target_device, source.d_input, target.d_input);
+        copy(source_device, target_device, source.d_output, target.d_output);
+        copy(source_device, target_device, source.action_log_probs, target.action_log_probs);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

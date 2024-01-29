@@ -13,4 +13,5 @@ target_link_libraries(
         RLtools::Minimal
         GTest::gtest_main
 )
+#target_compile_options(test_rl_algorithms_sac_cuda PRIVATE -gG)
 gtest_discover_tests(test_rl_algorithms_sac_cuda)
