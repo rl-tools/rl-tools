@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD  17)
 
 add_executable(
         test_rl_algorithms_sac_cuda
-        sac2.cu
+        sac.cu
 )
 target_link_libraries(
         test_rl_algorithms_sac_cuda
