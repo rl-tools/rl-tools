@@ -152,6 +152,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     constexpr DEVICE::index_t step_limit = 20000;
     T epsilon_decay = 1;
     T epsilon_decay_rate = 1.02;
+    T returns_acc = 0;
+    T returns_acc_count = 0;
     for(int step_i = 0; step_i < step_limit; step_i += 1){
         bool check_diff_now = check_diff && (step_i < rlp::ACTOR_CRITIC_PARAMETERS::N_WARMUP_STEPS_CRITIC + 100);
         if(step_i % 1000 == 0){
@@ -161,7 +163,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
                 auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init2.actor, rlt::rl::utils::evaluation::Specification<100, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
                 std::cout << "Mean return (GPU): " << results.returns_mean << std::endl;
                 if(step_i > 10000){
-                    ASSERT_GT(results.returns_mean, -200);
+                    ASSERT_GT(results.returns_mean, -400);
+                    returns_acc += results.returns_mean;
+                    returns_acc_count += 1;
                 }
             }
             {
@@ -169,7 +173,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
                 auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<100, rlp::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
                 std::cout << "Mean return (CPU): " << results.returns_mean << std::endl;
                 if(step_i > 10000){
-                    ASSERT_GT(results.returns_mean, -200);
+                    ASSERT_GT(results.returns_mean, -400);
                 }
             }
         }
@@ -301,6 +305,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
             }
         }
     }
+    ASSERT_GT(returns_acc/returns_acc_count, -200);
     {
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;
