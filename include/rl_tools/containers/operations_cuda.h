@@ -66,6 +66,22 @@ namespace rl_tools{
                 }
             }
         }
+        template<typename DEV_SPEC, typename SPEC, typename RNG>
+        __global__
+        void randn(devices::CUDA<DEV_SPEC> device, Matrix<SPEC> m, typename SPEC::T mean, typename SPEC::T std, RNG rng){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            TI col = blockIdx.x * blockDim.x + threadIdx.x;
+            curandState rng_state;
+            curand_init(rng, col, 0, &rng_state);
+            if(col < SPEC::COLS){
+                for(TI row = 0; row < SPEC::ROWS; row++){
+                    T sample = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, mean, std, rng_state);
+                    set(m, row, col, sample);
+                }
+            }
+        }
     }
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy_layout_mismatch(devices::CUDA<SOURCE_DEV_SPEC>& source_device, devices::CUDA<TARGET_DEV_SPEC>& target_device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target){
@@ -199,6 +215,22 @@ namespace rl_tools{
         dim3 block(BLOCKSIZE_COLS);
         containers::cuda::kernels::set_all<DEVICE, SPEC, VALUE_T><<<grid, block>>>(m, value);
         check_status(device);
+    }
+    template<typename DEV_SPEC, typename SPEC, typename RNG>
+    void randn(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& m, typename SPEC::T mean, typename SPEC::T std, RNG& rng){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        constexpr TI BLOCKSIZE_COLS = 32;
+        constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::COLS, BLOCKSIZE_COLS);
+        dim3 grid(N_BLOCKS_COLS);
+        dim3 block(BLOCKSIZE_COLS);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        containers::cuda::kernels::randn<<<grid, block>>>(tag_device, m, mean, std, rng);
+        check_status(device);
+    }
+    template<typename DEV_SPEC, typename SPEC, typename RNG>
+    void randn(devices::CUDA<DEV_SPEC>& device, Matrix<SPEC>& m, RNG& rng){
+        randn(device, m, 0, 1, rng);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
