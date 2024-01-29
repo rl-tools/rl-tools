@@ -135,7 +135,7 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 //                auto start = std::chrono::high_resolution_clock::now();
                 rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-                rlt::gather_batch(device, off_policy_runner_pointer, critic_batch_pointer, rng);
+                rlt::gather_batch(device, off_policy_runner_pointer, critic_batch, rng);
                 rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
 //                cudaDeviceSynchronize();
 //                auto end = std::chrono::high_resolution_clock::now();
@@ -148,7 +148,7 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
             cudaDeviceSynchronize();
 //            auto start = std::chrono::high_resolution_clock::now();
             rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-            rlt::gather_batch(device, off_policy_runner_pointer, actor_batch_pointer, rng);
+            rlt::gather_batch(device, off_policy_runner_pointer, actor_batch, rng);
             rlt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
 //            cudaDeviceSynchronize();
 //            auto end = std::chrono::high_resolution_clock::now();

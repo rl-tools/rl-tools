@@ -97,6 +97,7 @@ namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC, typename ACTION_SPEC, typename CRITIC_1_OUTPUT_SPEC, typename CRITIC_2_OUTPUT_SPEC, typename T_ALPHA>
     __global__
     void d_action_d_action_distribution_kernel(devices::CUDA<DEV_SPEC>& device, rl::algorithms::sac::ActorTrainingBuffers<SPEC> training_buffers, Matrix<ACTION_SPEC> actions, Matrix<CRITIC_1_OUTPUT_SPEC> critic_1_output, Matrix<CRITIC_2_OUTPUT_SPEC> critic_2_output, T_ALPHA log_alpha){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::ActorTrainingBuffers<SPEC>;

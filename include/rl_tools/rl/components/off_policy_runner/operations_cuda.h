@@ -10,13 +10,13 @@ namespace rl_tools{
     namespace rl::components::off_policy_runner{
         template <typename DEVICE, typename RUNNER_SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
         __global__
-        void gather_batch_kernel(const rl::components::OffPolicyRunner<RUNNER_SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>* batch, RNG rng) {
+        void gather_batch_kernel(const rl::components::OffPolicyRunner<RUNNER_SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC> batch, RNG rng) {
             using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
             using T = typename RUNNER_SPEC::T;
             using TI = typename RUNNER_SPEC::TI;
-            static_assert(decltype(batch->observations)::COL_PITCH == 1);
-            static_assert(decltype(batch->actions)::COL_PITCH == 1);
-            static_assert(decltype(batch->next_observations)::COL_PITCH == 1);
+            static_assert(decltype(batch.observations)::COL_PITCH == 1);
+            static_assert(decltype(batch.actions)::COL_PITCH == 1);
+            static_assert(decltype(batch.next_observations)::COL_PITCH == 1);
             // rng
             constexpr auto rand_max = 4294967296ULL;
             static_assert(rand_max / RUNNER_SPEC::N_ENVIRONMENTS > 100);
@@ -34,7 +34,7 @@ namespace rl_tools{
             static_assert(decltype(replay_buffer.next_observations)::COL_PITCH == 1);
 
             if(batch_step_i < BATCH_SPEC::BATCH_SIZE){
-                set(batch->observations, batch_step_i, 0, get(replay_buffer.observations, batch_step_i, 0));
+                set(batch.observations, batch_step_i, 0, get(replay_buffer.observations, batch_step_i, 0));
                 typename DEVICE::index_t sample_index_max = (replay_buffer.full ? RUNNER_SPEC::REPLAY_BUFFER_CAPACITY : replay_buffer.position);
 #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_BOUNDS
                 if(sample_index_max < 1){
@@ -46,16 +46,16 @@ namespace rl_tools{
 
                 // todo: replace with smarter, coalesced copy
                 for(typename DEVICE::index_t i = 0; i < BATCH::OBSERVATION_DIM; i++){
-                    set(batch->observations, batch_step_i, i, get(replay_buffer.observations, sample_index, i));
-                    set(batch->next_observations, batch_step_i, i, get(replay_buffer.next_observations, sample_index, i));
+                    set(batch.observations, batch_step_i, i, get(replay_buffer.observations, sample_index, i));
+                    set(batch.next_observations, batch_step_i, i, get(replay_buffer.next_observations, sample_index, i));
                 }
                 for(typename DEVICE::index_t i = 0; i < BATCH::ACTION_DIM; i++){
-                    set(batch->actions, batch_step_i, i, get(replay_buffer.actions, sample_index, i));
+                    set(batch.actions, batch_step_i, i, get(replay_buffer.actions, sample_index, i));
                 }
 
-                set(batch->rewards, 0, batch_step_i, get(replay_buffer.rewards, sample_index, 0));
-                set(batch->terminated, 0, batch_step_i, get(replay_buffer.terminated, sample_index, 0));
-                set(batch->truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
+                set(batch.rewards, 0, batch_step_i, get(replay_buffer.rewards, sample_index, 0));
+                set(batch.terminated, 0, batch_step_i, get(replay_buffer.terminated, sample_index, 0));
+                set(batch.truncated, 0, batch_step_i, get(replay_buffer.truncated,  sample_index, 0));
             }
         }
 
@@ -73,7 +73,7 @@ namespace rl_tools{
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename RNG>
-        void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng) {
+        void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG &rng) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -82,7 +82,7 @@ namespace rl_tools{
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            prologue_kernel<<<grid, block>>>(tag_device, &runner, rng);
+            prologue_kernel<<<grid, block>>>(tag_device, runner, rng);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename POLICY>
@@ -93,7 +93,7 @@ namespace rl_tools{
 
         template<typename DEVICE, typename SPEC, typename RNG>
         __global__
-        void epilogue_kernel(DEVICE& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
+        void epilogue_kernel(DEVICE device, rl::components::OffPolicyRunner<SPEC>* runner, RNG rng) {
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
 
@@ -105,7 +105,7 @@ namespace rl_tools{
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename RNG>
-        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG& rng) {
+        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>* runner, RNG& rng) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -113,12 +113,13 @@ namespace rl_tools{
             constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE_COLS);
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
-            epilogue_kernel<<<grid, block>>>(device, &runner, rng);
+            devices::cuda::TAG<DEVICE, true> tag_device{};
+            epilogue_kernel<<<grid, block>>>(tag_device, runner, rng);
             check_status(device);
         }
     }
     template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
-    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, RNG rng){
+    void gather_batch(devices::CUDA<DEV_SPEC>& device, const rl::components::OffPolicyRunner<SPEC>* runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, RNG rng){
         static_assert(utils::typing::is_same_v<RNG, random::cuda::RNG>);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
@@ -129,7 +130,7 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(&runner, &batch, rng);
+        rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(runner, batch, rng);
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename POLICY, typename RNG>
@@ -137,7 +138,7 @@ namespace rl_tools{
         utils::assert_exit(device, false, "please use the step function signature passing a host and device (GPU) version of the runner");
     }
     template<typename DEV_SPEC, typename HOST_SPEC, typename DEVICE_SPEC, typename POLICY, typename RNG>
-    void step(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<HOST_SPEC>& runner_host, rl::components::OffPolicyRunner<DEVICE_SPEC>& runner_device, POLICY& policy_host, typename POLICY::template Buffer<HOST_SPEC::N_ENVIRONMENTS>& policy_eval_buffers_host, RNG &rng){
+    void step(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<HOST_SPEC>& runner_host, rl::components::OffPolicyRunner<DEVICE_SPEC>* runner_device, POLICY& policy_host, typename POLICY::template Buffer<HOST_SPEC::N_ENVIRONMENTS>& policy_eval_buffers_host, RNG &rng){
         using DEVICE = devices::CUDA<DEV_SPEC>;
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner_host.initialized, "OffPolicyRunner not initialized");
@@ -151,10 +152,11 @@ namespace rl_tools{
         using TI = typename DEVICE_SPEC::TI;
         using ENVIRONMENT = typename DEVICE_SPEC::ENVIRONMENT;
 
-        rng = rlt::random::next(typename DEVICE::SPEC::RANDOM{}, rng);
+        rng = random::next(typename DEVICE::SPEC::RANDOM{}, rng);
         rl::components::off_policy_runner::prologue(device, runner_device, rng);
         rl::components::off_policy_runner::interlude(device, runner_host, policy_host, policy_eval_buffers_host);
-        rng = rlt::random::next(typename DEVICE::SPEC::RANDOM{}, rng);
+//        evaluate(device, policy_host, runner_host.buffers.observations, runner_host.buffers.actions, policy_eval_buffers_host);
+        rng = random::next(typename DEVICE::SPEC::RANDOM{}, rng);
         rl::components::off_policy_runner::epilogue(device, runner_device, rng);
     }
 }

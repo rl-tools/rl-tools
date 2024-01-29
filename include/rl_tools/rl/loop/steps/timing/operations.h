@@ -7,27 +7,27 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename T_CONFIG>
-    void init(rl::loop::steps::timing::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    template <typename DEVICE, typename T_CONFIG>
+    void init(DEVICE& device, rl::loop::steps::timing::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::timing::TrainingState<T_CONFIG>;
         ts.start_time = std::chrono::high_resolution_clock::now();
-        init(static_cast<typename STATE::NEXT&>(ts), seed);
+        init(device, static_cast<typename STATE::NEXT&>(ts), seed);
     }
 
-    template <typename T_CONFIG>
-    void destroy(rl::loop::steps::timing::TrainingState<T_CONFIG>& ts){
+    template <typename DEVICE, typename T_CONFIG>
+    void free(DEVICE& device, rl::loop::steps::timing::TrainingState<T_CONFIG>& ts){
         using STATE = rl::loop::steps::timing::TrainingState<T_CONFIG>;
-        destroy(static_cast<typename STATE::NEXT&>(ts));
+        free(device, static_cast<typename STATE::NEXT&>(ts));
     }
 
-    template <typename CONFIG>
-    bool step(rl::loop::steps::timing::TrainingState<CONFIG>& ts){
+    template <typename DEVICE, typename CONFIG>
+    bool step(DEVICE& device, rl::loop::steps::timing::TrainingState<CONFIG>& ts){
         using TI = typename CONFIG::TI;
         using STATE = rl::loop::steps::timing::TrainingState<CONFIG>;
-        bool finished = step(static_cast<typename STATE::NEXT&>(ts));
+        bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
         if(finished){
             auto now = std::chrono::high_resolution_clock::now();
-            log(ts.device, ts.device.logger, "Time: ", std::chrono::duration_cast<std::chrono::milliseconds>(now - ts.start_time).count()/1000.0, "s");
+            log(device, device.logger, "Time: ", std::chrono::duration_cast<std::chrono::milliseconds>(now - ts.start_time).count()/1000.0, "s");
         }
         return finished;
     }

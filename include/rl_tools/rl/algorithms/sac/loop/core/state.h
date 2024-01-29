@@ -13,12 +13,10 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     template<typename T_CONFIG>
     struct TrainingState{
         using CONFIG = T_CONFIG;
-        using DEVICE = typename CONFIG::DEVICE;
         using T = typename CONFIG::T;
-        using TI = typename DEVICE::index_t;
-        DEVICE device;
+        using TI = typename CONFIG::TI;
         typename CONFIG::NN::OPTIMIZER actor_optimizer, critic_optimizers[2];
-        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng;
+        typename CONFIG::RNG rng;
         typename CONFIG::UI ui;
         rl::components::OffPolicyRunner<typename CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
         typename CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];

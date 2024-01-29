@@ -17,7 +17,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     template<typename T, typename TI, typename ENVIRONMENT>
     struct DefaultParameters{
         using SAC_PARAMETERS = rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>;
-        static constexpr int N_WARMUP_STEPS = SAC_PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr TI N_WARMUP_STEPS = SAC_PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr TI STEP_LIMIT = 10000;
         static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
         static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
@@ -98,11 +98,11 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using CRITIC_TARGET_TYPE = nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
     };
 
-    template<typename T_DEVICE, typename T_T, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, typename T_DEVICE::index_t, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=DefaultConfigApproximatorsSequential>
+    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=DefaultConfigApproximatorsSequential>
     struct DefaultConfig{
-        using DEVICE = T_DEVICE;
         using T = T_T;
-        using TI = typename DEVICE::index_t;
+        using TI = T_TI;
+        using RNG = T_RNG;
         using ENVIRONMENT = T_ENVIRONMENT;
         using ENVIRONMENT_EVALUATION = T_ENVIRONMENT;
         using UI = bool;

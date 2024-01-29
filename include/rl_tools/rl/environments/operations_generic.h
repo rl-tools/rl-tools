@@ -7,8 +7,8 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename ENV>
-    void init(DEVICE&, ENV&, bool){};
+//    template <typename DEVICE, typename ENV>
+//    void init(DEVICE&, ENV&, bool){};
     template <typename DEVICE, typename ENV>
     void render(DEVICE&, ENV&, bool){};
     template <typename DEVICE, typename ENV, typename STATE>

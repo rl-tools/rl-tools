@@ -13,22 +13,26 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename T_CONFIG>
-    void init(rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    template <typename DEVICE, typename T_CONFIG>
+    void malloc(DEVICE& device, rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts){
         using STATE = rl::loop::steps::evaluation::TrainingState<T_CONFIG>;
-        init(static_cast<typename STATE::NEXT&>(ts), seed);
-        malloc(ts.device, ts.env_eval);
-        ts.rng_eval = random::default_engine(typename T_CONFIG::DEVICE::SPEC::RANDOM(), seed);
+        malloc(device, ts.env_eval);
+        malloc(device, static_cast<typename STATE::NEXT&>(ts));
+    }
+    template <typename DEVICE, typename T_CONFIG>
+    void init(DEVICE& device, rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        using STATE = rl::loop::steps::evaluation::TrainingState<T_CONFIG>;
+        init(device, static_cast<typename STATE::NEXT&>(ts), seed);
     }
 
-    template <typename T_CONFIG>
-    void destroy(rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts){
+    template <typename DEVICE, typename T_CONFIG>
+    void free(DEVICE& device, rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts){
         using STATE = rl::loop::steps::evaluation::TrainingState<T_CONFIG>;
-        destroy(static_cast<typename STATE::NEXT&>(ts));
+        free(device, static_cast<typename STATE::NEXT&>(ts));
     }
 
-    template <typename CONFIG>
-    bool step(rl::loop::steps::evaluation::TrainingState<CONFIG>& ts){
+    template <typename DEVICE, typename CONFIG>
+    bool step(DEVICE& device, rl::loop::steps::evaluation::TrainingState<CONFIG>& ts){
         using TI = typename CONFIG::TI;
         using PARAMETERS = typename CONFIG::PARAMETERS;
         using STATE = rl::loop::steps::evaluation::TrainingState<CONFIG>;
@@ -36,14 +40,14 @@ namespace rl_tools{
 
             TI evaluation_index = ts.step / PARAMETERS::EVALUATION_INTERVAL;
             if(ts.step % PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < PARAMETERS::N_EVALUATIONS){
-                auto result = evaluate(ts.device, ts.env_eval, ts.ui, get_actor(ts), rl::utils::evaluation::Specification<PARAMETERS::NUM_EVALUATION_EPISODES, CONFIG::NEXT::PARAMETERS::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
-                log(ts.device, ts.device.logger, "Step: ", ts.step, " Mean return: ", result.returns_mean);
-                add_scalar(ts.device, ts.device.logger, "evaluation/return/mean", result.returns_mean);
-                add_scalar(ts.device, ts.device.logger, "evaluation/return/std", result.returns_std);
+                auto result = evaluate(device, ts.env_eval, ts.ui, get_actor(ts), rl::utils::evaluation::Specification<PARAMETERS::NUM_EVALUATION_EPISODES, CONFIG::NEXT::PARAMETERS::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
+                log(device, device.logger, "Step: ", ts.step, " Mean return: ", result.returns_mean);
+                add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
+                add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 ts.evaluation_results[evaluation_index] = result;
             }
         }
-        bool finished = step(static_cast<typename STATE::NEXT&>(ts));
+        bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
         return finished;
     }
 }
