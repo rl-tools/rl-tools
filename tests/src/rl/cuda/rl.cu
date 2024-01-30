@@ -201,7 +201,7 @@ TEST_F(RL_TOOLS_RL_CUDA, GATHER_BATCH) {
     }
 
     rlt::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
-    rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+    rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
 
     auto batch_observation_view = rlt::view<DEVICE_CPU, typename decltype(off_policy_runner_cpu.replay_buffers[0].observations)::SPEC, BATCH_SIZE, BATCH_TYPE::OBSERVATION_DIM>(device_cpu, off_policy_runner_cpu.replay_buffers[0].observations, 0, 0);
     rlt::print(device_cpu, batch_observation_view);
@@ -229,7 +229,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         rng_gpu = rlt::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
         if(deterministic){
             rlt::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
-            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
 
             // action noise from cpu
             rlt::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
@@ -240,7 +240,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
             ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
         }
         else{
-            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
             rlt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
 
             // action noise from gpu
@@ -377,7 +377,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
         rng_gpu = rlt::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
         if(deterministic){
             rlt::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
-            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
 
             // action noise from cpu
             rlt::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
@@ -388,7 +388,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
             ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
         }
         else{
-            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
             rlt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
 
             // action noise from gpu
@@ -444,7 +444,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
         rng_gpu = rlt::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
         if(deterministic){
             rlt::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
-            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
 
             // action noise from cpu
             rlt::target_action_noise(device_cpu, actor_critic_cpu, critic_training_buffers_cpu.target_next_action_noise, rng_cpu);
@@ -455,7 +455,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
             ASSERT_FLOAT_EQ(abs_diff_target_next_action_noise, 0);
         }
         else{
-            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
             rlt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
 
             // action noise from gpu
@@ -503,10 +503,10 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
         rng_gpu = rlt::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
         if(deterministic){
             rlt::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
-            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
         }
         else{
-            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
             rlt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
         }
     };
@@ -533,10 +533,10 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
         rng_gpu = rlt::random::next(DEVICE_GPU::SPEC::RANDOM(), rng_gpu);
         if(deterministic){
             rlt::gather_batch<DEVICE_CPU, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_cpu), true>(device_cpu, off_policy_runner_cpu, batch_cpu, rng_cpu);
-            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch<typename DEVICE_GPU::SPEC, OFF_POLICY_RUNNER_SPEC, BATCH_SPEC, decltype(rng_gpu), true>(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
         }
         else{
-            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu_struct, rng_gpu);
+            rlt::gather_batch(device_gpu, off_policy_runner_gpu_struct, batch_gpu, rng_gpu);
             rlt::copy(device_gpu, device_cpu, batch_gpu, batch_cpu);
         }
     };
