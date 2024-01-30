@@ -22,7 +22,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     static void malloc(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    static void init(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
+    static void init(DEVICE& device, const rl::environments::Car<SPEC>& env, bool ui = false){ }
     template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::State& state){
         state.x = 0;

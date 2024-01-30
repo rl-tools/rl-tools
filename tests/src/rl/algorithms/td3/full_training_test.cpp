@@ -44,6 +44,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 #endif
     DEVICE device;
     LOOP_STATE ts;
+    rlt::malloc(device, ts);
     rlt::init(device, ts);
     auto start_time = std::chrono::high_resolution_clock::now();
     while(!rlt::step(device, ts)){
@@ -64,4 +65,5 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
 #endif
 #endif
     }
+    rlt::free(device, ts);
 }

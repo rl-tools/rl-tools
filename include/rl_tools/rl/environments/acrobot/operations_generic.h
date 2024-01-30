@@ -27,6 +27,8 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void malloc(DEVICE& device, const rl::environments::Acrobot<SPEC>& env){}
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, bool ui = false){}
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state, RNG& rng){
         state.theta_0     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);

@@ -22,6 +22,8 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY_CUDA<>;
 using DEVICE_INIT = rlt::devices::DEVICE_FACTORY<>;
+using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using RNG_INIT = decltype(rlt::random::default_engine(typename DEVICE_INIT::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -44,8 +46,6 @@ using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_CORE
 template <typename DEVICE>
 using LOOP_CONFIG = LOOP_TIMING_CONFIG<DEVICE>;
 #else
-using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
-using RNG_INIT = decltype(rlt::random::default_engine(typename DEVICE_INIT::SPEC::RANDOM{}));
 template <typename RNG>
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::DefaultConfigApproximatorsMLP>;
 template <typename RNG>

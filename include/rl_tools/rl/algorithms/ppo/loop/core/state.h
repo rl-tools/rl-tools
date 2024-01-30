@@ -13,13 +13,11 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
     template<typename T_CONFIG>
     struct TrainingState{
         using CONFIG = T_CONFIG;
-        using DEVICE = typename CONFIG::DEVICE;
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
-        DEVICE device;
         typename CONFIG::NN::ACTOR_OPTIMIZER actor_optimizer;
         typename CONFIG::NN::CRITIC_OPTIMIZER critic_optimizer;
-        decltype(random::default_engine(typename DEVICE::SPEC::RANDOM())) rng;
+        typename CONFIG::RNG rng;
         typename CONFIG::PPO_TYPE ppo;
         typename CONFIG::PPO_BUFFERS_TYPE ppo_buffers;
         typename CONFIG::ON_POLICY_RUNNER_TYPE on_policy_runner;

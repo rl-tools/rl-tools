@@ -16,6 +16,7 @@
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -34,7 +35,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
     static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
 };
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::DefaultConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::DefaultConfig<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::DefaultConfigApproximatorsMLP>;
 template <typename NEXT=LOOP_CORE_CONFIG>
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::DefaultParameters<T, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 1;
@@ -51,15 +52,16 @@ using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
 int main(int argc, char** argv) {
+    DEVICE device;
     TI seed = 0;
     if (argc > 1) {
         seed = std::atoi(argv[1]);
     }
     LOOP_STATE ts;
-    rlt::init(ts, seed);
+    rlt::init(device, ts, seed);
     ts.actor_optimizer.parameters.alpha = 1e-3;
     ts.critic_optimizer.parameters.alpha = 1e-3;
-    while(!rlt::step(ts)){
+    while(!rlt::step(device, ts)){
         if(ts.step == 5000){
             std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
         }

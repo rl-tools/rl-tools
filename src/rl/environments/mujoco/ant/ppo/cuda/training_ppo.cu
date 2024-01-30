@@ -66,7 +66,7 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 // -------------- added for cuda training ----------------
-using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_GPU<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
 // -------------------------------------------------------
 using T = float;
 using TI = typename DEVICE::index_t;

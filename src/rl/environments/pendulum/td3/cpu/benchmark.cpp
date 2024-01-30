@@ -38,5 +38,6 @@ int main(){
     rlt::malloc(device, ts);
     rlt::init(device, ts, 0);
     while(!rlt::step(device, ts)){}
+    rlt::free(device, ts);
     return 0;
 }
