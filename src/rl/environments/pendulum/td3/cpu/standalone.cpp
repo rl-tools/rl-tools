@@ -16,6 +16,7 @@
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
@@ -28,23 +29,26 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParame
     static constexpr TI CRITIC_NUM_LAYERS = 3;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
 };
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::DefaultConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::DefaultConfig<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::DefaultConfigApproximatorsMLP>;
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::DefaultConfig<LOOP_CORE_CONFIG>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_EVAL_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
 int main(int argc, char** argv) {
+    DEVICE device;
     TI seed = 0;
     if (argc > 1) {
         seed = std::atoi(argv[1]);
     }
     LOOP_STATE ts;
-    rlt::init(ts, seed);
-    while(!rlt::step(ts)){
+    rlt::malloc(device, ts);
+    rlt::init(device, ts, seed);
+    while(!rlt::step(device, ts)){
         if(ts.step == 5000){
             std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
         }
     }
+    rlt::free(device, ts);
     return 0;
 }
