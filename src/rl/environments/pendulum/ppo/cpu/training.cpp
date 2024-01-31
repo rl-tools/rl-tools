@@ -61,8 +61,8 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::Parameters<T,
 };
 template <BENCHMARK_MODE MODE>
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS<MODE>, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsMLP>;
-template <BENCHMARK_MODE MODE, typename NEXT=LOOP_CORE_CONFIG<MODE>>
-struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::DefaultParameters<T, TI, NEXT>{
+template <typename NEXT>
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 1;
     static constexpr TI NUM_EVALUATION_EPISODES = 1000;
     static constexpr TI N_EVALUATIONS = NEXT::PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
@@ -72,14 +72,14 @@ template <BENCHMARK_MODE MODE>
 void run(TI seed, bool verbose){
     DEVICE device;
 #ifndef BENCHMARK
-    using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::DefaultConfig<LOOP_CORE_CONFIG<MODE>, LOOP_EVAL_PARAMETERS<>>;
-    using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_EVAL_CONFIG>;
+    using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<MODE>, LOOP_EVAL_PARAMETERS<LOOP_CORE_CONFIG<MODE>>>;
+    using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 #else
-    using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_CORE_CONFIG<MODE>>;
+    using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG<MODE>>;
 #endif
     if(verbose){
         std::cout << "Benchmark mode: " << name(MODE) << std::endl;
-        rlt::rl::algorithms::ppo::loop::core::log_config(device, LOOP_TIMING_CONFIG{});
+        rlt::log(device, LOOP_TIMING_CONFIG{});
     }
     using LOOP_CONFIG = LOOP_TIMING_CONFIG;
     using LOOP_STATE = typename LOOP_CONFIG::template State<LOOP_CONFIG>;

@@ -8,6 +8,7 @@
 #include "../../../../../rl/algorithms/ppo/ppo.h"
 #include "../../../../../rl/components/on_policy_runner/on_policy_runner.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
+#include "../../../../../rl/loop/loop.h"
 #include "state.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -15,8 +16,10 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
     // Config State (Init/Step)
     using namespace nn_models::sequential::interface;
 
+    struct ParametersTag{};
     template<typename T, typename TI, typename ENVIRONMENT>
     struct Parameters{
+        using TAG = ParametersTag;
         using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<T, TI>;
         static constexpr int N_WARMUP_STEPS = PPO_PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr TI STEP_LIMIT = 10000;
@@ -49,8 +52,10 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
         using CRITIC_TYPE = nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
     };
 
+    struct ConfigTag{};
     template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = Parameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsMLP>
-    struct Config{
+    struct Config: rl::loop::Config{
+        using TAG = ConfigTag;
         using T = T_T;
         using TI = T_TI;
         using RNG = T_RNG;

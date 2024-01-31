@@ -45,11 +45,11 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
 };
 template <typename RNG>
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::DefaultConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
 template <typename RNG>
-using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::DefaultConfig<LOOP_CORE_CONFIG<RNG>>;
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<RNG>>;
 template <typename RNG>
-using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_EVAL_CONFIG<RNG>>;
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG<RNG>>;
 template <typename RNG>
 using LOOP_CONFIG = LOOP_TIMING_CONFIG<RNG>;
 

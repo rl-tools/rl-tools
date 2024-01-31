@@ -50,6 +50,12 @@ namespace rl_tools{
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
         return finished;
     }
+    template <typename DEVICE, typename PARAMETERS, typename utils::typing::enable_if<utils::typing::is_same_v<typename PARAMETERS::TAG, rl::loop::steps::evaluation::ParametersTag>>::type* = nullptr>
+    void log(DEVICE& device, PARAMETERS){}
+    template <typename DEVICE, typename CONFIG, typename utils::typing::enable_if<utils::typing::is_same_v<typename CONFIG::TAG, rl::loop::steps::evaluation::ConfigTag>>::type* = nullptr>
+    void log(DEVICE& device, CONFIG){
+        log(device, typename CONFIG::NEXT{});
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

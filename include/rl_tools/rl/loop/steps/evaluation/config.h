@@ -11,15 +11,19 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::evaluation{
+    struct ParametersTag{};
     template <typename T, typename TI, typename NEXT>
-    struct DefaultParameters{
+    struct Parameters{
+        using TAG = ParametersTag;
         static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr TI EVALUATION_INTERVAL = 1000;
         static constexpr TI NUM_EVALUATION_EPISODES = 10;
         static constexpr TI N_EVALUATIONS = NEXT::PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
     };
-    template<typename T_NEXT, typename T_PARAMETERS = DefaultParameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>>
-    struct DefaultConfig: T_NEXT {
+    struct ConfigTag{};
+    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>>
+    struct Config: T_NEXT {
+        using TAG = ConfigTag;
         using NEXT = T_NEXT;
         using PARAMETERS = T_PARAMETERS;
         using T = typename NEXT::T;

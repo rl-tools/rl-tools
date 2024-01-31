@@ -95,26 +95,25 @@ namespace rl_tools{
             return finished;
         }
     }
-    namespace rl::algorithms::ppo::loop::core{
-        template <typename DEVICE, typename PARAMETERS>
-        void log_parameters(DEVICE& device, PARAMETERS){
+    template <typename DEVICE, typename PARAMETERS, typename utils::typing::enable_if<utils::typing::is_same_v<typename PARAMETERS::TAG, rl::algorithms::ppo::loop::core::ParametersTag>>::type* = nullptr>
+    void log(DEVICE& device, PARAMETERS){
 //            static constexpr int N_WARMUP_STEPS = PPO_PARAMETERS::ACTOR_BATCH_SIZE;
-            log(device, device.logger, "STEP_LIMIT: ", PARAMETERS::STEP_LIMIT);
-            log(device, device.logger, "ACTOR_HIDDEN_DIM: ", PARAMETERS::ACTOR_HIDDEN_DIM);
-            log(device, device.logger, "ACTOR_NUM_LAYERS: ", PARAMETERS::ACTOR_NUM_LAYERS);
-            log(device, device.logger, "ACTOR_ACTIVATION_FUNCTION: ", PARAMETERS::ACTOR_ACTIVATION_FUNCTION);
-            log(device, device.logger, "CRITIC_HIDDEN_DIM: ", PARAMETERS::CRITIC_HIDDEN_DIM);
-            log(device, device.logger, "CRITIC_NUM_LAYERS: ", PARAMETERS::CRITIC_NUM_LAYERS);
-            log(device, device.logger, "CRITIC_ACTIVATION_FUNCTION: ", PARAMETERS::CRITIC_ACTIVATION_FUNCTION);
-            log(device, device.logger, "ENVIRONMENT_STEP_LIMIT: ", PARAMETERS::ENVIRONMENT_STEP_LIMIT);
-            log(device, device.logger, "N_ENVIRONMENTS: ", PARAMETERS::N_ENVIRONMENTS);
-            log(device, device.logger, "ON_POLICY_RUNNER_STEPS_PER_ENV: ", PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV);
-            log(device, device.logger, "BATCH_SIZE: ", PARAMETERS::BATCH_SIZE);
-        }
-        template <typename DEVICE, typename CONFIG>
-        void log_config(DEVICE& device, CONFIG){
-            log_parameters(device, typename CONFIG::PARAMETERS{});
-        }
+        log(device, device.logger, "STEP_LIMIT: ", PARAMETERS::STEP_LIMIT);
+        log(device, device.logger, "ACTOR_HIDDEN_DIM: ", PARAMETERS::ACTOR_HIDDEN_DIM);
+        log(device, device.logger, "ACTOR_NUM_LAYERS: ", PARAMETERS::ACTOR_NUM_LAYERS);
+        log(device, device.logger, "ACTOR_ACTIVATION_FUNCTION: ", PARAMETERS::ACTOR_ACTIVATION_FUNCTION);
+        log(device, device.logger, "CRITIC_HIDDEN_DIM: ", PARAMETERS::CRITIC_HIDDEN_DIM);
+        log(device, device.logger, "CRITIC_NUM_LAYERS: ", PARAMETERS::CRITIC_NUM_LAYERS);
+        log(device, device.logger, "CRITIC_ACTIVATION_FUNCTION: ", PARAMETERS::CRITIC_ACTIVATION_FUNCTION);
+        log(device, device.logger, "ENVIRONMENT_STEP_LIMIT: ", PARAMETERS::ENVIRONMENT_STEP_LIMIT);
+        log(device, device.logger, "N_ENVIRONMENTS: ", PARAMETERS::N_ENVIRONMENTS);
+        log(device, device.logger, "ON_POLICY_RUNNER_STEPS_PER_ENV: ", PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV);
+        log(device, device.logger, "BATCH_SIZE: ", PARAMETERS::BATCH_SIZE);
+    }
+    template <typename DEVICE, typename CONFIG, typename utils::typing::enable_if<utils::typing::is_same_v<typename CONFIG::TAG, rl::algorithms::ppo::loop::core::ConfigTag>>::type* = nullptr>
+    void log(DEVICE& device, CONFIG){
+        log(device, typename CONFIG::PARAMETERS{});
+//        log(device, typename CONFIG::NEXT{});
     }
 
 

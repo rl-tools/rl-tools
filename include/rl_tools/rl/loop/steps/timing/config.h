@@ -8,7 +8,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::timing{
     template<typename T_NEXT>
-    struct DefaultConfig: T_NEXT {
+    struct Config: T_NEXT {
         using NEXT = T_NEXT;
         template <typename CONFIG>
         using State = State<CONFIG>;

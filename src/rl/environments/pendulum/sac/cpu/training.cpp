@@ -33,14 +33,14 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
 };
 #ifdef BENCHMARK
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
-using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_CORE_CONFIG>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #else
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::DefaultConfigApproximatorsMLP>;
-using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::DefaultConfig<LOOP_CORE_CONFIG>;
-using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_EVAL_CONFIG>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG>;
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #endif
 
