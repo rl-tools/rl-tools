@@ -11,7 +11,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::ppo::loop::core{
     // Config State (Init/Step)
     template<typename T_CONFIG>
-    struct TrainingState{
+    struct State{
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;

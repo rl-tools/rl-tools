@@ -1,4 +1,6 @@
+#ifdef RL_TOOLS_DEBUG
 #define RL_TOOLS_DEBUG_DEVICE_CUDA_SYNCHRONIZE_STATUS_CHECK
+#endif
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
@@ -30,6 +32,10 @@ using TI = typename DEVICE::index_t;
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+        static constexpr TI ACTOR_BATCH_SIZE = 64;
+        static constexpr TI CRITIC_BATCH_SIZE = 64;
+    };
     static constexpr TI STEP_LIMIT = 10000;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
@@ -38,14 +44,6 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr bool COLLECT_EPISODE_STATS = false;
     static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
 };
-#ifdef BENCHMARK
-template <typename DEVICE>
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<DEVICE, T, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
-template <typename DEVICE>
-using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_CORE_CONFIG<DEVICE>>;
-template <typename DEVICE>
-using LOOP_CONFIG = LOOP_TIMING_CONFIG<DEVICE>;
-#else
 template <typename RNG>
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::DefaultConfig<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::DefaultConfigApproximatorsMLP>;
 template <typename RNG>
@@ -54,7 +52,6 @@ template <typename RNG>
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::DefaultConfig<LOOP_EVAL_CONFIG<RNG>>;
 template <typename RNG>
 using LOOP_CONFIG = LOOP_TIMING_CONFIG<RNG>;
-#endif
 
 using LOOP_STATE = LOOP_CONFIG<RNG>::template State<LOOP_CONFIG<RNG>>;
 using LOOP_STATE_INIT = LOOP_CONFIG<RNG_INIT>::template State<LOOP_CONFIG<RNG_INIT>>;
@@ -82,18 +79,10 @@ int main(){
 
     TI step = 0;
     bool finished = false;
+    auto start_time = std::chrono::high_resolution_clock::now();
     while(!finished){
         rlt::set_step(device, device.logger, step);
-//        evaluate(device, ts.actor_critic.actor, ts.off_policy_runner.buffers.observations, ts.off_policy_runner.buffers.actions, ts.actor_buffers_eval);
         rlt::step(device, ts.off_policy_runner, off_policy_runner_pointer, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-//        {
-//            ts.rng = rlt::random::next(typename DEVICE::SPEC::RANDOM{}, ts.rng);
-//            rlt::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, ts.rng);
-//            rlt::check_status(device);
-//            rlt::rl::components::off_policy_runner::interlude(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval);
-//            ts.rng = rlt::random::next(typename DEVICE::SPEC::RANDOM{}, ts.rng);
-//            rlt::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, ts.rng);
-//        }
         if(step > CORE_PARAMETERS::N_WARMUP_STEPS){
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 rlt::gather_batch(device, off_policy_runner_pointer, ts.critic_batch, ts.rng);
@@ -109,6 +98,7 @@ int main(){
                 rlt::update_critic_targets(device, ts.actor_critic);
             }
         }
+#ifndef BENCHMARK
         if(step % 1000 == 0){
             rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
             auto result = rlt::evaluate(device_init, ts_init.env_eval, ts_init.ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::ENVIRONMENT_STEP_LIMIT>(), ts_init.observations_mean, ts_init.observations_std, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, false);
@@ -116,12 +106,15 @@ int main(){
 //            add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
 //            add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
         }
+#endif
         step++;
         finished = step > CORE_PARAMETERS::STEP_LIMIT;
     }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end_time - start_time;
+    std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
     rlt::free(device, ts);
     rlt::free(device_init, ts_init);
 }
 
-
-// benchmark training should take < 2s on P1, < 0.75 on M3
+// benchmark training should take < 2s on P1

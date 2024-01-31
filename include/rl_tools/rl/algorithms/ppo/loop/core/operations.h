@@ -14,7 +14,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void malloc(DEVICE& device, rl::algorithms::ppo::loop::core::TrainingState<T_CONFIG>& ts){
+    void malloc(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         malloc(device, ts.ppo);
         malloc(device, ts.ppo_buffers);
         malloc(device, ts.on_policy_runner_dataset);
@@ -33,7 +33,7 @@ namespace rl_tools{
 
     }
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::algorithms::ppo::loop::core::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    void init(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
 
@@ -55,7 +55,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::algorithms::ppo::loop::core::TrainingState<T_CONFIG>& ts){
+    void free(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         free(device, ts.ppo);
         free(device, ts.ppo_buffers);
         free(device, ts.on_policy_runner_dataset);
@@ -72,12 +72,12 @@ namespace rl_tools{
     }
 
     template <typename T_CONFIG>
-    auto& get_actor(rl::algorithms::ppo::loop::core::TrainingState<T_CONFIG>& ts){
+    auto& get_actor(rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         return ts.ppo.actor;
     }
 
     template <typename DEVICE, typename T_CONFIG>
-    bool step(DEVICE& device, rl::algorithms::ppo::loop::core::TrainingState<T_CONFIG>& ts){
+    bool step(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;
@@ -95,6 +95,30 @@ namespace rl_tools{
             return finished;
         }
     }
+    namespace rl::algorithms::ppo::loop::core{
+        template <typename DEVICE, typename PARAMETERS>
+        void log_parameters(DEVICE& device, PARAMETERS){
+//            static constexpr int N_WARMUP_STEPS = PPO_PARAMETERS::ACTOR_BATCH_SIZE;
+            log(device, device.logger, "STEP_LIMIT: ", PARAMETERS::STEP_LIMIT);
+            log(device, device.logger, "ACTOR_HIDDEN_DIM: ", PARAMETERS::ACTOR_HIDDEN_DIM);
+            log(device, device.logger, "ACTOR_NUM_LAYERS: ", PARAMETERS::ACTOR_NUM_LAYERS);
+            log(device, device.logger, "ACTOR_ACTIVATION_FUNCTION: ", PARAMETERS::ACTOR_ACTIVATION_FUNCTION);
+            log(device, device.logger, "CRITIC_HIDDEN_DIM: ", PARAMETERS::CRITIC_HIDDEN_DIM);
+            log(device, device.logger, "CRITIC_NUM_LAYERS: ", PARAMETERS::CRITIC_NUM_LAYERS);
+            log(device, device.logger, "CRITIC_ACTIVATION_FUNCTION: ", PARAMETERS::CRITIC_ACTIVATION_FUNCTION);
+            log(device, device.logger, "ENVIRONMENT_STEP_LIMIT: ", PARAMETERS::ENVIRONMENT_STEP_LIMIT);
+            log(device, device.logger, "N_ENVIRONMENTS: ", PARAMETERS::N_ENVIRONMENTS);
+            log(device, device.logger, "ON_POLICY_RUNNER_STEPS_PER_ENV: ", PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV);
+            log(device, device.logger, "BATCH_SIZE: ", PARAMETERS::BATCH_SIZE);
+        }
+        template <typename DEVICE, typename CONFIG>
+        void log_config(DEVICE& device, CONFIG){
+            log_parameters(device, typename CONFIG::PARAMETERS{});
+        }
+    }
+
+
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

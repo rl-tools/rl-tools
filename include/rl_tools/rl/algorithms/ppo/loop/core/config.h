@@ -16,7 +16,7 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
     using namespace nn_models::sequential::interface;
 
     template<typename T, typename TI, typename ENVIRONMENT>
-    struct DefaultParameters{
+    struct Parameters{
         using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<T, TI>;
         static constexpr int N_WARMUP_STEPS = PPO_PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr TI STEP_LIMIT = 10000;
@@ -35,7 +35,7 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
     };
 
     template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
-    struct DefaultConfigApproximatorsMLP{
+    struct ConfigApproximatorsMLP{
         using ACTOR_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::BATCH_SIZE>;
         using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
         using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
@@ -49,8 +49,8 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
         using CRITIC_TYPE = nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
     };
 
-    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=DefaultConfigApproximatorsMLP>
-    struct DefaultConfig{
+    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = Parameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsMLP>
+    struct Config{
         using T = T_T;
         using TI = T_TI;
         using RNG = T_RNG;
@@ -79,7 +79,7 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
         using CRITIC_BUFFERS = typename NN::CRITIC_TYPE::template Buffer<PARAMETERS::BATCH_SIZE>;
         using CRITIC_BUFFERS_GAE = typename NN::CRITIC_TYPE::template Buffer<ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
         template <typename CONFIG>
-        using State = TrainingState<CONFIG>;
+        using State = State<CONFIG>;
     };
 }
 

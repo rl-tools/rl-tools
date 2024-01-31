@@ -83,6 +83,31 @@ namespace rl_tools{
             return 0;
         }
     }
+    template<typename DEVICE, typename T, nn::activation_functions::ActivationFunction F>
+    RL_TOOLS_FUNCTION_PLACEMENT auto name(){
+        using namespace nn::activation_functions;
+        if constexpr(F == IDENTITY){
+            return "IDENTITY";
+        }
+        else if constexpr(F == RELU){
+            return "RELU";
+        }
+        else if constexpr(F == GELU){
+            return "GELU";
+        }
+        else if constexpr(F == TANH){
+            return "TANH";
+        }
+        else if constexpr(F == FAST_TANH){
+            return "FAST_TANH";
+        }
+        else if constexpr(F == SIGMOID){
+            return "SIGMOID";
+        }
+        else{
+            return "NIL";
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
