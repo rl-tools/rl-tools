@@ -12,7 +12,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void malloc(DEVICE& device, rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts){
+    void malloc(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
         malloc(device, ts.actor_critic);
         malloc(device, ts.off_policy_runner);
         malloc(device, ts.critic_batch);
@@ -29,7 +29,7 @@ namespace rl_tools{
         malloc(device, ts.actor_deterministic_evaluation_buffers);
     }
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    void init(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
 
@@ -48,7 +48,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts){
+    void free(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
         free(device, ts.critic_batch);
         free(device, ts.critic_training_buffers);
         free(device, ts.actor_batch);
@@ -60,12 +60,12 @@ namespace rl_tools{
     }
 
     template <typename T_CONFIG>
-    auto& get_actor(rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts){
+    auto& get_actor(rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
         return ts.actor_critic.actor;
     }
 
     template <typename DEVICE, typename T_CONFIG>
-    bool step(DEVICE& device, rl::algorithms::td3::loop::core::TrainingState<T_CONFIG>& ts){
+    bool step(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;

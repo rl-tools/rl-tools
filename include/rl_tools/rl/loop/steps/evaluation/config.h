@@ -27,7 +27,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         static_assert(PARAMETERS::N_EVALUATIONS > 0);
         static_assert(PARAMETERS::N_EVALUATIONS < 1000000);
         template <typename CONFIG>
-        using State = TrainingState<CONFIG>;
+        using State = State<CONFIG>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

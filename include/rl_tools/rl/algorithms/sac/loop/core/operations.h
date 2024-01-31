@@ -12,7 +12,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void malloc(DEVICE& device, rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+    void malloc(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         malloc(device, ts.actor_critic);
         malloc(device, ts.off_policy_runner);
         malloc(device, ts.critic_batch);
@@ -33,8 +33,8 @@ namespace rl_tools{
         ts.allocated = true;
     }
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
-        utils::assert_exit(device, ts.allocated, "TrainingState not allocated");
+    void init(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        utils::assert_exit(device, ts.allocated, "State not allocated");
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
 
@@ -57,7 +57,7 @@ namespace rl_tools{
         ts.step = 0;
     }
     template <typename DEVICE_SOURCE, typename DEVICE_TARGET, typename T_CONFIG_SOURCE, typename T_CONFIG_TARGET>
-    void copy(DEVICE_SOURCE& device_source, DEVICE_TARGET& device_target, rl::algorithms::sac::loop::core::TrainingState<T_CONFIG_SOURCE>& source, rl::algorithms::sac::loop::core::TrainingState<T_CONFIG_TARGET>& target){
+    void copy(DEVICE_SOURCE& device_source, DEVICE_TARGET& device_target, rl::algorithms::sac::loop::core::State<T_CONFIG_SOURCE>& source, rl::algorithms::sac::loop::core::State<T_CONFIG_TARGET>& target){
         copy(device_source, device_target, source.actor_critic, target.actor_critic);
         copy(device_source, device_target, source.off_policy_runner, target.off_policy_runner);
         copy(device_source, device_target, source.critic_batch, target.critic_batch);
@@ -78,7 +78,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts){
+    void free(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
         free(device, ts.actor_critic);
         free(device, ts.off_policy_runner);
         free(device, ts.critic_batch);
@@ -99,12 +99,12 @@ namespace rl_tools{
     }
 
     template <typename T_CONFIG>
-    constexpr auto& get_actor(rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts){
+    constexpr auto& get_actor(rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
         return ts.actor_critic.actor;
     }
 
     template <typename DEVICE, typename T_CONFIG>
-    bool step(DEVICE& device, rl::algorithms::sac::loop::core::TrainingState<T_CONFIG>& ts){
+    bool step(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;

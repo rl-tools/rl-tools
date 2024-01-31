@@ -60,7 +60,7 @@ namespace rl_tools::rl::algorithms::ppo::loop::core{
         using UI = bool;
 
         using NN = APPROXIMATOR_CONFIG<T, TI, ENVIRONMENT, PARAMETERS>;
-//        using NN = DefaultConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
+//        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 
 
         static constexpr T OBSERVATION_NORMALIZATION_WARMUP_STEPS = PARAMETERS::PPO_PARAMETERS::NORMALIZE_OBSERVATIONS ? 1 : 0;

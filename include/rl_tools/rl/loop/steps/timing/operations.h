@@ -8,22 +8,22 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::loop::steps::timing::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
-        using STATE = rl::loop::steps::timing::TrainingState<T_CONFIG>;
+    void init(DEVICE& device, rl::loop::steps::timing::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        using STATE = rl::loop::steps::timing::State<T_CONFIG>;
         ts.start_time = std::chrono::high_resolution_clock::now();
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
     }
 
     template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::loop::steps::timing::TrainingState<T_CONFIG>& ts){
-        using STATE = rl::loop::steps::timing::TrainingState<T_CONFIG>;
+    void free(DEVICE& device, rl::loop::steps::timing::State<T_CONFIG>& ts){
+        using STATE = rl::loop::steps::timing::State<T_CONFIG>;
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
 
     template <typename DEVICE, typename CONFIG>
-    bool step(DEVICE& device, rl::loop::steps::timing::TrainingState<CONFIG>& ts){
+    bool step(DEVICE& device, rl::loop::steps::timing::State<CONFIG>& ts){
         using TI = typename CONFIG::TI;
-        using STATE = rl::loop::steps::timing::TrainingState<CONFIG>;
+        using STATE = rl::loop::steps::timing::State<CONFIG>;
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
         if(finished){
             auto now = std::chrono::high_resolution_clock::now();

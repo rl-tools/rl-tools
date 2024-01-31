@@ -9,7 +9,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::timing{
     template<typename T_CONFIG, typename T_NEXT = typename T_CONFIG::NEXT::template State<typename T_CONFIG::NEXT>>
-    struct TrainingState: T_NEXT {
+    struct State: T_NEXT {
         using CONFIG = T_CONFIG;
         using NEXT = T_NEXT;
         std::chrono::high_resolution_clock::time_point start_time;

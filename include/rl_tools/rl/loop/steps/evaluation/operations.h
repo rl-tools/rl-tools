@@ -14,28 +14,28 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void malloc(DEVICE& device, rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts){
-        using STATE = rl::loop::steps::evaluation::TrainingState<T_CONFIG>;
+    void malloc(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts){
+        using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         malloc(device, ts.env_eval);
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
-        using STATE = rl::loop::steps::evaluation::TrainingState<T_CONFIG>;
+    void init(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
     }
 
     template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::loop::steps::evaluation::TrainingState<T_CONFIG>& ts){
-        using STATE = rl::loop::steps::evaluation::TrainingState<T_CONFIG>;
+    void free(DEVICE& device, rl::loop::steps::evaluation::State<T_CONFIG>& ts){
+        using STATE = rl::loop::steps::evaluation::State<T_CONFIG>;
         free(device, static_cast<typename STATE::NEXT&>(ts));
     }
 
     template <typename DEVICE, typename CONFIG>
-    bool step(DEVICE& device, rl::loop::steps::evaluation::TrainingState<CONFIG>& ts){
+    bool step(DEVICE& device, rl::loop::steps::evaluation::State<CONFIG>& ts){
         using TI = typename CONFIG::TI;
         using PARAMETERS = typename CONFIG::PARAMETERS;
-        using STATE = rl::loop::steps::evaluation::TrainingState<CONFIG>;
+        using STATE = rl::loop::steps::evaluation::State<CONFIG>;
         if constexpr(PARAMETERS::DETERMINISTIC_EVALUATION == true){
 
             TI evaluation_index = ts.step / PARAMETERS::EVALUATION_INTERVAL;

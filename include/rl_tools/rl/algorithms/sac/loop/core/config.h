@@ -36,7 +36,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     // The approximator config sets up any types that support the usual rl_tools::forward and rl_tools::backward operations (can be custom as well)
     // We provide approximators based on the sequential and mlp models. The latter (mlp) allows for a variable number of layers, but is restricted to a uniform hidden layer size while the former allows for arbitrary layers to be combined in a sequential manner. Both support compile-time autodiff
     template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
-    struct DefaultConfigApproximatorsSequential{
+    struct ConfigApproximatorsSequential{
         template <typename PARAMETER_TYPE, template<typename> class LAYER_TYPE = nn::layers::dense::LayerBackwardGradient>
         struct ACTOR{
             static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
@@ -80,7 +80,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     };
 
     template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
-    struct DefaultConfigApproximatorsMLP{
+    struct ConfigApproximatorsMLP{
         using ACTOR_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::TANH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
         using CRITIC_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
         using OPTIMIZER_SPEC = typename nn::optimizers::adam::Specification<T, TI>;
@@ -98,8 +98,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using CRITIC_TARGET_TYPE = nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
     };
 
-    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=DefaultConfigApproximatorsSequential>
-    struct DefaultConfig{
+    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential>
+    struct Config{
         using T = T_T;
         using TI = T_TI;
         using RNG = T_RNG;
@@ -108,7 +108,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using UI = bool;
 
         using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
-//        using NN = DefaultConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
+//        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 
         using PARAMETERS = T_PARAMETERS;
 
@@ -135,7 +135,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         >;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         template <typename CONFIG>
-        using State = TrainingState<CONFIG>;
+        using State = State<CONFIG>;
     };
 }
 

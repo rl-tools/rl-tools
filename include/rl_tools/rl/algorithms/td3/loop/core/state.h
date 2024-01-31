@@ -11,7 +11,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms::td3::loop::core{
     // Config State (Init/Step)
     template<typename T_CONFIG>
-    struct TrainingState{
+    struct State{
         using CONFIG = T_CONFIG;
         using TI = typename CONFIG::TI;
         typename CONFIG::NN::OPTIMIZER actor_optimizer, critic_optimizers[2];

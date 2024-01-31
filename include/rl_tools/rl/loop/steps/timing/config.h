@@ -11,7 +11,7 @@ namespace rl_tools::rl::loop::steps::timing{
     struct DefaultConfig: T_NEXT {
         using NEXT = T_NEXT;
         template <typename CONFIG>
-        using State = TrainingState<CONFIG>;
+        using State = State<CONFIG>;
     };
 }
 #endif
