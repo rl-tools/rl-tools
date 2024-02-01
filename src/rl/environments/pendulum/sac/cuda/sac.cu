@@ -33,8 +33,8 @@ using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt:
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
-        static constexpr TI ACTOR_BATCH_SIZE = 64;
-        static constexpr TI CRITIC_BATCH_SIZE = 64;
+        static constexpr TI ACTOR_BATCH_SIZE = 100;
+        static constexpr TI CRITIC_BATCH_SIZE = 100;
     };
     static constexpr TI STEP_LIMIT = 10000;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
