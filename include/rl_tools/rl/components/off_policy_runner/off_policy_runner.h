@@ -104,7 +104,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BUFFER_SIZE = SPEC::EPISODE_STATS_BUFFER_SIZE;
-        MatrixDynamic<matrix::Specification<T, TI, BUFFER_SIZE, 2>> data;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BUFFER_SIZE, 2>> data;
 
         TI next_episode_i = 0;
         template<typename SPEC::TI DIM>

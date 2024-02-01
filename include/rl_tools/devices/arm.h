@@ -37,6 +37,9 @@ namespace rl_tools::devices{
         struct ARM: arm::Base{
             static constexpr Type TYPE = Type::logging;
         };
+        struct ARDUINO: arm::Base{
+            static constexpr Type TYPE = Type::logging;
+        };
     }
     template <typename T_SPEC>
     struct ARM: Device<T_SPEC>, arm::Base{

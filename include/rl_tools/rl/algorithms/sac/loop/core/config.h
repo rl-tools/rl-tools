@@ -35,19 +35,19 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
     // The approximator config sets up any types that support the usual rl_tools::forward and rl_tools::backward operations (can be custom as well)
     // We provide approximators based on the sequential and mlp models. The latter (mlp) allows for a variable number of layers, but is restricted to a uniform hidden layer size while the former allows for arbitrary layers to be combined in a sequential manner. Both support compile-time autodiff
-    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename CONTAINER_TYPE_TAG>
     struct ConfigApproximatorsSequential{
         template <typename PARAMETER_TYPE, template<typename> class LAYER_TYPE = nn::layers::dense::LayerBackwardGradient>
         struct ACTOR{
             static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
             static constexpr TI BATCH_SIZE = PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE;
             static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
-            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
             using LAYER_1 = LAYER_TYPE<LAYER_1_SPEC>;
-            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
             using LAYER_2 = LAYER_TYPE<LAYER_2_SPEC>;
             static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
-            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
+            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
             using LAYER_3 = LAYER_TYPE<LAYER_3_SPEC>;
 
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -59,11 +59,11 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             static constexpr TI BATCH_SIZE = PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE;
             static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
 
-            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
             using LAYER_1 = LAYER_TYPE<LAYER_1_SPEC>;
-            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
             using LAYER_2 = LAYER_TYPE<LAYER_2_SPEC>;
-            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>;
+            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>;
             using LAYER_3 = LAYER_TYPE<LAYER_3_SPEC>;
 
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
@@ -74,22 +74,19 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
         using ACTOR_TYPE = typename ACTOR<nn::parameters::Adam>::MODEL;
-        using ACTOR_TARGET_TYPE = typename ACTOR<nn::parameters::Adam, nn::layers::dense::Layer>::MODEL;
         using CRITIC_TYPE = typename CRITIC<nn::parameters::Adam>::MODEL;
         using CRITIC_TARGET_TYPE = typename CRITIC<nn::parameters::Adam, nn::layers::dense::Layer>::MODEL;
     };
 
-    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename T_CONTAINER_TYPE_TAG>
     struct ConfigApproximatorsMLP{
-        using ACTOR_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::TANH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
-        using CRITIC_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
+        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        using ACTOR_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::TANH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG>;
+        using CRITIC_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG>;
         using OPTIMIZER_SPEC = typename nn::optimizers::adam::Specification<T, TI>;
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
-        using ACTOR_SPEC = nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC >;
+        using ACTOR_SPEC = nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
         using ACTOR_TYPE = nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
-
-        using ACTOR_TARGET_SPEC = nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-        using ACTOR_TARGET_TYPE = nn_models::mlp::NeuralNetwork<ACTOR_TARGET_SPEC>;
 
         using CRITIC_SPEC = nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
         using CRITIC_TYPE = nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
@@ -98,7 +95,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using CRITIC_TARGET_TYPE = nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
     };
 
-    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential>
+    template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Config{
         using T = T_T;
         using TI = T_TI;
@@ -106,17 +103,18 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using ENVIRONMENT = T_ENVIRONMENT;
         using ENVIRONMENT_EVALUATION = T_ENVIRONMENT;
         using UI = bool;
+        using PARAMETERS = T_PARAMETERS;
+        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
 
-        using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
+        using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, T_PARAMETERS, CONTAINER_TYPE_TAG>;
 //        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 
-        using PARAMETERS = T_PARAMETERS;
 
 
         using ALPHA_PARAMETER_TYPE = nn::parameters::Adam;
         using ALPHA_OPTIMIZER = nn::optimizers::Adam<typename NN::OPTIMIZER_SPEC>;
 
-        using ACTOR_CRITIC_SPEC = rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::ACTOR_TARGET_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, typename NN::OPTIMIZER, typename NN::OPTIMIZER, ALPHA_OPTIMIZER, typename PARAMETERS::SAC_PARAMETERS>;
+        using ACTOR_CRITIC_SPEC = rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, typename NN::OPTIMIZER, typename NN::OPTIMIZER, ALPHA_OPTIMIZER, typename PARAMETERS::SAC_PARAMETERS, CONTAINER_TYPE_TAG>;
         using ACTOR_CRITIC_TYPE = rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 
         static constexpr bool STOCHASTIC_POLICY = true;
@@ -131,7 +129,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
                 rl::components::off_policy_runner::DefaultParameters<T>,
                 STOCHASTIC_POLICY,
                 PARAMETERS::COLLECT_EPISODE_STATS,
-                PARAMETERS::EPISODE_STATS_BUFFER_SIZE
+                PARAMETERS::EPISODE_STATS_BUFFER_SIZE,
+                CONTAINER_TYPE_TAG
         >;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         template <typename CONFIG>

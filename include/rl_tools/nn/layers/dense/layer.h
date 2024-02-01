@@ -53,6 +53,7 @@ namespace rl_tools::nn::layers::dense {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;

@@ -30,7 +30,6 @@ namespace rl_tools::random{
         template<typename T, typename RNG>
         T sample(const devices::random::CPU& dev, T mean, T std, RNG& rng){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
-//        return standard_normal_distribution<T, RNG>(rng) * std + mean;
             return std::normal_distribution<T>(mean, std)(rng);
         }
         template<typename DEVICE, typename T>

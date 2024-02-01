@@ -33,7 +33,6 @@ namespace rl_tools::rl::algorithms::sac {
         typename T_TI,
         typename T_ENVIRONMENT,
         typename T_ACTOR_NETWORK_TYPE,
-        typename T_ACTOR_TARGET_NETWORK_TYPE,
         typename T_CRITIC_NETWORK_TYPE,
         typename T_CRITIC_TARGET_NETWORK_TYPE,
         typename T_ALPHA_PARAMETER_TYPE,
@@ -43,12 +42,11 @@ namespace rl_tools::rl::algorithms::sac {
         typename T_PARAMETERS,
         typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag
     >
-    struct Specification {
+    struct Specification{
         using T = T_T;
         using TI = T_TI;
         using ENVIRONMENT = T_ENVIRONMENT;
         using ACTOR_NETWORK_TYPE = T_ACTOR_NETWORK_TYPE;
-        using ACTOR_TARGET_NETWORK_TYPE = T_ACTOR_TARGET_NETWORK_TYPE;
         using CRITIC_NETWORK_TYPE = T_CRITIC_NETWORK_TYPE;
         using CRITIC_TARGET_NETWORK_TYPE = T_CRITIC_TARGET_NETWORK_TYPE;
         using ALPHA_PARAMETER_TYPE = T_ALPHA_PARAMETER_TYPE;

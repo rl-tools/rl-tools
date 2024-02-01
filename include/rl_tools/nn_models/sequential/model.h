@@ -82,6 +82,7 @@ namespace rl_tools::nn_models::sequential{
         using NEXT_MODULE = T_NEXT_MODULE;
         using T = typename CONTENT::T;
         using TI = typename CONTENT::TI;
+        using CONTAINER_TYPE_TAG = typename CONTENT::CONTAINER_TYPE_TAG;
         static constexpr TI INPUT_DIM = CONTENT::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = find_output_dim<Specification<T_CONTENT, T_NEXT_MODULE>>();
         static constexpr TI MAX_HIDDEN_DIM = find_max_hiddend_dim<typename CONTENT::TI, Specification<T_CONTENT, T_NEXT_MODULE>>();
@@ -121,7 +122,7 @@ namespace rl_tools::nn_models::sequential{
         static constexpr auto INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr auto OUTPUT_DIM = SPEC::OUTPUT_DIM;
 
-        template <typename SPEC::TI BATCH_SIZE, typename CONTAINER_TYPE_TAG = MatrixDynamicTag, typename MEMORY_LAYOUT = matrix::layouts::DEFAULT<typename SPEC::TI>>
+        template <typename SPEC::TI BATCH_SIZE, typename CONTAINER_TYPE_TAG=typename SPEC::CONTAINER_TYPE_TAG, typename MEMORY_LAYOUT = matrix::layouts::DEFAULT<typename SPEC::TI>>
         using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC, BATCH_SIZE, CONTAINER_TYPE_TAG, MEMORY_LAYOUT>>;
     };
 

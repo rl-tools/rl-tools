@@ -7,4 +7,5 @@ target_link_libraries(
         PRIVATE
         RLtools::Core
 )
+target_compile_options(rl_environments_pendulum_sac_arm_test PRIVATE -Ofast -march=native -mavx2)
 
