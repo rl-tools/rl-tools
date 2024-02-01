@@ -1,230 +1,126 @@
 //#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
-#define RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
 #include <rl_tools/operations/arm.h>
-
-namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
-
+#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
+#include <rl_tools/logging/operations_arduino.h>
+#else
+#define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
+#include <rl_tools/operations/cpu.h>
+#endif
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
-//#include <rl_tools/nn/layers/dense/operations_arm/dsp.h>
-#include <rl_tools/nn/operations_generic.h>
-using DEVICE = rlt::devices::arm::Generic<rlt::devices::DefaultARMSpecification>;
+#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
 
-#include <rl_tools/rl/environments/pendulum/operations_generic.h>
-#include <rl_tools/nn_models/operations_generic.h>
-#include <rl_tools/rl/components/off_policy_runner/operations_generic.h>
-#include <rl_tools/rl/algorithms/sac/operations_generic.h>
 
-#include <rl_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/algorithms/sac/loop/core/config.h>
+#include <rl_tools/rl/loop/steps/evaluation/config.h>
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
-#include <chrono>
-#include <iostream>
+#include <rl_tools/rl/loop/steps/timing/config.h>
+#endif
+#include <rl_tools/rl/algorithms/sac/loop/core/operations.h>
+#include <rl_tools/rl/loop/steps/evaluation/operations.h>
+#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
+#include <rl_tools/rl/loop/steps/timing/operations.h>
 #endif
 
+namespace rlt = rl_tools;
+
+#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
+using LOGGING = rlt::devices::logging::ARDUINO;
+#else
+using LOGGING = rlt::devices::logging::CPU;
+#endif
+
+using DEVICE = rlt::devices::arm::OPT<rlt::devices::arm::Specification<rlt::devices::math::ARM, rlt::devices::random::ARM, LOGGING>>;
+using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
-using TI = DEVICE::index_t;
-using CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
-using CONTAINER_TYPE_TAG_CRITIC = rlt::MatrixStaticTag;
-using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = rlt::MatrixStaticTag;
-using CONTAINER_TYPE_TAG_TRAINING_BUFFERS = rlt::MatrixDynamicTag;
+using TI = typename DEVICE::index_t;
+using CONTAINER_TYPE_TAG = rlt::MatrixStaticTag;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
-typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
-
-struct SACPendulumParameters: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
-    constexpr static TI CRITIC_BATCH_SIZE = 100;
-    constexpr static TI ACTOR_BATCH_SIZE = 100;
+using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+        static constexpr TI ACTOR_BATCH_SIZE = 100;
+        static constexpr TI CRITIC_BATCH_SIZE = 100;
+    };
+    static constexpr TI STEP_LIMIT = 10000;
+    static constexpr TI ACTOR_NUM_LAYERS = 3;
+    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI CRITIC_NUM_LAYERS = 3;
+    static constexpr TI CRITIC_HIDDEN_DIM = 64;
+};
+template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename T_CONTAINER_TYPE_TAG>
+struct APPROXIMATOR_CONFIG: rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP<T, TI, ENVIRONMENT, PARAMETERS, T_CONTAINER_TYPE_TAG>{
+    using ACTOR_CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
+    using CRITIC_CONTAINER_TYPE_TAG = rlt::MatrixStaticTag;
+    using ACTOR_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, rlt::nn::activation_functions::TANH, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE, ACTOR_CONTAINER_TYPE_TAG>;
+    using ACTOR_SPEC = rlt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
+    using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
+    using CRITIC_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CRITIC_CONTAINER_TYPE_TAG>;
+    using CRITIC_SPEC = rlt::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
+    using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
+    using CRITIC_TARGET_SPEC = rlt::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
+    using CRITIC_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
 };
 
-using SAC_PARAMETERS = SACPendulumParameters;
-
-using ActorStructureSpec = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, SAC_PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG>;
-using CriticStructureSpec = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG_CRITIC>;
-
-
-using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, TI>;
-using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
-using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
-
-using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
-using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
-
-using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
-using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
-
-using ALPHA_PARAMETER_TYPE = rlt::nn::parameters::Adam;
-using ALPHA_OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-
-using TD3_SPEC = rlt::rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, ALPHA_PARAMETER_TYPE, OPTIMIZER, OPTIMIZER, ALPHA_OPTIMIZER, SAC_PARAMETERS, CONTAINER_TYPE_TAG>;
-using ActorCriticType = rlt::rl::algorithms::sac::ActorCritic<TD3_SPEC>;
-
-
-
-constexpr TI N_STEPS = 10000;
-constexpr TI EVALUATION_INTERVAL = 1000;
-constexpr TI N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
-#ifndef RL_TOOLS_DISABLE_EVALUATION
-T evaluation_returns[N_EVALUATIONS];
-#endif
-
-constexpr TI REPLAY_BUFFER_CAP = 10000;
-constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
-using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
-        T,
-        TI,
-        ENVIRONMENT,
-        1,
-        false,
-        REPLAY_BUFFER_CAP,
-        ENVIRONMENT_STEP_LIMIT,
-        rlt::rl::components::off_policy_runner::DefaultParameters<T>,
-        false,
-        false,
-        0,
-        CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER
- >;
-#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
-EXTMEM rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
-#else
-rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
-#endif
-ActorCriticType actor_critic;
-
-const T STATE_TOLERANCE = 0.00001;
-constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
-static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
-
-ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
-
-rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
-rlt::rl::algorithms::sac::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-CRITIC_NETWORK_TYPE::Buffer<ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> critic_buffers;
-
-rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
-rlt::rl::algorithms::sac::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
-ACTOR_NETWORK_TYPE::Buffer<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers;
-ACTOR_NETWORK_TYPE::Buffer<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers_eval;
-
-typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
-typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
-
-
-void train(){
-
-    DEVICE::SPEC::LOGGING logger;
-    DEVICE device;
-    device.logger = logger;
-
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
-
-    bool ui = false;
-
-    rlt::malloc(device, actor_critic);
-    rlt::malloc(device, off_policy_runner);
-    rlt::malloc(device, critic_batch);
-    rlt::malloc(device, critic_training_buffers);
-    rlt::malloc(device, critic_buffers);
-    rlt::malloc(device, actor_batch);
-    rlt::malloc(device, actor_training_buffers);
-    rlt::malloc(device, actor_buffers_eval);
-    rlt::malloc(device, actor_buffers);
-    rlt::malloc(device, observations_mean);
-    rlt::malloc(device, observations_std);
-
+using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, APPROXIMATOR_CONFIG, CONTAINER_TYPE_TAG>;
+#ifdef BENCHMARK
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
-#ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
-    std::cout << "malloc counter: " << device.malloc_counter << std::endl;
-#endif
-#endif
-
-
-    rlt::init(device, actor_critic, rng);
-    rlt::init(device, off_policy_runner, envs);
-    rlt::set_all(device, observations_mean, 0);
-    rlt::set_all(device, observations_std, 1);
-
-
-#ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
-    auto start_time = std::chrono::high_resolution_clock::now();
-    std::cout << "ActorCritic size: " << sizeof(actor_critic) << std::endl;
-    std::cout << "ActorCritic.actor size: " << sizeof(actor_critic.actor) << std::endl;
-    std::cout << "ActorCritic.critic_1 size: " << sizeof(actor_critic.critic_1) << std::endl;
-    std::cout << "ActorCritic.critic_2 size: " << sizeof(actor_critic.critic_2) << std::endl;
-    std::cout << "ActorCritic.critic_target_1 size: " << sizeof(actor_critic.critic_target_1) << std::endl;
-    std::cout << "ActorCritic.critic_target_2 size: " << sizeof(actor_critic.critic_target_2) << std::endl;
-    std::cout << "OffPolicyRunner size: " << sizeof(off_policy_runner) << std::endl;
-    std::cout << "OffPolicyRunner.replay_buffers size: " << sizeof(off_policy_runner.replay_buffers) << std::endl;
-    std::cout << "CriticBatch size: " << sizeof(critic_batch) << std::endl;
-    std::cout << "CriticTrainingBuffers size: " << sizeof(critic_training_buffers) << std::endl;
-    std::cout << "CriticBuffers size: " << sizeof(critic_buffers) << std::endl;
-    std::cout << "ActorBatch size: " << sizeof(actor_batch) << std::endl;
-    std::cout << "ActorTrainingBuffers size: " << sizeof(actor_training_buffers) << std::endl;
-    std::cout << "ActorBuffers size: " << sizeof(actor_buffers) << std::endl;
-    std::cout << "Total: " << sizeof(actor_critic) + sizeof(off_policy_runner) + sizeof(critic_batch) + sizeof(critic_training_buffers) + sizeof(critic_buffers) + sizeof(actor_batch) + sizeof(actor_training_buffers) + sizeof(actor_buffers) << std::endl;
-#endif
-
-    for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
-        rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
-#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
-        if(step_i % 100 == 0){
-            Serial.printf("step: %d\n", step_i);
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_CORE_CONFIG>;
+using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #else
-        if(step_i % 1000 == 0){
-            auto current_time = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed_seconds = current_time - start_time;
-            std::cout << "step_i: " << step_i << " " << elapsed_seconds.count() << "s" << std::endl;
+using LOOP_CONFIG = LOOP_CORE_CONFIG;
 #endif
-
-        }
-        if(step_i > N_WARMUP_STEPS){
-
-            for(int critic_i = 0; critic_i < 2; critic_i++){
-                rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
-                rlt::gather_batch(device, off_policy_runner, critic_batch, rng);
-                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers, critic_buffers, critic_training_buffers);
-            }
-
-            if(step_i % 2 == 0){
-                {
-                    rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
-                    rlt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers, critic_buffers, actor_training_buffers);
-                }
-
-                rlt::update_critic_targets(device, actor_critic);
-                rlt::update_actor_target(device, actor_critic);
-            }
-        }
-#ifndef RL_TOOLS_DISABLE_EVALUATION
-        if(step_i % EVALUATION_INTERVAL == 0){
-            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
-            if(N_EVALUATIONS > 0){
-                evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
-            }
-#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
-            Serial.printf("mean return: %f\n", result.mean);
 #else
-            std::cout << "Mean return: " << result.returns_mean << std::endl;
+template <typename NEXT>
+struct EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
+    static constexpr TI EVALUATION_INTERVAL = 1000;
+    static constexpr TI N_EVALUATIONS = NEXT::PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
+};
+#ifdef BENCHMARK
 #endif
-        }
-#endif
-    }
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, EVAL_PARAMETERS<LOOP_CORE_CONFIG>>;
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
-    {
-        auto current_time = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed_seconds = current_time - start_time;
-        std::cout << "total time: " << elapsed_seconds.count() << "s" << std::endl;
-    }
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
+using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+#else
+using LOOP_CONFIG = LOOP_EVAL_CONFIG;
 #endif
-    rlt::free(device, actor_critic);
-    rlt::free(device, off_policy_runner);
-    rlt::free(device, critic_batch);
-    rlt::free(device, critic_training_buffers);
-    rlt::free(device, critic_buffers);
-    rlt::free(device, actor_batch);
-    rlt::free(device, actor_training_buffers);
-    rlt::free(device, actor_buffers_eval);
-    rlt::free(device, actor_buffers);
-    rlt::free(device, observations_mean);
-    rlt::free(device, observations_std);
+#endif
+
+using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
+
+template <typename DEVICE, typename LOOP_STATE>
+void print_sizes(DEVICE& device, LOOP_STATE& ts){
+    rlt::log(device, device.logger, "ActorCritic size: ", sizeof(ts.actor_critic));
+    rlt::log(device, device.logger, "ActorCritic.actor size: ", sizeof(ts.actor_critic.actor));
+    rlt::log(device, device.logger, "ActorCritic.critic_1 size: ", sizeof(ts.actor_critic.critic_1));
+    rlt::log(device, device.logger, "ActorCritic.critic_2 size: ", sizeof(ts.actor_critic.critic_2));
+    rlt::log(device, device.logger, "ActorCritic.critic_target_1 size: ", sizeof(ts.actor_critic.critic_target_1));
+    rlt::log(device, device.logger, "ActorCritic.critic_target_2 size: ", sizeof(ts.actor_critic.critic_target_2));
+    rlt::log(device, device.logger, "OffPolicyRunner size: ", sizeof(ts.off_policy_runner));
+    rlt::log(device, device.logger, "OffPolicyRunner.replay_buffers size: ", sizeof(ts.off_policy_runner.replay_buffers));
+    rlt::log(device, device.logger, "CriticBatch size: ", sizeof(ts.critic_batch));
+    rlt::log(device, device.logger, "CriticTrainingBuffers size: ", sizeof(ts.critic_training_buffers));
+    rlt::log(device, device.logger, "CriticBuffers size: ", sizeof(ts.critic_buffers));
+    rlt::log(device, device.logger, "ActorBatch size: ", sizeof(ts.actor_batch));
+    rlt::log(device, device.logger, "ActorTrainingBuffers size: ", sizeof(ts.actor_training_buffers));
+    rlt::log(device, device.logger, "ActorBuffers size: ", sizeof(ts.actor_buffers));
+    rlt::log(device, device.logger, "Total: ", sizeof(ts.actor_critic) + sizeof(ts.off_policy_runner) + sizeof(ts.critic_batch) + sizeof(ts.critic_training_buffers) + sizeof(ts.critic_buffers) + sizeof(ts.actor_batch) + sizeof(ts.actor_training_buffers) + sizeof(ts.actor_buffers));
 }
 
+void train(){
+    DEVICE device;
+    LOOP_STATE ts;
+    rlt::malloc(device, ts);
+    rlt::init(device, ts, 0);
+    print_sizes(device, ts);
+    while(!rlt::step(device, ts)){
+    }
+    rlt::free(device, ts);
+}
+
+
+// benchmark training should take < 2s on P1, < 0.75 on M3

@@ -1,4 +1,4 @@
-#include "training2.h"
+#include "training.h"
 
 int main(){
     while(true){
