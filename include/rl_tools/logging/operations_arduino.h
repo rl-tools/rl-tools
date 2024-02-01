@@ -13,39 +13,84 @@ namespace rl_tools{
     void init(DEVICE& dev, devices::logging::ARDUINO& logger){ }
     template <typename DEVICE, typename A>
     void log(DEVICE& dev, devices::logging::ARDUINO& logger, const A a){
-        std::cout << a << std::endl;
+        Serial.print(a)
+        Serial.println();
     }
     template <typename DEVICE, typename A, typename B>
     void log(DEVICE& device, devices::logging::ARDUINO& logger, const A a, const B b){
-        std::cout << a << b << std::endl;
+        Serial.print(a);
+        Serial.print(b);
+        Serial.println();
     }
     template <typename DEVICE, typename A, typename B, typename C>
     void log(DEVICE& device, devices::logging::ARDUINO& logger, const A a, const B b, const C c){
-        std::cout << a << b << c << std::endl;
+        Serial.print(a);
+        Serial.print(b);
+        Serial.print(c);
+        Serial.println();
     }
     template <typename DEVICE, typename A, typename B, typename C, typename D>
     void log(DEVICE& device, devices::logging::ARDUINO& logger, const A a, const B b, const C c, const D d){
-        std::cout << a << b << c << d << std::endl;
+        Serial.print(a);
+        Serial.print(b);
+        Serial.print(c);
+        Serial.print(d);
+        Serial.println();
     }
     template <typename DEVICE, typename A, typename B, typename C, typename D, typename E>
     void log(DEVICE& device, devices::logging::ARDUINO& logger, const A a, const B b, const C c, const D d, const E e){
-        std::cout << a << b << c << d << e << std::endl;
+        Serial.print(a);
+        Serial.print(b);
+        Serial.print(c);
+        Serial.print(d);
+        Serial.print(e);
+        Serial.println();
     }
     template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F>
     void log(DEVICE& device, devices::logging::ARDUINO& logger, const A a, const B b, const C c, const D d, const E e, const F f){
-        std::cout << a << b << c << d << e << f << std::endl;
+        Serial.print(a);
+        Serial.print(b);
+        Serial.print(c);
+        Serial.print(d);
+        Serial.print(e);
+        Serial.print(f);
+        Serial.println();
     }
     template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G>
     void log(DEVICE& device, devices::logging::ARDUINO& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g){
-        std::cout << a << b << c << d << e << f << g << std::endl;
+        Serial.print(a);
+        Serial.print(b);
+        Serial.print(c);
+        Serial.print(d);
+        Serial.print(e);
+        Serial.print(f);
+        Serial.print(g);
+        Serial.println();
     }
     template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
     void log(DEVICE& device, devices::logging::ARDUINO& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h){
-        std::cout << a << b << c << d << e << f << g << h << std::endl;
+        Serial.print(a);
+        Serial.print(b);
+        Serial.print(c);
+        Serial.print(d);
+        Serial.print(e);
+        Serial.print(f);
+        Serial.print(g);
+        Serial.print(h);
+        Serial.println();
     }
     template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
     void log(DEVICE& device, devices::logging::ARDUINO& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i){
-        std::cout << a << b << c << d << e << f << g << h << i << std::endl;
+        Serial.print(a);
+        Serial.print(b);
+        Serial.print(c);
+        Serial.print(d);
+        Serial.print(e);
+        Serial.print(f);
+        Serial.print(g);
+        Serial.print(h);
+        Serial.print(i);
+        Serial.println();
     }
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::ARDUINO& logger, typename DEVICE::index_t step){ /* noop */ }

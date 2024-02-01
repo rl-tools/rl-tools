@@ -75,7 +75,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         using ACTOR_TYPE = typename ACTOR<nn::parameters::Adam>::MODEL;
         using CRITIC_TYPE = typename CRITIC<nn::parameters::Adam>::MODEL;
-        using CRITIC_TARGET_TYPE = typename CRITIC<nn::parameters::Adam, nn::layers::dense::Layer>::MODEL;
+        using CRITIC_TARGET_TYPE = typename CRITIC<nn::parameters::Plain, nn::layers::dense::Layer>::MODEL;
     };
 
     template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename T_CONTAINER_TYPE_TAG>
