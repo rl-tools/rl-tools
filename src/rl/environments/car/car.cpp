@@ -108,8 +108,8 @@
 //        static constexpr TI NUM_EVALUATION_EPISODES = 1;
 //        static constexpr TI EVALUATION_INTERVAL = 20000;
 //        static constexpr TI REPLAY_BUFFER_CAP = 1000000;
-//        static constexpr TI ENVIRONMENT_STEP_LIMIT = 500;
-//        static constexpr TI ENVIRONMENT_STEP_LIMIT_EVALUATION = 1000;
+//        static constexpr TI EPISODE_STEP_LIMIT = 500;
+//        static constexpr TI EPISODE_STEP_LIMIT_EVALUATION = 1000;
 //        static constexpr bool COLLECT_EPISODE_STATS = true;
 //        static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
 //        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
@@ -119,7 +119,7 @@
 //                1,
 //                false,
 //                REPLAY_BUFFER_CAP,
-//                ENVIRONMENT_STEP_LIMIT,
+//                EPISODE_STEP_LIMIT,
 //                rlt::rl::components::off_policy_runner::DefaultParameters<T>,
 //                false,
 //                COLLECT_EPISODE_STATS,

@@ -62,7 +62,7 @@ using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
-constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
+constexpr typename DEVICE::index_t EPISODE_STEP_LIMIT = 200;
 using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
         DTYPE,
         AC_DEVICE::index_t,
@@ -70,7 +70,7 @@ using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specifica
         1,
         false,
         REPLAY_BUFFER_CAP,
-        ENVIRONMENT_STEP_LIMIT,
+        EPISODE_STEP_LIMIT,
         rlt::rl::components::off_policy_runner::DefaultParameters<DTYPE>
 >;
 rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
@@ -130,7 +130,7 @@ int main() {
             }
         }
         if(step_i % 1000 == 0){
-            auto result = rlt::evaluate(device, env, ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), actor_buffers_eval, rng, true);
+            auto result = rlt::evaluate(device, env, ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, EPISODE_STEP_LIMIT>(), actor_buffers_eval, rng, true);
             rlt::log(device, device.logger, "Mean return: ", result.returns_mean);
             if(result.returns_mean > -200000){
                 return 0;

@@ -67,7 +67,7 @@ DTYPE evaluation_returns[N_EVALUATIONS];
 #endif
 
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 10000;
-constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
+constexpr typename DEVICE::index_t EPISODE_STEP_LIMIT = 200;
 using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
         DTYPE,
         DEVICE::index_t,
@@ -75,7 +75,7 @@ using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specifica
         1,
         false,
         REPLAY_BUFFER_CAP,
-        ENVIRONMENT_STEP_LIMIT,
+        EPISODE_STEP_LIMIT,
         rlt::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
         false,
         false,
@@ -196,7 +196,7 @@ void train(){
         }
 #ifndef RL_TOOLS_DISABLE_EVALUATION
         if(step_i % EVALUATION_INTERVAL == 0){
-            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, ENVIRONMENT_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
+            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, EPISODE_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }

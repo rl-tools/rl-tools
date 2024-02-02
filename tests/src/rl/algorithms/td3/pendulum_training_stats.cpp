@@ -44,9 +44,9 @@ constexpr int N_BLOCKS = 50;
 constexpr int N_TRAINING_RUNS = N_CORES * N_BLOCKS;
 
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = N_STEPS;
-constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 200;
+constexpr typename DEVICE::index_t EPISODE_STEP_LIMIT = 200;
 typedef rlt::rl::algorithms::td3::ActorCritic<rlt::devices::Generic, rlt::rl::algorithms::td3::ActorCriticSpecification<DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3PendulumParameters<DTYPE>>> ActorCriticType;
-typedef rlt::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, rlt::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, REPLAY_BUFFER_CAP, ENVIRONMENT_STEP_LIMIT>> OFF_POLICY_RUNNER_TYPE;
+typedef rlt::rl::algorithms::td3::OffPolicyRunner<DTYPE, ENVIRONMENT, rlt::rl::algorithms::td3::DefaultOffPolicyRunnerParameters<DTYPE, REPLAY_BUFFER_CAP, EPISODE_STEP_LIMIT>> OFF_POLICY_RUNNER_TYPE;
 const DTYPE STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -94,7 +94,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_PENDULUM, TRAINING_STATS) {
                         }
                         if(step_i % 1000 == 0){
                             std::cout << "step_i: " << step_i << std::endl;
-                            DTYPE mean_return = rlt::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), ENVIRONMENT_STEP_LIMIT, false>(env, actor_critic.actor, 500, rng);
+                            DTYPE mean_return = rlt::evaluate<ENVIRONMENT, ActorCriticType::ACTOR_NETWORK_TYPE, typeof(rng), EPISODE_STEP_LIMIT, false>(env, actor_critic.actor, 500, rng);
                             std::cout << "Mean return: " << mean_return << std::endl;
                             if(block_i == 0 && training_run_i == 0){
                                 mean_returns_steps.push_back(step_i);

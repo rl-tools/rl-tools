@@ -18,18 +18,18 @@ namespace rl_tools::rl::loop::steps::evaluation{
         static constexpr bool DETERMINISTIC_EVALUATION = true;
         static constexpr TI EVALUATION_INTERVAL = 1000;
         static constexpr TI NUM_EVALUATION_EPISODES = 10;
-        static constexpr TI N_EVALUATIONS = NEXT::PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
+        static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
     };
     struct ConfigTag{};
     template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>>
     struct Config: T_NEXT {
         using TAG = ConfigTag;
         using NEXT = T_NEXT;
-        using PARAMETERS = T_PARAMETERS;
+        using EVALUATION_PARAMETERS = T_PARAMETERS;
         using T = typename NEXT::T;
         using TI = typename NEXT::TI;
-        static_assert(PARAMETERS::N_EVALUATIONS > 0);
-        static_assert(PARAMETERS::N_EVALUATIONS < 1000000);
+        static_assert(EVALUATION_PARAMETERS::N_EVALUATIONS > 0);
+        static_assert(EVALUATION_PARAMETERS::N_EVALUATIONS < 1000000);
         template <typename CONFIG>
         using State = State<CONFIG>;
     };

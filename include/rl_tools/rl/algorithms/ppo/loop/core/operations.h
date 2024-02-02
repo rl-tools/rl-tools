@@ -7,7 +7,6 @@
 #include "../../../../../rl/algorithms/ppo/operations_generic.h"
 #include "../../../../../rl/components/on_policy_runner/operations_generic.h"
 #include "../../../../../rl/components/running_normalizer/operations_generic.h"
-#include "../../../../../rl/utils/evaluation.h"
 
 #include "config.h"
 
@@ -71,11 +70,6 @@ namespace rl_tools{
         }
     }
 
-    template <typename T_CONFIG>
-    auto& get_actor(rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
-        return ts.ppo.actor;
-    }
-
     template <typename DEVICE, typename T_CONFIG>
     bool step(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
@@ -88,7 +82,7 @@ namespace rl_tools{
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
 
         ts.step++;
-        if(ts.step > CONFIG::PARAMETERS::STEP_LIMIT){
+        if(ts.step > CONFIG::CORE_PARAMETERS::STEP_LIMIT){
             return true;
         }
         else{
@@ -105,14 +99,14 @@ namespace rl_tools{
         log(device, device.logger, "CRITIC_HIDDEN_DIM: ", PARAMETERS::CRITIC_HIDDEN_DIM);
         log(device, device.logger, "CRITIC_NUM_LAYERS: ", PARAMETERS::CRITIC_NUM_LAYERS);
         log(device, device.logger, "CRITIC_ACTIVATION_FUNCTION: ", PARAMETERS::CRITIC_ACTIVATION_FUNCTION);
-        log(device, device.logger, "ENVIRONMENT_STEP_LIMIT: ", PARAMETERS::ENVIRONMENT_STEP_LIMIT);
+        log(device, device.logger, "EPISODE_STEP_LIMIT: ", PARAMETERS::EPISODE_STEP_LIMIT);
         log(device, device.logger, "N_ENVIRONMENTS: ", PARAMETERS::N_ENVIRONMENTS);
         log(device, device.logger, "ON_POLICY_RUNNER_STEPS_PER_ENV: ", PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV);
         log(device, device.logger, "BATCH_SIZE: ", PARAMETERS::BATCH_SIZE);
     }
     template <typename DEVICE, typename CONFIG, typename utils::typing::enable_if<utils::typing::is_same_v<typename CONFIG::TAG, rl::algorithms::ppo::loop::core::ConfigTag>>::type* = nullptr>
     void log(DEVICE& device, CONFIG){
-        log(device, typename CONFIG::PARAMETERS{});
+        log(device, typename CONFIG::CORE_PARAMETERS{});
 //        log(device, typename CONFIG::NEXT{});
     }
 
