@@ -57,7 +57,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::Parameters<T,
     static constexpr TI N_ENVIRONMENTS = MODE == BENCHMARK_MODE::LARGE ? 16 : 4;
     static constexpr TI TOTAL_STEP_LIMIT = 300000;
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
-    static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
+    static constexpr TI EPISODE_STEP_LIMIT = 200;
 };
 template <BENCHMARK_MODE MODE>
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS<MODE>, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsMLP>;
@@ -65,7 +65,7 @@ template <typename NEXT>
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 1;
     static constexpr TI NUM_EVALUATION_EPISODES = 1000;
-    static constexpr TI N_EVALUATIONS = NEXT::PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
+    static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };
 
 template <BENCHMARK_MODE MODE>

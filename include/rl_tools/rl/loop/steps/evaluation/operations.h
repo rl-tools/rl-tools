@@ -34,14 +34,14 @@ namespace rl_tools{
     template <typename DEVICE, typename CONFIG>
     bool step(DEVICE& device, rl::loop::steps::evaluation::State<CONFIG>& ts){
         using TI = typename CONFIG::TI;
-        using PARAMETERS = typename CONFIG::PARAMETERS;
+        using PARAMETERS = typename CONFIG::EVALUATION_PARAMETERS;
         using STATE = rl::loop::steps::evaluation::State<CONFIG>;
         if constexpr(PARAMETERS::DETERMINISTIC_EVALUATION == true){
 
             TI evaluation_index = ts.step / PARAMETERS::EVALUATION_INTERVAL;
             if(ts.step % PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < PARAMETERS::N_EVALUATIONS){
-                auto result = evaluate(device, ts.env_eval, ts.ui, get_actor(ts), rl::utils::evaluation::Specification<PARAMETERS::NUM_EVALUATION_EPISODES, CONFIG::NEXT::PARAMETERS::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
-                log(device, device.logger, "Step: ", ts.step, " Mean return: ", result.returns_mean);
+                auto result = evaluate(device, ts.env_eval, ts.ui, get_actor(ts), rl::utils::evaluation::Specification<PARAMETERS::NUM_EVALUATION_EPISODES, CONFIG::CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
+                log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean);
                 add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 ts.evaluation_results[evaluation_index] = result;

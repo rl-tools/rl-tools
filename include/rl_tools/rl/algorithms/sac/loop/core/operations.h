@@ -98,18 +98,13 @@ namespace rl_tools{
         free(device, ts.actor_deterministic_evaluation_buffers);
     }
 
-    template <typename T_CONFIG>
-    constexpr auto& get_actor(rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
-        return ts.actor_critic.actor;
-    }
-
     template <typename DEVICE, typename T_CONFIG>
     bool step(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;
         step(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-        if(ts.step > CONFIG::PARAMETERS::N_WARMUP_STEPS){
+        if(ts.step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 randn(device, ts.action_noise_critic[critic_i], ts.rng);
@@ -125,7 +120,7 @@ namespace rl_tools{
             }
         }
         ts.step++;
-        if(ts.step > CONFIG::PARAMETERS::STEP_LIMIT){
+        if(ts.step > CONFIG::CORE_PARAMETERS::STEP_LIMIT){
             return true;
         }
         else{

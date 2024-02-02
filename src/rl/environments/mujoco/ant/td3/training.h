@@ -298,7 +298,7 @@ void run(){
             auto step_end = std::chrono::high_resolution_clock::now();
             rlt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % DETERMINISTIC_EVALUATION_INTERVAL == 0){
-                auto result = rlt::evaluate(device, evaluation_env, ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, parameters_rl::ENVIRONMENT_STEP_LIMIT>(), actor_buffers_deterministic_eval, evaluation_rng);
+                auto result = rlt::evaluate(device, evaluation_env, ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, parameters_rl::EPISODE_STEP_LIMIT>(), actor_buffers_deterministic_eval, evaluation_rng);
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);

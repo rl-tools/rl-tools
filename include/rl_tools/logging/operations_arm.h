@@ -15,6 +15,10 @@ namespace rl_tools{
     void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c){}
     template <typename DEVICE, typename A, typename B, typename C, typename D>
     void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c, const D d){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E>
+    void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c, const D d, const E e){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F>
+    void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c, const D d, const E e, const F f){ }
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::ARM& logger, typename DEVICE::index_t step){ /* noop */ }
     template <typename DEVICE, typename ARG_1, typename ARG_2>

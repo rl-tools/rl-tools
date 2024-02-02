@@ -59,18 +59,13 @@ namespace rl_tools{
         free(device, ts.observations_std);
     }
 
-    template <typename T_CONFIG>
-    auto& get_actor(rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
-        return ts.actor_critic.actor;
-    }
-
     template <typename DEVICE, typename T_CONFIG>
     bool step(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;
         step(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-        if(ts.step > CONFIG::PARAMETERS::N_WARMUP_STEPS){
+        if(ts.step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
@@ -84,7 +79,7 @@ namespace rl_tools{
             }
         }
         ts.step++;
-        if(ts.step > CONFIG::PARAMETERS::STEP_LIMIT){
+        if(ts.step > CONFIG::CORE_PARAMETERS::STEP_LIMIT){
             return true;
         }
         else{

@@ -100,7 +100,7 @@ namespace training_config {
         static constexpr bool DETERMINISTIC_EVALUATION = false;
         static constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
         static constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 1000000;
-        static constexpr typename DEVICE::index_t ENVIRONMENT_STEP_LIMIT = 80;
+        static constexpr typename DEVICE::index_t EPISODE_STEP_LIMIT = 80;
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr DEVICE::index_t EPISODE_STATS_BUFFER_SIZE = 1000;
         using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
@@ -110,7 +110,7 @@ namespace training_config {
                 1,
                 false,
                 REPLAY_BUFFER_CAP,
-                ENVIRONMENT_STEP_LIMIT,
+                EPISODE_STEP_LIMIT,
                 rlt::rl::components::off_policy_runner::DefaultParameters<T>,
                 false,
                 COLLECT_EPISODE_STATS,

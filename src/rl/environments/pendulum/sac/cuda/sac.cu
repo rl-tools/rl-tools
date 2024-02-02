@@ -62,8 +62,8 @@ int main(){
     DEVICE_INIT device_init;
     LOOP_STATE ts;
     LOOP_STATE_INIT ts_init;
-    using CORE_PARAMETERS = decltype(ts)::CONFIG::NEXT::NEXT::PARAMETERS;
-    using EVAL_PARAMETERS = decltype(ts)::CONFIG::NEXT::PARAMETERS;
+    using CORE_PARAMETERS = decltype(ts)::CONFIG::CORE_PARAMETERS;
+    using EVAL_PARAMETERS = decltype(ts)::CONFIG::EVALUATION_PARAMETERS;
     rlt::init(device);
     rlt::malloc(device, ts);
     rlt::malloc(device_init, ts_init);
@@ -101,7 +101,7 @@ int main(){
 #ifndef BENCHMARK
         if(step % 1000 == 0){
             rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
-            auto result = rlt::evaluate(device_init, ts_init.env_eval, ts_init.ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::ENVIRONMENT_STEP_LIMIT>(), ts_init.observations_mean, ts_init.observations_std, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, false);
+            auto result = rlt::evaluate(device_init, ts_init.env_eval, ts_init.ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.observations_mean, ts_init.observations_std, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, false);
             rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
 //            add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
 //            add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);

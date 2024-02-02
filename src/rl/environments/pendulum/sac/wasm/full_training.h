@@ -67,7 +67,7 @@ struct TrainingConfig{
 #endif
     static constexpr TI EVALUATION_INTERVAL = 1000;
     static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-    static constexpr TI ENVIRONMENT_STEP_LIMIT = 200;
+    static constexpr TI EPISODE_STEP_LIMIT = 200;
     static constexpr bool COLLECT_EPISODE_STATS = true;
     static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
     static constexpr bool STOCHASTIC_POLICY = true;
@@ -78,7 +78,7 @@ struct TrainingConfig{
             1,
             false,
             REPLAY_BUFFER_CAP,
-            ENVIRONMENT_STEP_LIMIT,
+            EPISODE_STEP_LIMIT,
             rlt::rl::components::off_policy_runner::DefaultParameters<T>,
             STOCHASTIC_POLICY,
             COLLECT_EPISODE_STATS,
@@ -213,7 +213,7 @@ bool training_step(DEVICE& device, TRAINING_STATE& ts){
     }
 #ifndef RL_TOOLS_BENCHMARK
     if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
-        auto result = rlt::evaluate(device, ts.envs[0], ts.ui, ts.actor_critic.actor, rlt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::ENVIRONMENT_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng);
+        auto result = rlt::evaluate(device, ts.envs[0], ts.ui, ts.actor_critic.actor, rlt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng);
         std::cout << "Mean return: " << result.returns_mean << std::endl;
         ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
     }
