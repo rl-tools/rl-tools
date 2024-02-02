@@ -20,7 +20,6 @@ namespace rl_tools{
             using CONTAINER_TYPE = typename CONFIG::CONTAINER_TYPE_TAG::template type<SPEC>;
             typename CONFIG::NN::OPTIMIZER actor_optimizer, critic_optimizers[2];
             typename CONFIG::RNG rng;
-            typename CONFIG::UI ui;
             rl::components::OffPolicyRunner<typename CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
             typename CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
             typename CONFIG::ACTOR_CRITIC_TYPE actor_critic;

@@ -40,6 +40,9 @@ namespace rl_tools{
 
 //        ts.actor_optimizer.parameters.alpha = 3e-4;
 //        ts.critic_optimizer.parameters.alpha = 3e-4 * 2;
+        for(auto& env: ts.envs){
+            rl_tools::init(device, env);
+        }
 
         init(device, ts.on_policy_runner, ts.envs, ts.rng);
         init(device, ts.observation_normalizer);

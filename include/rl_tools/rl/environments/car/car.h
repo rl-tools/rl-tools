@@ -92,6 +92,7 @@ namespace rl_tools::rl::environments{
         using TI = typename T_SPEC::TI;
         static constexpr TI OBSERVATION_DIM = Car<T_SPEC>::OBSERVATION_DIM + 3;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
+        bool initialized = false;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

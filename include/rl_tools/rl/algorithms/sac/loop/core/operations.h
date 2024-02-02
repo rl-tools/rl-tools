@@ -43,7 +43,9 @@ namespace rl_tools{
         init(device, ts.actor_critic, ts.rng);
 
         init(device, ts.off_policy_runner, ts.envs);
-        rl_tools::init(device, ts.envs[0], ts.ui);
+        for(auto& env: ts.envs){
+            rl_tools::init(device, env);
+        }
 
 
         set_all(device, ts.observations_mean, 0);

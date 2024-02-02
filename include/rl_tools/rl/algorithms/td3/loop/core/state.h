@@ -17,7 +17,6 @@ namespace rl_tools{
             using TI = typename CONFIG::TI;
             typename CONFIG::NN::OPTIMIZER actor_optimizer, critic_optimizers[2];
             typename CONFIG::RNG rng;
-            typename CONFIG::UI ui;
             rl::components::OffPolicyRunner<typename CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
             typename CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
             typename CONFIG::ACTOR_CRITIC_TYPE actor_critic;

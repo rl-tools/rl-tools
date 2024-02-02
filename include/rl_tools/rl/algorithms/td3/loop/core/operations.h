@@ -37,8 +37,10 @@ namespace rl_tools{
 
         init(device, ts.actor_critic, ts.rng);
 
+        for(auto& env: ts.envs){
+            rl_tools::init(device, env);
+        }
         init(device, ts.off_policy_runner, ts.envs);
-        rl_tools::init(device, ts.envs[0], ts.ui);
         set_all(device, ts.observations_mean, 0);
         set_all(device, ts.observations_std, 1);
         ts.off_policy_runner.parameters = rl::components::off_policy_runner::default_parameters<T>;
@@ -66,16 +68,21 @@ namespace rl_tools{
         bool finished = false;
         step(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         if(ts.step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            for(int critic_i = 0; critic_i < 2; critic_i++){
-                gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
-                train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
-            }
-            if(ts.step % 1 == 0){
-                {
-                    gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                    train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
+            if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
+                for(int critic_i = 0; critic_i < 2; critic_i++){
+                    gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
+                    train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.actor_critic.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers);
                 }
+            }
+            if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
+                gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+                train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_critic.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers);
+            }
+            if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::CRITIC_TARGET_UPDATE_INTERVAL == 0){
                 update_critic_targets(device, ts.actor_critic);
+            }
+            if(ts.step % CONFIG::CORE_PARAMETERS::TD3_PARAMETERS::ACTOR_TARGET_UPDATE_INTERVAL == 0){
+                update_actor_target(device, ts.actor_critic);
             }
         }
         ts.step++;

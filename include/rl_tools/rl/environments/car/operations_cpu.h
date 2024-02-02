@@ -102,6 +102,7 @@ namespace rl_tools{
             }
             std::cout << std::endl;
         }
+        env.initialized = true;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

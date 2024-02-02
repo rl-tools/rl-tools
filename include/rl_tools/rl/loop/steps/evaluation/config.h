@@ -19,13 +19,15 @@ namespace rl_tools::rl::loop::steps::evaluation{
         static constexpr TI EVALUATION_INTERVAL = 1000;
         static constexpr TI NUM_EVALUATION_EPISODES = 10;
         static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
+        static constexpr TI EPISODE_STEP_LIMIT = NEXT::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
     };
     struct ConfigTag{};
-    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>>
+    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>, typename T_UI = bool>
     struct Config: T_NEXT {
         using TAG = ConfigTag;
         using NEXT = T_NEXT;
         using EVALUATION_PARAMETERS = T_PARAMETERS;
+        using UI = T_UI;
         using T = typename NEXT::T;
         using TI = typename NEXT::TI;
         static_assert(EVALUATION_PARAMETERS::N_EVALUATIONS > 0);

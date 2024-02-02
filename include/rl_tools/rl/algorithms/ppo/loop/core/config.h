@@ -63,7 +63,6 @@ namespace rl_tools{
             using ENVIRONMENT = T_ENVIRONMENT;
             using ENVIRONMENT_EVALUATION = T_ENVIRONMENT;
             using CORE_PARAMETERS = T_PARAMETERS;
-            using UI = bool;
 
             using NN = APPROXIMATOR_CONFIG<T, TI, ENVIRONMENT, CORE_PARAMETERS>;
 //        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
