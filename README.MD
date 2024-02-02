@@ -70,8 +70,8 @@
 | Algorithm | Example                                                                                                                                                                                                                                 |
 |-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **TD3**   | [Pendulum](./src/rl/environments/pendulum/td3/cpu/standalone.cpp), [Car](./src/rl/environments/car/car.cpp), [MuJoCo Ant-v4](./src/rl/environments/mujoco/ant/td3/training.h), [Acrobot](./src/rl/environments/acrobot/td3/acrobot.cpp) |
-| **PPO**   | [MuJoCo Ant-v4 (CPU)](./src/rl/environments/mujoco/ant/ppo/cpu/training.h), [MuJoCo Ant-v4 (CUDA)](./src/rl/environments/mujoco/ant/ppo/cuda/training.h)                                                                                |
-| **SAC**   | [Pendulum](./src/rl/environments/pendulum/sac/cpu/training.cpp), [Acrobot](./src/rl/environments/acrobot/sac/acrobot.cpp)                                                                                                               |
+| **PPO**   | [Pendulum](./src/rl/environments/pendulum/ppo/cpu/training.cpp), [MuJoCo Ant-v4 (CPU)](./src/rl/environments/mujoco/ant/ppo/cpu/training.h), [MuJoCo Ant-v4 (CUDA)](./src/rl/environments/mujoco/ant/ppo/cuda/training_ppo.cu)          |
+| **SAC**   | [Pendulum (CPU)](./src/rl/environments/pendulum/sac/cpu/training.cpp), [Pendulum (CUDA)](./src/rl/environments/pendulum/sac/cuda/sac.cu), [Acrobot](./src/rl/environments/acrobot/sac/acrobot.cpp)                                      |
 ## Getting Started
 The getting started documentation is divided in two parts: a tutorial on how RLtools works internally and replication instructions for the results from the paper. 
 ### Tutorial on RLtools internals
