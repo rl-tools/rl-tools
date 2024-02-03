@@ -5,49 +5,41 @@ ctx.imageSmoothingEnabled = false
 
 let pixelSize = 10;
 let ratio = 1
-function resizeCanvas() {
-    const canvasWidth = canvas.parentElement.offsetWidth;
-    const canvasHeight = canvas.parentElement.offsetHeight;
-    ratio = window.devicePixelRatio || 1;
-    canvas.width = canvasWidth * ratio;
-    canvas.height = canvasHeight * ratio;
-    pixelSize = canvas.width / gridWidth;
-    ctx.scale(ratio, ratio);
-    canvas.style.width = `${canvas.width / ratio}px`;
-    canvas.style.height = `${canvas.height / ratio}px`;
-    // Redraw your canvas here if needed
-}
 
 const gridWidth = 100;
 const gridHeight = 100;
+const pixelOverlap = 1
 
 
 window.addEventListener('load', resizeCanvas);
 window.addEventListener('resize', resizeCanvas);
 
 
-let drawnPixels = {}; // Object to store drawn pixel positions
+let track= Array(gridHeight).fill().map(() => Array(gridWidth).fill(0));
 
 function drawPixel(gridX, gridY) {
-    if (!drawnPixels[`${gridX},${gridY}`]) {
+    if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight){
         ctx.fillStyle = 'black';
-        const overlap = 1
-        // ctx.fillRect(gridX * pixelSize, gridY * pixelSize, pixelSize, pixelSize);
-        ctx.fillRect(gridX * pixelSize - overlap, gridY * pixelSize - overlap, pixelSize + 2 * overlap, pixelSize + 2 * overlap);
-        // Store the pixel
-        drawnPixels[`${gridX},${gridY}`] = true;
+        ctx.fillRect(gridX * pixelSize - pixelOverlap, gridY * pixelSize - pixelOverlap, pixelSize + 2 * pixelOverlap, pixelSize + 2 * pixelOverlap);
+        track[gridY][gridX] = true;
     }
 }
 
 function redrawPixels() {
-    // Clear the canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Redraw all pixels from the stored positions
-    Object.keys(drawnPixels).forEach(key => {
-        const [gridX, gridY] = key.split(',').map(Number);
-        ctx.fillStyle = 'black';
-        ctx.fillRect(gridX * pixelSize, gridY * pixelSize, pixelSize, pixelSize);
-    });
+    for(let y = 0; y < gridHeight; y++){
+        for(let x = 0; x < gridWidth; x++){
+            if(track[y][x]){
+                ctx.fillStyle = 'black';
+                ctx.fillRect(x * pixelSize - pixelOverlap, y * pixelSize - pixelOverlap, pixelSize + 2 * pixelOverlap, pixelSize + 2 * pixelOverlap);
+            }
+        }
+    }
+    // Object.keys(drawnPixels).forEach(key => {
+    //     const [gridX, gridY] = key.split(',').map(Number);
+    //     ctx.fillStyle = 'black';
+    //     ctx.fillRect(gridX * pixelSize - pixelOverlap, gridY * pixelSize - pixelOverlap, pixelSize + 2 * pixelOverlap, pixelSize + 2 * pixelOverlap);
+    // });
 }
 
 ctx.fillStyle = 'black'
@@ -57,12 +49,12 @@ let drawing = false;
 
 function startDrawing(e) {
     drawing = true;
-    draw(e); // Draw immediately in case of a click without a move
+    draw(e);
 }
 
 function stopDrawing() {
     drawing = false;
-    ctx.beginPath(); // Reset the path
+    ctx.beginPath();
 }
 
 function draw(e) {
@@ -86,6 +78,19 @@ function draw(e) {
             }
         }
     }
+}
+
+function resizeCanvas() {
+    const canvasWidth = canvas.parentElement.offsetWidth;
+    const canvasHeight = canvas.parentElement.offsetHeight;
+    ratio = window.devicePixelRatio || 1;
+    canvas.width = canvasWidth * ratio;
+    canvas.height = canvasHeight * ratio;
+    pixelSize = canvas.width / gridWidth;
+    ctx.scale(ratio, ratio);
+    canvas.style.width = `${canvas.width / ratio}px`;
+    canvas.style.height = `${canvas.height / ratio}px`;
+    redrawPixels();
 }
 
 canvas.addEventListener('mousedown', startDrawing);
