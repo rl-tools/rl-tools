@@ -4,7 +4,6 @@
     width: 80%;
     padding-top: 80%;
     position: relative;
-    background-color: lightgrey;
     margin: 0 auto;
 }
 
@@ -14,10 +13,16 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 255, 0.2); /* Just for visibility */
+    background-color: rgba(0, 0, 255, 0.2);
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     font-size: 20px;
+}
+
+#controlContainer{
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
 }

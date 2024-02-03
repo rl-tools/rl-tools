@@ -1,5 +1,7 @@
-// Get a reference to the canvas element and its context
+import {drawCar} from './car.js';
+
 const canvas = document.getElementById('drawingCanvas');
+const steeringSlider = document.getElementById('steeringSlider');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false
 
@@ -9,13 +11,16 @@ let ratio = 1
 const gridWidth = 100;
 const gridHeight = 100;
 const pixelOverlap = 1
+const trackColor = 'black';
+const backgroundColor = 'white';
+const maxSteeringAngle = Math.PI / 4;
 
 
 window.addEventListener('load', resizeCanvas);
 window.addEventListener('resize', resizeCanvas);
 
 
-let track= Array(gridHeight).fill().map(() => Array(gridWidth).fill(0));
+let track= Array(gridHeight).fill().map(() => Array(gridWidth).fill(false));
 
 function drawPixel(gridX, gridY) {
     if (gridX >= 0 && gridX < gridWidth && gridY >= 0 && gridY < gridHeight){
@@ -25,24 +30,19 @@ function drawPixel(gridX, gridY) {
     }
 }
 
-function redrawPixels() {
+function redrawTrack() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for(let y = 0; y < gridHeight; y++){
         for(let x = 0; x < gridWidth; x++){
             if(track[y][x]){
-                ctx.fillStyle = 'black';
+                ctx.fillStyle = trackColor;
                 ctx.fillRect(x * pixelSize - pixelOverlap, y * pixelSize - pixelOverlap, pixelSize + 2 * pixelOverlap, pixelSize + 2 * pixelOverlap);
             }
         }
     }
-    // Object.keys(drawnPixels).forEach(key => {
-    //     const [gridX, gridY] = key.split(',').map(Number);
-    //     ctx.fillStyle = 'black';
-    //     ctx.fillRect(gridX * pixelSize - pixelOverlap, gridY * pixelSize - pixelOverlap, pixelSize + 2 * pixelOverlap, pixelSize + 2 * pixelOverlap);
-    // });
 }
 
-ctx.fillStyle = 'black'
+ctx.fillStyle = trackColor
 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
 let drawing = false;
@@ -80,6 +80,12 @@ function draw(e) {
     }
 }
 
+function render() {
+    redrawTrack()
+    const steering = steeringSlider.value / 100 * maxSteeringAngle;
+    drawCar(canvas, ctx, {lf: 0.5, lr: 0.5}, {x: 0, y: 0, mu: 0, vx: 0, vy: 0, omega: 0}, {throttle: 0, steering: steering}, ratio, pixelSize * 10)
+}
+
 function resizeCanvas() {
     const canvasWidth = canvas.parentElement.offsetWidth;
     const canvasHeight = canvas.parentElement.offsetHeight;
@@ -90,8 +96,16 @@ function resizeCanvas() {
     ctx.scale(ratio, ratio);
     canvas.style.width = `${canvas.width / ratio}px`;
     canvas.style.height = `${canvas.height / ratio}px`;
-    redrawPixels();
+    render()
 }
+
+function animate() {
+    requestAnimationFrame(animate);
+    render();
+}
+
+animate()
+
 
 canvas.addEventListener('mousedown', startDrawing);
 canvas.addEventListener('mouseup', stopDrawing);
