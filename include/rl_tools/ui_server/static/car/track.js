@@ -1,24 +1,39 @@
 import {drawCar} from "./car.js";
 
 
+const defaultParameters = {
+    pixelSizeReal: 0.02, // in meters
+    gridWidth: 100,
+    gridHeight: 100,
+    maxSteeringAngle: Math.PI / 4,
+    trackColor: 'black',
+    backgroundColor: 'white',
+    carParameters: {lf: 0.029, lr: 0.033}
+}
+
 export class Track{
-    constructor(canvas){
+    constructor(canvas, parameters){
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.ctx.imageSmoothingEnabled = false
+
         this.pixelSize = 10;
         this.ratio = 1
-
-        this.pixelWidth = 0.02; // in meters
-        this.pixelToMeter = 1 / this.pixelWidth;
-
-        this.gridWidth = 100;
-        this.gridHeight = 100;
         this.pixelOverlap = 1
-        this.trackColor = 'black';
-        this.backgroundColor = 'white';
-        this.maxSteeringAngle = Math.PI / 4;
-        this.carParameters = {lf: 0.029, lr: 0.033};
+
+        this.parameters = {...defaultParameters}
+        this.parameters.gridWidth = parameters["width"]
+        this.parameters.gridHeight = parameters["height"]
+        this.parameters.pixelSizeReal = parameters["track_scale"]
+
+        this.pixelSizeReal = this.parameters.pixelSizeReal;
+        this.pixelToMeter = 1/this.pixelSizeReal;
+        this.gridWidth = this.parameters.gridWidth;
+        this.gridHeight = this.parameters.gridHeight;
+        this.maxSteeringAngle = this.parameters.maxSteeringAngle;
+        this.trackColor = this.parameters.trackColor;
+        this.backgroundColor = this.parameters.backgroundColor;
+        this.carParameters = this.parameters.carParameters;
 
         // state
         this.track= Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(false));

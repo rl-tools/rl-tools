@@ -434,4 +434,5 @@ add_subdirectory(src/logging)
 add_subdirectory(src/math)
 add_subdirectory(src/container)
 add_subdirectory(src/rl/algorithms/sac)
+add_subdirectory(src/ui_server)
 

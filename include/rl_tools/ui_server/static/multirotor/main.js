@@ -4,6 +4,9 @@ import {CoordinateSystem} from "./coordinate_system.js"
 import {Simulator} from "./simulator.js"
 import {default_model} from "./default_model.js"
 
+
+console.log("Multirotor UI")
+
 async function onload(){
   let scenario = await fetch('scenario')
     .then(response => {
