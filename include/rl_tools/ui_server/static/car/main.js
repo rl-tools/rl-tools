@@ -8,12 +8,16 @@ ctx.imageSmoothingEnabled = false
 let pixelSize = 10;
 let ratio = 1
 
+const pixelWidth = 0.02; // in meters
+const pixelToMeter = 1 / pixelWidth;
+
 const gridWidth = 100;
 const gridHeight = 100;
 const pixelOverlap = 1
 const trackColor = 'black';
 const backgroundColor = 'white';
 const maxSteeringAngle = Math.PI / 4;
+const carParameters = {lf: 0.029, lr: 0.033};
 
 
 window.addEventListener('load', resizeCanvas);
@@ -41,9 +45,6 @@ function redrawTrack() {
         }
     }
 }
-
-ctx.fillStyle = trackColor
-ctx.fillRect(0, 0, canvas.width, canvas.height);
 
 let drawing = false;
 
@@ -83,7 +84,9 @@ function draw(e) {
 function render() {
     redrawTrack()
     const steering = steeringSlider.value / 100 * maxSteeringAngle;
-    drawCar(canvas, ctx, {lf: 0.5, lr: 0.5}, {x: 0, y: 0, mu: 0, vx: 0, vy: 0, omega: 0}, {throttle: 0, steering: steering}, ratio, pixelSize * 10)
+    const state = {x: 0, y: 0, mu: 0, vx: 0, vy: 0, omega: 0};
+    const action = {throttle: 0, steering: steering};
+    drawCar(canvas, ctx, carParameters, state, action, ratio, pixelSize * pixelToMeter);
 }
 
 function resizeCanvas() {
