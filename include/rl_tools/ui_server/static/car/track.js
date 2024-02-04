@@ -110,7 +110,8 @@ export class Track{
     render() {
         this.redrawTrack()
         for(let car_i=0; car_i<this.state.length; car_i++){
-            drawCar(this.canvas, this.ctx, this.carParameters, this.state[car_i], this.action[car_i], this.ratio, this.pixelSize/(this.pixelSizeReal));
+            const action = this.action && this.action.length > car_i && this.action[car_i] && this.action[car_i].length == 2 ? this.action[car_i] : [0, 0];
+            drawCar(this.canvas, this.ctx, this.carParameters, this.state[car_i], action, this.ratio, this.pixelSize/(this.pixelSizeReal));
         }
     }
 
