@@ -81,7 +81,7 @@ namespace rl_tools{
         using T = typename ACTION_SPEC::T;
         nlohmann::json message;
         message["namespace"] = ui.ns;
-        message["channel"] = "setState";
+        message["channel"] = "setAction";
         message["data"] = nlohmann::json();
         std::vector<T> action_vector;
         for(int i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
@@ -96,7 +96,9 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    void render(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UI<ENVIRONMENT>& ui){ }
+    void render(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UI<ENVIRONMENT>& ui){
+        std::this_thread::sleep_for(std::chrono::duration<decltype(env.parameters.dt)>((env.parameters.dt)));
+    }
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

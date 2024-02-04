@@ -19,6 +19,9 @@ window.addEventListener('load', ()=>{
                 track.state = state.state;
                 track.action = state.action;
             },
+            setActionCallback: (data)=>{
+                track.action = data.action;
+            },
         }
     )
     steeringSlider.addEventListener('input', (e)=>{
