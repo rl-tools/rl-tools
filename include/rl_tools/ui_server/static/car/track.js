@@ -39,8 +39,8 @@ export class Track{
         // this.track= Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(false));
         this.track = parameters["track"]
         this.drawing = false;
-        this.state = {x: 0, y: 0, mu: 0, vx: 0, vy: 0, omega: 0};
-        this.action = {throttle: 0, steering: 0};
+        this.state = [{x: 0, y: 0, mu: 0, vx: 0, vy: 0, omega: 0}];
+        this.action = [[0, 0]];
 
         // hooks
         window.addEventListener('load', ()=>this.resizeCanvas());
@@ -109,7 +109,9 @@ export class Track{
 
     render() {
         this.redrawTrack()
-        drawCar(this.canvas, this.ctx, this.carParameters, this.state, this.action, this.ratio, this.pixelSize/(this.pixelSizeReal));
+        for(let car_i=0; car_i<this.state.length; car_i++){
+            drawCar(this.canvas, this.ctx, this.carParameters, this.state[car_i], this.action[car_i], this.ratio, this.pixelSize/(this.pixelSizeReal));
+        }
     }
 
     resizeCanvas() {

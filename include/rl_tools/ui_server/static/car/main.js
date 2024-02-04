@@ -16,11 +16,11 @@ window.addEventListener('load', ()=>{
                 track = new Track(canvas, parameters);
             },
             setStateCallback: (state)=>{
-                track.state = state.state;
-                track.action = state.action;
+                track.state = [state.state];
+                track.action = [state.action];
             },
             setActionCallback: (data)=>{
-                track.action = data.action;
+                track.action = [data.action];
             },
         }
     )
