@@ -22,6 +22,15 @@ namespace rl_tools::rl::environments::car{
         j["height"] = T_HEIGHT;
         j["width"] = T_WIDTH;
         j["track_scale"] = T_TRACK_SCALE/(T)1000.0;
+        std::vector<std::vector<bool>> track;
+        for(TI row_i = 0; row_i < T_HEIGHT; row_i++){
+            std::vector<bool> row;
+            for(TI col_j = 0; col_j < T_WIDTH; col_j++){
+                row.push_back(parameters.track[row_i][col_j]);
+            }
+            track.push_back(row);
+        }
+        j["track"] = track;
         return j;
     }
     template <typename DEVICE, typename T, typename TI>

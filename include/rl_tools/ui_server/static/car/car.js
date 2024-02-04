@@ -32,10 +32,10 @@ function drawWheel(ctx, x_offset, y_offset, x, y, size, width, delta, s, scale) 
 
 
 export function drawCar(canvas, ctx, parameters, state, action, ratio, carScale) {
-    let h = canvas.height;
-    let w = canvas.width;
-    let x_offset = w / ratio / 2;
-    let y_offset = h / ratio / 2;
+    let h = canvas.height / ratio;
+    let w = canvas.width / ratio;
+    let x_offset = w / 2;
+    let y_offset = h / 2;
 
     let L = parameters.lr + parameters.lf;
     let W = L / 2.5;
@@ -56,6 +56,6 @@ export function drawCar(canvas, ctx, parameters, state, action, ratio, carScale)
     // Assuming draw_wheel is adapted to JavaScript and added here
     drawWheel(ctx, x_offset, y_offset, -parameters.lr, W / 2 + wheel_width / 2, wheel_size, wheel_width, 0, state, carScale);
     drawWheel(ctx, x_offset, y_offset, -parameters.lr, -W / 2 - wheel_width / 2, wheel_size, wheel_width, 0, state, carScale);
-    drawWheel(ctx, x_offset, y_offset, parameters.lf, W / 2 + wheel_width / 2, wheel_size, wheel_width, action.steering, state, carScale);
-    drawWheel(ctx, x_offset, y_offset, parameters.lf, -W / 2 - wheel_width / 2, wheel_size, wheel_width, action.steering, state, carScale);
+    drawWheel(ctx, x_offset, y_offset, parameters.lf, W / 2 + wheel_width / 2, wheel_size, wheel_width, action[1], state, carScale);
+    drawWheel(ctx, x_offset, y_offset, parameters.lf, -W / 2 - wheel_width / 2, wheel_size, wheel_width, action[1], state, carScale);
 }

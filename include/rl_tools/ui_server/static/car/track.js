@@ -36,7 +36,8 @@ export class Track{
         this.carParameters = this.parameters.carParameters;
 
         // state
-        this.track= Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(false));
+        // this.track= Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(false));
+        this.track = parameters["track"]
         this.drawing = false;
         this.state = {x: 0, y: 0, mu: 0, vx: 0, vy: 0, omega: 0};
         this.action = {throttle: 0, steering: 0};
@@ -48,6 +49,7 @@ export class Track{
         canvas.addEventListener('mouseup', ()=>this.stopDrawing());
         canvas.addEventListener('mouseout', ()=>this.stopDrawing());
         canvas.addEventListener('mousemove', (e)=>this.draw(e));
+        this.resizeCanvas()
         this.animate()
     }
 
@@ -91,8 +93,8 @@ export class Track{
             y: this.canvas.height / rect.height
         };
 
-        const x = Math.floor(((e.clientX - rect.left) * scaleFactor.x / ratio)/this.pixelSize - 0.5);
-        const y = Math.floor(((e.clientY - rect.top) * scaleFactor.y / ratio)/this.pixelSize - 0.5);
+        const x = Math.floor(((e.clientX - rect.left) * scaleFactor.x / this.ratio)/this.pixelSize - 0.5);
+        const y = Math.floor(((e.clientY - rect.top) * scaleFactor.y / this.ratio)/this.pixelSize - 0.5);
 
         const brushSize = 3;
 
@@ -107,7 +109,7 @@ export class Track{
 
     render() {
         this.redrawTrack()
-        drawCar(this.canvas, this.ctx, this.carParameters, this.state, this.action, this.ratio, this.pixelSize * this.pixelToMeter);
+        drawCar(this.canvas, this.ctx, this.carParameters, this.state, this.action, this.ratio, this.pixelSize/(this.pixelSizeReal));
     }
 
     resizeCanvas() {
@@ -116,7 +118,8 @@ export class Track{
         this.ratio = window.devicePixelRatio || 1;
         this.canvas.width = canvasWidth * this.ratio;
         this.canvas.height = canvasHeight * this.ratio;
-        const pixelSize = this.canvas.width / this.gridWidth;
+        this.pixelSize = this.canvas.width / this.ratio / this.gridWidth;
+        this.pixelToMeter = 1/this.pixelSizeReal;
         this.ctx.scale(this.ratio, this.ratio);
         this.canvas.style.width = `${this.canvas.width / this.ratio}px`;
         this.canvas.style.height = `${this.canvas.height / this.ratio}px`;

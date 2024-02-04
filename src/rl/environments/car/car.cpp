@@ -4,6 +4,9 @@
 #include <rl_tools/rl/environments/car/operations_cpu.h>
 #if RL_TOOLS_ENABLE_GTK
 #include <rl_tools/rl/environments/car/ui.h>
+#else
+#include <rl_tools/rl/environments/car/operations_json.h>
+#include <rl_tools/ui_server/client/operations_cpu.h>
 #endif
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
@@ -29,7 +32,7 @@ using ENVIRONMENT_EVALUATION = ENVIRONMENT;
 #if RL_TOOLS_ENABLE_GTK
         using UI = rlt::rl::environments::car::UI<rlt::rl::environments::car::ui::Specification<T, TI, ENVIRONMENT, 1000, 60>>;
 #else
-        using UI = bool;
+        using UI = rlt::ui_server::client::UI<ENVIRONMENT>;
 #endif
 
 static constexpr T EXPLORATION_NOISE_MULTIPLE = 0.5;

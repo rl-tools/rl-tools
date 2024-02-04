@@ -35,7 +35,6 @@ export class Client{
     setEnvironmentCallbacks({setParametersCallback, setStateCallback, setActionCallback}){
         this.setParametersCallback = setParametersCallback;
         this.setStateCallback = setStateCallback;
-        this.setActionCallback = setActionCallback;
     }
 
 

@@ -1,5 +1,5 @@
 
-if(RL_TOOLS_ENABLE_GTK)
+#if(RL_TOOLS_ENABLE_GTK)
 add_executable(rl_environments_car_training car.cpp)
 target_link_libraries(rl_environments_car_training
         PRIVATE
@@ -14,7 +14,7 @@ if(RL_TOOLS_ENABLE_GTK)
             ${GTK3_LIBRARIES}
     )
 endif()
-endif()
+#endif()
 
 
 if(RL_TOOLS_ENABLE_GTK AND RL_TOOLS_ENABLE_SDL2)

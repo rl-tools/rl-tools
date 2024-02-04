@@ -39,10 +39,12 @@ namespace rl_tools{
         ui.ws.write(net::buffer(parameters_message.dump()));
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    void set_state(DEVICE& dev, ui_server::client::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
-        nlohmann::json state_json = json(dev, state);
+    void set_state(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
         nlohmann::json message;
-        message["state"] = state_json;
+        message["namespace"] = ui.ns;
+        message["channel"] = "setState";
+        message["data"] = nlohmann::json();
+        message["data"]["state"] = json(dev, state);
         if (ui.ws.is_open()) {
             ui.ws.write(boost::beast::net::buffer(message.dump()));
         }
@@ -51,25 +53,50 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
-    void set_state(DEVICE& dev, ui_server::client::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
+    void set_state(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
         static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
         static_assert(ACTION_SPEC::ROWS == 1);
         using T = typename ACTION_SPEC::T;
-        nlohmann::json state_json = json(dev, state);
         nlohmann::json message;
-        message["state"] = state_json;
+        message["namespace"] = ui.ns;
+        message["channel"] = "setState";
+        message["data"] = nlohmann::json();
+        message["data"]["state"] = json(dev, state);
         std::vector<T> action_vector;
         for(int i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
             action_vector.push_back(get(action, 0, i));
         }
-        message["action"] = action_vector;
+        message["data"]["action"] = action_vector;
         if (ui.ws.is_open()) {
-            ui.ws.write(boost::beast::net::buffer(state_message(dev, ui, state, action).dump()));
+            ui.ws.write(boost::beast::net::buffer(message.dump()));
         }
         else{
             std::cerr << "Error: websocket is not open" << std::endl;
         }
     }
+    template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
+    void set_action(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UI<ENVIRONMENT>& ui, const Matrix<ACTION_SPEC>& action){
+        static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
+        static_assert(ACTION_SPEC::ROWS == 1);
+        using T = typename ACTION_SPEC::T;
+        nlohmann::json message;
+        message["namespace"] = ui.ns;
+        message["channel"] = "setState";
+        message["data"] = nlohmann::json();
+        std::vector<T> action_vector;
+        for(int i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
+            action_vector.push_back(get(action, 0, i));
+        }
+        message["data"]["action"] = action_vector;
+        if (ui.ws.is_open()) {
+            ui.ws.write(boost::beast::net::buffer(message.dump()));
+        }
+        else{
+            std::cerr << "Error: websocket is not open" << std::endl;
+        }
+    }
+    template <typename DEVICE, typename ENVIRONMENT>
+    void render(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UI<ENVIRONMENT>& ui){ }
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
