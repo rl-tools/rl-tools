@@ -16,6 +16,16 @@ if(RL_TOOLS_ENABLE_GTK)
 endif()
 #endif()
 
+if(RL_TOOLS_ENABLE_BOOST_BEAST AND RL_TOOLS_ENABLE_JSON)
+add_executable(rl_environments_car_training_interactive car_interactive.cpp)
+target_link_libraries(rl_environments_car_training_interactive
+        PRIVATE
+        RLtools::RLtools
+        Boost::boost
+        nlohmann_json::nlohmann_json
+)
+endif()
+
 
 if(RL_TOOLS_ENABLE_GTK AND RL_TOOLS_ENABLE_SDL2)
 add_executable(rl_environments_car_ui ui.cpp)
