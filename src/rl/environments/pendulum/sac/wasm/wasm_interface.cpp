@@ -2,17 +2,18 @@
 #include <emscripten.h>
 
 using TRAINING_STATE = TrainingState<TrainingConfig>;
+DEVICE device;
 extern "C" {
     EMSCRIPTEN_KEEPALIVE
     TRAINING_STATE* proxy_create_training_state(int seed){
         TRAINING_STATE* ts = new TRAINING_STATE{};
-        training_init(*ts, seed);
+        training_init(device, *ts, seed);
         return ts;
     }
 
     EMSCRIPTEN_KEEPALIVE
     int proxy_training_step(TRAINING_STATE* ts){
-        return training_step(*ts);
+        return training_step(device, *ts);
     }
 
     EMSCRIPTEN_KEEPALIVE
@@ -30,8 +31,8 @@ double proxy_get_state_value(TRAINING_STATE* ts, int env_index, int state_index)
     static_assert(TRAINING_STATE::TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS == 1);
     if(env_index < TRAINING_STATE::TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS && state_index < TRAINING_STATE::TRAINING_CONFIG::ENVIRONMENT::State::DIM){
         auto& env = ts->off_policy_runner.envs[env_index];
-        auto& state = rlt::get(ts->off_policy_runner.states, 0, (decltype(ts->device)::index_t) env_index);
-        return rlt::get_serialized_state(ts->device, env, state, state_index);
+        auto& state = rlt::get(ts->off_policy_runner.states, 0, (decltype(device)::index_t) env_index);
+        return rlt::get_serialized_state(device, env, state, state_index);
     }
     else{
         return -1337;
@@ -79,7 +80,7 @@ EMSCRIPTEN_KEEPALIVE
 
 EMSCRIPTEN_KEEPALIVE
     void proxy_destroy_training_state(TRAINING_STATE* ts){
-        training_destroy(*ts);
+        training_destroy(device, *ts);
         delete ts;
     }
 }
