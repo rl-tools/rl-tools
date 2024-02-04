@@ -113,8 +113,10 @@ window.addEventListener('load', ()=>{
     });
     playButton.addEventListener('click', ()=>{
         mode_interactive = true
+        client.sendMessage("setAction", [0, 0]);
     });
     trainButton.addEventListener('click', ()=>{
         mode_interactive = false
+        client.sendMessage("startTraining", null);
     });
 });

@@ -110,6 +110,12 @@ int main(int argc, char** argv) {
                     rlt::set(interactive_action, 0, 0, message["data"][0]);
                     rlt::set(interactive_action, 0, 1, message["data"][1]);
                 }
+                else{
+                    if(message["channel"] == "startTraining"){
+                        mode_interactive = false;
+                        mode_training = true;
+                    }
+                }
             }
         }
     });
@@ -146,6 +152,7 @@ int main(int argc, char** argv) {
                 sleep = true;
             }
             else{
+                sleep = false;
                 if(mode_training){
                     bool finished = rlt::step(device, ts);
                     if(finished){
