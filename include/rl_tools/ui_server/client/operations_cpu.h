@@ -6,6 +6,8 @@
 #include "client.h"
 
 #include <nlohmann/json.hpp>
+#include <thread>
+#include <chrono>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

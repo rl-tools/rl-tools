@@ -61,4 +61,7 @@ export class Client{
             }
         }
     }
+    sendMessage(channel, data){
+        this.ws.send(JSON.stringify({channel, data}));
+    }
 }

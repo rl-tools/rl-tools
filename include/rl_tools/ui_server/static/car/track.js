@@ -36,8 +36,8 @@ export class Track{
         this.carParameters = this.parameters.carParameters;
 
         // state
-        // this.track= Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(false));
         this.track = parameters["track"]
+        this.enable_drawing = true;
         this.drawing = false;
         this.state = [{x: 0, y: 0, mu: 0, vx: 0, vy: 0, omega: 0}];
         this.action = [[0, 0]];
@@ -51,6 +51,13 @@ export class Track{
         canvas.addEventListener('mousemove', (e)=>this.draw(e));
         this.resizeCanvas()
         this.animate()
+    }
+    reset(){
+        this.enable_drawing = true;
+        this.track= Array(this.gridHeight).fill().map(() => Array(this.gridWidth).fill(false));
+    }
+    disable_drawing(){
+        this.enable_drawing = false;
     }
 
     drawPixel(gridX, gridY) {
@@ -75,13 +82,17 @@ export class Track{
 
 
     startDrawing(e){
-        this.drawing = true;
-        this.draw(e);
+        if(this.enable_drawing){
+            this.drawing = true;
+            this.draw(e);
+        }
+        else{
+            this.drawing = false;
+        }
     }
 
     stopDrawing() {
         this.drawing = false;
-        this.ctx.beginPath();
     }
 
     draw(e) {

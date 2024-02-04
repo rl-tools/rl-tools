@@ -1,12 +1,15 @@
 import {Track} from './track.js';
 import {Client} from './client.js';
-const canvas = document.getElementById('drawingCanvas');
-const steeringSlider = document.getElementById('steeringSlider');
 
 
 console.log("Car UI")
 
 window.addEventListener('load', ()=>{
+    const canvas = document.getElementById('drawingCanvas');
+    const steeringSlider = document.getElementById('steeringSlider');
+    const resetTrackButton = document.getElementById('resetTrackButton');
+    const saveTrackButton = document.getElementById('saveTrackButton');
+
     const client = new Client();
     let track = null;
     client.setEnvironmentCallbacks(
@@ -26,5 +29,12 @@ window.addEventListener('load', ()=>{
     )
     steeringSlider.addEventListener('input', (e)=>{
         track.setSteering(parseFloat(e.target.value)/100);
+    });
+    resetTrackButton.addEventListener('click', ()=>{
+        track.reset();
+    });
+    saveTrackButton.addEventListener('click', ()=>{
+        track.disable_drawing()
+        client.sendMessage("setTrack", track.track);
     });
 });

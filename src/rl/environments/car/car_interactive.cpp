@@ -2,12 +2,8 @@
 #include <rl_tools/nn/operations_cpu_mux.h>
 
 #include <rl_tools/rl/environments/car/operations_cpu.h>
-#if RL_TOOLS_ENABLE_GTK
-#include <rl_tools/rl/environments/car/ui.h>
-#else
 #include <rl_tools/rl/environments/car/operations_json.h>
 #include <rl_tools/ui_server/client/operations_cpu.h>
-#endif
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 
@@ -29,11 +25,7 @@ using TI = typename DEVICE::index_t;
 using ENV_SPEC = rlt::rl::environments::car::SpecificationTrack<T, TI, 100, 100, 20>;
 using ENVIRONMENT = rlt::rl::environments::CarTrack<ENV_SPEC>;
 using ENVIRONMENT_EVALUATION = ENVIRONMENT;
-#if RL_TOOLS_ENABLE_GTK
-        using UI = rlt::rl::environments::car::UI<rlt::rl::environments::car::ui::Specification<T, TI, ENVIRONMENT, 1000, 60>>;
-#else
-        using UI = rlt::ui_server::client::UI<ENVIRONMENT>;
-#endif
+using UI = rlt::ui_server::client::UI<ENVIRONMENT>;
 
 static constexpr T EXPLORATION_NOISE_MULTIPLE = 0.5;
 struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
@@ -82,8 +74,26 @@ int main(int argc, char** argv) {
     LOOP_STATE ts;
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
+
+    std::cout << "Waiting for Track" << std::endl;
+    boost::beast::flat_buffer buffer;
+    ts.ui.ws.read(buffer);
+    std::cout << boost::beast::make_printable(buffer.data()) << std::endl;
+    auto message_string = boost::beast::buffers_to_string(buffer.data());
+    std::cout << "Track received: " << message_string << std::endl;
+    buffer.consume(buffer.size());
+    auto message = nlohmann::json::parse(message_string);
+//    std::cout << "Track: " << message.dump(4) << std::endl;
+    for(TI row_i=0; row_i < ENVIRONMENT::SPEC::HEIGHT; row_i++){
+        for(TI col_i=0; col_i < ENVIRONMENT::SPEC::WIDTH; col_i++){
+            for(auto& env: ts.envs){
+                env.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+            }
+            ts.env_eval.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+        }
+    }
+    rlt::init(device, ts.off_policy_runner, ts.envs);
     while(!rlt::step(device, ts)){
     }
-    rlt::free(device, ts);
     return 0;
 }
