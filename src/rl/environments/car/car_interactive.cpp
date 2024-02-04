@@ -75,25 +75,88 @@ int main(int argc, char** argv) {
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
 
-    std::cout << "Waiting for Track" << std::endl;
-    boost::beast::flat_buffer buffer;
-    ts.ui.ws.read(buffer);
-    std::cout << boost::beast::make_printable(buffer.data()) << std::endl;
-    auto message_string = boost::beast::buffers_to_string(buffer.data());
-    std::cout << "Track received: " << message_string << std::endl;
-    buffer.consume(buffer.size());
-    auto message = nlohmann::json::parse(message_string);
-//    std::cout << "Track: " << message.dump(4) << std::endl;
-    for(TI row_i=0; row_i < ENVIRONMENT::SPEC::HEIGHT; row_i++){
-        for(TI col_i=0; col_i < ENVIRONMENT::SPEC::WIDTH; col_i++){
-            for(auto& env: ts.envs){
-                env.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+
+    bool mode_interactive = false;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> interactive_action;
+    rlt::set_all(device, interactive_action, 0);
+    bool mode_training = false;
+    std::mutex mutex;
+    std::thread t([&](){
+        while(true){
+            std::cout << "Waiting for message" << std::endl;
+            boost::beast::flat_buffer buffer;
+            ts.ui.ws.read(buffer);
+            std::cout << boost::beast::make_printable(buffer.data()) << std::endl;
+            auto message_string = boost::beast::buffers_to_string(buffer.data());
+            std::cout << "message received: " << message_string << std::endl;
+            buffer.consume(buffer.size());
+            auto message = nlohmann::json::parse(message_string);
+            if(message["channel"] == "setTrack"){
+                std::lock_guard<std::mutex> lock(mutex);
+                for(TI row_i=0; row_i < ENVIRONMENT::SPEC::HEIGHT; row_i++){
+                    for(TI col_i=0; col_i < ENVIRONMENT::SPEC::WIDTH; col_i++){
+                        for(auto& env: ts.envs){
+                            env.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+                        }
+                        ts.env_eval.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+                    }
+                }
+                rlt::init(device, ts.off_policy_runner, ts.envs);
             }
-            ts.env_eval.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+            else{
+                if(message["channel"] == "setAction"){
+                    std::lock_guard<std::mutex> lock(mutex);
+                    mode_interactive = true;
+                    rlt::set(interactive_action, 0, 0, message["data"][0]);
+                    rlt::set(interactive_action, 0, 1, message["data"][1]);
+                }
+            }
         }
-    }
-    rlt::init(device, ts.off_policy_runner, ts.envs);
-    while(!rlt::step(device, ts)){
+    });
+    t.detach();
+
+//    std::cout << "Track: " << message.dump(4) << std::endl;
+    bool prev_mode_interactive = false;
+    std::chrono::time_point<std::chrono::high_resolution_clock> previous_interactive_step;
+    ENVIRONMENT::State interactive_state, interactive_next_state;
+    bool sleep = false;
+    while(true){
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            if(mode_interactive && !prev_mode_interactive){
+                rlt::sample_initial_state(device, ts.env_eval, interactive_state, ts.rng_eval);
+                prev_mode_interactive = true;
+                previous_interactive_step = std::chrono::high_resolution_clock::now();
+            }
+            if(mode_interactive){
+                auto now = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<T> diff = now-previous_interactive_step;
+                if(diff.count() > ts.env_eval.parameters.dt){
+                    rlt::set_state(device, ts.env_eval, ts.ui, interactive_state, interactive_action);
+                    rlt::step(device, ts.env_eval, interactive_state, interactive_action, interactive_next_state, ts.rng_eval);
+                    bool terminated = rlt::terminated(device, ts.env_eval, interactive_next_state, ts.rng_eval);
+                    if(terminated){
+                        rlt::sample_initial_state(device, ts.env_eval, interactive_state, ts.rng_eval);
+                    }
+                    else{
+                        interactive_state = interactive_next_state;
+                    }
+                    previous_interactive_step = now;
+                }
+                sleep = true;
+            }
+            else{
+                if(mode_training){
+                    bool finished = rlt::step(device, ts);
+                    if(finished){
+                        break;
+                    }
+                }
+            }
+        }
+        if(sleep){
+            std::this_thread::sleep_for(std::chrono::duration<T>(ts.env_eval.parameters.dt / 10));
+        }
     }
     return 0;
 }

@@ -39,8 +39,8 @@ export class Track{
         this.track = parameters["track"]
         this.enable_drawing = true;
         this.drawing = false;
-        this.state = [{x: 0, y: 0, mu: 0, vx: 0, vy: 0, omega: 0}];
-        this.action = [[0, 0]];
+        this.state = null;
+        this.action = null;
 
         // hooks
         window.addEventListener('load', ()=>this.resizeCanvas());
@@ -120,9 +120,11 @@ export class Track{
 
     render() {
         this.redrawTrack()
-        for(let car_i=0; car_i<this.state.length; car_i++){
-            const action = this.action && this.action.length > car_i && this.action[car_i] && this.action[car_i].length == 2 ? this.action[car_i] : [0, 0];
-            drawCar(this.canvas, this.ctx, this.carParameters, this.state[car_i], action, this.ratio, this.pixelSize/(this.pixelSizeReal));
+        if(this.state){
+            for(let car_i=0; car_i<this.state.length; car_i++){
+                const action = this.action && this.action.length > car_i && this.action[car_i] && this.action[car_i].length == 2 ? this.action[car_i] : [0, 0];
+                drawCar(this.canvas, this.ctx, this.carParameters, this.state[car_i], action, this.ratio, this.pixelSize/(this.pixelSizeReal));
+            }
         }
     }
 

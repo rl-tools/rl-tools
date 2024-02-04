@@ -11,14 +11,9 @@ export class Client{
 
         this.ws.addEventListener("message", (event)=>{
             const message = JSON.parse(event.data);
-            console.log('Message:', message);
+            // console.log('Message:', message);
             this.onMessage(message);
         })
-
-        this.ws.onmessage = (event)=>{
-            console.log('Message:', event.data);
-            this.onMessage(event);
-        };
 
         this.ws.onerror = (error) => {
             console.error('WebSocket Error:', error);
