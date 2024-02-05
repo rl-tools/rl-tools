@@ -28,18 +28,6 @@ target_link_libraries(rl_environments_car_training_interactive
     target_compile_definitions(rl_environments_car_training_interactive PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 endif()
 
-if(RL_TOOLS_ENABLE_BOOST_BEAST AND RL_TOOLS_ENABLE_JSON)
-    add_executable(rl_environments_car_training_interactive_ws_test ws_test.cpp)
-    target_link_libraries(rl_environments_car_training_interactive_ws_test
-            PRIVATE
-            rl_tools
-            Boost::boost
-            nlohmann_json::nlohmann_json
-            tensorboard_logger
-    )
-endif()
-
-
 if(RL_TOOLS_ENABLE_GTK AND RL_TOOLS_ENABLE_SDL2)
 add_executable(rl_environments_car_ui ui.cpp)
 target_include_directories(rl_environments_car_ui PRIVATE ${GTK3_INCLUDE_DIRS})
