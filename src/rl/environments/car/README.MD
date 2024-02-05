@@ -40,3 +40,19 @@ It should learn to navigate the corners after around `100000-200000` steps which
 If you would like to change the layout of the track, you can modify the `.bmp` image in `src/rl/environments/track.bmp` using e.g. Gimp (all non-black pixels are converted to drivable space).
 
 
+
+
+## Docker
+```
+cd src/rl/environments/pendulum/sac/wasm
+```
+```
+docker build -f ../../../../../../examples/docker/05_wasm/Dockerfile -t rltools/wasm_build . --no-cache
+```
+```
+docker run --rm -it --mount type=bind,source=$(cd ../../../..; pwd),target=/rl_tools,readonly --mount type=bind,source=$(pwd)/static/build,target=/build rltools/wasm_build
+```
+```
+RL_TOOLS_INCLUDE_DIR=/rl_tools/include JSON_INCLUDE_DIR=/rl_tools/external/json/include RL_TOOLS_BUILD_DIR=/build /rl_tools/src/rl/environments/car/build.sh
+```
+
