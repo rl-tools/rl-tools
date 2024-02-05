@@ -15,6 +15,8 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations.h>
 #include <rl_tools/rl/loop/steps/timing/operations.h>
 
+#include "forwarder.h"
+
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -25,7 +27,8 @@ using TI = typename DEVICE::index_t;
 using ENV_SPEC = rlt::rl::environments::car::SpecificationTrack<T, TI, 100, 100, 20>;
 using ENVIRONMENT = rlt::rl::environments::CarTrack<ENV_SPEC>;
 using ENVIRONMENT_EVALUATION = ENVIRONMENT;
-using UI = rlt::ui_server::client::UI<ENVIRONMENT>;
+using UI = rlt::ui_server::client::UIBuffered<ENVIRONMENT>;
+using UI_CLIENT = rlt::ui_server::client::UI<ENVIRONMENT>;
 
 static constexpr T EXPLORATION_NOISE_MULTIPLE = 0.5;
 struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
@@ -65,104 +68,140 @@ using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
-int main(int argc, char** argv) {
+struct State{
     DEVICE device;
+    LOOP_STATE ts;
+    bool mode_interactive = false;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> interactive_action;
+    bool mode_training = false;
+    std::chrono::time_point<std::chrono::high_resolution_clock> previous_interactive_step;
+    ENVIRONMENT::State interactive_state, interactive_next_state;
+    bool finished = false;
+};
+
+State* create(int seed){
+    auto* state = new State();
+    rlt::malloc(state->device, state->ts);
+    rlt::init(state->device, state->ts, seed);
+    rlt::set_all(state->device, state->interactive_action, 0);
+    return state;
+}
+
+float step(State* state){
+    T sleep = state->ts.env_eval.parameters.dt / 10;
+    if(state->mode_interactive){
+        auto now = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<T> diff = now-state->previous_interactive_step;
+        if(diff.count() > state->ts.env_eval.parameters.dt){
+            rlt::set_state(state->device, state->ts.env_eval, state->ts.ui, state->interactive_state, state->interactive_action);
+            rlt::step(state->device, state->ts.env_eval, state->interactive_state, state->interactive_action, state->interactive_next_state, state->ts.rng_eval);
+            bool terminated = rlt::terminated(state->device, state->ts.env_eval, state->interactive_next_state, state->ts.rng_eval);
+            if(terminated){
+                rlt::sample_initial_state(state->device, state->ts.env_eval, state->interactive_state, state->ts.rng_eval);
+            }
+            else{
+                state->interactive_state = state->interactive_next_state;
+            }
+            state->previous_interactive_step = now;
+        }
+    }
+    else{
+        if(state->mode_training){
+            sleep = 0;
+            state->finished = rlt::step(state->device, state->ts);
+        }
+    }
+    return sleep;
+}
+
+float step(State* state, const std::string& message_string) {
+    auto message = nlohmann::json::parse(message_string);
+    if (message["channel"] == "setTrack") {
+        for (TI row_i = 0; row_i < ENVIRONMENT::SPEC::HEIGHT; row_i++) {
+            for (TI col_i = 0; col_i < ENVIRONMENT::SPEC::WIDTH; col_i++) {
+                for (auto &env: state->ts.envs) {
+                    env.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+                }
+                state->ts.env_eval.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+            }
+        }
+        rlt::init(state->device, state->ts.off_policy_runner, state->ts.envs);
+    } else {
+        if (message["channel"] == "setAction") {
+            if(!state->mode_interactive){
+                rlt::sample_initial_state(state->device, state->ts.env_eval, state->interactive_state, state->ts.rng_eval);
+            }
+            rlt::set(state->interactive_action, 0, 0, message["data"][0]);
+            rlt::set(state->interactive_action, 0, 1, message["data"][1]);
+            state->previous_interactive_step = std::chrono::high_resolution_clock::now();
+            state->mode_interactive = true;
+        } else {
+            if (message["channel"] == "startTraining") {
+                state->mode_interactive = false;
+                state->mode_training = true;
+            }
+        }
+    }
+    return step(state);
+}
+void destroy(State* state){
+    delete state;
+}
+
+int main(int argc, char** argv) {
     TI seed = 0;
     if (argc > 1) {
         seed = std::atoi(argv[1]);
     }
-    LOOP_STATE ts;
-    rlt::malloc(device, ts);
-    rlt::init(device, ts, seed);
 
+    boost::asio::io_context io_context;
+    boost::asio::io_context::strand strand(io_context);
+    auto forwarder = std::make_shared<Forwarder>(io_context);
+    forwarder->run("localhost", "8000");
 
-    bool mode_interactive = false;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> interactive_action;
-    rlt::set_all(device, interactive_action, 0);
-    bool mode_training = false;
-    std::mutex mutex;
-    std::thread t([&](){
-        while(true){
-            std::cout << "Waiting for message" << std::endl;
-            boost::beast::flat_buffer buffer;
-            ts.ui.ws.read(buffer);
-            std::cout << boost::beast::make_printable(buffer.data()) << std::endl;
-            auto message_string = boost::beast::buffers_to_string(buffer.data());
-            std::cout << "message received: " << message_string << std::endl;
-            buffer.consume(buffer.size());
-            auto message = nlohmann::json::parse(message_string);
-            if(message["channel"] == "setTrack"){
-                std::lock_guard<std::mutex> lock(mutex);
-                for(TI row_i=0; row_i < ENVIRONMENT::SPEC::HEIGHT; row_i++){
-                    for(TI col_i=0; col_i < ENVIRONMENT::SPEC::WIDTH; col_i++){
-                        for(auto& env: ts.envs){
-                            env.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
-                        }
-                        ts.env_eval.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
-                    }
-                }
-                rlt::init(device, ts.off_policy_runner, ts.envs);
-            }
-            else{
-                if(message["channel"] == "setAction"){
-                    std::lock_guard<std::mutex> lock(mutex);
-                    mode_interactive = true;
-                    rlt::set(interactive_action, 0, 0, message["data"][0]);
-                    rlt::set(interactive_action, 0, 1, message["data"][1]);
-                }
-                else{
-                    if(message["channel"] == "startTraining"){
-                        mode_interactive = false;
-                        mode_training = true;
-                    }
-                }
-            }
-        }
+    auto* state = create(seed);
+
+    std::thread io_thread([&io_context]() {
+        io_context.run();
     });
-    t.detach();
+
+    io_thread.detach();
 
 //    std::cout << "Track: " << message.dump(4) << std::endl;
     bool prev_mode_interactive = false;
-    std::chrono::time_point<std::chrono::high_resolution_clock> previous_interactive_step;
-    ENVIRONMENT::State interactive_state, interactive_next_state;
-    bool sleep = false;
+    T sleep = 0;
     while(true){
         {
-            std::lock_guard<std::mutex> lock(mutex);
-            if(mode_interactive && !prev_mode_interactive){
-                rlt::sample_initial_state(device, ts.env_eval, interactive_state, ts.rng_eval);
-                prev_mode_interactive = true;
-                previous_interactive_step = std::chrono::high_resolution_clock::now();
-            }
-            if(mode_interactive){
-                auto now = std::chrono::high_resolution_clock::now();
-                std::chrono::duration<T> diff = now-previous_interactive_step;
-                if(diff.count() > ts.env_eval.parameters.dt){
-                    rlt::set_state(device, ts.env_eval, ts.ui, interactive_state, interactive_action);
-                    rlt::step(device, ts.env_eval, interactive_state, interactive_action, interactive_next_state, ts.rng_eval);
-                    bool terminated = rlt::terminated(device, ts.env_eval, interactive_next_state, ts.rng_eval);
-                    if(terminated){
-                        rlt::sample_initial_state(device, ts.env_eval, interactive_state, ts.rng_eval);
-                    }
-                    else{
-                        interactive_state = interactive_next_state;
-                    }
-                    previous_interactive_step = now;
+            std::string message = "";
+            bool new_message = false;
+            {
+                std::lock_guard<std::mutex> lock(forwarder->mutex);
+                if(!forwarder->receiving_message_queue.empty()){
+                    message = forwarder->receiving_message_queue.front();
+                    new_message = true;
+                    forwarder->receiving_message_queue.pop();
                 }
-                sleep = true;
+            }
+
+            if(new_message){
+                std::cout << "new message: " << message << std::endl;
+                sleep = step(state, message);
             }
             else{
-                sleep = false;
-                if(mode_training){
-                    bool finished = rlt::step(device, ts);
-                    if(finished){
-                        break;
-                    }
+                sleep = step(state);
+            }
+            while(forwarder->handshook && !state->ts.ui.buffer.empty()){
+//                std::lock_guard<std::mutex> lock(mutex);
+                std::string message = state->ts.ui.buffer.front();
+                state->ts.ui.buffer.pop();
+                forwarder->send_message(message);
+                if(state->mode_training){
+                    std::this_thread::sleep_for(std::chrono::duration<T>(state->ts.env_eval.parameters.dt));
                 }
             }
         }
-        if(sleep){
-            std::this_thread::sleep_for(std::chrono::duration<T>(ts.env_eval.parameters.dt / 10));
+        if(sleep > 0){
+            std::this_thread::sleep_for(std::chrono::duration<T>(state->ts.env_eval.parameters.dt / 10));
         }
     }
     return 0;

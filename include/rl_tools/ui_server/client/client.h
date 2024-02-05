@@ -6,7 +6,9 @@
 #include <boost/beast/websocket.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <queue>
 RL_TOOLS_NAMESPACE_WRAPPER_START
+
 namespace rl_tools::ui_server::client{
     namespace beast = boost::beast;
     namespace http = beast::http;
@@ -15,13 +17,18 @@ namespace rl_tools::ui_server::client{
     using tcp = boost::asio::ip::tcp;
 
     template<typename T_ENVIRONMENT>
-    struct UI{
+    struct UIBuffered{
+        std::string ns = "";
+        std::queue<std::string> buffer;
+    };
+
+    template<typename T_ENVIRONMENT>
+    struct UI: UIBuffered<T_ENVIRONMENT>{
         using ENVIRONMENT = T_ENVIRONMENT;
         std::string host = "localhost";
         std::string port = "8000";
         net::io_context ioc;
         websocket::stream <tcp::socket> ws{ioc};
-        std::string ns = "";
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
