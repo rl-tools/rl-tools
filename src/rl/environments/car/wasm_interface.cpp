@@ -22,9 +22,11 @@ extern "C" {
     void proxy_destroy(State* ts){
         destroy(ts);
     }
+    EMSCRIPTEN_KEEPALIVE
     int proxy_num_messages(State* ts){
         return ts->ts.ui.buffer.size();
     }
+    EMSCRIPTEN_KEEPALIVE
     char* proxy_pop_message(State* ts){
         if(ts->ts.ui.buffer.empty()){
             return nullptr;
@@ -35,6 +37,7 @@ extern "C" {
         strcpy(cstr, message.c_str());
         return cstr;
     }
+    EMSCRIPTEN_KEEPALIVE
     void proxy_delete_message(char* message){
         delete[] message;
     }

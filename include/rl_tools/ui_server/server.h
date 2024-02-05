@@ -305,6 +305,8 @@ namespace rl_tools::ui_server{
                         response_.set(http::field::content_type, "text/html");
                     else if(path.extension() == ".js")
                         response_.set(http::field::content_type, "application/javascript");
+                    else if(path.extension() == ".wasm")
+                        response_.set(http::field::content_type, "application/wasm");
                     else if(path.extension() == ".css")
                         response_.set(http::field::content_type, "text/css");
                     else if(path.extension() == ".png")

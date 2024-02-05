@@ -24,6 +24,17 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     static void init(DEVICE& device, const rl::environments::Car<SPEC>& env, bool ui = false){ }
     template<typename DEVICE, typename SPEC>
+    static void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env, bool ui = false){
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        for(TI row_i=0; row_i < SPEC::HEIGHT; row_i++){
+            for(TI col_i=0; col_i < SPEC::WIDTH; col_i++){
+                env.parameters.track[row_i][col_i] = true;
+            }
+        }
+        env.initialized = true;
+    }
+    template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::State& state){
         state.x = 0;
         state.y = 0;

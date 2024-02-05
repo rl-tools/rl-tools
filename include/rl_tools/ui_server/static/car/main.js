@@ -1,5 +1,6 @@
 import {Track} from './track.js';
-import {Client} from './client.js';
+// import {Client} from './client.js';
+import {Client} from './client_wasm.js';
 
 
 console.log("Car UI")
@@ -17,6 +18,7 @@ window.addEventListener('load', ()=>{
     const trainButton = document.getElementById('trainButton');
 
 
+    // const client = new Client();
     const client = new Client();
     let track = null;
     client.setEnvironmentCallbacks(
