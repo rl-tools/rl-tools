@@ -17,30 +17,25 @@ namespace rl_tools{
         bool finished = false;
         step(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         if(ts.step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            std::thread critic_threads[2], actor_thread;
+            std::thread critic_threads[2];
             if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
                 auto train_critic_i = [&](TI critic_i){
-                    gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
+                    gather_batch(device, ts.off_policy_runner, ts.critic_batch[critic_i], ts.rng);
                     randn(device, ts.action_noise_critic[critic_i], ts.rng);
-                    train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers, ts.action_noise_critic[critic_i]);
+                    train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i]);
                 };
                 critic_threads[0] = std::thread([&](){ train_critic_i(0); });
                 critic_threads[1] = std::thread([&](){ train_critic_i(1); });
-            }
-            if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
-                actor_thread = std::thread([&](){
-                    gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
-                    randn(device, ts.action_noise_actor, ts.rng);
-                    train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor);
-                    update_critic_targets(device, ts.actor_critic);
-                });
             }
             if(critic_threads[0].joinable()){
                 critic_threads[0].join();
                 critic_threads[1].join();
             }
-            if(actor_thread.joinable()) {
-                actor_thread.join();
+            if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
+                gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
+                randn(device, ts.action_noise_actor, ts.rng);
+                train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor);
+                update_critic_targets(device, ts.actor_critic);
             }
         }
         ts.step++;
