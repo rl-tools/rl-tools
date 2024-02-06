@@ -40,6 +40,7 @@ namespace rl_tools::devices{
             using SPEC = T_SPEC;
             typename SPEC::LOGGING* logger = nullptr;
             cublasHandle_t handle;
+            cudaStream_t stream = 0;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
             index_t malloc_counter = 0;
 #endif

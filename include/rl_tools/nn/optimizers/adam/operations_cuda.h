@@ -45,7 +45,7 @@ namespace rl_tools {
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_INPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::CONTAINER::COLS, BLOCKSIZE_ACTIVATION_INPUT);
         dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
         dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
-        nn::optimizers::adam::cuda::update_kernel<<<activation_grid, activation_block>>>(device, p, optimizer);
+        nn::optimizers::adam::cuda::update_kernel<<<activation_grid, activation_block, 0, device.stream>>>(device, p, optimizer);
         check_status(device);
     }
 }

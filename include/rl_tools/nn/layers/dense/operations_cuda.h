@@ -38,7 +38,7 @@ namespace rl_tools{
             dim3 bias_grid(N_BLOCKS_BIAS);
             dim3 bias_block(BLOCKSIZE_BIAS);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            nn::dense::cuda::set_biases_kernel<<<bias_grid, bias_block>>>(tag_device, layer, output);
+            nn::dense::cuda::set_biases_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, layer, output);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename OUTPUT_SPEC>
@@ -71,7 +71,7 @@ namespace rl_tools{
             dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT, N_BLOCKS_ACTIVATION_BATCH);
             dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT, BLOCKSIZE_ACTIVATION_BATCH);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            nn::dense::cuda::activation_kernel<<<activation_grid, activation_block>>>(tag_device, layer, pre_activations, output);
+            nn::dense::cuda::activation_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, output);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
@@ -102,7 +102,7 @@ namespace rl_tools{
             dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT);
             dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            nn::dense::cuda::d_activation_kernel<<<activation_grid, activation_block>>>(tag_device, layer, pre_activations, d_output, d_pre_activations);
+            nn::dense::cuda::d_activation_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, d_output, d_pre_activations);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC>
@@ -135,7 +135,7 @@ namespace rl_tools{
             dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT);
             dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            nn::dense::cuda::d_activation_accumulate_bias_gradient_kernel<<<activation_grid, activation_block>>>(tag_device, layer, pre_activations, d_output, d_biases, d_pre_activations);
+            nn::dense::cuda::d_activation_accumulate_bias_gradient_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, d_output, d_biases, d_pre_activations);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename PARAMETERS>
@@ -363,7 +363,7 @@ namespace rl_tools{
         dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
         dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        nn::dense::cuda::update_kernel<<<activation_grid, activation_block>>>(tag_device, layer, optimizer);
+        nn::dense::cuda::update_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, optimizer);
         check_status(device);
     }
 }

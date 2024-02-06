@@ -29,7 +29,7 @@ namespace rl_tools::utils::polyak {
         }
     }
     template<typename DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC, bool SQUARE=false>
-    void update(devices::CUDA<DEV_SPEC>& dev, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak) {
+    void update(devices::CUDA<DEV_SPEC>& device, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak) {
         static_assert(containers::check_structure<SOURCE_SPEC, TARGET_SPEC>);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using SPEC = SOURCE_SPEC;
@@ -39,8 +39,8 @@ namespace rl_tools::utils::polyak {
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::COLS, BLOCKSIZE_COLS);
         dim3 activation_grid(N_BLOCKS_COLS, N_BLOCKS_ROWS);
         dim3 activation_block(BLOCKSIZE_COLS, BLOCKSIZE_ROWS);
-        internal::update_kernel<DEVICE, SOURCE_SPEC, TARGET_SPEC, SQUARE><<<activation_grid, activation_block>>>(source, target, polyak);
-        check_status(dev);
+        internal::update_kernel<DEVICE, SOURCE_SPEC, TARGET_SPEC, SQUARE><<<activation_grid, activation_block, 0, device.stream>>>(source, target, polyak);
+        check_status(device);
     }
     template<typename DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
     void update_squared(devices::CUDA<DEV_SPEC>& dev, const Matrix<SOURCE_SPEC>& source, Matrix<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak) {

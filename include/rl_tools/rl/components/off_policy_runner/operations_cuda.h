@@ -82,7 +82,7 @@ namespace rl_tools{
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            prologue_kernel<<<grid, block>>>(tag_device, runner, rng);
+            prologue_kernel<<<grid, block, 0, device.stream>>>(tag_device, runner, rng);
             check_status(device);
         }
         template<typename DEV_SPEC, typename SPEC, typename POLICY>
@@ -114,7 +114,7 @@ namespace rl_tools{
             dim3 grid(N_BLOCKS_COLS);
             dim3 block(BLOCKSIZE_COLS);
             devices::cuda::TAG<DEVICE, true> tag_device{};
-            epilogue_kernel<<<grid, block>>>(tag_device, runner, rng);
+            epilogue_kernel<<<grid, block, 0, device.stream>>>(tag_device, runner, rng);
             check_status(device);
         }
     }
@@ -130,7 +130,7 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block>>>(runner, batch, rng);
+        rl::components::off_policy_runner::gather_batch_kernel<DEVICE, SPEC, BATCH_SPEC, RNG, DETERMINISTIC><<<bias_grid, bias_block, 0, device.stream>>>(runner, batch, rng);
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename POLICY, typename RNG>

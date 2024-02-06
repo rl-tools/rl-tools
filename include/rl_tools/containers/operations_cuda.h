@@ -95,7 +95,7 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
         dim3 grid(N_BLOCKS_COLS);
         dim3 block(BLOCKSIZE_COLS);
-        containers::cuda::kernels::copy<DEVICE, SOURCE_SPEC, TARGET_SPEC><<<grid, block>>>(source, target);
+        containers::cuda::kernels::copy<DEVICE, SOURCE_SPEC, TARGET_SPEC><<<grid, block, 0, source_device.stream>>>(source, target);
         check_status(target_device);
     }
     template<typename SOURCE_DEV_SPEC, typename TARGET_DEV_SPEC, typename SOURCE_SPEC, typename TARGET_SPEC>
@@ -142,7 +142,7 @@ namespace rl_tools{
 //                constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
 //                dim3 grid(N_BLOCKS_COLS);
 //                dim3 block(BLOCKSIZE_COLS);
-//                containers::cuda::kernels::copy<DEVICE_CUDA, TARGET_SPEC, typename decltype(temp)::SPEC><<<grid, block>>>(target, temp);
+//                containers::cuda::kernels::copy<DEVICE_CUDA, TARGET_SPEC, typename decltype(temp)::SPEC><<<grid, block, 0, device.stream>>>(target, temp);
 //                check_status(target_device);
 //            }
             copy(target_device, target_device, temp, target);
@@ -179,7 +179,7 @@ namespace rl_tools{
 //            constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(TARGET_SPEC::COLS, BLOCKSIZE_COLS);
 //            dim3 grid(N_BLOCKS_COLS);
 //            dim3 block(BLOCKSIZE_COLS);
-//            containers::cuda::kernels::copy<DEVICE_CUDA, typename decltype(temp_gpu)::SPEC, SOURCE_SPEC><<<grid, block>>>(temp_gpu, source);
+//            containers::cuda::kernels::copy<DEVICE_CUDA, typename decltype(temp_gpu)::SPEC, SOURCE_SPEC><<<grid, block, 0, device.stream>>>(temp_gpu, source);
 //            check_status(source_device);
 //        }
         copy(source_device, source_device, source, temp_gpu);
@@ -213,7 +213,7 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::COLS, BLOCKSIZE_COLS);
         dim3 grid(N_BLOCKS_COLS);
         dim3 block(BLOCKSIZE_COLS);
-        containers::cuda::kernels::set_all<DEVICE, SPEC, VALUE_T><<<grid, block>>>(m, value);
+        containers::cuda::kernels::set_all<DEVICE, SPEC, VALUE_T><<<grid, block, 0, device.stream>>>(m, value);
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename RNG>
@@ -225,7 +225,7 @@ namespace rl_tools{
         dim3 grid(N_BLOCKS_COLS);
         dim3 block(BLOCKSIZE_COLS);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        containers::cuda::kernels::randn<<<grid, block>>>(tag_device, m, mean, std, rng);
+        containers::cuda::kernels::randn<<<grid, block, 0, device.stream>>>(tag_device, m, mean, std, rng);
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename RNG>

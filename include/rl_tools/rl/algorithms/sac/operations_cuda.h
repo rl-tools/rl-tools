@@ -29,7 +29,7 @@ namespace rl_tools{
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        target_actions_kernel<<<bias_grid, bias_block>>>(tag_device, batch, training_buffers, log_alpha);
+        target_actions_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, batch, training_buffers, log_alpha);
         check_status(device);
     }
 
@@ -59,7 +59,7 @@ namespace rl_tools{
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        sample_actions_critic_kernel<<<bias_grid, bias_block>>>(tag_device, training_buffers, action_noise);
+        sample_actions_critic_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, training_buffers, action_noise);
         check_status(device);
     }
 
@@ -90,7 +90,7 @@ namespace rl_tools{
         dim3 bias_block(BLOCKSIZE_COLS);
         auto actions_full = output(actor_critic.actor);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        sample_actions_actor_kernel<<<bias_grid, bias_block>>>(tag_device, actions_full, training_buffers, action_noise);
+        sample_actions_actor_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, actions_full, training_buffers, action_noise);
         check_status(device);
     }
 
@@ -123,7 +123,7 @@ namespace rl_tools{
         auto actions_full = output(actor_critic.actor);
 //        typename decltype(actor_critic.log_alpha)::T zero = 0;
 //        cudaMemcpy(actor_critic.log_alpha.gradient._data, &zero, sizeof(T), cudaMemcpyHostToDevice);
-        d_action_d_action_distribution_kernel<<<bias_grid, bias_block>>>(device, training_buffers, actions_full, output(actor_critic.critic_1), output(actor_critic.critic_2), actor_critic.log_alpha);
+        d_action_d_action_distribution_kernel<<<bias_grid, bias_block, 0, device.stream>>>(device, training_buffers, actions_full, output(actor_critic.critic_1), output(actor_critic.critic_2), actor_critic.log_alpha);
         check_status(device);
     }
 }
