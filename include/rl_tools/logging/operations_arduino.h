@@ -13,7 +13,7 @@ namespace rl_tools{
     void init(DEVICE& dev, devices::logging::ARDUINO& logger){ }
     template <typename DEVICE, typename A>
     void log(DEVICE& dev, devices::logging::ARDUINO& logger, const A a){
-        Serial.print(a)
+        Serial.print(a);
         Serial.println();
     }
     template <typename DEVICE, typename A, typename B>
