@@ -85,9 +85,9 @@ int main(){
         rlt::step(device, ts.off_policy_runner, off_policy_runner_pointer, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         if(step > CORE_PARAMETERS::N_WARMUP_STEPS){
             for(int critic_i = 0; critic_i < 2; critic_i++){
-                rlt::gather_batch(device, off_policy_runner_pointer, ts.critic_batch, ts.rng);
+                rlt::gather_batch(device, off_policy_runner_pointer, ts.critic_batch[critic_i], ts.rng);
                 rlt::randn(device, ts.action_noise_critic[critic_i], ts.rng);
-                rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers, ts.action_noise_critic[critic_i]);
+                rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i]);
             }
             if(step % 1 == 0){
                 {
