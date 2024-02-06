@@ -33,8 +33,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
+    template <typename DEV_SPEC, typename SPEC>
+    void init(devices::CPU<DEV_SPEC>& device, rl::environments::CarTrack<SPEC>& env){
+        using DEVICE = devices::CPU<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         using namespace rl::environments::car;

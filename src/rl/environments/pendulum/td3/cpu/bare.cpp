@@ -10,9 +10,9 @@
 #include <rl_tools/rl/algorithms/td3/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
-#include <rl_tools/rl/algorithms/td3/loop/core/operations.h>
-#include <rl_tools/rl/loop/steps/evaluation/operations.h>
-#include <rl_tools/rl/loop/steps/timing/operations.h>
+#include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
+#include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
+#include <rl_tools/rl/loop/steps/timing/operations_generic.h>
 
 namespace rlt = rl_tools;
 

@@ -32,6 +32,18 @@ namespace rl_tools{
         };
     }
     template <typename DEVICE, typename ENVIRONMENT>
+    void _flush(DEVICE& dev, ui_server::client::UI<ENVIRONMENT>& ui){
+        if (ui.ws.is_open()) {
+            while(!ui.buffer.empty()){
+                ui.ws.write(boost::beast::net::buffer(ui.buffer.front()));
+                ui.buffer.pop();
+            }
+        }
+        else{
+            std::cerr << "Error: websocket is not open" << std::endl;
+        }
+    }
+    template <typename DEVICE, typename ENVIRONMENT>
     void init(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UI<ENVIRONMENT>& ui){
         namespace beast = boost::beast;         // from <boost/beast.hpp>
         namespace http = beast::http;           // from <boost/beast/http.hpp>
@@ -57,18 +69,6 @@ namespace rl_tools{
         _flush(dev, ui);
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    void _flush(DEVICE& dev, ui_server::client::UI<ENVIRONMENT>& ui){
-        if (ui.ws.is_open()) {
-            while(!ui.buffer.empty()){
-                ui.ws.write(boost::beast::net::buffer(ui.buffer.front()));
-                ui.buffer.pop();
-            }
-        }
-        else{
-            std::cerr << "Error: websocket is not open" << std::endl;
-        }
-    }
-    template <typename DEVICE, typename ENVIRONMENT>
     void set_state(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
         set_state(dev, env, static_cast<ui_server::client::UIBuffered<ENVIRONMENT>&>(ui), state);
         _flush(dev, ui);
@@ -89,3 +89,4 @@ namespace rl_tools{
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+#endif

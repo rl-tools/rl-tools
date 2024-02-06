@@ -16,9 +16,8 @@ namespace rl_tools::rl::algorithms::sac {
         static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
         static constexpr TI N_WARMUP_STEPS_ACTOR = 0;
         static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
-        static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
-        static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
-        static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2;
+        static constexpr TI ACTOR_TRAINING_INTERVAL = 1;
+        static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1;
         static constexpr T ACTOR_POLYAK = 1.0 - 0.005;
         static constexpr T CRITIC_POLYAK = 1.0 - 0.005;
 //        static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;

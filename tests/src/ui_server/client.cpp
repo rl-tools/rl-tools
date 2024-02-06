@@ -4,7 +4,7 @@
 #include <rl_tools/rl/environments/car/operations_json.h>
 
 #include <rl_tools/rl/environments/car/operations_cpu.h>
-#include <rl_tools/ui_server/client/operations_cpu.h>
+#include <rl_tools/ui_server/client/operations_boost.h>
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
