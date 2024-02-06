@@ -8,7 +8,8 @@
 #include <rl_tools/rl/algorithms/sac/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
-#include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
+#include <rl_tools/rl/algorithms/sac/loop/core/operations_cpu.h>
+//#include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_generic.h>
 

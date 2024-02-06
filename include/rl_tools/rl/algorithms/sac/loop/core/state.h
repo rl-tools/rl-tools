@@ -24,8 +24,8 @@ namespace rl_tools{
             typename CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
             typename CONFIG::ACTOR_CRITIC_TYPE actor_critic;
             typename CONFIG::NN::ACTOR_TYPE::template Buffer<1> actor_deterministic_evaluation_buffers;
-            rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
-            rl::algorithms::sac::CriticTrainingBuffers<typename CONFIG::ACTOR_CRITIC_SPEC> critic_training_buffers;
+            rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch[2];
+            rl::algorithms::sac::CriticTrainingBuffers<typename CONFIG::ACTOR_CRITIC_SPEC> critic_training_buffers[2];
             CONTAINER_TYPE<matrix::Specification<T, TI, CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CONFIG::ENVIRONMENT::ACTION_DIM>> action_noise_critic[2];
             CONTAINER_TYPE<matrix::Specification<typename CONFIG::T, TI, 1, CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
             typename CONFIG::NN::CRITIC_TYPE::template Buffer<CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
