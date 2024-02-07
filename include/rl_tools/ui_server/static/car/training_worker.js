@@ -34,7 +34,7 @@ async function async_main(){
             const message_pointer = rlt._proxy_pop_message(training_state);
             const message = rlt.UTF8ToString(message_pointer);
             self.postMessage(JSON.parse(message))
-            await new Promise(resolve => setTimeout(resolve, 0.01));
+            await new Promise(resolve => setTimeout(resolve, 10));
         }
         setTimeout(main, sleep);
     }

@@ -1,5 +1,13 @@
 #drawingCanvas{
 }
+#aspectRatioContainerContainerContainer{
+    display: flex;
+    justify-content: center;
+}
+#aspectRatioContainerContainer{
+    width: 80%;
+    max-width: 800px;
+}
 #aspectRatioContainer{
     width: 80%;
     padding-top: 80%;
