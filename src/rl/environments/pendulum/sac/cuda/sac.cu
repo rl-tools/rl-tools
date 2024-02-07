@@ -62,8 +62,9 @@ int main(){
     DEVICE_INIT device_init;
     LOOP_STATE ts;
     LOOP_STATE_INIT ts_init;
-    using CORE_PARAMETERS = decltype(ts)::CONFIG::CORE_PARAMETERS;
-    using EVAL_PARAMETERS = decltype(ts)::CONFIG::EVALUATION_PARAMETERS;
+    using CONFIG = decltype(ts)::CONFIG;
+    using CORE_PARAMETERS = CONFIG::CORE_PARAMETERS;
+    using EVAL_PARAMETERS = CONFIG::EVALUATION_PARAMETERS;
     rlt::init(device);
     rlt::malloc(device, ts);
     rlt::malloc(device_init, ts_init);
@@ -83,13 +84,23 @@ int main(){
     while(!finished){
         rlt::set_step(device, device.logger, step);
         rlt::step(device, ts.off_policy_runner, off_policy_runner_pointer, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-        if(step > CORE_PARAMETERS::N_WARMUP_STEPS){
-            for(int critic_i = 0; critic_i < 2; critic_i++){
-                rlt::gather_batch(device, off_policy_runner_pointer, ts.critic_batch[critic_i], ts.rng);
-                rlt::randn(device, ts.action_noise_critic[critic_i], ts.rng);
-                rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i]);
+        if(step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
+            if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0) {
+                cudaStream_t critic_training_streams[2];
+                for(int critic_i = 0; critic_i < 2; critic_i++){
+                    cudaStreamCreate(&critic_training_streams[critic_i]);
+//                    device.stream = critic_training_streams[critic_i]; // parallel streams actually make it slightly worse (bandwidth bound?)
+                    rlt::gather_batch(device, off_policy_runner_pointer, ts.critic_batch[critic_i], ts.rng);
+                    rlt::randn(device, ts.action_noise_critic[critic_i], ts.rng);
+                    rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i]);
+                }
+                for(int critic_i = 0; critic_i < 2; critic_i++){
+                    cudaStreamSynchronize(critic_training_streams[critic_i]);
+                    cudaStreamDestroy(critic_training_streams[critic_i]);
+                }
+                device.stream = 0;
             }
-            if(step % 1 == 0){
+            if(step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0) {
                 {
                     rlt::gather_batch(device, off_policy_runner_pointer, ts.actor_batch, ts.rng);
                     rlt::randn(device, ts.action_noise_actor, ts.rng);
