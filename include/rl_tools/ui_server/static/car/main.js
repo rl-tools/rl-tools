@@ -15,7 +15,9 @@ window.addEventListener('load', ()=>{
     const saveTrackButton = document.getElementById('saveTrackButton');
     const playButton = document.getElementById('playButton');
     const trainButton = document.getElementById('trainButton');
+    const drawLabel = document.getElementById('drawLabel');
     const trainLabel = document.getElementById('trainLabel');
+    const playLabel = document.getElementById('playLabel');
 
 
     // const client = new Client();
@@ -50,6 +52,7 @@ window.addEventListener('load', ()=>{
         saveTrackButton.style.display = "none";
         playButton.style.display = "block";
         trainButton.style.display = "block";
+        drawLabel.style.display = "none";
     });
 
     let mode_interactive = false;
@@ -82,6 +85,7 @@ window.addEventListener('load', ()=>{
                     break;
             }
             if(update){
+                event.preventDefault();
                 client.sendMessage("setAction", [input_action["throttle"], input_action["steering"]]);
             }
         }
@@ -117,6 +121,8 @@ window.addEventListener('load', ()=>{
     playButton.addEventListener('click', ()=>{
         mode_interactive = true
         client.sendMessage("setAction", [0, 0]);
+        playButton.style.display = "none";
+        playLabel.style.display = "block";
     });
     trainButton.addEventListener('click', ()=>{
         mode_interactive = false
@@ -124,5 +130,6 @@ window.addEventListener('load', ()=>{
         playButton.style.display = "none";
         trainButton.style.display = "none";
         trainLabel.style.display = "block";
+        playLabel.style.display = "none";
     });
 });
