@@ -7,6 +7,7 @@
  */
 
 #include "../../math/operations_generic.h"
+#include "../environments/operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::utils::evaluation{

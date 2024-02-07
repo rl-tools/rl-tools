@@ -6,6 +6,8 @@
 #include "../../../../rl/algorithms/sac/operations_generic.h"
 #include "../../../../rl/components/off_policy_runner/operations_generic.h"
 
+#include "../../../../rl/environments/operations_generic.h"
+
 
 #include "../../../../rl/utils/evaluation.h"
 
