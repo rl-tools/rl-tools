@@ -32,8 +32,12 @@
     font-size: 20px;
 }
 
+#messageContainer{
+    text-align: center;
+    margin-top: 10px;
+}
 #controlContainer{
     display: flex;
+    margin-top: 10px;
     justify-content: center;
-    margin-top: 20px;
 }
