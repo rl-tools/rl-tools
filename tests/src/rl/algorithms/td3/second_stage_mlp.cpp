@@ -84,7 +84,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
 
     std::mt19937 rng(0);
 
-    bool ui = false;
+    rlt::rl::environments::DummyUI ui;
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
     int step = data_file.getGroup("full_training").getGroup("steps").getNumberObjects()-1;
@@ -167,7 +167,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     rlt::init(device, actor_critic,rng);
 
 
-    bool ui = false;
+    rlt::rl::environments::DummyUI ui;
 
 
 

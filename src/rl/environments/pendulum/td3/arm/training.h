@@ -116,7 +116,7 @@ void train(){
 
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
 
-    bool ui = false;
+    rlt::rl::environments::DummyUI ui;
 
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, off_policy_runner);

@@ -5,5 +5,10 @@
 
 #include "pendulum/pendulum.h"
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::rl::environments{
+    struct DummyUI{};
+}
+
 
 #endif

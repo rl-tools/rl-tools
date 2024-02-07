@@ -88,7 +88,7 @@ int main() {
     auto rng = rlt::random::default_engine(decltype(device)::SPEC::RANDOM());
     rlt::init(device, actor_critic, rng);
 
-    bool ui = false;
+    rlt::rl::environments::DummyUI ui;
 
     using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
     rlt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batch;

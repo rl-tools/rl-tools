@@ -159,7 +159,7 @@ void run(){
         // environment
         DTYPE ui_speed_factor = 1;
 //        auto parameters = parameters_environment::parameters;
-        bool ui = false;
+        rlt::rl::environments::DummyUI ui;
 
         // rl
         parameters_rl::ActorCriticType actor_critic;

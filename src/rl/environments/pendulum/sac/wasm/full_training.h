@@ -95,7 +95,7 @@ struct CoreTrainingState{
     using TI = typename TRAINING_CONFIG::TI;
     typename TRAINING_CONFIG::OPTIMIZER actor_optimizer, critic_optimizers[2];
     typename TRAINING_CONFIG::RNG rng;
-    bool ui = false;
+    rlt::rl::environments::DummyUI ui;
     rlt::rl::components::OffPolicyRunner<typename TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
     typename TRAINING_CONFIG::ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
     typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE actor_critic;

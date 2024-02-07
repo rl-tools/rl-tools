@@ -22,7 +22,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         static constexpr TI EPISODE_STEP_LIMIT = NEXT::CORE_PARAMETERS::EPISODE_STEP_LIMIT;
     };
     struct ConfigTag{};
-    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>, typename T_UI = bool>
+    template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI, T_NEXT>, typename T_UI = environments::DummyUI>
     struct Config: T_NEXT {
         using TAG = ConfigTag;
         using NEXT = T_NEXT;
