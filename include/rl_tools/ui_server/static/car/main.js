@@ -11,11 +11,11 @@ const keyThrottleValue = 0.5
 
 window.addEventListener('load', ()=>{
     const canvas = document.getElementById('drawingCanvas');
-    const steeringSlider = document.getElementById('steeringSlider');
     const resetTrackButton = document.getElementById('resetTrackButton');
     const saveTrackButton = document.getElementById('saveTrackButton');
     const playButton = document.getElementById('playButton');
     const trainButton = document.getElementById('trainButton');
+    const trainLabel = document.getElementById('trainLabel');
 
 
     // const client = new Client();
@@ -40,15 +40,16 @@ window.addEventListener('load', ()=>{
             },
         }
     )
-    steeringSlider.addEventListener('input', (e)=>{
-        track.setSteering(parseFloat(e.target.value)/100);
-    });
     resetTrackButton.addEventListener('click', ()=>{
         track.reset();
     });
     saveTrackButton.addEventListener('click', ()=>{
         track.disable_drawing()
         client.sendMessage("setTrack", track.track);
+        resetTrackButton.style.display = "none";
+        saveTrackButton.style.display = "none";
+        playButton.style.display = "block";
+        trainButton.style.display = "block";
     });
 
     let mode_interactive = false;
@@ -120,5 +121,8 @@ window.addEventListener('load', ()=>{
     trainButton.addEventListener('click', ()=>{
         mode_interactive = false
         client.sendMessage("startTraining", null);
+        playButton.style.display = "none";
+        trainButton.style.display = "none";
+        trainLabel.style.display = "block";
     });
 });

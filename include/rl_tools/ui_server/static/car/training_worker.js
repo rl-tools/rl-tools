@@ -19,7 +19,7 @@ async function async_main(){
     })
 
 
-    let main = () =>{
+    let main = async () =>{
         let sleep = 0;
         while(messages.length > 0){
             const message = messages.shift();
@@ -27,11 +27,14 @@ async function async_main(){
             let message_ptr = rlt.stringToNewUTF8(message_string);
             sleep += rlt._proxy_step_message(training_state, message_ptr)
         }
-        sleep += rlt._proxy_step(training_state)
+        for(let i = 0; i < 100; i++){
+            sleep += rlt._proxy_step(training_state)
+        }
         while(rlt._proxy_num_messages(training_state) > 0){
             const message_pointer = rlt._proxy_pop_message(training_state);
             const message = rlt.UTF8ToString(message_pointer);
             self.postMessage(JSON.parse(message))
+            await new Promise(resolve => setTimeout(resolve, 0.01));
         }
         setTimeout(main, sleep);
     }

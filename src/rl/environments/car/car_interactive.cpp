@@ -1,3 +1,4 @@
+#define LOAD_TRACK_FROM_FILE
 #include "training.h"
 #include "forwarder.h"
 

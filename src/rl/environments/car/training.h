@@ -47,8 +47,8 @@ struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
 };
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     using TD3_PARAMETERS = TD3_PARAMETERS;
-    static constexpr TI STEP_LIMIT = 10000;
-    static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
+    static constexpr TI STEP_LIMIT = 10000000;
+    static constexpr TI REPLAY_BUFFER_CAP = 20000;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
@@ -59,7 +59,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParame
 };
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsMLP>;
 struct EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{
-    static constexpr TI EVALUATION_INTERVAL = 2000;
+    static constexpr TI EVALUATION_INTERVAL = 10000;
     static constexpr TI NUM_EVALUATION_EPISODES = 1;
     static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
     static constexpr TI EPISODE_STEP_LIMIT = 1000;
