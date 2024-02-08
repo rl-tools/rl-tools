@@ -14,6 +14,8 @@ namespace rl_tools{
     void render(DEVICE&, ENV&, rl::environments::DummyUI){};
     template <typename DEVICE, typename ENV, typename STATE>
     void set_state(DEVICE&, ENV&, rl::environments::DummyUI, STATE&){};
+    template <typename DEVICE, typename ENV, typename STATE, typename ACTION>
+    void set_state(DEVICE&, ENV&, rl::environments::DummyUI, STATE&, ACTION&){};
     template <typename DEVICE, typename ENV, typename ACTION>
     void set_action(DEVICE&, ENV&, rl::environments::DummyUI, ACTION&){};
 }

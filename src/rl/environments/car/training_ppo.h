@@ -1,21 +1,38 @@
+//#include <rl_tools/operations/cpu_mux.h>
+//#include <rl_tools/nn/operations_cpu_mux.h>
+//
+//#ifdef LOAD_TRACK_FROM_FILE
+//#include <rl_tools/rl/environments/car/operations_cpu.h>
+//#else
+//#include <rl_tools/rl/environments/car/operations_generic.h>
+//#endif
+//#include <rl_tools/rl/environments/car/operations_json.h>
+//#include <rl_tools/nn_models/sequential/operations_generic.h>
+//#include <rl_tools/nn_models/mlp_normalized_unconditional_stddev/operations_generic.h>
+//
+//#include <rl_tools/ui_server/client/operations_cpu.h>
+//
+//#include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
+//#include <rl_tools/rl/loop/steps/evaluation/config.h>
+//#include <rl_tools/rl/loop/steps/timing/config.h>
+//#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
+//#include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
+//#include <rl_tools/rl/loop/steps/timing/operations_generic.h>
+
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 
-#ifdef LOAD_TRACK_FROM_FILE
-#include <rl_tools/rl/environments/car/operations_cpu.h>
-#else
 #include <rl_tools/rl/environments/car/operations_generic.h>
-#endif
 #include <rl_tools/rl/environments/car/operations_json.h>
 #include <rl_tools/ui_server/client/operations_cpu.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 
 
-#include <rl_tools/rl/algorithms/td3/loop/core/config.h>
+#include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
-#include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
+#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_generic.h>
 
@@ -31,43 +48,51 @@ using ENVIRONMENT = rlt::rl::environments::CarTrack<ENV_SPEC>;
 using ENVIRONMENT_EVALUATION = ENVIRONMENT;
 using UI = rlt::ui_server::client::UIBuffered<ENVIRONMENT>;
 
-static constexpr T EXPLORATION_NOISE_MULTIPLE = 0.5;
-struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
-    constexpr static TI CRITIC_BATCH_SIZE = 256;
-    constexpr static TI ACTOR_BATCH_SIZE = 256;
-    static constexpr int N_WARMUP_STEPS_ACTOR = 10000;
-    static constexpr int N_WARMUP_STEPS_CRITIC = 10000;
-    constexpr static T GAMMA = 0.99;
-    static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2 * EXPLORATION_NOISE_MULTIPLE;
-    static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5 * EXPLORATION_NOISE_MULTIPLE;
-    static constexpr TI CRITIC_TRAINING_INTERVAL = 10;
-    static constexpr TI ACTOR_TRAINING_INTERVAL = 20;
-    static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 20;
-    static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 20;
-};
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-    using TD3_PARAMETERS = TD3_PARAMETERS;
-    static constexpr TI STEP_LIMIT = 10000000;
-    static constexpr TI REPLAY_BUFFER_CAP = 20000;
-    static constexpr TI ACTOR_NUM_LAYERS = 3;
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::Parameters<T, TI, ENVIRONMENT>{
+    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI>{
+        static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
+        static constexpr TI N_EPOCHS = 2;
+        static constexpr T GAMMA = 0.99;
+        static constexpr bool ADAPTIVE_LEARNING_RATE = true;
+    };
+    static constexpr TI BATCH_SIZE = 256;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
-    static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
-    static constexpr TI CRITIC_NUM_LAYERS = 3;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
-    static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
-    static constexpr TI EPISODE_STEP_LIMIT = 500;
+    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 1024;
+    static constexpr TI N_ENVIRONMENTS = 4;
+    static constexpr TI TOTAL_STEP_LIMIT = 10000000;
+    static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
+    static constexpr TI EPISODE_STEP_LIMIT = 200;
 };
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsMLP>;
-struct EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{
-    static constexpr TI EVALUATION_INTERVAL = 10000;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsMLP>;
+template <typename NEXT>
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
+    static constexpr TI EVALUATION_INTERVAL = 100;
     static constexpr TI NUM_EVALUATION_EPISODES = 1;
-    static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
+    static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
     static constexpr TI EPISODE_STEP_LIMIT = 1000;
 };
-using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, EVAL_PARAMETERS, UI>;
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS<LOOP_CORE_CONFIG>, UI>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
-using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
+using LOOP_STATE = typename LOOP_CONFIG::template State<LOOP_CONFIG>;
+//static constexpr T EXPLORATION_NOISE_MULTIPLE = 0.5;
+//struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI>{
+//};
+//struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::Parameters<T, TI, ENVIRONMENT>{
+//    using PPO_PARAMETERS = PPO_PARAMETERS;
+//};
+//using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT>;
+//struct EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{
+//    static constexpr TI EVALUATION_INTERVAL = 1;
+//    static constexpr TI NUM_EVALUATION_EPISODES = 1;
+//    static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
+//    static constexpr TI EPISODE_STEP_LIMIT = 1000;
+//};
+//using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, EVAL_PARAMETERS, UI>;
+//using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
+//using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+//using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
 struct State{
     DEVICE device;
@@ -126,7 +151,7 @@ float step(State* state, const char* message_string) {
                 state->ts.env_eval.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
             }
         }
-        rlt::init(state->device, state->ts.off_policy_runner, state->ts.envs);
+        rlt::init(state->device, state->ts.on_policy_runner, state->ts.envs, state->ts.rng);
     } else {
         if (message["channel"] == "setAction") {
             if(!state->mode_interactive){
