@@ -45,12 +45,44 @@ export class Track{
         // hooks
         window.addEventListener('load', ()=>this.resizeCanvas());
         window.addEventListener('resize', ()=>this.resizeCanvas());
-        canvas.addEventListener('mousedown', (e)=>this.startDrawing(e));
-        canvas.addEventListener('mouseup', ()=>this.stopDrawing());
-        canvas.addEventListener('mouseout', ()=>this.stopDrawing());
-        canvas.addEventListener('mousemove', (e)=>this.draw(e));
+        canvas.addEventListener('mousedown', (e)=>{
+            this.startDrawing(e)
+            e.preventDefault()
+        });
+        canvas.addEventListener('mouseup', (e)=>{
+            this.stopDrawing()
+            e.preventDefault()
+        });
+        canvas.addEventListener('mouseout', (e)=>{
+            this.stopDrawing()
+            e.preventDefault()
+        });
+        canvas.addEventListener('mousemove', (e)=>{
+            this.draw(e)
+            e.preventDefault()
+        });
+        canvas.addEventListener('touchstart', (e)=>{
+            console.log('touchstart', e)
+            const touch = e.changedTouches[0];
+            this.startDrawing(touch)
+
+            e.preventDefault()
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            const touch = e.changedTouches[0];
+            this.draw(touch)
+            e.preventDefault()
+        });
+        canvas.addEventListener('touchend', (e)=>{
+            this.stopDrawing()
+            e.preventDefault()
+        });
         this.resizeCanvas()
         this.animate()
+    }
+    pointInCanvas(x, y) {
+        const rect = this.canvas.getBoundingClientRect();
+        return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
     }
     reset(){
         this.enable_drawing = true;
