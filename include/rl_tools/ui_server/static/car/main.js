@@ -5,9 +5,12 @@ import {Client as ClientWASM} from './client_wasm.js';
 
 console.log("Car UI")
 
+const forceWASM = true
 
 const keyThrottleValue = 0.5
-
+const orientationGainSteering = 3
+const orientationGainThrottle = 3
+let first_orientation = null
 let async_main = async () => {
     const canvas = document.getElementById('drawingCanvas');
     const resetTrackButton = document.getElementById('resetTrackButton');
@@ -20,7 +23,7 @@ let async_main = async () => {
 
     let response = await fetch('./scenario');
     let Client = ClientWASM;
-    if(response.status == 200){
+    if(response.status == 200 && !forceWASM){
         Client = ClientWS;
     }
 
@@ -127,6 +130,19 @@ let async_main = async () => {
         client.sendMessage("setAction", [0, 0]);
         playButton.style.display = "none";
         playLabel.style.display = "block";
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+                .then(permissionState => {
+                    if (permissionState === 'granted') {
+                        // document.getElementById('status').textContent = 'Permission granted';
+                    }
+                })
+                .catch(console.error); // Handle errors
+        } else {
+            // Handle regular non-iOS 13+ devices
+            // window.addEventListener('deviceorientation', handleOrientationEvent);
+            // document.getElementById('status').textContent = 'Permission API not required';
+        }
     });
     trainButton.addEventListener('click', ()=>{
         mode_interactive = false
@@ -135,6 +151,16 @@ let async_main = async () => {
         trainButton.style.display = "none";
         trainLabel.style.display = "block";
         playLabel.style.display = "none";
+    });
+    window.addEventListener('deviceorientation', function(event) {
+        if(mode_interactive){
+            if(!first_orientation){
+                first_orientation = event;
+            }
+            input_action["steering"] = Math.max(-1, Math.min(1, (-event.gamma + first_orientation.gamma)/90 * orientationGainSteering));
+            input_action["throttle"] = Math.max(-1, Math.min(1, (-event.beta + first_orientation.beta)/90 * orientationGainThrottle));
+            client.sendMessage("setAction", [input_action["throttle"], input_action["steering"]]);
+        }
     });
 }
 

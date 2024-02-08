@@ -3,7 +3,8 @@
 export class Client{
     constructor(){
         this.setParametersCallback = null;
-        this.ws = new WebSocket('ws://' + window.location.host + "/ui");
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        this.ws = new WebSocket( protocol + '://' + window.location.host + "/ui");
 
         this.ws.onopen = event=>{
             console.log('Connection opened:', event);
