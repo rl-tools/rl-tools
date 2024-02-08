@@ -1,6 +1,6 @@
 import {Track} from './track.js';
-// import {Client} from './client.js';
-import {Client} from './client_wasm.js';
+import {Client as ClientWS} from './client.js';
+import {Client as ClientWASM} from './client_wasm.js';
 
 
 console.log("Car UI")
@@ -8,8 +8,7 @@ console.log("Car UI")
 
 const keyThrottleValue = 0.5
 
-
-window.addEventListener('load', ()=>{
+let async_main = async () => {
     const canvas = document.getElementById('drawingCanvas');
     const resetTrackButton = document.getElementById('resetTrackButton');
     const saveTrackButton = document.getElementById('saveTrackButton');
@@ -19,6 +18,11 @@ window.addEventListener('load', ()=>{
     const trainLabel = document.getElementById('trainLabel');
     const playLabel = document.getElementById('playLabel');
 
+    let response = await fetch('./scenario');
+    let Client = ClientWASM;
+    if(response.status == 200){
+        Client = ClientWS;
+    }
 
     // const client = new Client();
     const client = new Client();
@@ -132,4 +136,8 @@ window.addEventListener('load', ()=>{
         trainLabel.style.display = "block";
         playLabel.style.display = "none";
     });
-});
+}
+
+window.addEventListener('load', ()=>{
+    async_main();
+})

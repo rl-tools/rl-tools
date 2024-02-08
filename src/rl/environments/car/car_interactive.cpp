@@ -1,5 +1,5 @@
 #define LOAD_TRACK_FROM_FILE
-#include "training.h"
+#include "training_td3.h"
 #include "forwarder.h"
 
 int main(int argc, char** argv) {

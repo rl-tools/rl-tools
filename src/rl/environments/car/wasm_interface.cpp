@@ -1,4 +1,4 @@
-#include "training.h"
+#include "training_td3.h"
 #include <emscripten.h>
 
 DEVICE device;

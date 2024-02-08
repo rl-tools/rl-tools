@@ -10,7 +10,7 @@ namespace rl_tools::rl::algorithms{
     namespace ppo{
         template<typename T, typename TI>
         struct DefaultParameters {
-            static constexpr T GAMMA = 0.9;
+            static constexpr T GAMMA = 0.99;
             static constexpr T LAMBDA = 0.95;
             static constexpr T EPSILON_CLIP = 0.2;
             static constexpr T INITIAL_ACTION_STD = 0.5;
