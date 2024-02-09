@@ -186,7 +186,7 @@ int main(int argc, char** argv){
         rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
         penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
-        bool ui = false;
+        rlt::rl::environments::DummyUI ui;
         TI next_checkpoint_id = 0;
         TI next_evaluation_id = 0;
 

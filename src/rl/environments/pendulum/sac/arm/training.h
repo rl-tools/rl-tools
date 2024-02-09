@@ -20,7 +20,7 @@
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #ifndef RL_TOOLS_DEPLOYMENT_ARDUINO
-#include <rl_tools/rl/loop/steps/timing/operations_generic.h>
+#include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 #endif
 
 namespace rlt = rl_tools;

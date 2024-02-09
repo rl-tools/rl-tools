@@ -80,7 +80,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     auto rng_init = rlt::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     p::env::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
-    bool ui = false;
+    rlt::rl::environments::DummyUI ui;
 
 
     rlt::malloc(device_init, actor_critic_init);

@@ -13,7 +13,7 @@
 #include <rl_tools/rl/loop/steps/timing/config.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
-#include <rl_tools/rl/loop/steps/timing/operations_generic.h>
+#include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
 namespace rlt = rl_tools;
 
