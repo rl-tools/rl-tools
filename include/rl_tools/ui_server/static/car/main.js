@@ -5,21 +5,26 @@ import {Client as ClientWASM} from './client_wasm.js';
 
 console.log("Car UI")
 
-const forceWASM = true
+const forceWASM = false //true
 
 const keyThrottleValue = 0.5
 const orientationGainSteering = 3
 const orientationGainThrottle = 3
 let first_orientation = null
+let playbackSpeed = 10
 let async_main = async () => {
     const canvas = document.getElementById('drawingCanvas');
+    const canvasContainer = document.getElementById('canvasContainer');
     const resetTrackButton = document.getElementById('resetTrackButton');
     const saveTrackButton = document.getElementById('saveTrackButton');
     const playButton = document.getElementById('playButton');
     const trainButton = document.getElementById('trainButton');
     const drawLabel = document.getElementById('drawLabel');
+    const loadingLabel = document.getElementById('loadingLabel');
     const trainLabel = document.getElementById('trainLabel');
     const playLabel = document.getElementById('playLabel');
+    const playbackSpeedCheckbox = document.getElementById('playbackSpeedCheckbox');
+    const playbackSpeedCheckboxLabel = document.getElementById('playbackSpeedCheckboxLabel');
 
     let response = await fetch('./scenario');
     let Client = ClientWASM;
@@ -35,6 +40,12 @@ let async_main = async () => {
             setParametersCallback: (parameters)=>{
                 console.log('Parameters:', parameters);
                 track = new Track(canvas, parameters);
+                loadingLabel.style.display = "none";
+                drawLabel.style.display = "block";
+                resetTrackButton.style.display = "block";
+                saveTrackButton.style.display = "block";
+                canvasContainer.style.display = "block";
+                track.resizeCanvas()
             },
             setStateCallback: (state)=>{
                 if(track){
@@ -151,6 +162,11 @@ let async_main = async () => {
         trainButton.style.display = "none";
         trainLabel.style.display = "block";
         playLabel.style.display = "none";
+        playbackSpeedCheckboxLabel.style.display = "block";
+        client.sendMessage("setPlaybackSpeed", playbackSpeedCheckbox.checked ? 1 : playbackSpeed);
+    });
+    playbackSpeedCheckbox.addEventListener('change', ()=>{
+        client.sendMessage("setPlaybackSpeed", playbackSpeedCheckbox.checked ? 1 : playbackSpeed);
     });
     window.addEventListener('deviceorientation', function(event) {
         if(mode_interactive){
