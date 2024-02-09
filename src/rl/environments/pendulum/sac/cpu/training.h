@@ -58,6 +58,9 @@ void run(TI seed = 0){
             std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
         }
 #endif
+#ifdef BENCHMARK_ABLATION_SIMULATOR
+        std::this_thread::sleep_for(std::chrono::duration<T>(8.072980403900147e-05)); // python gymnasium Pendulum-v1 step time
+#endif
     }
     rlt::free(device, ts);
 }

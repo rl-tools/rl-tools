@@ -37,14 +37,15 @@ if(RL_TOOLS_BACKEND_ENABLE_BLAS)
     target_link_libraries(
             rl_environments_pendulum_sac_training_benchmark
             PRIVATE
-            rl_tools
+            RLtools::RLtools
+            Threads::Threads
     )
     target_compile_definitions(rl_environments_pendulum_sac_training_benchmark PRIVATE RL_TOOLS_DISABLE_HDF5)
     target_compile_definitions(rl_environments_pendulum_sac_training_benchmark PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
     target_compile_definitions(rl_environments_pendulum_sac_training_benchmark PRIVATE BENCHMARK)
     target_compile_options(rl_environments_pendulum_sac_training_benchmark PRIVATE -Ofast)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        target_compile_options(rl_environments_pendulum_sac_training_benchmark PRIVATE -march=native -mtune=native -mavx2 -mfma -fopenmp)
+        target_compile_options(rl_environments_pendulum_sac_training_benchmark PRIVATE -march=native)
     endif()
     RL_TOOLS_INSTALL(rl_environments_pendulum_sac_training_benchmark)
 endif()
