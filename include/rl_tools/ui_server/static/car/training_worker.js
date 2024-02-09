@@ -14,8 +14,15 @@ async function async_main(){
     console.log("Training state: ", training_state);
 
     let messages = []
+    let playbackSpeed = 1;
     self.addEventListener("message", async (event) => {
-        messages.push(event.data)
+        if(event.data.channel === "setPlaybackSpeed"){
+            playbackSpeed = event.data.data;
+            console.log("Setting playback speed to: ", playbackSpeed);
+        }
+        else{
+            messages.push(event.data)
+        }
     })
 
 
@@ -34,7 +41,7 @@ async function async_main(){
             const message_pointer = rlt._proxy_pop_message(training_state);
             const message = rlt.UTF8ToString(message_pointer);
             self.postMessage(JSON.parse(message))
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise(resolve => setTimeout(resolve, 10/playbackSpeed));
         }
         setTimeout(main, sleep);
     }

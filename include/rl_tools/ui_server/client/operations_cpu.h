@@ -68,7 +68,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename ENVIRONMENT>
     void render(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UIBuffered<ENVIRONMENT>& ui){
-        std::this_thread::sleep_for(std::chrono::duration<decltype(env.parameters.dt)>((env.parameters.dt)));
+//        std::this_thread::sleep_for(std::chrono::duration<decltype(env.parameters.dt)>((env.parameters.dt)));
     }
 
 }
