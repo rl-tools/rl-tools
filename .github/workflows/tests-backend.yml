@@ -59,12 +59,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libhdf5-dev libboost-all-dev protobuf-compiler libprotobuf-dev cmake
+      - name: Installing MKL
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update && apt-get install -y wget gnupg
+          sudo wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          sudo echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update && apt-get install -y intel-oneapi-mkl-devel-2023.1.0
       - name: Installing Minimal Dependencies
         if: startsWith(matrix.os, 'windows')
         run: |
-          choco install boost -y
-          choco install hdf5 -y
-          choco install protobuf -y
+          choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+          choco install boost
+          choco install hdf5
+          choco install protobuf
       - name: Installing Minimal Dependencies
         if: startsWith(matrix.os, 'macos')
         run: |
@@ -75,6 +83,7 @@ jobs:
           git submodule update --init -- external/highfive
           git submodule update --init -- external/cli11
           git submodule update --init -- external/tensorboard
+          git submodule update --init -- external/mujoco
 
       - name: Checkout Test Submodules
         run: |
@@ -103,6 +112,9 @@ jobs:
           -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
+          -DRL_TOOLS_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
+          ${{ if startsWith(matrix.os, 'macos') }} -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE=ON
+          ${{ if startsWith(matrix.os, 'ubuntu') }} -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
 
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
