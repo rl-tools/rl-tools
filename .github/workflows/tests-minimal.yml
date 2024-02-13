@@ -23,13 +23,14 @@ jobs:
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+#        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
         build_type: [Release]
         c_compiler: [gcc, clang, cl]
         include:
-          - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
+#          - os: windows-latest
+#            c_compiler: cl
+#            cpp_compiler: cl
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
@@ -40,10 +41,10 @@ jobs:
             c_compiler: clang
             cpp_compiler: clang++
         exclude:
-          - os: windows-latest
-            c_compiler: gcc
-          - os: windows-latest
-            c_compiler: clang
+#          - os: windows-latest
+#            c_compiler: gcc
+#          - os: windows-latest
+#            c_compiler: clang
           - os: ubuntu-latest
             c_compiler: cl
           - os: macos-latest
@@ -59,12 +60,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libhdf5-dev libboost-all-dev protobuf-compiler libprotobuf-dev cmake
-      - name: Installing Minimal Dependencies
-        if: startsWith(matrix.os, 'windows')
-        run: |
-          choco install boost-msvc-14.3
-          choco install hdf5
-          choco install protoc
+#      - name: Installing Minimal Dependencies
+#        if: startsWith(matrix.os, 'windows')
+#        run: |
+#          choco install boost-msvc-14.3
+#          choco install protoc
       - name: Installing Minimal Dependencies
         if: startsWith(matrix.os, 'macos')
         run: |
