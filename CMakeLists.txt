@@ -25,6 +25,7 @@ endif()
 option(RL_TOOLS_ENABLE_TESTS "Build the unit tests when enabled." off)
 
 # To obtain MKL: sudo apt install intel-oneapi-mkl-devel
+option(RL_TOOLS_DISABLE_TARGETS "Disable default targets" OFF)
 option(RL_TOOLS_ENABLE_HDF5 "Enable HDF5 to allow persisting data to disk" OFF)
 option(RL_TOOLS_ENABLE_TENSORBOARD "Enable the Tensorboard logging interface" OFF)
 option(RL_TOOLS_ENABLE_LIBATTOPNG "Enable the libattopng library to log images to TensorBoard" OFF)
@@ -409,4 +410,6 @@ add_library(RLtools::Optimizations ALIAS rl_tools_optimizations)
 add_library(RLtools::OptimizationsCUDA ALIAS rl_tools_optimizations_cuda)
 add_library(RLtools::RLtools ALIAS rl_tools)
 
+if(NOT RL_TOOLS_DISABLE_TARGETS)
 add_subdirectory(src)
+endif()
