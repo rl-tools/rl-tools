@@ -6,7 +6,13 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DefaultCPU;
 
 TEST(RL_TOOLS_MATH, MAIN){
+    // if msvc
+    #ifndef defined(_MSC_VER)
     float nan_0 = 0.0f / 0.0f;
+    #else
+    float nan_0 = NAN;
+    #endif
+
     float nan_1 = NAN;
     float nan_2 = std::numeric_limits<float>::quiet_NaN();
     float nan_3 = std::numeric_limits<float>::signaling_NaN();
