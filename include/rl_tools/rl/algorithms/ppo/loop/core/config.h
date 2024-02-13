@@ -22,7 +22,6 @@ namespace rl_tools{
         struct Parameters{
             using TAG = ParametersTag;
             using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<T, TI>;
-            static constexpr int N_WARMUP_STEPS = PPO_PARAMETERS::ACTOR_BATCH_SIZE;
             static constexpr TI STEP_LIMIT = 100;
 
             static constexpr TI ACTOR_HIDDEN_DIM = 64;

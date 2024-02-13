@@ -94,7 +94,6 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename PARAMETERS, typename utils::typing::enable_if<utils::typing::is_same_v<typename PARAMETERS::TAG, rl::algorithms::ppo::loop::core::ParametersTag>>::type* = nullptr>
     void log(DEVICE& device, PARAMETERS){
-//            static constexpr int N_WARMUP_STEPS = PPO_PARAMETERS::ACTOR_BATCH_SIZE;
         log(device, device.logger, "STEP_LIMIT: ", PARAMETERS::STEP_LIMIT);
         log(device, device.logger, "ACTOR_HIDDEN_DIM: ", PARAMETERS::ACTOR_HIDDEN_DIM);
         log(device, device.logger, "ACTOR_NUM_LAYERS: ", PARAMETERS::ACTOR_NUM_LAYERS);
