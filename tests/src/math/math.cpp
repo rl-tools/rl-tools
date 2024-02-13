@@ -7,7 +7,7 @@ using DEVICE = rlt::devices::DefaultCPU;
 
 TEST(RL_TOOLS_MATH, MAIN){
     // if msvc
-    #ifndef defined(_MSC_VER)
+    #if !defined(_MSC_VER)
     float nan_0 = 0.0f / 0.0f;
     #else
     float nan_0 = NAN;
