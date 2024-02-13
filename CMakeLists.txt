@@ -22,10 +22,10 @@ if(GIT_FOUND)
     message("Commit hash: ${RL_TOOLS_COMMIT_HASH}")
 endif()
 
+option(RL_TOOLS_ENABLE_TARGETS "Disable default targets" OFF)
 option(RL_TOOLS_ENABLE_TESTS "Build the unit tests when enabled." off)
 
 # To obtain MKL: sudo apt install intel-oneapi-mkl-devel
-option(RL_TOOLS_ENABLE_TARGETS "Disable default targets" OFF)
 option(RL_TOOLS_ENABLE_HDF5 "Enable HDF5 to allow persisting data to disk" OFF)
 option(RL_TOOLS_ENABLE_TENSORBOARD "Enable the Tensorboard logging interface" OFF)
 option(RL_TOOLS_ENABLE_LIBATTOPNG "Enable the libattopng library to log images to TensorBoard" OFF)
@@ -39,12 +39,12 @@ option(RL_TOOLS_ENABLE_BOOST_BEAST "Enable BOOST beast (used in the multirotor U
 option(RL_TOOLS_HDF5_HIGHFIVE_FROM_CONAN "Use HighFive from conan (don't use the submodule from /external)" OFF)
 option(RL_TOOLS_BUILD_TYPE "Use \"Release\" to e.g. build fat binaries with code for all CUDA architectures (not just for the GPU found in the machine used to build it)" OFF)
 option(RL_TOOLS_INSTALL_INCLUDE_REDISTRIBUTABLES "Including redistributables from the redistributable submodule" OFF)
-option(RL_TOOLS_DISABLE_LTO "Disable link-time optimization" OFF)
+option(RL_TOOLS_ENABLE_LTO "Enable link-time optimization" OFF)
 option(RL_TOOLS_ENABLE_FAST_MATH "Enable (possibly unsafe) fast math operations" OFF)
 option(RL_TOOLS_COMPILER_FLAGS "Additional compiler flags" OFF)
 option(RL_TOOLS_DISABLE_CPU_SPECIFIC_OPTIMIZATIONS "Disable CPU specific optimizations (e.g. for building portable Docker containers)" OFF)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT RL_TOOLS_DISABLE_LTO)
+if(CMAKE_BUILD_TYPE STREQUAL "Release" AND RL_TOOLS_ENABLE_LTO)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 endif()
 
