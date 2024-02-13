@@ -36,9 +36,11 @@ jobs:
           - os: ubuntu-latest
             c_compiler: clang
             cpp_compiler: clang++
+            rl_tools_backend: -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
           - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
+            rl_tools_backend: -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE=ON
         exclude:
           - os: windows-latest
             c_compiler: gcc
@@ -113,8 +115,8 @@ jobs:
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
           -DRL_TOOLS_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
-          ${{ if (startsWith(matrix.os, 'macos')) }} -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE=ON
-          ${{ if (startsWith(matrix.os, 'ubuntu')) }} -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
+          ${{ matrix.rl_tools_backend }}
+          
 
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
