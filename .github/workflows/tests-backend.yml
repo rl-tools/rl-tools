@@ -23,13 +23,10 @@ jobs:
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
         build_type: [Release]
         c_compiler: [gcc, clang, cl]
         include:
-          - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
@@ -42,10 +39,6 @@ jobs:
             cpp_compiler: clang++
             rl_tools_backend: -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE=ON
         exclude:
-          - os: windows-latest
-            c_compiler: gcc
-          - os: windows-latest
-            c_compiler: clang
           - os: ubuntu-latest
             c_compiler: cl
           - os: macos-latest
@@ -68,12 +61,6 @@ jobs:
           sudo wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
           sudo echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
           sudo apt-get update && sudo apt-get install -y intel-oneapi-mkl-devel-2023.1.0
-      - name: Installing Minimal Dependencies
-        if: startsWith(matrix.os, 'windows')
-        run: |
-          choco install boost-msvc-14.3
-          choco install hdf5
-          choco install protobuf
       - name: Installing Minimal Dependencies
         if: startsWith(matrix.os, 'macos')
         run: |

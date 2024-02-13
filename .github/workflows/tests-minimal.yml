@@ -62,9 +62,9 @@ jobs:
       - name: Installing Minimal Dependencies
         if: startsWith(matrix.os, 'windows')
         run: |
-          choco install boost -y
-          choco install hdf5 -y
-          choco install protobuf -y
+          choco install boost-msvc-14.3
+          choco install hdf5
+          choco install protoc
       - name: Installing Minimal Dependencies
         if: startsWith(matrix.os, 'macos')
         run: |
