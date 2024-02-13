@@ -1,6 +1,6 @@
 # This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: Tests (minimal)
+name: Tests (Backend)
 
 on:
   push:
@@ -113,8 +113,8 @@ jobs:
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
           -DRL_TOOLS_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
-          ${{ if startsWith(matrix.os, 'macos') }} -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE=ON
-          ${{ if startsWith(matrix.os, 'ubuntu') }} -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
+          ${{ if (startsWith(matrix.os, 'macos')) }} -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE=ON
+          ${{ if (startsWith(matrix.os, 'ubuntu')) }} -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
 
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
