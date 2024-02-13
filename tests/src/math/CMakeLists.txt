@@ -6,6 +6,6 @@ target_link_libraries(
         test_math
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_math)

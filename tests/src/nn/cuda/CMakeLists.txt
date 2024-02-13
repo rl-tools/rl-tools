@@ -23,7 +23,7 @@ target_link_libraries(
         test_nn_cuda_basics
         PRIVATE
         rl_tools::minimal
-        rl_tools_tests
+        rl_tools_test
 )
 RL_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
 RL_TOOLS_TAG_IS_CUDA(test_nn_cuda_basics)

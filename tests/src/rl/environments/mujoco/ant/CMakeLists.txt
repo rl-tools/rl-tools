@@ -7,7 +7,7 @@ target_link_libraries(
         test_rl_environments_mujoco_ant
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant)
 
@@ -19,7 +19,7 @@ target_link_libraries(
         test_rl_environments_mujoco_ant_training_td3_test
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3_test)
 target_compile_definitions(
@@ -38,7 +38,7 @@ target_link_libraries(
         test_rl_environments_mujoco_ant_ui
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
 endif()

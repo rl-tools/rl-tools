@@ -22,9 +22,10 @@ add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)
 include(GoogleTest)
 
 set(RL_TOOLS_TESTS_DATA_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data)
-add_library(rl_tools_tests INTERFACE)
-target_link_libraries(rl_tools_tests INTERFACE GTest::gtest_main)
-target_compile_definitions(rl_tools_tests INTERFACE RL_TOOLS_TESTS_DATA_PATH=${RL_TOOLS_TESTS_DATA_PATH})
+add_library(rl_tools_test INTERFACE)
+target_link_libraries(rl_tools_test INTERFACE GTest::gtest_main)
+target_compile_definitions(rl_tools_test INTERFACE RL_TOOLS_TESTS_DATA_PATH=${RL_TOOLS_TESTS_DATA_PATH})
+add_library(RLtools::Test ALIAS rl_tools_test)
 
 
 if(NOT APPLE)
@@ -65,7 +66,7 @@ add_executable(
 target_link_libraries(
         test_nn_models_sequential
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_nn_models_sequential)
 
@@ -78,7 +79,7 @@ add_executable(
 target_link_libraries(
         test_neural_network_mlp
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_neural_network_mlp)
 
@@ -90,7 +91,7 @@ add_executable(
 target_link_libraries(
         test_neural_network_full_training_mlp
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_neural_network_full_training_mlp)
 
@@ -102,7 +103,7 @@ add_executable(
 target_link_libraries(
         test_neural_network_persistence
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_neural_network_persistence)
 
@@ -114,7 +115,7 @@ add_executable(
 target_link_libraries(
         test_rl_environments_pendulum
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_environments_pendulum)
 
@@ -130,7 +131,7 @@ if(RL_TOOLS_TEST_RL_ENVIRONMENTS_PENDULUM_EVALUATE_VISUALLY)
     target_link_libraries(
             test_rl_environments_pendulum_render
             rl_tools
-            rl_tools_tests
+            rl_tools_test
             Qt5::Widgets
     )
     gtest_discover_tests(test_rl_environments_pendulum_render)
@@ -144,7 +145,7 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_td3_off_policy_runner
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_algorithms_td3_off_policy_runner)
 
@@ -156,7 +157,7 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_td3_first_stage_mlp
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
 
@@ -169,7 +170,7 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_td3_second_stage_mlp
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 if(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_OUTPUT_PLOTS)
     target_link_libraries(
@@ -197,7 +198,7 @@ target_link_libraries(
         test_rl_algorithms_td3_full_training_debug
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 
 if(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_OUTPUT_PLOTS)
@@ -228,7 +229,7 @@ target_link_libraries(
         test_rl_algorithms_td3_full_training
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 target_compile_options(test_rl_algorithms_td3_full_training PRIVATE -Ofast)
 gtest_discover_tests(test_rl_algorithms_td3_full_training)
@@ -241,7 +242,7 @@ add_executable(
 target_link_libraries(
         test_rl_algorithms_td3_full_training_dummy_dep_compilation
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 add_test(
         NAME test_rl_algorithms_td3_full_training_dummy_dep_compilation
@@ -257,7 +258,7 @@ target_compile_definitions(test_rl_algorithms_td3_full_training_dummy_dep_traini
 target_link_libraries(
         test_rl_algorithms_td3_full_training_dummy_dep_training
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 add_test(
         NAME test_rl_algorithms_td3_full_training_dummy_dep_training
@@ -292,7 +293,7 @@ target_link_libraries(
         test_neural_network_conversions
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_neural_network_conversions)
 
@@ -308,7 +309,7 @@ target_link_libraries(
         test_neural_network_benchmark
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
         Eigen3::Eigen
 #        CUDA::cudart
 )
@@ -325,7 +326,7 @@ target_link_libraries(
         test_container
         PRIVATE
         rl_tools_core
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_container)
 
@@ -337,7 +338,7 @@ target_link_libraries(
         test_rl_components_replay_buffer
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_components_replay_buffer)
 
@@ -349,7 +350,7 @@ add_executable(
 target_link_libraries(
         test_container_persist_code_store
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_container_persist_code_store)
 
@@ -373,7 +374,7 @@ add_executable(
 target_link_libraries(
         test_nn_arm
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_nn_arm)
 
@@ -385,7 +386,7 @@ add_executable(
 target_link_libraries(
         test_rl_components_on_policy_runner
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_components_on_policy_runner)
 
@@ -399,7 +400,7 @@ target_link_libraries(
         test_rl_algorithms_ppo
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_algorithms_ppo)
 endif()
@@ -413,7 +414,7 @@ target_link_libraries(
         test_rl_components_running_normalizer
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_rl_components_running_normalizer)
 

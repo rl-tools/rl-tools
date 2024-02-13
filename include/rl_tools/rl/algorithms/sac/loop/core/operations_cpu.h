@@ -17,8 +17,8 @@ namespace rl_tools{
         bool finished = false;
         step(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
         if(ts.step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            std::thread critic_threads[2];
             if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
+                std::thread critic_threads[2];
                 auto train_critic_i = [&](TI critic_i){
                     gather_batch(device, ts.off_policy_runner, ts.critic_batch[critic_i], ts.rng);
                     randn(device, ts.action_noise_critic[critic_i], ts.rng);
@@ -26,8 +26,6 @@ namespace rl_tools{
                 };
                 critic_threads[0] = std::thread([&](){ train_critic_i(0); });
                 critic_threads[1] = std::thread([&](){ train_critic_i(1); });
-            }
-            if(critic_threads[0].joinable()){
                 critic_threads[0].join();
                 critic_threads[1].join();
             }

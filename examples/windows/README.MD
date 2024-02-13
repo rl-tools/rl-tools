@@ -16,14 +16,12 @@ Install the following software:
 
 Using the `Developer Command Prompt for VS XXXX` (which is `CMD.exe` but including the paths to developer tools like CMake)
 ```
-git clone --recursive https://github.com/RLtools/RLtools.git
-```
-```
-cd RLtools
+git clone https://github.com/rl-tools/rl-tools.git rl_tools
+cd rl_tools
 mkdir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . --config Release --target rl_environments_pendulum_td3_training_standalone
+cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS=ON
+cmake --build . --config Release
 src\rl\environments\pendulum\td3\cpu\Release\rl_environments_pendulum_td3_training_standalone.exe
 ```
 

@@ -27,6 +27,7 @@ namespace rl_tools{
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
         init(device, ts.env_eval);
         init(device, ts.env_eval, ts.ui);
+        ts.rng_eval = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
     }
 
     template <typename DEVICE, typename T_CONFIG>

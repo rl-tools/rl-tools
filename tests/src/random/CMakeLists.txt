@@ -8,6 +8,6 @@ target_link_libraries(
         test_random_arm
         PRIVATE
         rl_tools
-        rl_tools_tests
+        rl_tools_test
 )
 gtest_discover_tests(test_random_arm)
