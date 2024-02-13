@@ -64,7 +64,7 @@ jobs:
       - name: Installing MKL
         if: startsWith(matrix.os, 'ubuntu')
         run: |
-          sudo apt-get update && apt-get install -y wget gnupg
+          sudo apt-get update && sudo apt-get install -y wget gnupg
           sudo wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
           sudo echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
           sudo apt-get update && sudo apt-get install -y intel-oneapi-mkl-devel-2023.1.0
