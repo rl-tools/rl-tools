@@ -16,7 +16,6 @@ target_compile_definitions(rl_environments_pendulum_sac_training_standalone PRIV
 target_compile_definitions(rl_environments_pendulum_sac_training_standalone PRIVATE RL_TOOLS_DISABLE_HDF5)
 target_compile_definitions(rl_environments_pendulum_sac_training_standalone PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 RL_TOOLS_INSTALL(rl_environments_pendulum_sac_training_standalone)
-endif()
 
 # RL Algorithm sac test full training blas
 if(RL_TOOLS_BACKEND_ENABLE_BLAS)
@@ -54,4 +53,5 @@ if(RL_TOOLS_BACKEND_ENABLE_BLAS)
         target_compile_options(rl_environments_pendulum_sac_training_benchmark PRIVATE -march=native)
     endif()
     RL_TOOLS_INSTALL(rl_environments_pendulum_sac_training_benchmark)
+endif()
 endif()
