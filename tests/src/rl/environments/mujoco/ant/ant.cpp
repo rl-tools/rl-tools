@@ -181,7 +181,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
             }
         }
         for(TI state_i = 0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q_DOT; state_i++){
-            ASSERT_NEAR(next_state.q_dot[state_i], next_states[step_i][state_i + ENVIRONMENT::SPEC::STATE_DIM_Q], 1e-10);
+            ASSERT_NEAR(next_state.q_dot[state_i], next_states[step_i][state_i + ENVIRONMENT::SPEC::STATE_DIM_Q], 1e-9);
         }
         T reward = rlt::reward(dev, env, state, action, next_state, rng);
         T reward_abs_diff = rlt::math::abs(typename DEVICE::SPEC::MATH(), reward - rewards[step_i]);

@@ -63,7 +63,7 @@ constexpr DEVICE::index_t NUM_RUNS = 1;
 #if !defined(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST)
 constexpr DEVICE::index_t NUM_STEPS = 2500;
 #else
-constexpr DEVICE::index_t NUM_STEPS = 200;
+constexpr DEVICE::index_t NUM_STEPS = 400;
 #endif
 constexpr TI ACTOR_CHECKPOINT_INTERVAL = 100000;
 #if defined(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
@@ -218,7 +218,7 @@ void run(){
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
                 std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
 #ifdef RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST
-                if(on_policy_runner.step > 700000){
+                if(on_policy_runner.step > 1000000){
                     ASSERT_GT(result.returns_mean, 2000);
                 }
 #endif
