@@ -42,3 +42,15 @@ target_link_libraries(
 gtest_discover_tests(test_rl_components_running_normalizer)
 endif()
 
+
+# RL Algorithm off_policy_runner test
+add_executable(
+        test_rl_components_off_policy_runner
+        off_policy_runner.cpp
+)
+target_link_libraries(
+        test_rl_components_off_policy_runner
+        rl_tools
+        rl_tools_test
+)
+gtest_discover_tests(test_rl_components_off_policy_runner)
