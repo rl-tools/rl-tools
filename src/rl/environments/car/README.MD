@@ -1,4 +1,28 @@
 # Simple 2D Car Environment
+
+Build and run the `ui_server` (from the main directory of the repo as the working directory, so that it can find the `static` directory)
+Linux:
+```
+./build/src/ui_server/ui_server 127.0.0.1 8000 car default
+```
+Windows:
+```
+.\build\bin\ui_server.exe 127.0.0.1 8000 car default
+```
+Navigate to the shown address e.g. [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
+
+Build and run the `rl_environments_car_training_interactive` which then connects to the `ui_server`:
+Linux:
+```
+./build/src/rl/environments/car/rl_environments_car_training_interactive
+```
+Windows:
+```
+.\build\bin\rl_environments_car_training_interactive.exe
+```
+
+
+# Old
 GTK3 is required for the UI:
 ```
 sudo apt-get install libgtk-3-dev

@@ -72,6 +72,11 @@ int main(){
     rlt::copy(device_init, device, ts_init, ts);
 //    rlt::copy(device_init, device, ts_init.off_policy_runner, ts.off_policy_runner);
 
+#ifdef _MSC_VER
+    CONFIG::ENVIRONMENT env_eval;
+    RNG_INIT rng_eval;
+    rlt::rl::environments::DummyUI ui;
+#endif
 
     decltype(ts.off_policy_runner)* off_policy_runner_pointer;
     cudaMalloc(&off_policy_runner_pointer, sizeof(decltype(ts.off_policy_runner)));
@@ -112,7 +117,11 @@ int main(){
 #ifndef BENCHMARK
         if(step % 1000 == 0){
             rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
+#ifdef _MSC_VER
+            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.observations_mean, ts_init.observations_std, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+#else
             auto result = rlt::evaluate(device_init, ts_init.env_eval, ts_init.ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.observations_mean, ts_init.observations_std, ts_init.actor_deterministic_evaluation_buffers, ts_init.rng_eval, false);
+#endif
             rlt::log(device_init, device_init.logger, "Step: ", step, " Mean return: ", result.returns_mean);
 //            add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
 //            add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
