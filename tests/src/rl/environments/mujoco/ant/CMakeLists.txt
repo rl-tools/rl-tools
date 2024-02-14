@@ -12,18 +12,18 @@ target_link_libraries(
 gtest_discover_tests(test_rl_environments_mujoco_ant)
 
 add_executable(
-        test_rl_environments_mujoco_ant_training_td3_test
+        test_rl_environments_mujoco_ant_td3_test
         training_td3_test.cpp
 )
 target_link_libraries(
-        test_rl_environments_mujoco_ant_training_td3_test
+        test_rl_environments_mujoco_ant_td3_test
         PRIVATE
         rl_tools
         rl_tools_test
 )
-gtest_discover_tests(test_rl_environments_mujoco_ant_training_td3_test)
+gtest_discover_tests(test_rl_environments_mujoco_ant_td3_test)
 target_compile_definitions(
-        test_rl_environments_mujoco_ant_training_td3_test
+        test_rl_environments_mujoco_ant_td3_test
         PRIVATE
         -DRL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST
 )
@@ -45,11 +45,11 @@ endif()
 
 
 add_executable(
-        test_rl_environments_mujoco_ant_training_ppo_test
+        test_rl_environments_mujoco_ant_ppo_test
         training_ppo_test.cpp
 )
 target_link_libraries(
-        test_rl_environments_mujoco_ant_training_ppo_test
+        test_rl_environments_mujoco_ant_ppo_test
         PRIVATE
         rl_tools
         GTest::gtest_main
@@ -57,7 +57,7 @@ target_link_libraries(
         tensorboard_logger
         mujoco
 )
-gtest_discover_tests(test_rl_environments_mujoco_ant_training_ppo_test)
+gtest_discover_tests(test_rl_environments_mujoco_ant_ppo_test)
 
 
 add_executable(

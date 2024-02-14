@@ -17,7 +17,7 @@ After that you can start e.g. CLion:
 ```
 
 ## CUDA
-If you have CUDA installed and the `CUDA_PATH` environment variable is set you should be able to compile the CUDA targets using `RL_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON` in the CMake configuration step.
+If you have CUDA installed and the `CUDA_PATH` environment variable is set you should be able to compile the CUDA targets using `RL_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON` in the CMake configuration step. Tested with CUDA `12.3` and `11.8`.
 
 ## Ameneities (HDF5 checkpointing, Tensorboard logging)
 On linux we can use existing package managers to install the required libraries. On Windows we use `conan`. The dependencies are configured in the `conanfile.txt`.

@@ -22,68 +22,68 @@ message("CUDA Host Compiler: ${CMAKE_CUDA_HOST_COMPILER}")
 
 if(RL_TOOLS_ENABLE_CLI11)
 add_executable(
-        rl_environments_mujoco_ant_training_ppo_cuda_standalone
+        rl_environments_mujoco_ant_ppo_cuda_standalone
         training_ppo.cu
 )
 target_link_libraries(
-        rl_environments_mujoco_ant_training_ppo_cuda_standalone
+        rl_environments_mujoco_ant_ppo_cuda_standalone
         PRIVATE
         RLtools::Minimal
         RLtools::OptimizationsCUDA
         mujoco::mujoco
         CLI11::CLI11
 )
-RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_standalone)
-target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
-target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE RL_TOOLS_DISABLE_HDF5)
-target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE RL_TOOLS_DISABLE_CLI11)
-target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_standalone PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
-RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_cuda_standalone)
+RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_ppo_cuda_standalone)
+target_compile_definitions(rl_environments_mujoco_ant_ppo_cuda_standalone PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
+target_compile_definitions(rl_environments_mujoco_ant_ppo_cuda_standalone PRIVATE RL_TOOLS_DISABLE_HDF5)
+target_compile_definitions(rl_environments_mujoco_ant_ppo_cuda_standalone PRIVATE RL_TOOLS_DISABLE_CLI11)
+target_compile_definitions(rl_environments_mujoco_ant_ppo_cuda_standalone PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+RL_TOOLS_INSTALL(rl_environments_mujoco_ant_ppo_cuda_standalone)
 endif()
 
 if(RL_TOOLS_BACKEND_ENABLE_BLAS AND RL_TOOLS_ENABLE_CLI11)
 add_executable(
-        rl_environments_mujoco_ant_training_ppo_cuda_benchmark
+        rl_environments_mujoco_ant_ppo_cuda_benchmark
         training_ppo.cu
 )
 target_link_libraries(
-        rl_environments_mujoco_ant_training_ppo_cuda_benchmark
+        rl_environments_mujoco_ant_ppo_cuda_benchmark
         PRIVATE
         RLtools::Minimal
         RLtools::OptimizationsCUDA
         mujoco::mujoco
         CLI11::CLI11
 )
-RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
+RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_ppo_cuda_benchmark)
 
 if(NOT WIN32)
 # for some reason this does not work on windows and crashes with an access violation in MKL (strangely enough this works when linking tensorboard_logger)
-#        RL_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
+#        RL_TOOLS_TARGET_LINK_DEPENDENCIES(rl_environments_mujoco_ant_ppo_cuda_benchmark)
 else()
-        target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_benchmark PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
+        target_compile_definitions(rl_environments_mujoco_ant_ppo_cuda_benchmark PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS)
 endif()
-target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_benchmark PRIVATE RL_TOOLS_DISABLE_HDF5)
-target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_benchmark PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
-target_compile_definitions(rl_environments_mujoco_ant_training_ppo_cuda_benchmark PRIVATE RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
-RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_cuda_benchmark)
+target_compile_definitions(rl_environments_mujoco_ant_ppo_cuda_benchmark PRIVATE RL_TOOLS_DISABLE_HDF5)
+target_compile_definitions(rl_environments_mujoco_ant_ppo_cuda_benchmark PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+target_compile_definitions(rl_environments_mujoco_ant_ppo_cuda_benchmark PRIVATE RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
+RL_TOOLS_INSTALL(rl_environments_mujoco_ant_ppo_cuda_benchmark)
 endif()
 
 
 if(RL_TOOLS_BACKEND_ENABLE_BLAS AND RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_ENABLE_TENSORBOARD AND RL_TOOLS_ENABLE_CLI11)
 add_executable(
-        rl_environments_mujoco_ant_training_ppo_cuda_full
+        rl_environments_mujoco_ant_ppo_cuda_full
         training_ppo.cu
 )
 target_link_libraries(
-        rl_environments_mujoco_ant_training_ppo_cuda_full
+        rl_environments_mujoco_ant_ppo_cuda_full
         PRIVATE
         RLtools::Minimal
         RLtools::OptimizationsCUDA
         mujoco::mujoco
         CLI11::CLI11
 )
-RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_training_ppo_cuda_full)
-RL_TOOLS_INSTALL(rl_environments_mujoco_ant_training_ppo_cuda_full)
+RL_TOOLS_TAG_IS_CUDA(rl_environments_mujoco_ant_ppo_cuda_full)
+RL_TOOLS_INSTALL(rl_environments_mujoco_ant_ppo_cuda_full)
 endif()
 
 # add_executable(
