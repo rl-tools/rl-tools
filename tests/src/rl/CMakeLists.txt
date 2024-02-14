@@ -211,3 +211,8 @@ target_link_libraries(
         rl_tools_test
 )
 gtest_discover_tests(test_rl_components_running_normalizer)
+
+add_subdirectory(environments)
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+    add_subdirectory(cuda)
+endif()

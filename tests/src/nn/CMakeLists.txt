@@ -87,3 +87,10 @@ target_link_libraries(
         rl_tools_test
 )
 gtest_discover_tests(test_nn_arm)
+
+add_subdirectory(layers)
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+#    add_subdirectory(cuda)
+endif()
+
+

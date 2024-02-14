@@ -10,6 +10,8 @@
 /conan_build
 /build_car
 /install
+/test_results
+/conan_provider.cmake
 
 
 /.idea

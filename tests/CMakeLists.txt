@@ -38,9 +38,6 @@ endif()
 
 
 
-if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
-add_subdirectory(src/rl/environments/mujoco/ant)
-endif()
 
 
 if(RL_TOOLS_TESTS_ENABLE_EIGEN)

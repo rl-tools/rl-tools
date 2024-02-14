@@ -22,14 +22,14 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 constexpr bool const_declaration = false;
 
 
-template <typename DTYPE, auto INPUT_DIM, auto OUTPUT_DIM, auto N_HIDDEN_LAYERS, auto HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION, rlt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, auto BATCH_SIZE>
+template <typename DTYPE, auto INPUT_DIM, auto OUTPUT_DIM, auto N_LAYERS, auto HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION, rlt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, auto BATCH_SIZE>
 void test_mlp_evaluate() {
     using DEVICE = rlt::devices::DefaultCPU;
     using DEVICE_ARM = rlt::devices::DefaultARM;
     DEVICE device;
     DEVICE_ARM device_arm;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_HIDDEN_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
     using SPEC = rlt::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>;
     rlt::nn_models::mlp::NeuralNetwork<SPEC> mlp;
     rlt::malloc(device, mlp);
@@ -52,8 +52,10 @@ void test_mlp_evaluate() {
     test_mlp_evaluate<double, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_evaluate<double, 1, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_evaluate<double, 13, 1, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
+#ifndef _MSC_VER // msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
     test_mlp_evaluate<double, 1, 1, 2, 1, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_evaluate<double, 13, 4, 2, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
+#endif
     test_mlp_evaluate<double, 13, 4, 3, 1, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_evaluate<double, 13, 4, 30, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_evaluate<double, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
@@ -61,14 +63,14 @@ void test_mlp_evaluate() {
     test_mlp_evaluate<double, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::RELU, 1>();
 }
 
-template <typename DTYPE, auto INPUT_DIM, auto OUTPUT_DIM, auto N_HIDDEN_LAYERS, auto HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION, rlt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, auto BATCH_SIZE>
+template <typename DTYPE, auto INPUT_DIM, auto OUTPUT_DIM, auto N_LAYERS, auto HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction HIDDEN_ACTIVATION_FUNCTION, rlt::nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION, auto BATCH_SIZE>
 void test_mlp_forward() {
     using DEVICE = rlt::devices::DefaultCPU;
     using DEVICE_ARM = rlt::devices::DefaultARM;
     DEVICE device;
     DEVICE_ARM device_arm;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_HIDDEN_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1,  rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1,  rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
     using SPEC = rlt::nn_models::mlp::BackwardGradientSpecification<STRUCTURE_SPEC>;
     using TYPE = rlt::nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>;
     using FORWARD_BACKWARD_BUFFERS = typename TYPE::template Buffer<BATCH_SIZE>;
@@ -99,8 +101,10 @@ TEST(RL_TOOLS_NN_ARM, TEST_MLP_FORWARD){
     test_mlp_forward<double, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_forward<double, 1, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_forward<double, 13, 1, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
+#ifndef _MSC_VER // msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
     test_mlp_forward<double, 1, 1, 2, 1, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_forward<double, 13, 4, 2, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
+#endif
     test_mlp_forward<double, 13, 4, 3, 1, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_forward<double, 13, 4, 30, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();
     test_mlp_forward<double, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1>();

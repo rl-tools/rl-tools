@@ -22,8 +22,8 @@ add_executable(
 target_link_libraries(
         test_nn_cuda_basics
         PRIVATE
-        rl_tools::minimal
-        rl_tools_test
+        RLtools::Minimal
+        RLtools::Test
 )
 RL_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
 RL_TOOLS_TAG_IS_CUDA(test_nn_cuda_basics)

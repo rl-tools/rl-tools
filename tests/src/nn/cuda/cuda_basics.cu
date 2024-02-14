@@ -513,8 +513,8 @@ void FORWARD() {
     constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::IDENTITY;
     using StructureSpecification = rlt::nn_models::mlp::StructureSpecification<T, TI, HIDDEN_DIM, HIDDEN_DIM, 3, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::RELU, BATCH_SIZE>;
 
-    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DefaultParametersTorch<T, typename DEVICE_CUDA::index_t>;
-    using OPTIMIZER = rlt::nn::optimizers::Adam<copy::OPTIMIZER_PARAMETERS>;
+    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, typename DEVICE_CUDA::index_t>;
+    using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     using NNSpecification = rlt::nn_models::mlp::AdamSpecification<StructureSpecification>;
 
     std::cout << "FORWARD<" << (rlt::utils::typing::is_same_v<T, float> ? "float" : "double") << ", " << BATCH_SIZE << ">" << std::endl;
