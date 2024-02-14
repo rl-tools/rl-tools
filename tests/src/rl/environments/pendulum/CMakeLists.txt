@@ -2,7 +2,7 @@ if(RL_TOOLS_ENABLE_HDF5)
     # RL Environment Pendulum test
     add_executable(
             test_rl_environments_pendulum
-            environments/pendulum/pendulum.cpp
+            pendulum.cpp
     )
     target_link_libraries(
             test_rl_environments_pendulum
@@ -18,7 +18,7 @@ if(RL_TOOLS_ENABLE_HDF5)
         find_package(Qt5 COMPONENTS Widgets REQUIRED)
         add_executable(
                 test_rl_environments_pendulum_render
-                environments/pendulum/pendulum_render.cpp
+                pendulum_render.cpp
         )
         target_link_libraries(
                 test_rl_environments_pendulum_render
