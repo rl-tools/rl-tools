@@ -229,13 +229,14 @@ int main(int argc, char** argv){
         auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
         auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
 
+        rlt::init(device);
         rlt::init(device, on_policy_runner, envs, rng);
         rlt::init(device, observation_normalizer);
         rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         // -------------- added for cuda training ----------------
         rlt::copy(device, device_gpu, ppo, ppo_gpu);
         // -------------------------------------------------------
-        rlt::construct(device, device.logger, logs_dir, run_name);
+        rlt::init(device, device.logger);
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {

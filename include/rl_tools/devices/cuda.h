@@ -67,7 +67,11 @@ namespace rl_tools::devices{
         };
         template <typename DEVICE, bool KERNEL = false>
         using _TAG = CUDA<TAG_SPEC<typename DEVICE::SPEC, KERNEL>>;
+#ifdef _MSC_VER
+        template <typename DEVICE, bool KERNEL = false>
+#else
         template <typename DEVICE, bool KERNEL = false, typename utils::typing::enable_if<sizeof(_TAG<DEVICE, KERNEL>) == 3>::type* = nullptr> // size three because C++ requires a size of at least one byte per struct (for distinct addresses) and since it has two empty member structs (random and math device structs)
+#endif
         using TAG = _TAG<DEVICE, KERNEL>;
 
     }
