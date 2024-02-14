@@ -1,3 +1,4 @@
+if(RL_TOOLS_ENABLE_HDF5)
 # RL Algorithm td3 test first stage mlp
 add_executable(
         test_rl_algorithms_td3_first_stage_mlp
@@ -9,8 +10,10 @@ target_link_libraries(
         rl_tools_test
 )
 gtest_discover_tests(test_rl_algorithms_td3_first_stage_mlp)
+endif()
 
 
+if(RL_TOOLS_ENABLE_HDF5)
 # RL Algorithm td3 test second stage MLP
 add_executable(
         test_rl_algorithms_td3_second_stage_mlp
@@ -37,6 +40,7 @@ if(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
     target_compile_definitions(test_rl_algorithms_td3_second_stage_mlp PRIVATE RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY)
 endif()
 gtest_discover_tests(test_rl_algorithms_td3_second_stage_mlp)
+endif()
 
 # RL Algorithm td3 test full training
 add_executable(

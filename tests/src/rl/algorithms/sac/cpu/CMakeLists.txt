@@ -1,6 +1,6 @@
 find_package(Threads)
 
-if(Threads_FOUND)
+if(Threads_FOUND AND RL_TOOLS_ENABLE_HDF5)
     add_executable(
             test_rl_algorithms_sac_pendulum_full_training_core
             test.cpp
