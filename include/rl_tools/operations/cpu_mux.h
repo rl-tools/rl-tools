@@ -6,11 +6,11 @@
 #include "../rl_tools.h"
 // ------------ Groups 1 ------------
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
-#pragma message "RLtools: Enabling Tensorboard"
+#pragma message("RLtools: Enabling Tensorboard")
 #include "../operations/cpu_tensorboard/group_1.h"
 #endif
 #if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#pragma message "RLtools: Using MKL backend"
+#pragma message("RLtools: Using MKL backend")
 #include "../operations/cpu_mkl/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
@@ -20,7 +20,7 @@ namespace rl_tools::devices{
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
 #if defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#pragma message "RLtools: Using Apple Accelerate backend"
+#pragma message("RLtools: Using Apple Accelerate backend")
 #include "../operations/cpu_accelerate/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
@@ -30,7 +30,7 @@ namespace rl_tools::devices{
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
 #if defined(RL_TOOLS_BACKEND_ENABLE_OPENBLAS) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#pragma message "RLtools: Uing OpenBLAS backend"
+#pragma message("RLtools: Uing OpenBLAS backend")
 #include "../operations/cpu_openblas/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
@@ -39,7 +39,7 @@ namespace rl_tools::devices{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #else
-#pragma message "RLtools: Using Generic Backend"
+#pragma message("RLtools: Using Generic Backend")
 #include "../operations/cpu/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
@@ -51,7 +51,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 #endif
 #if defined(RL_TOOLS_BACKEND_ENABLE_CUDA) && defined(RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA)
-#pragma message "RLtools: Enabling CUDA"
+#pragma message("RLtools: Enabling CUDA")
 #include "../operations/cuda/group_1.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
