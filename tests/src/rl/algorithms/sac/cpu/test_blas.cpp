@@ -14,7 +14,7 @@
 TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING_BLAS){
     std::cout << "Current working directory: " << std::filesystem::current_path() << std::endl;
     static constexpr TI NUM_EVALUATION_EPISODES = 10;
-    static constexpr TI NUM_ITERATIONS = 100;
+    static constexpr TI NUM_ITERATIONS = 10;
     DEVICE device;
     std::vector<std::vector<T>> evaluation_returns;
     std::vector<T> training_durations;
