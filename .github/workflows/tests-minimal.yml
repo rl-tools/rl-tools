@@ -55,7 +55,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: turtlebrowser/get-conan@main
+      - uses: turtlebrowser/get-conan@v1.2
         with:
           version: 2.0.17
 
