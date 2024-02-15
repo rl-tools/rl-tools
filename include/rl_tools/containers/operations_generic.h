@@ -28,7 +28,7 @@ namespace rl_tools{
 //        matrix._data = (typename SPEC::T*)&matrix._data_memory[0];
 #ifdef RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
         for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
-            if constexpr(std::is_convertible<typename SPEC::T, float>::value){
+            if constexpr(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>){
                 matrix._data[i] = math::nan<typename SPEC::T>(device.math);
             }
         }
