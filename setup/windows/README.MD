@@ -3,7 +3,7 @@
 
 Like described in [https://github.com/rl-tools/example](https://github.com/rl-tools/example) `RLtools` should work out of the box. For hardware acceleration and other conveniences additional setup is required:
 
-The following is tested with the Visual Studio 2022 C++ compiler
+The following is tested with the Visual Studio 2022 C++ compiler on Windows 11
 
 ## Hardware Acceleration (MKL)
 Install Intel MKL/oneMKL (tested with `2024.0`). You should find a `setvars.bat` to activate the MKL environment. This has to be done in the Command Prompt (not in PowerShell!)

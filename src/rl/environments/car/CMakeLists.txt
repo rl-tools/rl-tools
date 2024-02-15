@@ -17,15 +17,16 @@ endif()
 endif()
 
 if(RL_TOOLS_ENABLE_BOOST_BEAST AND RL_TOOLS_ENABLE_JSON)
-add_executable(rl_environments_car_training_interactive car_interactive.cpp)
-target_link_libraries(rl_environments_car_training_interactive
+add_executable(rl_environments_car_interactive car_interactive.cpp)
+target_link_libraries(rl_environments_car_interactive
         PRIVATE
         rl_tools
         Boost::boost
         nlohmann_json::nlohmann_json
         tensorboard_logger
 )
-    target_compile_definitions(rl_environments_car_training_interactive PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+target_compile_definitions(rl_environments_car_interactive PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
+RL_TOOLS_INSTALL(rl_environments_car_interactive)
 endif()
 
 if(RL_TOOLS_ENABLE_GTK AND RL_TOOLS_ENABLE_SDL2)
