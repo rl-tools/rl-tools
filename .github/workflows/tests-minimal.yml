@@ -65,11 +65,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libhdf5-dev libboost-all-dev protobuf-compiler libprotobuf-dev cmake
       - name: Installing Minimal Dependencies
-        if: startsWith(matrix.os, 'windows')
-        run: |
-          
-          choco install protoc
-      - name: Installing Minimal Dependencies
         if: startsWith(matrix.os, 'macos')
         run: |
           brew install cmake boost hdf5 protobuf
@@ -83,7 +78,6 @@ jobs:
       - name: Checkout Test Submodules
         run: |
           git submodule update --init -- tests/lib/googletest
-          git submodule update --init -- tests/data
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
@@ -91,6 +85,9 @@ jobs:
         shell: bash
         run: |
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+      - name: Initialize Conan (Windows)
+        if: startsWith(matrix.os, 'windows')
+        run: conan profile detect --force
       - name: Initialize Conan (Windows)
         if: startsWith(matrix.os, 'windows')
         run: conan install ${{ github.workspace }} --output-folder=build_conan --build=missing --settings=build_type=Release
@@ -130,6 +127,10 @@ jobs:
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+      - name: Checkout Test Data Submodule
+        run: |
+          git submodule update --init -- tests/data
 
       - name: Test
         working-directory: ${{ steps.strings.outputs.build-output-dir }}

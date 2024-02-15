@@ -76,7 +76,6 @@ jobs:
       - name: Checkout Test Submodules
         run: |
           git submodule update --init -- tests/lib/googletest
-          git submodule update --init -- tests/data
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
@@ -108,6 +107,10 @@ jobs:
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+
+      - name: Checkout Test Data Submodule
+        run: |
+          git submodule update --init -- tests/data
 
       - name: Test
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
