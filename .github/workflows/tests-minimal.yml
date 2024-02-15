@@ -90,7 +90,7 @@ jobs:
         run: conan profile detect --force
       - name: Initialize Conan (Windows)
         if: startsWith(matrix.os, 'windows')
-        run: conan install ${{ github.workspace }} --output-folder=build_conan --build=missing --settings=build_type=Release
+        run: conan install ${{ github.workspace }} --output-folder=${{ steps.strings.outputs.build-output-dir }} --build=missing --settings=build_type=Release
       - name: Configure CMake (Linux, macOS)
         # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
         # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
