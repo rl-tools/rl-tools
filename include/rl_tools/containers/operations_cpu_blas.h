@@ -24,10 +24,10 @@ namespace rl_tools{
         constexpr auto n = OUTPUT_SPEC::COLS;
 
         if constexpr(utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)A._data, row_pitch(A), (T*)B._data, row_pitch(B), beta, (T*)output._data, row_pitch(output));
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, A._data, row_pitch(A), B._data, row_pitch(B), beta, output._data, row_pitch(output));
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, (T*)A._data, row_pitch(A), (T*)B._data, row_pitch(B), beta, (T*)output._data, row_pitch(output));
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, n, k, alpha, A._data, row_pitch(A), B._data, row_pitch(B), beta, output._data, row_pitch(output));
         }
     }
 }
