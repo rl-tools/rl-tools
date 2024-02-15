@@ -303,6 +303,11 @@ if(RL_TOOLS_TEST_MACHINE_MACBOOK_M1)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_TEST_MACHINE_MACBOOK_M1)
 endif()
 
+
+if(RL_TOOLS_CONTAINER_INIT_NAN)
+    target_compile_definitions(rl_tools_core_definitions INTERFACE -DRL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN)
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(rl_tools_core_definitions INTERFACE -DRL_TOOLS_DEBUG)
     target_compile_definitions(rl_tools_core_definitions INTERFACE -DRL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT)

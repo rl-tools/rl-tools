@@ -10,7 +10,7 @@ TEST(RL_TOOLS_TEST_CONTAINER, SLICE){
     using DEVICE = rlt::devices::DefaultCPU;
     using DTYPE = float;
     DEVICE device;
-    rlt::MatrixDynamic<rlt::matrix::Specification<float, typename DEVICE::index_t, 3, 3>> m;
+    rlt::MatrixDynamic<rlt::matrix::Specification<float, typename DEVICE::index_t, 3, 3>> m{};
     rlt::malloc(device, m);
     rlt::set(m, 0, 0, 1);
     rlt::set(m, 0, 1, 2);
@@ -29,8 +29,8 @@ TEST(RL_TOOLS_TEST_CONTAINER, SLICE){
     ASSERT_FLOAT_EQ(rlt::get(m2, 1, 0), 5);
     ASSERT_FLOAT_EQ(rlt::get(m2, 1, 1), 6);
 
-    std::cout << "transpose: " << std::endl;
     auto m3 = rlt::view_transpose(device, m);
+    std::cout << "m3 = transpose(m): " << std::endl;
     rlt::print(device, m3);
     rlt::free(device, m);
 
@@ -43,6 +43,7 @@ TEST(RL_TOOLS_TEST_CONTAINER, SLICE){
         }
     }
     auto m5 = rlt::view<DEVICE, decltype(m4)::SPEC, 5, 5>(device, m4, 3, 4);
+    std::cout << "m5 = (5x5 slice of m4): " << std::endl;
     rlt::print(device, m5);
     for(typename DEVICE::index_t row_i = 0; row_i < decltype(m5)::ROWS; row_i++){
         for(typename DEVICE::index_t col_i = 0; col_i < decltype(m5)::COLS; col_i++){
@@ -169,11 +170,13 @@ void test_is_finite(){
     ASSERT_TRUE(is_finite);
 
     set(m, ROWS/2, COLS/2, std::numeric_limits<T>::infinity());
+    std::cout << "setting infinity: " << std::endl;
     rlt::print(device, m);
     is_finite = rlt::is_finite(device, m);
     ASSERT_TRUE(!is_finite);
 
     set(m, ROWS/2, COLS/2, std::numeric_limits<T>::quiet_NaN());
+    std::cout << "setting quiet nan: " << std::endl;
     rlt::print(device, m);
     is_finite = rlt::is_finite(device, m);
     ASSERT_TRUE(!is_finite);
@@ -381,6 +384,56 @@ TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL) {
     auto diff = rlt::abs_diff(device, C_target, C);
     std::cout << "Matrix mul diff: " << diff << std::endl;
     ASSERT_TRUE(diff < 1e-6);
+}
+
+template <typename T, typename TI, TI M, TI K, TI N>
+void test_matrix_multiplication_mkl_generic(){
+    using DEVICE_MKL = rlt::devices::DefaultCPU_MKL;
+    using DEVICE_GENERIC = rlt::devices::DefaultCPU;
+    DEVICE_MKL device_mkl;
+    DEVICE_GENERIC device;
+    auto rng = rlt::random::default_engine(DEVICE_GENERIC::SPEC::RANDOM());
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, M, K>> A;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, K, N>> B;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, M, N>> C, C_target;
+    rlt::malloc(device, A);
+    rlt::malloc(device, B);
+    rlt::malloc(device, C);
+    rlt::malloc(device, C_target);
+    rlt::randn(device, A, rng);
+    rlt::randn(device, B, rng);
+
+    rlt::multiply(device, A, B, C_target);
+    rlt::multiply(device_mkl, A, B, C);
+    std::cout << "A (" << M << "x" << K << "), B (" << K << "x" << N << "), C (" << M << "x" << N << "):" << std::endl;
+    std::cout << "target:" << std::endl;
+    rlt::print(device, C_target);
+    std::cout << "real:" << std::endl;
+    rlt::print(device, C);
+    T diff = rlt::abs_diff(device, C_target, C);
+    T diff_per_element = diff / (M * N);
+    std::cout << "Matrix mul diff: " << diff << " per element: " << diff_per_element << std::endl;
+    if(rlt::utils::typing::is_same_v<T, float>){
+        ASSERT_TRUE(diff_per_element < 1e-5);
+    }else{
+        ASSERT_TRUE(diff_per_element < 1e-10);
+    }
+}
+TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL_GENERIC) {
+    test_matrix_multiplication_mkl_generic<float, int, 1, 1, 1>();
+    test_matrix_multiplication_mkl_generic<float, int, 5, 2, 2>();
+    test_matrix_multiplication_mkl_generic<float, int, 5, 10, 10>();
+    test_matrix_multiplication_mkl_generic<float, int, 45, 10, 1000>();
+    test_matrix_multiplication_mkl_generic<float, int, 35, 1, 1>();
+    test_matrix_multiplication_mkl_generic<float, int, 52, 1, 10>();
+    test_matrix_multiplication_mkl_generic<float, int, 35, 10, 1>();
+    test_matrix_multiplication_mkl_generic<double, int, 1, 1, 1>();
+    test_matrix_multiplication_mkl_generic<double, int, 5, 2, 2>();
+    test_matrix_multiplication_mkl_generic<double, int, 15, 10, 10>();
+    test_matrix_multiplication_mkl_generic<double, int, 5, 10, 1000>();
+    test_matrix_multiplication_mkl_generic<double, int, 115, 1, 1>();
+    test_matrix_multiplication_mkl_generic<double, int, 5, 1, 10>();
+    test_matrix_multiplication_mkl_generic<double, int, 55, 10, 1>();
 }
 #endif
 

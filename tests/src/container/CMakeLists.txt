@@ -6,8 +6,8 @@ add_executable(
 target_link_libraries(
         test_container
         PRIVATE
-        rl_tools_core
-        rl_tools_test
+        RLtools::Backend
+        RLtools::Test
 )
 gtest_discover_tests(test_container)
 

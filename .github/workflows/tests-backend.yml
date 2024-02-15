@@ -106,6 +106,7 @@ jobs:
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
           -DRL_TOOLS_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
           -DRL_TOOLS_TESTS_DEBUG:BOOL=ON
+          -DRL_TOOLS_CONTAINER_INIT_NAN:BOOL=ON
           ${{ matrix.rl_tools_backend }}
           
 

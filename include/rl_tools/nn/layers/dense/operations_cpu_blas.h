@@ -31,10 +31,10 @@ namespace rl_tools{
         set_broadcast(device, layer.biases.parameters, output);
 
         if constexpr(utils::typing::is_same_v<T, float>){
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)output._data, row_pitch(output));
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, input._data, row_pitch(input), layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, output._data, row_pitch(output));
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, (T*)input._data, row_pitch(input), (T*)layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, (T*)output._data, row_pitch(output));
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, m, n, k, alpha, input._data, row_pitch(input), layer.weights.parameters._data, row_pitch(layer.weights.parameters), beta, output._data, row_pitch(output));
         }
         for(TI i = 0; i < BATCH_SIZE; i++){
             for(TI j = 0; j < LAYER_SPEC::OUTPUT_DIM; j++){

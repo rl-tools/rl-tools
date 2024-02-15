@@ -64,7 +64,7 @@ jobs:
       - name: Checkout Test Submodules
         run: |
           git submodule update --init -- tests/lib/googletest
-          
+
       - name: Checkout Test Data Submodule
         run: |
           git submodule update --init -- tests/data
@@ -79,6 +79,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -S ${{ github.workspace }}
           -DRL_TOOLS_ENABLE_TESTS=ON
+          -DRL_TOOLS_CONTAINER_INIT_NAN:BOOL=ON
 
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
