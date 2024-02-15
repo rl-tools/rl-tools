@@ -665,7 +665,6 @@ namespace rl_tools{
         using T = typename SPEC_INPUT::T;
         using TI = typename DEVICE::index_t;
         MatrixStatic<matrix::Specification<TI, TI, 1, 1>> output;
-        malloc(device, output);
         argmax_row_wise(device, input, output);
         auto result = get(output, 0, 0);
         free(device, output);
@@ -705,7 +704,6 @@ namespace rl_tools{
         using T = typename SPEC_INPUT::T;
         using TI = typename DEVICE::index_t;
         MatrixStatic<matrix::Specification<TI, TI, 1, 1>> output;
-        malloc(device, output);
         argmax_col_wise(device, input, output);
         auto result = get(output, 0, 0);
         free(device, output);
