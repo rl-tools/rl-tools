@@ -91,10 +91,13 @@ jobs:
         shell: bash
         run: |
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
-
-      - name: Configure CMake
+      - name: Initialize Conan (Windows)
+        if: startsWith(matrix.os, 'windows')
+        run: conan install ${{ github.workspace }} --output-folder=build_conan --build=missing --settings=build_type=Release
+      - name: Configure CMake (Linux, macOS)
         # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
         # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+        if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'macos')
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
@@ -106,7 +109,23 @@ jobs:
           -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
           -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
+
+      - name: Configure CMake (Windows)
+        # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+        # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+        if: startsWith(matrix.os, 'windows')
+        run: >
+          cmake -B ${{ steps.strings.outputs.build-output-dir }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
+          -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -S ${{ github.workspace }}
+          -DRL_TOOLS_ENABLE_TESTS=ON
+          -DRL_TOOLS_ENABLE_TESTS:BOOL=ON
+          -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
+          -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
           -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
+          -DCMAKE_TOOLCHAIN_FILE=${{ steps.strings.outputs.build-output-dir }}/conan_toolchain.cmake
 
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
