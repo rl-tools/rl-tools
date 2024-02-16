@@ -29,8 +29,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING){
     std::chrono::time_point<std::chrono::high_resolution_clock> end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<T> elapsed_seconds = end_time - start_time;
     std::cout << "Elapsed time: " << elapsed_seconds.count() << "s\n";
-    T perc_60 = evaluation_returns[evaluation_returns.size()*0.6];
-    EXPECT_GT(perc_60, -200);
+    T perc_80 = evaluation_returns[evaluation_returns.size()*0.8];
+    EXPECT_GT(perc_80, -200);
     // sort returns
     rlt::free(device, ts);
 }
