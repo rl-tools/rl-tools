@@ -70,8 +70,7 @@ using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specifica
         1,
         false,
         REPLAY_BUFFER_CAP,
-        EPISODE_STEP_LIMIT,
-        rlt::rl::components::off_policy_runner::DefaultParameters<DTYPE>
+        EPISODE_STEP_LIMIT
 >;
 rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 ActorCriticType actor_critic;

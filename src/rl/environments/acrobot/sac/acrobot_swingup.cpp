@@ -111,7 +111,6 @@ namespace training_config {
                 false,
                 REPLAY_BUFFER_CAP,
                 EPISODE_STEP_LIMIT,
-                rlt::rl::components::off_policy_runner::DefaultParameters<T>,
                 false,
                 COLLECT_EPISODE_STATS,
                 EPISODE_STATS_BUFFER_SIZE

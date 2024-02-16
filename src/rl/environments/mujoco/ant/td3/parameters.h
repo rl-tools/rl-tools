@@ -28,10 +28,6 @@ namespace parameters_0{
             static constexpr bool IGNORE_TERMINATION = false;
         };
 
-        struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::DefaultParameters<T>{
-            static constexpr T EXPLORATION_NOISE = 0.1;
-        };
-
         using ACTOR_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
         using CRITIC_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 256, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
 
@@ -56,7 +52,7 @@ namespace parameters_0{
         static constexpr TI N_ENVIRONMENTS = 1;
         static constexpr TI REPLAY_BUFFER_CAP = 1000000;
         static constexpr TI EPISODE_STEP_LIMIT = 1000;
-        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, false, REPLAY_BUFFER_CAP, EPISODE_STEP_LIMIT, OFF_POLICY_RUNNER_PARAMETERS, false, true, 1000>;
+        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, false, REPLAY_BUFFER_CAP, EPISODE_STEP_LIMIT, false, true, 1000>;
 
         static constexpr TI N_WARMUP_STEPS_CRITIC = 10000;
         static constexpr TI N_WARMUP_STEPS_ACTOR = 10000;

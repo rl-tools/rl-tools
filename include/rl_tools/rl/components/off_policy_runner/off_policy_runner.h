@@ -21,14 +21,14 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr TI NUM_THREADS = T_NUM_THREADS;
     };
     template<typename T>
-    struct DefaultParameters{
+    struct Parameters{
         T exploration_noise;
     };
     template<typename T>
-    DefaultParameters<T> default_parameters{
+    Parameters<T> default_parameters{
         0.1 // exploration_noise
     };
-    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_REPLAY_BUFFER_CAPACITY, T_TI T_STEP_LIMIT, typename T_PARAMETERS, bool T_STOCHASTIC_POLICY = false, bool T_COLLECT_EPISODE_STATS = false, T_TI T_EPISODE_STATS_BUFFER_SIZE = 0, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_REPLAY_BUFFER_CAPACITY, T_TI T_STEP_LIMIT, bool T_STOCHASTIC_POLICY = false, bool T_COLLECT_EPISODE_STATS = false, T_TI T_EPISODE_STATS_BUFFER_SIZE = 0, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
@@ -36,7 +36,6 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
         static constexpr TI REPLAY_BUFFER_CAPACITY = T_REPLAY_BUFFER_CAPACITY;
         static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
-        using PARAMETERS = T_PARAMETERS;
         static constexpr bool STOCHASTIC_POLICY = T_STOCHASTIC_POLICY;
         static constexpr bool COLLECT_EPISODE_STATS = T_COLLECT_EPISODE_STATS;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = T_EPISODE_STATS_BUFFER_SIZE;
@@ -120,7 +119,6 @@ namespace rl_tools::rl::components{
     template<typename T_SPEC>
     struct OffPolicyRunner {
         using SPEC = T_SPEC;
-        using PARAMETERS = typename SPEC::PARAMETERS;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
@@ -130,7 +128,7 @@ namespace rl_tools::rl::components{
         static constexpr TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
-        PARAMETERS parameters;
+        off_policy_runner::Parameters<T> parameters;
         template<typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Batch = off_policy_runner::Batch<typename off_policy_runner::BatchSpecification<SPEC, T_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
 

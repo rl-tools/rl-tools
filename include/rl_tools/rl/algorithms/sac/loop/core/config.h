@@ -125,7 +125,6 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
                 false,
                 CORE_PARAMETERS::REPLAY_BUFFER_CAP,
                 CORE_PARAMETERS::EPISODE_STEP_LIMIT,
-                rl::components::off_policy_runner::DefaultParameters<T>,
                 STOCHASTIC_POLICY,
                 CORE_PARAMETERS::COLLECT_EPISODE_STATS,
                 CORE_PARAMETERS::EPISODE_STATS_BUFFER_SIZE,

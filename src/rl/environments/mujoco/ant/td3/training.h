@@ -168,6 +168,7 @@ void run(){
 
         rlt::rl::components::OffPolicyRunner<parameters_rl::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
         rlt::malloc(device, off_policy_runner);
+        off_policy_runner.parameters = rlt::rl::components::off_policy_runner::default_parameters<DTYPE>;
 
         ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS], evaluation_env;
         for (auto& env : envs) {

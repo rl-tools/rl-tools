@@ -5,7 +5,7 @@ target_link_libraries(
         PRIVATE
         RLtools::CoreDefinitions
         nlohmann_json::nlohmann_json
-        Boost::boost
+        Boost::filesystem
         CLI11::CLI11
 )
 

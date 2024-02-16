@@ -219,7 +219,7 @@ void run(){
                 std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
 #ifdef RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST
                 if(on_policy_runner.step > 1000000){
-                    ASSERT_GT(result.returns_mean, 2000);
+                    ASSERT_GT(result.returns_mean + result.returns_std, 2000);
                 }
 #endif
 

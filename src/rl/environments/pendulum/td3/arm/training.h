@@ -76,7 +76,6 @@ using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specifica
         false,
         REPLAY_BUFFER_CAP,
         EPISODE_STEP_LIMIT,
-        rlt::rl::components::off_policy_runner::DefaultParameters<DTYPE>,
         false,
         false,
         0,

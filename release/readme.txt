@@ -36,6 +36,9 @@ MuJoCo Ant-v4 (TD3):
     rl_environments_mujoco_ant_evaluation_td3:
         - This executable allows for deterministic evaluation of the checkpoints of agents trained with rl_environments_mujoco_ant_training_td3_blas. This executable automatically loads the latest checkpoint of the latest run from the checkpoints folder in the current working directory.
 
+Racing Car (PPO):
+    The racing car UI is implemented using the ui_server. Start the ui_server first and navigate to localhost:8000. Then start the rl_environments_car_interactive. A race-track should show up in your browser. Now you can edit the track, try driving the car yourself and finally train it using PPO
+
 Notes:
 - MuJoCo appears to require a CPU that supports the AVX extension when running on x86_64 CPUs (hence might not work in virtual machines)
 - To run the training with CUDA support a CUDA installation is NOT required (just a NVIDIA driver of version >= 527.41).
