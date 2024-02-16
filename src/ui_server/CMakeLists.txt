@@ -7,6 +7,7 @@ target_link_libraries(
         nlohmann_json::nlohmann_json
         Boost::filesystem
         CLI11::CLI11
+        Threads::Threads
 )
 
 set(THREEJS_VERSION r156)

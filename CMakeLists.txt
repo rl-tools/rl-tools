@@ -279,8 +279,10 @@ target_compile_definitions(rl_tools_minimal INTERFACE RL_TOOLS_ENABLE_BOOST_BEAS
 endif()
 
 if(RL_TOOLS_ENABLE_GTK)
-#    find_package(PkgConfig REQUIRED)
-#    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+    endif()
     target_link_libraries(rl_tools INTERFACE ${GTK3_LIBRARIES})
     target_include_directories(rl_tools INTERFACE ${GTK3_INCLUDE_DIRS})
     target_compile_options(rl_tools INTERFACE ${GTK3_CFLAGS_OTHER})
