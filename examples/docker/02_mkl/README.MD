@@ -12,7 +12,7 @@ docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),ta
 ```
 Configure RLtools using CMake
 ```
-cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
+cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS:BOOL=ON -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
 ```
 Building the targets
 ```
@@ -20,15 +20,15 @@ cmake --build . -j$(nproc)
 ```
 Execute the built binary that uses MKL (indicated by the `_blas`) with a high priority
 ```
-nice -n -20 ./src/rl/environments/pendulum/td3/cpu/rl_environments_pendulum_td3_training_blas
+nice -n -20 ./src/rl/environments/pendulum/td3/cpu/rl_environments_pendulum_td3_blas
 ```
 Alternatively: You can run the binary including Tensorboard logging (which might slow down the training). For that start tensorboard in the background first:
 ```
-tensorboard --logdir logs --bind_all 2> /dev/null > /dev/null &
+tensorboard --logdir runs --bind_all 2> /dev/null > /dev/null &
 ```
 Then run the executable:
 ```
-nice -n -20 ./src/rl/environments/pendulum/td3/cpu/rl_environments_pendulum_td3_training_blas_tensorboard
+nice -n -20 ./src/rl/environments/pendulum/td3/cpu/rl_environments_pendulum_td3_blas_tensorboard
 ```
 You can observe the training using the browser on your host machine to access Tensorboard at `http://localhost:6006/
 

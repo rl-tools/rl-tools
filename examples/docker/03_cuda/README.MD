@@ -14,7 +14,7 @@ docker run --rm -it -p 6006:6006 --mount type=bind,source=$(cd ../../..; pwd),ta
 ```
 Configure the RLtools using CMake
 ```
-CC=clang CXX=clang++ cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DRL_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON -DRL_TOOLS_ENABLE_CLI11:BOOL=ON -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
+CC=clang CXX=clang++ cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS:BOOL=ON -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DRL_TOOLS_BACKEND_ENABLE_CUDA:BOOL=ON -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON -DRL_TOOLS_ENABLE_CLI11:BOOL=ON -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
 ```
 And build the targets
 ```
@@ -22,25 +22,25 @@ cmake --build . -j$(nproc)
 ```
 Execute PPO based Ant-v4 training in the benchmark configuration (without checkpoints and tensorboard logging) with a high priority
 ```
-nice -n -20 /build/src/rl/environments/mujoco/ant/ppo/cuda/rl_environments_mujoco_ant_training_ppo_cuda_benchmark
+nice -n -20 /build/src/rl/environments/mujoco/ant/ppo/cuda/rl_environments_mujoco_ant_ppo_cuda_benchmark
 ```
 If you want to save checkpoints (e.g. to replay the behavior in the MuJoCo UI as described in [03_mujoco_ui](../03_mujoco_ui/README.MD)) and Tensorboard logs run the following
 Optional: Start tensorboard in the background
 ```
-tensorboard --logdir logs --bind_all 2> /dev/null > /dev/null &
+tensorboard --logdir runs --bind_all 2> /dev/null > /dev/null &
 ```
 Run the executable with checkpointing and Tensorboard logging enabled:
 ```
-nice -n -20 /build/src/rl/environments/mujoco/ant/ppo/cuda/rl_environments_mujoco_ant_training_ppo_cuda_full
+nice -n -20 /build/src/rl/environments/mujoco/ant/ppo/cuda/rl_environments_mujoco_ant_ppo_cuda_full
 ```
 If you ran Tensorboard in the background before, you can observe the training using the browser on your host machine to access Tensorboard at `http://localhost:6006/`.
 
 
-Expected output (for `rl_environments_mujoco_ant_training_ppo_cuda_full`):
+Expected output (for `rl_environments_mujoco_ant_ppo_cuda_full`):
 
 ```
 Saving actor checkpoints to: checkpoints/ppo_ant
-Logging to logs/2023-05-19T14_22_54+0000_ppo_ant_600_learn_astd_normobs_adapt_lr/data.tfevents
+Logging to runs/2024-02-16T21_13_51Z/logs.tfevents
 Observation means: 
     0.637259     0.905689    -0.001548     0.007913    -0.074319     0.112792     0.868252     0.148552    -0.748996     0.166856    -0.838683     0.136560     0.795459    -0.000869    -0.059214    -0.032415    -0.005872     0.022958    -0.097306     0.052908     0.291650     0.027677    -0.248768     0.034197    -0.233549     0.056375     0.241284 
 Observation std: 
