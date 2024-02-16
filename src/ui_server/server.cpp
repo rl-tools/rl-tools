@@ -21,6 +21,8 @@ int main(int argc, char* argv[]) {
     static_path_stub = "../share/rl_tools/ui_server/static";
 #elif defined(RL_TOOLS_RELEASE_MACOS)
     static_path_stub = boost::dll::program_location().parent_path().string() + "/../share/rl_tools/ui_server/static";
+#elif defined(RL_TOOLS_RELEASE_LINUX)
+    static_path_stub = "../share/rl_tools/ui_server/static";
 #endif
     app.add_option("--ip", ip, "IP address");
     app.add_option("--port", port, "Port");

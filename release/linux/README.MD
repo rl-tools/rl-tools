@@ -10,7 +10,7 @@ docker run --rm -it --mount type=bind,source=$(cd ../..; pwd),target=/rl_tools,r
 #### Testing the release
 #### Headless
 ```
-docker run --rm -it -w / --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints --mount type=bind,source=$(pwd)/install,target=/install --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 /install/rl_tools/bin/rl_environments_mujoco_ant_training_ppo_cuda_full 
+docker run --rm -it -w / --mount type=bind,source=$(pwd)/checkpoints,target=/checkpoints --mount type=bind,source=$(pwd)/install,target=/install --cap-add=sys_nice --runtime=nvidia --gpus all archlinux nice -n -20 /bin/bash /install/bin/rl_environments_mujoco_ant_ppo_cuda_full
 ```
 #### With UI
 ```
