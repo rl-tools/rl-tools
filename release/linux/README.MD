@@ -1,5 +1,8 @@
 ### Recommended: Using docker to create the release
 ```
+cd release/linux
+```
+```
 docker build -t rl_tools:release_linux . --no-cache
 ```
 ```
