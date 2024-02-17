@@ -54,15 +54,15 @@ Execute the built binary (with Tensorboard logging)
 #### Example: Benchmarking MuJoCo Ant-v4 using PPO
 Configure RLtools to enable MuJoCo
 ```
-cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS:BOOL=ON {PLATFORM_BLAS_OPTION} -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS:BOOL=ON ${PLATFORM_BLAS_OPTION} -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
 ```
 Built the benchmark version of the PPO training target (which disables Tensorboard logging checkpointing etc.)
 ```
-cmake --build . --target rl_environments_mujoco_ant_ppo_benchmark -j4
+cmake --build . --target rl_environments_mujoco_ant_ppo_blas_benchmark -j4
 ```
 Execute the built binary
 ```
-./src/rl/environments/mujoco/ant/ppo/cpu/rl_environments_mujoco_ant_ppo_benchmark
+./src/rl/environments/mujoco/ant/ppo/cpu/rl_environments_mujoco_ant_ppo_blas_benchmark
 ```
 
 #### Example: MuJoCo Ant-v4 using PPO (including checkpointing and Tensorboard logging)
@@ -72,11 +72,11 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS:BOOL=ON $PLATFORM_
 ```
 Build the normal version of the PPO training target which includes checkpointing and Tensorboard logging
 ```
-cmake --build . --target rl_environments_mujoco_ant_ppo_standalone -j4
+cmake --build . --target rl_environments_mujoco_ant_ppo_blas -j4
 ```
 Execute the built binary
 ```
-./src/rl/environments/mujoco/ant/ppo/cpu/rl_environments_mujoco_ant_ppo_standalone
+./src/rl/environments/mujoco/ant/ppo/cpu/rl_environments_mujoco_ant_ppo_blas
 ```
 
 #### Example: MuJoCo Ant-v4 using TD3
@@ -85,11 +85,11 @@ Configure RLtools to enable MuJoCo
 cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS:BOOL=ON $PLATFORM_BLAS_OPTION -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
 ```
 ```
-cmake --build . --target rl_environments_mujoco_ant_td3_standalone -j4
+cmake --build . --target rl_environments_mujoco_ant_td3_blas -j4
 ```
 Execute the built binary
 ```
-./src/rl/environments/mujoco/ant/td3/rl_environments_mujoco_ant_td3_standalone
+./src/rl/environments/mujoco/ant/td3/rl_environments_mujoco_ant_td3_blas
 ```
 
 #### Example: MuJoCo Ant-v4 PPO policy evaluation in the UI
