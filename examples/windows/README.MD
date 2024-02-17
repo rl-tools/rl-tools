@@ -52,11 +52,11 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS=ON -DRL_TOOLS_BACK
 ```
 After that build and run the target as before:
 ```
-cmake --build . --config Release --target rl_environments_pendulum_td3_standalone
+cmake --build . --config Release --target rl_environments_pendulum_td3_blas
 ```
 And execute the built binary:
 ```
-src\rl\environments\pendulum\td3\cpu\Release\rl_environments_pendulum_td3_standalone.exe
+bin\Release\rl_environments_pendulum_td3_blas.exe
 ```
 #### [NVIDIA CUDA](https://developer.nvidia.com/cuda-downloads) (we tested this on CUDA 11.8 and 12.1)
 
@@ -67,7 +67,6 @@ conan profile detect --force
 ```
 In the repository directory:
 ```
-conan install . --output-folder=build_conan --build=missing --settings=build_type=Debug
 conan install . --output-folder=build_conan --build=missing --settings=build_type=Release
 ```
 ### VS Code
