@@ -22,7 +22,7 @@ mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS=ON
 cmake --build . --config Release
-src\rl\environments\pendulum\td3\cpu\Release\rl_environments_pendulum_td3_training_standalone.exe
+bin\Release\rl_environments_pendulum_td3_standalone.exe
 ```
 
 
