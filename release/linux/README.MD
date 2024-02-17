@@ -3,6 +3,9 @@
 cd release/linux
 ```
 ```
+rm -rf install/*
+```
+```
 docker build -t rl_tools:release_linux . --no-cache
 ```
 ```
