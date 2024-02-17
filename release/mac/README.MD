@@ -21,5 +21,5 @@ cmake --install .
 ```
 
 ```
-(cd install/rl_tools && tar -czvf rl_tools-0.1.0-macos-arm64.tar.gz *)
+(cd install && tar -czvf rl_tools-1.0.0-macos-arm64.tar.gz *)
 ```
