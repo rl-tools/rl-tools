@@ -44,7 +44,7 @@ namespace rl_tools{
         logger.tb = new TensorBoardLogger(log_file.string(), opts);
     }
     template <typename DEVICE, typename SPEC>
-    void destruct(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger){
+    void free(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger){
         delete logger.tb;
     }
     template <typename DEVICE, typename SPEC>

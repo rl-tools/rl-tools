@@ -370,7 +370,7 @@ void run(){
             }
         }
 #endif
-        rlt::destruct(device, device.logger);
+        rlt::free(device, device.logger);
 
         rlt::free(device, actor_critic);
         rlt::free(device, off_policy_runner);

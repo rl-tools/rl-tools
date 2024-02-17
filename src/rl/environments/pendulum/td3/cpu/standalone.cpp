@@ -41,6 +41,8 @@ int main(int argc, char** argv) {
     if (argc > 1) {
         seed = std::atoi(argv[1]);
     }
+    rlt::malloc(device);
+    rlt::init(device);
     LOOP_STATE ts;
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
@@ -49,6 +51,9 @@ int main(int argc, char** argv) {
             std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
         }
     }
-    rlt::free(device, ts);
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+    rlt::free(device, device.logger);
+#endif
+    rlt::free(device);
     return 0;
 }

@@ -21,6 +21,6 @@ TEST(RL_TOOLS_LOGGING_TENSORBOARD, INIT){
         rlt::add_scalar(device, device.logger, "test", (T)(i * i));
     }
 
-    rlt::destruct(device, device.logger);
+    rlt::free(device, device.logger);
 
 }

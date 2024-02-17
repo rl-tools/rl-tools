@@ -277,7 +277,7 @@ void run(){
             rlt::free(device, env);
         }
         rlt::free(device, evaluation_env);
-        rlt::destruct(device, device.logger);
+        rlt::free(device, device.logger);
     }
 
 }

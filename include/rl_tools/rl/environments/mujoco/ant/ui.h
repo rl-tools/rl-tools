@@ -125,7 +125,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename ENVIRONMENT>
-    void destruct(DEVICE& dev, ENVIRONMENT& env, rl::environments::mujoco::ant::UI<ENVIRONMENT>& ui){
+    void free(DEVICE& dev, ENVIRONMENT& env, rl::environments::mujoco::ant::UI<ENVIRONMENT>& ui){
         mjv_freeScene(&ui.scene);
         mjr_freeContext(&ui.context);
 

@@ -54,7 +54,7 @@ namespace rl_tools{
     template <typename DEVICE>
     void construct(DEVICE& device, devices::logging::CPU& logger){ /* noop */ }
     template <typename DEVICE>
-    void destruct(DEVICE& device, devices::logging::CPU& logger){ /* noop */ }
+    void free(DEVICE& device, devices::logging::CPU& logger){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename ARG>
     void add_scalar(DEVICE& device, devices::logging::CPU& logger, const TOPIC, const ARG){ /* noop */ }
     template <typename DEVICE, typename TOPIC, typename ARG, typename CADENCE>
