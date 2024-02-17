@@ -14,7 +14,7 @@ docker run --rm -it --mount type=bind,source=$(cd ../../..; pwd),target=/rl_tool
 ```
 Configure the RLtools using CMake (we enable HDF5 because the MNIST dataset is stored in the HDF5 format)
 ```
-cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
+cmake /rl_tools/ -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS:BOOL=ON -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
 ```
 Build the nn_mnist_training target which trains to classify the MNIST digit dataset
 ```

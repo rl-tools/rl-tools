@@ -7,6 +7,6 @@ RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https:/
 RUN apt-get update && apt-get install -y intel-oneapi-mkl-devel-2023.1.0
 RUN apt-get update && apt-get install -y cmake build-essential git vim tmux libhdf5-dev libboost-all-dev protobuf-compiler libprotobuf-dev python3 python3-pip
 RUN pip3 install --upgrade pip
-RUN pip3 install tensorboard==2.12.2
+RUN pip3 install tensorboard==2.12.2 six==1.16.0
 RUN mkdir build
 WORKDIR /build

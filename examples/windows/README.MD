@@ -48,15 +48,15 @@ Target: "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" && "C:\Users\Jonas.Esc
 ```
 Instead of using VS code after sourcing the `setvars.bat` in the terminal like described before you can also build it from the cli:
 ```
-cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS=ON -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON
 ```
 After that build and run the target as before:
 ```
-cmake --build . --config Release --target rl_environments_pendulum_td3_training_standalone
+cmake --build . --config Release --target rl_environments_pendulum_td3_standalone
 ```
 And execute the built binary:
 ```
-src\rl\environments\pendulum\td3\cpu\Release\rl_environments_pendulum_td3_training_standalone.exe
+src\rl\environments\pendulum\td3\cpu\Release\rl_environments_pendulum_td3_standalone.exe
 ```
 #### [NVIDIA CUDA](https://developer.nvidia.com/cuda-downloads) (we tested this on CUDA 11.8 and 12.1)
 
@@ -74,20 +74,20 @@ conan install . --output-folder=build_conan --build=missing --settings=build_typ
 * Install the CMake Tools extension
 * `ctrl-shift p` => `CMake: Select Configure Preset` => select the conan debug or release preset
 * `ctrl-shift p` => `CMake: Set Build Preset` => select the build preset in accordance to the configuration preset 
-* `ctrl-shift p` => `CMake: Set Debug Target` => select the desired target e.g. `rl_environments_mujoco_ant_training_ppo_standalone`
+* `ctrl-shift p` => `CMake: Set Debug Target` => select the desired target e.g. `rl_environments_mujoco_ant_ppo_standalone`
 * `ctro-shift p` => `CMake: Debug`
 * Note: Make sure not to build while the target is running (running the executable seems to prevent the file to be overwritten by the linker)
 
 ### CLI
 ```
-cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
+cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_ENABLE_TARGETS=ON -DRL_TOOLS_BACKEND_ENABLE_MKL:BOOL=ON -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
 ```
 ```
-cmake --build . --config Release --target rl_environments_mujoco_ant_training_ppo_standalone
+cmake --build . --config Release --target rl_environments_mujoco_ant_ppo_standalone
 ```
 
 Warning: Don't forget to source the MKL location (like described beforehand) before running it
 
 ```
-.\bin\Release\rl_environments_mujoco_ant_training_ppo_standalone.exe
+.\bin\Release\rl_environments_mujoco_ant_ppo_standalone.exe
 ```
