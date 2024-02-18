@@ -277,3 +277,15 @@ body {
     background-repeat: no-repeat;
     background-position: center;
 }
+
+#car-canvas-container {
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 20px;
+    border: none;
+    border-radius: 20px;
+    background: #fff;
+    color: #000000;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    overflow:hidden;
+}

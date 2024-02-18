@@ -1,3 +1,11 @@
+import {main as car_main} from './car/main.js';
+import {
+    renderCanvas as car_renderCanvas,
+    renderControlInputs as car_renderControlInputs,
+    renderMessageLabels as car_renderMessageLabels
+} from './car/render.js';
+
+
 const returns_chart_ctx = document.getElementById('returns-chart').getContext('2d');
 
 const data = {
@@ -163,16 +171,27 @@ let async_main = (async () => {
             await sendMessageToWorker("destroy_training_state");
         }
     });
-
-
-
 });
-if (window.Worker) {
-    try {
-        async_main();
-    } catch (error) {
-        console.error("Error running main", error);
+
+
+window.addEventListener("DOMContentLoaded", () => {
+    const messageContainer = document.getElementById("car-message-container");
+    car_renderMessageLabels(messageContainer);
+    const controlContainer = document.getElementById("car-control-container");
+    car_renderControlInputs(controlContainer);
+    const canvasContainer = document.getElementById("car-canvas-container");
+    car_renderCanvas(canvasContainer);
+})
+window.addEventListener("load", () =>{
+    if (window.Worker) {
+        try {
+            async_main();
+            car_main();
+        } catch (error) {
+            console.error("Error running main", error);
+        }
+    } else {
+        console.log('Web Workers are not supported in your browser.');
     }
-} else {
-    console.log('Web Workers are not supported in your browser.');
-}
+})
+

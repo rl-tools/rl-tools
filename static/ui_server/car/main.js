@@ -14,49 +14,19 @@ const orientationGainThrottle = 3
 let first_orientation = null
 let playbackSpeed = 100
 
-function createAndAppendElement(tag, attributes, parent) {
-    const element = document.createElement(tag);
-    Object.keys(attributes).forEach(attr => element[attr] = attributes[attr]);
-    parent.appendChild(element);
-    return element;
-}
-
-function renderDOM(parentElement) {
-    const messageContainer = createAndAppendElement('div', {id: 'messageContainer'}, parentElement);
-    createAndAppendElement('div', {id: 'loadingLabel', textContent: 'Loading...'}, messageContainer);
-    createAndAppendElement('div', {id: 'drawLabel', textContent: 'Draw track onto the canvas!', style: 'display: none;'}, messageContainer);
-    createAndAppendElement('div', {id: 'playLabel', textContent: 'Use arrow keys to drive the car!', style: 'display: none;'}, messageContainer);
-    createAndAppendElement('div', {id: 'trainLabel', textContent: 'Training...', style: 'display: none;'}, messageContainer);
-
-    const controlContainer = createAndAppendElement('div', {id: 'controlContainer'}, parentElement);
-    createAndAppendElement('input', {type: 'button', id: 'resetTrackButton', value: 'Reset Track', style: 'display: none;'}, controlContainer);
-    createAndAppendElement('input', {type: 'button', id: 'saveTrackButton', value: 'Save Track', style: 'display: none;'}, controlContainer);
-    createAndAppendElement('input', {type: 'button', id: 'playButton', value: 'Play Interactively', style: 'display: none;'}, controlContainer);
-    createAndAppendElement('input', {type: 'button', id: 'trainButton', value: 'Train', style: 'display: none;'}, controlContainer);
-    const label = createAndAppendElement('label', {id: 'playbackSpeedCheckboxLabel', style: 'display: none;'}, controlContainer);
-    createAndAppendElement('input', {type: 'checkbox', id: 'playbackSpeedCheckbox'}, label);
-    label.appendChild(document.createTextNode(' Realtime'));
-
-    const canvasContainer = createAndAppendElement('div', {id: 'canvasContainer', style: 'display: none;'}, parentElement);
-    const aspectRatioContainerContainerContainer = createAndAppendElement('div', {id: 'aspectRatioContainerContainerContainer'}, canvasContainer);
-    const aspectRatioContainerContainer = createAndAppendElement('div', {id: 'aspectRatioContainerContainer'}, aspectRatioContainerContainerContainer);
-    const aspectRatioContainer = createAndAppendElement('div', {id: 'aspectRatioContainer'}, aspectRatioContainerContainer);
-    const canvasContainerInner = createAndAppendElement('div', {id: 'canvasContainerInner'}, aspectRatioContainer);
-    createAndAppendElement('canvas', {id: 'drawingCanvas', width: '100', height: '100'}, canvasContainerInner);
-}
-let async_main = async () => {
-    const canvas = document.getElementById('drawingCanvas');
-    const canvasContainer = document.getElementById('canvasContainer');
-    const resetTrackButton = document.getElementById('resetTrackButton');
-    const saveTrackButton = document.getElementById('saveTrackButton');
-    const playButton = document.getElementById('playButton');
-    const trainButton = document.getElementById('trainButton');
-    const drawLabel = document.getElementById('drawLabel');
-    const loadingLabel = document.getElementById('loadingLabel');
-    const trainLabel = document.getElementById('trainLabel');
-    const playLabel = document.getElementById('playLabel');
-    const playbackSpeedCheckbox = document.getElementById('playbackSpeedCheckbox');
-    const playbackSpeedCheckboxLabel = document.getElementById('playbackSpeedCheckboxLabel');
+let main = async () => {
+    const canvas = document.getElementById('car-drawingCanvas');
+    const canvasContainer = document.getElementById('car-canvasContainer');
+    const resetTrackButton = document.getElementById('car-resetTrackButton');
+    const saveTrackButton = document.getElementById('car-saveTrackButton');
+    const playButton = document.getElementById('car-playButton');
+    const trainButton = document.getElementById('car-trainButton');
+    const drawLabel = document.getElementById('car-drawLabel');
+    const loadingLabel = document.getElementById('car-loadingLabel');
+    const trainLabel = document.getElementById('car-trainLabel');
+    const playLabel = document.getElementById('car-playLabel');
+    const playbackSpeedCheckbox = document.getElementById('car-playbackSpeedCheckbox');
+    const playbackSpeedCheckboxLabel = document.getElementById('car-playbackSpeedCheckboxLabel');
 
     let response = await fetch('./scenario');
     let Client = ClientWASM;
@@ -177,14 +147,14 @@ let async_main = async () => {
             DeviceOrientationEvent.requestPermission()
                 .then(permissionState => {
                     if (permissionState === 'granted') {
-                        // document.getElementById('status').textContent = 'Permission granted';
+                        // document.getElementById('car-status').textContent = 'Permission granted';
                     }
                 })
                 .catch(console.error); // Handle errors
         } else {
             // Handle regular non-iOS 13+ devices
             // window.addEventListener('deviceorientation', handleOrientationEvent);
-            // document.getElementById('status').textContent = 'Permission API not required';
+            // document.getElementById('car-status').textContent = 'Permission API not required';
         }
     });
     trainButton.addEventListener('click', ()=>{
@@ -212,9 +182,4 @@ let async_main = async () => {
     });
 }
 
-window.addEventListener('DOMContentLoaded', ()=>{
-    renderDOM(document.body);
-})
-window.addEventListener('load', ()=>{
-    async_main();
-})
+export {main};
