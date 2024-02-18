@@ -157,12 +157,11 @@ If you would like to take advantage of the features that require additional depe
 While it depends on personal preferences, we believe that there are good reasons (ease of debugging, usage of IDEs etc.) to run everything natively when developing. We make sure that the additional dependencies requried for the full feature set are not invasive and usually available through your systems package manager. We believe `sudo ./setup.sh` is harmful and should not exist. Instead we make the setup explicit so that users maintain agency over their systems. 
 
 ### Native
-#### Unix (Linux and macOS)
-For maximum performance and malleability for research and development we recommend to run <span style="color:#7DB9B6">RLtools</span> natively on e.g. Linux or macOS. Since <span style="color:#7DB9B6">RLtools</span> itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
-[Unix instructions & examples](examples/unix/README.MD)
+For maximum performance and malleability for research and development we recommend to run <span style="color:#7DB9B6">RLtools</span> natively. Since <span style="color:#7DB9B6">RLtools</span> itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
 
-#### Windows
-[Windows instructions & examples](examples/windows/README.MD)
+#### Unix (Linux and macOS) [Unix instructions & examples](examples/unix/README.MD)
+
+#### Windows [Windows instructions & examples](examples/windows/README.MD)
 
 ## Embedded Platforms
 ### Inference & Training
