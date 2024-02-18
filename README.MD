@@ -152,11 +152,11 @@ The submodules for the embedded platforms, the redistributable binaries and test
 Note: Make sure that for the redistributable dependencies and test data `git-lfs` is installed (e.g. `sudo apt install git-lfs` on Ubuntu) and activated (`git lfs install`) otherwise only the metadata of the blobs is downloaded.
 
 ### Docker
-The most deterministic way to get started using <span style="color:#7DB9B6">RLtools</span> not only for replication of the results but for modifying the code is using Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
+If you would like to take advantage of the features that require additional dependencies, but don't want to install them on your machine yet, you can use Docker. In our experiments on Linux using the NVIDIA container runtime we were able to achieve close to native performance.
 [Docker instructions & examples](examples/docker/README.MD)
+While it depends on personal preferences, we believe that there are good reasons (ease of debugging, usage of IDEs etc.) to run everything natively when developing. We make sure that the additional dependencies requried for the full feature set are not invasive and usually available through your systems package manager. We believe `sudo ./setup.sh` is harmful and should not exist. Instead we make the setup explicit so that users maintain agency over their systems. 
 
 ### Native
-In comparison to running the release binaries or building from source in Docker, the native setup depends on the configuration of the machine it is run on (installed packages, overwritten defaults etc.). Hence, we provide guidelines on how to set up the environment for research and development of <span style="color:#7DB9B6">RLtools</span> that should run on the default configuration of the particular platform but might not work out of the box if it has been customized.  
 #### Unix (Linux and macOS)
 For maximum performance and malleability for research and development we recommend to run <span style="color:#7DB9B6">RLtools</span> natively on e.g. Linux or macOS. Since <span style="color:#7DB9B6">RLtools</span> itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
 [Unix instructions & examples](examples/unix/README.MD)
