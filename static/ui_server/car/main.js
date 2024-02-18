@@ -13,6 +13,37 @@ const orientationGainSteering = 3
 const orientationGainThrottle = 3
 let first_orientation = null
 let playbackSpeed = 100
+
+function createAndAppendElement(tag, attributes, parent) {
+    const element = document.createElement(tag);
+    Object.keys(attributes).forEach(attr => element[attr] = attributes[attr]);
+    parent.appendChild(element);
+    return element;
+}
+
+function renderDOM(parentElement) {
+    const messageContainer = createAndAppendElement('div', {id: 'messageContainer'}, parentElement);
+    createAndAppendElement('div', {id: 'loadingLabel', textContent: 'Loading...'}, messageContainer);
+    createAndAppendElement('div', {id: 'drawLabel', textContent: 'Draw track onto the canvas!', style: 'display: none;'}, messageContainer);
+    createAndAppendElement('div', {id: 'playLabel', textContent: 'Use arrow keys to drive the car!', style: 'display: none;'}, messageContainer);
+    createAndAppendElement('div', {id: 'trainLabel', textContent: 'Training...', style: 'display: none;'}, messageContainer);
+
+    const controlContainer = createAndAppendElement('div', {id: 'controlContainer'}, parentElement);
+    createAndAppendElement('input', {type: 'button', id: 'resetTrackButton', value: 'Reset Track', style: 'display: none;'}, controlContainer);
+    createAndAppendElement('input', {type: 'button', id: 'saveTrackButton', value: 'Save Track', style: 'display: none;'}, controlContainer);
+    createAndAppendElement('input', {type: 'button', id: 'playButton', value: 'Play Interactively', style: 'display: none;'}, controlContainer);
+    createAndAppendElement('input', {type: 'button', id: 'trainButton', value: 'Train', style: 'display: none;'}, controlContainer);
+    const label = createAndAppendElement('label', {id: 'playbackSpeedCheckboxLabel', style: 'display: none;'}, controlContainer);
+    createAndAppendElement('input', {type: 'checkbox', id: 'playbackSpeedCheckbox'}, label);
+    label.appendChild(document.createTextNode(' Realtime'));
+
+    const canvasContainer = createAndAppendElement('div', {id: 'canvasContainer', style: 'display: none;'}, parentElement);
+    const aspectRatioContainerContainerContainer = createAndAppendElement('div', {id: 'aspectRatioContainerContainerContainer'}, canvasContainer);
+    const aspectRatioContainerContainer = createAndAppendElement('div', {id: 'aspectRatioContainerContainer'}, aspectRatioContainerContainerContainer);
+    const aspectRatioContainer = createAndAppendElement('div', {id: 'aspectRatioContainer'}, aspectRatioContainerContainer);
+    const canvasContainerInner = createAndAppendElement('div', {id: 'canvasContainerInner'}, aspectRatioContainer);
+    createAndAppendElement('canvas', {id: 'drawingCanvas', width: '100', height: '100'}, canvasContainerInner);
+}
 let async_main = async () => {
     const canvas = document.getElementById('drawingCanvas');
     const canvasContainer = document.getElementById('canvasContainer');
@@ -181,6 +212,9 @@ let async_main = async () => {
     });
 }
 
+window.addEventListener('DOMContentLoaded', ()=>{
+    renderDOM(document.body);
+})
 window.addEventListener('load', ()=>{
     async_main();
 })
