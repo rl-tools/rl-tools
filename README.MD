@@ -34,6 +34,10 @@
 </div>
 </br>
 
+<div align="center">
+<img src="https://github.com/rl-tools/media/blob/master/overview.png"/ width=500>  
+</div>
+
 ## Benchmarks
 
 <div align="center">
