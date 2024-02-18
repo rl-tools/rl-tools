@@ -33,7 +33,7 @@ function renderMessageLabels(messageContainer){
     createAndAppendElement('div', {id: 'car-loadingLabel', textContent: 'Loading...'}, messageContainer);
     createAndAppendElement('div', {id: 'car-drawLabel', textContent: 'Draw track onto the canvas!', style: 'display: none;'}, messageContainer);
     createAndAppendElement('div', {id: 'car-playLabel', textContent: 'Use arrow keys to drive the car!', style: 'display: none;'}, messageContainer);
-    createAndAppendElement('div', {id: 'car-trainLabel', textContent: 'Training...', style: 'display: none;'}, messageContainer);
+    createAndAppendElement('div', {id: 'car-trainLabel', textContent: 'Training (in the background)...', style: 'display: none;'}, messageContainer);
 
 }
 
