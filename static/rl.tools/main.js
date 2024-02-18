@@ -70,7 +70,7 @@ const realtime_checkbox = document.getElementById("realtime-checkbox");
 const seed_input = document.getElementById("seed-input");
 
 let async_main = (async () => {
-    const worker = new Worker('training_worker.js', {type: "module"});
+    const worker = new Worker('./training_worker.js', {type: "module"});
     worker.addEventListener("error", (error) => {
         console.error("An error occurred in the Web Worker:", error);
     });

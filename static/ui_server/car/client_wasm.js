@@ -6,7 +6,7 @@
 export class Client{
     constructor(){
         this.setParametersCallback = null;
-        this.worker = new Worker(new URL('training_worker.js', import.meta.url), {type: "module"});
+        this.worker = new Worker(new URL('./training_worker.js', import.meta.url), {type: "module"});
         this.worker.addEventListener("error", (error) => {
             console.error("An error occurred in the Web Worker:", error);
         });
