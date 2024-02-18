@@ -17,20 +17,20 @@ set(THREEJS_VERSION r156)
 
 
 
-if(NOT EXISTS "${PROJECT_SOURCE_DIR}/include/rl_tools/ui_server/static/multirotor/lib/three.module.js")
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/static/ui_server/multirotor/lib/three.module.js")
 file(DOWNLOAD "https://github.com/mrdoob/three.js/raw/${THREEJS_VERSION}/build/three.module.js"
-    "${PROJECT_SOURCE_DIR}/include/rl_tools/ui_server/static/multirotor/lib/three.module.js"
+    "${PROJECT_SOURCE_DIR}/static/ui_server/multirotor/lib/three.module.js"
 )
 endif()
 
-if(NOT EXISTS "${PROJECT_SOURCE_DIR}/include/rl_tools/ui_server/static/multirotor/lib/OrbitControls.js")
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/static/ui_server/multirotor/lib/OrbitControls.js")
 file(DOWNLOAD "https://github.com/mrdoob/three.js/raw/${THREEJS_VERSION}/examples/jsm/controls/OrbitControls.js"
-        "${PROJECT_SOURCE_DIR}/include/rl_tools/ui_server/static/multirotor/lib/OrbitControls.js"
+        "${PROJECT_SOURCE_DIR}/static/ui_server/multirotor/lib/OrbitControls.js"
 )
 endif()
 
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/rl_tools/ui_server/static/
-        DESTINATION share/rl_tools/ui_server/static
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/static/ui_server/
+        DESTINATION share/static/ui_server
         FILES_MATCHING PATTERN "*.*"
 )
 RL_TOOLS_INSTALL(ui_server)

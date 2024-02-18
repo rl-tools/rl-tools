@@ -74,7 +74,7 @@ cd src/rl/environments/car/
 docker build -f ../../../../examples/docker/05_wasm/Dockerfile -t rltools/wasm_build . --no-cache
 ```
 ```
-docker run --rm -it --mount type=bind,source=$(cd ../../../..; pwd),target=/rl_tools,readonly --mount type=bind,source=$(cd ../../../../; pwd)/include/rl_tools/ui_server/static/car/build,target=/build --platform linux/amd64 --entrypoint /bin/bash  rltools/wasm_build
+docker run --rm -it --mount type=bind,source=$(cd ../../../..; pwd),target=/rl_tools,readonly --mount type=bind,source=$(cd ../../../../; pwd)/static/ui_server/car/build,target=/build --platform linux/amd64 --entrypoint /bin/bash  rltools/wasm_build
 ```
 ```
 RL_TOOLS_INCLUDE_DIR=/rl_tools/include JSON_INCLUDE_DIR=/rl_tools/external/json/include RL_TOOLS_BUILD_DIR=/build /rl_tools/src/rl/environments/car/build.sh
@@ -82,6 +82,6 @@ RL_TOOLS_INCLUDE_DIR=/rl_tools/include JSON_INCLUDE_DIR=/rl_tools/external/json/
 
 ## Deploy
 ```
-scp -r $(cd ../../../../; pwd)/include/rl_tools/ui_server/static/car/* server3.jonas.es:DockerContainer/rl_tools/static/car
+scp -r $(cd ../../../../; pwd)/static/ui_server/car/* server3.jonas.es:DockerContainer/rl_tools/static/car
 ```
 

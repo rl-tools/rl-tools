@@ -16,13 +16,13 @@ int main(int argc, char* argv[]) {
 
     CLI::App app;
     uint16_t port = 8000;
-    std::string ip = "127.0.0.1", static_path_stub = "static", simulator = "car", scenario = "default";
+    std::string ip = "127.0.0.1", static_path_stub = "static/ui_server", simulator = "car", scenario = "default";
 #if defined(RL_TOOLS_RELEASE_WINDOWS)
-    static_path_stub = "../share/rl_tools/ui_server/static";
+    static_path_stub = "../share/rl_tools/static/ui_server";
 #elif defined(RL_TOOLS_RELEASE_MACOS)
-    static_path_stub = boost::dll::program_location().parent_path().string() + "/../share/rl_tools/ui_server/static";
+    static_path_stub = boost::dll::program_location().parent_path().string() + "/../share/rl_tools/static/ui_server";
 #elif defined(RL_TOOLS_RELEASE_LINUX)
-    static_path_stub = "../share/rl_tools/ui_server/static";
+    static_path_stub = "../share/rl_tools/static/ui_server";
 #endif
     app.add_option("--ip", ip, "IP address");
     app.add_option("--port", port, "Port");

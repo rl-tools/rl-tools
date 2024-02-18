@@ -27,23 +27,35 @@ async function async_main(){
 
 
     let main = async () =>{
-        let sleep = 0;
-        while(messages.length > 0){
-            const message = messages.shift();
-            const message_string = JSON.stringify(message)
-            let message_ptr = rlt.stringToNewUTF8(message_string);
-            sleep += rlt._proxy_step_message(training_state, message_ptr)
+        while(true){
+            let sleep = 0;
+            while(messages.length > 0){
+                const message = messages.shift();
+                const message_string = JSON.stringify(message)
+                let message_ptr = rlt.stringToNewUTF8(message_string);
+                sleep += rlt._proxy_step_message(training_state, message_ptr)
+            }
+            for(let i = 0; i < 1; i++){
+                sleep += rlt._proxy_step(training_state)
+            }
+
+            let pop_messages = await new Promise((resolve, reject) => {
+                let interval_timer = null;
+                let pop_message = () => {
+                    if(rlt._proxy_num_messages(training_state) > 0){
+                        const message_pointer = rlt._proxy_pop_message(training_state);
+                        const message = rlt.UTF8ToString(message_pointer);
+                        self.postMessage(JSON.parse(message))
+                        // await new Promise(resolve => setTimeout(resolve, 10/playbackSpeed));
+                    }
+                    else{
+                        clearInterval(interval_timer);
+                        resolve();
+                    }
+                }
+                interval_timer = setInterval(pop_message, 10/playbackSpeed);
+            })
         }
-        for(let i = 0; i < 100; i++){
-            sleep += rlt._proxy_step(training_state)
-        }
-        while(rlt._proxy_num_messages(training_state) > 0){
-            const message_pointer = rlt._proxy_pop_message(training_state);
-            const message = rlt.UTF8ToString(message_pointer);
-            self.postMessage(JSON.parse(message))
-            await new Promise(resolve => setTimeout(resolve, 10/playbackSpeed));
-        }
-        setTimeout(main, sleep);
     }
     main()
 }

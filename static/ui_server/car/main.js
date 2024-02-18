@@ -5,13 +5,14 @@ import {Client as ClientWASM} from './client_wasm.js';
 
 console.log("Car UI")
 
-const forceWASM = false //true
+// const forceWASM = false //true
+const forceWASM = true
 
 const keyThrottleValue = 0.5
 const orientationGainSteering = 3
 const orientationGainThrottle = 3
 let first_orientation = null
-let playbackSpeed = 10
+let playbackSpeed = 100
 let async_main = async () => {
     const canvas = document.getElementById('drawingCanvas');
     const canvasContainer = document.getElementById('canvasContainer');
