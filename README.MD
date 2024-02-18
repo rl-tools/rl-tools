@@ -37,11 +37,17 @@
 ## Benchmarks
 
 <div align="center">
-<img src="https://github.com/rl-tools/media/blob/master/benchmark_horizontal.png"/ width=300>  
+<img src="https://github.com/rl-tools/media/blob/master/benchmark_horizontal_ppo.png"/ width=300>  
+<img src="https://github.com/rl-tools/media/blob/master/benchmark_horizontal_sac.png"/ width=300>
+</div>
+<div align="center">
+    Benchmarks of training the Pendulum swing-up using different RL libraries (PPO and SAC respectively)
+</div>
+<div align="center">
 <img src="https://github.com/rl-tools/media/blob/master/benchmark_vertical.png"/ width=300>  
 </div>
 <div align="center">
-    Benchmarks of training the Pendulum swing-up using different RL libraries and across different devices (<span style="color:#7DB9B6">RLtools</span>)
+    Benchmarks of training the Pendulum swing-up on different devices (SAC, RLtools)
 </div>
 
 </br>
