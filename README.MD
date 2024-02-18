@@ -159,9 +159,9 @@ While it depends on personal preferences, we believe that there are good reasons
 ### Native
 For maximum performance and malleability for research and development we recommend to run <span style="color:#7DB9B6">RLtools</span> natively. Since <span style="color:#7DB9B6">RLtools</span> itself is dependency free the most basic examples don't need any platform setup. However, for an improved experience, we support HDF5 checkpointing and Tensorboard logging as well as optimized BLAS libraries which comes with some system-dependent requirements. 
 
-#### Unix (Linux and macOS) [Unix instructions & examples](examples/unix/README.MD)
+#### [Unix (Linux and macOS) instructions & examples](examples/unix/README.MD)
 
-#### Windows [Windows instructions & examples](examples/windows/README.MD)
+#### [Windows instructions & examples](examples/windows/README.MD)
 
 ## Embedded Platforms
 ### Inference & Training
