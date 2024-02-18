@@ -23,8 +23,9 @@ function renderControlInputs(controlContainer){
     createAndAppendElement('input', {type: 'button', className: 'car-input', id: 'car-saveTrackButton', value: 'Save Track', style: 'display: none;'}, controlContainer);
     createAndAppendElement('input', {type: 'button', className: 'car-input', id: 'car-playButton', value: 'Play Interactively', style: 'display: none;'}, controlContainer);
     createAndAppendElement('input', {type: 'button', className: 'car-input', id: 'car-trainButton', value: 'Train', style: 'display: none;'}, controlContainer);
-    const label = createAndAppendElement('label', {id: 'car-playbackSpeedCheckboxLabel', style: 'display: none;'}, controlContainer);
-    createAndAppendElement('input', {type: 'checkbox', id: 'car-playbackSpeedCheckbox'}, label);
+    const label = createAndAppendElement('label', {id: 'car-playbackSpeedCheckboxLabel', className: 'checkbox-label', style: 'display: none;'}, controlContainer);
+    createAndAppendElement('input', {type: 'checkbox', id: 'car-playbackSpeedCheckbox', className: 'checkbox-input'}, label);
+    label.appendChild(createAndAppendElement('span', {className: 'checkbox-custom'}, label))
     label.appendChild(document.createTextNode(' Realtime'));
 }
 

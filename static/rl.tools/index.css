@@ -109,7 +109,7 @@ body {
 .controls-container {
 }
 
-.fancy-button {
+.fancy-button, .car-input {
     display: inline-block;
     margin: 5px;
     font-family: "Open Sans", sans-serif;
@@ -128,12 +128,12 @@ body {
     white-space: nowrap;
 }
 
-.fancy-button:hover {
+.fancy-button:hover, .car-input:hover {
     transform: translateY(-5px);
     box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
-.fancy-button:disabled {
+.fancy-button:disabled, .car-input:disabled {
     background: linear-gradient(to right, #cccccc, #dddddd);
     color: #666666;
     cursor: not-allowed;
@@ -142,7 +142,7 @@ body {
 }
 
 
-.fancy-button-small {
+.fancy-button-small, .car-input {
     letter-spacing: 1px;
     padding: 10px 20px;
     border-radius: 25px;
@@ -150,7 +150,7 @@ body {
     font-size: 70%;
 }
 
-.fancy-button-small:hover {
+.fancy-button-small:hover, .car-input:hover {
     transform: translateY(-2.5px);
     box-shadow: 0 4px 7.5px rgba(0, 0, 0, 0.3);
 }
@@ -288,4 +288,16 @@ body {
     color: #000000;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     overflow:hidden;
+}
+
+#car-message-container{
+    text-align: center;
+    margin-top: 10px;
+}
+
+#car-control-container{
+    display: flex;
+    margin-top: 10px;
+    justify-content: center;
+    margin-bottom: 10px;
 }
