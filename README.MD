@@ -45,7 +45,7 @@
 </div>
 </br>
 <div align="center">
-<img src="https://github.com/rl-tools/media/blob/master/benchmark_vertical.png"/ width=300>  
+<img src="https://github.com/rl-tools/media/blob/master/benchmark_vertical.png"/ width=350>  
 </div>
 <div align="center">
     Benchmarks of training the Pendulum swing-up on different devices (SAC, RLtools)
