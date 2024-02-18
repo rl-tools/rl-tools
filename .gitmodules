@@ -11,6 +11,9 @@
 [submodule "media"]
 	path = media
 	url = https://github.com/rl-tools/media.git
+[submodule "static/rl.tools/media"]
+	path = static/rl.tools/media
+	url = https://github.com/rl-tools/media.git
 
 # Embedded Platforms
 [submodule "embedded_platforms/px4"]
@@ -66,6 +69,3 @@
 	path = tests/lib/cutlass
 	url = https://github.com/NVIDIA/cutlass.git
 
-[submodule "static/rl.tools/media"]
-	path = static/rl.tools/media
-	url = https://github.com/rl-tools/media.git
