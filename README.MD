@@ -2,6 +2,11 @@
   <center><h1><span style="color:#7DB9B6">RLtools</span>: A Fast, Portable Deep Reinforcement Learning Library for Continuous Control</h1></center>
 </div>
 
+
+<div align="center">
+<img src="https://github.com/rl-tools/media/blob/master/overview.png"/ width=500>  
+</div>
+
 <p align="center">
   <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://rl.tools">Live demo (browser)</a> | <a href="https://discord.gg/kbvxCavb5h">Discord</a>
   </br>
@@ -34,9 +39,6 @@
 </div>
 </br>
 
-<div align="center">
-<img src="https://github.com/rl-tools/media/blob/master/overview.png"/ width=500>  
-</div>
 
 ## Benchmarks
 
