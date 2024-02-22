@@ -75,6 +75,9 @@ namespace rl_tools{
     typename SPEC::T step(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::mujoco::ant::State<SPEC>& next_state, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        using ENVIRONMENT = rl::environments::mujoco::Ant<SPEC>;
+        static_assert(ACTION_SPEC::ROWS == 1);
+        static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
         T x_pre = env.data->xpos[env.torso_id * 3];
 
         T control_cost = 0;
