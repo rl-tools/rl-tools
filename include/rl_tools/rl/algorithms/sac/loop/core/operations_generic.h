@@ -32,6 +32,9 @@ namespace rl_tools{
         malloc(device, ts.observations_mean);
         malloc(device, ts.observations_std);
         malloc(device, ts.actor_deterministic_evaluation_buffers);
+        for(auto& env: ts.envs){
+            rl_tools::malloc(device, env);
+        }
         ts.allocated = true;
     }
     template <typename DEVICE, typename T_CONFIG>
@@ -44,10 +47,11 @@ namespace rl_tools{
 
         init(device, ts.actor_critic, ts.rng);
 
-        init(device, ts.off_policy_runner, ts.envs);
         for(auto& env: ts.envs){
             rl_tools::init(device, env);
         }
+
+        init(device, ts.off_policy_runner, ts.envs);
 
 
         set_all(device, ts.observations_mean, 0);

@@ -27,6 +27,9 @@ namespace rl_tools{
         malloc(device, ts.observations_mean);
         malloc(device, ts.observations_std);
         malloc(device, ts.actor_deterministic_evaluation_buffers);
+        for(auto& env: ts.envs){
+            rl_tools::malloc(device, env);
+        }
     }
     template <typename DEVICE, typename T_CONFIG>
     void init(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
