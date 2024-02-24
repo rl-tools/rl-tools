@@ -62,6 +62,9 @@ namespace rl_tools{
         free(device, ts.actor_critic);
         free(device, ts.observations_mean);
         free(device, ts.observations_std);
+        for(auto& env: ts.envs){
+            rl_tools::free(device, env);
+        }
     }
 
     template <typename DEVICE, typename T_CONFIG>

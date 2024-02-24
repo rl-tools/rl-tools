@@ -108,6 +108,9 @@ namespace rl_tools{
         free(device, ts.observations_mean);
         free(device, ts.observations_std);
         free(device, ts.actor_deterministic_evaluation_buffers);
+        for(auto& env: ts.envs){
+            rl_tools::free(device, env);
+        }
     }
 
     template <typename DEVICE, typename T_CONFIG>
