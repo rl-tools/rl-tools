@@ -3,8 +3,10 @@
 #pragma once
 #define RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_ANT_H
 
-#include <mujoco/mujoco.h>
 #include "../../../../utils/generic/typing.h"
+#include "../../environments.h"
+
+#include <mujoco/mujoco.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::mujoco{
@@ -44,7 +46,7 @@ namespace rl_tools::rl::environments::mujoco{
         };
     }
     template <typename T_SPEC>
-    struct Ant{
+    struct Ant: Environment{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         static_assert(rl_tools::utils::typing::is_same_v<T, mjtNum>);

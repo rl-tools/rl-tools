@@ -4,6 +4,8 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_CAR_CAR_H
 
 #include "../../../math/operations_generic.h"
+#include "../environments.h"
+
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::car {
@@ -75,7 +77,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments{
     template <typename T_SPEC>
-    struct Car{
+    struct Car: Environment{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

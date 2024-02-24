@@ -2,6 +2,7 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <rl_tools/rl/environments/environments.h>
+#include <rl_tools/rl/environments/pendulum/pendulum.h>
 #include <rl_tools/rl/algorithms/td3/td3.h>
 
 #include <rl_tools/rl/algorithms/td3/operations_cpu.h>

@@ -4,6 +4,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H
 
 #include "../../../math/operations_generic.h"
+#include "../environments.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::pendulum {
@@ -40,7 +41,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments{
     template <typename T_SPEC>
-    struct Pendulum{
+    struct Pendulum: Environment{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

@@ -3,10 +3,11 @@
 #pragma once
 #define RL_TOOLS_RL_ENVIRONMENTS_ENVIRONMENTS_H
 
-#include "pendulum/pendulum.h"
-
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments{
+    struct Environment{
+
+    };
     struct DummyUI{};
 }
 
