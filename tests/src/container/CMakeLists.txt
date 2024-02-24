@@ -37,3 +37,7 @@ target_link_libraries(
         rl_tools_test
 )
 gtest_discover_tests(test_container_persist_code_store)
+
+
+add_executable(test_container_matmul matmul.cpp)
+target_link_libraries(test_container_matmul RLtools::Core)
