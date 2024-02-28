@@ -17,6 +17,7 @@
   <a href="https://docs.rl.tools">
   <img src="https://img.shields.io/badge/Documentation-Read%20the%20Docs-blue.svg" alt="Documentation">
   </a>
+  [![Tests (Backend)](https://github.com/rl-tools/rl-tools/actions/workflows/tests-backend.yml/badge.svg)](https://github.com/rl-tools/rl-tools/actions/workflows/tests-backend.yml)
 </p>
 
 
