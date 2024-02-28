@@ -9,6 +9,10 @@
 - Consider autodetecting available dependencies (MKL, ACCELERATE, Tensorboard etc.)
 - Dissallow all C-style casts and move to C++-style casts
 - Rethink/redesign the MatrixStatic vs MatrixDynamic system: can/should they be unified using a flag in the Specification? (goes in accordance with the move to n-dim tensors)
+- Pre/Post-processing models (e.g. for observation normalization)
+  - Removing e.g. the explicit (observation mean/std) parameters in the evaluation functions
+- Enable warnings as errors
+- Move run description from cpu device to a shared, top-level loop state
 ## Atoms
 - nn-mlp: msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
   - find a fix for all compilers (tests with n_layers = 2 are disabled for msvc for now)
