@@ -13,6 +13,9 @@
   - Removing e.g. the explicit (observation mean/std) parameters in the evaluation functions
 - Enable warnings as errors
 - Move run description from cpu device to a shared, top-level loop state
+- Consider mutation testing
+- Add generic checkpointing loop step
+- Design and add full checkpointing step for the training state (to stop/resume training), including test cases verifying that the results are exactly identical
 ## Atoms
 - nn-mlp: msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
   - find a fix for all compilers (tests with n_layers = 2 are disabled for msvc for now)
@@ -20,3 +23,5 @@
 - Port NaN init to the CUDA device
 - Investigate MuJoCo build flags (used for the official release builds)
 - Move `container.h` into `containers`
+- Trying SonarCube
+- Separate `gather_batch` from the off-policy runner (should be an operation on the replay buffer)
