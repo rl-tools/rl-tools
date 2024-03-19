@@ -25,3 +25,4 @@
 - Move `container.h` into `containers`
 - Trying SonarCube
 - Separate `gather_batch` from the off-policy runner (should be an operation on the replay buffer)
+- Add Github action that test the compilation of the PX4 module [embedded_platforms/px4](embedded_platforms/px4)
