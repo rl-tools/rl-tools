@@ -2,7 +2,7 @@
 #include <rl_tools/nn_models/models.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_generic.h>
-#include <rl_tools/containers/persist.h>
+#include <rl_tools/containers/matrix/persist.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 

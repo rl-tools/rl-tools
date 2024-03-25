@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT_LAYER_H
 #include "../../../utils/generic/typing.h"
-#include "../../../containers.h"
+#include "../../../containers/matrix/matrix.h"
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

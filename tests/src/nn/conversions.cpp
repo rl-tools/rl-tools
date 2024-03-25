@@ -12,8 +12,8 @@
 #include <rl_tools/utils/assert/operations_cpu.h>
 #include <rl_tools/utils/assert/operations_dummy.h>
 // Group 3: dependent on assert
-#include <rl_tools/containers/operations_cpu.h>
-#include <rl_tools/containers/operations_dummy.h>
+#include <rl_tools/containers/matrix/operations_cpu.h>
+#include <rl_tools/containers/matrix/operations_dummy.h>
 
 #include <rl_tools/nn/operations_cpu.h>
 #include <rl_tools/utils/generic/typing.h>

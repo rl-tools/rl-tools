@@ -18,8 +18,8 @@ constexpr bool test_first_layer = true;
 #include <rl_tools/utils/assert/operations_cpu.h>
 #include <rl_tools/utils/assert/operations_cuda.h>
 // Group 3: dependent on assert
-#include <rl_tools/containers/operations_cpu.h>
-#include <rl_tools/containers/operations_generic.h>
+#include <rl_tools/containers/matrix/operations_cpu.h>
+#include <rl_tools/containers/matrix/operations_generic.h>
 
 #include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn_models/operations_cuda.h>

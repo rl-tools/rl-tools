@@ -2,7 +2,7 @@
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_PARAMETERS_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_NN_PARAMETERS_PERSIST_CODE_H
-#include "../../containers/persist_code.h"
+#include "../../containers/matrix/persist_code.h"
 #include "parameters.h"
 #include <sstream>
 RL_TOOLS_NAMESPACE_WRAPPER_START

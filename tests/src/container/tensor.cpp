@@ -2,7 +2,7 @@
 #include <iostream>
 
 #include <rl_tools/operations/cpu.h>
-#include <rl_tools/containers.h>
+#include <rl_tools/containers/tensor/tensor.h>
 namespace rlt = rl_tools;
 
 template <typename INPUT>

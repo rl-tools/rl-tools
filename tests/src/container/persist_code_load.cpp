@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 
-#include <rl_tools/containers/persist_code.h>
+#include <rl_tools/containers/matrix/persist_code.h>
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_cpu.h>
 

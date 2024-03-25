@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_NN_LAYERS_DENSE_OPERATIONS_GENERIC_H
 
-#include "../../../containers.h"
+#include "../../../containers/matrix/matrix.h"
 #include "../../../nn/parameters/operations_generic.h"
 
 #include "../../../nn/layers/dense/layer.h"

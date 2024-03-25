@@ -2,7 +2,8 @@
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_LOGGING_OPERATIONS_CPU_TENSORBOARD_H
-#include <rl_tools/containers.h>
+
+#include "../containers/matrix/matrix.h"
 
 #include <filesystem>
 #include <cassert>

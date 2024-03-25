@@ -1,6 +1,6 @@
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/containers/operations_cuda.h>
+#include <rl_tools/containers/matrix/operations_cuda.h>
 
 namespace rlt = rl_tools;
 
