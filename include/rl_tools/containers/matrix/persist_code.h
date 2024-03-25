@@ -57,7 +57,7 @@ namespace rl_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss_header;
-        ss_header << "#include <rl_tools/containers.h>\n";
+        ss_header << "#include <rl_tools/containers/matrix/matrix.h>\n";
         std::stringstream ss;
         ss << ind << "namespace " << name << " {\n";
         ss << ind << "    static_assert(sizeof(" << containers::persist::get_type_string<containers::persist::STORAGE_TYPE>() << ") == 1);\n";
