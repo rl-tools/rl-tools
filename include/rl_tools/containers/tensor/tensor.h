@@ -34,14 +34,6 @@ namespace rl_tools{
         struct Stride: Tuple<TI, T_DIMS...> {
         };
 
-        template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE>
-        struct Specification{
-            using T = T_T;
-            using TI = T_TI;
-            using SHAPE = T_SHAPE;
-            using STRIDE = T_STRIDE;
-        };
-
     }
     template <typename TI, TI VALUE, typename NEXT_ELEMENT>
     TI constexpr length(tensor::Element<TI, VALUE, NEXT_ELEMENT>, TI current_length=0){
@@ -82,51 +74,115 @@ namespace rl_tools{
         Append<typename ELEMENT::NEXT_ELEMENT, NEW_ELEMENT>,
         Element<typename ELEMENT::TI, 0, FinalElement>
         >>{};
-    template<typename ELEMENT, auto NEW_ELEMENT> // since the last Element is a dummy element containing 0, we need to insert the new element once the NEXT_ELEMENT is the FinalElement
-    struct Prepend: Element<typename ELEMENT::TI, NEW_ELEMENT, ELEMENT>{};
+        template<typename ELEMENT, auto NEW_ELEMENT> // since the last Element is a dummy element containing 0, we need to insert the new element once the NEXT_ELEMENT is the FinalElement
+        struct Prepend: Element<typename ELEMENT::TI, NEW_ELEMENT, ELEMENT>{};
 
-    template<typename ELEMENT>
-    struct PopFront: ELEMENT::NEXT_ELEMENT{
-        static_assert(length(ELEMENT{}) > 1);
-    };
+        template<typename ELEMENT>
+        struct PopFront: ELEMENT::NEXT_ELEMENT{
+            static_assert(length(ELEMENT{}) > 0);
+        };
 
-    template<typename ELEMENT>
-    struct PopBack: Element<
-            typename ELEMENT::TI,
-            ELEMENT::VALUE,
-            utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT, FinalElement>,
-                    PopBack<typename ELEMENT::NEXT_ELEMENT>,
-                    Element<typename ELEMENT::TI, 0, FinalElement>
-    >>{
-    static_assert(length(ELEMENT{}) > 1);
-    };
+        template<typename ELEMENT>
+        struct PopBack: utils::typing::conditional_t<
+                utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT, FinalElement>,
+                typename ELEMENT::NEXT_ELEMENT,
+                Element<typename ELEMENT::TI, ELEMENT::VALUE, PopBack<typename ELEMENT::NEXT_ELEMENT>>
+        >{
+            static_assert(length(ELEMENT{}) > 0);
+        };
 
-    template <typename ELEMENT>
-    struct Product: Element<
-            typename ELEMENT::TI,
-            product(ELEMENT{}),
-            utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
-                    Product<typename ELEMENT::NEXT_ELEMENT>,
-                    FinalElement
-    >>{};
-    template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET>
-    struct Replace: Element<
-            typename ELEMENT::TI,
-            NEW_ELEMENT_OFFSET == 0 ? NEW_ELEMENT : ELEMENT::VALUE,
-            utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
-                    Replace<typename ELEMENT::NEXT_ELEMENT, NEW_ELEMENT, NEW_ELEMENT_OFFSET-1>,
-                    FinalElement
-    >>{
-    };
+        template <typename ELEMENT>
+        struct Product: Element<
+                typename ELEMENT::TI,
+                product(ELEMENT{}),
+                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
+                        Product<typename ELEMENT::NEXT_ELEMENT>,
+                        FinalElement
+        >>{};
+        template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET>
+        struct Replace: Element<
+                typename ELEMENT::TI,
+                NEW_ELEMENT_OFFSET == 0 ? NEW_ELEMENT : ELEMENT::VALUE,
+                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
+                        Replace<typename ELEMENT::NEXT_ELEMENT, NEW_ELEMENT, NEW_ELEMENT_OFFSET-1>,
+                        FinalElement
+                >>{
+        };
 
-    template <typename SHAPE>
-    using RowMajorStride = Append<PopFront<Product<SHAPE>>, 1>;
+        template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET>
+        struct Insert: utils::typing::conditional_t<NEW_ELEMENT_OFFSET == 0,
+                Element<typename ELEMENT::TI, NEW_ELEMENT, ELEMENT>,//Element<typename ELEMENT::TI, ELEMENT::VALUE, typename ELEMENT::NEXT_ELEMENT>>,
+                Element<typename ELEMENT::TI, ELEMENT::VALUE,
+                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
+                Insert<typename ELEMENT::NEXT_ELEMENT, NEW_ELEMENT, NEW_ELEMENT_OFFSET-1>,
+                FinalElement
+                >>>{
+        };
+
+        template <typename SHAPE, auto COMPARISON>
+        constexpr bool RANK_LARGER_THAN = length(SHAPE{}) > COMPARISON;
+
+        template <typename ELEMENT, auto ELEMENT_OFFSET> //, typename utils::typing::enable_if_t<tensor::RANK_LARGER_THAN<ELEMENT, ELEMENT_OFFSET>, void>* = nullptr>
+        struct Remove: utils::typing::conditional_t<ELEMENT_OFFSET == 0,
+                typename ELEMENT::NEXT_ELEMENT,
+                utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
+                        Element<typename ELEMENT::TI, ELEMENT::VALUE, Remove<typename ELEMENT::NEXT_ELEMENT, ELEMENT_OFFSET-1>>,
+                        FinalElement
+                >>{
+            static_assert(length(ELEMENT{}) > ELEMENT_OFFSET);
+        };
+
+
+
+
+
+        template <typename SHAPE>
+        using RowMajorStride = Append<PopFront<Product<SHAPE>>, 1>;
+
+        template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE = RowMajorStride<T_SHAPE>>
+        struct Specification{
+            using T = T_T;
+            using TI = T_TI;
+            using SHAPE = T_SHAPE;
+            using STRIDE = T_STRIDE;
+            static constexpr TI SIZE = Product<SHAPE>::VALUE;
+            static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
+        };
+        template<auto DIM>
+        struct ViewSpec{};
+        template <typename A, typename B>
+        bool constexpr _same_dimensions_shape(){
+            static_assert(length(A{}) == length(B{}));
+            if constexpr(length(A{}) == 0){
+                return true;
+            }
+            else{
+                using NEXT_A = PopFront<A>;
+                using NEXT_B = PopFront<B>;
+                return (A::VALUE == B::VALUE) && _same_dimensions_shape<NEXT_A, NEXT_B>();
+            }
+        }
+        template <typename SPEC_A, typename SPEC_B>
+        bool constexpr same_dimensions(){
+            return _same_dimensions_shape<typename SPEC_A::SHAPE, typename SPEC_B::SHAPE>();
+        }
+
     }
 
     template <typename T_SPEC>
     struct Tensor{
         using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        T* _data;
     };
+    template <typename SPEC>
+    constexpr typename SPEC::T* data(Tensor<SPEC>& tensor){
+        return tensor._data;
+    }
+    template <typename SPEC>
+    constexpr typename SPEC::T*& data_reference(Tensor<SPEC>& tensor){
+        return tensor._data;
+    }
 }
 
 #endif
