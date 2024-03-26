@@ -7,6 +7,8 @@
 #include <rl_tools/containers/tensor/operations_cpu.h>
 namespace rlt = rl_tools;
 
+constexpr double EPSILON = 1e-8;
+
 template <typename INPUT>
 void test_shape_operations(typename INPUT::TI length){
     ASSERT_TRUE(length == rlt::length(INPUT{}));
@@ -359,10 +361,11 @@ TEST(RL_TOOLS_TENSOR_TEST, COPY) {
     {
         using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
         using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor, tensor_target, tensor_target2;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor, tensor_target, tensor_target2, diff;
         rlt::malloc(device, tensor);
         rlt::malloc(device, tensor_target);
         rlt::malloc(device, tensor_target2);
+        rlt::malloc(device, diff);
         rlt::randn(device, tensor, rng);
 
         for(TI i=0; i < rlt::get<1>(SHAPE{})/2; i++){
@@ -389,7 +392,12 @@ TEST(RL_TOOLS_TENSOR_TEST, COPY) {
             rlt::copy(device, device, view, view_target);
         }
 
-//        T diff = rlt::abs_diff(device, tensor, tensor_target2);
+        rlt::subtract(device, tensor, tensor_target2, diff);
+        rlt::abs(device, diff);
+        T abs_diff = rlt::sum(device, diff);
+
+        std::cout << "Abs diff: " << abs_diff << std::endl;
+        ASSERT_LT(abs_diff, EPSILON);
 
 
         rlt::free(device, tensor);
