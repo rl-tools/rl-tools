@@ -15,8 +15,19 @@ namespace rl_tools{
     void free(DEVICE& device, Tensor<SPEC>& tensor){
         delete[] data_reference(tensor);
     }
+    template <typename DEVICE, typename SPEC, typename TI, auto DIM=0, auto SIZE=0>
+    auto view_range(DEVICE& device, Tensor<SPEC>& tensor, TI index, tensor::ViewSpec<DIM, SIZE> = {}){
+        static_assert(SIZE > 0);
+        using NEW_SHAPE = tensor::Replace<typename SPEC::SHAPE, SIZE, DIM>;
+        using NEW_STRIDE = typename SPEC::STRIDE;
+        auto offset = index * get<DIM>(typename SPEC::STRIDE{});
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE>;
+        Tensor<NEW_SPEC> view;
+        data_reference(view) = data(tensor) + offset;
+        return view;
+    }
 
-    template <typename DEVICE, typename SPEC, typename TI, auto DIM = 0>
+    template <typename DEVICE, typename SPEC, typename TI, auto DIM=0>
     auto view(DEVICE& device, Tensor<SPEC>& tensor, TI index, tensor::ViewSpec<DIM> = {}){
         using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;

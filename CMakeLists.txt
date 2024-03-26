@@ -390,6 +390,15 @@ function(RL_TOOLS_TAG_IS_CUDA TARGET)
     set_target_properties(${TARGET} PROPERTIES IS_CUDA YES)
 endfunction()
 
+FUNCTION(RL_TOOLS_WARNINGS_ARE_ERRORS TARGET)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(${TARGET} PRIVATE -Wall -Wextra -Wconversion -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-unused-but-set-parameter -Wno-unused-local-typedefs -Werror)
+    endif()
+    if(MSVC)
+        target_compile_options(${TARGET} PRIVATE "/W4")
+    endif()
+endfunction()
+
 
 if (RL_TOOLS_ENABLE_TESTS)
     message(STATUS "Tests enabled")

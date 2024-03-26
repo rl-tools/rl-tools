@@ -148,7 +148,7 @@ namespace rl_tools{
             static constexpr TI SIZE = Product<SHAPE>::VALUE;
             static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
         };
-        template<auto DIM>
+        template<auto DIM, auto SIZE=0>
         struct ViewSpec{};
         template <typename A, typename B>
         bool constexpr _same_dimensions_shape(){
@@ -167,6 +167,24 @@ namespace rl_tools{
             return _same_dimensions_shape<typename SPEC_A::SHAPE, typename SPEC_B::SHAPE>();
         }
 
+
+        template <typename SHAPE, typename STRIDE>
+        bool constexpr _dense_layout_shape(){
+            static_assert(length(STRIDE{}) == length(SHAPE{}));
+            static_assert(length(SHAPE{}) > 0);
+            if constexpr(length(STRIDE{}) == 1){
+                return get<0>(STRIDE{}) == 1;
+            }
+            else{
+                using NEXT_SHAPE = PopFront<SHAPE>;
+                using NEXT_STRIDE = PopFront<STRIDE>;
+                return (STRIDE::VALUE == get<0>(NEXT_STRIDE{}) * get<0>(NEXT_SHAPE{})) && _dense_layout_shape<NEXT_SHAPE, NEXT_STRIDE>();
+            }
+        }
+        template <typename SPEC>
+        bool constexpr dense_layout(){
+            return _dense_layout_shape<typename SPEC::SHAPE, typename SPEC::STRIDE>();
+        }
     }
 
     template <typename T_SPEC>

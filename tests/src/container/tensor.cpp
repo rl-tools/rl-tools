@@ -247,7 +247,6 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW){
             auto view2 = rlt::view(device, tensor, i, rlt::tensor::ViewSpec<DIM>{});
             ASSERT_EQ(rlt::data(tensor) + i * rlt::get<DIM>(STRIDE{}), rlt::data(view2));
             rlt::set(device, view2, (T)(DIM * i), 1, 0);
-            switch(DIM){}
             ASSERT_EQ(rlt::get(device, tensor, 1, i, 0), (T)(DIM*i));
         }
     }
@@ -258,7 +257,6 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW){
             auto view2 = rlt::view(device, tensor, i, rlt::tensor::ViewSpec<DIM>{});
             ASSERT_EQ(rlt::data(tensor) + i * rlt::get<DIM>(STRIDE{}), rlt::data(view2));
             rlt::set(device, view2, (T)(DIM * i), 1, 0);
-            switch(DIM){}
             ASSERT_EQ(rlt::get(device, tensor, 1, 0, i), (T)(DIM*i));
         }
     }
@@ -351,8 +349,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUBTRACT) {
     T sum_abs = rlt::sum(device, abs_diff);
     ASSERT_EQ(sum_abs, rlt::get<0>(rlt::tensor::Product<SHAPE>{}));
 }
-TEST(RL_TOOLS_TENSOR_TEST, COPY) {
-
+TEST(RL_TOOLS_TENSOR_TEST, COPY){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TI = typename DEVICE::index_t;
@@ -370,24 +367,32 @@ TEST(RL_TOOLS_TENSOR_TEST, COPY) {
 
         for(TI i=0; i < rlt::get<1>(SHAPE{})/2; i++){
             auto view = rlt::view(device, tensor, i, rlt::tensor::ViewSpec<1>{});
+            static_assert(!rlt::tensor::dense_layout<typename decltype(view)::SPEC>());
+            static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
             auto view_target = rlt::view(device, tensor_target, rlt::get<1>(SHAPE{})/2 + i, rlt::tensor::ViewSpec<1>{});
             rlt::copy(device, device, view, view_target);
         }
 
         for(TI i=rlt::get<1>(SHAPE{})/2; i < rlt::get<1>(SHAPE{}); i++){
             auto view = rlt::view(device, tensor, i, rlt::tensor::ViewSpec<1>{});
+            static_assert(!rlt::tensor::dense_layout<typename decltype(view)::SPEC>());
+            static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
             auto view_target = rlt::view(device, tensor_target, i-rlt::get<1>(SHAPE{})/2, rlt::tensor::ViewSpec<1>{});
             rlt::copy(device, device, view, view_target);
         }
 
         for(TI i=0; i < rlt::get<1>(SHAPE{})/2; i++){
             auto view = rlt::view(device, tensor_target, i, rlt::tensor::ViewSpec<1>{});
+            static_assert(!rlt::tensor::dense_layout<typename decltype(view)::SPEC>());
+            static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
             auto view_target = rlt::view(device, tensor_target2, rlt::get<1>(SHAPE{})/2 + i, rlt::tensor::ViewSpec<1>{});
             rlt::copy(device, device, view, view_target);
         }
 
         for(TI i=rlt::get<1>(SHAPE{})/2; i < rlt::get<1>(SHAPE{}); i++){
             auto view = rlt::view(device, tensor_target, i, rlt::tensor::ViewSpec<1>{});
+            static_assert(!rlt::tensor::dense_layout<typename decltype(view)::SPEC>());
+            static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
             auto view_target = rlt::view(device, tensor_target2, i-rlt::get<1>(SHAPE{})/2, rlt::tensor::ViewSpec<1>{});
             rlt::copy(device, device, view, view_target);
         }
@@ -402,5 +407,128 @@ TEST(RL_TOOLS_TENSOR_TEST, COPY) {
 
         rlt::free(device, tensor);
         rlt::free(device, tensor_target);
+    }
+}
+
+TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = typename DEVICE::index_t;
+    DEVICE device;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        auto view = rlt::view_range(device, tensor, 10, rlt::tensor::ViewSpec<1, 11>{});
+        static_assert(!rlt::tensor::dense_layout<typename decltype(view)::SPEC>());
+        static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
+        rlt::set_all(device, view, 1337);
+        for(TI dim0=0; dim0 < rlt::get<0>(SHAPE{}); dim0++){
+            for(TI dim1=0; dim1 < rlt::get<1>(SHAPE{}); dim1++){
+                for(TI dim2=0; dim2 < rlt::get<2>(SHAPE{}); dim2++){
+                    if(dim1 >= 10 && dim1 < 21){
+                        ASSERT_EQ(rlt::get(device, tensor, dim0, dim1, dim2), 1337);
+                    }
+                }
+            }
+        }
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        auto view = rlt::view_range(device, tensor, 3, rlt::tensor::ViewSpec<0, 11>{});
+        static_assert(rlt::tensor::dense_layout<typename decltype(view)::SPEC>()); // should be dense because the range is in DIM=0
+        static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
+        rlt::set_all(device, view, 1337);
+        for(TI dim0=0; dim0 < rlt::get<0>(SHAPE{}); dim0++){
+            for(TI dim1=0; dim1 < rlt::get<1>(SHAPE{}); dim1++){
+                for(TI dim2=0; dim2 < rlt::get<2>(SHAPE{}); dim2++){
+                    if(dim0 >= 3 && dim0 < 14){
+                        ASSERT_EQ(rlt::get(device, tensor, dim0, dim1, dim2), 1337);
+                    }
+                }
+            }
+        }
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        auto view = rlt::view_range(device, tensor, 29, rlt::tensor::ViewSpec<2, 11>{});
+        static_assert(!rlt::tensor::dense_layout<typename decltype(view)::SPEC>());
+        static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
+        rlt::set_all(device, view, 1337);
+        for(TI dim0=0; dim0 < rlt::get<0>(SHAPE{}); dim0++){
+            for(TI dim1=0; dim1 < rlt::get<1>(SHAPE{}); dim1++){
+                for(TI dim2=0; dim2 < rlt::get<2>(SHAPE{}); dim2++){
+                    if(dim2 >= 29 && dim2 < 40){
+                        ASSERT_EQ(rlt::get(device, tensor, dim0, dim1, dim2), 1337);
+                    }
+                }
+            }
+        }
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 20>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        auto view = rlt::view_range(device, tensor, 1, rlt::tensor::ViewSpec<0, 11>{});
+        static_assert(rlt::tensor::dense_layout<typename decltype(view)::SPEC>());// should be dense because the range is in DIM=0
+        static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
+        rlt::set_all(device, view, 1337);
+        for(TI dim0=0; dim0 < rlt::get<0>(SHAPE{}); dim0++){
+            if(dim0 >= 1 && dim0 < 12){
+                ASSERT_EQ(rlt::get(device, tensor, dim0), 1337);
+            }
+        }
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 20>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        auto view = rlt::view_range(device, tensor, 0, rlt::tensor::ViewSpec<0, 11>{});
+        static_assert(rlt::tensor::dense_layout<typename decltype(view)::SPEC>()); // should be dense because the range is in DIM=0
+        static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
+        rlt::set_all(device, view, 1337);
+        for(TI dim0=0; dim0 < rlt::get<0>(SHAPE{}); dim0++){
+            if(dim0 < 11){
+                ASSERT_EQ(rlt::get(device, tensor, dim0), 1337);
+            }
+        }
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 20, 30, 40>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        auto view = rlt::view_range(device, tensor, 29, rlt::tensor::ViewSpec<2, 11>{});
+        static_assert(!rlt::tensor::dense_layout<typename decltype(view)::SPEC>());
+        static_assert(rlt::tensor::dense_layout<typename decltype(tensor)::SPEC>());
+        auto view2 = rlt::view_range(device, view, 3, rlt::tensor::ViewSpec<0, 5>{});
+        rlt::set_all(device, view2, 1337);
+        for(TI dim0=0; dim0 < rlt::get<0>(SHAPE{}); dim0++){
+            for(TI dim1=0; dim1 < rlt::get<1>(SHAPE{}); dim1++){
+                for(TI dim2=0; dim2 < rlt::get<2>(SHAPE{}); dim2++){
+                    if(dim2 >= 29 && dim2 < 34){
+                        if(dim0 >= 3 && dim0 < 8){
+                            ASSERT_EQ(rlt::get(device, tensor, dim0, dim1, dim2), 1337);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
