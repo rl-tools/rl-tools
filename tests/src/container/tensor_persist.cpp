@@ -9,37 +9,39 @@ namespace rlt = rl_tools;
 
 #include "../utils/utils.h"
 
-using DEVICE = rlt::devices::DefaultCPU;
-using T = double;
-using TI = DEVICE::index_t;
 
-constexpr T EPSILON = 1e-6;
-constexpr TI SEQUENCE_LENGTH = 50;
-constexpr TI BATCH_SIZE = 128;
-constexpr TI INPUT_DIM = 1;
-constexpr TI OUTPUT_DIM = 1;
-constexpr TI HIDDEN_DIM = 16;
-using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
-rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input;
-using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, OUTPUT_DIM>;
-rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> output;
-using WI_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3, INPUT_DIM>;
-rlt::Tensor<rlt::tensor::Specification<T, TI, WI_SHAPE>> weight_in, weight_in_grad;
-using BI_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3>;
-rlt::Tensor<rlt::tensor::Specification<T, TI, BI_SHAPE>> bias_in, bias_in_grad;
-using WH_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3, HIDDEN_DIM>;
-rlt::Tensor<rlt::tensor::Specification<T, TI, WH_SHAPE>> weight_hidden, weight_hidden_grad;
-using BH_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3>;
-rlt::Tensor<rlt::tensor::Specification<T, TI, BH_SHAPE>> bias_hidden, bias_hidden_grad;
-using WOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM, HIDDEN_DIM>;
-rlt::Tensor<rlt::tensor::Specification<T, TI, WOUT_SHAPE>> weight_out, weight_out_grad;
-using BOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM>;
-rlt::Tensor<rlt::tensor::Specification<T, TI, BOUT_SHAPE>> bias_out, bias_out_grad;
-
-DEVICE device;
+constexpr double EPSILON = 1e-8;
 
 
-TEST(RL_TOOLS_NN_LAYERS_GRU, FULL_TRAINING) {
+
+TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    constexpr T EPSILON = 1e-6;
+    constexpr TI SEQUENCE_LENGTH = 50;
+    constexpr TI BATCH_SIZE = 128;
+    constexpr TI INPUT_DIM = 1;
+    constexpr TI OUTPUT_DIM = 1;
+    constexpr TI HIDDEN_DIM = 16;
+    using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input;
+    using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, OUTPUT_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> output;
+    using WI_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3, INPUT_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, WI_SHAPE>> weight_in, weight_in_grad;
+    using BI_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, BI_SHAPE>> bias_in, bias_in_grad;
+    using WH_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3, HIDDEN_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, WH_SHAPE>> weight_hidden, weight_hidden_grad;
+    using BH_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, BH_SHAPE>> bias_hidden, bias_hidden_grad;
+    using WOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM, HIDDEN_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, WOUT_SHAPE>> weight_out, weight_out_grad;
+    using BOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, BOUT_SHAPE>> bias_out, bias_out_grad;
+
 
     rlt::malloc(device, input);
     rlt::malloc(device, output);
@@ -240,3 +242,177 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, FULL_TRAINING) {
         }
     }
 }
+
+template <typename DEVICE, typename SHAPE>
+bool serialize(DEVICE& device){
+    using T = double;
+    using TI = typename DEVICE::index_t;
+    auto rng = rlt::random::default_engine(device.random);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor, tensor2, diff;
+    rlt::malloc(device, tensor);
+    rlt::malloc(device, tensor2);
+    rlt::malloc(device, diff);
+    rlt::randn(device, tensor, rng);
+    auto vector_data = rlt::to_vector(device, tensor);
+    rlt::from_vector(device, vector_data, tensor2);
+    rlt::subtract(device, tensor, tensor2, diff);
+    rlt::abs(device, diff);
+    T abs_diff = rlt::sum(device, diff);
+    return abs_diff < EPSILON;
+}
+TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, SERIALIZE) {
+    using DEVICE = rlt::devices::DefaultCPU;
+    DEVICE device;
+    using TI = DEVICE::index_t;
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 2>;
+        bool good = serialize<DEVICE, SHAPE>(device);
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 1>;
+        bool good = serialize<DEVICE, SHAPE>(device);
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 100>;
+        bool good = serialize<DEVICE, SHAPE>(device);
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 100, 101, 110>;
+        bool good = serialize<DEVICE, SHAPE>(device);
+        ASSERT_TRUE(good);
+    }
+}
+
+template <typename DEVICE, typename SHAPE, typename DEVICE::index_t VIEW_DIM, typename DEVICE::index_t VIEW_START, typename DEVICE::index_t VIEW_SIZE>
+bool serialize_view(DEVICE& device){
+    using T = double;
+    using TI = typename DEVICE::index_t;
+    auto rng = rlt::random::default_engine(device.random);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> generator, tensor;
+    rlt::malloc(device, generator);
+    rlt::malloc(device, tensor);
+    rlt::randn(device, generator, rng);
+    auto vector_data = rlt::to_vector(device, generator);
+    rlt::from_vector(device, vector_data, tensor);
+    auto view = rlt::view_range(device, tensor, VIEW_START, rlt::tensor::ViewSpec<VIEW_DIM, VIEW_SIZE>{});
+    auto vector_data_view = rlt::to_vector(device, view);
+
+    for(TI i=(VIEW_DIM == 0 ? VIEW_START : 0); i < (VIEW_DIM == 0 ? VIEW_START + VIEW_SIZE : rlt::get<0>(SHAPE{})); i++){
+        for(TI j=(VIEW_DIM == 1 ? VIEW_START : 0); j < (VIEW_DIM == 1 ? VIEW_START + VIEW_SIZE : rlt::get<1>(SHAPE{})); j++){
+            for(TI k=(VIEW_DIM == 2 ? VIEW_START : 0); k < (VIEW_DIM == 2 ? VIEW_START + VIEW_SIZE : rlt::get<2>(SHAPE{})); k++){
+                T data_value = vector_data[i][j][k];
+                T view_value = vector_data_view[i - (VIEW_DIM==0 ? VIEW_START : 0)][j - (VIEW_DIM==1 ? VIEW_START : 0)][k - (VIEW_DIM==2 ? VIEW_START : 0)];
+                T diff = data_value - view_value;
+                if(rlt::math::abs(device.math, diff) > EPSILON){
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, SERIALIZE_VIEW){
+    using DEVICE = rlt::devices::DefaultCPU;
+    DEVICE device;
+    using TI = DEVICE::index_t;
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 2, 10>;
+        constexpr TI VIEW_DIM = 0;
+        constexpr TI VIEW_START = 2;
+        constexpr TI VIEW_SIZE = 5;
+        bool good = serialize_view<DEVICE, SHAPE, VIEW_DIM, VIEW_START, VIEW_SIZE>(device);
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 20, 10>;
+        constexpr TI VIEW_DIM = 1;
+        constexpr TI VIEW_START = 0;
+        constexpr TI VIEW_SIZE = 5;
+        bool good = serialize_view<DEVICE, SHAPE, VIEW_DIM, VIEW_START, VIEW_SIZE>(device);
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 20, 10>;
+        constexpr TI VIEW_DIM = 1;
+        constexpr TI VIEW_START = 0;
+        constexpr TI VIEW_SIZE = 20;
+        bool good = serialize_view<DEVICE, SHAPE, VIEW_DIM, VIEW_START, VIEW_SIZE>(device);
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 20, 10>;
+        constexpr TI VIEW_DIM = 1;
+        constexpr TI VIEW_START = 2;
+        constexpr TI VIEW_SIZE = 15;
+        bool good = serialize_view<DEVICE, SHAPE, VIEW_DIM, VIEW_START, VIEW_SIZE>(device);
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 20, 10>;
+        constexpr TI VIEW_DIM = 2;
+        constexpr TI VIEW_START = 0;
+        constexpr TI VIEW_SIZE = 10;
+        bool good = serialize_view<DEVICE, SHAPE, VIEW_DIM, VIEW_START, VIEW_SIZE>(device);
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 20, 10>;
+        constexpr TI VIEW_DIM = 2;
+        constexpr TI VIEW_START = 1;
+        constexpr TI VIEW_SIZE = 9;
+        bool good = serialize_view<DEVICE, SHAPE, VIEW_DIM, VIEW_START, VIEW_SIZE>(device);
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 20, 10>;
+        constexpr TI VIEW_DIM = 2;
+        constexpr TI VIEW_START = 5;
+        constexpr TI VIEW_SIZE = 5;
+        bool good = serialize_view<DEVICE, SHAPE, VIEW_DIM, VIEW_START, VIEW_SIZE>(device);
+        ASSERT_TRUE(good);
+    }
+}
+/*
+template <typename DEVICE, typename SHAPE>
+bool save_and_load(DEVICE& device){
+    using T = double;
+    using TI = DEVICE::index_t;
+    auto rng = rlt::random::default_engine(device.random);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor;
+    rlt::malloc(device, tensor);
+    rlt::randn(device, tensor, rng);
+    std::string DATA_FILE_NAME = "tensor_persist_test_save_load.h5";
+    const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
+    std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
+    std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
+    auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);
+    auto group = output_file.createGroup("test");
+    rlt::save(device, tensor, group, "tensor");
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor_loaded;
+    rlt::malloc(device, tensor_loaded);
+    auto dataset = group.getDataSet("tensor");
+    rlt::tensor::persist::load(device, tensor_loaded, dataset);
+    bool good = true;
+    for(TI i=0; i < SHAPE::SIZE; i++){
+        T diff = rlt::math::abs(device.math, static_cast<T>(rlt::get(device, tensor, i)) - static_cast<T>(rlt::get(device, tensor_loaded, i)));
+        if(diff > 1e-6){
+            good = false;
+            break;
+        }
+    }
+    return good;
+}
+
+TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, SAVE_AND_LOAD) {
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    using SHAPE = rlt::tensor::Shape<TI, 10, 2>;
+    bool good = save_and_load<DEVICE, SHAPE>(device);
+    ASSERT_TRUE(good);
+}
+ */

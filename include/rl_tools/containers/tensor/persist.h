@@ -9,12 +9,6 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
-
-    template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, Tensor<SPEC>& tensor, HighFive::Group group, std::string dataset_name) {
-        // todo
-    }
-
     namespace tensor{
         template<typename DEVICE, typename SPEC, typename TI>
         bool check_dimensions(DEVICE& device, Tensor<SPEC>& tensor, const std::vector<TI>& dims, typename DEVICE::index_t current_dim=0){
@@ -26,6 +20,51 @@ namespace rl_tools {
                 return dims[current_dim] == get<0>(typename SPEC::SHAPE{}) && check_dimensions(device, next_tensor, dims, current_dim+1);
             }
         }
+    }
+    template<typename DEVICE, typename VECTOR, typename SPEC>
+    void from_vector(DEVICE& device, const VECTOR& vector, Tensor<SPEC>& tensor) {
+        using TI = typename DEVICE::index_t;
+        if constexpr(length(typename SPEC::SHAPE{}) == 1){
+            utils::assert_exit(device, vector.size() == get<0>(typename SPEC::SHAPE{}), "Vector size mismatch");
+            for (TI i = 0; i < get<0>(typename SPEC::SHAPE{}); i++) {
+                set(device, tensor, vector[i], i);
+            }
+        }
+        else{
+            utils::assert_exit(device, vector.size() == get<0>(typename SPEC::SHAPE{}), "Vector size mismatch");
+            for (TI i = 0; i < get<0>(typename SPEC::SHAPE{}); i++) {
+                auto next_tensor = view(device, tensor, i);
+                from_vector(device, vector[i], next_tensor);
+            }
+        }
+    }
+
+    template<typename DEVICE, typename SPEC>
+    auto to_vector(DEVICE& device, Tensor<SPEC>& tensor) {
+        using TI = typename DEVICE::index_t;
+        if constexpr(length(typename SPEC::SHAPE{}) == 1){
+            std::vector<typename SPEC::T> data(get<0>(typename SPEC::SHAPE{}));
+            for (TI i = 0; i < get<0>(typename SPEC::SHAPE{}); i++) {
+                data[i] = get(device, tensor, i);
+            }
+            return data;
+        }
+        else{
+            auto next_tensor_shape = view(device, tensor, 0);
+            std::vector<decltype(to_vector(device, next_tensor_shape))> result(get<0>(typename SPEC::SHAPE{}));
+            for (TI i = 0; i < get<0>(typename SPEC::SHAPE{}); i++) {
+                auto next_tensor = view(device, tensor, i);
+                result[i] = to_vector(device, next_tensor);
+            }
+            return result;
+        }
+    }
+
+    template<typename DEVICE, typename SPEC>
+    void save(DEVICE& device, Tensor<SPEC>& tensor, HighFive::Group group, std::string dataset_name) {
+        // todo
+        auto data = vector(device, tensor);
+        group.createDataSet(dataset_name, data);
     }
 
     template<typename DEVICE, typename SPEC>
