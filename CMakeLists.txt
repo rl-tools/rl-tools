@@ -392,7 +392,7 @@ endfunction()
 
 FUNCTION(RL_TOOLS_WARNINGS_ARE_ERRORS TARGET)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(${TARGET} PRIVATE -Wall -Wextra -Wconversion -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-unused-but-set-parameter -Wno-unused-local-typedefs -Werror)
+        target_compile_options(${TARGET} PRIVATE -Wall -Wextra -Wconversion -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-unused-but-set-parameter -Wno-unused-local-typedefs -Werror )
     endif()
     if(MSVC)
         target_compile_options(${TARGET} PRIVATE "/W4")
