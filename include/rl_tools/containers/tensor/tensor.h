@@ -194,7 +194,7 @@ namespace rl_tools{
         T* _data;
     };
     template <typename SPEC>
-    constexpr typename SPEC::T* data(Tensor<SPEC>& tensor){
+    constexpr typename SPEC::T* data(const Tensor<SPEC>& tensor){
         return tensor._data;
     }
     template <typename SPEC>

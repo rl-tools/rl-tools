@@ -52,6 +52,17 @@ namespace rl_tools{
             print(device, NEXT_ELEMENT{}, level+1);
         }
     }
+    template<typename DEV_SPEC, typename SPEC>
+    void print_serial(devices::CPU<DEV_SPEC>& device, const Tensor<SPEC>& tensor, bool print_index = false){
+        using T = typename SPEC::T;
+        T* data_pointer = data(tensor);
+        for(typename DEV_SPEC::index_t i=0; i < SPEC::SIZE; i++){
+            if(print_index){
+                std::cout << i << ": ";
+            }
+            std::cout << data_pointer[i] << std::endl;
+        }
+    }
 }
 
 #endif
