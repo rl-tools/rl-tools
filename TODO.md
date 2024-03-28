@@ -28,3 +28,6 @@
 - Add Github action that test the compilation of the PX4 module [embedded_platforms/px4](embedded_platforms/px4)
 - Remove the memcopy in `containers/tensor/persist.h`
 - Check all examples with `-fsanitize=address`
+
+# Features
+- Look into implementing TQC, DroQ and CrossQ
