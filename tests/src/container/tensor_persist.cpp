@@ -377,11 +377,13 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, SERIALIZE_VIEW){
 }
 
 template <typename DEVICE, typename SHAPE>
-bool save_and_load(DEVICE& device){
+
+template <typename DEVICE, typename SHAPE, typename T1, typename T2>
+bool save_and_load_one_way(DEVICE& device){
     using T = double;
     using TI = typename DEVICE::index_t;
     auto rng = rlt::random::default_engine(device.random);
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor;
+    rlt::Tensor<rlt::tensor::Specification<T1, TI, SHAPE>> tensor;
     rlt::malloc(device, tensor);
     rlt::randn(device, tensor, rng);
     std::string DATA_FILE_NAME = "tensor_persist_test_save_load.h5";
@@ -391,15 +393,26 @@ bool save_and_load(DEVICE& device){
     auto output_file = HighFive::File(std::string(DATA_FILE_PATH), HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Truncate);
     auto group = output_file.createGroup("test");
     rlt::save(device, tensor, group, "tensor");
-    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor_loaded, diff;
+    rlt::Tensor<rlt::tensor::Specification<T2, TI, SHAPE>> tensor_loaded, diff;
     rlt::malloc(device, tensor_loaded);
     rlt::malloc(device, diff);
     auto dataset = group.getDataSet("tensor");
     rlt::load(device, dataset, tensor_loaded);
     rlt::subtract(device, tensor, tensor_loaded, diff);
     rlt::abs(device, diff);
-    T abs_diff = rlt::sum(device, diff);
-    return abs_diff < EPSILON;
+    T abs_diff = rlt::sum(device, diff)/decltype(tensor)::SPEC::SIZE;
+    std::cout << "abs_diff: " << abs_diff << std::endl;
+    constexpr bool SAME_TYPE = rlt::utils::typing::is_same_v<T1, T2>;
+    return abs_diff <= EPSILON * (!SAME_TYPE ? 1e2 : 0e0);
+}
+
+template <typename DEVICE, typename SHAPE>
+bool save_and_load(DEVICE& device){
+    bool good = save_and_load_one_way<DEVICE, SHAPE, double, double>(device);
+    good = good && save_and_load_one_way<DEVICE, SHAPE, double, float>(device);
+    good = good && save_and_load_one_way<DEVICE, SHAPE, float, double>(device);
+    good = good && save_and_load_one_way<DEVICE, SHAPE, float, float>(device);
+    return good;
 }
 
 TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, SAVE_AND_LOAD) {
