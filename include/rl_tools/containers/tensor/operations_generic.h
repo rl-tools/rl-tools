@@ -13,16 +13,18 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, Tensor<SPEC>& tensor){
-        delete data(tensor);
+        delete[] data(tensor);
     }
 
     template <typename DEVICE, typename SPEC, typename TI, auto DIM=0, auto SIZE=0>
     auto view_range(DEVICE& device, Tensor<SPEC>& tensor, TI index, tensor::ViewSpec<DIM, SIZE> = {}){
         static_assert(SIZE > 0);
-//        using NEW_SHAPE = tensor::Replace<typename SPEC::SHAPE, SIZE, DIM>;
-//        using NEW_STRIDE = typename SPEC::STRIDE;
+        static_assert(get<DIM>(typename SPEC::SHAPE{}) >= SIZE);
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
-//        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE>;
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+        utils::assert_exit(device, offset < SPEC::SIZE, "Index out of bounds");
+        utils::assert_exit(device, offset + SIZE <= SPEC::SIZE, "Index out of bounds");
+#endif
         Tensor<tensor::spec::view::range::Specification<SPEC, tensor::ViewSpec<DIM, SIZE>>> view;
         data_reference(view) = data(tensor) + offset;
         return view;
@@ -61,7 +63,11 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename TII>
     typename SPEC::T get(DEVICE& device, Tensor<SPEC>& tensor, TII local_index){
         static_assert(length(typename SPEC::SHAPE{})==1);
-        return *(data(tensor) + index(device, tensor, local_index));
+        auto idx = index(device, tensor, local_index);
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+        utils::assert_exit(device, idx < SPEC::SIZE, "Index out of bounds");
+#endif
+        return *(data(tensor) + idx);
     }
 
     template<typename DEVICE, typename SPEC, typename TII, typename... INDICES>
@@ -78,7 +84,11 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename TII> //SFINAE actually not required: typename utils::typing::enable_if_t<length(typename SPEC::SHAPE{})==1>* = nullptr>
     void set(DEVICE& device, Tensor<SPEC>& tensor, typename SPEC::T value, TII current_index){
         static_assert(length(typename SPEC::SHAPE{})==1);
-        *(data(tensor) + index(device, tensor, current_index)) = value;
+        auto idx = index(device, tensor, current_index);
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+        utils::assert_exit(device, idx < SPEC::SIZE, "Index out of bounds");
+#endif
+        *(data(tensor) + idx) = value;
     }
 
     template<typename DEVICE, typename SPEC, typename TII, typename... INDICES> //, typename utils::typing::enable_if_t<tensor::RANK_LARGER_THAN<typename SPEC::SHAPE, 1>>* = nullptr>

@@ -14,8 +14,8 @@ namespace rlt = rl_tools;
 
 #include "../../../utils/utils.h"
 
+
 TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
-//int main(){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TI = DEVICE::index_t;
@@ -30,14 +30,6 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input;
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, OUTPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> output;
-    using WI_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3, INPUT_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, WI_SHAPE>> weight_in, weight_in_grad;
-    using BI_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, BI_SHAPE>> bias_in, bias_in_grad;
-    using WH_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3, HIDDEN_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, WH_SHAPE>> weight_hidden, weight_hidden_grad;
-    using BH_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM*3>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, BH_SHAPE>> bias_hidden, bias_hidden_grad;
     using WOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, WOUT_SHAPE>> weight_out, weight_out_grad;
     using BOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM>;
@@ -47,40 +39,12 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::nn::layers::gru::Layer<GRU_SPEC> gru;
     rlt::malloc(device, gru);
 
-
     rlt::malloc(device, input);
     rlt::malloc(device, output);
-    rlt::malloc(device, weight_in);
-    rlt::malloc(device, weight_in_grad);
-    rlt::malloc(device, bias_in);
-    rlt::malloc(device, bias_in_grad);
-    rlt::malloc(device, weight_hidden);
-    rlt::malloc(device, weight_hidden_grad);
-    rlt::malloc(device, bias_hidden);
-    rlt::malloc(device, bias_hidden_grad);
     rlt::malloc(device, weight_out);
     rlt::malloc(device, weight_out_grad);
     rlt::malloc(device, bias_out);
     rlt::malloc(device, bias_out_grad);
-
-    auto W_ir = rlt::view_range(device, weight_in, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-    auto W_iz = rlt::view_range(device, weight_in, 1*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-    auto W_in = rlt::view_range(device, weight_in, 2*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-
-    auto b_ir = rlt::view_range(device, bias_in, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-    auto b_iz = rlt::view_range(device, bias_in, 1*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-    auto b_in = rlt::view_range(device, bias_in, 2*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-
-    auto W_hr = rlt::view_range(device, weight_hidden, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-    auto W_hz = rlt::view_range(device, weight_hidden, 1*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-    auto W_hn = rlt::view_range(device, weight_hidden, 2*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-
-    auto b_hr = rlt::view_range(device, bias_hidden, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-    auto b_hz = rlt::view_range(device, bias_hidden, 1*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-    auto b_hn = rlt::view_range(device, bias_hidden, 2*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
-
-    auto W_out = rlt::view_range(device, weight_out, 0*OUTPUT_DIM, rlt::tensor::ViewSpec<0, OUTPUT_DIM>{});
-    auto b_out = rlt::view_range(device, bias_out, 0*OUTPUT_DIM, rlt::tensor::ViewSpec<0, OUTPUT_DIM>{});
 
     std::string DATA_FILE_NAME = "gru_training_trace.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
@@ -123,9 +87,15 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, b_hr_ds, gru.b_hr);
             rlt::load(device, b_hz_ds, gru.b_hz);
             rlt::load(device, b_hn_ds, gru.b_hn);
-            rlt::load(device, W_out_ds, W_out);
-            rlt::load(device, b_out_ds, b_out);
-            rlt::print(device, gru.b_hn);
+            rlt::load(device, W_out_ds, weight_out);
+            rlt::load(device, b_out_ds, bias_out);
         }
     }
+    rlt::free(device, input);
+    rlt::free(device, output);
+    rlt::free(device, weight_out);
+    rlt::free(device, weight_out_grad);
+    rlt::free(device, bias_out);
+    rlt::free(device, bias_out_grad);
+    rlt::free(device, gru);
 }

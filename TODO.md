@@ -27,3 +27,4 @@
 - Separate `gather_batch` from the off-policy runner (should be an operation on the replay buffer)
 - Add Github action that test the compilation of the PX4 module [embedded_platforms/px4](embedded_platforms/px4)
 - Remove the memcopy in `containers/tensor/persist.h`
+- Check all examples with `-fsanitize=address`

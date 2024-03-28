@@ -75,7 +75,7 @@ namespace rl_tools {
         utils::assert_exit(device, tensor::check_dimensions(device, tensor, dims), "Dimension mismatch");
         typename SPEC::T* data_ptr = data(tensor);
         utils::assert_exit(device, data_ptr != nullptr, "Data pointer is null");
-        constexpr bool VIA_VECTOR = false;
+        constexpr bool VIA_VECTOR = true;
         if constexpr(VIA_VECTOR){
             static_assert(!VIA_VECTOR || (length(typename SPEC::SHAPE{}) <= 3));
             if constexpr(length(typename SPEC::SHAPE{}) == 1){
@@ -97,6 +97,7 @@ namespace rl_tools {
             }
         }
         else{
+            utils::assert_exit(device, dataset.getStorageSize() == sizeof(T)*SPEC::SIZE_BYTES, "Storage size mismatch");
             dataset.read(data_ptr);
         }
     }

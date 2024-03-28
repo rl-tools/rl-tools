@@ -33,28 +33,28 @@ namespace rl_tools::nn::layers::gru {
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI HIDDEN_DIM = SPEC::HIDDEN_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
-        using WEIGHTS_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, HIDDEN_DIM, INPUT_DIM>;
+        using WEIGHTS_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, INPUT_DIM>;
         using WEIGHTS_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_INPUT_CONTAINER_SHAPE>;
         using WEIGHTS_INPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<WEIGHTS_INPUT_CONTAINER_SPEC>;
         using WEIGHTS_INPUT_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_INPUT_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_INPUT_PARAMETER_SPEC> weights_input;
         typename decltype(weights_input.parameters)::template VIEW_RANGE<tensor::ViewSpec<0, HIDDEN_DIM>> W_ir, W_iz, W_in;
 
-        using BIASES_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, HIDDEN_DIM>;
+        using BIASES_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM>;
         using BIASES_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, BIASES_INPUT_CONTAINER_SHAPE>;
         using BIASES_INPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<BIASES_INPUT_CONTAINER_SPEC>;
         using BIASES_INPUT_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<BIASES_INPUT_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<BIASES_INPUT_PARAMETER_SPEC> biases_input;
         typename decltype(biases_input.parameters)::template VIEW_RANGE<tensor::ViewSpec<0, HIDDEN_DIM>> b_ir, b_iz, b_in;
 
-        using WEIGHTS_HIDDEN_CONTAINER_SHAPE = tensor::Shape<TI, HIDDEN_DIM, HIDDEN_DIM>;
+        using WEIGHTS_HIDDEN_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, HIDDEN_DIM>;
         using WEIGHTS_HIDDEN_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_HIDDEN_CONTAINER_SHAPE>;
         using WEIGHTS_HIDDEN_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<WEIGHTS_HIDDEN_CONTAINER_SPEC>;
         using WEIGHTS_HIDDEN_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_HIDDEN_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_HIDDEN_PARAMETER_SPEC> weights_hidden;
         typename decltype(weights_hidden.parameters)::template VIEW_RANGE<tensor::ViewSpec<0, HIDDEN_DIM>> W_hr, W_hz, W_hn;
 
-        using BIASES_HIDDEN_CONTAINER_SHAPE = tensor::Shape<TI, HIDDEN_DIM>;
+        using BIASES_HIDDEN_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM>;
         using BIASES_HIDDEN_CONTAINER_SPEC = tensor::Specification<T, TI, BIASES_HIDDEN_CONTAINER_SHAPE>;
         using BIASES_HIDDEN_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<BIASES_HIDDEN_CONTAINER_SPEC>;
         using BIASES_HIDDEN_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<BIASES_HIDDEN_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;

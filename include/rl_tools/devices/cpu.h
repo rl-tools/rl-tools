@@ -24,7 +24,7 @@ namespace rl_tools::devices{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::CPU;
             using index_t = size_t;
-            static constexpr index_t MAX_INDEX = -1;
+            static constexpr index_t MAX_INDEX = std::numeric_limits<index_t>::max();
         };
     }
     namespace math{

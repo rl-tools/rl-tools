@@ -28,7 +28,7 @@ namespace rl_tools{
         layer.b_hz = view_range(device, layer.biases_hidden.parameters, 1*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         layer.b_hn = view_range(device, layer.biases_hidden.parameters, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
 
-        malloc(device, layer.initial_hidden_state.parameters);
+        malloc(device, layer.initial_hidden_state);
         set_all(device, layer.initial_hidden_state.parameters, 0);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
@@ -44,10 +44,11 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::gru::Layer<SPEC>& layer){
-        malloc(device, layer.weights_input);
-        malloc(device, layer.biases_input);
-        malloc(device, layer.weights_hidden);
-        malloc(device, layer.biases_hidden);
+        free(device, layer.weights_input);
+        free(device, layer.biases_input);
+        free(device, layer.weights_hidden);
+        free(device, layer.biases_hidden);
+        free(device, layer.initial_hidden_state);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
