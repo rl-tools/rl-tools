@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
+#include <thread>
+#include <chrono>
 
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/containers/tensor/tensor.h>
@@ -294,6 +296,108 @@ TEST(RL_TOOLS_TENSOR_TEST, RANDN){
         rlt::free(device, tensor);
     }
 }
+
+template<typename DEVICE, typename SPEC>
+typename SPEC::T sum_old(DEVICE& device, rlt::Tensor<SPEC>& t){
+    using T = typename SPEC::T;
+    using TI = typename DEVICE::index_t;
+    if constexpr(rlt::length(typename SPEC::SHAPE{}) > 1){
+        T acc = 0;
+        for(TI i=0; i < rlt::get<0>(typename SPEC::SHAPE{}); ++i){
+            auto next = rlt::view(device, t, i);
+            acc += sum_old(device, next);
+        }
+        return acc;
+    }
+    else{
+        T acc = 0;
+        for(TI i=0; i < rlt::get<0>(typename SPEC::SHAPE{}); i++){
+            acc += rlt::get(device, t, i);
+        }
+        return acc;
+    }
+}
+
+TEST(RL_TOOLS_TENSOR_TEST, SUM){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = typename DEVICE::index_t;
+    DEVICE device;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::set(device, tensor, 1, 0);
+        rlt::set(device, tensor, 2, 1);
+        T sum = rlt::sum(device, tensor);
+        ASSERT_EQ(sum, 1+2);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 3>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::set(device, tensor, 1, 0, 0);
+        rlt::set(device, tensor, 2, 0, 1);
+        rlt::set(device, tensor, 3, 0, 2);
+        rlt::set(device, tensor, 4, 1, 0);
+        rlt::set(device, tensor, 5, 1, 1);
+        rlt::set(device, tensor, 6, 1, 2);
+        T sum = rlt::sum(device, tensor);
+        ASSERT_EQ(sum, 1+2+3+4+5+6);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::set_all(device, tensor, 1337);
+        T sum = rlt::sum(device, tensor);
+        ASSERT_EQ(sum, 1337 * rlt::get<0>(rlt::tensor::Product<SHAPE>{}));
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 3, 4>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        T sum = rlt::sum(device, tensor);
+        T sum2 = sum_old(device, tensor);
+        ASSERT_NEAR(sum, sum2, EPSILON);
+    }
+#ifdef NDEBUG
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 10, 10, 10, 10, 10, 1>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        constexpr TI NUM_ITERATIONS = 1000;
+        T sum, sum2;
+        {
+            auto start = std::chrono::high_resolution_clock::now();
+            for(TI iteration_i=0; iteration_i < NUM_ITERATIONS; iteration_i++){
+                sum2 = sum_old(device, tensor);
+            }
+            auto end = std::chrono::high_resolution_clock::now();
+            std::cout << "time for sum_old: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        {
+            auto start = std::chrono::high_resolution_clock::now();
+            for(TI iteration_i=0; iteration_i < NUM_ITERATIONS; iteration_i++){
+                sum = rlt::sum(device, tensor);
+            }
+            auto end = std::chrono::high_resolution_clock::now();
+            std::cout << "time for rlt::sum: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+        }
+        std::cout << "sum: " << sum << " sum2: " << sum2 << std::endl;
+        ASSERT_NEAR(sum, sum2, EPSILON);
+    }
+#endif
+}
 TEST(RL_TOOLS_TENSOR_TEST, COMPARE_DIMS) {
     using DEVICE = rlt::devices::DefaultCPU;
     using TI = typename DEVICE::index_t;
@@ -531,4 +635,37 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
             }
         }
     }
+}
+
+TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_GENERIC){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2, 2>>> A, B, C, C_target;
+    rlt::malloc(device, A);
+    rlt::malloc(device, B);
+    rlt::malloc(device, C);
+    rlt::malloc(device, C_target);
+    set(device, A, -0.259093, 0, 0);
+    set(device, A, -1.498961, 0, 1);
+    set(device, A, +0.119264, 1, 0);
+    set(device, A, +0.458181, 1, 1);
+
+    set(device, B, +0.394975, 0, 0);
+    set(device, B, +0.044197, 0, 1);
+    set(device, B, -0.636256, 1, 0);
+    set(device, B, +1.731264, 1, 1);
+
+    set(device, C_target, -0.259093 * +0.394975 + -1.498961 * -0.636256, 0, 0);
+    set(device, C_target, -0.259093 * +0.044197 + -1.498961 * +1.731264, 0, 1);
+    set(device, C_target, +0.119264 * +0.394975 + +0.458181 * -0.636256, 1, 0);
+    set(device, C_target, +0.119264 * +0.044197 + +0.458181 * +1.731264, 1, 1);
+    rlt::print(device, C_target);
+
+    rlt::multiply(device, A, B, C);
+    rlt::print(device, C);
+//    auto diff = rlt::abs_diff(device, C_target, C);
+//    std::cout << "Matrix mul diff: " << diff << std::endl;
+//    ASSERT_TRUE(diff < 1e-6);
 }

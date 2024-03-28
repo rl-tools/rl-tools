@@ -49,3 +49,12 @@ target_link_libraries(
         GTest::gtest_main
 )
 gtest_discover_tests(tensor_persist_test)
+
+add_executable(tensor_sum_test
+        tensor_sum.cpp
+)
+target_link_libraries(
+        tensor_sum_test
+        PRIVATE
+        RLtools::Core
+)

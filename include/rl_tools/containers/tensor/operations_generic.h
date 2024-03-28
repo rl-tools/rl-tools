@@ -13,16 +13,17 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, Tensor<SPEC>& tensor){
-        delete[] data_reference(tensor);
+        delete data(tensor);
     }
+
     template <typename DEVICE, typename SPEC, typename TI, auto DIM=0, auto SIZE=0>
     auto view_range(DEVICE& device, Tensor<SPEC>& tensor, TI index, tensor::ViewSpec<DIM, SIZE> = {}){
         static_assert(SIZE > 0);
-        using NEW_SHAPE = tensor::Replace<typename SPEC::SHAPE, SIZE, DIM>;
-        using NEW_STRIDE = typename SPEC::STRIDE;
+//        using NEW_SHAPE = tensor::Replace<typename SPEC::SHAPE, SIZE, DIM>;
+//        using NEW_STRIDE = typename SPEC::STRIDE;
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
-        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE>;
-        Tensor<NEW_SPEC> view;
+//        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE>;
+        Tensor<tensor::spec::view::range::Specification<SPEC, tensor::ViewSpec<DIM, SIZE>>> view;
         data_reference(view) = data(tensor) + offset;
         return view;
     }
@@ -126,32 +127,20 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEVICE, typename SPEC>
-    typename SPEC::T sum(DEVICE& device, Tensor<SPEC>& t){
-        using T = typename SPEC::T;
-        using TI = typename DEVICE::index_t;
-        if constexpr(length(typename SPEC::SHAPE{}) > 1){
-            T acc = 0;
-            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
-                auto next = view(device, t, i);
-                acc += sum(device, next);
-            }
-            return acc;
-        }
-        else{
-            T acc = 0;
-            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
-                acc += get(device, t, i);
-            }
-            return acc;
-        }
-    }
     namespace tensor{
         struct OperationEmptyParameter{};
         template <auto T_OPERATION, typename PARAMETER>
         struct Operation{
             static constexpr auto OPERATION = T_OPERATION;
             PARAMETER parameter;
+        };
+        template <typename PARAMETER, typename T_ACCUMULATOR_TYPE, typename T_CURRENT_TYPE, auto T_OPERATION>
+        struct ReduceOperation{
+            using ACCUMULATOR_TYPE = T_ACCUMULATOR_TYPE;
+            using CURRENT_TYPE = T_CURRENT_TYPE;
+            static constexpr auto OPERATION = T_OPERATION;
+            PARAMETER parameter;
+            ACCUMULATOR_TYPE initial_value;
         };
         namespace binary_operations{
             template <typename T>
@@ -185,9 +174,19 @@ namespace rl_tools{
                 return parameter;
             }
         }
+        namespace unary_reduce_operations{
+            namespace impl{
+                template <typename PARAMETER, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE>
+                ACCUMULATOR_TYPE sum(const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
+                    return accumulator + current;
+                }
+            }
+            template <typename T>
+            using Sum = ReduceOperation<OperationEmptyParameter, T, T, impl::sum<OperationEmptyParameter, T, T>>;
+        }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, auto BINARY_OPERATION, typename OPERATION_PARAMETER>
-    void binary_operation(DEVICE& device, const tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    inline void binary_operation(DEVICE& device, const tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
         using BOP = tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER>;
@@ -234,6 +233,36 @@ namespace rl_tools{
         }
     }
 
+    template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER>
+    ACCUMULATOR_TYPE unary_associative_reduce(DEVICE& device, const tensor::ReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        if constexpr(length(typename SPEC::SHAPE{}) > 1){
+            ACCUMULATOR_TYPE accumulator = op.initial_value;
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
+                auto next_t = view(device, t, i);
+                accumulator = UNARY_REDUCE_OPERATION(op.parameter, accumulator, unary_associative_reduce(device, op, next_t));
+            }
+            return accumulator;
+        }
+        else{
+            ACCUMULATOR_TYPE accumulator = op.initial_value;
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
+                T t_value = get(device, t, i);
+                accumulator = UNARY_REDUCE_OPERATION(op.parameter, accumulator, t_value);
+            }
+            return accumulator;
+        }
+    }
+
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T sum(DEVICE& device, Tensor<SPEC>& t){
+        tensor::unary_reduce_operations::Sum<typename SPEC::T> op;
+        op.initial_value = 0;
+        return unary_associative_reduce(device, op, t);
+    }
+
+
     template<typename DEVICE, typename SPEC>
     void abs(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
@@ -251,8 +280,50 @@ namespace rl_tools{
         unary_operation(device, op, t);
     }
 
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    void multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+        // Y^T = WX^T
+        static_assert(length(typename SPEC_1::SHAPE{}) == 2);
+        static_assert(length(typename SPEC_2::SHAPE{}) == 2);
+        static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
+        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
+        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{}));
+        static_assert(get<1>(typename SPEC_2::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{}));
+        using T = typename SPEC_1::T;
+        using TI = typename DEVICE::index_t;
+        for(TI row_i=0; row_i < get<0>(typename SPEC_1::SHAPE{}); ++row_i){
+            for(TI col_j=0; col_j < get<1>(typename SPEC_2::SHAPE{}); ++col_j){
+                T acc = 0;
+                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
+                    acc += get(device, t1, row_i, k) * get(device, t2, k, col_j);
+                }
+                set(device, result, acc, row_i, col_j);
+            }
+        }
+    }
 
-
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    void multiply_transpose(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+        // Y^T = WX^T
+        static_assert(length(typename SPEC_1::SHAPE{}) == 2);
+        static_assert(length(typename SPEC_2::SHAPE{}) == 2);
+        static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
+        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_2::SHAPE{}));
+        static_assert(get<0>(typename SPEC_2::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{}));
+        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{}));
+        using T = typename SPEC_1::T;
+        using TI = typename DEVICE::index_t;
+        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
+            for(TI j=0; j < get<0>(typename SPEC_2::SHAPE{}); ++j){
+                T acc = 0;
+                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
+                    acc += get(device, t1, i, k) * get(device, t2, j, k);
+                }
+                set(device, result, acc, j, i);
+            }
+        }
+    }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

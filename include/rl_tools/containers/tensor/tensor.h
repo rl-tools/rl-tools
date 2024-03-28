@@ -132,24 +132,25 @@ namespace rl_tools{
             static_assert(length(ELEMENT{}) > ELEMENT_OFFSET);
         };
 
-
-
-
-
         template <typename SHAPE>
         using RowMajorStride = Append<PopFront<Product<SHAPE>>, 1>;
 
-        template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE = RowMajorStride<T_SHAPE>>
+        template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE = RowMajorStride<T_SHAPE>, bool T_STATIC=false>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             using SHAPE = T_SHAPE;
             using STRIDE = T_STRIDE;
+            static constexpr bool STATIC = T_STATIC;
             static constexpr TI SIZE = Product<SHAPE>::VALUE;
             static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
+
         };
-        template<auto DIM, auto SIZE=0>
-        struct ViewSpec{};
+        template<auto T_DIM, auto T_SIZE=0>
+        struct ViewSpec{
+            static constexpr auto DIM = T_DIM;
+            static constexpr auto SIZE = T_SIZE;
+        };
         template <typename A, typename B>
         bool constexpr _same_dimensions_shape(){
             static_assert(length(A{}) == length(B{}));
@@ -185,14 +186,37 @@ namespace rl_tools{
         bool constexpr dense_layout(){
             return _dense_layout_shape<typename SPEC::SHAPE, typename SPEC::STRIDE>();
         }
+        namespace spec::view{
+            namespace range{
+                template <typename SHAPE, typename VIEW_SPEC>
+                using Shape = tensor::Replace<SHAPE, VIEW_SPEC::SIZE, VIEW_SPEC::DIM>;
+                template <typename STRIDE, typename VIEW_SPEC>
+                using Stride = STRIDE;
+                template <typename SPEC, typename VIEW_SPEC>
+                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, Stride<typename SPEC::STRIDE, VIEW_SPEC>>;
+            }
+            namespace point{
+                template <typename SHAPE, typename VIEW_SPEC>
+                using Shape = tensor::Remove<SHAPE, VIEW_SPEC::DIM>;
+                template <typename STRIDE, typename VIEW_SPEC>
+                using Stride = tensor::Remove<STRIDE, VIEW_SPEC::DIM>;
+                template <typename SPEC, typename VIEW_SPEC>
+                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, Stride<typename SPEC::STRIDE, VIEW_SPEC>>;
+            }
+        }
     }
 
     template <typename T_SPEC>
     struct Tensor{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
-        T* _data;
+        template <typename VIEW_SPEC>
+        using VIEW_POINT = Tensor<tensor::spec::view::point::Specification<SPEC, VIEW_SPEC>>;
+        template <typename VIEW_SPEC>
+        using VIEW_RANGE = Tensor<tensor::spec::view::range::Specification<SPEC, VIEW_SPEC>>;
+        utils::typing::conditional_t<SPEC::STATIC, T[SPEC::SIZE], T*> _data;
     };
+
     template <typename SPEC>
     constexpr typename SPEC::T* data(const Tensor<SPEC>& tensor){
         return tensor._data;
@@ -201,6 +225,14 @@ namespace rl_tools{
     constexpr typename SPEC::T*& data_reference(Tensor<SPEC>& tensor){
         return tensor._data;
     }
+    struct TensorDynamicTag{
+        template<typename SPEC>
+        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, false>>;
+    };
+    struct TensorStaticTag{
+        template<typename SPEC>
+        using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, true>>;
+    };
 }
 
 #endif

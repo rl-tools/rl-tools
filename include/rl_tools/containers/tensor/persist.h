@@ -62,23 +62,43 @@ namespace rl_tools {
 
     template<typename DEVICE, typename SPEC>
     void save(DEVICE& device, Tensor<SPEC>& tensor, HighFive::Group group, std::string dataset_name) {
-        // todo
-        auto data = vector(device, tensor);
+        auto data = to_vector(device, tensor);
         group.createDataSet(dataset_name, data);
     }
 
     template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, Tensor<SPEC>& tensor, const HighFive::DataSet& dataset, bool fallback_to_zero = false) {
+    void load(DEVICE& device, const HighFive::DataSet& dataset, Tensor<SPEC>& tensor, bool fallback_to_zero = false) {
+        using T = typename SPEC::T;
         auto dims = dataset.getDimensions();
         static_assert(tensor::dense_layout<SPEC>(), "Load only supports dense tensors for now");
         utils::assert_exit(device, dims.size() == length(typename SPEC::SHAPE{}), "Rank mismatch");
         utils::assert_exit(device, tensor::check_dimensions(device, tensor, dims), "Dimension mismatch");
-        dataset.read(data(tensor));
-    }
-
-    template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, Tensor<SPEC>& tensor, HighFive::Group group, std::string dataset_name, bool fallback_to_zero = false) {
-        // todo
+        typename SPEC::T* data_ptr = data(tensor);
+        utils::assert_exit(device, data_ptr != nullptr, "Data pointer is null");
+        constexpr bool VIA_VECTOR = false;
+        if constexpr(VIA_VECTOR){
+            static_assert(!VIA_VECTOR || (length(typename SPEC::SHAPE{}) <= 3));
+            if constexpr(length(typename SPEC::SHAPE{}) == 1){
+                dataset.read(data_ptr);
+            }
+            else{
+                if constexpr(length(typename SPEC::SHAPE{}) == 2){
+                    std::vector<std::vector<T>> buffer;
+                    dataset.read(buffer);
+                    from_vector(device, buffer, tensor);
+                }
+                else{
+                    if constexpr(length(typename SPEC::SHAPE{}) == 3){
+                        std::vector<std::vector<std::vector<T>>> buffer;
+                        dataset.read(buffer);
+                        from_vector(device, buffer, tensor);
+                    }
+                }
+            }
+        }
+        else{
+            dataset.read(data_ptr);
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
