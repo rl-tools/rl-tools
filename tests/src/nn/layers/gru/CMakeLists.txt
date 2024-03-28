@@ -10,8 +10,15 @@ target_link_libraries(
         RLtools::Test
         GTest::gtest_main
 )
-target_compile_options(test_nn_layers_gru PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-target_link_options(test_nn_layers_gru PRIVATE -fsanitize=address)
+
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(test_nn_layers_gru PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+    target_link_options(test_nn_layers_gru PRIVATE -fsanitize=address)
+elseif (MSVC)
+    target_compile_options(test_nn_layers_gru PRIVATE /fsanitize=address)
+    target_link_options(test_nn_layers_gru PRIVATE /fsanitize=address)
+endif()
+
 gtest_discover_tests(test_nn_layers_gru)
 RL_TOOLS_WARNINGS_ARE_ERRORS(test_nn_layers_gru)
 target_compile_definitions(test_nn_layers_gru PRIVATE -DRL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS)
