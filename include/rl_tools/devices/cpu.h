@@ -10,6 +10,7 @@
 #include <string>
 #include <algorithm>
 #include <ctime>
+#include <limits>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace cpu{
