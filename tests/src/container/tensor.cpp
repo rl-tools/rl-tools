@@ -11,6 +11,7 @@ namespace rlt = rl_tools;
 
 constexpr double EPSILON = 1e-8;
 
+
 template <typename INPUT>
 void test_shape_operations(typename INPUT::TI length){
     ASSERT_TRUE(length == rlt::length(INPUT{}));
@@ -641,9 +642,43 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW_RANGE){
     }
 }
 
-TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_GENERIC){
+TEST(RL_TOOLS_TENSOR_TEST, ABSOLUTE_DIFFERENCE){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    {
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2, 2>>> A, B;
+        rlt::malloc(device, A);
+        rlt::malloc(device, B);
+        set(device, A, 1, 0, 0);
+        set(device, A, 2, 0, 1);
+        set(device, A, 3, 1, 0);
+        set(device, A, 4, 1, 1);
+        set(device, B, 2, 0, 0);
+        set(device, B, 1, 0, 1);
+        set(device, B, 4, 1, 0);
+        set(device, B, 3, 1, 1);
+
+        T diff = rlt::absolute_difference(device, A, B);
+        ASSERT_EQ(diff, 4);
+    }
+    {
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2>>> A, B;
+        rlt::malloc(device, A);
+        rlt::malloc(device, B);
+        set(device, A, 1, 0);
+        set(device, A, 2, 1);
+        set(device, B, 2, 0);
+        set(device, B, 2, 1);
+        T diff = rlt::absolute_difference(device, A, B);
+        ASSERT_EQ(diff, 1);
+    }
+}
+
+TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_GENERIC){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2, 2>>> A, B, C, C_target;
@@ -669,7 +704,7 @@ TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_GENERIC){
 
     rlt::multiply(device, A, B, C);
     rlt::print(device, C);
-//    auto diff = rlt::abs_diff(device, C_target, C);
-//    std::cout << "Matrix mul diff: " << diff << std::endl;
-//    ASSERT_TRUE(diff < 1e-6);
+    auto diff = rlt::absolute_difference(device, C_target, C);
+    std::cout << "Matrix mul diff: " << diff << std::endl;
+    ASSERT_TRUE(diff < EPSILON);
 }
