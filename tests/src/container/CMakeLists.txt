@@ -38,6 +38,7 @@ target_link_libraries(
 )
 gtest_discover_tests(tensor_test)
 
+if(RL_TOOLS_ENABLE_HDF5)
 add_executable(tensor_persist_test
         tensor_persist.cpp
 )
@@ -49,6 +50,7 @@ target_link_libraries(
         GTest::gtest_main
 )
 gtest_discover_tests(tensor_persist_test)
+endif()
 
 add_executable(tensor_sum_test
         tensor_sum.cpp
