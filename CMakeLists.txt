@@ -238,6 +238,7 @@ if(RL_TOOLS_ENABLE_HDF5)
     if(RL_TOOLS_HDF5_HIGHFIVE_FROM_CONAN)
         find_package(HighFive REQUIRED)
     else()
+        set(HIGHFIVE_UNIT_TESTS OFF CACHE BOOL "Disable HighFive unit tests" FORCE)
         add_subdirectory(external/highfive)
     endif()
 

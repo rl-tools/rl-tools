@@ -708,3 +708,47 @@ TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_GENERIC){
     std::cout << "Matrix mul diff: " << diff << std::endl;
     ASSERT_TRUE(diff < EPSILON);
 }
+
+TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    using SHAPE = rlt::tensor::Shape<TI, 2, 2>;
+    using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+    using SHAPE_TRANSPOSE = rlt::tensor::Shape<TI, rlt::get<1>(SHAPE{}), rlt::get<0>(SHAPE{})>;
+    using STRIDE_TRANSPOSE = rlt::tensor::Stride<TI, rlt::get<1>(STRIDE{}), rlt::get<0>(STRIDE{})>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A, B, C, C_target;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE_TRANSPOSE>> A_T, B_T, C_T, C_target_T;
+    rlt::malloc(device, A);
+    rlt::malloc(device, B);
+    rlt::malloc(device, C);
+    rlt::malloc(device, C_target);
+    rlt::data_reference(A_T) = rlt::data(A);
+    rlt::data_reference(B_T) = rlt::data(B);
+    rlt::data_reference(C_T) = rlt::data(C);
+    rlt::data_reference(C_target_T) = rlt::data(C_target);
+
+    set(device, A, -0.259093, 0, 0);
+    set(device, A, -1.498961, 0, 1);
+    set(device, A, +0.119264, 1, 0);
+    set(device, A, +0.458181, 1, 1);
+
+    set(device, B, +0.394975, 0, 0);
+    set(device, B, +0.044197, 0, 1);
+    set(device, B, -0.636256, 1, 0);
+    set(device, B, +1.731264, 1, 1);
+
+    set(device, C_target, -0.259093 * +0.394975 + -1.498961 * -0.636256, 0, 0);
+    set(device, C_target, -0.259093 * +0.044197 + -1.498961 * +1.731264, 0, 1);
+    set(device, C_target, +0.119264 * +0.394975 + +0.458181 * -0.636256, 1, 0);
+    set(device, C_target, +0.119264 * +0.044197 + +0.458181 * +1.731264, 1, 1);
+    rlt::print(device, C_target);
+
+//    rlt::multiply(device, A, B, C);
+    rlt::multiply_transpose(device, A, B_T, C_T);
+    rlt::print(device, C);
+    auto diff = rlt::absolute_difference(device, C_target, C);
+    std::cout << "Matrix mul diff: " << diff << std::endl;
+    ASSERT_TRUE(diff < EPSILON);
+}
