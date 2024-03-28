@@ -38,6 +38,23 @@ namespace rl_tools {
             }
         }
     }
+    template<typename DEVICE, typename VT, typename SPEC>
+    void from_flat_vector(DEVICE& device, const std::vector<VT>& vector, Tensor<SPEC>& tensor) {
+        using T = typename SPEC::T;
+        if constexpr(utils::typing::is_same_v<VT, T>){
+            utils::assert_exit(device, vector.size() == SPEC::SIZE, "Vector size mismatch");
+            std::memcpy(data(tensor), vector.data(), SPEC::SIZE * sizeof(T));
+        }
+        else{
+            using TI = typename DEVICE::index_t;
+            utils::assert_exit(device, vector.size() == SPEC::SIZE, "Vector size mismatch");
+            std::vector<T> buffer(SPEC::SIZE);
+            for (TI i = 0; i < SPEC::SIZE; i++) {
+                buffer[i] = vector[i];
+            }
+            std::memcpy(data(tensor), buffer.data(), SPEC::SIZE * sizeof(T));
+        }
+    }
 
     template<typename DEVICE, typename SPEC>
     auto to_vector(DEVICE& device, Tensor<SPEC>& tensor) {
@@ -75,30 +92,26 @@ namespace rl_tools {
         utils::assert_exit(device, tensor::check_dimensions(device, tensor, dims), "Dimension mismatch");
         typename SPEC::T* data_ptr = data(tensor);
         utils::assert_exit(device, data_ptr != nullptr, "Data pointer is null");
-        constexpr bool VIA_VECTOR = true;
-        if constexpr(VIA_VECTOR){
-            static_assert(!VIA_VECTOR || (length(typename SPEC::SHAPE{}) <= 3));
-            if constexpr(length(typename SPEC::SHAPE{}) == 1){
-                dataset.read(data_ptr);
-            }
-            else{
-                if constexpr(length(typename SPEC::SHAPE{}) == 2){
-                    std::vector<std::vector<T>> buffer;
-                    dataset.read(buffer);
-                    from_vector(device, buffer, tensor);
-                }
-                else{
-                    if constexpr(length(typename SPEC::SHAPE{}) == 3){
-                        std::vector<std::vector<std::vector<T>>> buffer;
-                        dataset.read(buffer);
-                        from_vector(device, buffer, tensor);
-                    }
-                }
-            }
+        auto data_type = dataset.getDataType();
+        auto data_type_class = data_type.getClass();
+        auto data_type_size = data_type.getSize();
+        utils::assert_exit(device, data_type_class == HighFive::DataTypeClass::Float, "Only Float is currently supported");
+        utils::assert_exit(device, data_type_size == 4 || data_type_size == 8, "Only Float32 and Float64 are currently supported");
+        utils::assert_exit(device, dataset.getStorageSize() == data_type_size * SPEC::SIZE, "Storage size mismatch");
+        if(data_type_size == 4){
+            std::vector<float> buffer(SPEC::SIZE);
+            dataset.read(buffer.data()); // we use the .data() pointer here because otherwise HighFive will complain about a multi-dimensional dataset. In this way we can load (the assumedly dense data directly)
+            from_flat_vector(device, buffer, tensor);
         }
         else{
-            utils::assert_exit(device, dataset.getStorageSize() == sizeof(T)*SPEC::SIZE_BYTES, "Storage size mismatch");
-            dataset.read(data_ptr);
+            if(data_type_size == 8){
+                std::vector<double> buffer(SPEC::SIZE);
+                dataset.read(buffer.data());
+                from_flat_vector(device, buffer, tensor);
+            }
+            else{
+                utils::assert_exit(device, false, "Unsupported data type size");
+            }
         }
     }
 }
