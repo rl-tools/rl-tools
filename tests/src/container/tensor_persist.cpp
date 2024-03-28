@@ -376,8 +376,6 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, SERIALIZE_VIEW){
     }
 }
 
-template <typename DEVICE, typename SHAPE>
-
 template <typename DEVICE, typename SHAPE, typename T1, typename T2>
 bool save_and_load_one_way(DEVICE& device){
     using T = double;
