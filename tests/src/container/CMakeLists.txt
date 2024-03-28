@@ -60,3 +60,7 @@ target_link_libraries(
         PRIVATE
         RLtools::Core
 )
+
+
+add_executable(test_container_matmul matmul.cpp)
+target_link_libraries(test_container_matmul RLtools::Core)
