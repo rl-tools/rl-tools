@@ -70,8 +70,8 @@ namespace rl_tools{
         return *(data(tensor) + idx);
     }
 
-    template<typename DEVICE, typename SPEC, typename TII, typename... INDICES>
-    typename SPEC::T get(DEVICE& device, const Tensor<SPEC>& tensor, const TII index, const INDICES... indices){
+    template<typename DEVICE, typename SPEC, typename... INDICES>
+    typename SPEC::T get(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const INDICES... indices){
         auto v = view(device, tensor, index);
         if constexpr(length(typename SPEC::SHAPE{}) == 1){
             return get(device, v, index);

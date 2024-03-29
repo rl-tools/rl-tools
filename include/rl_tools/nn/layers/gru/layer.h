@@ -32,7 +32,6 @@ namespace rl_tools::nn::layers::gru {
         using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI HIDDEN_DIM = SPEC::HIDDEN_DIM;
-        static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
         using WEIGHTS_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, INPUT_DIM>;
         using WEIGHTS_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_INPUT_CONTAINER_SHAPE>;
         using WEIGHTS_INPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<WEIGHTS_INPUT_CONTAINER_SPEC>;
