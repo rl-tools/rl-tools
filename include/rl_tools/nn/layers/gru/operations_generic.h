@@ -44,8 +44,9 @@ namespace rl_tools{
 
         for(TI step_i=0; step_i < LAYER_SPEC::SEQUENCE_LENGTH; ++step_i){
             auto input_step = view(device, input, step_i);
-            auto output_step = view(device, layer.output, step_i);
-            auto pre_activation_step = view(device, layer.pre_activation, step_i);
+            auto pre_activation_hidden_step = view(device, layer.hidden_pre_activation, step_i);
+            auto pre_activation_input_step = view(device, layer.input_pre_activation, step_i);
+            auto post_activation_step = view(device, layer.post_activation, step_i);
             decltype(view(device, output, step_i-1)) output_previous_step;
             if(step_i == 0){
                 output_previous_step = view(device, output, 0);
@@ -54,20 +55,19 @@ namespace rl_tools{
             else{
                 output_previous_step = view(device, output, step_i-1);
             }
-            multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_input.parameters, output_step);
+            multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_input.parameters, pre_activation_hidden_step);
 
-            std::cout << "Input step " << std::endl;
-            print(device, input_step);
-            multiply_transpose_bias(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, pre_activation_step);
-            auto rz_preactivation_input = view_range(device, pre_activation_step, 0, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
-            auto rz_preactivation_hidden = view_range(device, output_step, 0, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
-            add(device, rz_preactivation_input, rz_preactivation_hidden);
-            sigmoid(device, rz_preactivation_input);
-            auto r_postactivation = view_range(device, pre_activation_step, 0, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-            auto n_preactivation_hidden = view_range(device, output_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-            multiply(device, n_preactivation_hidden, rz_preactivation_hidden);
-            auto n_preactivation_input = view_range(device, pre_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-            add(device, n_preactivation_input, n_preactivation_hidden);
+            multiply_transpose_bias(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, pre_activation_input_step);
+            auto rz_pre_activation_input = view_range(device, pre_activation_input_step, 0, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
+            auto rz_pre_activation_hidden = view_range(device, pre_activation_hidden_step, 0, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
+            add(device, rz_pre_activation_input, rz_pre_activation_hidden);
+            auto rz_post_activation = view_range(device, post_activation_step, 0, tensor::ViewSpec<1,2* LAYER_SPEC::HIDDEN_DIM>{});
+            sigmoid(device, rz_pre_activation_input, rz_post_activation);
+            auto r_post_activation = view_range(device, post_activation_step, 0, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+            auto n_pre_activation_hidden = view_range(device, pre_activation_hidden_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+            multiply_accumulate(device, n_pre_activation_hidden, r_post_activation, );
+            auto n_pre_activation_input = view_range(device, pre_activation_input_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+            add(device, n_pre_activation_input, n_pre_activation_hidden);
             tanh(device, n_preactivation_input);
 
         }

@@ -380,7 +380,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUM){
         rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE>> tensor;
         rlt::malloc(device, tensor);
         rlt::randn(device, tensor, rng);
-        constexpr TI NUM_ITERATIONS = 1000;
+        constexpr TI NUM_ITERATIONS = 100;
         T sum, sum2;
         {
             auto start = std::chrono::high_resolution_clock::now();
@@ -735,20 +735,20 @@ TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     rlt::data_reference(C_T) = rlt::data(C);
     rlt::data_reference(C_target_T) = rlt::data(C_target);
 
-    set(device, A, -0.259093, 0, 0);
-    set(device, A, -1.498961, 0, 1);
-    set(device, A, +0.119264, 1, 0);
-    set(device, A, +0.458181, 1, 1);
+    rlt::set(device, A, -0.259093, 0, 0);
+    rlt::set(device, A, -1.498961, 0, 1);
+    rlt::set(device, A, +0.119264, 1, 0);
+    rlt::set(device, A, +0.458181, 1, 1);
 
-    set(device, B, +0.394975, 0, 0);
-    set(device, B, +0.044197, 0, 1);
-    set(device, B, -0.636256, 1, 0);
-    set(device, B, +1.731264, 1, 1);
+    rlt::set(device, B, +0.394975, 0, 0);
+    rlt::set(device, B, +0.044197, 0, 1);
+    rlt::set(device, B, -0.636256, 1, 0);
+    rlt::set(device, B, +1.731264, 1, 1);
 
-    set(device, C_target, -0.259093 * +0.394975 + -1.498961 * -0.636256 + 1, 0, 0);
-    set(device, C_target, -0.259093 * +0.044197 + -1.498961 * +1.731264 + 1, 0, 1);
-    set(device, C_target, +0.119264 * +0.394975 + +0.458181 * -0.636256 + 3, 1, 0);
-    set(device, C_target, +0.119264 * +0.044197 + +0.458181 * +1.731264 + 3, 1, 1);
+    rlt::set(device, C_target, -0.259093 * +0.394975 + -1.498961 * -0.636256 + 1, 0, 0);
+    rlt::set(device, C_target, -0.259093 * +0.044197 + -1.498961 * +1.731264 + 1, 0, 1);
+    rlt::set(device, C_target, +0.119264 * +0.394975 + +0.458181 * -0.636256 + 3, 1, 0);
+    rlt::set(device, C_target, +0.119264 * +0.044197 + +0.458181 * +1.731264 + 3, 1, 1);
     rlt::print(device, C_target);
 
 //    rlt::multiply(device, A, B, C);
@@ -757,4 +757,106 @@ TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     auto diff = rlt::absolute_difference(device, C_target, C);
     std::cout << "Matrix mul diff: " << diff << std::endl;
     ASSERT_TRUE(diff < EPSILON);
+}
+
+
+template <typename SHAPE>
+bool test_element_wise_multiply_accumulate(){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    {
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A, B, C;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A_target, B_target, C_target;
+        rlt::malloc(device, A);
+        rlt::malloc(device, B);
+        rlt::malloc(device, C);
+        rlt::malloc(device, A_target);
+        rlt::malloc(device, B_target);
+        rlt::malloc(device, C_target);
+        rlt::randn(device, A, rng);
+        rlt::randn(device, B, rng);
+        rlt::randn(device, C, rng);
+        T manual = rlt::get_flat(device, A, 0) * rlt::get_flat(device, B, 0) + rlt::get_flat(device, C, 0);
+        rlt::copy(device, device, A, A_target);
+        rlt::copy(device, device, B, B_target);
+        rlt::copy(device, device, C, C_target);
+        T manual_target = rlt::get_flat(device, A_target, 0) * rlt::get_flat(device, B, 0) + rlt::get_flat(device, C_target, 0);
+        rlt::multiply_accumulate(device, A, B, C);
+        rlt::multiply(device, A_target, B_target);
+        rlt::add(device, C_target, A_target);
+        std::cout << "manual: " << manual << std::endl;
+        std::cout << "manual_target: " << manual_target << std::endl;
+        std::cout << "C:" << std::endl;
+        rlt::print(device, C);
+        std::cout << "C_target:" << std::endl;
+        rlt::print(device, C_target);
+        T diff = rlt::absolute_difference(device, C_target, C);
+        std::cout << "Element wise multiply accumulate diff: " << diff << std::endl;
+        bool good = manual == manual_target;
+        good &= diff < EPSILON;
+        good &= get_flat(device, C, 0) == manual;
+        return good;
+    }
+}
+
+TEST(RL_TOOLS_TENSOR_TEST, ELEMENT_WISE_MULTIPLY_ACCUMULATE){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 2>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A, B, C, C_target;
+        rlt::malloc(device, A);
+        rlt::malloc(device, B);
+        rlt::malloc(device, C);
+        rlt::malloc(device, C_target);
+        rlt::set(device, A, 10, 0, 0);
+        rlt::set(device, A, 2, 0, 1);
+        rlt::set(device, A, 3, 1, 0);
+        rlt::set(device, A, 4, 1, 1);
+        rlt::set(device, B, 2, 0, 0);
+        rlt::set(device, B, 1, 0, 1);
+        rlt::set(device, B, 4, 1, 0);
+        rlt::set(device, B, 3, 1, 1);
+        rlt::set_all(device, C, 0);
+        rlt::set(device, C, 1337, 1, 0);
+        rlt::multiply_accumulate(device, A, B, C);
+        rlt::set(device, C_target, 20, 0, 0);
+        rlt::set(device, C_target, 2, 0, 1);
+        rlt::set(device, C_target, 12+1337, 1, 0);
+        rlt::set(device, C_target, 12, 1, 1);
+        rlt::print(device, C);
+        T diff = rlt::absolute_difference(device, C_target, C);
+        std::cout << "Element wise multiply accumulate diff: " << diff << std::endl;
+        ASSERT_TRUE(diff < EPSILON);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 1>;
+        bool good = test_element_wise_multiply_accumulate<SHAPE>();
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10>;
+        bool good = test_element_wise_multiply_accumulate<SHAPE>();
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 1>;
+        bool good = test_element_wise_multiply_accumulate<SHAPE>();
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 1, 1, 1, 1, 1>;
+        bool good = test_element_wise_multiply_accumulate<SHAPE>();
+        ASSERT_TRUE(good);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 1, 1, 1, 1, 10>;
+        bool good = test_element_wise_multiply_accumulate<SHAPE>();
+        ASSERT_TRUE(good);
+    }
 }

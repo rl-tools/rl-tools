@@ -81,6 +81,15 @@ namespace rl_tools{
         }
     }
 
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T get_flat(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t local_index){
+        static_assert(tensor::dense_layout<SPEC>());
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+        utils::assert_exit(device, idx < SPEC::SIZE, "Index out of bounds");
+#endif
+        return *(data(tensor) + local_index);
+    }
+
     template<typename DEVICE, typename SPEC, typename TII> //SFINAE actually not required: typename utils::typing::enable_if_t<length(typename SPEC::SHAPE{})==1>* = nullptr>
     void set(DEVICE& device, Tensor<SPEC>& tensor, typename SPEC::T value, TII current_index){
         static_assert(length(typename SPEC::SHAPE{})==1);
@@ -184,6 +193,12 @@ namespace rl_tools{
                 return math::tanh(device.math, a);
             }
         }
+        namespace ternary_operations{
+            template <typename T>
+            T multiply_accumulate(T a, T b, T acc){
+                return acc + a * b;
+            }
+        }
         template <typename PARAMETER, typename T_ACCUMULATOR_TYPE, typename T_CURRENT_TYPE, auto T_OPERATION>
         struct UnaryReduceOperation{
             using ACCUMULATOR_TYPE = T_ACCUMULATOR_TYPE;
@@ -275,7 +290,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     void add(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
-        binary_operation(device, tensor::Operation<tensor::binary_operations::subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2);
+        binary_operation(device, tensor::Operation<tensor::binary_operations::add<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void subtract(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
@@ -284,6 +299,10 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     void multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
         binary_operation(device, tensor::Operation<tensor::binary_operations::multiply<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2);
+    }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+    void multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
+        binary_operation(device, tensor::Operation<tensor::binary_operations::multiply<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2, t_output);
     }
 
     template<typename DEVICE, typename SPEC, auto UNARY_OPERATION, typename OPERATION_PARAMETER>
@@ -304,8 +323,33 @@ namespace rl_tools{
             }
         }
     }
+    template<typename DEVICE, typename SPEC, auto UNARY_OPERATION, typename OPERATION_PARAMETER, typename SPEC_OUTPUT>
+    void unary_operation(DEVICE& device, const tensor::Operation<UNARY_OPERATION, OPERATION_PARAMETER>& op, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        if constexpr(length(typename SPEC::SHAPE{}) > 1){
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
+                auto next_t = view(device, t, i);
+                auto next_output = view(device, output, i);
+                unary_operation(device, op, next_t, next_output);
+            }
+        }
+        else{
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
+                T t_value = get(device, t, i);
+                T result_value = UNARY_OPERATION(device, op.parameter, t_value);
+                set(device, output, result_value, i);
+            }
+        }
+    }
     template<typename DEVICE, typename SPEC>
     void sigmoid(DEVICE& device, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
+    void sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
         unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
     }
@@ -342,6 +386,36 @@ namespace rl_tools{
         tensor::unary_reduce_operations::Sum<typename SPEC::T> op;
         op.initial_value = 0;
         return unary_associative_reduce(device, op, t);
+    }
+
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, auto TERNARY_OPERATION, typename OPERATION_PARAMETER>
+    inline void ternary_operation(DEVICE& device, const tensor::Operation<TERNARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+        using T = typename SPEC_1::T;
+        using TI = typename DEVICE::index_t;
+        using BOP = tensor::Operation<TERNARY_OPERATION, OPERATION_PARAMETER>;
+        static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
+        static_assert(tensor::same_dimensions<SPEC_1, SPEC_OUT>());
+        if constexpr(length(typename SPEC_1::SHAPE{}) > 1){
+            for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
+                auto next_t1 = view(device, t1, i);
+                auto next_t2 = view(device, t2, i);
+                auto next_result = view(device, result, i);
+                ternary_operation(device, BOP{}, next_t1, next_t2, next_result);
+            }
+        }
+        else{
+            for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
+                T t1_value = get(device, t1, i);
+                T t2_value = get(device, t2, i);
+                T t3_value = get(device, result, i);
+                T result_value = TERNARY_OPERATION(t1_value, t2_value, t3_value);
+                set(device, result, result_value, i);
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+    void multiply_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
+        ternary_operation(device, tensor::Operation<tensor::ternary_operations::multiply_accumulate<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2, t_output);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto BINARY_REDUCE_OPERATION, auto BINARY_ASSOCIATIVE_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE1, typename CURRENT_TYPE2, typename OPERATION_PARAMETER>
