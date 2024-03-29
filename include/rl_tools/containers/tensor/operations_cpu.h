@@ -8,23 +8,34 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEV_SPEC, typename SPEC>
-    void print(devices::CPU<DEV_SPEC>& device, Tensor<SPEC>& tensor, typename DEV_SPEC::index_t level = 0){
+    void print(devices::CPU<DEV_SPEC>& device, Tensor<SPEC>& tensor, bool python_literal=false, typename DEV_SPEC::index_t level=0){
         using TI = typename DEV_SPEC::index_t;
         if constexpr(length(typename SPEC::SHAPE{}) == 1){
+            std::cout << (python_literal ? "[" : "");
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
-                std::cout << get(device, tensor, i) << " ";
+                std::cout << get(device, tensor, i) << " " << (python_literal ? "," : "");
             }
+            std::cout << (python_literal ? "]" : "");
             std::cout << std::endl;
         }
         else{
             if constexpr(length(typename SPEC::SHAPE{}) == 2){
+                if(python_literal){
+                    std::cout << "[" << std::endl;
+                }
                 for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
+                    std::cout << (python_literal ? "[" : "");
                     for(TI j=0; j < get<1>(typename SPEC::SHAPE{}); j++){
                         auto number = get(device, tensor, i, j);
-                        std::cout <<  std::setw(10) << std::scientific << std::setprecision(3) << number;
+                        std::cout <<  std::setw(15) << std::scientific << std::setprecision(6) << number;
+                        if(python_literal){
+                            std::cout << ", ";
+                        }
                     }
+                    std::cout << (python_literal ? "]," : "");
                     std::cout << std::endl;
                 }
+                std::cout << (python_literal ? "]" : "") << std::endl;
             }
             else{
                 for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
@@ -33,13 +44,13 @@ namespace rl_tools{
                     }
                     std::cout << "dim[" << level << "] = " << i << ": " << std::endl;
                     auto v = view(device, tensor, i);
-                    print(device, v, level+1);
+                    print(device, v, python_literal, level+1);
                 }
             }
         }
     }
     template<typename DEV_SPEC, typename TI, TI VALUE, typename NEXT_ELEMENT >
-    void print(devices::CPU<DEV_SPEC>& device, tensor::Element<TI, VALUE, NEXT_ELEMENT>, typename DEV_SPEC::index_t level = 0){
+    void print(devices::CPU<DEV_SPEC>& device, tensor::Element<TI, VALUE, NEXT_ELEMENT>, typename DEV_SPEC::index_t level=0, bool python_literal=false){
         using ELEMENT = tensor::Element<TI, VALUE, NEXT_ELEMENT>;
         if(level == 0){
             std::cout << "[";
@@ -49,7 +60,7 @@ namespace rl_tools{
         }
         else{
             std::cout << VALUE << ", ";
-            print(device, NEXT_ELEMENT{}, level+1);
+            print(device, NEXT_ELEMENT{}, python_literal, level+1);
         }
     }
     template<typename DEV_SPEC, typename SPEC>

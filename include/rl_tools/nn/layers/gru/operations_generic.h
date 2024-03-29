@@ -39,6 +39,25 @@ namespace rl_tools{
         malloc(device, layer.post_activation);
         malloc(device, layer.output);
     }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+    void multiply_broadcast_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
+        static_assert(length(typename SPEC_1::SHAPE{}) == 2);
+        static_assert(length(typename SPEC_2::SHAPE{}) == 1);
+        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_OUTPUT::SHAPE{}));
+        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
+        static_assert(get<1>(typename SPEC_OUTPUT::SHAPE{}) == get<1>(typename SPEC_1::SHAPE{}));
+        using TI = typename DEVICE::index_t;
+        using T = typename SPEC_1::T;
+        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
+            for(TI j=0; j < get<1>(typename SPEC_1::SHAPE{}); j++){
+                T t1_value = get(device, t1, i, j);
+                T t2_value = get(device, t2, j);
+                T t_output_value = get(device, t_output, i, j);
+                set(device, t_output, t1_value * t2_value + t_output_value, i, j);
+            }
+        }
+    }
+
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC>
     void forward(DEVICE& device, nn::layers::gru::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input){
         static_assert(nn::layers::gru::check_input_output<LAYER_SPEC, INPUT_SPEC, typename decltype(layer.output)::SPEC>, "Input and output spec not matching");
@@ -50,15 +69,13 @@ namespace rl_tools{
             auto pre_activation_input_step = view(device, layer.input_pre_activation, step_i);
             auto post_activation_step = view(device, layer.post_activation, step_i);
             auto output_step = view(device, layer.output, step_i);
-            decltype(view(device, layer.output, step_i-1)) output_previous_step;
             if(step_i == 0){
-                output_previous_step = view(device, layer.output, 0);
-                set_all(device, output_previous_step, 0);
+                matrix_multiply_broadcast_transpose_bias(device, layer.weights_hidden.parameters, layer.initial_hidden_state.parameters, layer.biases_hidden.parameters, pre_activation_hidden_step);
             }
             else{
-                output_previous_step = view(device, layer.output, step_i-1);
+                auto output_previous_step = view(device, layer.output, step_i-1);
+                matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, pre_activation_hidden_step);
             }
-            matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_input.parameters, pre_activation_hidden_step);
 
             matrix_multiply_transpose_bias(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, pre_activation_input_step);
             auto rz_pre_activation_input = view_range(device, pre_activation_input_step, 0, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
@@ -75,7 +92,13 @@ namespace rl_tools{
             auto z_post_activation = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
             one_minus(device, z_post_activation, output_step);
             multiply(device, output_step, n_post_activation);
-            multiply_accumulate(device, z_post_activation, output_previous_step, output_step);
+            if(step_i == 0){
+                multiply_broadcast_accumulate(device, z_post_activation, layer.initial_hidden_state.parameters, output_step);
+            }
+            else{
+                auto output_previous_step = view(device, layer.output, step_i-1);
+                multiply_accumulate(device, z_post_activation, output_previous_step, output_step);
+            }
         }
     }
     template <typename DEVICE, typename SPEC>

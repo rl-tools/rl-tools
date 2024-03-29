@@ -30,7 +30,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input;
     using GRU_OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE>> output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE>> gru_output;
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, OUTPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> output_target;
     using WOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM, HIDDEN_DIM>;
@@ -43,7 +43,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::malloc(device, gru);
 
     rlt::malloc(device, input);
-    rlt::malloc(device, output);
+    rlt::malloc(device, gru_output);
     rlt::malloc(device, output_target);
     rlt::malloc(device, weight_out);
     rlt::malloc(device, weight_out_grad);
@@ -61,8 +61,10 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             auto batch_group = epoch_group.getGroup(batch_group_name);
             auto input_ds = batch_group.getDataSet("input");
             auto output_ds = batch_group.getDataSet("output");
+            auto gru_output_ds = batch_group.getDataSet("gru_output");
             rlt::load(device, input_ds, input);
             rlt::load(device, output_ds, output_target);
+            rlt::load(device, gru_output_ds, gru_output);
             auto weight_group = batch_group.getGroup("weights");
             auto gradient_group = batch_group.getGroup("gradient");
             auto W_ir_ds = weight_group.getDataSet("W_ir");
@@ -94,10 +96,13 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, W_out_ds, weight_out);
             rlt::load(device, b_out_ds, bias_out);
             rlt::forward(device, gru, input);
+            T abs_diff = rlt::absolute_difference(device, gru.output, gru_output);
+            ASSERT_LT(abs_diff, EPSILON);
         }
     }
     rlt::free(device, input);
-    rlt::free(device, output);
+    rlt::free(device, gru_output);
+    rlt::free(device, output_target);
     rlt::free(device, weight_out);
     rlt::free(device, weight_out_grad);
     rlt::free(device, bias_out);
