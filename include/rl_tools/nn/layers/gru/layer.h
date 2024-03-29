@@ -67,6 +67,14 @@ namespace rl_tools::nn::layers::gru {
         typename SPEC::PARAMETER_TYPE::template instance<INITIAL_HIDDEN_STATE_PARAMETER_SPEC> initial_hidden_state;
     };
 
+    template <typename T_SPEC>
+    struct BuffersBackward{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>> dh_dz, dz_dz_pa, dh_dz_pa, dh_dn, dn_dn_pa, dh_dn_pa, dn_dn_pa_pa, dh_dn_pa_pa;
+    };
+
     template<typename T_SPEC>
     struct LayerBackward: Layer<T_SPEC>{
         using SPEC = T_SPEC;
@@ -77,8 +85,10 @@ namespace rl_tools::nn::layers::gru {
         using OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>;
         Tensor<OUTPUT_SPEC> output;
     };
-
-
+    template<typename T_SPEC>
+    struct LayerBackwardGradient: LayerBackward<T_SPEC>{
+        using Buffers = BuffersBackward<T_SPEC>;
+    };
 
     template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     bool constexpr check_input_output = length(typename INPUT_SPEC::SHAPE{}) == 3 && length(typename OUTPUT_SPEC::SHAPE{}) == 3 &&

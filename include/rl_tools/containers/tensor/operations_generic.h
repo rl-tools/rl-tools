@@ -41,6 +41,32 @@ namespace rl_tools{
         return view;
     }
 
+    namespace tensor{
+        template <auto T_DIM_1, auto T_DIM_2>
+        struct PermutationSpec{
+            static constexpr auto DIM_1 = T_DIM_1;
+            static constexpr auto DIM_2 = T_DIM_2;
+        };
+    }
+
+    template <typename DEVICE, typename SPEC, auto DIM_1=0, auto DIM_2=1>
+    auto constexpr permute(DEVICE& device, const Tensor<SPEC>& tensor, const tensor::PermutationSpec<DIM_1, DIM_2> spec={}){
+        static_assert(length(typename SPEC::SHAPE{}) >= 2);
+        static_assert(DIM_1 < length(typename SPEC::SHAPE{}));
+        static_assert(DIM_2 < length(typename SPEC::SHAPE{}));
+        using SHAPE = typename SPEC::SHAPE;
+        using TI = typename SHAPE::TI;
+        using NEW_SHAPE_INTERMEDIATE = tensor::Replace<SHAPE, get<DIM_2>(SHAPE{}), DIM_1>;
+        using NEW_SHAPE = tensor::Replace<NEW_SHAPE_INTERMEDIATE, get<DIM_1>(SHAPE{}), DIM_2>;
+        using STRIDE = typename SPEC::STRIDE;
+        using NEW_STRIDE_INTERMEDIATE = tensor::Replace<STRIDE, get<DIM_2>(STRIDE{}), DIM_1>;
+        using NEW_STRIDE = tensor::Replace<NEW_STRIDE_INTERMEDIATE, get<DIM_1>(STRIDE{}), DIM_2>;
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, NEW_STRIDE>;
+        Tensor<NEW_SPEC> view;
+        data_reference(view) = data(tensor);
+        return view;
+    }
+
     template<typename DEVICE, typename SPEC, typename TII>
     typename DEVICE::index_t index(DEVICE& device, const Tensor<SPEC>& tensor, TII index){
         static_assert(length(typename SPEC::SHAPE{})==1);
@@ -187,6 +213,11 @@ namespace rl_tools{
             template <typename DEVICE, typename PARAMETER, typename T>
             T sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
                 return 1 / (1 + math::exp(device.math, -a));
+            }
+            template <typename DEVICE, typename PARAMETER, typename T>
+            T d_sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
+                T s = sigmoid(device, parameter, a);
+                return s * (1 - s);
             }
             template <typename DEVICE, typename PARAMETER, typename T>
             T tanh(DEVICE& device, const PARAMETER& parameter, T a){
@@ -357,6 +388,12 @@ namespace rl_tools{
         using T = typename SPEC::T;
         unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
+    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
+    void d_sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::d_sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+    }
     template<typename DEVICE, typename SPEC>
     void tanh(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
@@ -494,7 +531,6 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
-        // Y^T = WX^T
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
@@ -506,6 +542,26 @@ namespace rl_tools{
         for(TI row_i=0; row_i < get<0>(typename SPEC_1::SHAPE{}); ++row_i){
             for(TI col_j=0; col_j < get<1>(typename SPEC_2::SHAPE{}); ++col_j){
                 T acc = 0;
+                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
+                    acc += get(device, t1, row_i, k) * get(device, t2, k, col_j);
+                }
+                set(device, result, acc, row_i, col_j);
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    void matrix_multiply_acculmulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+        static_assert(length(typename SPEC_1::SHAPE{}) == 2);
+        static_assert(length(typename SPEC_2::SHAPE{}) == 2);
+        static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
+        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
+        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{}));
+        static_assert(get<1>(typename SPEC_2::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{}));
+        using T = typename SPEC_1::T;
+        using TI = typename DEVICE::index_t;
+        for(TI row_i=0; row_i < get<0>(typename SPEC_1::SHAPE{}); ++row_i){
+            for(TI col_j=0; col_j < get<1>(typename SPEC_2::SHAPE{}); ++col_j){
+                T acc = get(device, result, row_i, col_j);
                 for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
                     acc += get(device, t1, row_i, k) * get(device, t2, k, col_j);
                 }

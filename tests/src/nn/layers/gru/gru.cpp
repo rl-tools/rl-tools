@@ -39,7 +39,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::Tensor<rlt::tensor::Specification<T, TI, BOUT_SHAPE>> bias_out, bias_out_grad;
 
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Plain, BATCH_SIZE>;
-    rlt::nn::layers::gru::LayerBackward<GRU_SPEC> gru;
+    rlt::nn::layers::gru::LayerBackwardGradient<GRU_SPEC> gru;
     rlt::malloc(device, gru);
 
     rlt::malloc(device, input);
@@ -97,6 +97,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, b_out_ds, bias_out);
             rlt::forward(device, gru, input);
             T abs_diff = rlt::absolute_difference(device, gru.output, gru_output);
+
             ASSERT_LT(abs_diff, EPSILON);
         }
     }

@@ -860,3 +860,69 @@ TEST(RL_TOOLS_TENSOR_TEST, ELEMENT_WISE_MULTIPLY_ACCUMULATE){
         ASSERT_TRUE(good);
     }
 }
+
+TEST(RL_TOOLS_TENSOR_TEST, PERMUTE){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 2>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A;
+        rlt::malloc(device, A);
+        rlt::set(device, A, 1, 0, 0);
+        rlt::set(device, A, 2, 0, 1);
+        rlt::set(device, A, 3, 1, 0);
+        rlt::set(device, A, 4, 1, 1);
+        auto permuted = rlt::permute(device, A, rlt::tensor::PermutationSpec<1, 0>{});
+        std::cout << "Old stride: " << rlt::get<0>(typename decltype(A)::SPEC::STRIDE{}) << " " << rlt::get<1>(typename decltype(A)::SPEC::STRIDE{}) << std::endl;
+        std::cout << "A: " << std::endl;
+        rlt::print(device, A);
+        std::cout << "New stride: " << rlt::get<0>(typename decltype(permuted)::SPEC::STRIDE{}) << " " << rlt::get<1>(typename decltype(permuted)::SPEC::STRIDE{}) << std::endl;
+        std::cout << "A permuted: " << std::endl;
+        rlt::print(device, permuted);
+        ASSERT_EQ(rlt::get(device, permuted, 0, 0), 1);
+        ASSERT_EQ(rlt::get(device, permuted, 1, 0), 2);
+        ASSERT_EQ(rlt::get(device, permuted, 0, 1), 3);
+        ASSERT_EQ(rlt::get(device, permuted, 1, 1), 4);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 3, 2>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A;
+        rlt::malloc(device, A);
+        rlt::set(device, A, 1, 0, 0);
+        rlt::set(device, A, 2, 0, 1);
+        rlt::set(device, A, 3, 1, 0);
+        rlt::set(device, A, 4, 1, 1);
+        rlt::set(device, A, 5, 2, 0);
+        rlt::set(device, A, 6, 2, 1);
+        auto permuted = rlt::permute(device, A, rlt::tensor::PermutationSpec<1, 0>{});
+        std::cout << "Old stride: " << rlt::get<0>(typename decltype(A)::SPEC::STRIDE{}) << " " << rlt::get<1>(typename decltype(A)::SPEC::STRIDE{}) << std::endl;
+        std::cout << "A: " << std::endl;
+        rlt::print(device, A);
+        std::cout << "New stride: " << rlt::get<0>(typename decltype(permuted)::SPEC::STRIDE{}) << " " << rlt::get<1>(typename decltype(permuted)::SPEC::STRIDE{}) << std::endl;
+        std::cout << "A permuted: " << std::endl;
+        rlt::print(device, permuted);
+        ASSERT_EQ(rlt::get(device, permuted, 0, 0), 1);
+        ASSERT_EQ(rlt::get(device, permuted, 1, 0), 2);
+        ASSERT_EQ(rlt::get(device, permuted, 0, 1), 3);
+        ASSERT_EQ(rlt::get(device, permuted, 1, 1), 4);
+        ASSERT_EQ(rlt::get(device, permuted, 0, 2), 5);
+        ASSERT_EQ(rlt::get(device, permuted, 1, 2), 6);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 3, 2>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A;
+        rlt::malloc(device, A);
+        rlt::randn(device, A, rng);
+        auto permuted = rlt::permute(device, A, rlt::tensor::PermutationSpec<1, 0>{});
+        for(TI i=0; i < rlt::get<0>(SHAPE{}); i++){
+            for(TI j=0; j < rlt::get<1>(SHAPE{}); j++){
+                for(TI k=0; k < rlt::get<2>(SHAPE{}); k++){
+                    ASSERT_EQ(rlt::get(device, A, i, j, k), rlt::get(device, permuted, j, i, k));
+                }
+            }
+        }
+    }
+}
