@@ -192,6 +192,10 @@ namespace rl_tools{
             T tanh(DEVICE& device, const PARAMETER& parameter, T a){
                 return math::tanh(device.math, a);
             }
+            template <typename DEVICE, typename PARAMETER, typename T>
+            T one_minus(DEVICE& device, const PARAMETER& parameter, T a){
+                return 1 - a;
+            }
         }
         namespace ternary_operations{
             template <typename T>
@@ -351,12 +355,18 @@ namespace rl_tools{
     void sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+        unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
     template<typename DEVICE, typename SPEC>
     void tanh(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
         unary_operation(device, tensor::Operation<tensor::unary_operations::tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
+    void tanh(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
 
     template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER>
@@ -465,6 +475,21 @@ namespace rl_tools{
         tensor::Operation<tensor::unary_operations::constant<DEVICE, PARAMETER, T>, PARAMETER> op;
         op.parameter = value;
         unary_operation(device, op, t);
+    }
+
+    template<typename DEVICE, typename SPEC>
+    void one_minus(DEVICE& device, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        using PARAMETER = T;
+        tensor::Operation<tensor::unary_operations::one_minus<DEVICE, PARAMETER, T>, PARAMETER> op;
+        unary_operation(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
+    void one_minus(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        using T = typename SPEC::T;
+        using PARAMETER = T;
+        tensor::Operation<tensor::unary_operations::one_minus<DEVICE, PARAMETER, T>, PARAMETER> op;
+        unary_operation(device, op, t, output);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>

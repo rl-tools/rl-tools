@@ -37,10 +37,11 @@ namespace rl_tools{
         malloc(device, layer.input_pre_activation);
         malloc(device, layer.hidden_pre_activation);
         malloc(device, layer.post_activation);
+        malloc(device, layer.output);
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    void forward(DEVICE& device, nn::layers::gru::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output){
-        static_assert(nn::layers::gru::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>, "Input and output spec not matching");
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC>
+    void forward(DEVICE& device, nn::layers::gru::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input){
+        static_assert(nn::layers::gru::check_input_output<LAYER_SPEC, INPUT_SPEC, typename decltype(layer.output)::SPEC>, "Input and output spec not matching");
         using TI = typename DEVICE::index_t;
 
         for(TI step_i=0; step_i < LAYER_SPEC::SEQUENCE_LENGTH; ++step_i){
@@ -48,13 +49,14 @@ namespace rl_tools{
             auto pre_activation_hidden_step = view(device, layer.hidden_pre_activation, step_i);
             auto pre_activation_input_step = view(device, layer.input_pre_activation, step_i);
             auto post_activation_step = view(device, layer.post_activation, step_i);
-            decltype(view(device, output, step_i-1)) output_previous_step;
+            auto output_step = view(device, layer.output, step_i);
+            decltype(view(device, layer.output, step_i-1)) output_previous_step;
             if(step_i == 0){
-                output_previous_step = view(device, output, 0);
+                output_previous_step = view(device, layer.output, 0);
                 set_all(device, output_previous_step, 0);
             }
             else{
-                output_previous_step = view(device, output, step_i-1);
+                output_previous_step = view(device, layer.output, step_i-1);
             }
             matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_input.parameters, pre_activation_hidden_step);
 
@@ -68,9 +70,12 @@ namespace rl_tools{
             auto n_pre_activation_hidden = view_range(device, pre_activation_hidden_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
             auto n_pre_activation_input = view_range(device, pre_activation_input_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
             multiply_accumulate(device, n_pre_activation_hidden, r_post_activation, n_pre_activation_input);
-//            add(device, n_pre_activation_input, n_pre_activation_hidden);
-            tanh(device, n_pre_activation_input);
-
+            auto n_post_activation = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+            tanh(device, n_pre_activation_input, n_post_activation);
+            auto z_post_activation = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+            one_minus(device, z_post_activation, output_step);
+            multiply(device, output_step, n_post_activation);
+            multiply_accumulate(device, z_post_activation, output_previous_step, output_step);
         }
     }
     template <typename DEVICE, typename SPEC>
@@ -87,6 +92,7 @@ namespace rl_tools{
         free(device, layer.input_pre_activation);
         free(device, layer.hidden_pre_activation);
         free(device, layer.post_activation);
+        free(device, layer.output);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

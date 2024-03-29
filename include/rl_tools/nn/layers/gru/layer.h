@@ -74,6 +74,8 @@ namespace rl_tools::nn::layers::gru {
         using TI = typename SPEC::TI;
         using HIDDEN_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
         Tensor<HIDDEN_SPEC> input_pre_activation, hidden_pre_activation, post_activation;
+        using OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>;
+        Tensor<OUTPUT_SPEC> output;
     };
 
 

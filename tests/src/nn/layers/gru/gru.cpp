@@ -93,7 +93,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, b_hn_ds, gru.b_hn);
             rlt::load(device, W_out_ds, weight_out);
             rlt::load(device, b_out_ds, bias_out);
-            rlt::forward(device, gru, input, output);
+            rlt::forward(device, gru, input);
         }
     }
     rlt::free(device, input);
