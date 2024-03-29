@@ -62,7 +62,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    void init_weights(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer, RNG& rng) {
+    void init_weights(DEVICE& device, nn::layers::dense::Layer<SPEC>& layer, RNG& rng){
         init_kaiming(device, layer, rng);
     }
 

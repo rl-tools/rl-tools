@@ -75,17 +75,17 @@ namespace rl_tools::nn::layers::gru {
         using TI = typename SPEC::TI;
         using PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
         Tensor<PRE_ACTIVATION_SPEC> pre_activation;
-        using OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>;
+        using OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
         Tensor<OUTPUT_SPEC> output;
     };
 
 
 
     template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    bool constexpr check_input_output = INPUT_SPEC::DIMENSIONS == 3 && OUTPUT_SPEC::DIMENSIONS == 3 &&
-            get<0>(INPUT_SPEC::SHAPE) == get<0>(OUTPUT_SPEC::SHAPE) &&
-            get<1>(INPUT_SPEC::SHAPE) == get<1>(OUTPUT_SPEC::SHAPE) &&
-            get<2>(INPUT_SPEC::SHAPE) == SPEC::INPUT_DIM && get<2>(OUTPUT_SPEC::SHAPE) == SPEC::HIDDEN_DIM;
+    bool constexpr check_input_output = length(typename INPUT_SPEC::SHAPE{}) == 3 && length(typename OUTPUT_SPEC::SHAPE{}) == 3 &&
+            get<0>(typename INPUT_SPEC::SHAPE{}) == get<0>(typename OUTPUT_SPEC::SHAPE{}) &&
+            get<1>(typename INPUT_SPEC::SHAPE{}) == get<1>(typename OUTPUT_SPEC::SHAPE{}) &&
+            get<2>(typename INPUT_SPEC::SHAPE{}) == SPEC::INPUT_DIM && get<2>(typename OUTPUT_SPEC::SHAPE{}) == SPEC::HIDDEN_DIM;
 }
 
 #endif

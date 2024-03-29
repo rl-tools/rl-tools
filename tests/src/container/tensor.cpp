@@ -245,7 +245,8 @@ TEST(RL_TOOLS_TENSOR_TEST, VIEW){
         auto view = rlt::view(device, tensor, 1);
         rlt::print(device, view);
         rlt::set(device, view, 1338, 2, 0);
-        ASSERT_EQ(rlt::get(device, tensor, 1, 2, 0), 1338);
+        T value = rlt::get(device, tensor, 1, 2, 0);
+        ASSERT_EQ(value, 1338);
     }
 
     {
@@ -702,7 +703,7 @@ TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_GENERIC){
     set(device, C_target, +0.119264 * +0.044197 + +0.458181 * +1.731264, 1, 1);
     rlt::print(device, C_target);
 
-    rlt::multiply(device, A, B, C);
+    rlt::matrix_multiply(device, A, B, C);
     rlt::print(device, C);
     auto diff = rlt::absolute_difference(device, C_target, C);
     std::cout << "Matrix mul diff: " << diff << std::endl;
@@ -720,10 +721,15 @@ TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     using STRIDE_TRANSPOSE = rlt::tensor::Stride<TI, rlt::get<1>(STRIDE{}), rlt::get<0>(STRIDE{})>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A, B, C, C_target;
     rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE_TRANSPOSE>> A_T, B_T, C_T, C_target_T;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2>>> bias;
     rlt::malloc(device, A);
     rlt::malloc(device, B);
     rlt::malloc(device, C);
     rlt::malloc(device, C_target);
+    rlt::malloc(device, bias);
+    rlt::set_all(device, bias, 0);
+    rlt::set(device, bias, 1, 0);
+    rlt::set(device, bias, 3, 1);
     rlt::data_reference(A_T) = rlt::data(A);
     rlt::data_reference(B_T) = rlt::data(B);
     rlt::data_reference(C_T) = rlt::data(C);
@@ -739,14 +745,14 @@ TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     set(device, B, -0.636256, 1, 0);
     set(device, B, +1.731264, 1, 1);
 
-    set(device, C_target, -0.259093 * +0.394975 + -1.498961 * -0.636256, 0, 0);
-    set(device, C_target, -0.259093 * +0.044197 + -1.498961 * +1.731264, 0, 1);
-    set(device, C_target, +0.119264 * +0.394975 + +0.458181 * -0.636256, 1, 0);
-    set(device, C_target, +0.119264 * +0.044197 + +0.458181 * +1.731264, 1, 1);
+    set(device, C_target, -0.259093 * +0.394975 + -1.498961 * -0.636256 + 1, 0, 0);
+    set(device, C_target, -0.259093 * +0.044197 + -1.498961 * +1.731264 + 1, 0, 1);
+    set(device, C_target, +0.119264 * +0.394975 + +0.458181 * -0.636256 + 3, 1, 0);
+    set(device, C_target, +0.119264 * +0.044197 + +0.458181 * +1.731264 + 3, 1, 1);
     rlt::print(device, C_target);
 
 //    rlt::multiply(device, A, B, C);
-    rlt::multiply_transpose(device, A, B_T, C_T);
+    rlt::matrix_multiply_transpose_bias(device, A, B_T, bias, C_T);
     rlt::print(device, C);
     auto diff = rlt::absolute_difference(device, C_target, C);
     std::cout << "Matrix mul diff: " << diff << std::endl;

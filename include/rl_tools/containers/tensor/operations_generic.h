@@ -16,8 +16,8 @@ namespace rl_tools{
         delete[] data(tensor);
     }
 
-    template <typename DEVICE, typename SPEC, typename TI, auto DIM=0, auto SIZE=0>
-    auto view_range(DEVICE& device, Tensor<SPEC>& tensor, TI index, tensor::ViewSpec<DIM, SIZE> = {}){
+    template <typename DEVICE, typename SPEC, auto DIM=0, auto SIZE=0>
+    auto view_range(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM, SIZE>){
         static_assert(SIZE > 0);
         static_assert(get<DIM>(typename SPEC::SHAPE{}) >= SIZE);
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
@@ -30,8 +30,8 @@ namespace rl_tools{
         return view;
     }
 
-    template <typename DEVICE, typename SPEC, typename TI, auto DIM=0>
-    auto view(DEVICE& device, Tensor<SPEC>& tensor, TI index, tensor::ViewSpec<DIM> = {}){
+    template <typename DEVICE, typename SPEC, auto DIM=0>
+    auto view(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM> = {}){
         using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;
         using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE>;
@@ -42,13 +42,13 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename TII>
-    typename DEVICE::index_t index(DEVICE& device, Tensor<SPEC>& tensor, TII index){
+    typename DEVICE::index_t index(DEVICE& device, const Tensor<SPEC>& tensor, TII index){
         static_assert(length(typename SPEC::SHAPE{})==1);
         return index * get<0>(typename SPEC::STRIDE{});
     }
 
-    template<typename DEVICE, typename SPEC, typename TII, typename... INDICES>
-    auto index(DEVICE& device, Tensor<SPEC>& tensor, const TII index, const INDICES... indices){
+    template<typename DEVICE, typename SPEC, typename... INDICES>
+    auto index(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const INDICES... indices){
         using TI = typename DEVICE::index_t;
         auto v = view(device, tensor, index);
         TI current = get<0>(typename SPEC::STRIDE{}) * index;
@@ -60,8 +60,8 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEVICE, typename SPEC, typename TII>
-    typename SPEC::T get(DEVICE& device, Tensor<SPEC>& tensor, TII local_index){
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T get(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t local_index){
         static_assert(length(typename SPEC::SHAPE{})==1);
         auto idx = index(device, tensor, local_index);
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
@@ -71,10 +71,10 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename TII, typename... INDICES>
-    typename SPEC::T get(DEVICE& device, Tensor<SPEC>& tensor, const TII index, const INDICES... indices){
+    typename SPEC::T get(DEVICE& device, const Tensor<SPEC>& tensor, const TII index, const INDICES... indices){
         auto v = view(device, tensor, index);
         if constexpr(length(typename SPEC::SHAPE{}) == 1){
-            return get(device, v);
+            return get(device, v, index);
         }
         else{
             return get(device, v, indices...);
@@ -163,17 +163,25 @@ namespace rl_tools{
             }
         }
         namespace unary_operations{
-            template <typename PARAMETER, typename T>
-            T negate(const PARAMETER& parameter, T a){
+            template <typename DEVICE, typename PARAMETER, typename T>
+            T negate(DEVICE& device, const PARAMETER& parameter, T a){
                 return -a;
             }
-            template <typename MATH_DEVICE, typename PARAMETER, typename T>
-            T abs(const PARAMETER& parameter, T a){
-                return math::abs(MATH_DEVICE{}, a);
+            template <typename DEVICE, typename PARAMETER, typename T>
+            T abs(DEVICE& device, const PARAMETER& parameter, T a){
+                return math::abs(device.math, a);
             }
-            template <typename PARAMETER, typename T>
-            T constant(const PARAMETER& parameter, T a){
+            template <typename DEVICE, typename PARAMETER, typename T>
+            T constant(DEVICE& device, const PARAMETER& parameter, T a){
                 return parameter;
+            }
+            template <typename DEVICE, typename PARAMETER, typename T>
+            T sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
+                return 1 / (1 + math::exp(device.math, a));
+            }
+            template <typename DEVICE, typename PARAMETER, typename T>
+            T tanh(DEVICE& device, const PARAMETER& parameter, T a){
+                return math::tanh(device.math, a);
             }
         }
         template <typename PARAMETER, typename T_ACCUMULATOR_TYPE, typename T_CURRENT_TYPE, auto T_OPERATION>
@@ -207,11 +215,11 @@ namespace rl_tools{
         namespace binary_reduce_operations{
             namespace impl{
                 template <typename DEVICE, typename PARAMETER, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE1, typename CURRENT_TYPE2>
-                ACCUMULATOR_TYPE absolute_difference(const DEVICE& device, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE1 current1, CURRENT_TYPE2 current2){
+                ACCUMULATOR_TYPE absolute_difference(DEVICE& device, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE1 current1, CURRENT_TYPE2 current2){
                     return accumulator + math::abs(device.math, current1 - current2);
                 }
                 template <typename DEVICE, typename PARAMETER, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE>
-                ACCUMULATOR_TYPE sum(const DEVICE& device, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
+                ACCUMULATOR_TYPE sum(DEVICE& device, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
                     return accumulator + current;
                 }
             }
@@ -243,9 +251,39 @@ namespace rl_tools{
             }
         }
     }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto BINARY_OPERATION, typename OPERATION_PARAMETER>
+    inline void binary_operation(DEVICE& device, const tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
+        using T = typename SPEC_1::T;
+        using TI = typename DEVICE::index_t;
+        using BOP = tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER>;
+        static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
+        if constexpr(length(typename SPEC_1::SHAPE{}) > 1){
+            for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
+                auto next_t1 = view(device, t1, i);
+                auto next_t2 = view(device, t2, i);
+                binary_operation(device, BOP{}, next_t1, next_t2);
+            }
+        }
+        else{
+            for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
+                T t1_value = get(device, t1, i);
+                T t2_value = get(device, t2, i);
+                T result_value = BINARY_OPERATION(t1_value, t2_value);
+                set(device, t1, result_value, i);
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    void add(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
+        binary_operation(device, tensor::Operation<tensor::binary_operations::subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2);
+    }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void subtract(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         binary_operation(device, tensor::Operation<tensor::binary_operations::subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2, result);
+    }
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2>
+    void multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
+        binary_operation(device, tensor::Operation<tensor::binary_operations::multiply<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, t1, t2);
     }
 
     template<typename DEVICE, typename SPEC, auto UNARY_OPERATION, typename OPERATION_PARAMETER>
@@ -261,10 +299,20 @@ namespace rl_tools{
         else{
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
                 T t_value = get(device, t, i);
-                T result_value = UNARY_OPERATION(op.parameter, t_value);
+                T result_value = UNARY_OPERATION(device, op.parameter, t_value);
                 set(device, t, result_value, i);
             }
         }
+    }
+    template<typename DEVICE, typename SPEC>
+    void sigmoid(DEVICE& device, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+    }
+    template<typename DEVICE, typename SPEC>
+    void tanh(DEVICE& device, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
     }
 
     template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER>
@@ -332,7 +380,7 @@ namespace rl_tools{
     void abs(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
         using PARAMETER = tensor::OperationEmptyParameter;
-        tensor::Operation<tensor::unary_operations::abs<typename DEVICE::SPEC::MATH, PARAMETER, T>, PARAMETER> op;
+        tensor::Operation<tensor::unary_operations::abs<DEVICE, PARAMETER, T>, PARAMETER> op;
         unary_operation(device, op, t);
     }
 
@@ -340,13 +388,13 @@ namespace rl_tools{
     void set_all(DEVICE& device, Tensor<SPEC>& t, typename SPEC::T value){
         using T = typename SPEC::T;
         using PARAMETER = T;
-        tensor::Operation<tensor::unary_operations::constant<PARAMETER, T>, PARAMETER> op;
+        tensor::Operation<tensor::unary_operations::constant<DEVICE, PARAMETER, T>, PARAMETER> op;
         op.parameter = value;
         unary_operation(device, op, t);
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
-    void multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    void matrix_multiply(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         // Y^T = WX^T
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
@@ -367,20 +415,22 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
-    void multiply_transpose(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
+    void matrix_multiply_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
         // Y^T = WX^T
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
-        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_2::SHAPE{}));
-        static_assert(get<0>(typename SPEC_2::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{}));
-        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{}));
+        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_2::SHAPE{})); // INPUT_DIM
+        static_assert(get<0>(typename SPEC_2::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{})); // BATCH_SIZE
+        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{})); // HIDDEN_DIM
+        static_assert(length(typename SPEC_BIAS::SHAPE{}) == 1);
+        static_assert(get<0>(typename SPEC_BIAS::SHAPE{}) == get<0>(typename SPEC_1::SHAPE{}));
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
         for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
             for(TI j=0; j < get<0>(typename SPEC_2::SHAPE{}); ++j){
-                T acc = 0;
+                T acc = get(device, bias, i);
                 for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
                     acc += get(device, t1, i, k) * get(device, t2, j, k);
                 }

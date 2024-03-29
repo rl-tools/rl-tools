@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <rl_tools/operations/cpu.h>
+
 #include <rl_tools/containers/tensor/operations_generic.h>
 #include <rl_tools/containers/tensor/operations_cpu.h>
 #include <rl_tools/containers/tensor/persist.h>
@@ -28,19 +29,22 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     constexpr TI HIDDEN_DIM = 16;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input;
+    using GRU_OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE>> output;
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, OUTPUT_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> output_target;
     using WOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, WOUT_SHAPE>> weight_out, weight_out_grad;
     using BOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, BOUT_SHAPE>> bias_out, bias_out_grad;
 
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Plain, BATCH_SIZE>;
-    rlt::nn::layers::gru::Layer<GRU_SPEC> gru;
+    rlt::nn::layers::gru::LayerBackward<GRU_SPEC> gru;
     rlt::malloc(device, gru);
 
     rlt::malloc(device, input);
     rlt::malloc(device, output);
+    rlt::malloc(device, output_target);
     rlt::malloc(device, weight_out);
     rlt::malloc(device, weight_out_grad);
     rlt::malloc(device, bias_out);
@@ -58,7 +62,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             auto input_ds = batch_group.getDataSet("input");
             auto output_ds = batch_group.getDataSet("output");
             rlt::load(device, input_ds, input);
-            rlt::load(device, output_ds, output);
+            rlt::load(device, output_ds, output_target);
             auto weight_group = batch_group.getGroup("weights");
             auto gradient_group = batch_group.getGroup("gradient");
             auto W_ir_ds = weight_group.getDataSet("W_ir");
@@ -89,6 +93,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, b_hn_ds, gru.b_hn);
             rlt::load(device, W_out_ds, weight_out);
             rlt::load(device, b_out_ds, bias_out);
+            rlt::forward(device, gru, input, output);
         }
     }
     rlt::free(device, input);

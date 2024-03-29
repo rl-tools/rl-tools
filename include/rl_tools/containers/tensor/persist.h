@@ -1,7 +1,7 @@
 #include "../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_TENSOR_PERSIST_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_CONTAINERS_TENSOR_PERSIST_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_TENSOR_PERSIST_H
+#define RL_TOOLS_CONTAINERS_TENSOR_PERSIST_H
 
 #include <highfive/H5File.hpp>
 
