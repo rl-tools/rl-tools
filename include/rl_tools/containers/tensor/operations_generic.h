@@ -85,7 +85,7 @@ namespace rl_tools{
     typename SPEC::T get_flat(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t local_index){
         static_assert(tensor::dense_layout<SPEC>());
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
-        utils::assert_exit(device, idx < SPEC::SIZE, "Index out of bounds");
+        utils::assert_exit(device, local_index < SPEC::SIZE, "Index out of bounds");
 #endif
         return *(data(tensor) + local_index);
     }

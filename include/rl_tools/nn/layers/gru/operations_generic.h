@@ -34,8 +34,9 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer){
         malloc(device, static_cast<nn::layers::gru::Layer<SPEC>&>(layer));
-        malloc(device, layer.output);
-        malloc(device, layer.pre_activation);
+        malloc(device, layer.input_pre_activation);
+        malloc(device, layer.hidden_pre_activation);
+        malloc(device, layer.post_activation);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     void forward(DEVICE& device, nn::layers::gru::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output){
@@ -55,9 +56,9 @@ namespace rl_tools{
             else{
                 output_previous_step = view(device, output, step_i-1);
             }
-            multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_input.parameters, pre_activation_hidden_step);
+            matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_input.parameters, pre_activation_hidden_step);
 
-            multiply_transpose_bias(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, pre_activation_input_step);
+            matrix_multiply_transpose_bias(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, pre_activation_input_step);
             auto rz_pre_activation_input = view_range(device, pre_activation_input_step, 0, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
             auto rz_pre_activation_hidden = view_range(device, pre_activation_hidden_step, 0, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
             add(device, rz_pre_activation_input, rz_pre_activation_hidden);
@@ -65,10 +66,10 @@ namespace rl_tools{
             sigmoid(device, rz_pre_activation_input, rz_post_activation);
             auto r_post_activation = view_range(device, post_activation_step, 0, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
             auto n_pre_activation_hidden = view_range(device, pre_activation_hidden_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-            multiply_accumulate(device, n_pre_activation_hidden, r_post_activation, );
             auto n_pre_activation_input = view_range(device, pre_activation_input_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-            add(device, n_pre_activation_input, n_pre_activation_hidden);
-            tanh(device, n_preactivation_input);
+            multiply_accumulate(device, n_pre_activation_hidden, r_post_activation, n_pre_activation_input);
+//            add(device, n_pre_activation_input, n_pre_activation_hidden);
+            tanh(device, n_pre_activation_input);
 
         }
     }
@@ -83,8 +84,9 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer){
         free(device, static_cast<nn::layers::gru::Layer<SPEC>&>(layer));
-        free(device, layer.output);
-        free(device, layer.pre_activation);
+        free(device, layer.input_pre_activation);
+        free(device, layer.hidden_pre_activation);
+        free(device, layer.post_activation);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
