@@ -116,6 +116,12 @@ let async_main = (async () => {
     let training = false;
     document.getElementById("training-button").addEventListener("click", async () => {
         if(!training){
+            gtag('event', 'conversion', {
+                'send_to': 'AW-11023595590/fCKQCMfCvaEZEMbwuogp',
+                'value': 0.01,
+                'currency': 'USD',
+                'event_callback': callback
+            });
             training = true;
             document.getElementById("training-button").value = "Stop training";
             returns_chart.data.labels = [];
