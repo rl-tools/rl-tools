@@ -31,6 +31,8 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input, dinput;
     using GRU_OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE>> gru_output, dloss_dgru_output;
+    using GRU_OUTPUT_STEP_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, HIDDEN_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_STEP_SHAPE>> dloss_dgru_output_step;
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, OUTPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> output_target;
     using WOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM, HIDDEN_DIM>;
@@ -73,6 +75,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::malloc(device, grad_b_hr);
     rlt::malloc(device, grad_b_hz);
     rlt::malloc(device, grad_b_hn);
+    rlt::malloc(device, dloss_dgru_output_step);
 
     std::string DATA_FILE_NAME = "gru_training_trace.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
@@ -155,6 +158,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
                 rlt::load(device, grad_b_hn_ds, grad_b_hn);
 
                 rlt::backward(device, gru, input, dloss_dgru_output, dinput, buffers, step);
+
 
                 std::cout << "Step: " << step << std::endl;
                 auto grad_W_hr_view = rlt::view_range(device, gru.weights_hidden.gradient, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});

@@ -10,6 +10,11 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, Tensor<SPEC>& tensor){
         data_reference(tensor) = (typename SPEC::T*) new typename SPEC::T[SPEC::SIZE];
+#if RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
+        for(typename DEVICE::index_t i=0; i < SPEC::SIZE; i++){
+            data(tensor)[i] = std::numeric_limits<typename SPEC::T>::quiet_NaN();
+        }
+#endif
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, Tensor<SPEC>& tensor){
@@ -513,11 +518,17 @@ namespace rl_tools{
         static_assert(DIM == length(typename SPEC::SHAPE{}) - 1); // only supporting the last dimension for now
         using EXPECTED_OUTPUT_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using TI = typename DEVICE::index_t;
+        using T = typename SPEC::T;
         static_assert(tensor::_same_dimensions_shape<typename OUTPUT_SPEC::SHAPE, EXPECTED_OUTPUT_SHAPE>());
         if constexpr(length(typename SPEC::SHAPE{}) == 2){
             for(TI row_i=0; row_i < get<0>(typename SPEC::SHAPE{}); ++row_i){
                 auto input_row = view(device, input, row_i);
-                set(device, output, sum(device, input_row), row_i);
+
+                T aggregate = sum(device, input_row);
+                if constexpr(ACCUMULATE){
+                    aggregate += get(device, output, row_i);
+                }
+                set(device, output, aggregate, row_i);
             }
         }
         else{
