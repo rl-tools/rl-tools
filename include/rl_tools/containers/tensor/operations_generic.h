@@ -216,12 +216,17 @@ namespace rl_tools{
             }
             template <typename DEVICE, typename PARAMETER, typename T>
             T d_sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
-                T s = sigmoid(device, parameter, a);
+                T s = sigmoid(device, parameter, a); // todo: make version that can take advantage of a stored value so that sigmoid does not have to be calculated again
                 return s * (1 - s);
             }
             template <typename DEVICE, typename PARAMETER, typename T>
             T tanh(DEVICE& device, const PARAMETER& parameter, T a){
                 return math::tanh(device.math, a);
+            }
+            template <typename DEVICE, typename PARAMETER, typename T>
+            T d_tanh(DEVICE& device, const PARAMETER& parameter, T a){
+                T t = tanh(device, parameter, a);// todo: make version that can take advantage of a stored value so that tanh does not have to be calculated again
+                return 1 - t * t;
             }
             template <typename DEVICE, typename PARAMETER, typename T>
             T one_minus(DEVICE& device, const PARAMETER& parameter, T a){
@@ -405,6 +410,12 @@ namespace rl_tools{
         using T = typename SPEC::T;
         unary_operation(device, tensor::Operation<tensor::unary_operations::tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
+    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
+    void d_tanh(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::d_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+    }
 
     template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER>
     ACCUMULATOR_TYPE unary_associative_reduce(DEVICE& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, Tensor<SPEC>& t){
@@ -496,6 +507,32 @@ namespace rl_tools{
         return binary_associative_reduce(device, op, t1, t2);
     }
 
+    template <bool ACCUMULATE, typename DEVICE, typename SPEC, typename OUTPUT_SPEC, auto SIZE=0, auto DIM=length(typename SPEC::SHAPE{})-1>
+    auto reduce_sum(DEVICE& device, Tensor<SPEC>& input, Tensor<OUTPUT_SPEC>& output, tensor::ViewSpec<DIM, SIZE> = tensor::ViewSpec<length(typename SPEC::SHAPE{})-1, SIZE>{}){
+        // reduces along the last dimension by default
+        static_assert(DIM == length(typename SPEC::SHAPE{}) - 1); // only supporting the last dimension for now
+        using EXPECTED_OUTPUT_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
+        using TI = typename DEVICE::index_t;
+        static_assert(tensor::_same_dimensions_shape<typename OUTPUT_SPEC::SHAPE, EXPECTED_OUTPUT_SHAPE>());
+        if constexpr(length(typename SPEC::SHAPE{}) == 2){
+            for(TI row_i=0; row_i < get<0>(typename SPEC::SHAPE{}); ++row_i){
+                auto input_row = view(device, input, row_i);
+                set(device, output, sum(device, input_row), row_i);
+            }
+        }
+        else{
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
+                auto next_input = view(device, input, i);
+                auto next_output = view(device, output, i);
+                reduce_sum(device, next_input, next_output);
+            }
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC, auto SIZE=0, auto DIM=length(typename SPEC::SHAPE{})-1>
+    auto reduce_sum(DEVICE& device, Tensor<SPEC>& input, Tensor<OUTPUT_SPEC>& output, tensor::ViewSpec<DIM, SIZE> = tensor::ViewSpec<length(typename SPEC::SHAPE{})-1, SIZE>{}){
+        reduce_sum<false>(device, input, output);
+    }
+
 
     template<typename DEVICE, typename SPEC>
     void abs(DEVICE& device, Tensor<SPEC>& t){
@@ -550,7 +587,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
-    void matrix_multiply_acculmulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    void matrix_multiply_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);

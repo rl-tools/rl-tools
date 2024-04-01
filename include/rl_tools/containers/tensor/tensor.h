@@ -135,6 +135,21 @@ namespace rl_tools{
         template <typename SHAPE>
         using RowMajorStride = Append<PopFront<Product<SHAPE>>, 1>;
 
+        template <typename SHAPE, typename STRIDE>
+        constexpr typename SHAPE::TI max_span(){
+            static_assert(length(SHAPE{}) == length(STRIDE{}));
+            if constexpr(length(SHAPE{}) == 1){
+                return get<0>(SHAPE{}) * get<0>(STRIDE{});
+            }
+            else{
+                using NEXT_SHAPE = PopFront<SHAPE>;
+                using NEXT_STRIDE = PopFront<STRIDE>;
+                auto previous = max_span<NEXT_SHAPE, NEXT_STRIDE>();
+                auto current = get<0>(SHAPE{}) * get<0>(STRIDE{});
+                return previous > current ? previous : current;
+            }
+        }
+
         template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE = RowMajorStride<T_SHAPE>, bool T_STATIC=false>
         struct Specification{
             using T = T_T;
@@ -142,7 +157,7 @@ namespace rl_tools{
             using SHAPE = T_SHAPE;
             using STRIDE = T_STRIDE;
             static constexpr bool STATIC = T_STATIC;
-            static constexpr TI SIZE = Product<SHAPE>::VALUE;
+            static constexpr TI SIZE = max_span<SHAPE, STRIDE>();
             static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
 
         };

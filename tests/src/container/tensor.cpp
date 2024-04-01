@@ -876,6 +876,7 @@ TEST(RL_TOOLS_TENSOR_TEST, PERMUTE){
         rlt::set(device, A, 3, 1, 0);
         rlt::set(device, A, 4, 1, 1);
         auto permuted = rlt::permute(device, A, rlt::tensor::PermutationSpec<1, 0>{});
+        static_assert(decltype(A)::SPEC::SIZE == decltype(permuted)::SPEC::SIZE);
         std::cout << "Old stride: " << rlt::get<0>(typename decltype(A)::SPEC::STRIDE{}) << " " << rlt::get<1>(typename decltype(A)::SPEC::STRIDE{}) << std::endl;
         std::cout << "A: " << std::endl;
         rlt::print(device, A);
@@ -923,6 +924,89 @@ TEST(RL_TOOLS_TENSOR_TEST, PERMUTE){
                     ASSERT_EQ(rlt::get(device, A, i, j, k), rlt::get(device, permuted, j, i, k));
                 }
             }
+        }
+    }
+}
+
+TEST(RL_TOOLS_TENSOR_TEST, REDUCE_ALONG_DIMENSION){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 2>;
+        using SHAPE_OUTPUT = rlt::tensor::Shape<TI, 2>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> input;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE_OUTPUT>> output;
+        rlt::malloc(device, input);
+        rlt::malloc(device, output);
+        rlt::set(device, input, 1, 0, 0);
+        rlt::set(device, input, 2, 0, 1);
+        rlt::set(device, input, 3, 1, 0);
+        rlt::set(device, input, 4, 1, 1);
+        rlt::reduce_sum(device, input, output);
+        ASSERT_EQ(rlt::get(device, output, 0), 1+2);
+        ASSERT_EQ(rlt::get(device, output, 1), 3+4);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 1>;
+        using SHAPE_OUTPUT = rlt::tensor::Shape<TI, 2>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> input;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE_OUTPUT>> output;
+        rlt::malloc(device, input);
+        rlt::malloc(device, output);
+        rlt::set(device, input, 1, 0, 0);
+        rlt::set(device, input, 3, 1, 0);
+        rlt::reduce_sum(device, input, output);
+        ASSERT_EQ(rlt::get(device, output, 0), 1);
+        ASSERT_EQ(rlt::get(device, output, 1), 3);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 1, 1>;
+        using SHAPE_OUTPUT = rlt::tensor::Shape<TI, 1>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> input;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE_OUTPUT>> output;
+        rlt::malloc(device, input);
+        rlt::malloc(device, output);
+        rlt::set(device, input, 1337, 0, 0);
+        rlt::reduce_sum(device, input, output);
+        ASSERT_EQ(rlt::get(device, output, 0), 1337);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 1, 1, 1, 1, 100>;
+        using SHAPE_OUTPUT = rlt::tensor::Shape<TI, 1, 1, 1, 1>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> input;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE_OUTPUT>> output;
+        rlt::malloc(device, input);
+        rlt::malloc(device, output);
+        rlt::set_all(device, input, 0);
+        rlt::set(device, input, 1337, 0, 0, 0, 0, 50);
+        rlt::set(device, input, -1337, 0, 0, 0, 0, 0);
+        rlt::set(device, input, 1338, 0, 0, 0, 0, 99);
+        rlt::reduce_sum(device, input, output);
+        ASSERT_EQ(rlt::get(device, output, 0, 0, 0, 0), 1338);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 1, 1, 6, 1, 100>;
+        using SHAPE_OUTPUT = rlt::tensor::Shape<TI, 1, 1, 6, 1>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> input;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE_OUTPUT>> output;
+        rlt::malloc(device, input);
+        rlt::malloc(device, output);
+        rlt::set_all(device, input, 0);
+        rlt::set(device, input, 1337, 0, 0, 0, 0, 50);
+        rlt::set(device, input, -1337, 0, 0, 0, 0, 0);
+        rlt::set(device, input, 1338, 0, 0, 0, 0, 99);
+        rlt::set(device, input, 1, 0, 0, 1, 0, 5);
+        rlt::set(device, input, 2, 0, 0, 2, 0, 0);
+        rlt::set(device, input, 3, 0, 0, 3, 0, 80);
+        rlt::set(device, input, 4, 0, 0, 4, 0, 37);
+        rlt::set(device, input, 5, 0, 0, 5, 0, 99);
+        rlt::reduce_sum(device, input, output);
+        ASSERT_EQ(rlt::get(device, output, 0, 0, 0, 0), 1338);
+        for(TI i=1; i < 6; i++){
+            ASSERT_EQ(rlt::get(device, output, 0, 0, i, 0), i);
         }
     }
 }

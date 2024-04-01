@@ -72,7 +72,22 @@ namespace rl_tools::nn::layers::gru {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>> dh_dz, dz_dz_pa, dh_dz_pa, dh_dn, dn_dn_pa, dh_dn_pa, dn_dn_pa_pa, dh_dn_pa_pa;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>>
+        dr_dr_pa,
+        dh_dr,
+        dh_dr_pa,
+        dh_dz,
+        dz_dz_pa,
+        dh_dn,
+        dn_dn_pa,
+        dn_dn_pa_pa,
+        dh_dz_pa,
+        dh_dn_pa,
+        dh_dn_pa_pa,
+        dr_pa,
+        dz_pa,
+        dn_pa,
+        dn_pa_pa;
     };
 
     template<typename T_SPEC>

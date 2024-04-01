@@ -28,27 +28,51 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     constexpr TI OUTPUT_DIM = 1;
     constexpr TI HIDDEN_DIM = 16;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input, dinput;
     using GRU_OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE>> gru_output;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE>> gru_output, dloss_dgru_output;
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, OUTPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> output_target;
     using WOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, WOUT_SHAPE>> weight_out, weight_out_grad;
     using BOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, BOUT_SHAPE>> bias_out, bias_out_grad;
+    using GRU_INPUT_WEIGHT_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM, INPUT_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_INPUT_WEIGHT_SHAPE>> grad_W_ir, grad_W_iz, grad_W_in;
+    using GRU_INPUT_BIAS_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_INPUT_BIAS_SHAPE>> grad_b_ir, grad_b_iz, grad_b_in;
+    using GRU_HIDDEN_WEIGHT_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM, HIDDEN_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_HIDDEN_WEIGHT_SHAPE>> grad_W_hr, grad_W_hz, grad_W_hn;
+    using GRU_HIDDEN_BIAS_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_HIDDEN_BIAS_SHAPE>> grad_b_hr, grad_b_hz, grad_b_hn;
 
-    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Plain, BATCH_SIZE>;
+    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient, BATCH_SIZE>;
     rlt::nn::layers::gru::LayerBackwardGradient<GRU_SPEC> gru;
+    decltype(gru)::Buffers buffers;
     rlt::malloc(device, gru);
+    rlt::malloc(device, buffers);
 
     rlt::malloc(device, input);
+    rlt::malloc(device, dinput);
     rlt::malloc(device, gru_output);
+    rlt::malloc(device, dloss_dgru_output);
     rlt::malloc(device, output_target);
     rlt::malloc(device, weight_out);
     rlt::malloc(device, weight_out_grad);
     rlt::malloc(device, bias_out);
     rlt::malloc(device, bias_out_grad);
+    rlt::malloc(device, grad_W_ir);
+    rlt::malloc(device, grad_W_iz);
+    rlt::malloc(device, grad_W_in);
+    rlt::malloc(device, grad_b_ir);
+    rlt::malloc(device, grad_b_iz);
+    rlt::malloc(device, grad_b_in);
+    rlt::malloc(device, grad_W_hr);
+    rlt::malloc(device, grad_W_hz);
+    rlt::malloc(device, grad_W_hn);
+    rlt::malloc(device, grad_b_hr);
+    rlt::malloc(device, grad_b_hz);
+    rlt::malloc(device, grad_b_hn);
 
     std::string DATA_FILE_NAME = "gru_training_trace.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
@@ -81,6 +105,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             auto b_hn_ds = weight_group.getDataSet("b_hn");
             auto W_out_ds = weight_group.getDataSet("W_out");
             auto b_out_ds = weight_group.getDataSet("b_out");
+            auto dloss_dgru_output_ds = batch_group.getDataSet("d_loss_d_y_pred_gru");
             rlt::load(device, W_ir_ds, gru.W_ir);
             rlt::load(device, W_iz_ds, gru.W_iz);
             rlt::load(device, W_in_ds, gru.W_in);
@@ -95,10 +120,110 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, b_hn_ds, gru.b_hn);
             rlt::load(device, W_out_ds, weight_out);
             rlt::load(device, b_out_ds, bias_out);
+            rlt::load(device, dloss_dgru_output_ds, dloss_dgru_output);
             rlt::forward(device, gru, input);
-            T abs_diff = rlt::absolute_difference(device, gru.output, gru_output);
+            T abs_diff = rlt::absolute_difference(device, gru_output, gru.output);
+//            auto dloss_dgru_output_view = rlt::view(device, dloss_dgru_output, 0, rlt::tensor::ViewSpec<1>{});
+//            rlt::print(device, dloss_dgru_output_view);
+            rlt::zero_gradient(device, gru);
+            for(TI step=SEQUENCE_LENGTH-1; true; step--){
+                auto backward_group = batch_group.getGroup("backward");
+                auto gradient_group_step = backward_group.getGroup(std::to_string(step));
+                auto grad_W_ir_ds = gradient_group_step.getDataSet("W_ir");
+                auto grad_W_iz_ds = gradient_group_step.getDataSet("W_iz");
+                auto grad_W_in_ds = gradient_group_step.getDataSet("W_in");
+                auto grad_W_hr_ds = gradient_group_step.getDataSet("W_hr");
+                auto grad_W_hz_ds = gradient_group_step.getDataSet("W_hz");
+                auto grad_W_hn_ds = gradient_group_step.getDataSet("W_hn");
+                auto grad_b_ir_ds = gradient_group_step.getDataSet("b_ir");
+                auto grad_b_iz_ds = gradient_group_step.getDataSet("b_iz");
+                auto grad_b_in_ds = gradient_group_step.getDataSet("b_in");
+                auto grad_b_hr_ds = gradient_group_step.getDataSet("b_hr");
+                auto grad_b_hz_ds = gradient_group_step.getDataSet("b_hz");
+                auto grad_b_hn_ds = gradient_group_step.getDataSet("b_hn");
+                rlt::load(device, grad_W_ir_ds, grad_W_ir);
+                rlt::load(device, grad_W_iz_ds, grad_W_iz);
+                rlt::load(device, grad_W_in_ds, grad_W_in);
+                rlt::load(device, grad_W_hr_ds, grad_W_hr);
+                rlt::load(device, grad_W_hz_ds, grad_W_hz);
+                rlt::load(device, grad_W_hn_ds, grad_W_hn);
+                rlt::load(device, grad_b_ir_ds, grad_b_ir);
+                rlt::load(device, grad_b_iz_ds, grad_b_iz);
+                rlt::load(device, grad_b_in_ds, grad_b_in);
+                rlt::load(device, grad_b_hr_ds, grad_b_hr);
+                rlt::load(device, grad_b_hz_ds, grad_b_hz);
+                rlt::load(device, grad_b_hn_ds, grad_b_hn);
 
-            ASSERT_LT(abs_diff, EPSILON);
+                rlt::backward(device, gru, input, dloss_dgru_output, dinput, buffers, step);
+
+                std::cout << "Step: " << step << std::endl;
+                auto grad_W_hr_view = rlt::view_range(device, gru.weights_hidden.gradient, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_W_hr = rlt::absolute_difference(device, grad_W_hr_view, grad_W_hr)/decltype(grad_W_hr)::SPEC::SIZE;
+                std::cout << "abs_diff_W_hr: " << abs_diff_W_hr << std::endl;
+
+                auto grad_b_hr_view = rlt::view_range(device, gru.biases_hidden.gradient, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_b_hr = rlt::absolute_difference(device, grad_b_hr_view, grad_b_hr)/decltype(grad_b_hr)::SPEC::SIZE;
+                std::cout << "abs_diff_b_hr: " << abs_diff_b_hr << std::endl;
+
+                auto grad_W_hz_view = rlt::view_range(device, gru.weights_hidden.gradient, 1*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_W_hz = rlt::absolute_difference(device, grad_W_hz_view, grad_W_hz)/decltype(grad_W_hz)::SPEC::SIZE;
+                std::cout << "abs_diff_W_hz: " << abs_diff_W_hz << std::endl;
+
+                auto grad_b_hz_view = rlt::view_range(device, gru.biases_hidden.gradient, 1*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_b_hz = rlt::absolute_difference(device, grad_b_hz_view, grad_b_hz)/decltype(grad_b_hz)::SPEC::SIZE;
+                std::cout << "abs_diff_b_hz: " << abs_diff_b_hz << std::endl;
+
+                auto grad_W_hn_view = rlt::view_range(device, gru.weights_hidden.gradient, 2*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_W_hn = rlt::absolute_difference(device, grad_W_hn_view, grad_W_hn)/decltype(grad_W_hn)::SPEC::SIZE;
+                std::cout << "abs_diff_W_hn: " << abs_diff_W_hn << std::endl;
+
+                auto grad_b_hn_view = rlt::view_range(device, gru.biases_hidden.gradient, 2*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_b_hn = rlt::absolute_difference(device, grad_b_hn_view, grad_b_hn)/decltype(grad_b_hn)::SPEC::SIZE;
+                std::cout << "abs_diff_b_hn: " << abs_diff_b_hn << std::endl;
+
+                auto grad_W_ir_view = rlt::view_range(device, gru.weights_input.gradient, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_W_ir = rlt::absolute_difference(device, grad_W_ir_view, grad_W_ir)/decltype(grad_W_ir)::SPEC::SIZE;
+                std::cout << "abs_diff_W_ir: " << abs_diff_W_ir << std::endl;
+
+                auto grad_b_ir_view = rlt::view_range(device, gru.biases_input.gradient, 0*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_b_ir = rlt::absolute_difference(device, grad_b_ir_view, grad_b_hr)/decltype(grad_b_ir)::SPEC::SIZE;
+                std::cout << "abs_diff_b_ir: " << abs_diff_b_ir << std::endl;
+
+                auto grad_W_iz_view = rlt::view_range(device, gru.weights_input.gradient, 1*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_W_iz = rlt::absolute_difference(device, grad_W_iz_view, grad_W_iz)/decltype(grad_W_iz)::SPEC::SIZE;
+                std::cout << "abs_diff_W_iz: " << abs_diff_W_iz << std::endl;
+
+                auto grad_b_iz_view = rlt::view_range(device, gru.biases_input.gradient, 1*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_b_iz = rlt::absolute_difference(device, grad_b_iz_view, grad_b_iz)/decltype(grad_b_iz)::SPEC::SIZE;
+                std::cout << "abs_diff_b_iz: " << abs_diff_b_iz << std::endl;
+
+                auto grad_W_in_view = rlt::view_range(device, gru.weights_input.gradient, 2*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_W_in = rlt::absolute_difference(device, grad_W_in_view, grad_W_in)/decltype(grad_W_in)::SPEC::SIZE;
+                std::cout << "abs_diff_W_in: " << abs_diff_W_in << std::endl;
+
+                auto grad_b_in_view = rlt::view_range(device, gru.biases_input.gradient, 2*HIDDEN_DIM, rlt::tensor::ViewSpec<0, HIDDEN_DIM>{});
+                T abs_diff_b_in = rlt::absolute_difference(device, grad_b_in_view, grad_b_in)/decltype(grad_b_in)::SPEC::SIZE;
+                std::cout << "abs_diff_b_in: " << abs_diff_b_in << std::endl;
+
+
+                ASSERT_LT(abs_diff_W_hr, EPSILON);
+                ASSERT_LT(abs_diff_b_hr, EPSILON);
+                ASSERT_LT(abs_diff_W_hz, EPSILON);
+                ASSERT_LT(abs_diff_b_hz, EPSILON);
+                ASSERT_LT(abs_diff_W_hn, EPSILON);
+                ASSERT_LT(abs_diff_b_hn, EPSILON);
+
+                ASSERT_LT(abs_diff_W_ir, EPSILON);
+                ASSERT_LT(abs_diff_b_ir, EPSILON);
+                ASSERT_LT(abs_diff_W_iz, EPSILON);
+                ASSERT_LT(abs_diff_b_iz, EPSILON);
+                ASSERT_LT(abs_diff_W_in, EPSILON);
+                ASSERT_LT(abs_diff_b_in, EPSILON);
+                if(step == 0){
+                    break;
+                }
+            }
+
         }
     }
     rlt::free(device, input);

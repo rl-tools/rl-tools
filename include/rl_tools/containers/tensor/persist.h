@@ -12,8 +12,8 @@ namespace rl_tools {
     namespace tensor{
         template<typename DEVICE, typename SPEC, typename TI>
         bool check_dimensions(DEVICE& device, Tensor<SPEC>& tensor, const std::vector<TI>& dims, typename DEVICE::index_t current_dim=0){
-            if constexpr(length(typename SPEC::SHAPE{}) == 0){
-                return true;
+            if constexpr(length(typename SPEC::SHAPE{}) == 1){
+                return dims[current_dim] == get<0>(typename SPEC::SHAPE{});
             }
             else{
                 auto next_tensor = view(device, tensor, current_dim);
