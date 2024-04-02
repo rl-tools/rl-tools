@@ -25,7 +25,7 @@ target_compile_definitions(test_nn_layers_gru PRIVATE -DRL_TOOLS_DEBUG_CONTAINER
 
 add_executable(
         test_nn_layers_gru_sequential
-        gru.cpp
+        sequential.cpp
 )
 target_link_libraries(
         test_nn_layers_gru_sequential
