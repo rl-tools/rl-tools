@@ -269,13 +269,17 @@ namespace rl_tools{
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
     void backward(DEVICE& device, nn::layers::gru::LayerBackwardGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::BuffersBackward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i){
-        // warning this modifies d_output!
+        // warning: this modifies d_output!
+        static_assert(tensor::same_dimensions<typename decltype(layer.output)::SPEC, D_OUTPUT_SPEC>());
+        static_assert(tensor::same_dimensions<INPUT_SPEC, D_INPUT_SPEC>());
         static_assert(nn::layers::gru::check_input_output<LAYER_SPEC, INPUT_SPEC, typename decltype(layer.output)::SPEC>, "Input and output spec not matching");
         using TI = typename DEVICE::index_t;
         auto input_step = view(device, input, step_i);
         auto n_pre_pre_activation_step = view(device, layer.n_pre_pre_activation, step_i);
         auto post_activation_step = view(device, layer.post_activation, step_i);
         auto d_output_step = view(device, d_output, step_i);
+        auto d_input_step = view(device, d_input, step_i);
+
 
         auto rz_post_activation = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
         auto r_post_activation = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
@@ -304,6 +308,8 @@ namespace rl_tools{
         auto b_irz_grad = view_range(device, layer.biases_input.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
         auto b_hrz_grad = view_range(device, layer.biases_hidden.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
         copy(device, device, b_irz_grad, b_hrz_grad);
+
+        matrix_multiply_accumulate(device, buffers.buffer, layer.weights_input.parameters, d_input_step);
 
         multiply(device, buffers.buffer_n, r_post_activation);
 
