@@ -1,12 +1,12 @@
 #include "../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_SEQUENTIAL_V2_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H
+#define RL_TOOLS_NN_MODELS_SEQUENTIAL_V2_MODEL_H
 
 #include "../../utils/generic/typing.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::nn_models::sequential{
+namespace rl_tools::nn_models::sequential_v2{
     struct OutputModule{
         struct CONTENT{
             static constexpr auto INPUT_DIM = 0;
@@ -128,7 +128,7 @@ namespace rl_tools::nn_models::sequential{
 
     namespace interface{
         template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
-        struct Module: rl_tools::nn_models::sequential::Module<Specification<T_CONTENT, T_NEXT_MODULE>>{};
+        struct Module: rl_tools::nn_models::sequential_v2::Module<Specification<T_CONTENT, T_NEXT_MODULE>>{};
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
