@@ -267,8 +267,9 @@ namespace rl_tools{
         binary_operation(device, op, factor, pre_activation, result);
     }
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
+    template<bool CALCULATE_D_INPUT, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
     void backward(DEVICE& device, nn::layers::gru::LayerBackwardGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::BuffersBackward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i){
+        // call with backward<false> to disable d_input calculation
         // warning: this modifies d_output!
         static_assert(tensor::same_dimensions<typename decltype(layer.output)::SPEC, D_OUTPUT_SPEC>());
         static_assert(tensor::same_dimensions<INPUT_SPEC, D_INPUT_SPEC>());
@@ -309,7 +310,9 @@ namespace rl_tools{
         auto b_hrz_grad = view_range(device, layer.biases_hidden.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
         copy(device, device, b_irz_grad, b_hrz_grad);
 
-        matrix_multiply_accumulate(device, buffers.buffer, layer.weights_input.parameters, d_input_step);
+        if constexpr(CALCULATE_D_INPUT){
+            matrix_multiply_accumulate(device, buffers.buffer, layer.weights_input.parameters, d_input_step);
+        }
 
         multiply(device, buffers.buffer_n, r_post_activation);
 
@@ -328,6 +331,10 @@ namespace rl_tools{
         auto b_hn_grad = view_range(device, layer.biases_hidden.gradient, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
         auto buffer_n_transpose = permute(device, buffers.buffer_n, tensor::PermutationSpec<1, 0>{});
         reduce_sum<true>(device, buffer_n_transpose, b_hn_grad);
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
+    void backward(DEVICE& device, nn::layers::gru::LayerBackwardGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::BuffersBackward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i){
+        backward<true>(device, layer, input, d_output, d_input, buffers, step_i);
     }
 
     template <typename DEVICE, typename SPEC>
