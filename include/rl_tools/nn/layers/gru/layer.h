@@ -52,6 +52,7 @@ namespace rl_tools::nn::layers::gru {
         using WEIGHTS_HIDDEN_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_HIDDEN_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_HIDDEN_PARAMETER_SPEC> weights_hidden;
         typename decltype(weights_hidden.parameters)::template VIEW_RANGE<tensor::ViewSpec<0, HIDDEN_DIM>> W_hr, W_hz, W_hn;
+        typename decltype(weights_hidden.parameters)::template VIEW_RANGE<tensor::ViewSpec<0, 2*HIDDEN_DIM>> W_hrz;
 
         using BIASES_HIDDEN_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM>;
         using BIASES_HIDDEN_CONTAINER_SPEC = tensor::Specification<T, TI, BIASES_HIDDEN_CONTAINER_SHAPE>;
@@ -72,6 +73,9 @@ namespace rl_tools::nn::layers::gru {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>> buffer;
+        typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>> buffer_rz;
+        typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, SPEC::HIDDEN_DIM>> buffer_r, buffer_z, buffer_n;
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>>
         dr_dr_pa,
         dh_dr,
@@ -95,8 +99,10 @@ namespace rl_tools::nn::layers::gru {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using HIDDEN_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
-        Tensor<HIDDEN_SPEC> input_pre_activation, hidden_pre_activation, post_activation;
+        using FULL_HIDDEN_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
+        Tensor<FULL_HIDDEN_SPEC> post_activation;
+        using HIDDEN_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>;
+        Tensor<HIDDEN_SPEC> n_pre_pre_activation;
         using OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>;
         Tensor<OUTPUT_SPEC> output;
     };

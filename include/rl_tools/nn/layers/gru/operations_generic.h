@@ -20,6 +20,8 @@ namespace rl_tools{
         layer.b_iz = view_range(device, layer.biases_input.parameters, 1*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         layer.b_in = view_range(device, layer.biases_input.parameters, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         malloc(device, layer.weights_hidden);
+        using VIEW_SPEC_DOUBLE = tensor::ViewSpec<0, 2*SPEC::HIDDEN_DIM>;
+        layer.W_hrz = view_range(device, layer.weights_hidden.parameters, 0*SPEC::HIDDEN_DIM, VIEW_SPEC_DOUBLE{});
         layer.W_hr = view_range(device, layer.weights_hidden.parameters, 0*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         layer.W_hz = view_range(device, layer.weights_hidden.parameters, 1*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         layer.W_hn = view_range(device, layer.weights_hidden.parameters, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
@@ -34,8 +36,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer){
         malloc(device, static_cast<nn::layers::gru::Layer<SPEC>&>(layer));
-        malloc(device, layer.input_pre_activation);
-        malloc(device, layer.hidden_pre_activation);
+        malloc(device, layer.n_pre_pre_activation);
         malloc(device, layer.post_activation);
         malloc(device, layer.output);
     }
@@ -56,6 +57,13 @@ namespace rl_tools{
         malloc(device, buffers.dz_pa);
         malloc(device, buffers.dn_pa);
         malloc(device, buffers.dn_pa_pa);
+        malloc(device, buffers.buffer);
+        using VIEW_SPEC_DOUBLE = tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>;
+        buffers.buffer_rz = view_range(device, buffers.buffer, 0*SPEC::HIDDEN_DIM, VIEW_SPEC_DOUBLE{});
+        using VIEW_SPEC = tensor::ViewSpec<1, SPEC::HIDDEN_DIM>;
+        buffers.buffer_r = view_range(device, buffers.buffer, 0*SPEC::HIDDEN_DIM, VIEW_SPEC{});
+        buffers.buffer_z = view_range(device, buffers.buffer, 1*SPEC::HIDDEN_DIM, VIEW_SPEC{});
+        buffers.buffer_n = view_range(device, buffers.buffer, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_broadcast_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
@@ -83,31 +91,30 @@ namespace rl_tools{
 
         for(TI step_i=0; step_i < LAYER_SPEC::SEQUENCE_LENGTH; ++step_i){
             auto input_step = view(device, input, step_i);
-            auto pre_activation_hidden_step = view(device, layer.hidden_pre_activation, step_i);
-            auto pre_activation_input_step = view(device, layer.input_pre_activation, step_i);
             auto post_activation_step = view(device, layer.post_activation, step_i);
+            auto n_pre_pre_activation_step = view(device, layer.n_pre_pre_activation, step_i);
             auto output_step = view(device, layer.output, step_i);
+
+            auto rz_post_activation = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
+            auto r_post_activation  = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+            auto z_post_activation  = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+            auto n_post_activation  = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+
             if(step_i == 0){
-                matrix_multiply_broadcast_transpose_bias(device, layer.weights_hidden.parameters, layer.initial_hidden_state.parameters, layer.biases_hidden.parameters, pre_activation_hidden_step);
+                matrix_multiply_broadcast_transpose_bias(device, layer.weights_hidden.parameters, layer.initial_hidden_state.parameters, layer.biases_hidden.parameters, post_activation_step);
             }
             else{
                 auto output_previous_step = view(device, layer.output, step_i-1);
-                matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, pre_activation_hidden_step);
+                matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
             }
 
-            matrix_multiply_transpose_bias(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, pre_activation_input_step);
-            auto rz_pre_activation_input = view_range(device, pre_activation_input_step, 0, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
-            auto rz_pre_activation_hidden = view_range(device, pre_activation_hidden_step, 0, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
-            add(device, rz_pre_activation_input, rz_pre_activation_hidden);
-            auto rz_post_activation = view_range(device, post_activation_step, 0, tensor::ViewSpec<1,2* LAYER_SPEC::HIDDEN_DIM>{});
-            sigmoid(device, rz_pre_activation_input, rz_post_activation);
-            auto r_post_activation = view_range(device, post_activation_step, 0, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-            auto n_pre_activation_hidden = view_range(device, pre_activation_hidden_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-            auto n_pre_activation_input = view_range(device, pre_activation_input_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-            multiply_accumulate(device, n_pre_activation_hidden, r_post_activation, n_pre_activation_input);
-            auto n_post_activation = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-            tanh(device, n_pre_activation_input, n_post_activation);
-            auto z_post_activation = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
+            copy(device, device, n_post_activation, n_pre_pre_activation_step);
+            set_all(device, n_post_activation, 0);
+
+            matrix_multiply_transpose_bias_accumulate(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, post_activation_step);
+            sigmoid(device, rz_post_activation);
+            multiply_accumulate(device, n_pre_pre_activation_step, r_post_activation, n_post_activation);
+            tanh(device, n_post_activation);
             one_minus(device, z_post_activation, output_step);
             multiply(device, output_step, n_post_activation);
             if(step_i == 0){
@@ -119,9 +126,12 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
-    void subtract_broadcast(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output) {
+    template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+    void multiply_subtract_broadcast(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output) {
         // broadcast t1 along first dimension
+        static_assert(length(typename SPEC_FACTOR::SHAPE{}) == 2);
+        static_assert(get<0>(typename SPEC_FACTOR::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
+        static_assert(get<1>(typename SPEC_FACTOR::SHAPE{}) == get<1>(typename SPEC_2::SHAPE{}));
         static_assert(length(typename SPEC_1::SHAPE{}) == 1);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(get<0>(typename SPEC_2::SHAPE{}) == get<0>(typename SPEC_OUTPUT::SHAPE{}));
@@ -131,11 +141,22 @@ namespace rl_tools{
         using T = typename SPEC_1::T;
         for(TI i=0; i < get<0>(typename SPEC_2::SHAPE{}); i++){
             for(TI j=0; j < get<1>(typename SPEC_2::SHAPE{}); j++){
+                T factor_value = get(device, factor, i, j);
                 T t1_value = get(device, t1, j);
                 T t2_value = get(device, t2, i, j);
-                set(device, t_output, t1_value - t2_value, i, j);
+                set(device, t_output, factor_value*(t1_value - t2_value), i, j);
             }
         }
+    }
+    namespace tensor::ternary_operations{
+        template <typename T>
+        T multiply_subtract(T factor, T a, T b){
+            return factor * (a-b);
+        }
+    }
+    template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
+    void multiply_subtract(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+        ternary_operation(device, tensor::Operation<tensor::ternary_operations::multiply_subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, factor, t1, t2, result);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply_broadcast_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
@@ -201,129 +222,108 @@ namespace rl_tools{
         zero_gradient(device, layer.biases_hidden);
         zero_gradient(device, layer.initial_hidden_state);
     }
+
+    template<typename DEVICE, typename SPEC>
+    void one_minus(DEVICE& device, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        using PARAMETER = T;
+        tensor::Operation<tensor::unary_operations::one_minus<DEVICE, PARAMETER, T>, PARAMETER> op;
+        unary_operation(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
+    void one_minus(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        using T = typename SPEC::T;
+        using PARAMETER = T;
+        tensor::Operation<tensor::unary_operations::one_minus<DEVICE, PARAMETER, T>, PARAMETER> op;
+        unary_operation(device, op, t, output);
+    }
+
+    namespace tensor::ternary_operations{
+        template <typename T>
+        T multiply_one_minus_times_d_tanh_post_activation(T factor, T one_minus, T tanh_post_activation){
+            return factor * (1-one_minus) * (1-tanh_post_activation*tanh_post_activation);
+        }
+    }
+
+    template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_OM, typename SPEC_TANH, typename SPEC_RESULT>
+    void multiply_one_minus_times_d_tanh_post_activation(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_OM>& one_minus, Tensor<SPEC_TANH>& tanh_post_activation, Tensor<SPEC_RESULT>& result){
+        using T = typename SPEC_FACTOR::T;
+        using PARAMETER = T;
+        tensor::Operation<tensor::ternary_operations::multiply_one_minus_times_d_tanh_post_activation<T>, PARAMETER> op;
+        ternary_operation(device, op, factor, one_minus, tanh_post_activation, result);
+    }
+    namespace tensor::binary_operations{
+        template <typename T>
+        T multiply_d_sigmoid_post_activation(T factor, T post_activation){
+            return factor * post_activation * (1-post_activation);
+        }
+    }
+    template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_PA, typename SPEC_RESULT>
+    void multiply_d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_PA>& pre_activation, Tensor<SPEC_RESULT>& result){
+        using T = typename SPEC_FACTOR::T;
+        using PARAMETER = T;
+        tensor::Operation<tensor::binary_operations::multiply_d_sigmoid_post_activation<T>, PARAMETER> op;
+        binary_operation(device, op, factor, pre_activation, result);
+    }
+
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
     void backward(DEVICE& device, nn::layers::gru::LayerBackwardGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::BuffersBackward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i){
         // warning this modifies d_output!
         static_assert(nn::layers::gru::check_input_output<LAYER_SPEC, INPUT_SPEC, typename decltype(layer.output)::SPEC>, "Input and output spec not matching");
         using TI = typename DEVICE::index_t;
         auto input_step = view(device, input, step_i);
-        auto pre_activation_hidden_step = view(device, layer.hidden_pre_activation, step_i);
-        auto pre_activation_input_step = view(device, layer.input_pre_activation, step_i);
+        auto n_pre_pre_activation_step = view(device, layer.n_pre_pre_activation, step_i);
         auto post_activation_step = view(device, layer.post_activation, step_i);
-        auto output_step = view(device, layer.output, step_i);
-        auto doutput_step = view(device, d_output, step_i);
+//        auto output_previous_step = view(device, layer.output, step_i);
+        auto d_output_step = view(device, d_output, step_i);
 
+        auto rz_post_activation = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
+        auto r_post_activation = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
         auto z_post_activation = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-        one_minus(device, z_post_activation, buffers.dh_dn);
+        auto n_post_activation = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
         // dh_dz = h_{t-1} - n_t
-        auto n_post_activation = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
         if(step_i == 0){
-            subtract_broadcast(device, layer.initial_hidden_state.parameters, n_post_activation, buffers.dh_dz);
+            multiply_subtract_broadcast(device, d_output_step, layer.initial_hidden_state.parameters, n_post_activation, buffers.buffer_z);
+            auto d_output_previous_step = layer.initial_hidden_state.gradient;
+            multiply_accumulate_reduce(device, d_output_step, z_post_activation, d_output_previous_step);
         }
         else{
             auto output_previous_step = view(device, layer.output, step_i-1);
-            subtract(device, output_previous_step, n_post_activation, buffers.dh_dz);
+            multiply_subtract(device, d_output_step, output_previous_step, n_post_activation, buffers.buffer_z);
+
+            auto d_output_previous_step = view(device, d_output, step_i-1);
+            multiply_accumulate(device, d_output_step, z_post_activation, d_output_previous_step);
         }
-        auto rz_pre_activation = view_range(device, pre_activation_input_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
-        auto r_pre_activation = view_range(device, pre_activation_input_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-        auto z_pre_activation = view_range(device, pre_activation_input_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-        d_sigmoid(device, r_pre_activation, buffers.dr_dr_pa); // todo: feed post activation to prevent recalc of sigmoid
-        d_sigmoid(device, z_pre_activation, buffers.dz_dz_pa);
-        multiply(device, buffers.dh_dz, buffers.dz_dz_pa, buffers.dh_dz_pa);
-        multiply(device, doutput_step, buffers.dh_dz_pa, buffers.dz_pa);
-        auto n_pre_activation = view_range(device, pre_activation_input_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-        d_tanh(device, n_pre_activation, buffers.dn_dn_pa);
-        multiply(device, buffers.dh_dn, buffers.dn_dn_pa, buffers.dh_dn_pa);
-        auto r_post_activation = view_range(device, post_activation_step, 0, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-        multiply(device, buffers.dh_dn_pa, r_post_activation, buffers.dh_dn_pa_pa);
-        auto n_pre_activation_hidden = view_range(device, pre_activation_hidden_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
-        multiply(device, buffers.dh_dn_pa, n_pre_activation_hidden, buffers.dh_dr);
-        multiply(device, buffers.dh_dr, buffers.dr_dr_pa, buffers.dh_dr_pa);
-        multiply(device, doutput_step, buffers.dh_dr_pa, buffers.dr_pa);
-        auto dr_pa_transpose = permute(device, buffers.dr_pa, tensor::PermutationSpec<1, 0>{});
-        static_assert(decltype(dr_pa_transpose)::SPEC::SIZE == decltype(buffers.dh_dr_pa)::SPEC::SIZE);
-        auto W_ir_grad = view_range(device, layer.weights_input.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        matrix_multiply_accumulate(device, dr_pa_transpose, input_step, W_ir_grad);
-//            print(device, W_ir_grad);
-        auto W_hr_grad = view_range(device, layer.weights_hidden.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
+        multiply_one_minus_times_d_tanh_post_activation(device, d_output_step, z_post_activation, n_post_activation, buffers.buffer_n);
+        multiply(device, buffers.buffer_n, n_pre_pre_activation_step, buffers.buffer_r);
+        multiply_d_sigmoid_post_activation(device, buffers.buffer_rz, rz_post_activation, buffers.buffer_rz);
+        auto buffer_transpose = permute(device, buffers.buffer, tensor::PermutationSpec<1, 0>{});
+        static_assert(decltype(buffer_transpose)::SPEC::SIZE == decltype(buffers.buffer)::SPEC::SIZE);
+        matrix_multiply_accumulate(device, buffer_transpose, input_step, layer.weights_input.gradient);
+
+        reduce_sum<true>(device, buffer_transpose, layer.biases_input.gradient);
+        auto b_irz_grad = view_range(device, layer.biases_input.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
+        auto b_hrz_grad = view_range(device, layer.biases_hidden.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
+        copy(device, device, b_irz_grad, b_hrz_grad);
+
+        multiply(device, buffers.buffer_n, r_post_activation);
+
         if(step_i == 0){
-            matrix_multiply_broadcast_accumulate(device, dr_pa_transpose, layer.initial_hidden_state.parameters, W_hr_grad);
-            auto doutput_previous_step = layer.initial_hidden_state.gradient;
-            matrix_multiply_accumulate_reduce(device, buffers.dr_pa, layer.W_hr, doutput_previous_step);
+            matrix_multiply_broadcast_accumulate(device, buffer_transpose, layer.initial_hidden_state.parameters, layer.weights_hidden.gradient);
+            auto d_output_previous_step = layer.initial_hidden_state.gradient;
+            matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
         }
         else{
             auto output_previous_step = view(device, layer.output, step_i-1);
-            auto doutput_previous_step = view(device, d_output, step_i-1);
-            matrix_multiply_accumulate(device, dr_pa_transpose, output_previous_step, W_hr_grad);
-            matrix_multiply_accumulate(device, buffers.dr_pa, layer.W_hr, doutput_previous_step);
-        }
-        // W_hr_grad good
-        auto b_ir_grad = view_range(device, layer.biases_input.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        auto b_hr_grad = view_range(device, layer.biases_hidden.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        reduce_sum<true>(device, dr_pa_transpose, b_ir_grad);
-        reduce_sum<true>(device, dr_pa_transpose, b_hr_grad);
-
-        auto W_iz_grad = view_range(device, layer.weights_input.gradient, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        auto dz_pa_transpose = permute(device, buffers.dz_pa, tensor::PermutationSpec<1, 0>{});
-        static_assert(decltype(dr_pa_transpose)::SPEC::SIZE == decltype(buffers.dh_dr_pa)::SPEC::SIZE);
-        matrix_multiply_accumulate(device, dz_pa_transpose, input_step, W_iz_grad);
-
-        auto W_hz_grad = view_range(device, layer.weights_hidden.gradient, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        if(step_i == 0){
-            matrix_multiply_broadcast_accumulate(device, dz_pa_transpose, layer.initial_hidden_state.parameters, W_hz_grad);
-            auto doutput_previous_step = layer.initial_hidden_state.gradient;
-            matrix_multiply_accumulate_reduce(device, buffers.dz_pa, layer.W_hz, doutput_previous_step);
-        }
-        else{
-            auto output_previous_step = view(device, layer.output, step_i-1);
-            auto doutput_previous_step = view(device, d_output, step_i-1);
-            matrix_multiply_accumulate(device, dz_pa_transpose, output_previous_step, W_hz_grad);
-            matrix_multiply_accumulate(device, buffers.dz_pa, layer.W_hz, doutput_previous_step);
+            matrix_multiply_accumulate(device, buffer_transpose, output_previous_step, layer.weights_hidden.gradient);
+            auto d_output_previous_step = view(device, d_output, step_i-1);
+            matrix_multiply_accumulate(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
         }
 
-        auto b_iz_grad = view_range(device, layer.biases_input.gradient, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        auto b_hz_grad = view_range(device, layer.biases_hidden.gradient, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        reduce_sum<true>(device, dz_pa_transpose, b_iz_grad);
-        reduce_sum<true>(device, dz_pa_transpose, b_hz_grad); // todo reduce into buffer first and then accumulate into the two biases
-
-        auto W_in_grad = view_range(device, layer.weights_input.gradient, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        multiply(device, doutput_step, buffers.dh_dn_pa, buffers.dn_pa);
-        auto dn_pa_transpose = permute(device, buffers.dn_pa, tensor::PermutationSpec<1, 0>{});
-        matrix_multiply_accumulate(device, dn_pa_transpose, input_step, W_in_grad);
-
-        auto W_hn_grad = view_range(device, layer.weights_hidden.gradient, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        multiply(device, buffers.dn_pa, r_post_activation, buffers.dn_pa_pa);
-        auto dn_pa_pa_transpose = permute(device, buffers.dn_pa_pa, tensor::PermutationSpec<1, 0>{});
-        if(step_i == 0){
-            matrix_multiply_broadcast_accumulate(device, dn_pa_pa_transpose, layer.initial_hidden_state.parameters, W_hn_grad);
-            auto doutput_previous_step = layer.initial_hidden_state.gradient;
-            matrix_multiply_accumulate_reduce(device, buffers.dn_pa_pa, layer.W_hn, doutput_previous_step);
-            multiply_accumulate_reduce(device, doutput_step, z_post_activation, doutput_previous_step);
-        }
-        else{
-            auto output_previous_step = view(device, layer.output, step_i-1);
-            auto doutput_previous_step = view(device, d_output, step_i-1);
-            matrix_multiply_accumulate(device, dn_pa_pa_transpose, output_previous_step, W_hn_grad);
-            matrix_multiply_accumulate(device, buffers.dn_pa_pa, layer.W_hn, doutput_previous_step);
-            multiply_accumulate(device, doutput_step, z_post_activation, doutput_previous_step);
-        }
-        auto b_in_grad = view_range(device, layer.biases_input.gradient, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        reduce_sum<true>(device, dn_pa_transpose, b_in_grad);
         auto b_hn_grad = view_range(device, layer.biases_hidden.gradient, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        reduce_sum<true>(device, dn_pa_pa_transpose, b_hn_grad);
-
-    }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward(DEVICE& device, nn::layers::gru::LayerBackwardGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::BuffersBackward<LAYER_SPEC>& buffers){
-        std::cout << "Sequence length: " << LAYER_SPEC::SEQUENCE_LENGTH << std::endl;
-        using TI = typename DEVICE::index_t;
-        for(TI step_i=LAYER_SPEC::SEQUENCE_LENGTH-1; step_i >= 0; --step_i) {
-            backward(device, layer, input, d_output, d_input, buffers, step_i);
-            if(step_i == 0){
-                break;
-            }
-        }
+        auto buffer_n_transpose = permute(device, buffers.buffer_n, tensor::PermutationSpec<1, 0>{});
+        reduce_sum<true>(device, buffer_n_transpose, b_hn_grad);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -337,8 +337,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer){
         free(device, static_cast<nn::layers::gru::Layer<SPEC>&>(layer));
-        free(device, layer.input_pre_activation);
-        free(device, layer.hidden_pre_activation);
+        free(device, layer.n_pre_pre_activation);
         free(device, layer.post_activation);
         free(device, layer.output);
     }

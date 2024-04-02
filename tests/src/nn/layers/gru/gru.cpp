@@ -125,7 +125,10 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, b_out_ds, bias_out);
             rlt::load(device, dloss_dgru_output_ds, dloss_dgru_output);
             rlt::forward(device, gru, input);
-            T abs_diff = rlt::absolute_difference(device, gru_output, gru.output);
+            rlt::print(device, gru.output);
+            T abs_diff = rlt::absolute_difference(device, gru_output, gru.output) / (decltype(gru_output)::SPEC::SIZE);
+            ASSERT_LT(abs_diff, 1e-15);
+            std::cout << "abs_diff: " << abs_diff << std::endl;
 //            auto dloss_dgru_output_view = rlt::view(device, dloss_dgru_output, 0, rlt::tensor::ViewSpec<1>{});
 //            rlt::print(device, dloss_dgru_output_view);
             rlt::zero_gradient(device, gru);
