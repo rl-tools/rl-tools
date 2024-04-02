@@ -15,6 +15,54 @@ namespace rlt = rl_tools;
 
 #include "../../../utils/utils.h"
 
+TEST(RL_TOOLS_NN_LAYERS_GRU, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    using SHAPE = rlt::tensor::Shape<TI, 2, 2>;
+    using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+    using SHAPE_TRANSPOSE = rlt::tensor::Shape<TI, rlt::get<1>(SHAPE{}), rlt::get<0>(SHAPE{})>;
+    using STRIDE_TRANSPOSE = rlt::tensor::Stride<TI, rlt::get<1>(STRIDE{}), rlt::get<0>(STRIDE{})>;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> A, B, C, C_target;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE, STRIDE_TRANSPOSE>> A_T, B_T, C_T, C_target_T;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 2>>> bias;
+    rlt::malloc(device, A);
+    rlt::malloc(device, B);
+    rlt::malloc(device, C);
+    rlt::malloc(device, C_target);
+    rlt::malloc(device, bias);
+    rlt::set_all(device, bias, 0);
+    rlt::set(device, bias, 1, 0);
+    rlt::set(device, bias, 3, 1);
+    rlt::data_reference(A_T) = rlt::data(A);
+    rlt::data_reference(B_T) = rlt::data(B);
+    rlt::data_reference(C_T) = rlt::data(C);
+    rlt::data_reference(C_target_T) = rlt::data(C_target);
+
+    rlt::set(device, A, -0.259093, 0, 0);
+    rlt::set(device, A, -1.498961, 0, 1);
+    rlt::set(device, A, +0.119264, 1, 0);
+    rlt::set(device, A, +0.458181, 1, 1);
+
+    rlt::set(device, B, +0.394975, 0, 0);
+    rlt::set(device, B, +0.044197, 0, 1);
+    rlt::set(device, B, -0.636256, 1, 0);
+    rlt::set(device, B, +1.731264, 1, 1);
+
+    rlt::set(device, C_target, -0.259093 * +0.394975 + -1.498961 * -0.636256 + 1, 0, 0);
+    rlt::set(device, C_target, -0.259093 * +0.044197 + -1.498961 * +1.731264 + 1, 0, 1);
+    rlt::set(device, C_target, +0.119264 * +0.394975 + +0.458181 * -0.636256 + 3, 1, 0);
+    rlt::set(device, C_target, +0.119264 * +0.044197 + +0.458181 * +1.731264 + 3, 1, 1);
+    rlt::print(device, C_target);
+
+//    rlt::multiply(device, A, B, C);
+    rlt::nn::layers::gru::helper::matrix_multiply_transpose_bias(device, A, B_T, bias, C_T);
+    rlt::print(device, C);
+    auto diff = rlt::absolute_difference(device, C_target, C);
+    std::cout << "Matrix mul diff: " << diff << std::endl;
+    ASSERT_TRUE(diff < 1e-15);
+}
 
 TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     using DEVICE = rlt::devices::DefaultCPU;
