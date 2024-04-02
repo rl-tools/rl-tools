@@ -220,26 +220,8 @@ namespace rl_tools{
                 return 1 / (1 + math::exp(device.math, -a));
             }
             template <typename DEVICE, typename PARAMETER, typename T>
-            T d_sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
-                T s = sigmoid(device, parameter, a);
-                return s * (1 - s);
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            T d_sigmoid_post_activation(DEVICE& device, const PARAMETER& parameter, T s){
-                return s * (1 - s);
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
             T tanh(DEVICE& device, const PARAMETER& parameter, T a){
                 return math::tanh(device.math, a);
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            T d_tanh(DEVICE& device, const PARAMETER& parameter, T a){
-                T t = tanh(device, parameter, a);// todo: make version that can take advantage of a stored value so that tanh does not have to be calculated again
-                return 1 - t * t;
-            }
-            template <typename DEVICE, typename PARAMETER, typename T>
-            T d_tanh_post_activation(DEVICE& device, const PARAMETER& parameter, T t){
-                return 1 - t * t;
             }
             template <typename DEVICE, typename PARAMETER, typename T>
             T one_minus(DEVICE& device, const PARAMETER& parameter, T a){
@@ -406,26 +388,6 @@ namespace rl_tools{
         using T = typename SPEC::T;
         unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
-    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
-        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
-        using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::d_sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
-    }
-    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC>& t){
-        // this function takes sigmoid(x) as an input instead of x (to reuse it in the calculation)
-        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
-        using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::d_sigmoid_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
-    }
-    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
-        // this function takes sigmoid(x) as an input instead of x (to reuse it in the calculation)
-        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
-        using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::d_sigmoid_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
-    }
     template<typename DEVICE, typename SPEC>
     void tanh(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
@@ -436,19 +398,6 @@ namespace rl_tools{
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
         unary_operation(device, tensor::Operation<tensor::unary_operations::tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
-    }
-    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_tanh(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
-        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
-        using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::d_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
-    }
-    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_tanh_post_activation(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
-        // this function takes tanh(x) as an input instead of x (to reuse it in the calculation)
-        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
-        using T = typename SPEC::T;
-        unary_operation(device, tensor::Operation<tensor::unary_operations::d_tanh_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
 
     template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER>
@@ -661,76 +610,6 @@ namespace rl_tools{
         }
     }
 
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
-    void matrix_multiply_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
-        // Y^T = WX^T
-        static_assert(length(typename SPEC_1::SHAPE{}) == 2);
-        static_assert(length(typename SPEC_2::SHAPE{}) == 2);
-        static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
-        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_2::SHAPE{})); // INPUT_DIM
-        static_assert(get<0>(typename SPEC_2::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{})); // BATCH_SIZE
-        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{})); // HIDDEN_DIM
-        static_assert(length(typename SPEC_BIAS::SHAPE{}) == 1);
-        static_assert(get<0>(typename SPEC_BIAS::SHAPE{}) == get<0>(typename SPEC_1::SHAPE{}));
-        using T = typename SPEC_1::T;
-        using TI = typename DEVICE::index_t;
-        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
-            for(TI j=0; j < get<0>(typename SPEC_2::SHAPE{}); ++j){
-                T acc = get(device, bias, i);
-                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
-                    acc += get(device, t1, i, k) * get(device, t2, j, k);
-                }
-                set(device, result, acc, j, i);
-            }
-        }
-    }
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
-    void matrix_multiply_transpose_bias_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
-        // Y^T = WX^T
-        static_assert(length(typename SPEC_1::SHAPE{}) == 2);
-        static_assert(length(typename SPEC_2::SHAPE{}) == 2);
-        static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
-        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_2::SHAPE{})); // INPUT_DIM
-        static_assert(get<0>(typename SPEC_2::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{})); // BATCH_SIZE
-        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{})); // HIDDEN_DIM
-        static_assert(length(typename SPEC_BIAS::SHAPE{}) == 1);
-        static_assert(get<0>(typename SPEC_BIAS::SHAPE{}) == get<0>(typename SPEC_1::SHAPE{}));
-        using T = typename SPEC_1::T;
-        using TI = typename DEVICE::index_t;
-        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
-            for(TI j=0; j < get<0>(typename SPEC_2::SHAPE{}); ++j){
-                T acc = get(device, result, j, i) + get(device, bias, i);
-                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
-                    acc += get(device, t1, i, k) * get(device, t2, j, k);
-                }
-                set(device, result, acc, j, i);
-            }
-        }
-    }
-
-    template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
-    void matrix_multiply_broadcast_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
-        // Y^T = WX^T
-        static_assert(length(typename SPEC_1::SHAPE{}) == 2);
-        static_assert(length(typename SPEC_2::SHAPE{}) == 1);
-        static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
-        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{})); // INPUT_DIM
-//        static_assert(get<0>(typename SPEC_2::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{})); // BATCH_SIZE
-        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{})); // HIDDEN_DIM
-        static_assert(length(typename SPEC_BIAS::SHAPE{}) == 1);
-        static_assert(get<0>(typename SPEC_BIAS::SHAPE{}) == get<0>(typename SPEC_1::SHAPE{}));
-        using T = typename SPEC_1::T;
-        using TI = typename DEVICE::index_t;
-        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
-            for(TI j=0; j < get<0>(typename SPEC_OUT::SHAPE{}); ++j){
-                T acc = get(device, bias, i);
-                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
-                    acc += get(device, t1, i, k) * get(device, t2, k);
-                }
-                set(device, result, acc, j, i);
-            }
-        }
-    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

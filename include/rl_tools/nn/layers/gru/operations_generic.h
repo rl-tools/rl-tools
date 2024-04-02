@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_LAYERS_GRU_OPERATIONS_GENERIC_H
 
 #include "layer.h"
+#include "helper_operations_generic.h"
 #include <rl_tools/nn/parameters/operations_generic.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -101,17 +102,17 @@ namespace rl_tools{
             auto n_post_activation  = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
             if(step_i == 0){
-                matrix_multiply_broadcast_transpose_bias(device, layer.weights_hidden.parameters, layer.initial_hidden_state.parameters, layer.biases_hidden.parameters, post_activation_step);
+                nn::layers::gru::helper::matrix_multiply_broadcast_transpose_bias(device, layer.weights_hidden.parameters, layer.initial_hidden_state.parameters, layer.biases_hidden.parameters, post_activation_step);
             }
             else{
                 auto output_previous_step = view(device, layer.output, step_i-1);
-                matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
+                nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
             }
 
             copy(device, device, n_post_activation, n_pre_pre_activation_step);
             set_all(device, n_post_activation, 0);
 
-            matrix_multiply_transpose_bias_accumulate(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, post_activation_step);
+            nn::layers::gru::helper::matrix_multiply_transpose_bias_accumulate(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, post_activation_step);
             sigmoid(device, rz_post_activation);
             multiply_accumulate(device, n_pre_pre_activation_step, r_post_activation, n_post_activation);
             tanh(device, n_post_activation);
@@ -274,7 +275,6 @@ namespace rl_tools{
         auto input_step = view(device, input, step_i);
         auto n_pre_pre_activation_step = view(device, layer.n_pre_pre_activation, step_i);
         auto post_activation_step = view(device, layer.post_activation, step_i);
-//        auto output_previous_step = view(device, layer.output, step_i);
         auto d_output_step = view(device, d_output, step_i);
 
         auto rz_post_activation = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
@@ -282,7 +282,6 @@ namespace rl_tools{
         auto z_post_activation = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
         auto n_post_activation = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
-        // dh_dz = h_{t-1} - n_t
         if(step_i == 0){
             multiply_subtract_broadcast(device, d_output_step, layer.initial_hidden_state.parameters, n_post_activation, buffers.buffer_z);
             auto d_output_previous_step = layer.initial_hidden_state.gradient;
@@ -291,7 +290,6 @@ namespace rl_tools{
         else{
             auto output_previous_step = view(device, layer.output, step_i-1);
             multiply_subtract(device, d_output_step, output_previous_step, n_post_activation, buffers.buffer_z);
-
             auto d_output_previous_step = view(device, d_output, step_i-1);
             multiply_accumulate(device, d_output_step, z_post_activation, d_output_previous_step);
         }
