@@ -6,7 +6,7 @@
 #include "../../../nn/parameters/parameters.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::nn::layers::gru {
+namespace rl_tools::nn::layers::gru{
     template<typename T_T, typename T_TI, T_TI T_SEQUENCE_LENGTH, T_TI T_INPUT_DIM, T_TI T_HIDDEN_DIM, typename T_PARAMETER_TYPE, T_TI T_BATCH_SIZE=1, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = TensorDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification{
         using T = T_T;
@@ -24,14 +24,29 @@ namespace rl_tools::nn::layers::gru {
 //        static constexpr auto NUM_WEIGHTS = HIDDEN_DIM * INPUT_DIM + HIDDEN_DIM; // todo
     };
 
+    namespace buffers{
+        template <typename T_SPEC>
+        struct Evaluation{
+            using SPEC = T_SPEC;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>> post_activation;
+            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>> n_pre_pre_activation;
+        };
+    }
+
     template<typename T_SPEC>
     struct Layer{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
+        static constexpr TI SEQUENCE_LENGTH = SPEC::SEQUENCE_LENGTH;
+        static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI HIDDEN_DIM = SPEC::HIDDEN_DIM;
+        using INPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
+        using OUTPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
         using WEIGHTS_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, INPUT_DIM>;
         using WEIGHTS_INPUT_CONTAINER_SPEC = tensor::Specification<T, TI, WEIGHTS_INPUT_CONTAINER_SHAPE>;
         using WEIGHTS_INPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<WEIGHTS_INPUT_CONTAINER_SPEC>;
@@ -66,33 +81,37 @@ namespace rl_tools::nn::layers::gru {
         using INITIAL_HIDDEN_STATE_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<INITIAL_HIDDEN_STATE_CONTAINER_SPEC>;
         using INITIAL_HIDDEN_STATE_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<INITIAL_HIDDEN_STATE_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<INITIAL_HIDDEN_STATE_PARAMETER_SPEC> initial_hidden_state;
+
+        using BufferEvaluation = buffers::Evaluation<SPEC>;
     };
 
-    template <typename T_SPEC>
-    struct BuffersBackward{
-        using SPEC = T_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>> buffer;
-        typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>> buffer_rz;
-        typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, SPEC::HIDDEN_DIM>> buffer_r, buffer_z, buffer_n;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>>
-        dr_dr_pa,
-        dh_dr,
-        dh_dr_pa,
-        dh_dz,
-        dz_dz_pa,
-        dh_dn,
-        dn_dn_pa,
-        dn_dn_pa_pa,
-        dh_dz_pa,
-        dh_dn_pa,
-        dh_dn_pa_pa,
-        dr_pa,
-        dz_pa,
-        dn_pa,
-        dn_pa_pa;
-    };
+    namespace buffers{
+        template <typename T_SPEC>
+        struct Backward{
+            using SPEC = T_SPEC;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>> buffer;
+            typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>> buffer_rz;
+            typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, SPEC::HIDDEN_DIM>> buffer_r, buffer_z, buffer_n;
+            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>>
+                    dr_dr_pa,
+                    dh_dr,
+                    dh_dr_pa,
+                    dh_dz,
+                    dz_dz_pa,
+                    dh_dn,
+                    dn_dn_pa,
+                    dn_dn_pa_pa,
+                    dh_dz_pa,
+                    dh_dn_pa,
+                    dh_dn_pa_pa,
+                    dr_pa,
+                    dz_pa,
+                    dn_pa,
+                    dn_pa_pa;
+        };
+    }
 
     template<typename T_SPEC>
     struct LayerBackward: Layer<T_SPEC>{
@@ -108,7 +127,7 @@ namespace rl_tools::nn::layers::gru {
     };
     template<typename T_SPEC>
     struct LayerBackwardGradient: LayerBackward<T_SPEC>{
-        using Buffers = BuffersBackward<T_SPEC>;
+        using BufferBackward = buffers::Backward<T_SPEC>;
     };
 
     template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>

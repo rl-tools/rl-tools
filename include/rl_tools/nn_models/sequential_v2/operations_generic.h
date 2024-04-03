@@ -11,6 +11,7 @@ namespace rl_tools{
     void malloc(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& module){
         using namespace nn_models::sequential_v2;
         malloc(device, module.content);
+        malloc(device, module.buffer_evaluation);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, OutputModule>){
             malloc(device, module.next_module);
         }
@@ -19,6 +20,7 @@ namespace rl_tools{
     void free(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& module){
         using namespace nn_models::sequential_v2;
         free(device, module.content);
+        free(device, module.buffer_evaluation);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, OutputModule>){
             free(device, module.next_module);
         }
@@ -61,22 +63,22 @@ namespace rl_tools{
         }
     }
     // Evaluate is like a forward pass but without saving intermediate activations (so a backward pass is not possible). Hence we can reuse the memory of the intermediate outputs and just require a double buffer where each buffer has to be able to contain the maximum hidden dimension of the module
-    template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
-    void evaluate(DEVICE& device, const nn_models::sequential_v2::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers){
-        static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
-        static_assert(BUFFER_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
-        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
-        constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
+    template<typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename BUFFER_SPEC, bool TICK = true>
+    void evaluate(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, const INPUT& input, OUTPUT& output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers){
+//        static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
+        using BUFFER_TYPE = decltype(buffers.tick);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
-            evaluate(device, model.content, input, output);
+            evaluate(device, model.content, input, output, model.buffer_evaluation);
         }
         else{
-            DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
-            auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            evaluate(device, model.content, input, output_buffer_view);
-            evaluate<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(output_buffer_view)::SPEC, OUTPUT_SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, output_buffer_view, output, buffers);
+            BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
+            using BUFFER_VIEW_SPEC = tensor::Specification<typename BUFFER_SPEC::T, typename BUFFER_SPEC::TI, typename MODULE_SPEC::OUTPUT_SHAPE>;
+            Tensor<BUFFER_VIEW_SPEC> output_buffer_view;
+            static_assert(BUFFER_VIEW_SPEC::SIZE <= BUFFER_SPEC::SIZE);
+            data_reference(output_buffer_view) = data(output_buffer); //, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
+            evaluate(device, model.content, input, output_buffer_view, model.buffer_evaluation);
+            evaluate<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(output_buffer_view)::SPEC, OUTPUT, BUFFER_SPEC, !TICK>(device, model.next_module, output_buffer_view, output, buffers);
         }
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT>
@@ -114,9 +116,9 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
     void backward_full(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
-        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
-        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
-        static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
+//        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
+//        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
+//        static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
@@ -130,8 +132,8 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
     void backward_input(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
-        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
-        static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
+//        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
+//        static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){

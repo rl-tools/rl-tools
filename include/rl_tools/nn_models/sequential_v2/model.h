@@ -32,20 +32,21 @@ namespace rl_tools::nn_models::sequential_v2{
     //     forward
 
     template <typename SPEC>
-    constexpr auto find_output_dim() {
-        if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
-            return SPEC::CONTENT::OUTPUT_DIM;
+    constexpr auto find_output_shape(){
+        if constexpr(utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
+            return SPEC::CONTENT::OUTPUT_SHAPE;
         } else {
-            return find_output_dim<typename SPEC::NEXT_MODULE>();
+            return find_output_shape<typename SPEC::NEXT_MODULE>();
         }
     }
     template <typename TI, typename SPEC>
-    constexpr auto find_max_hiddend_dim(TI current_max = 0){
-        current_max = current_max > SPEC::CONTENT::OUTPUT_DIM ? current_max : SPEC::CONTENT::OUTPUT_DIM;
-        if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
+    constexpr auto find_max_hiddend_size(TI current_max = 0){
+        constexpr TI OUTPUT_SIZE = get<0>(tensor::Product<typename SPEC::CONTENT::OUTPUT_SHAPE>{});
+        current_max = current_max > OUTPUT_SIZE ? current_max : OUTPUT_SIZE;
+        if constexpr(utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
             return 0;
         } else {
-            auto max_downstream = find_max_hiddend_dim<TI, typename SPEC::NEXT_MODULE>();
+            auto max_downstream = find_max_hiddend_size<TI, typename SPEC::NEXT_MODULE>();
             return max_downstream > current_max ? max_downstream : current_max;
         }
     }
@@ -58,23 +59,23 @@ namespace rl_tools::nn_models::sequential_v2{
         }
     }
 
-    template <typename MODULE>
-    constexpr bool check_batch_size_consistency = check_batch_size_consistency_f<MODULE>();
+//    template <typename MODULE>
+//    constexpr bool check_batch_size_consistency = check_batch_size_consistency_f<MODULE>();
 
-    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    constexpr bool check_input_output_f(){
-        static_assert(INPUT_SPEC::COLS == SPEC::CONTENT::INPUT_DIM);
-        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
-        static_assert(OUTPUT_SPEC::COLS == find_output_dim<SPEC>());
-        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
-        return true;
-    }
-    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    constexpr bool check_input_output = check_input_output_f<SPEC, INPUT_SPEC, OUTPUT_SPEC>();
+//    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+//    constexpr bool check_input_output_f(){
+//        static_assert(INPUT_SPEC::COLS == SPEC::CONTENT::INPUT_DIM);
+//        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
+//        static_assert(OUTPUT_SPEC::COLS == find_output_size<SPEC>());
+//        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
+//        return true;
+//    }
+//    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+//    constexpr bool check_input_output = check_input_output_f<SPEC, INPUT_SPEC, OUTPUT_SPEC>();
 
 
-    template <typename BUFFER_SPEC, typename MODULE_SPEC>
-    constexpr bool buffer_compatible = BUFFER_SPEC::SPEC::MAX_HIDDEN_DIM >= MODULE_SPEC::MAX_HIDDEN_DIM;
+//    template <typename BUFFER_SPEC, typename MODULE_SPEC>
+//    constexpr bool buffer_compatible = BUFFER_SPEC::SPEC::MAX_HIDDEN_DIM >= MODULE_SPEC::MAX_HIDDEN_DIM;
 
     template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
     struct Specification{
@@ -83,19 +84,18 @@ namespace rl_tools::nn_models::sequential_v2{
         using T = typename CONTENT::T;
         using TI = typename CONTENT::TI;
         using CONTAINER_TYPE_TAG = typename CONTENT::CONTAINER_TYPE_TAG;
-        static constexpr TI INPUT_DIM = CONTENT::INPUT_DIM;
-        static constexpr TI OUTPUT_DIM = find_output_dim<Specification<T_CONTENT, T_NEXT_MODULE>>();
-        static constexpr TI MAX_HIDDEN_DIM = find_max_hiddend_dim<typename CONTENT::TI, Specification<T_CONTENT, T_NEXT_MODULE>>();
-        static_assert(utils::typing::is_same_v<NEXT_MODULE, OutputModule> || CONTENT::OUTPUT_DIM == NEXT_MODULE::CONTENT::INPUT_DIM);
+        static constexpr TI INPUT_SHAPE = CONTENT::INPUT_SHAPE;
+        static constexpr TI OUTPUT_SHAPE = find_output_shape<Specification<T_CONTENT, T_NEXT_MODULE>>();
+        static constexpr TI MAX_HIDDEN_SIZE = find_max_hiddend_size<typename CONTENT::TI, Specification<T_CONTENT, T_NEXT_MODULE>>();
+//        static_assert(utils::typing::is_same_v<NEXT_MODULE, OutputModule> || CONTENT::OUTPUT_DIM == NEXT_MODULE::CONTENT::INPUT_DIM);
     };
 
-    template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG, typename T_MEMORY_LAYOUT>
+    template <typename T_SPEC, bool T_STATIC>
     struct ModuleBufferSpecification {
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-        using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
+        static constexpr TI SIZE = SPEC::MAX_HIDDEN_SIZE;
+        static constexpr bool STATIC = T_STATIC;
     };
     template <typename T_BUFFER_SPEC>
     struct ModuleBuffer{
@@ -103,11 +103,12 @@ namespace rl_tools::nn_models::sequential_v2{
         using SPEC = typename BUFFER_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::MAX_HIDDEN_DIM, typename BUFFER_SPEC::MEMORY_LAYOUT>;
-        using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
-        TICK_TOCK_CONTAINER_TYPE tick;
-        TICK_TOCK_CONTAINER_TYPE tock;
+        static constexpr TI SIZE = BUFFER_SPEC::SIZE;
+        using CONTAINER_SHAPE = tensor::Shape<TI, SIZE>;
+        using CONTAINER_SPEC = tensor::Specification<T, TI, CONTAINER_SHAPE, tensor::RowMajorStride<CONTAINER_SHAPE>>;
+        using CONTAINER_TYPE = Tensor<CONTAINER_SPEC>;
+        CONTAINER_TYPE tick;
+        CONTAINER_TYPE tock;
     };
     template <typename T_SPEC>
     struct Module{
@@ -115,15 +116,18 @@ namespace rl_tools::nn_models::sequential_v2{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using CONTENT = typename SPEC::CONTENT;
+        using BUFFER_EVALUATION = typename CONTENT::BufferEvaluation;
         using NEXT_MODULE = typename SPEC::NEXT_MODULE;
         CONTENT content;
+        BUFFER_EVALUATION buffer_evaluation;
+
         NEXT_MODULE next_module;
 
-        static constexpr auto INPUT_DIM = SPEC::INPUT_DIM;
-        static constexpr auto OUTPUT_DIM = SPEC::OUTPUT_DIM;
+        static constexpr auto INPUT_SHAPE = SPEC::INPUT_SHAPE;
+        static constexpr auto OUTPUT_SHAPE = SPEC::OUTPUT_SHAPE;
 
-        template <typename SPEC::TI BATCH_SIZE, typename CONTAINER_TYPE_TAG=typename SPEC::CONTAINER_TYPE_TAG, typename MEMORY_LAYOUT = matrix::layouts::DEFAULT<typename SPEC::TI>>
-        using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC, BATCH_SIZE, CONTAINER_TYPE_TAG, MEMORY_LAYOUT>>;
+        template <bool STATIC=false>
+        using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC, STATIC>>;
     };
 
     namespace interface{
