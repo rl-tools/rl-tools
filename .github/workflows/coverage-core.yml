@@ -95,8 +95,7 @@ jobs:
       - name: Generate the coverage report
         if: startsWith(matrix.os, 'ubuntu') && matrix.c_compiler == 'gcc'
         uses: threeal/gcovr-action@v1.0.0
-        excludes: |
-          tests/lib/*
+        excludes: ["tests/lib/*"]
 #          ${{ steps.strings.outputs.build-output-dir }}/*
         with:
           coveralls-send: true
