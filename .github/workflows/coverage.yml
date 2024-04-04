@@ -1,6 +1,6 @@
 # This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: Coverage (Core)
+name: Coverage
 
 on:
   push:
@@ -23,27 +23,22 @@ jobs:
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        build_type: [Debug]
+        os: [ubuntu-latest, macos-latest]
+        build_type: [Release]
         c_compiler: [gcc, clang, cl]
         include:
-          - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
           - os: ubuntu-latest
             c_compiler: clang
             cpp_compiler: clang++
+            rl_tools_backend: -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
           - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
+            rl_tools_backend: -DRL_TOOLS_BACKEND_ENABLE_ACCELERATE=ON
         exclude:
-          - os: windows-latest
-            c_compiler: gcc
-          - os: windows-latest
-            c_compiler: clang
           - os: ubuntu-latest
             c_compiler: cl
           - os: macos-latest
@@ -54,20 +49,45 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Installing Minimal Dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libhdf5-dev libboost-all-dev protobuf-compiler libprotobuf-dev cmake
+      - name: Installing MKL
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update && sudo apt-get install -y wget gnupg
+          sudo wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          sudo echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update && sudo apt-get install -y intel-oneapi-mkl-devel-2023.1.0
+      - name: Installing Minimal Dependencies
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew install cmake boost hdf5 protobuf
+      - name: Checkout External Submodules
+        run: |
+          git submodule update --init -- external/json
+          git submodule update --init -- external/highfive
+          git submodule update --init -- external/cli11
+          git submodule update --init -- external/tensorboard
+          git submodule update --init -- external/mujoco
+
+      - name: Checkout Test Submodules
+        run: |
+          git submodule update --init -- tests/lib/googletest
+
+      - name: Checkout Test Data Submodule
+        run: |
+          git submodule update --init -- tests/data
+
+
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
         id: strings
         shell: bash
         run: |
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout Test Submodules
-        run: |
-          git submodule update --init -- tests/lib/googletest
-
-#      - name: Checkout Test Data Submodule
-#        run: |
-#          git submodule update --init -- tests/data
 
       - name: Configure CMake
         # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
@@ -79,8 +99,17 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -S ${{ github.workspace }}
           -DRL_TOOLS_ENABLE_TESTS=ON
+          -DRL_TOOLS_ENABLE_TESTS:BOOL=ON
+          -DRL_TOOLS_ENABLE_TENSORBOARD:BOOL=ON
+          -DRL_TOOLS_ENABLE_HDF5:BOOL=ON
+          -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
+          -DRL_TOOLS_ENABLE_CLI11:BOOL=ON
+          -DRL_TOOLS_ENVIRONMENTS_ENABLE_MUJOCO:BOOL=ON
+          -DRL_TOOLS_TESTS_DEBUG:BOOL=ON
           -DRL_TOOLS_CONTAINER_INIT_NAN:BOOL=ON
           -DRL_TOOLS_TESTS_CODE_COVERAGE:BOOL=ON
+          ${{ matrix.rl_tools_backend }}
+
 
       - name: Build
         # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
