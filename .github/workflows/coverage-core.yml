@@ -98,6 +98,6 @@ jobs:
         with:
           excludes: |
             tests/lib/*
-  #          ${{ steps.strings.outputs.build-output-dir }}/*
+            ${{ steps.strings.outputs.build-output-dir }}/*
           coveralls-send: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
