@@ -16,6 +16,14 @@ option(RL_TOOLS_TEST_RL_ALGORITHMS_TD3_FULL_TRAINING_EVALUATE_VISUALLY "Visual E
 
 option(RL_TOOLS_TESTS_RL_ENVIRONMENTS_MULTIROTOR_UI_ENABLE "Multirotor UI" OFF)
 
+option(RL_TOOLS_TESTS_CODE_COVERAGE "Enable coverage reporting" OFF)
+
+if(RL_TOOLS_TESTS_CODE_COVERAGE)
+    add_compile_options(--coverage -g -O0)
+    add_link_options(--coverage)
+    add_compile_definitions(-DRL_TOOLS_TESTS_CODE_COVERAGE)
+endif()
+
 set(INSTALL_GTEST OFF CACHE BOOL "")
 set(BUILD_GMOCK OFF CACHE BOOL "")
 add_subdirectory(lib/googletest EXCLUDE_FROM_ALL)

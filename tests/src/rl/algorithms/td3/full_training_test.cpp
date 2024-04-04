@@ -51,6 +51,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_FULL_TRAINING, TEST_FULL_TRAINING) {
         if(ts.step == 5000){
             std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
         }
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+        if(ts.step > LOOP_CORE_PARAMETERS::N_WARMUP_STEPS*2){
+            break;
+        }
+#endif
     }
     auto current_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = current_time - start_time;

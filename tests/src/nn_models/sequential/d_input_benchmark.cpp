@@ -242,6 +242,7 @@ void test_benchmark(){
     typename CONFIG::SEQUENTIAL_MODEL::template Buffer<CONFIG::BATCH_SIZE> sequential_buffer;
     using T = typename CONFIG::T;
     using TI = typename CONFIG::TI;
+    constexpr TI NUM_ITERATIONS = 1000;
 
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
 
@@ -280,7 +281,6 @@ void test_benchmark(){
         T time_d_input, time;
         std::this_thread::sleep_for(std::chrono::milliseconds (100));
         {
-            constexpr TI NUM_ITERATIONS = 1000;
             auto start = std::chrono::high_resolution_clock::now();
             for(TI i = 0; i < NUM_ITERATIONS; i++){
                 rlt::backward(device, sequential_model, input, d_output, sequential_buffer);
@@ -291,7 +291,6 @@ void test_benchmark(){
         }
         std::this_thread::sleep_for(std::chrono::milliseconds (100));
         {
-            constexpr TI NUM_ITERATIONS = 1000;
             auto start = std::chrono::high_resolution_clock::now();
             for(TI i = 0; i < NUM_ITERATIONS; i++){
                 rlt::backward_full(device, sequential_model, input, d_output, d_input, sequential_buffer);
@@ -315,6 +314,7 @@ void test_benchmark(){
 
 }
 
+#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
 TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, BENCHMARK){
     using T = double;
     using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
@@ -322,3 +322,4 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, BENCHMARK){
 
     test_benchmark<DEVICE, config::CONFIG<T, TI>>();
 }
+#endif

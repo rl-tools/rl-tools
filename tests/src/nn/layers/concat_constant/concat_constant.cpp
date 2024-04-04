@@ -41,6 +41,12 @@ namespace sequential_model_factory{
 }
 using SEQUENTIAL_MODEL = sequential_model_factory::MODEL;
 
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+constexpr TI NUM_ITERATIONS = 10;
+#else
+constexpr TI NUM_ITERATIONS = 1000;
+#endif
+
 TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, TEST){
     MODEL model;
     DEVICE device;
@@ -84,7 +90,6 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, TEST){
         T time_d_input, time;
         std::this_thread::sleep_for(std::chrono::milliseconds (100));
         {
-            constexpr TI NUM_ITERATIONS = 1000;
             auto start = std::chrono::high_resolution_clock::now();
             for(TI i = 0; i < NUM_ITERATIONS; i++){
                 rlt::backward(device, sequential_model, input, d_output, sequential_buffer);
@@ -95,7 +100,6 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, TEST){
         }
         std::this_thread::sleep_for(std::chrono::milliseconds (100));
         {
-            constexpr TI NUM_ITERATIONS = 1000;
             auto start = std::chrono::high_resolution_clock::now();
             for(TI i = 0; i < NUM_ITERATIONS; i++){
                 rlt::backward_full(device, sequential_model, input, d_output, d_input, sequential_buffer);
