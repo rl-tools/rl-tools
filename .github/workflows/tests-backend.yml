@@ -119,3 +119,10 @@ jobs:
         # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
         run: ctest --build-config ${{ matrix.build_type }}
+
+      - name: Generate the coverage report
+        if: startsWith(matrix.os, 'ubuntu') && matrix.c_compiler == 'gcc'
+        uses: threeal/gcovr-action@v1.0.0
+        with:
+          coveralls-send: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
