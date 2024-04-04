@@ -97,7 +97,7 @@ jobs:
         uses: threeal/gcovr-action@v1.0.0
         with:
           excludes: |
-            "tests/lib/*"
+            tests/lib/*
   #          ${{ steps.strings.outputs.build-output-dir }}/*
           coveralls-send: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
