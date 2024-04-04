@@ -93,9 +93,6 @@ jobs:
         run: ctest --build-config ${{ matrix.build_type }}
 
       - name: Generate the coverage report
-        run: gcovr -s ${{ steps.strings.outputs.build-output-dir }}
-
-      - name: Generate the coverage report
         if: startsWith(matrix.os, 'ubuntu') && matrix.c_compiler == 'gcc'
         uses: threeal/gcovr-action@v1.0.0
 #        excludes: |
