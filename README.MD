@@ -180,6 +180,31 @@ For maximum performance and malleability for research and development we recomme
 
 #### [Windows instructions & examples](examples/windows/README.MD)
 
+### Python Bindings: <span style="color:#7DB9B6">TinyRL</span>
+
+We provide experimental Python bindings available as `tinyrl`. Note that the Python bindings are still work in progress and using Python Gym environments slows down the trianing significantly compared to native <span style="color:#7DB9B6">RLtools</span> environments.
+```
+pip install tinyrl gymnasium
+```
+Usage:
+```
+from tinyrl import SAC
+import gymnasium as gym
+
+seed = 0xf00d
+def env_factory():
+    env = gym.make("Pendulum-v1")
+    env.reset(seed=seed)
+    return env
+
+sac = SAC(env_factory)
+state = sac.State(seed)
+
+finished = False
+while not finished:
+    finished = state.step()
+```
+
 ## Embedded Platforms
 ### Inference & Training
 - [iOS](https://github.com/rl-tools/ios)
