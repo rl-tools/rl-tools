@@ -1,4 +1,5 @@
 #include <rl_tools/operations/cpu.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
@@ -18,11 +19,11 @@ using TI = typename DEVICE::index_t;
 
 namespace MODEL_1{
     using namespace rlt::nn_models::sequential::interface;
-    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain, 1, rlt::nn::parameters::groups::Input>;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam, 1, rlt::nn::parameters::groups::Input>;
     using LAYER_1 = rlt::nn::layers::dense::Layer<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain, 1, rlt::nn::parameters::groups::Normal>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam, 1, rlt::nn::parameters::groups::Normal>;
     using LAYER_2 = rlt::nn::layers::dense::Layer<LAYER_2_SPEC>;
-    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Plain, 1, rlt::nn::parameters::groups::Output>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Adam, 1, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::Layer<LAYER_3_SPEC>;
 
     using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;

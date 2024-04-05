@@ -67,6 +67,12 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters {
     struct Adam: Gradient{
+        template <typename T_CONTAINER, typename T_GROUP_TAG, typename T_CATEGORY_TAG>
+        struct spec {
+            using CONTAINER = T_CONTAINER;
+            using GROUP_TAG = T_GROUP_TAG;
+            using CATEGORY_TAG = T_CATEGORY_TAG;
+        };
         template <typename T_SPEC>
         struct instance: Gradient::instance<T_SPEC>{
             using SPEC = T_SPEC;
