@@ -305,8 +305,16 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
 //                    std::cout << "update: " << duration_microseconds << "us" << std::endl;
             }
         }
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            std::cout << "step: " << step_i << std::endl;
+            if (step_i >= 2){
+                break;
+            }
+#endif
     }
+#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
     ASSERT_GT(returns_acc/returns_acc_count, -200);
+#endif
     {
         auto current_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed_seconds = current_time - start_time;

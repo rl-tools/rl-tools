@@ -506,6 +506,12 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             }
 #endif
         }
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+        if(step_i >= 10){
+            break;
+        }
+#endif
+
     }
     mean_ratio_critic /= num_steps;
     mean_ratio_critic_grad /= num_steps;
@@ -521,6 +527,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     std::cout << "mean_ratio_actor_grad: " << mean_ratio_actor_grad << std::endl;
     std::cout << "mean_ratio_actor_adam: " << mean_ratio_actor_adam << std::endl;
     std::cout << "mean_ratio_critic_target: " << mean_ratio_critic_target << std::endl;
+
+#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
     ASSERT_GT(mean_ratio_critic, 1e12);
     ASSERT_GT(mean_ratio_critic_grad, 1e13);
     ASSERT_GT(mean_ratio_critic_adam, 1e12);
@@ -528,6 +536,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     ASSERT_GT(mean_ratio_actor_grad, 1e12);
     ASSERT_GT(mean_ratio_actor_adam, 1e12);
     ASSERT_GT(mean_ratio_critic_target, 1e11);
+#endif
 
     rlt::free(device, critic_batch);
     rlt::free(device, critic_training_buffers);

@@ -14,7 +14,11 @@
 TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING_BLAS){
     std::cout << "Current working directory: " << std::filesystem::current_path() << std::endl;
     static constexpr TI NUM_EVALUATION_EPISODES = 10;
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+    static constexpr TI NUM_ITERATIONS = 2;
+#else
     static constexpr TI NUM_ITERATIONS = 10;
+#endif
     DEVICE device;
     std::vector<std::vector<T>> evaluation_returns;
     std::vector<T> training_durations;
@@ -31,7 +35,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING_BLAS){
         rlt::init(device, ts, iteration_i);
         std::chrono::time_point<std::chrono::high_resolution_clock> start_time = std::chrono::high_resolution_clock::now();
         std::vector<T> current_evaluation_returns;
-        while(!rlt::step(device, ts)){
+        bool finished = false;
+        while(!finished){
+            finished = rlt::step(device, ts);
             if(ts.step % 1000 == 0){
                 auto result = evaluate(device, ts.env_eval, ts.ui, get_actor(ts), rlt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, LOOP_CONFIG::EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
                 current_evaluation_returns.push_back(result.returns_mean);
@@ -44,6 +50,12 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING_BLAS){
 //                }
 //                std::cout << std::endl;
             }
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            std::cout << "step: " << ts.step << std::endl;
+            if (ts.step >= LOOP_CORE_PARAMETERS::N_WARMUP_STEPS*2){
+                break;
+            }
+#endif
         }
         std::chrono::time_point<std::chrono::high_resolution_clock> end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> elapsed_seconds = end_time - start_time;
@@ -53,6 +65,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING_BLAS){
         // sort returns
         rlt::free(device, ts);
     }
+#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
     std::vector<T> all_evaluation_returns;
     T worst_mean_return = 0;
     bool worst_mean_return_set = false;
@@ -116,5 +129,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING_BLAS){
     #endif
 
     EXPECT_GT(perc_60, -200);
+#endif
 }
 

@@ -29,7 +29,8 @@ using DTYPE = float;
 using TI = typename DEVICE::index_t;
 typedef rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
-ENVIRONMENT env;
+ENVIRONMENT envs[1];
+ENVIRONMENT& env = envs[0];
 
 template <typename T>
 struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, AC_DEVICE::index_t>{
@@ -108,6 +109,10 @@ int main() {
     rlt::malloc(device, actor_buffers_eval);
     rlt::malloc(device, actor_buffers[0]);
     rlt::malloc(device, actor_buffers[1]);
+
+
+
+    rlt::init(device, off_policy_runner, envs);
 
     for(int step_i = 0; step_i < 15000; step_i++){
         rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);

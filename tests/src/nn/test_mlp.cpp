@@ -339,6 +339,11 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
         ss << "model_2/overfit_small_batch/" << batch_i;
         DTYPE diff = abs_diff_network<DTYPE>(network, data_file.getGroup(ss.str()));
         std::cout << "batch_i: " << batch_i << " diff: " << diff << std::endl;
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+        if (batch_i >= 10){
+            break;
+        }
+#else
         if(batch_i == 10){
             ASSERT_LT(diff, 2.5e-7 * 3 * N_WEIGHTS);
         } else {
@@ -346,8 +351,11 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
                 ASSERT_LT(diff, 1.0e-4 * N_WEIGHTS);
             }
         }
+#endif
     }
+#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
     ASSERT_LT(loss, 1e-10);
+#endif
 }
 #endif
 
@@ -393,6 +401,11 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
 //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
             rlt::step(device, optimizer, network);
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            if (batch_i >= 10){
+                break;
+            }
+#endif
         }
         std::cout << "batch_i_real " << batch_i_real << " loss: " << loss << std::endl;
         losses.push_back(loss);
@@ -500,6 +513,11 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
 
             rlt::step(device, optimizer, network);
             std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            if (batch_i >= 10){
+                break;
+            }
+#endif
         }
         epoch_loss /= n_iter;
         losses.push_back(epoch_loss);
@@ -516,6 +534,11 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
             output_matrix._data = output;
             rlt::forward(device, network, input_matrix);
             val_loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            if (sample_i >= 10){
+                break;
+            }
+#endif
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);
@@ -535,6 +558,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
     //       0.0191351 , 0.01818279, 0.01745798, 0.01671058, 0.01628938],
     //      dtype=float32)
 
+#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
     ASSERT_LT(losses[0], 0.06);
     ASSERT_LT(losses[1], 0.03);
     ASSERT_LT(losses[2], 0.025);
@@ -542,6 +566,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
     ASSERT_LT(val_losses[0], 0.04);
     ASSERT_LT(val_losses[1], 0.03);
     ASSERT_LT(val_losses[2], 0.025);
+#endif
 //    ASSERT_LT(val_losses[9], 0.02);
 
 // GELU PyTorch [0.00456139 0.00306715 0.00215886]
@@ -600,6 +625,11 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
 
             rlt::step(device, optimizer, network);
             std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            if (batch_i >= 10){
+                break;
+            }
+#endif
         }
         epoch_loss /= n_iter;
         losses.push_back(epoch_loss);
@@ -617,6 +647,11 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
             rlt::forward(device, network, input_matrix);
 //            rlt::forward(device, network, input);
             val_loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            if (sample_i >= 10){
+                break;
+            }
+#endif
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);
@@ -636,6 +671,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     //       0.0191351 , 0.01818279, 0.01745798, 0.01671058, 0.01628938],
     //      dtype=float32)
 
+#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
     ASSERT_LT(losses[0], 0.06);
     ASSERT_LT(losses[1], 0.03);
     ASSERT_LT(losses[2], 0.025);
@@ -643,6 +679,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     ASSERT_LT(val_losses[0], 0.04);
     ASSERT_LT(val_losses[1], 0.03);
     ASSERT_LT(val_losses[2], 0.025);
+#endif
 //    ASSERT_LT(val_losses[9], 0.02);
 
 // GELU PyTorch [0.00456139 0.00306715 0.00215886]

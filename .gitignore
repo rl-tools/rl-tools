@@ -5,6 +5,7 @@
 /cmake-build-release-clang-16
 /cmake-build-release-clang-16-package
 /cmake-build-release-gcc11
+/build-coverage
 /cmake-build-*
 /build_export
 /conan_build

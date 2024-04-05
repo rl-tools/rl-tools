@@ -262,6 +262,12 @@ void run(){
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
             std::cout << "Total: " << elapsed.count() << " s" << std::endl;
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            std::cout << "step: " << ppo_step_i << std::endl;
+            if (ppo_step_i >= 2){
+                break;
+            }
+#endif
         }
 
         rlt::free(device, ppo);

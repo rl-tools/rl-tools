@@ -122,6 +122,11 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
             if(batch_i % 1000 == 0){
                 std::cout << "epoch_i " << epoch_i << " batch_i " << batch_i << " loss: " << loss << std::endl;
             }
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            if (batch_i >= 10){
+                break;
+            }
+#endif
         }
         // save epoch_duration to epoch_durations
         auto epoch_end_time = std::chrono::high_resolution_clock::now();
@@ -144,6 +149,11 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
             output_matrix._data = output;
             rlt::forward(device, network, input_matrix);
             val_loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/batch_size);
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            if (sample_i >= 10){
+                break;
+            }
+#endif
         }
         val_loss /= X_val.size();
         val_losses.push_back(val_loss);
@@ -155,12 +165,14 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
         std::cout << "epoch_i " << i << " loss: train:" << losses[i] << " val: " << val_losses[i] << " duration: " << epoch_durations[i] << std::endl;
     }
 
+#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
     ASSERT_LT(losses[0], 0.005);
     ASSERT_LT(losses[1], 0.002);
     ASSERT_LT(losses[2], 0.002);
     ASSERT_LT(val_losses[0], 0.002);
     ASSERT_LT(val_losses[1], 0.001);
     ASSERT_LT(val_losses[2], 0.001);
+#endif
 
     // GELU PyTorch [0.00456139 0.00306715 0.00215886]
 
