@@ -119,8 +119,7 @@ let async_main = (async () => {
             gtag('event', 'conversion', {
                 'send_to': 'AW-11023595590/fCKQCMfCvaEZEMbwuogp',
                 'value': 0.01,
-                'currency': 'USD',
-                'event_callback': callback
+                'currency': 'USD'
             });
             training = true;
             document.getElementById("training-button").value = "Stop training";
