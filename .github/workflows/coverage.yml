@@ -106,12 +106,18 @@ jobs:
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
         run: ctest --build-config ${{ matrix.build_type }}
 
-      - name: Generate the coverage report
-        if: startsWith(matrix.os, 'ubuntu') && matrix.c_compiler == 'gcc'
-        uses: threeal/gcovr-action@v1.0.0
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4.0.1
         with:
-          excludes: |
-            tests/lib/*
-            ${{ steps.strings.outputs.build-output-dir }}/*
-          coveralls-send: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: rl-tools/rl-tools
+
+#      - name: Generate the coverage report
+#        if: startsWith(matrix.os, 'ubuntu') && matrix.c_compiler == 'gcc'
+#        uses: threeal/gcovr-action@v1.0.0
+#        with:
+#          excludes: |
+#            tests/lib/*
+#            ${{ steps.strings.outputs.build-output-dir }}/*
+#          coveralls-send: true
+#          github-token: ${{ secrets.GITHUB_TOKEN }}
