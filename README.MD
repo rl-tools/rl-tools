@@ -11,14 +11,17 @@
   <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://rl.tools">Live demo (browser)</a> | <a href="https://discord.gg/kbvxCavb5h">Discord</a>
   </br>
 </br>
-  <a href="https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb">
-  <img src="https://mybinder.org/badge_logo.svg" alt="Run tutorials on Binder">
+  <a href="https://github.com/rl-tools/rl-tools/actions/workflows/tests-backend.yml">
+  <img src="https://github.com/rl-tools/rl-tools/actions/workflows/tests-backend.yml/badge.svg" alt="Documentation">
+  </a>
+  <a href="https://codecov.io/gh/rl-tools/rl-tools" >
+  <img src="https://codecov.io/gh/rl-tools/rl-tools/graph/badge.svg?token=3TJZ635O8V"/>
   </a>
   <a href="https://docs.rl.tools">
   <img src="https://img.shields.io/badge/Documentation-Read%20the%20Docs-blue.svg" alt="Documentation">
   </a>
-  <a href="https://github.com/rl-tools/rl-tools/actions/workflows/tests-backend.yml">
-  <img src="https://github.com/rl-tools/rl-tools/actions/workflows/tests-backend.yml/badge.svg" alt="Documentation">
+  <a href="https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb">
+  <img src="https://mybinder.org/badge_logo.svg" alt="Run tutorials on Binder">
   </a>
 </p>
 
