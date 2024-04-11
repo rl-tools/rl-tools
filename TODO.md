@@ -18,6 +18,7 @@
 - Design and add full checkpointing step for the training state (to stop/resume training), including test cases verifying that the results are exactly identical
 - Introduce flexible observation spaces and reward functions (tag dispatch)
   - To generalize privileged and normal observations
+- Re-consider the `persist_code` format (currently assumes tha the endianness is the same between the trainin and inference platform)
 ## Atoms
 - nn-mlp: msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
   - find a fix for all compilers (tests with n_layers = 2 are disabled for msvc for now)
