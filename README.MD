@@ -20,8 +20,12 @@
   <a href="https://docs.rl.tools">
   <img src="https://img.shields.io/badge/Documentation-Read%20the%20Docs-blue.svg" alt="Documentation">
   </a>
+</br>
   <a href="https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb">
   <img src="https://mybinder.org/badge_logo.svg" alt="Run tutorials on Binder">
+  </a>
+  <a href="https://colab.research.google.com/github/rl-tools/documentation/blob/master/docs/09-TinyRL.ipynb">
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Run Example on Colab">
   </a>
 </p>
 
