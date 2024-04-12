@@ -21,31 +21,25 @@ namespace rl_tools::nn::optimizers{
             T bias_lr_factor;
         };
         template <typename T>
-        constexpr Parameters<T> default_parameters_tensorflow = {
-            0.001,
-            0.9,
-            0.999,
-            1e-7,
-            0,
-            0,
-            0,
-            1,
+        struct DEFAULT_PARAMETERS_TENSORFLOW{
+            static constexpr T ALPHA = 0.001;
+            static constexpr T BETA_1 = 0.9;
+            static constexpr T BETA_2 = 0.999;
+            static constexpr T EPSILON = 1e-7;
+            static constexpr T WEIGHT_DECAY = 0;
+            static constexpr T WEIGHT_DECAY_INPUT = 0;
+            static constexpr T WEIGHT_DECAY_OUTPUT = 0;
+            static constexpr T BIAS_LR_FACTOR = 1;
         };
-        template<typename T>
-        constexpr Parameters<T> default_parameters_torch = {
-            0.001,
-            0.9,
-            0.999,
-            1e-8,
-            0,
-            0,
-            0,
-            1,
+        template <typename T>
+        struct DEFAULT_PARAMETERS_PYTORCH: DEFAULT_PARAMETERS_TENSORFLOW<T>{
+            static constexpr T EPSILON = 1e-8;
         };
-        template <typename T_T, typename T_TI, bool T_ENABLE_WEIGHT_DECAY = false, bool T_ENABLE_BIAS_LR_FACTOR = false>
+        template <typename T_T, typename T_TI, typename T_DEFAULT_PARAMETERS=DEFAULT_PARAMETERS_TENSORFLOW<T_T>, bool T_ENABLE_WEIGHT_DECAY = false, bool T_ENABLE_BIAS_LR_FACTOR = false>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
+            using DEFAULT_PARAMETERS = T_DEFAULT_PARAMETERS;
             static constexpr bool ENABLE_WEIGHT_DECAY = T_ENABLE_WEIGHT_DECAY;
             static constexpr bool ENABLE_BIAS_LR_FACTOR = T_ENABLE_BIAS_LR_FACTOR;
         };
@@ -55,7 +49,17 @@ namespace rl_tools::nn::optimizers{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        adam::Parameters<T> parameters = adam::default_parameters_tensorflow<T>;
+        using DEFAULT_PARAMETERS = typename SPEC::DEFAULT_PARAMETERS;
+        adam::Parameters<T> parameters = {
+            DEFAULT_PARAMETERS::ALPHA,
+            DEFAULT_PARAMETERS::BETA_1,
+            DEFAULT_PARAMETERS::BETA_2,
+            DEFAULT_PARAMETERS::EPSILON,
+            DEFAULT_PARAMETERS::WEIGHT_DECAY,
+            DEFAULT_PARAMETERS::WEIGHT_DECAY_INPUT,
+            DEFAULT_PARAMETERS::WEIGHT_DECAY_OUTPUT,
+            DEFAULT_PARAMETERS::BIAS_LR_FACTOR
+        };
         T first_order_moment_bias_correction;
         T second_order_moment_bias_correction;
         TI age = 1;
