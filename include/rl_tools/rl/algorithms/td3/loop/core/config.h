@@ -32,6 +32,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
+
+        using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
     };
 
     // The approximator config sets up any types that support the usual rl_tools::forward and rl_tools::backward operations (can be custom as well)
@@ -70,7 +72,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
         };
 
-        using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+        using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
 
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
@@ -84,7 +86,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
     struct ConfigApproximatorsMLP{
         using ACTOR_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::TANH, PARAMETERS::TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
         using CRITIC_STRUCTURE_SPEC = nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
-        using OPTIMIZER_SPEC = typename nn::optimizers::adam::Specification<T, TI>;
+        using OPTIMIZER_SPEC = typename nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
         using ACTOR_SPEC = nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC >;
         using ACTOR_TYPE = nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
