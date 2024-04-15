@@ -274,7 +274,7 @@ namespace rl_tools{
 */
         bool critic_1_value = get(critic_1_output, batch_i, 0) < get(critic_2_output, batch_i, 0);
         T entropy = 0;
-        for(TI action_i = 0; action_i < ACTION_DIM; action_i++) {
+        for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T action = get(training_buffers.actions, batch_i, action_i);
             T d_mu = 0;
             T d_std = 0;

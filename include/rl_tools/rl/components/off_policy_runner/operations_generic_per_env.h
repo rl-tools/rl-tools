@@ -52,7 +52,12 @@ namespace rl_tools::rl::components::off_policy_runner{
             for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
                 T std = math::exp(typename DEVICE::SPEC::MATH{}, get(runner.buffers.actions, env_i, ENVIRONMENT::ACTION_DIM+i));
                 T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), get(runner.buffers.actions, env_i, i), std, rng);
-                set(runner.buffers.actions, env_i, i, math::clamp<T>(device.math, action_noisy, -1, 1));
+                if constexpr(SPEC::ACTION_CLAMPING_TANH){
+                    set(runner.buffers.actions, env_i, i, math::tanh<T>(device.math, action_noisy));
+                }
+                else{
+                    set(runner.buffers.actions, env_i, i, math::clamp<T>(device.math, action_noisy, -1, 1));
+                }
             }
             return view(device, runner.buffers.actions, matrix::ViewSpec<1, SPEC::ENVIRONMENT::ACTION_DIM>{}, env_i, 0);
         }
