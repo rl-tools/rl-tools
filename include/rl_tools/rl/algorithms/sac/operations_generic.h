@@ -162,8 +162,9 @@ namespace rl_tools{
             T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);
 //            T action_sampled = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, mean, std, rng);
             T action_sampled = mean + get(action_noise, sample_i, action_i) * std;
-            set(training_buffers.next_actions_mean, sample_i, action_i, action_sampled);
             action_log_prob += random::normal_distribution::log_prob<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mean, log_std, action_sampled);
+            T action_squashed = math::tanh(device.math, action_sampled);
+            set(training_buffers.next_actions_mean, sample_i, action_i, action_squashed);
         }
         set(training_buffers.action_log_probs, sample_i, 0, action_log_prob);
     }
