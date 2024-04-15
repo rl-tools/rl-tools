@@ -287,8 +287,9 @@ namespace rl_tools{
                 else{
                     d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
                 }
-                d_mu  = d_input * (1-action*action);
-                d_std = d_input * (1-action*action) * get(training_buffers.action_noise, batch_i, action_i);
+                T d_tanh_pre_activation = d_input * (1-action*action);
+                d_mu = d_tanh_pre_activation;
+                d_std = d_tanh_pre_activation * get(training_buffers.action_noise, batch_i, action_i);
             }
             T log_std = get(actions, batch_i, action_i + ACTION_DIM);
             T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);

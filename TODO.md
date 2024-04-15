@@ -19,6 +19,15 @@
 - Introduce flexible observation spaces and reward functions (tag dispatch)
   - To generalize privileged and normal observations
 - Re-consider the `persist_code` format (currently assumes tha the endianness is the same between the trainin and inference platform)
+- Create a sampling layer
+  - For SAC, we would like to sample after the final identity layer, then squash with a tanh
+  - Currently, the model only goes up to the identity and the sampling and tanh are done separately
+    - This requires multiple places to correctly post-process the actions
+      - Off-policy runner
+      - SAC actor&critic training
+      - Inference
+    - In particular one needs to pay attention when exporting the model because the tanh-squashing is not exported
+  - It would be best to implement a sampling layer and an element-wise layer (for the tanh squashing)
 ## Atoms
 - nn-mlp: msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
   - find a fix for all compilers (tests with n_layers = 2 are disabled for msvc for now)
