@@ -64,7 +64,12 @@ namespace rl_tools{
         evaluate(device, policy, observation_normalized, action_full, policy_eval_buffers);
 
         for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
-            set(action, 0, action_i, math::clamp<T>(device.math, get(action, 0, action_i), -1, 1));
+            if constexpr(STOCHASTIC_POLICY){ // todo: This is a special case for SAC, will be uneccessary once (https://github.com/rl-tools/rl-tools/blob/72a59eabf4038502c3be86a4f772bd72526bdcc8/TODO.md?plain=1#L22) is implemented
+                set(action, 0, action_i, math::tanh<T>(device.math, get(action, 0, action_i)));
+            }
+            else{
+                set(action, 0, action_i, math::clamp<T>(device.math, get(action, 0, action_i), -1, 1));
+            }
         }
         typename ENVIRONMENT::State next_state;
         T dt = step(device, env, state, action, next_state, rng);
