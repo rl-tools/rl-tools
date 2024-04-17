@@ -158,11 +158,12 @@ namespace rl_tools{
         T action_log_prob = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T mean = get(training_buffers.next_actions_mean, sample_i, action_i);
-            T log_std = get(training_buffers.next_actions_log_std, sample_i, action_i);
-            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);
+            T log_std_pre_clamp = get(training_buffers.next_actions_log_std, sample_i, action_i);
+            T log_std_clamped = math::clamp(device.math, log_std_pre_clamp, (T)SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND);
+            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_clamped);
 //            T action_sampled = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, mean, std, rng);
             T action_sampled = mean + get(action_noise, sample_i, action_i) * std;
-            action_log_prob += random::normal_distribution::log_prob<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mean, log_std, action_sampled);
+            action_log_prob += random::normal_distribution::log_prob<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mean, log_std_clamped, action_sampled);
             T action_squashed = math::tanh(device.math, action_sampled);
             set(training_buffers.next_actions_mean, sample_i, action_i, action_squashed);
         }
@@ -291,25 +292,27 @@ namespace rl_tools{
                 d_mu = d_tanh_pre_activation;
                 d_std = d_tanh_pre_activation * get(training_buffers.action_noise, batch_i, action_i);
             }
-            T log_std = get(actions, batch_i, action_i + ACTION_DIM);
-            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std);
+            T log_std_pre_clamp = get(actions, batch_i, action_i + ACTION_DIM);
+            T log_std_clamped = math::clamp(device.math, log_std_pre_clamp, (T)SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND);
+            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_clamped);
 
-            T d_log_std = std * d_std;
+            T d_log_std_clamped = std * d_std;
+            T d_log_std = log_std_pre_clamp < -SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND || log_std_pre_clamp > SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND ? 0 : d_log_std_clamped;
 
             T mu = get(actions, batch_i, action_i);
             T action_sample = get(training_buffers.action_sample, batch_i, action_i);
             T eps = 1e-6;
             T one_minus_action_square_plus_eps = (1-action*action + eps);
             T one_over_one_minus_action_square_plus_eps = 1/one_minus_action_square_plus_eps;
-            d_mu += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_mean<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + one_over_one_minus_action_square_plus_eps * 2*action);
+            d_mu += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_mean<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) + one_over_one_minus_action_square_plus_eps * 2*action);
 
             T noise = get(training_buffers.action_noise, batch_i, action_i);
-            d_log_std += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_log_std<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) * noise * std + one_over_one_minus_action_square_plus_eps * 2*action * noise * std);
+            d_log_std += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_log_std<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) * noise * std + one_over_one_minus_action_square_plus_eps * 2*action * noise * std);
 
             set(training_buffers.d_actor_output, batch_i, action_i, d_mu);
             set(training_buffers.d_actor_output, batch_i, action_i + ACTION_DIM, d_log_std);
 
-            T action_log_prob = random::normal_distribution::log_prob<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
+            T action_log_prob = random::normal_distribution::log_prob<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
             entropy += -action_log_prob;
         }
         T d_alpha = entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
