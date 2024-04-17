@@ -28,6 +28,7 @@
       - Inference
     - In particular one needs to pay attention when exporting the model because the tanh-squashing is not exported
   - It would be best to implement a sampling layer and an element-wise layer (for the tanh squashing)
+- Make the `EPISODE_STEP_LIMIT` an assumed property of the Environment type
 ## Atoms
 - nn-mlp: msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
   - find a fix for all compilers (tests with n_layers = 2 are disabled for msvc for now)
@@ -38,3 +39,4 @@
 - Trying SonarCube
 - Separate `gather_batch` from the off-policy runner (should be an operation on the replay buffer)
 - Add Github action that test the compilation of the PX4 module [embedded_platforms/px4](embedded_platforms/px4)
+- Check using separate learning rates for actor and critic (inspired by [CleanRL](https://github.com/vwxyzjn/cleanrl/blob/8cbca61360ef98660f149e3d76762350ce613323/cleanrl/sac_continuous_action.py#L52))
