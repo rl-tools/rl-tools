@@ -202,7 +202,7 @@ namespace rl_tools{
 
         target_actions(device, batch, training_buffers, actor_critic.log_alpha);
         forward(device, critic, batch.observations_and_actions);
-        nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output);
+        nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output, 0.5);
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
         step(device, optimizer, critic);
     }
@@ -221,7 +221,7 @@ namespace rl_tools{
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
         target_actions(device, batch, training_buffers, alpha);
         evaluate(device, critic, batch.observations_and_actions, training_buffers.action_value, critic_buffers);
-        return nn::loss_functions::mse::evaluate(device, training_buffers.action_value, training_buffers.target_action_value);
+        return nn::loss_functions::mse::evaluate(device, training_buffers.action_value, training_buffers.target_action_value, 0.5);
     }
     template <typename DEVICE, typename OUTPUT_SPEC, typename SPEC, typename ACTION_NOISE_SPEC, typename TI_SAMPLE>
     RL_TOOLS_FUNCTION_PLACEMENT void sample_actions_actor_per_sample(DEVICE& device, Matrix<OUTPUT_SPEC>& output, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, TI_SAMPLE batch_i) {

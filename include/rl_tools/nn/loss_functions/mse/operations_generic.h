@@ -26,11 +26,12 @@ namespace rl_tools::nn::loss_functions::mse{
         static_assert(containers::check_structure<SPEC_A, SPEC_DA>);
         using T = typename SPEC_A::T;
         using TI = typename SPEC_A::TI;
+        T constant = (T)2/((T)SPEC_A::ROWS * SPEC_A::COLS) * loss_weight;
         for(TI row_i = 0; row_i < SPEC_A::ROWS; row_i++) {
             for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++) {
 //                TI index = row_i * SPEC_A::COLS + col_i;
                 T diff = get(a, row_i, col_i) - get(b, row_i, col_i);
-                set(d_a, row_i, col_i, 2*diff/(SPEC_A::ROWS * SPEC_A::COLS) * loss_weight);
+                set(d_a, row_i, col_i, diff * constant);
             }
         }
     }
