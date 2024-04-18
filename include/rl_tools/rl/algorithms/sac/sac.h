@@ -20,8 +20,6 @@ namespace rl_tools::rl::algorithms::sac {
         static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1;
         static constexpr T ACTOR_POLYAK = 1.0 - 0.005;
         static constexpr T CRITIC_POLYAK = 1.0 - 0.005;
-//        static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.2;
-//        static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.5;
         static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
         static constexpr T TARGET_ENTROPY = -((T)ACTION_DIM);
         static constexpr bool ADAPTIVE_ALPHA = true;

@@ -50,8 +50,12 @@ namespace rl_tools::rl::components::off_policy_runner{
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         if constexpr(SPEC::STOCHASTIC_POLICY){
             for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
-                T std = math::exp(typename DEVICE::SPEC::MATH{}, get(runner.buffers.actions, env_i, ENVIRONMENT::ACTION_DIM+i));
-                T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), get(runner.buffers.actions, env_i, i), std, rng);
+                T log_std = get(runner.buffers.actions, env_i, ENVIRONMENT::ACTION_DIM+i);
+                T log_std_clip = math::clamp<T>(device.math, log_std, -20, 2); // todo: absorb this into the policy
+                T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_clip);
+                T mu = get(runner.buffers.actions, env_i, i);
+                T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), mu, std, rng);
+                static_assert(SPEC::ACTION_CLAMPING_TANH);
                 if constexpr(SPEC::ACTION_CLAMPING_TANH){
                     set(runner.buffers.actions, env_i, i, math::tanh<T>(device.math, action_noisy));
                 }
