@@ -80,7 +80,7 @@ namespace rl_tools{
         malloc(device, critic_training_buffers.next_state_action_value_critic_2);
         malloc(device, critic_training_buffers.d_output);
         malloc(device, critic_training_buffers.d_input);
-        malloc(device, critic_training_buffers.action_log_probs);
+        malloc(device, critic_training_buffers.next_action_log_probs);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -97,7 +97,7 @@ namespace rl_tools{
         free(device, critic_training_buffers.next_state_action_value_critic_2);
         free(device, critic_training_buffers.d_output);
         free(device, critic_training_buffers.d_input);
-        free(device, critic_training_buffers.action_log_probs);
+        free(device, critic_training_buffers.next_action_log_probs);
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
@@ -131,9 +131,10 @@ namespace rl_tools{
         );
         T reward = get(batch.rewards, 0, batch_step_i);
         bool terminated = get(batch.terminated, 0, batch_step_i);
-        T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value : 0;
-        T entropy_bonus = -alpha * get(training_buffers.action_log_probs, batch_step_i, 0);
-        T current_target_action_value = reward + future_value + entropy_bonus;
+        T entropy_bonus = -alpha * get(training_buffers.next_action_log_probs, batch_step_i, 0);
+        T min_next_state_action_value_entropy_bonus = min_next_state_action_value + entropy_bonus;
+        T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value_entropy_bonus : 0;
+        T current_target_action_value = reward + future_value;
         set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
     }
     template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC, typename ALPHA_PARAMETER>
@@ -167,7 +168,7 @@ namespace rl_tools{
             T action_squashed = math::tanh(device.math, action_sampled);
             set(training_buffers.next_actions_mean, sample_i, action_i, action_squashed);
         }
-        set(training_buffers.action_log_probs, sample_i, 0, action_log_prob);
+        set(training_buffers.next_action_log_probs, sample_i, 0, action_log_prob);
     }
     template <typename DEVICE, typename SPEC, typename ACTION_NOISE_SPEC>
     void sample_actions_critic(DEVICE& device, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise) {
@@ -229,7 +230,9 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            T std = math::exp(typename DEVICE::SPEC::MATH{}, get(output, batch_i, action_i + ACTION_DIM));
+            T log_std_pre_clip = get(output, batch_i, action_i + ACTION_DIM);
+            T log_std_clip = math::clamp(device.math, log_std_pre_clip, (T)SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND);
+            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_pre_clip);
             // action_sample = noise * std + mean
 //            T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, (T)1, rng);
             T noise = get(action_noise, batch_i, action_i);
@@ -268,7 +271,8 @@ namespace rl_tools{
         action_log_prob = gaussian::log_prob(mu, std, action_sample) - log(1-tanh(action_sample)^2))
         actor_loss = alpha  * action_log_prob - min(Q_1, Q_2);
         d/d_mu _actor_loss = alpha * d/d_mu action_log_prob - d/d_mu min(Q_1, Q_2)
-        d/d_mu action_log_prob = d/d_mu gaussian::log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample + 1/(1-tanh(action_sample)^2) * 2*tanh(action_sample) * d/d_mu action_sample
+        d/d_mu action_log_prob = d/d_mu gaussian::log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample - 1/(1-tanh(action_sample)^2) * (-2*tanh(action_sample))*(1-tanh(action_sample)^2) * d/d_mu action_sample)
+                               = d/d_mu gaussian::log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample + 2*tanh(action_sample)) * d/d_mu action_sample)
         d/d_mu action_sample = 1
         d/d_std action_sample = noise
         d/d_mu min(Q_1, Q_2) = d/d_action min(Q_1, Q_2) * d/d_mu action
@@ -289,29 +293,33 @@ namespace rl_tools{
                     d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
                 }
                 T d_tanh_pre_activation = d_input * (1-action*action);
-                d_mu = d_tanh_pre_activation;
-                d_std = d_tanh_pre_activation * get(training_buffers.action_noise, batch_i, action_i);
+                d_mu = d_tanh_pre_activation/BATCH_SIZE;
+                d_std = d_tanh_pre_activation * get(training_buffers.action_noise, batch_i, action_i)/BATCH_SIZE;
             }
             T log_std_pre_clamp = get(actions, batch_i, action_i + ACTION_DIM);
             T log_std_clamped = math::clamp(device.math, log_std_pre_clamp, (T)SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND);
             T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_clamped);
 
             T d_log_std_clamped = std * d_std;
-            T d_log_std = log_std_pre_clamp < -SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND || log_std_pre_clamp > SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND ? 0 : d_log_std_clamped;
+            T d_log_std = log_std_pre_clamp < SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND || log_std_pre_clamp > SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND ? 0 : d_log_std_clamped;
 
+            // Entropy bonus
             T mu = get(actions, batch_i, action_i);
             T action_sample = get(training_buffers.action_sample, batch_i, action_i);
             T eps = 1e-6;
-            T one_minus_action_square_plus_eps = (1-action*action + eps);
-            T one_over_one_minus_action_square_plus_eps = 1/one_minus_action_square_plus_eps;
-            d_mu += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_mean<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) + one_over_one_minus_action_square_plus_eps * 2*action);
+//            T one_over_one_minus_action_square_plus_eps = 1/one_minus_action_square_plus_eps;
+            T d_log_prob_d_mean = random::normal_distribution::d_log_prob_d_mean<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample);
+            T d_log_prob_d_sample = random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample);
+            d_mu += alpha/BATCH_SIZE * (d_log_prob_d_mean + d_log_prob_d_sample + 2*action);
 
             T noise = get(training_buffers.action_noise, batch_i, action_i);
-            d_log_std += alpha/BATCH_SIZE * (random::normal_distribution::d_log_prob_d_log_std<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) + random::normal_distribution::d_log_prob_d_sample<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) * noise * std + one_over_one_minus_action_square_plus_eps * 2*action * noise * std);
+            T d_log_prob_d_log_std = random::normal_distribution::d_log_prob_d_log_std<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample);
+            d_log_std += alpha/BATCH_SIZE * (d_log_prob_d_log_std + d_log_prob_d_sample * noise * std + 2*action * noise * std);
 
             set(training_buffers.d_actor_output, batch_i, action_i, d_mu);
             set(training_buffers.d_actor_output, batch_i, action_i + ACTION_DIM, d_log_std);
 
+            T one_minus_action_square_plus_eps = (1-action*action + eps);
             T action_log_prob = random::normal_distribution::log_prob<DEVICE, T>(typename DEVICE::SPEC::RANDOM{}, mu, log_std_clamped, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
             entropy += -action_log_prob;
         }
@@ -455,7 +463,7 @@ namespace rl_tools{
         copy(source_device, target_device, source.next_state_action_value_critic_2, target.next_state_action_value_critic_2);
         copy(source_device, target_device, source.d_input, target.d_input);
         copy(source_device, target_device, source.d_output, target.d_output);
-        copy(source_device, target_device, source.action_log_probs, target.action_log_probs);
+        copy(source_device, target_device, source.next_action_log_probs, target.next_action_log_probs);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
