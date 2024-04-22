@@ -40,3 +40,5 @@
 - Separate `gather_batch` from the off-policy runner (should be an operation on the replay buffer)
 - Add Github action that test the compilation of the PX4 module [embedded_platforms/px4](embedded_platforms/px4)
 - Check using separate learning rates for actor and critic (inspired by [CleanRL](https://github.com/vwxyzjn/cleanrl/blob/8cbca61360ef98660f149e3d76762350ce613323/cleanrl/sac_continuous_action.py#L52))
+- Check the [PPO implementation details regarding observation/reward normalization etc](https://github.com/vwxyzjn/cleanrl/blob/8cbca61360ef98660f149e3d76762350ce613323/cleanrl/ppo_continuous_action.py#L94)
+  - Check [high epsilon Adam for PPO](https://github.com/vwxyzjn/cleanrl/blob/8cbca61360ef98660f149e3d76762350ce613323/cleanrl/ppo_continuous_action.py#L183)

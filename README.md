@@ -212,6 +212,7 @@ finished = False
 while not finished:
     finished = state.step()
 ```
+Note that the Python interface is currently only tested on Linux and macOS. 
 
 ## Embedded Platforms
 ### Inference & Training
