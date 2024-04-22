@@ -7,8 +7,34 @@
 
 #include <iostream>
 #include <iomanip>
+#include <cstdlib>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+#ifndef RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+    template<typename DEV_SPEC, typename SPEC>
+    void malloc(devices::CPU<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
+        utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
+#endif
+        // matrix._data = (typename SPEC::T*)malloc(SPEC::SIZE_BYTES);
+        matrix._data = (typename SPEC::T*)std::aligned_alloc(64, SPEC::SIZE_BYTES);
+        count_malloc(device, SPEC::SIZE_BYTES);
+#ifdef RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
+        for(typename SPEC::TI i = 0; i < SPEC::SIZE; i++){
+            if constexpr(utils::typing::is_same_v<typename SPEC::T, float> || utils::typing::is_same_v<typename SPEC::T, double>){
+                matrix._data[i] = math::nan<typename SPEC::T>(typename DEV_SPEC::MATH());
+            }
+        }
+#endif
+    }
+    template<typename DEV_SPEC, typename SPEC>
+    void free(devices::CPU<DEV_SPEC>& device, MatrixDynamic<SPEC>& matrix){
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
+        utils::assert_exit(device, matrix._data != nullptr, "Matrix has not been allocated");
+#endif
+        std::free(matrix._data);
+    }
+#endif
     template<typename DEVICE, typename SPEC>
     void print(DEVICE& device, const Matrix<SPEC>& m){
         for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){

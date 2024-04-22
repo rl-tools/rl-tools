@@ -4,7 +4,6 @@
 #define RL_TOOLS_OPERATIONS_CPU_OPENBLAS_GROUP_1_H
 #if defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_OPERATIONS_CPU_OPENBLAS_GROUP_1)
     #define RL_TOOLS_OPERATIONS_CPU_OPENBLAS_GROUP_1
-    #include <cblas.h>
     #include "../../devices/cpu_openblas.h"
     #include "../../utils/assert/declarations_cpu.h"
     #include "../../math/operations_cpu.h"

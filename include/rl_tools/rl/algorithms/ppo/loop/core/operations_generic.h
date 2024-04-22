@@ -63,7 +63,6 @@ namespace rl_tools{
         free(device, ts.on_policy_runner_dataset);
         free(device, ts.on_policy_runner);
         free(device, ts.actor_eval_buffers);
-        free(device, ts.actor_deterministic_eval_buffers);
         free(device, ts.actor_buffers);
         free(device, ts.critic_buffers);
         free(device, ts.critic_buffers_gae);
