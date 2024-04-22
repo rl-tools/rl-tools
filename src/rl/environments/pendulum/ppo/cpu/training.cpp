@@ -73,7 +73,7 @@ struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI,
 template <BENCHMARK_MODE MODE>
 void run(TI seed, bool verbose){
     DEVICE device;
-#ifndef BENCHMARK
+#ifndef RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_PPO_BENCHMARK
     using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<MODE>, LOOP_EVAL_PARAMETERS<LOOP_CORE_CONFIG<MODE>>>;
     using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 #else
