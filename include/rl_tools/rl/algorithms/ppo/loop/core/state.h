@@ -30,7 +30,7 @@ namespace rl_tools{
             rl::components::RunningNormalizer<rl::components::running_normalizer::Specification<T, TI, CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
             typename CONFIG::ENVIRONMENT envs[CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS];
             MatrixDynamic<matrix::Specification<typename CONFIG::T, TI, 1, CONFIG::ENVIRONMENT::OBSERVATION_DIM>> observations_mean, observations_std;
-            bool ui = false;
+            environments::DummyUI ui;
             TI next_checkpoint_id = 0;
             TI next_evaluation_id = 0;
             TI step;

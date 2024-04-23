@@ -15,6 +15,9 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
+#include <nlohmann/json.hpp>
+#include <fstream>
+
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -70,8 +73,8 @@ struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI,
     static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };
 
-template <BENCHMARK_MODE MODE>
-void run(TI seed, bool verbose){
+template <BENCHMARK_MODE MODE, TI NUM_EPISODES_FINAL_EVAL>
+auto run(TI seed, bool verbose){
     DEVICE device;
 #ifndef RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_PPO_BENCHMARK
     using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<MODE>, LOOP_EVAL_PARAMETERS<LOOP_CORE_CONFIG<MODE>>>;
@@ -92,36 +95,76 @@ void run(TI seed, bool verbose){
     ts.critic_optimizer.parameters.alpha = 1e-3;
     while(!rlt::step(device, ts)){
     }
+    auto result = evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), rlt::rl::utils::evaluation::Specification<NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+    rlt::log(device, device.logger, "Final return: ", result.returns_mean);
+    rlt::log(device, device.logger, "              mean: ", result.returns_mean);
+    rlt::log(device, device.logger, "              std : ", result.returns_std);
+    return result;
 }
 
-void run(TI seed, bool verbose, BENCHMARK_MODE mode){
+static constexpr TI NUM_EPISODES_FINAL_EVAL = 1000;
+rlt::rl::utils::evaluation::Result<T, TI, NUM_EPISODES_FINAL_EVAL> run(TI seed, bool verbose, BENCHMARK_MODE mode){
     if(mode == BENCHMARK_MODE::LARGE){
-        run<BENCHMARK_MODE::LARGE>(seed, verbose);
+        return run<BENCHMARK_MODE::LARGE, NUM_EPISODES_FINAL_EVAL>(seed, verbose);
     }else if(mode == BENCHMARK_MODE::MEDIUM){
-        run<BENCHMARK_MODE::MEDIUM>(seed, verbose);
+        return run<BENCHMARK_MODE::MEDIUM, NUM_EPISODES_FINAL_EVAL>(seed, verbose);
     }else if(mode == BENCHMARK_MODE::SMALL){
-        run<BENCHMARK_MODE::SMALL>(seed, verbose);
+        return run<BENCHMARK_MODE::SMALL, NUM_EPISODES_FINAL_EVAL>(seed, verbose);
     }else if(mode == BENCHMARK_MODE::TINY){
-        run<BENCHMARK_MODE::TINY>(seed, verbose);
+        return run<BENCHMARK_MODE::TINY, NUM_EPISODES_FINAL_EVAL>(seed, verbose);
     }else{
         std::cout << "Unknown benchmark mode: " << static_cast<TI>(mode) << std::endl;
+        return {};
     }
 }
 
 
+//int main(int argc, char** argv) {
+//    TI seed = 0;
+//    if (argc > 1) {
+//        seed = std::atoi(argv[1]);
+//    }
+//    BENCHMARK_MODE mode = BENCHMARK_MODE::MEDIUM;
+//    if (argc > 2) {
+//        mode = static_cast<BENCHMARK_MODE>(std::atoi(argv[2]));
+//    }
+//    bool verbose = true;
+//    if (argc > 3) {
+//        verbose = std::atoi(argv[3]);
+//    }
+//    run(seed, verbose, mode);
+//    return 0;
+//}
+
 int main(int argc, char** argv) {
-    TI seed = 0;
-    if (argc > 1) {
-        seed = std::atoi(argv[1]);
-    }
     BENCHMARK_MODE mode = BENCHMARK_MODE::MEDIUM;
-    if (argc > 2) {
-        mode = static_cast<BENCHMARK_MODE>(std::atoi(argv[2]));
-    }
     bool verbose = true;
-    if (argc > 3) {
-        verbose = std::atoi(argv[3]);
+    std::vector<decltype(run(0, verbose, mode))> returns;
+    for (TI seed=0; seed < 100; seed++){
+        auto return_stats = run(seed, verbose, mode);
+        returns.push_back(return_stats);
     }
-    run(seed, verbose, mode);
+    T sum = 0;
+    T sum_squared = 0;
+    for(auto& return_stats: returns){
+        sum += return_stats.returns_mean;
+        sum_squared += return_stats.returns_mean * return_stats.returns_mean;
+    }
+    T mean = sum / returns.size();
+    T std = std::sqrt(sum_squared / returns.size() - mean * mean);
+    // median
+    std::sort(returns.begin(), returns.end(), [](auto& a, auto& b){
+        return a.returns_mean < b.returns_mean;
+    });
+    T median = returns[returns.size() / 2].returns_mean;
+    std::cout << "Mean return: " << mean << std::endl;
+    std::cout << "Std return: " << std << std::endl;
+    std::cout << "Median return: " << median << std::endl;
+    nlohmann::json j;
+    for(auto& return_stats: returns){
+        j.push_back(return_stats.returns);
+    }
+    std::ofstream file("pendulum_ppo_returns.json");
+    file << j.dump(4);
     return 0;
 }

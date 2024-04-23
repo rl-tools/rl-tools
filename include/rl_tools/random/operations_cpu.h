@@ -32,20 +32,20 @@ namespace rl_tools::random{
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
             return std::normal_distribution<T>(mean, std)(rng);
         }
-        template<typename DEVICE, typename T>
+        template<typename T>
         T log_prob(const devices::random::CPU& dev, T mean, T log_std, T value){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
             return log_prob(devices::random::Generic<devices::math::CPU>{}, mean, log_std, value);
         }
-        template<typename DEVICE, typename T>
+        template<typename T>
         T d_log_prob_d_mean(const devices::random::CPU& dev, T mean, T log_std, T value){
             return d_log_prob_d_mean(devices::random::Generic<devices::math::CPU>{}, mean, log_std, value);
         }
-        template<typename DEVICE, typename T>
+        template<typename T>
         T d_log_prob_d_log_std(const devices::random::CPU& dev, T mean, T log_std, T value){
             return d_log_prob_d_log_std(devices::random::Generic<devices::math::CPU>{}, mean, log_std, value);
         }
-        template<typename DEVICE, typename T>
+        template<typename T>
         T d_log_prob_d_sample(const devices::random::CPU& dev, T mean, T log_std, T value){
             return d_log_prob_d_sample(devices::random::Generic<devices::math::CPU>{}, mean, log_std, value);
         }

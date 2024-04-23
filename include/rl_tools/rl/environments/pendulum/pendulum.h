@@ -50,6 +50,7 @@ namespace rl_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM = 3;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = 1;
+        static constexpr TI EPISODE_STEP_LIMIT = 200;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
