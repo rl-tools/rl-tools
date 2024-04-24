@@ -220,16 +220,23 @@ namespace rl_tools{
                     T ratio = math::exp(device.math, log_ratio);
                     // todo: test relative clipping (clipping in log space makes more sense thatn clipping in exp space)
                     T clipped_ratio = math::clamp(device.math, ratio, 1 - PPO_SPEC::PARAMETERS::EPSILON_CLIP, 1 + PPO_SPEC::PARAMETERS::EPSILON_CLIP);
+                    bool clipped = ratio != clipped_ratio;
                     T normal_advantage = ratio * advantage;
                     T clipped_advantage = clipped_ratio * advantage;
                     T slippage = 0.0;
                     bool ratio_min_switch = normal_advantage - clipped_advantage <= slippage;
-                    T clipped_surrogate = ratio_min_switch ? normal_advantage : clipped_advantage;
+                    T pessimistic_surrogate = ratio_min_switch ? normal_advantage : clipped_advantage;
 
-                    T d_loss_d_clipped_surrogate = -(T)1/BATCH_SIZE;
-                    T d_clipped_surrogate_d_ratio = ratio_min_switch ? advantage : 0;
+                    T d_loss_d_pessimistic_surrogate = -(T)1/BATCH_SIZE;
+                    T d_pessimistic_surrogate_d_normal_advantage = ratio_min_switch ? 1 : 0;
+                    T d_pessimistic_surrogate_d_clipped_advantage = ratio_min_switch ? 0 : 1;
+                    T d_normal_advantage_d_ratio = advantage;
+                    T d_clipped_advantage_d_clipped_ratio = advantage;
+                    T d_clipped_ratio_d_ratio = clipped ? 0 : 1;
+                    T d_pessimistic_surrogate_d_ratio = d_pessimistic_surrogate_d_normal_advantage * d_normal_advantage_d_ratio + d_pessimistic_surrogate_d_clipped_advantage * d_clipped_advantage_d_clipped_ratio * d_clipped_ratio_d_ratio;
+                    T d_loss_d_ratio = d_loss_d_pessimistic_surrogate * d_pessimistic_surrogate_d_ratio;
                     T d_ratio_d_action_log_prob = ratio;
-                    T d_loss_d_action_log_prob = d_loss_d_clipped_surrogate * d_clipped_surrogate_d_ratio * d_ratio_d_action_log_prob;
+                    T d_loss_d_action_log_prob = d_loss_d_ratio * d_ratio_d_action_log_prob;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){

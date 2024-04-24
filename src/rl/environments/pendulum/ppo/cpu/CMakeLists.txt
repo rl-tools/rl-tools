@@ -8,6 +8,7 @@ target_link_libraries(
         RLtools::RLtools
 )
 RL_TOOLS_INSTALL(rl_environments_pendulum_ppo_training)
+target_compile_definitions(rl_environments_pendulum_ppo_training PRIVATE RL_TOOLS_DISABLE_TENSORBOARD)
 
 add_executable(
         rl_environments_pendulum_ppo_benchmark

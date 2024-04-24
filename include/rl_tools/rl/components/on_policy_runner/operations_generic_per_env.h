@@ -36,7 +36,9 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
 //                    std::stringstream topic;
 //                    topic << "action/" << action_i;
 //                    add_scalar(device, device.logger, topic.str(), action_mu);
-            T current_action_log_std = get(action_log_std, env_i, action_i);
+            static_assert(SPEC::ENVIRONMENT::ACTION_DIM == ACTION_LOG_STD_SPEC::COLS);
+            static_assert(ACTION_LOG_STD_SPEC::ROWS == 1);
+            T current_action_log_std = get(action_log_std, 0, action_i);
             T action_std = math::exp(device.math, current_action_log_std);
             T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), action_mean, action_std, rng);
 //            T action_by_action_std = (action_noisy-action_mean) / action_std;
