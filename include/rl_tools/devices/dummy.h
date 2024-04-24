@@ -10,7 +10,7 @@ namespace rl_tools::devices{
     namespace dummy{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::Dummy;
-            using index_t = unsigned long;
+            using index_t = unsigned long long;
             static constexpr index_t MAX_INDEX = -1;
         };
     }
