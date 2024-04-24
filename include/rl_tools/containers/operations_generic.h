@@ -39,7 +39,7 @@ namespace rl_tools{
         // free is a no-op for statically allocated matrices
     }
 
-#if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS) and !defined(RL_TOOLS_DISABLE_UNALIGNED_MEMORY_ALLOCATIONS)
+#if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, MatrixDynamic<SPEC>& matrix){
         using TI = typename DEVICE::index_t;
