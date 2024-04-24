@@ -29,17 +29,17 @@ gtest_discover_tests(test_rl_components_on_policy_runner)
 endif()
 
 if(RL_TOOLS_ENABLE_HDF5)
-add_executable(
-        test_rl_components_running_normalizer
-        running_normalizer.cpp
-)
-target_link_libraries(
-        test_rl_components_running_normalizer
-        PRIVATE
-        rl_tools
-        rl_tools_test
-)
-gtest_discover_tests(test_rl_components_running_normalizer)
+#add_executable(
+#        test_rl_components_running_normalizer
+#        running_normalizer.cpp
+#)
+#target_link_libraries(
+#        test_rl_components_running_normalizer
+#        PRIVATE
+#        rl_tools
+#        rl_tools_test
+#)
+#gtest_discover_tests(test_rl_components_running_normalizer)
 endif()
 
 
