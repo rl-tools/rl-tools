@@ -13,7 +13,7 @@ namespace rl_tools::rl::algorithms{
             static constexpr T GAMMA = 0.99;
             static constexpr T LAMBDA = 0.95;
             static constexpr T EPSILON_CLIP = 0.2;
-            static constexpr T INITIAL_ACTION_STD = 0.5;
+            static constexpr T INITIAL_ACTION_STD = 0.5; // note this is NOT log(std) but actual std (log is applied at init)
             static constexpr bool LEARN_ACTION_STD = true;
             static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.01;
             static constexpr T ADVANTAGE_EPSILON = 1e-8;

@@ -41,8 +41,6 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
             T current_action_log_std = get(action_log_std, 0, action_i);
             T action_std = math::exp(device.math, current_action_log_std);
             T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), action_mean, action_std, rng);
-//            T action_by_action_std = (action_noisy-action_mean) / action_std;
-//            action_log_prob += -0.5 * action_by_action_std * action_by_action_std - math::log(device.math, action_std) - 0.5 * math::log(device.math, 2 * math::PI<T>);
             action_log_prob += random::normal_distribution::log_prob(device.random, action_mean, current_action_log_std, action_noisy);
             set(actions, env_i, action_i, action_noisy);
         }

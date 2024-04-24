@@ -66,6 +66,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::Parameters<T,
     static constexpr TI TOTAL_STEP_LIMIT = 300000;
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
     static constexpr TI EPISODE_STEP_LIMIT = 200;
+    using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<T>;
 };
 template <BENCHMARK_MODE MODE>
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS<MODE>, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsMLP>;
@@ -94,8 +95,6 @@ auto run(TI seed, bool verbose){
     LOOP_STATE ts;
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
-    ts.actor_optimizer.parameters.alpha = 1e-3;
-    ts.critic_optimizer.parameters.alpha = 1e-3;
     while(!rlt::step(device, ts)){
     }
     auto result = evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), rlt::rl::utils::evaluation::Specification<NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);

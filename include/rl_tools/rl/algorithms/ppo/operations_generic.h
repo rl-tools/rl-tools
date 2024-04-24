@@ -193,7 +193,7 @@ namespace rl_tools{
 //                        set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, - action_diff_by_action_std / current_action_std);
                         set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, random::normal_distribution::d_log_prob_d_mean(device.random, current_action, current_action_log_std, rollout_action));
 
-                        T current_entropy = current_action_log_std +  math::log(device.math, 2 * math::PI<T>)/(T)2 + (T)1/(T)2;
+                        T current_entropy = current_action_log_std + math::log(device.math, 2 * math::PI<T>)/(T)2 + (T)1/(T)2;
                         T current_entropy_loss = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT * current_entropy;
                         // todo: think about possible implementation detail: clipping entropy bonus as well (because it changes the distribution)
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
@@ -207,8 +207,8 @@ namespace rl_tools{
 //                          d_current_action_log_prob_d_action_log_std = (action_diff_by_action_std * action_diff_by_action_std - 1) / action_std * action_std
 //                          d_current_action_log_prob_d_action_log_std =  action_diff_by_action_std * action_diff_by_action_std - 1
 //                            T d_current_action_log_prob_d_action_log_std = action_diff_by_action_std * action_diff_by_action_std - 1;
-                            T d_current_action_log_prob_d_action_log_std = random::normal_distribution::d_log_prob_d_log_std(device.random, current_action, current_action_log_std, rollout_action);
-                            set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, d_current_action_log_prob_d_action_log_std);
+                            T d_action_log_prob_d_current_action_log_std = random::normal_distribution::d_log_prob_d_log_std(device.random, current_action, current_action_log_std, rollout_action);
+                            set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, d_action_log_prob_d_current_action_log_std);
                         }
                     }
                     T rollout_action_log_prob = get(batch_action_log_probs, batch_step_i, 0);
