@@ -83,6 +83,8 @@ namespace rl_tools{
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
 
+//        log(device, device.logger, "log_std: ", get(ts.ppo.actor.log_std.parameters, 0, 0));
+
         ts.step++;
         if(ts.step > CONFIG::CORE_PARAMETERS::STEP_LIMIT){
             return true;
