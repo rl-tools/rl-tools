@@ -48,23 +48,6 @@ namespace rl_tools::random{
         T sample(const devices::random::ARM& dev, T mean, T std, RNG& rng){
             return sample(devices::random::Generic<devices::math::ARM>{}, mean, std, rng);
         }
-        template<typename DEVICE, typename T>
-        T log_prob(const devices::random::ARM& dev, T mean, T log_std, T value){
-            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
-            return log_prob(devices::random::Generic<devices::math::ARM>{}, mean, log_std, value);
-        }
-        template<typename DEVICE, typename T>
-        T d_log_prob_d_mean(const devices::random::ARM& dev, T mean, T log_std, T value){
-            return d_log_prob_d_mean(devices::random::Generic<devices::math::ARM>{}, mean, log_std, value);
-        }
-        template<typename DEVICE, typename T>
-        T d_log_prob_d_log_std(const devices::random::ARM& dev, T mean, T log_std, T value){
-            return d_log_prob_d_log_std(devices::random::Generic<devices::math::ARM>{}, mean, log_std, value);
-        }
-        template<typename DEVICE, typename T>
-        T d_log_prob_d_sample(const devices::random::ARM& dev, T mean, T log_std, T value){
-            return d_log_prob_d_sample(devices::random::Generic<devices::math::ARM>{}, mean, log_std, value);
-        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

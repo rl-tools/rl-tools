@@ -37,11 +37,6 @@ namespace rl_tools::random{
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
             return 0;
         }
-        template<typename DEVICE, typename T>
-        T log_prob(const devices::random::Dummy& dev, T mean, T log_std, T value){
-            static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
-            return 0;
-        }
     }
 //        static_assert(utils::typing::is_same_v<RNG, typename DEVICE::index_t>);
 //        //

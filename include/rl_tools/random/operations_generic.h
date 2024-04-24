@@ -64,22 +64,25 @@ namespace rl_tools::random{
             T pre_square = diff/std;
             return neg_log_sqrt_pi - log_std - 0.5 * pre_square * pre_square;
         }
-        template<typename MATH_DEV, typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT T d_log_prob_d_mean(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
+        template<typename RANDOM_DEVICE, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT T d_log_prob_d_mean(RANDOM_DEVICE& dev, T mean, T log_std, T value){
+            using MATH_DEV = typename RANDOM_DEVICE::MATH_DEVICE;
             T diff = (value - mean);
             T std = math::exp(MATH_DEV{}, log_std);
             T pre_square = diff/std;
             return pre_square / std;
         }
-        template<typename MATH_DEV, typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT T d_log_prob_d_log_std(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
+        template<typename RANDOM_DEVICE, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT T d_log_prob_d_log_std(RANDOM_DEVICE& dev, T mean, T log_std, T value){
+            using MATH_DEV = typename RANDOM_DEVICE::MATH_DEVICE;
             T diff = (value - mean);
             T std = math::exp(MATH_DEV{}, log_std);
             T pre_square = diff/std;
             return - 1 + pre_square * pre_square;
         }
-        template<typename MATH_DEV, typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT T d_log_prob_d_sample(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
+        template<typename RANDOM_DEVICE, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT T d_log_prob_d_sample(RANDOM_DEVICE& dev, T mean, T log_std, T value){
+            using MATH_DEV = typename RANDOM_DEVICE::MATH_DEVICE;
             T diff = (value - mean);
             T std = math::exp(MATH_DEV{}, log_std);
             T pre_square = diff/std;

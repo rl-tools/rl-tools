@@ -42,3 +42,5 @@
 - Check using separate learning rates for actor and critic (inspired by [CleanRL](https://github.com/vwxyzjn/cleanrl/blob/8cbca61360ef98660f149e3d76762350ce613323/cleanrl/sac_continuous_action.py#L52))
 - Check the [PPO implementation details regarding observation/reward normalization etc](https://github.com/vwxyzjn/cleanrl/blob/8cbca61360ef98660f149e3d76762350ce613323/cleanrl/ppo_continuous_action.py#L94)
   - Check [high epsilon Adam for PPO](https://github.com/vwxyzjn/cleanrl/blob/8cbca61360ef98660f149e3d76762350ce613323/cleanrl/ppo_continuous_action.py#L183)
+- Allow generic BLAS (`-lblas`)
+  - Renaming OpenBLAS to BLAS should be mostly sufficient
