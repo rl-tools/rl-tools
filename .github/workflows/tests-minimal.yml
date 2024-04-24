@@ -53,7 +53,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: rl-tools/get-conan@main
+      - uses: rl-tools/get-conan@5cebf423015045222156db5033a96f9b58b5b659
         with:
           version: 2.0.17
 
