@@ -56,7 +56,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::Parameters<T,
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
         static constexpr TI N_EPOCHS = MODE == BENCHMARK_MODE::LARGE ? 5 : (MODE == BENCHMARK_MODE::TINY ? 1 : 2);
         static constexpr T GAMMA = 0.9;
-        static constexpr T INITIAL_ACTION_STD = 1.0;
+        static constexpr T INITIAL_ACTION_STD = 2.0;
     };
     static constexpr TI BATCH_SIZE = MODE == BENCHMARK_MODE::LARGE ? 512 : (MODE == BENCHMARK_MODE::MEDIUM ? 256 : (MODE == BENCHMARK_MODE::SMALL ? 64 : (MODE == BENCHMARK_MODE::TINY ? 32 : 64)));
     static constexpr TI ACTOR_HIDDEN_DIM = MODE == BENCHMARK_MODE::LARGE ? 256 : (MODE == BENCHMARK_MODE::MEDIUM ? 64 : (MODE == BENCHMARK_MODE::SMALL ? 32 : (MODE == BENCHMARK_MODE::TINY ? 16 : 64)));

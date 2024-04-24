@@ -41,9 +41,8 @@ namespace rl_tools{
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         typedef typename SPEC::PARAMETERS PARAMS;
-//        T u_normalised = get(action, 0, 0);
-//        T u = PARAMS::max_torque * u_normalised;
-        T u = math::clamp(device.math, get(action, 0, 0), -PARAMS::max_torque, PARAMS::max_torque);
+        T u_normalised = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
+        T u = PARAMS::max_torque * u_normalised;
         T g = PARAMS::g;
         T m = PARAMS::m;
         T l = PARAMS::l;

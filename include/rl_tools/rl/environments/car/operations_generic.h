@@ -59,8 +59,8 @@ namespace rl_tools{
         using namespace rl::environments::car;
         using T = typename SPEC::T;
 
-        T throttle_break = get(action, 0, 0);
-        T delta = get(action, 0, 1);
+        T throttle_break = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
+        T delta = math::clamp(device.math, get(action, 0, 1), (T)-1, (T)1);
         
         auto& p = env.parameters;
         
