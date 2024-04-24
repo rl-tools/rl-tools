@@ -20,7 +20,7 @@ namespace rl_tools::devices{
         };
     }
     namespace random{
-        struct Dummy: dummy::Base{
+        struct Dummy:devices::random::Generic<devices::math::Dummy>, dummy::Base{
             static constexpr Type TYPE = Type::random;
             using State = unsigned;
         };

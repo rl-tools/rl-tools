@@ -33,7 +33,7 @@ namespace rl_tools::devices{
         };
     }
     namespace random{
-        struct ESP32: esp32::Base{
+        struct ESP32:devices::random::Generic<devices::math::ESP32>, esp32::Base{
             static constexpr Type TYPE = Type::random;
         };
     }

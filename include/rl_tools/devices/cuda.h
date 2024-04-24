@@ -23,7 +23,7 @@ namespace rl_tools::devices{
         };
     }
     namespace random{
-        struct CUDA: cuda::Base{
+        struct CUDA:devices::random::Generic<devices::math::CUDA>, cuda::Base{
             static constexpr Type TYPE = Type::random;
         };
     }

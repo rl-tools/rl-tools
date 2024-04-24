@@ -33,7 +33,7 @@ namespace rl_tools::devices{
         };
     }
     namespace random{
-        struct CPU: cpu::Base{
+        struct CPU: devices::random::Generic<devices::math::CPU>, cpu::Base{
             static constexpr Type TYPE = Type::random;
         };
     }

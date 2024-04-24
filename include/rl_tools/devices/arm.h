@@ -29,7 +29,7 @@ namespace rl_tools::devices{
         };
     }
     namespace random{
-        struct ARM: arm::Base{
+        struct ARM: devices::random::Generic<typename math::ARM>, arm::Base{
             static constexpr Type TYPE = Type::random;
         };
     }
