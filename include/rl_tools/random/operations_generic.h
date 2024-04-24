@@ -54,9 +54,10 @@ namespace rl_tools::random{
             T z = x * math::cos(MATH_DEV{}, y);
             return z * std + mean;
         }
-        template<typename MATH_DEV, typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT T log_prob(const devices::random::Generic<MATH_DEV>& dev, T mean, T log_std, T value){
+        template<typename RANDOM_DEVICE, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT T log_prob(const RANDOM_DEVICE& dev, T mean, T log_std, T value){
             static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
+            using MATH_DEV = typename RANDOM_DEVICE::MATH_DEVICE;
             T neg_log_sqrt_pi = -0.5 * math::log(MATH_DEV{}, 2 * math::PI<T>);
             T diff = (value - mean);
             T std = math::exp(MATH_DEV{}, log_std);

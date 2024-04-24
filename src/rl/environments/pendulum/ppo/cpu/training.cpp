@@ -15,8 +15,10 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
+#ifdef RL_TOOLS_ENABLE_JSON
 #include <nlohmann/json.hpp>
 #include <fstream>
+#endif
 
 namespace rlt = rl_tools;
 
@@ -161,11 +163,13 @@ int main(int argc, char** argv) {
     std::cout << "Mean return: " << mean << std::endl;
     std::cout << "Std return: " << std << std::endl;
     std::cout << "Median return: " << median << std::endl;
+#ifdef RL_TOOLS_ENABLE_JSON
     nlohmann::json j;
     for(auto& return_stats: returns){
         j.push_back(return_stats.returns);
     }
     std::ofstream file("pendulum_ppo_returns.json");
     file << j.dump(4);
+#endif
     return 0;
 }

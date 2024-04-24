@@ -43,6 +43,7 @@ option(RL_TOOLS_ENABLE_LTO "Enable link-time optimization" OFF)
 option(RL_TOOLS_ENABLE_FAST_MATH "Enable (possibly unsafe) fast math operations" OFF)
 option(RL_TOOLS_COMPILER_FLAGS "Additional compiler flags" OFF)
 option(RL_TOOLS_DISABLE_CPU_SPECIFIC_OPTIMIZATIONS "Disable CPU specific optimizations (e.g. for building portable Docker containers)" OFF)
+option(RL_TOOLS_DISABLE_UNALIGNED_MEMORY_ALLOCATIONS "Disable unaligned memory allocations" OFF)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release" AND RL_TOOLS_ENABLE_LTO)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
@@ -59,7 +60,6 @@ set(BUILD_SHARED_LIBS OFF)
 # RLtools::Optimizations: Minimal + Optimizations (e.g. -ffast-math, -march=native)
 # RLtools::OptimizationsCUDA: Optimizations + CUDA optimizations (e.g. --use_fast_math)
 # RLtools::RLtools: OptimizationsCUDA + everything else (e.g. UI, Mujoco)
-
 add_library(rl_tools_core INTERFACE) # This is the most "clean" target it just contains the include directories
 set_property(TARGET rl_tools_core PROPERTY EXPORT_NAME Core)
 target_compile_features(rl_tools_core INTERFACE cxx_std_17)
@@ -86,6 +86,9 @@ install(FILES "${PROJECT_BINARY_DIR}/RLtoolsConfigVersion.cmake"
         DESTINATION lib/cmake/RLtools)
 add_library(rl_tools_core_definitions INTERFACE) # This target additionally contains definitions
 set_property(TARGET rl_tools_core_definitions PROPERTY EXPORT_NAME CoreDefinitions)
+if(RL_TOOLS_DISABLE_UNALIGNED_MEMORY_ALLOCATIONS)
+    target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_DISABLE_UNALIGNED_MEMORY_ALLOCATIONS)
+endif()
 target_link_libraries(rl_tools_core_definitions INTERFACE rl_tools_core)
 add_library(rl_tools_backend INTERFACE)
 set_property(TARGET rl_tools_backend PROPERTY EXPORT_NAME Backend)
@@ -179,6 +182,7 @@ if(RL_TOOLS_BACKEND_ENABLE_MKL)
     set(RL_TOOLS_BACKEND_ENABLE_BLAS ON)
 endif()
 
+
 if(RL_TOOLS_BACKEND_ENABLE_ACCELERATE)
     find_package(BLAS REQUIRED)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_BACKEND_ENABLE_ACCELERATE)
@@ -248,7 +252,6 @@ if(RL_TOOLS_ENABLE_HDF5)
 endif()
 
 if(RL_TOOLS_ENABLE_TENSORBOARD)
-	find_package(Protobuf REQUIRED)
     add_subdirectory(external/tensorboard)
     get_target_property(library_type tensorboard_logger TYPE)
     message(STATUS "Tensorboard library type: ${library_type}")

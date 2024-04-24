@@ -42,14 +42,34 @@ namespace rl_tools{
 #if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS) and !defined(RL_TOOLS_DISABLE_UNALIGNED_MEMORY_ALLOCATIONS)
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, MatrixDynamic<SPEC>& matrix){
+        using TI = typename DEVICE::index_t;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
 #endif
-#ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
-        matrix._data = (typename SPEC::T*) ::malloc(SPEC::SIZE_BYTES);
+#ifndef RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS
+        static constexpr TI POINTER_SIZE = sizeof(void*);
+        static constexpr TI BYTE_ALIGNMENT = 64;
+        static constexpr TI ALIGNED_SIZE = SPEC::SIZE_BYTES + BYTE_ALIGNMENT + POINTER_SIZE;
 #else
-        matrix._data = (typename SPEC::T*)new char[SPEC::SIZE_BYTES];
+        static constexpr TI ALIGNED_SIZE = SPEC::SIZE_BYTES;
 #endif
+#ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
+        void* original_pointer = ::malloc(ALIGNED_SIZE);
+#else
+        char* original_pointer = new char[ALIGNED_SIZE];
+#endif
+#ifndef RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS
+        char* byte_pointer = static_cast<char*>(original_pointer) + POINTER_SIZE;
+        static_assert(sizeof(TI) >= sizeof(void*), "TI must be at least as large as a pointer");
+        char* aligned_byte_pointer = reinterpret_cast<char*>((reinterpret_cast<TI>(byte_pointer) + BYTE_ALIGNMENT - 1) & ~(BYTE_ALIGNMENT - 1));
+        char* original_pointer_storage = aligned_byte_pointer - POINTER_SIZE;
+        *((decltype(original_pointer)*)original_pointer_storage) = original_pointer;
+        matrix._data = reinterpret_cast<typename SPEC::T*>(aligned_byte_pointer);
+#else
+        matrix._data = reinterpret_cast<typename SPEC::T*>(original_pointer);
+#endif
+
+
         count_malloc(device, SPEC::SIZE_BYTES);
 
 #ifdef RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
@@ -62,13 +82,19 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, MatrixDynamic<SPEC>& matrix){
+        using TI = typename DEVICE::index_t;
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data != nullptr, "Matrix has not been allocated");
 #endif
+        char* aligned_byte_pointer = reinterpret_cast<char*>(matrix._data);
+        static constexpr TI POINTER_SIZE = sizeof(void*);
+        char* original_pointer_storage = aligned_byte_pointer - POINTER_SIZE;
 #ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
-        ::free(matrix._data);
+        void* original_pointer = *((void**)original_pointer_storage);
+        ::free(original_pointer);
 #else
-        delete matrix._data;
+        char* original_pointer = *((char**)original_pointer_storage);
+        delete original_pointer;
 #endif
         matrix._data = nullptr;
     }
