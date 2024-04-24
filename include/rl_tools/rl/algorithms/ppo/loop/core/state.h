@@ -5,6 +5,7 @@
 
 #include "../../../../../rl/algorithms/ppo/ppo.h"
 #include "../../../../../rl/components/off_policy_runner/off_policy_runner.h"
+#include "../../../../../rl/environments/environments.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
