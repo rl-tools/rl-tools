@@ -273,9 +273,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     rlt::randn(device, input, rng);
     rlt::print(device, input);
 
-    rlt::forward(device, sequential, input, output_sequential);
+    rlt::forward(device, sequential, input, output_sequential, rng);
     rlt::print(device, output_sequential);
-    rlt::evaluate(device, sequential, input, output_sequential_evaluate, buffer);
+    rlt::evaluate(device, sequential, input, output_sequential_evaluate, buffer, rng);
     rlt::print(device, output_sequential_evaluate);
 
     auto abs_diff = rlt::abs_diff(device, output_sequential_evaluate, output_sequential);
@@ -375,9 +375,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     rlt::zero_gradient(device, layer_1);
     rlt::zero_gradient(device, layer_2);
     rlt::zero_gradient(device, layer_3);
-    rlt::forward(device, layer_1, input, hidden_tick);
-    rlt::forward(device, layer_2, hidden_tick, hidden_tock);
-    rlt::forward(device, layer_3, hidden_tock, output_chain);
+    rlt::forward(device, layer_1, input, hidden_tick, rng);
+    rlt::forward(device, layer_2, hidden_tick, hidden_tock, rng);
+    rlt::forward(device, layer_3, hidden_tock, output_chain, rng);
     rlt::backward(device, layer_3, hidden_tock, d_output, d_hidden_tick);
     rlt::backward(device, layer_2, hidden_tick, d_hidden_tick, d_hidden_tock);
     rlt::backward(device, layer_1, input, d_hidden_tock, d_input_chain);

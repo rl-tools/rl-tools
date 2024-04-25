@@ -49,7 +49,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
 
-    rlt::evaluate(device, model, input, output, buffer);
+    rlt::evaluate(device, model, input, output, buffer, rng);
 
     rlt::print(device, output);
 

@@ -254,7 +254,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 
             rlt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
-            rlt::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_critic.critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers);
+            rlt::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_critic.critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers, rng);
 
 
             rlt::reset_forward_state(device, pre_critic_1);
@@ -306,7 +306,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
                 rlt::load(device, critic_training_buffers.target_next_action_noise, step_group, "target_next_action_noise");
 
                 rlt::gather_batch<DEVICE, OFF_POLICY_RUNNER_SPEC, CRITIC_BATCH_SPEC, decltype(rng), true>(device, off_policy_runner, critic_batch, rng);
-                rlt::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[1], actor_buffers[0], critic_buffers[0], critic_training_buffers);
+                rlt::train_critic(device, actor_critic, actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[1], actor_buffers[0], critic_buffers[0], critic_training_buffers, rng);
             }
             rlt::copy(device, device, actor_critic.critic_1, pre_critic_1);
 

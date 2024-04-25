@@ -35,7 +35,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     rlt::malloc(device, output);
     rlt::randn(device, input, rng);
     rlt::print(device, input);
-    rlt::evaluate(device, layer, input, output);
+    rlt::evaluate(device, layer, input, output, rng);
     using PARAMETER_TYPE_2 = rlt::nn::parameters::Gradient;
     using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE_2>;
     rlt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC> layer_2;

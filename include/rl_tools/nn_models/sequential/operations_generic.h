@@ -61,8 +61,8 @@ namespace rl_tools{
         }
     }
     // Evaluate is like a forward pass but without saving intermediate activations (so a backward pass is not possible). Hence we can reuse the memory of the intermediate outputs and just require a double buffer where each buffer has to be able to contain the maximum hidden dimension of the module
-    template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
-    void evaluate(DEVICE& device, const nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
+    template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG>
+    void evaluate(DEVICE& device, const nn_models::sequential::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng){
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         static_assert(BUFFER_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
@@ -70,25 +70,25 @@ namespace rl_tools{
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            evaluate(device, model.content, input, output);
+            evaluate(device, model.content, input, output, rng);
         }
         else{
             DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
             auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            evaluate(device, model.content, input, output_buffer_view);
-            evaluate<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(output_buffer_view)::SPEC, OUTPUT_SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, output_buffer_view, output, buffers);
+            evaluate(device, model.content, input, output_buffer_view, rng);
+            evaluate<!TICK>(device, model.next_module, output_buffer_view, output, buffers, rng);
         }
     }
-    template <typename DEVICE, typename MODULE_SPEC, typename INPUT>
-    void forward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module, INPUT& input){
-        forward(device, module.content, input);
+    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename RNG>
+    void forward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module, INPUT& input, RNG& rng){
+        forward(device, module.content, input, rng);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            forward(device, module.next_module, module.content.output);
+            forward(device, module.next_module, module.content.output, rng);
         }
     }
-    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT>
-    void forward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module, INPUT& input, OUTPUT& output){
-        forward(device, module, input);
+    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename RNG>
+    void forward(DEVICE& device, nn_models::sequential::Module<MODULE_SPEC>& module, INPUT& input, OUTPUT& output, RNG& rng){
+        forward(device, module, input, rng);
         copy(device, device, rl_tools::output(module), output);
     }
     template <typename DEVICE, typename MODULE_SPEC>

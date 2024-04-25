@@ -54,7 +54,7 @@ namespace rl_tools{
             }
             {
 //                auto start = std::chrono::high_resolution_clock::now();
-                evaluate(device_evaluation, actor_evaluation, evaluation_buffer_evaluation.observations, evaluation_buffer_evaluation.actions, policy_eval_buffers);
+                evaluate(device_evaluation, actor_evaluation, evaluation_buffer_evaluation.observations, evaluation_buffer_evaluation.actions, policy_eval_buffers, rng);
                 cudaDeviceSynchronize();
 //                auto end = std::chrono::high_resolution_clock::now();
 //                evaluate_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();

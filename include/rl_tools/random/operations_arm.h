@@ -16,6 +16,11 @@ namespace rl_tools::random{
     constexpr devices::random::ARM::index_t next_max(const devices::random::ARM& dev){
         return devices::random::ARM::MAX_INDEX;
     }
+    template <typename TI, typename RNG>
+    auto split(const devices::random::ARM& dev, TI split_id, RNG& rng){
+        // this operation should not alter the state of rng
+        return split(devices::random::Generic<devices::math::ARM>{}, split_id, rng);
+    }
     template<typename RNG>
     void next(const devices::random::ARM& dev, RNG& rng){
 //        static_assert(utils::typing::is_same_v<RNG, devices::random::ARM::index_t>);

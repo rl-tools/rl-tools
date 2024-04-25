@@ -151,8 +151,8 @@ namespace rl_tools{
             set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
         }
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS>
-    void train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename RNG>
+    void train_critic(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
         // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -161,37 +161,37 @@ namespace rl_tools{
         static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
         zero_gradient(device, critic);
 
-        evaluate(device, actor_critic.actor_target, batch.next_observations, training_buffers.next_actions, actor_buffers);
+        evaluate(device, actor_critic.actor_target, batch.next_observations, training_buffers.next_actions, actor_buffers, rng);
         noisy_next_actions(device, training_buffers);
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
-        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
-        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
+        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
+        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
 
         target_actions(device, actor_critic, batch, training_buffers);
-        forward(device, critic, batch.observations_and_actions);
+        forward(device, critic, batch.observations_and_actions, rng);
         nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output);
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
         step(device, optimizer, critic);
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
-    typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_TYPE::template Buffer<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template Buffer<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename RNG>
+    typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_TYPE::template Buffer<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template Buffer<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::CriticTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
         // requires training_buffers.target_next_action_noise to be populated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
-        evaluate(device, actor_critic.actor_target, batch.next_observations, training_buffers.next_actions, actor_buffers);
+        evaluate(device, actor_critic.actor_target, batch.next_observations, training_buffers.next_actions, actor_buffers, rng);
         noisy_next_actions(device, training_buffers);
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
-        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers);
-        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers);
+        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
+        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
 
         target_actions(device, actor_critic, batch, training_buffers);
-        evaluate(device, critic, batch.observations_and_actions, training_buffers.action_value, critic_buffers);
+        evaluate(device, critic, batch.observations_and_actions, training_buffers.action_value, critic_buffers, rng);
         return nn::loss_functions::mse::evaluate(device, training_buffers.action_value, training_buffers.target_action_value);
     }
-    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS>
-    void train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename RNG>
+    void train_actor(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
@@ -201,10 +201,10 @@ namespace rl_tools{
         static_assert(SPEC::ACTOR_TYPE::OUTPUT_DIM == ACTION_DIM);
 
         zero_gradient(device, actor_critic.actor);
-        forward(device, actor_critic.actor, batch.observations, training_buffers.actions);
+        forward(device, actor_critic.actor, batch.observations, training_buffers.actions, rng);
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         auto& critic = actor_critic.critic_1;
-        forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value);
+        forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, rng);
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward_input(device, critic, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
         auto d_actor_output = view(device, training_buffers.d_critic_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_TYPE::INPUT_DIM - ACTION_DIM);
@@ -213,16 +213,16 @@ namespace rl_tools{
         step(device, optimizer, actor_critic.actor);
     }
 
-    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE>
-    typename SPEC::T actor_value(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename SPEC::CRITIC_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers) {
+    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename RNG>
+    typename SPEC::T actor_value(DEVICE& device, rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename SPEC::CRITIC_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::td3::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
 
-        evaluate(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers);
+        evaluate(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng);
         copy(device, device, batch.observations, training_buffers.observations);
         auto& critic = actor_critic.critic_1;
-        evaluate(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, critic_buffers);
+        evaluate(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, critic_buffers, rng);
         return mean(device, training_buffers.state_action_value);
     }
 

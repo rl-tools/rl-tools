@@ -23,7 +23,9 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, COMPILE){
     rlt::malloc(device, output);
     rlt::malloc(device, buffer);
 
-    rlt::evaluate(device, rl_tools_export::model::model, rl_tools_export::input::container, output, buffer);
+    bool rng = false;
+
+    rlt::evaluate(device, rl_tools_export::model::model, rl_tools_export::input::container, output, buffer, rng);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
 

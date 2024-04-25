@@ -85,10 +85,10 @@ namespace rl_tools{
             prologue_kernel<<<grid, block, 0, device.stream>>>(tag_device, runner, rng);
             check_status(device);
         }
-        template<typename DEV_SPEC, typename SPEC, typename POLICY>
-        void interlude(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, typename POLICY::template Buffer<SPEC::N_ENVIRONMENTS>& policy_eval_buffers) {
+        template<typename DEV_SPEC, typename SPEC, typename POLICY, typename RNG>
+        void interlude(devices::CUDA<DEV_SPEC>& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, typename POLICY::template Buffer<SPEC::N_ENVIRONMENTS>& policy_eval_buffers, RNG& rng) {
             // runner struct should be on the CPU while its buffers should be on the GPU
-            evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
+            evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers, rng);
         }
 
         template<typename DEVICE, typename SPEC, typename RNG>
@@ -155,7 +155,7 @@ namespace rl_tools{
         rng = random::next(typename DEVICE::SPEC::RANDOM{}, rng);
         rl::components::off_policy_runner::prologue(device, runner_device, rng);
         rl::components::off_policy_runner::interlude(device, runner_host, policy_host, policy_eval_buffers_host);
-//        evaluate(device, policy_host, runner_host.buffers.observations, runner_host.buffers.actions, policy_eval_buffers_host);
+//        evaluate(device, policy_host, runner_host.buffers.observations, runner_host.buffers.actions, policy_eval_buffers_host, rng);
         rng = random::next(typename DEVICE::SPEC::RANDOM{}, rng);
         rl::components::off_policy_runner::epilogue(device, runner_device, rng);
     }

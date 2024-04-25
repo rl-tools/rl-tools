@@ -5,6 +5,7 @@
 
 #include "../../../../../nn_models/sequential/model.h"
 #include "../../../../../nn_models/mlp/network.h"
+#include "../../../../../nn_models/uniform_random/model.h"
 #include "../../../../../rl/algorithms/sac/sac.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
 #include "state.h"
@@ -18,7 +19,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     struct DefaultParameters{
         using SAC_PARAMETERS = rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>;
         static constexpr TI N_ENVIRONMENTS = 1;
-        static constexpr TI N_WARMUP_STEPS = SAC_PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr TI N_WARMUP_STEPS = 100;
+        static_assert(N_WARMUP_STEPS >= SAC_PARAMETERS::ACTOR_BATCH_SIZE);
         static constexpr TI STEP_LIMIT = 10000;
         static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT; // Note: when inheriting from this class for overwriting the default STEP_LIMIT you need to set the REPLAY_BUFFER_CAP as well otherwise it will be the default step limit
         static constexpr TI EPISODE_STEP_LIMIT = 200;
@@ -111,7 +113,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, CORE_PARAMETERS, CONTAINER_TYPE_TAG>;
 //        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 
-
+        using EXPLORATION_POLICY_SPEC = nn_models::uniform_random::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, nn_models::uniform_random::Range::MINUS_ONE_TO_ONE>;
+        using EXPLORATION_POLICY = nn_models::UniformRandom<EXPLORATION_POLICY_SPEC>;
 
         using ALPHA_PARAMETER_TYPE = nn::parameters::Adam;
         using ALPHA_OPTIMIZER = nn::optimizers::Adam<typename NN::OPTIMIZER_SPEC>;

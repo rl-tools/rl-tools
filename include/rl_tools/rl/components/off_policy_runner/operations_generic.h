@@ -120,16 +120,19 @@ namespace rl_tools{
                 prologue_per_env(device, runner, rng, env_i);
             }
         }
-        template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS>
-        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers){
-            evaluate(device, policy, runner.buffers.observations, runner.buffers.actions, policy_eval_buffers);
+        template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>
+        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng){
+            using TI = typename DEVICE::index_t;
+            constexpr TI BATCH_SIZE = decltype(runner.buffers.actions)::ROWS;
+            auto action_view = view(device, runner.buffers.actions, matrix::ViewSpec<BATCH_SIZE, POLICY::OUTPUT_DIM>{});
+            evaluate(device, policy, runner.buffers.observations, action_view, policy_eval_buffers, rng);
         }
 
-        template<typename DEVICE, typename SPEC, typename RNG>
-        void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng){
+        template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
+        void epilogue(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, const POLICY& policy, RNG& rng){
             using TI = typename DEVICE::index_t;
             for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-                epilogue_per_env(device, runner, rng, env_i);
+                epilogue_per_env(device, runner, policy, rng, env_i);
             }
         }
     }
@@ -139,15 +142,16 @@ namespace rl_tools{
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
 #endif
         static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
-        static_assert(POLICY::OUTPUT_DIM == (SPEC::ENVIRONMENT::ACTION_DIM * (SPEC::STOCHASTIC_POLICY ? 2 : 1)), "The policy's output dimension must match the environment's action dimension.");
+//        static_assert(POLICY::OUTPUT_DIM == (SPEC::ENVIRONMENT::ACTION_DIM * (SPEC::STOCHASTIC_POLICY ? 2 : 1)), "The policy's output dimension must match the environment's action dimension.");
+        static_assert(POLICY::OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM ||  POLICY::OUTPUT_DIM == 2*SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         // todo: increase efficiency by removing the double observation of each state
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
 
         rl::components::off_policy_runner::prologue(device, runner, rng);
-        rl::components::off_policy_runner::interlude(device, runner, policy, policy_eval_buffers);
-        rl::components::off_policy_runner::epilogue(device, runner, rng);
+        rl::components::off_policy_runner::interlude(device, runner, policy, policy_eval_buffers, rng);
+        rl::components::off_policy_runner::epilogue(device, runner, policy, rng);
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
     void gather_batch(DEVICE& device, const rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {

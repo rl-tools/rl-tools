@@ -92,8 +92,8 @@ void test_correctness(){
     rlt::copy(device, sdevice, model.hidden_layers[0], sequential_model.next_module.content);
     rlt::copy(device, sdevice, model.output_layer, sequential_model.next_module.next_module.content);
 
-    rlt::evaluate(device, model, input, output_eval, buffer);
-    rlt::evaluate(sdevice, sequential_model, input, output_sequential_eval, sequential_buffer);
+    rlt::evaluate(device, model, input, output_eval, buffer, rng);
+    rlt::evaluate(sdevice, sequential_model, input, output_sequential_eval, sequential_buffer, rng);
 
     {
         auto abs_diff = rlt::abs_diff(device, output_eval, output_sequential_eval);
@@ -101,8 +101,8 @@ void test_correctness(){
         ASSERT_LT(abs_diff, CONFIG::THRESHOLD);
     }
 
-    rlt::forward(device, model, input, output);
-    rlt::forward(sdevice, sequential_model, input, output_sequential);
+    rlt::forward(device, model, input, output, rng);
+    rlt::forward(sdevice, sequential_model, input, output_sequential, rng);
 
     {
         auto abs_diff = rlt::abs_diff(device, output, output_sequential);
@@ -161,8 +161,8 @@ void test_correctness(){
     rlt::reset_optimizer_state(sdevice, sequential_optimizer, sequential_model);
     rlt::zero_gradient(device, model);
     rlt::zero_gradient(sdevice, sequential_model);
-    rlt::forward(device, model, input, output);
-    rlt::forward(sdevice, sequential_model, input, output_sequential);
+    rlt::forward(device, model, input, output, rng);
+    rlt::forward(sdevice, sequential_model, input, output_sequential, rng);
     rlt::backward_full(device, model, input, d_output, d_input, buffer);
     rlt::backward_full(sdevice, sequential_model, input, d_output, d_input_sequential, sequential_buffer);
 
@@ -266,8 +266,8 @@ void test_benchmark(){
     rlt::copy(device, device, model.hidden_layers[0], sequential_model.next_module.content);
     rlt::copy(device, device, model.output_layer, sequential_model.next_module.next_module.content);
 
-    rlt::forward(device, model, input, output);
-    rlt::evaluate(device, sequential_model, input, output_sequential, sequential_buffer);
+    rlt::forward(device, model, input, output, rng);
+    rlt::evaluate(device, sequential_model, input, output_sequential, sequential_buffer, rng);
 
     rlt::print(device, output);
     rlt::print(device, output_sequential);

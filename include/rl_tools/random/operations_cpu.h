@@ -8,6 +8,7 @@
 #include "operations_generic.h"
 
 #include <random>
+#include <limits>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
@@ -19,6 +20,14 @@ namespace rl_tools::random{
     T uniform_int_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
         return std::uniform_int_distribution<T>(low, high)(rng);
     }
+    template <typename TI, typename RNG>
+    auto split(const devices::random::CPU& dev, TI split_id, RNG& rng){
+        // this operation should not alter the state of rng
+        RNG rng_copy = rng;
+        TI new_seed = random::uniform_int_distribution(dev, std::numeric_limits<TI>::min(), std::numeric_limits<TI>::max(), rng_copy);
+        return std::default_random_engine(new_seed + split_id);
+    }
+
     template<typename T, typename RNG>
     T uniform_real_distribution(const devices::random::CPU& dev, T low, T high, RNG& rng){
         static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);

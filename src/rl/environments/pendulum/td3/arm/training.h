@@ -180,7 +180,7 @@ void train(){
             for(int critic_i = 0; critic_i < 2; critic_i++){
                 rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 rlt::gather_batch(device, off_policy_runner, critic_batch, rng);
-                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers, critic_buffers, critic_training_buffers);
+                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, actor_critic.critic_optimizers[critic_i], actor_buffers, critic_buffers, critic_training_buffers, rng);
             }
 
             if(step_i % 2 == 0){

@@ -23,6 +23,13 @@ namespace rl_tools::random{
        rng ^= (rng >> 17);
        rng ^= (rng << 5);
    }
+    template <typename MATH_DEV, typename TI, typename RNG>
+    auto split(const devices::random::Generic<MATH_DEV>& dev, TI split_id, RNG& rng){
+        // this operation should not alter the state of rng
+        RNG rng_copy = rng;
+        auto next_value = next(dev, rng_copy);
+        return default_engine(dev, next_value + split_id);
+    }
 
    template<typename MATH_DEV, typename T, typename RNG>
    T uniform_int_distribution(const devices::random::Generic<MATH_DEV>& dev, T low, T high, RNG& rng){

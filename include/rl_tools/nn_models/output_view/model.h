@@ -28,15 +28,15 @@ namespace rl_tools::nn_models::output_view{
 RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFERS>
-    void evaluate(DEVICE& device, const nn_models::output_view::MODEL<SPEC>& actor, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, BUFFERS& eval_buffers){
+    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFERS, typename RNG>
+    void evaluate(DEVICE& device, const nn_models::output_view::MODEL<SPEC>& actor, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, BUFFERS& eval_buffers, RNG& rng){
         using T = typename OUTPUT_SPEC::T;
         using TI = typename OUTPUT_SPEC::TI;
         static_assert(OUTPUT_SPEC::COLS == SPEC::DIM);
         static_assert(BUFFERS::BATCH_SIZE == SPEC::DIM);
         MatrixDynamic<matrix::Specification<T, TI, OUTPUT_SPEC::ROWS, SPEC::MODEL::OUTPUT_DIM>> actor_output;
         malloc(device, actor_output);
-        evaluate(device, actor.model, input, actor_output, eval_buffers);
+        evaluate(device, actor.model, input, actor_output, eval_buffers, rng);
         auto output_view = view(device, actor_output, matrix::ViewSpec<OUTPUT_SPEC::ROWS, SPEC::DIM>{}, 0, SPEC::OFFSET);
         copy(device, device, output_view, output);
         free(device, actor_output);

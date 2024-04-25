@@ -169,11 +169,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
             rlt::set(input, 0, batch.states[batch_sample_i].size() + i, batch.actions[batch_sample_i][i]);
         }
 
-        rlt::evaluate(device, actor_critic.critic_1, input, output);
+        rlt::evaluate(device, actor_critic.critic_1, input, output, rng);
         std::cout << "output: " << rlt::get(output, 0, 0) << std::endl;
         ASSERT_LT(abs(rlt::get(output, 0, 0) - outputs[batch_sample_i][0]), 1e-15);
 
-        rlt::evaluate(device, actor_critic.critic_target_1, input, output);
+        rlt::evaluate(device, actor_critic.critic_target_1, input, output, rng);
         std::cout << "output: " << rlt::get(output, 0, 0) << std::endl;
         ASSERT_LT(abs(rlt::get(output, 0, 0) - outputs[batch_sample_i][0]), 1e-15);
         rlt::free(device, input);
@@ -234,12 +234,12 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
             rlt::set(input, 0, batch.states[batch_sample_i].size() + i, batch.actions[batch_sample_i][i]);
         }
         rlt::set(target, 0, 0, 1);
-        rlt::evaluate(device, actor_critic.critic_1, input, output);
+        rlt::evaluate(device, actor_critic.critic_1, input, output, rng);
         loss += rlt::nn::loss_functions::mse::evaluate(device, output, target);
 
 //        rlt::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
         {
-            rlt::forward(device, actor_critic.critic_1, input);
+            rlt::forward(device, actor_critic.critic_1, input, rng);
             rlt::nn::loss_functions::mse::gradient(device, actor_critic.critic_1.output_layer.output, target, d_output_critic, DTYPE(1)/32);
             rlt::backward_full(device, actor_critic.critic_1, input, d_output_critic, d_input_critic, critic_buffers);
         }
@@ -384,7 +384,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         }
 //        assert(!rlt::is_nan(device, actor_critic));
 
-        rlt::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_critic.critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers);
+        rlt::train_critic(device, actor_critic, actor_critic.critic_1, critic_batch, actor_critic.critic_optimizers[0], actor_buffers[0], critic_buffers[0], critic_training_buffers, rng);
 
         auto target_next_action_diff = rlt::abs_diff(device, critic_training_buffers_target.next_actions, critic_training_buffers.next_actions);
         auto next_state_action_value_input_diff = rlt::abs_diff(device, critic_training_buffers_target.next_state_action_value_input, critic_training_buffers.next_state_action_value_input);

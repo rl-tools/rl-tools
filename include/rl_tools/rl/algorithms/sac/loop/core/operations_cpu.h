@@ -20,9 +20,10 @@ namespace rl_tools{
             if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
                 std::thread critic_threads[2];
                 auto train_critic_i = [&](TI critic_i){
-                    gather_batch(device, ts.off_policy_runner, ts.critic_batch[critic_i], ts.rng);
-                    randn(device, ts.action_noise_critic[critic_i], ts.rng);
-                    train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i]);
+                    auto rng = random::split(device.random, critic_i, ts.rng);
+                    gather_batch(device, ts.off_policy_runner, ts.critic_batch[critic_i], rng);
+                    randn(device, ts.action_noise_critic[critic_i], rng);
+                    train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i], rng);
                 };
                 critic_threads[0] = std::thread([&](){ train_critic_i(0); });
                 critic_threads[1] = std::thread([&](){ train_critic_i(1); });
@@ -32,7 +33,7 @@ namespace rl_tools{
             if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
                 gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
                 randn(device, ts.action_noise_actor, ts.rng);
-                train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor);
+                train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
                 update_critic_targets(device, ts.actor_critic);
             }
         }

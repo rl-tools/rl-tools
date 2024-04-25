@@ -127,7 +127,7 @@ namespace rl_tools{
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
                 copy(device, device_evaluation, batch_observations, hybrid_buffers.observations);
-                forward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.actions);
+                forward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.actions, rng);
                 copy(device_evaluation, device, hybrid_buffers.actions, ppo_buffers.current_batch_actions);
 //                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
 
@@ -218,7 +218,7 @@ namespace rl_tools{
                 copy(device, device_evaluation, batch_target_values, hybrid_buffers.target_values);
 //                forward_backward_mse(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.target_values, critic_buffers);
                 {
-                    forward(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations);
+                    forward(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, rng);
                     nn::loss_functions::mse::gradient(device_evaluation, output(ppo_evaluation.critic), hybrid_buffers.target_values, hybrid_buffers.d_critic_output);
                     backward(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.d_critic_output, critic_buffers);
                 }

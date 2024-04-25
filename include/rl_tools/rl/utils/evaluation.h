@@ -61,7 +61,7 @@ namespace rl_tools{
         normalize(device, observation_mean, observation_std, observation, observation_normalized);
 
         auto action = view(device, action_full, matrix::ViewSpec<1, ENVIRONMENT::ACTION_DIM>{});
-        evaluate(device, policy, observation_normalized, action_full, policy_eval_buffers);
+        evaluate(device, policy, observation_normalized, action_full, policy_eval_buffers, rng);
 
         if constexpr(STOCHASTIC_POLICY){ // todo: This is a special case for SAC, will be uneccessary once (https://github.com/rl-tools/rl-tools/blob/72a59eabf4038502c3be86a4f772bd72526bdcc8/TODO.md?plain=1#L22) is implemented
             for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){

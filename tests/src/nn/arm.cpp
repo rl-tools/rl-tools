@@ -41,8 +41,8 @@ void test_mlp_evaluate() {
     rlt::malloc(device, output_orig);
     rlt::malloc(device, output_arm);
     rlt::randn(device, input, rng);
-    rlt::evaluate(device, mlp, input, output_orig);
-    rlt::evaluate(device_arm, mlp, input, output_arm);
+    rlt::evaluate(device, mlp, input, output_orig, rng);
+    rlt::evaluate(device_arm, mlp, input, output_arm, rng);
     rlt::print(device, output_orig);
 
     auto abs_diff = rlt::abs_diff(device, output_orig, output_arm);
@@ -86,8 +86,8 @@ void test_mlp_forward() {
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
     rlt::malloc(device, input);
     rlt::randn(device, input, rng);
-    rlt::forward(device, mlp_cpu, input);
-    rlt::forward(device_arm, mlp_arm, input);
+    rlt::forward(device, mlp_cpu, input, rng);
+    rlt::forward(device_arm, mlp_arm, input, rng);
     rlt::print(device, mlp_arm.output_layer.output);
 
     auto abs_diff_output = rlt::abs_diff(device, mlp_arm.output_layer.output, mlp_arm.output_layer.output);

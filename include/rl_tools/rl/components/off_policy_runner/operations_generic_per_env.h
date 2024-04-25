@@ -43,12 +43,13 @@ namespace rl_tools::rl::components::off_policy_runner{
             observe_privileged(device, env, state, observation_privileged, rng);
         }
     }
-    template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT auto process_and_get_action(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng, typename DEVICE::index_t env_i) {
+    template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT auto process_and_get_action(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, const POLICY& policy, RNG &rng, typename DEVICE::index_t env_i) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
-        if constexpr(SPEC::STOCHASTIC_POLICY){
+        static constexpr bool STOCHASTIC_POLICY = POLICY::OUTPUT_DIM == ENVIRONMENT::ACTION_DIM * 2;
+        if constexpr(STOCHASTIC_POLICY){
             for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
                 T log_std = get(runner.buffers.actions, env_i, ENVIRONMENT::ACTION_DIM+i);
                 T log_std_clip = math::clamp<T>(device.math, log_std, -20, 2); // todo: absorb this into the policy
@@ -70,12 +71,13 @@ namespace rl_tools::rl::components::off_policy_runner{
                 T action_noisy = get(runner.buffers.actions, env_i, i) + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T) 0, runner.parameters.exploration_noise, rng);
                 set(runner.buffers.actions, env_i, i, math::clamp<T>(device.math, action_noisy, -1, 1));
             }
-            return row(device, runner.buffers.actions, env_i);
+            return view(device, runner.buffers.actions, matrix::ViewSpec<1, SPEC::ENVIRONMENT::ACTION_DIM>{}, env_i, 0);
+//            return row(device, runner.buffers.actions, env_i);
         }
 
     }
-    template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void epilogue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, RNG &rng, typename DEVICE::index_t env_i) {
+    template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void epilogue_per_env(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, const POLICY& policy, RNG &rng, typename DEVICE::index_t env_i) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
@@ -88,7 +90,7 @@ namespace rl_tools::rl::components::off_policy_runner{
         auto& state = get(runner.states, 0, env_i);
         typename ENVIRONMENT::State next_state;
 
-        auto action = process_and_get_action(device, runner, rng, env_i);
+        auto action = process_and_get_action(device, runner, policy, rng, env_i);
 
         step(device, env, state, action, next_state, rng);
 

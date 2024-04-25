@@ -3,6 +3,8 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_OPERATIONS_GENERIC_H
 
+#include "../../../../../nn_models/operations_generic.h"
+#include "../../../../../nn_models/uniform_random/operations_generic.h"
 #include "../../../../../rl/algorithms/sac/operations_generic.h"
 #include "../../../../../rl/components/off_policy_runner/operations_generic.h"
 #include "../../../../../rl/utils/evaluation.h"
@@ -118,19 +120,26 @@ namespace rl_tools{
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;
-        step(device, ts.off_policy_runner, ts.actor_critic.actor, ts.actor_buffers_eval, ts.rng);
-        if(ts.step > CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
+        if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
+            step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng);
+        }
+        else{
+            typename CONFIG::EXPLORATION_POLICY exploration_policy;
+            typename CONFIG::EXPLORATION_POLICY::template Buffer<> exploration_policy_buffer;
+            step(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng);
+        }
+        if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
             if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
                 for(int critic_i = 0; critic_i < 2; critic_i++){
                     gather_batch(device, ts.off_policy_runner, ts.critic_batch[critic_i], ts.rng);
                     randn(device, ts.action_noise_critic[critic_i], ts.rng);
-                    train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i]);
+                    train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i], ts.rng);
                 }
             }
             if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
                 gather_batch(device, ts.off_policy_runner, ts.actor_batch, ts.rng);
                 randn(device, ts.action_noise_actor, ts.rng);
-                train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor);
+                train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
                 update_critic_targets(device, ts.actor_critic);
             }
         }

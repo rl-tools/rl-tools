@@ -221,7 +221,7 @@ void run(){
                             auto gather_batch_end = std::chrono::high_resolution_clock::now();
                             rlt::add_scalar(device, device.logger, "performance/gather_batch_duration", std::chrono::duration_cast<std::chrono::microseconds>(gather_batch_end - gather_batch_start).count(), performance_logging_interval);
                             auto critic_training_start = std::chrono::high_resolution_clock::now();
-                            rlt::train_critic(device, actor_critic, critic, critic_batch, optimizer, actor_buffers, critic_buffers, critic_training_buffers);
+                            rlt::train_critic(device, actor_critic, critic, critic_batch, optimizer, actor_buffers, critic_buffers, critic_training_buffers, rng);
                             auto critic_training_end = std::chrono::high_resolution_clock::now();
                             rlt::add_scalar(device, device.logger, "performance/critic_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(critic_training_end - critic_training_start).count(), performance_logging_interval);
                         };

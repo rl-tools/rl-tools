@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
             auto start = std::chrono::high_resolution_clock::now();
             rlt::observe(dev, env, state, observation, rng);
             rlt::normalize(dev, observation_normalizer.mean, observation_normalizer.std, observation);
-            rlt::evaluate(dev, actor, observation, action);
+            rlt::evaluate(dev, actor, observation, action, rng);
             T dt = rlt::step(dev, env, state, action, next_state, rng);
             bool terminated_flag = rlt::terminated(dev, env, next_state, rng);
             reward_acc += rlt::reward(dev, env, state, action, next_state, rng);

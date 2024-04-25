@@ -76,7 +76,7 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, TEST){
     rlt::copy(device, device, model.output_layer, sequential_model.next_module.next_module.content);
 
     rlt::forward(device, model, input, output);
-    rlt::evaluate(device, sequential_model, input, output_sequential, sequential_buffer);
+    rlt::evaluate(device, sequential_model, input, output_sequential, sequential_buffer, rng);
 
     rlt::print(device, output);
     rlt::print(device, output_sequential);
