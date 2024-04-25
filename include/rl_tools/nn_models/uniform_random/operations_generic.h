@@ -7,6 +7,8 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG>
     void evaluate(const DEVICE& device, nn_models::UniformRandom<SPEC>, Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::uniform_random::Buffer, RNG& rng){
+        static_assert(SPEC::OUTPUT_DIM == OUTPUT_SPEC::COLS, "Output dimension mismatch");
+        static_assert(SPEC::INPUT_DIM == INPUT_SPEC::COLS, "Input dimension mismatch");
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         for(TI row_i = 0; row_i < OUTPUT_SPEC::ROWS; row_i++){
