@@ -274,7 +274,8 @@ namespace rl_tools{
         actor_loss = alpha  * action_log_prob - min(Q_1, Q_2);
         d/d_mu _actor_loss = alpha * d/d_mu action_log_prob - d/d_mu min(Q_1, Q_2)
         d/d_mu action_log_prob = d/d_mu gaussian::log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample - 1/(1-tanh(action_sample)^2) * (-2*tanh(action_sample))*(1-tanh(action_sample)^2) * d/d_mu action_sample)
-                               = d/d_mu gaussian::log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample + 2*tanh(action_sample)) * d/d_mu action_sample)
+                               = d/d_mu gaussian::log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_mu action_sample + 2*tanh(action_sample)) * d/d_mu action_sample
+        d/d_std action_log_prob = d/d_std gaussian::log_prob(mu, std, action_sample) + d/d_action_sample gaussian::log_prob(mu, std, action_sample) * d/d_std action_sample + 2*tanh(action_sample) * d/d_std action_sample
         d/d_mu action_sample = 1
         d/d_std action_sample = noise
         d/d_mu min(Q_1, Q_2) = d/d_action min(Q_1, Q_2) * d/d_mu action
@@ -283,7 +284,7 @@ namespace rl_tools{
         bool critic_1_value = get(critic_1_output, batch_i, 0) < get(critic_2_output, batch_i, 0);
         T entropy = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            T action = get(training_buffers.actions, batch_i, action_i);
+            T action = get(training_buffers.actions, batch_i, action_i); // tanh(action_sample)
             T d_mu = 0;
             T d_std = 0;
             {
@@ -303,7 +304,6 @@ namespace rl_tools{
             T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_clamped);
 
             T d_log_std_clamped = std * d_std;
-            T d_log_std = log_std_pre_clamp < SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND || log_std_pre_clamp > SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND ? 0 : d_log_std_clamped;
 
             // Entropy bonus
             T mu = get(actions, batch_i, action_i);
@@ -316,7 +316,8 @@ namespace rl_tools{
 
             T noise = get(training_buffers.action_noise, batch_i, action_i);
             T d_log_prob_d_log_std = random::normal_distribution::d_log_prob_d_log_std(device.random, mu, log_std_clamped, action_sample);
-            d_log_std += alpha/BATCH_SIZE * (d_log_prob_d_log_std + d_log_prob_d_sample * noise * std + 2*action * noise * std);
+            d_log_std_clamped += alpha/BATCH_SIZE * (d_log_prob_d_log_std + d_log_prob_d_sample * noise * std + 2*action * noise * std);
+            T d_log_std = log_std_pre_clamp < SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND || log_std_pre_clamp > SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND ? 0 : d_log_std_clamped;
 
             set(training_buffers.d_actor_output, batch_i, action_i, d_mu);
             set(training_buffers.d_actor_output, batch_i, action_i + ACTION_DIM, d_log_std);
@@ -344,7 +345,7 @@ namespace rl_tools{
         d_alpha /= BATCH_SIZE;
         mean_entropy /= BATCH_SIZE;
 //            T d_log_alpha = 1/alpha * d_alpha; // This and the former optimize the same objective but the latter seems to work better
-        T d_log_alpha = d_alpha;
+        T d_log_alpha = alpha * d_alpha;
         set(actor_critic.log_alpha.gradient, 0, 0, d_log_alpha);
     }
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename ACTION_NOISE_SPEC, typename RNG>
@@ -364,6 +365,9 @@ namespace rl_tools{
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         forward(device, actor_critic.critic_1, training_buffers.state_action_value_input, rng);
         forward(device, actor_critic.critic_2, training_buffers.state_action_value_input, rng);
+        // we minimize the negative of the actor loss
+        // todo: evaluate only backpropagating the active values
+        // note: the alpha * entropy term is minimized according to d_action_d_action_distribution
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers);
