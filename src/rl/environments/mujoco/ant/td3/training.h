@@ -250,7 +250,7 @@ void run(){
                     if(step_i % parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
                         rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
                         auto actor_training_start = std::chrono::high_resolution_clock::now();
-                        rlt::train_actor(device, actor_critic, actor_batch, actor_optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+                        rlt::train_actor(device, actor_critic, actor_batch, actor_optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers, rng);
                         auto actor_training_end = std::chrono::high_resolution_clock::now();
                         rlt::add_scalar(device, device.logger, "performance/actor_training_duration", std::chrono::duration_cast<std::chrono::microseconds>(actor_training_end - actor_training_start).count(), performance_logging_interval);
                     }
@@ -260,7 +260,7 @@ void run(){
                 }
                 if(step_i % ACTOR_CRITIC_EVALUATION_SYNC_INTERVAL == 0){
                     rlt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
-                    DTYPE critic_1_loss = rlt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0]);
+                    DTYPE critic_1_loss = rlt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng);
                     rlt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
 
                     rlt::gather_batch(device, off_policy_runner, actor_batch, rng);

@@ -128,7 +128,7 @@ int main() {
             }
             if(step_i % 2 == 0){
                 rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
-                rlt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+                rlt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers, rng);
                 rlt::update_critic_targets(device, actor_critic);
                 rlt::update_actor_target(device, actor_critic);
             }

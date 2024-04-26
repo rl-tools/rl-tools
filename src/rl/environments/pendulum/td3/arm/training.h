@@ -186,7 +186,7 @@ void train(){
             if(step_i % 2 == 0){
                 {
                     rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
-                    rlt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers, critic_buffers, actor_training_buffers);
+                    rlt::train_actor(device, actor_critic, actor_batch, actor_critic.actor_optimizer, actor_buffers, critic_buffers, actor_training_buffers, rng);
                 }
 
                 rlt::update_critic_targets(device, actor_critic);
