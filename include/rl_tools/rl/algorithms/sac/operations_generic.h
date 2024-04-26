@@ -296,8 +296,8 @@ namespace rl_tools{
                     d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
                 }
                 T d_tanh_pre_activation = d_input * (1-action*action);
-                d_mu = d_tanh_pre_activation/BATCH_SIZE;
-                d_std = d_tanh_pre_activation * get(training_buffers.action_noise, batch_i, action_i)/BATCH_SIZE;
+                d_mu = d_tanh_pre_activation;
+                d_std = d_tanh_pre_activation * get(training_buffers.action_noise, batch_i, action_i);
             }
             T log_std_pre_clamp = get(actions, batch_i, action_i + ACTION_DIM);
             T log_std_clamped = math::clamp(device.math, log_std_pre_clamp, (T)SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND);
@@ -305,13 +305,12 @@ namespace rl_tools{
 
             T d_log_std_clamped = std * d_std;
 
-            // Entropy bonus
             T mu = get(actions, batch_i, action_i);
             T action_sample = get(training_buffers.action_sample, batch_i, action_i);
             T eps = 1e-6;
-//            T one_over_one_minus_action_square_plus_eps = 1/one_minus_action_square_plus_eps;
             T d_log_prob_d_mean = random::normal_distribution::d_log_prob_d_mean(device.random, mu, log_std_clamped, action_sample);
             T d_log_prob_d_sample = random::normal_distribution::d_log_prob_d_sample(device.random, mu, log_std_clamped, action_sample);
+            // NOTE: The following needs to be divided by BATCH_SIZE (in contrast to the previous d_mu and d_std). d_mu and d_std are already taking into account the mean prior to the backward call of the critic. Thence the d_critic_X_input is already divided by BATCH_SIZE
             d_mu += alpha/BATCH_SIZE * (d_log_prob_d_mean + d_log_prob_d_sample + 2*action);
 
             T noise = get(training_buffers.action_noise, batch_i, action_i);
