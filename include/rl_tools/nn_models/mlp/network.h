@@ -130,6 +130,7 @@ namespace rl_tools::nn_models::mlp {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
         template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Buffer = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
 
