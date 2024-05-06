@@ -122,19 +122,22 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using ACTOR_CRITIC_SPEC = rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, ALPHA_PARAMETER_TYPE, typename NN::OPTIMIZER, typename NN::OPTIMIZER, ALPHA_OPTIMIZER, typename CORE_PARAMETERS::SAC_PARAMETERS, CONTAINER_TYPE_TAG>;
         using ACTOR_CRITIC_TYPE = rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 
-        static constexpr bool STOCHASTIC_POLICY = true;
+        struct OFF_POLICY_RUNNER_PARAMETERS{
+            static constexpr TI N_ENVIRONMENTS = CORE_PARAMETERS::N_ENVIRONMENTS;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = false;
+            static constexpr TI REPLAY_BUFFER_CAPACITY = CORE_PARAMETERS::REPLAY_BUFFER_CAP;
+            static constexpr TI STEP_LIMIT = CORE_PARAMETERS::EPISODE_STEP_LIMIT;
+            static constexpr bool STOCHASTIC_POLICY = true;
+            static constexpr bool COLLECT_EPISODE_STATS = CORE_PARAMETERS::COLLECT_EPISODE_STATS;
+            static constexpr TI EPISODE_STATS_BUFFER_SIZE = CORE_PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
+            static constexpr T EXPLORATION_NOISE = 0.1;
+        };
+
         using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<
                 T,
                 TI,
                 ENVIRONMENT,
-                CORE_PARAMETERS::N_ENVIRONMENTS,
-                false,
-                CORE_PARAMETERS::REPLAY_BUFFER_CAP,
-                CORE_PARAMETERS::EPISODE_STEP_LIMIT,
-                STOCHASTIC_POLICY,
-                CORE_PARAMETERS::COLLECT_EPISODE_STATS,
-                CORE_PARAMETERS::EPISODE_STATS_BUFFER_SIZE,
-                CONTAINER_TYPE_TAG
+                OFF_POLICY_RUNNER_PARAMETERS
         >;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         template <typename CONFIG>
