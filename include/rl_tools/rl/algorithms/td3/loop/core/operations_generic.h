@@ -46,7 +46,6 @@ namespace rl_tools{
         init(device, ts.off_policy_runner, ts.envs);
         set_all(device, ts.observations_mean, 0);
         set_all(device, ts.observations_std, 1);
-        ts.off_policy_runner.parameters = rl::components::off_policy_runner::default_parameters<T>;
         init(device);
         init(device, device.logger);
         ts.step = 0;

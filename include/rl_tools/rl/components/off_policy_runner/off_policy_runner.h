@@ -20,31 +20,37 @@ namespace rl_tools::rl::components::off_policy_runner {
     struct ExecutionHints{
         static constexpr TI NUM_THREADS = T_NUM_THREADS;
     };
-    template<typename T>
-    struct Parameters{
-        T exploration_noise;
+    template <typename T_T, typename T_TI>
+    struct ParametersDefault{
+        using T = T_T;
+        using TI = T_TI;
+        static constexpr TI N_ENVIRONMENTS = 1;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = false;
+        static constexpr TI REPLAY_BUFFER_CAPACITY = 10000;
+        static constexpr TI STEP_LIMIT = 10000;
+        static constexpr bool STOCHASTIC_POLICY = false;
+        static constexpr bool COLLECT_EPISODE_STATS = false;
+        static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
+
+        static constexpr T EXPLORATION_NOISE = 0.1;
     };
-    template<typename T>
-    Parameters<T> default_parameters{
-        0.1 // exploration_noise
+    template <typename SPEC>
+    struct ParametersRuntime{
+        using T = typename SPEC::T;
+        static constexpr T exploration_noise = SPEC::PARAMETERS::EXPLORATION_NOISE;
     };
-    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS, bool T_ASYMMETRIC_OBSERVATIONS, T_TI T_REPLAY_BUFFER_CAPACITY, T_TI T_STEP_LIMIT, bool T_STOCHASTIC_POLICY = false, bool T_COLLECT_EPISODE_STATS = false, T_TI T_EPISODE_STATS_BUFFER_SIZE = 0, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template<typename T_T, typename T_TI, typename T_ENVIRONMENT, typename T_PARAMETERS, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
         using ENVIRONMENT =  T_ENVIRONMENT;
-        static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
-        static constexpr TI REPLAY_BUFFER_CAPACITY = T_REPLAY_BUFFER_CAPACITY;
-        static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
-        static constexpr bool STOCHASTIC_POLICY = T_STOCHASTIC_POLICY;
-        static constexpr bool COLLECT_EPISODE_STATS = T_COLLECT_EPISODE_STATS;
-        static constexpr TI EPISODE_STATS_BUFFER_SIZE = T_EPISODE_STATS_BUFFER_SIZE;
+        using PARAMETERS = T_PARAMETERS;
+        static_assert((PARAMETERS::ASYMMETRIC_OBSERVATIONS && ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0) == PARAMETERS::ASYMMETRIC_OBSERVATIONS, "ASYMMETRIC_OBSERVATIONS requested but not available in the environment");
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : ENVIRONMENT::OBSERVATION_DIM;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : 0;
+        static constexpr bool ACTION_CLAMPING_TANH = PARAMETERS::STOCHASTIC_POLICY;
+
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-        static constexpr bool ASYMMETRIC_OBSERVATIONS = T_ASYMMETRIC_OBSERVATIONS && ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0;
-        static_assert(ASYMMETRIC_OBSERVATIONS == T_ASYMMETRIC_OBSERVATIONS, "ASYMMETRIC_OBSERVATIONS requested but not available in the environment");
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : ENVIRONMENT::OBSERVATION_DIM;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : 0;
-        static constexpr bool ACTION_CLAMPING_TANH = T_STOCHASTIC_POLICY;
     };
 
     template<typename SPEC>
@@ -53,11 +59,11 @@ namespace rl_tools::rl::components::off_policy_runner {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observations;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> observations_privileged;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM * (SPEC::STOCHASTIC_POLICY ? 2 : 1)>> actions;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> next_observations;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> next_observations_privileged;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observations;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> observations_privileged;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM * (SPEC::PARAMETERS::STOCHASTIC_POLICY ? 2 : 1)>> actions;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> next_observations;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> next_observations_privileged;
     };
 
 
@@ -77,7 +83,7 @@ namespace rl_tools::rl::components::off_policy_runner {
 
         static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
         static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
-        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::ASYMMETRIC_OBSERVATIONS;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = SPEC::OBSERVATION_DIM_PRIVILEGED;
         static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
@@ -103,7 +109,7 @@ namespace rl_tools::rl::components::off_policy_runner {
     struct EpisodeStats{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr TI BUFFER_SIZE = SPEC::EPISODE_STATS_BUFFER_SIZE;
+        static constexpr TI BUFFER_SIZE = SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BUFFER_SIZE, 2>> data;
 
         TI next_episode_i = 0;
@@ -123,13 +129,13 @@ namespace rl_tools::rl::components{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
-        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED, SPEC::ASYMMETRIC_OBSERVATIONS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
+        using REPLAY_BUFFER_SPEC = replay_buffer::Specification<typename SPEC::T, typename SPEC::TI, SPEC::ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED, SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::PARAMETERS::REPLAY_BUFFER_CAPACITY, typename SPEC::CONTAINER_TYPE_TAG>;
         using REPLAY_BUFFER_WITH_STATES_SPEC = replay_buffer::SpecificationWithStates<ENVIRONMENT, REPLAY_BUFFER_SPEC>;
         using REPLAY_BUFFER_TYPE = ReplayBufferWithStates<REPLAY_BUFFER_WITH_STATES_SPEC>;
-        static constexpr TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
+        static constexpr TI N_ENVIRONMENTS = SPEC::PARAMETERS::N_ENVIRONMENTS;
 //        using POLICY_EVAL_BUFFERS = typename POLICY::template Buffers<N_ENVIRONMENTS>;
 
-        off_policy_runner::Parameters<T> parameters;
+        off_policy_runner::ParametersRuntime<SPEC> parameters;
         template<typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Batch = off_policy_runner::Batch<typename off_policy_runner::BatchSpecification<SPEC, T_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
 

@@ -14,9 +14,9 @@ namespace rl_tools::rl::components::off_policy_runner{
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         auto& env = runner.envs[env_i];
         auto& state = get(runner.states, 0, env_i);
-        static_assert(!SPEC::COLLECT_EPISODE_STATS || SPEC::EPISODE_STATS_BUFFER_SIZE > 1);
+        static_assert(!SPEC::PARAMETERS::COLLECT_EPISODE_STATS || SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE > 1);
         if (get(runner.truncated, 0, env_i)){
-            if constexpr(SPEC::COLLECT_EPISODE_STATS){
+            if constexpr(SPEC::PARAMETERS::COLLECT_EPISODE_STATS){
                 // todo: the first episode is always zero steps and zero return because the initialization is done by setting truncated to true
                 auto& episode_stats = runner.episode_stats[env_i];
                 TI next_episode_i = episode_stats.next_episode_i;
@@ -24,7 +24,7 @@ namespace rl_tools::rl::components::off_policy_runner{
                     TI episode_i = next_episode_i - 1;
                     set(episode_stats.returns, episode_i, 0, get(runner.episode_return, 0, env_i));
                     set(episode_stats.steps  , episode_i, 0, get(runner.episode_step  , 0, env_i));
-                    episode_i = (episode_i + 1) % SPEC::EPISODE_STATS_BUFFER_SIZE;
+                    episode_i = (episode_i + 1) % SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
                     next_episode_i = episode_i + 1;
                 }
                 else{
@@ -39,7 +39,7 @@ namespace rl_tools::rl::components::off_policy_runner{
         auto observation            = view<DEVICE, typename decltype(runner.buffers.observations           )::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM           >(device, runner.buffers.observations           , env_i, 0);
         auto observation_privileged = view<DEVICE, typename decltype(runner.buffers.observations_privileged)::SPEC, 1, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, runner.buffers.observations_privileged, env_i, 0);
         observe(device, env, state, observation, rng);
-        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
+        if constexpr(SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS){
             observe_privileged(device, env, state, observation_privileged, rng);
         }
     }
@@ -96,7 +96,7 @@ namespace rl_tools::rl::components::off_policy_runner{
         T reward_value = reward(device, env, state, action, next_state, rng);
 
         observe(device, env, next_state, next_observation, rng);
-        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS) {
+        if constexpr(SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS) {
             observe_privileged(device, env, next_state, next_observation_privileged, rng);
         }
 
@@ -104,7 +104,7 @@ namespace rl_tools::rl::components::off_policy_runner{
         increment(runner.episode_step, 0, env_i, 1);
         increment(runner.episode_return, 0, env_i, reward_value);
         auto episode_step_i = get(runner.episode_step, 0, env_i);
-        bool truncated = terminated_flag || episode_step_i == SPEC::STEP_LIMIT;
+        bool truncated = terminated_flag || episode_step_i == SPEC::PARAMETERS::STEP_LIMIT;
         set(runner.truncated, 0, env_i, truncated);
         add(device, runner.replay_buffers[env_i], state, observation, observation_privileged, action, reward_value, next_state, next_observation, next_observation_privileged, terminated_flag, truncated);
 

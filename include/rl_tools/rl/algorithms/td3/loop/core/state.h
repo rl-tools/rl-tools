@@ -28,7 +28,7 @@ namespace rl_tools{
             rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<typename decltype(off_policy_runner)::SPEC, CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
             rl::algorithms::td3::ActorTrainingBuffers<typename CONFIG::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
             typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-            typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+            typename CONFIG::NN::ACTOR_TYPE::template Buffer<CONFIG::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval;
             TI step;
         };
     }
