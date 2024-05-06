@@ -45,3 +45,4 @@
 - Roll custom alloc_aligned (std::alloc_aligend does not work on Windows and macOS) cf. [this post](https://github.com/marian-nmt/marian-dev/issues/227#issuecomment-385912753)
 - Allow generic BLAS (`-lblas`)
   - Renaming OpenBLAS to BLAS should be mostly sufficient
+- Remove the experiment option scaffolding from `rl_environments_pendulum_ppo_training`

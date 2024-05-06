@@ -6,6 +6,8 @@
 #include "../utils/generic/typing.h"
 #include "devices.h"
 
+#define ACCELERATE_NEW_LAPACK
+#define ACCELERATE_LAPACK_ILP64
 #include "cpu_blas.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

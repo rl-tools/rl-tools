@@ -68,11 +68,10 @@ namespace rl_tools{
                 utils::assert_exit(device, !terminated || terminated && truncated, "terminationn should imply truncation");
 #endif
                 T current_step_value = get(dataset.values, pos, 0);
-//                T next_step_value = terminated || truncated ? 0 : previous_value;
-                T next_step_value = terminated && !PPO_PARAMETERS::IGNORE_TERMINATION ? 0 : previous_value;
+                bool terminated_actual = terminated && !PPO_PARAMETERS::IGNORE_TERMINATION;
+                T next_step_value = terminated_actual ? 0 : previous_value;
 
                 T td_error = get(dataset.rewards, pos, 0) + PPO_PARAMETERS::GAMMA * next_step_value - current_step_value;
-//                previous_advantage = terminated || truncated ? 0 : previous_advantage;
                 if(truncated){
                     if(!terminated){ // e.g. time limited or random truncation
                         td_error = 0;
@@ -157,7 +156,7 @@ namespace rl_tools{
                     }
                     advantage_mean /= BATCH_SIZE;
                     advantage_std /= BATCH_SIZE;
-                    advantage_std = math::sqrt(device.math, advantage_std - advantage_mean * advantage_mean);
+                    advantage_std = math::sqrt(device.math, math::max(device.math, (T)0, advantage_std - advantage_mean * advantage_mean));
                 }
 //                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
