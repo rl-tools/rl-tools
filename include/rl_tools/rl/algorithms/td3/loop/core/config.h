@@ -18,7 +18,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
     struct DefaultParameters{
         using TD3_PARAMETERS = rl::algorithms::td3::DefaultParameters<T, TI>;
         static constexpr TI N_ENVIRONMENTS = 1;
-        static constexpr int N_WARMUP_STEPS = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
+        static constexpr TI N_WARMUP_STEPS = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
         static constexpr TI STEP_LIMIT = 10000;
         static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT; // Note: when inheriting from this class for overwriting the default STEP_LIMIT you need to set the REPLAY_BUFFER_CAP as well otherwise it will be the default step limit
         static constexpr TI EPISODE_STEP_LIMIT = 200;
