@@ -33,6 +33,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
 
+        static constexpr T EXPLORATION_NOISE = 0.1;
+
         using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
     };
 
@@ -129,7 +131,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             static constexpr bool STOCHASTIC_POLICY = false;
             static constexpr bool COLLECT_EPISODE_STATS = CORE_PARAMETERS::COLLECT_EPISODE_STATS;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = CORE_PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
-            static constexpr T EXPLORATION_NOISE = 0.1;
+            static constexpr T EXPLORATION_NOISE = CORE_PARAMETERS::EXPLORATION_NOISE;
         };
 
         using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<
