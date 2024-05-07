@@ -83,7 +83,7 @@ constexpr DEVICE::index_t STEP_LIMIT = parameters_rl::N_WARMUP_STEPS_ACTOR + 500
 #ifdef RL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST
 constexpr DEVICE::index_t STEP_LIMIT = 30000;
 #else
-constexpr DEVICE::index_t STEP_LIMIT = parameters_rl::REPLAY_BUFFER_CAP * 100;
+constexpr DEVICE::index_t STEP_LIMIT = parameters_rl::OFF_POLICY_RUNNER_PARAMETERS::REPLAY_BUFFER_CAPACITY * 100;
 #endif
 #endif
 constexpr DEVICE::index_t NUM_RUNS = 1;
@@ -168,7 +168,6 @@ void run(){
 
         rlt::rl::components::OffPolicyRunner<parameters_rl::OFF_POLICY_RUNNER_SPEC> off_policy_runner;
         rlt::malloc(device, off_policy_runner);
-        off_policy_runner.parameters = rlt::rl::components::off_policy_runner::default_parameters<DTYPE>;
 
         ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS], evaluation_env;
         for (auto& env : envs) {
@@ -272,7 +271,7 @@ void run(){
                         DTYPE mean_return = 0;
                         DTYPE mean_steps = 0;
 
-                        for(typename DEVICE::index_t env_i = 0; env_i < parameters_rl::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; env_i++){
+                        for(typename DEVICE::index_t env_i = 0; env_i < parameters_rl::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
                             auto& episode_stats = off_policy_runner.episode_stats[env_i];
                             if(episode_stats.next_episode_i > 0){
                                 for(typename DEVICE::index_t episode_i = 0; episode_i < episode_stats.next_episode_i - 1; episode_i++){

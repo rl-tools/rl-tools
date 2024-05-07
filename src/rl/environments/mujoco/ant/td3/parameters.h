@@ -49,10 +49,18 @@ namespace parameters_0{
         using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, OPTIMIZER, ACTOR_CRITIC_PARAMETERS>;
         using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
 
-        static constexpr TI N_ENVIRONMENTS = 1;
-        static constexpr TI REPLAY_BUFFER_CAP = 1000000;
+//        static constexpr TI N_ENVIRONMENTS = 1;
+//        static constexpr TI REPLAY_BUFFER_CAP = 1000000;
         static constexpr TI EPISODE_STEP_LIMIT = 1000;
-        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, false, REPLAY_BUFFER_CAP, EPISODE_STEP_LIMIT, false, true, 1000>;
+        struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<T, TI>{
+            static constexpr TI N_ENVIRONMENTS = 1;
+            static constexpr TI REPLAY_BUFFER_CAPACITY = 1000000;
+            static constexpr TI EPISODE_STEP_LIMIT = 1000;
+            static constexpr bool COLLECT_EPISODE_STATS = true;
+            static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
+            static constexpr T EXPLORATION_NOISE = 0.1;
+        };
+        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS>;
 
         static constexpr TI N_WARMUP_STEPS_CRITIC = 10000;
         static constexpr TI N_WARMUP_STEPS_ACTOR = 10000;

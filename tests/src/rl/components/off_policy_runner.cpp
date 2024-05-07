@@ -19,7 +19,7 @@ using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
-typedef rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, 1, false, 5000, 100> OffPolicyRunnerSpec;
+typedef rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, DEVICE::index_t>> OffPolicyRunnerSpec;
 typedef rlt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
 
 using PendulumStructureSpecification = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
@@ -36,9 +36,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     rlt::init_weights(device, policy, rng);
     OffPolicyRunner off_policy_runner;
     rlt::malloc(device, off_policy_runner);
-    ENVIRONMENT envs[OffPolicyRunnerSpec::N_ENVIRONMENTS];
+    ENVIRONMENT envs[OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS];
     rlt::init(device, off_policy_runner, envs);
-    decltype(policy)::Buffer<OffPolicyRunnerSpec::N_ENVIRONMENTS> policy_buffers;
+    decltype(policy)::Buffer<OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS> policy_buffers;
     rlt::malloc(device, policy_buffers);
     for(int step_i = 0; step_i < 10000; step_i++){
         rlt::step(device, off_policy_runner, policy, policy_buffers, rng);

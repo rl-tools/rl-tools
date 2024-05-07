@@ -96,7 +96,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
 }
 
 //using ReplayBufferSpecCopyTraining = rlt::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 1000>;
-using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, 1, false, 1000, 100>;
+using TI = AC_DEVICE::index_t;
+struct OFF_POLICY_RUNNER_PARAMETERS{
+    static constexpr TI N_ENVIRONMENTS = 1;
+    static constexpr bool ASYMMETRIC_OBSERVATIONS = false;
+    static constexpr TI REPLAY_BUFFER_CAPACITY = 1000;
+    static constexpr bool STOCHASTIC_POLICY = false;
+    static constexpr bool COLLECT_EPISODE_STATS = false;
+    static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
+    static constexpr DTYPE EXPLORATION_NOISE = 0.1;
+};
+using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS>;
 using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
 using DEVICE = rlt::devices::DefaultCPU;
 typedef OFF_POLICY_RUNNER_TYPE::REPLAY_BUFFER_TYPE ReplayBufferTypeCopyTraining;

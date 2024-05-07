@@ -27,7 +27,7 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr TI N_ENVIRONMENTS = 1;
         static constexpr bool ASYMMETRIC_OBSERVATIONS = false;
         static constexpr TI REPLAY_BUFFER_CAPACITY = 10000;
-        static constexpr TI STEP_LIMIT = 10000;
+        static constexpr TI EPISODE_STEP_LIMIT = 1000;
         static constexpr bool STOCHASTIC_POLICY = false;
         static constexpr bool COLLECT_EPISODE_STATS = false;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
@@ -37,7 +37,7 @@ namespace rl_tools::rl::components::off_policy_runner {
     template <typename SPEC>
     struct ParametersRuntime{
         using T = typename SPEC::T;
-        static constexpr T exploration_noise = SPEC::PARAMETERS::EXPLORATION_NOISE;
+        T exploration_noise = SPEC::PARAMETERS::EXPLORATION_NOISE;
     };
     template<typename T_T, typename T_TI, typename T_ENVIRONMENT, typename T_PARAMETERS, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification{

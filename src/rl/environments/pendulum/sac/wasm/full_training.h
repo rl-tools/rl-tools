@@ -66,22 +66,21 @@ struct TrainingConfig{
     static constexpr TI STEP_LIMIT = RL_TOOLS_STEP_LIMIT;
 #endif
     static constexpr TI EVALUATION_INTERVAL = 1000;
-    static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
-    static constexpr TI EPISODE_STEP_LIMIT = 200;
-    static constexpr bool COLLECT_EPISODE_STATS = true;
-    static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
-    static constexpr bool STOCHASTIC_POLICY = true;
+//    static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
+//    static constexpr TI EPISODE_STEP_LIMIT = 200;
+//    static constexpr bool STOCHASTIC_POLICY = true;
+    struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<T, TI>{
+        static constexpr TI REPLAY_BUFFER_CAPACITY = STEP_LIMIT;
+        static constexpr TI EPISODE_STEP_LIMIT = 200;
+        static constexpr bool STOCHASTIC_POLICY = true;
+        static constexpr bool COLLECT_EPISODE_STATS = true;
+        static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
+    };
     using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
             T,
             TI,
             ENVIRONMENT,
-            1,
-            false,
-            REPLAY_BUFFER_CAP,
-            EPISODE_STEP_LIMIT,
-            STOCHASTIC_POLICY,
-            COLLECT_EPISODE_STATS,
-            EPISODE_STATS_BUFFER_SIZE
+            OFF_POLICY_RUNNER_PARAMETERS
     >;
     const T STATE_TOLERANCE = 0.00001;
     static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -108,7 +107,7 @@ struct CoreTrainingState{
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, TRAINING_CONFIG::SAC_PARAMETERS::CRITIC_BATCH_SIZE, TRAINING_CONFIG::ENVIRONMENT::ACTION_DIM>> action_noise_actor;
     rlt::rl::algorithms::sac::ActorTrainingBuffers<typename TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC> actor_training_buffers;
     typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    typename TRAINING_CONFIG::ACTOR_NETWORK_TYPE::template Buffer<TRAINING_CONFIG::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval;
 };
 
 template <typename TRAINING_CONFIG>
@@ -212,7 +211,7 @@ bool training_step(DEVICE& device, TRAINING_STATE& ts){
     }
 #ifndef RL_TOOLS_BENCHMARK
     if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
-        auto result = rlt::evaluate(device, ts.envs[0], ts.ui, ts.actor_critic.actor, rlt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng);
+        auto result = rlt::evaluate(device, ts.envs[0], ts.ui, ts.actor_critic.actor, rlt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng);
         std::cout << "Mean return: " << result.returns_mean << std::endl;
         ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
     }

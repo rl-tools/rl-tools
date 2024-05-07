@@ -284,6 +284,14 @@ namespace first_stage_second_stage{
     using TD3_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 }
+template <typename T, typename TI>
+struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<T, TI>{
+    static constexpr TI REPLAY_BUFFER_CAPACITY = 32;
+    static constexpr TI EPISODE_STEP_LIMIT = 100;
+    static constexpr bool STOCHASTIC_POLICY = true;
+    static constexpr bool COLLECT_EPISODE_STATS = true;
+    static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
+};
 TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     constexpr bool verbose = true;
 //    typedef rlt::rl::algorithms::td3::ActorCriticSpecification<rlt::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3_PARAMETERS> ActorCriticSpec;
@@ -309,7 +317,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     rlt::load(device, actor_critic.critic_target_2, data_file.getGroup("critic_target_2"));
 
     using DEVICE = rlt::devices::DefaultCPU;
-    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, 1, false, 32, 100>;
+    using TI = DEVICE::index_t;
+    using T = DTYPE;
+    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS<T, TI>>;
     using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
     using DEVICE = rlt::devices::DefaultCPU;
     using ReplayBufferType = OFF_POLICY_RUNNER_TYPE::REPLAY_BUFFER_TYPE;
@@ -476,7 +486,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     using DEVICE = rlt::devices::DefaultCPU;
 //    using ReplayBufferSpec = rlt::rl::components::replay_buffer::Specification<DTYPE, AC_DEVICE::index_t, 3, 1, 32>;
 //    using ReplayBufferType = rlt::rl::components::ReplayBuffer<ReplayBufferSpec>;
-    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, 1, false, 32, 100>;
+    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS<DTYPE, DEVICE::index_t>>;
     using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
     OFF_POLICY_RUNNER_TYPE off_policy_runner;
     rlt::malloc(device, off_policy_runner);

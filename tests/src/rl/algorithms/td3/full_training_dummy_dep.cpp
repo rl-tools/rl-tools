@@ -68,10 +68,7 @@ using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specifica
         DTYPE,
         AC_DEVICE::index_t,
         ENVIRONMENT,
-        1,
-        false,
-        REPLAY_BUFFER_CAP,
-        EPISODE_STEP_LIMIT
+        rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, AC_DEVICE::index_t>
 >;
 rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 ActorCriticType actor_critic;
@@ -103,7 +100,7 @@ int main() {
     rlt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
     rlt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
     ACTOR_NETWORK_TYPE::Buffer<> actor_buffers[2];
-    ACTOR_NETWORK_TYPE::Buffer<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
+    ACTOR_NETWORK_TYPE::Buffer<OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval;
     rlt::malloc(device, actor_batch);
     rlt::malloc(device, actor_training_buffers);
     rlt::malloc(device, actor_buffers_eval);

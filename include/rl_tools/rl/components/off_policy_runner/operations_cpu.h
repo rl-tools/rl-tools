@@ -25,15 +25,15 @@ namespace rl_tools::rl::components::off_policy_runner{
         constexpr TI NUM_THREADS = get_num_threads(typename DEVICE::EXECUTION_HINTS());
 
         if(NUM_THREADS > 1){
-            RNG rngs[SPEC::N_ENVIRONMENTS];
+            RNG rngs[SPEC::PARAMETERS::N_ENVIRONMENTS];
             auto base = random::uniform_int_distribution(typename DEV_SPEC::RANDOM(), 0, 1000000, rng);
-            for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
+            for (TI env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++) {
                 rngs[env_i] = rl_tools::random::default_engine(typename DEV_SPEC::RANDOM(), base + env_i);
             }
 
             for (TI thread_i = 0; thread_i < NUM_THREADS; thread_i++) {
                 threads.emplace_back([NUM_THREADS, &device, thread_i, &runner, &rngs](){
-                    for (TI env_i = thread_i; env_i < SPEC::N_ENVIRONMENTS; env_i += NUM_THREADS) {
+                    for (TI env_i = thread_i; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i += NUM_THREADS) {
                         prologue_per_env(device, runner, rngs[env_i], env_i);
                     }
                 });
@@ -44,7 +44,7 @@ namespace rl_tools::rl::components::off_policy_runner{
             }
         }
         else{
-            for (TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++) {
+            for (TI env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++) {
                 prologue_per_env(device, runner, rng, env_i);
             }
         }

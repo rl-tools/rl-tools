@@ -66,19 +66,19 @@ constexpr DEVICE::index_t N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
 DTYPE evaluation_returns[N_EVALUATIONS];
 #endif
 
-constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 10000;
-constexpr typename DEVICE::index_t EPISODE_STEP_LIMIT = 200;
+struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, DEVICE::index_t>{
+    static constexpr TI REPLAY_BUFFER_CAPACITY = 10000;
+    static constexpr TI EPISODE_STEP_LIMIT = 200;
+    static constexpr bool STOCHASTIC_POLICY = false;
+    static constexpr bool COLLECT_EPISODE_STATS = false;
+    static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
+    static constexpr DTYPE EXPLORATION_NOISE = 0.1;
+};
 using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
         DTYPE,
         DEVICE::index_t,
         ENVIRONMENT,
-        1,
-        false,
-        REPLAY_BUFFER_CAP,
-        EPISODE_STEP_LIMIT,
-        false,
-        false,
-        0,
+        OFF_POLICY_RUNNER_PARAMETERS,
         CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER
  >;
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
@@ -101,7 +101,7 @@ CRITIC_NETWORK_TYPE::Buffer<ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE
 rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>> actor_batch;
 rlt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
 ACTOR_NETWORK_TYPE::Buffer<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers;
-ACTOR_NETWORK_TYPE::Buffer<OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers_eval;
+ACTOR_NETWORK_TYPE::Buffer<OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers_eval;
 
 typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
 typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
@@ -162,7 +162,7 @@ void train(){
     std::cout << "Total: " << sizeof(actor_critic) + sizeof(off_policy_runner) + sizeof(critic_batch) + sizeof(critic_training_buffers) + sizeof(critic_buffers) + sizeof(actor_batch) + sizeof(actor_training_buffers) + sizeof(actor_buffers) << std::endl;
 #endif
 
-    for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS){
+    for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS){
         rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
         if(step_i % 100 == 0){
@@ -195,7 +195,7 @@ void train(){
         }
 #ifndef RL_TOOLS_DISABLE_EVALUATION
         if(step_i % EVALUATION_INTERVAL == 0){
-            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, EPISODE_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
+            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }
