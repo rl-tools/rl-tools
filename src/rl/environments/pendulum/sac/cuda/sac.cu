@@ -101,7 +101,7 @@ int main(){
 //                    device.stream = critic_training_streams[critic_i]; // parallel streams actually make it slightly worse (bandwidth bound?)
                     rlt::gather_batch(device, off_policy_runner_pointer, ts.critic_batch[critic_i], ts.rng);
                     rlt::randn(device, ts.action_noise_critic[critic_i], ts.rng);
-                    rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i]);
+                    rlt::train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch[critic_i], ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic[critic_i], ts.rng);
                 }
                 for(int critic_i = 0; critic_i < 2; critic_i++){
                     cudaStreamSynchronize(critic_training_streams[critic_i]);
@@ -113,7 +113,7 @@ int main(){
                 {
                     rlt::gather_batch(device, off_policy_runner_pointer, ts.actor_batch, ts.rng);
                     rlt::randn(device, ts.action_noise_actor, ts.rng);
-                    rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor);
+                    rlt::train_actor(device, ts.actor_critic, ts.actor_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
                 }
                 rlt::update_critic_targets(device, ts.actor_critic);
             }

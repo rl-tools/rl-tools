@@ -71,8 +71,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;
     rlp::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers, actor_training_buffers_init, actor_training_buffers_init2;
     rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2], actor_buffers_init[2];
-    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
-    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
+    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval;
+    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval_init;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE, p::env::ENVIRONMENT::ACTION_DIM>> action_noise_actor_init, action_noise_actor;
 
     rlt::init(device);
@@ -152,7 +152,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     constexpr DEVICE::index_t step_limit = 20000;
     T epsilon = 1e-13;
     T epsilon_decay = 1;
-    T epsilon_decay_rate = 1.02;
+    T epsilon_decay_rate = 2.00;
     T returns_acc = 0;
     T returns_acc_count = 0;
     for(int step_i = 0; step_i < step_limit; step_i += 1){
@@ -161,7 +161,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
             {
                 auto rng_init_copy = rng_init;
                 rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init2.actor, rlt::rl::utils::evaluation::Specification<100, rlp::EPISODE_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
+                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init2.actor, rlt::rl::utils::evaluation::Specification<100, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
                 std::cout << "Mean return (GPU): " << results.returns_mean << std::endl;
                 if(step_i > 10000){
                     ASSERT_GT(results.returns_mean, -400);
@@ -171,7 +171,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
             }
             {
                 auto rng_init_copy = rng_init;
-                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<100, rlp::EPISODE_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
+                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<100, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
                 std::cout << "Mean return (CPU): " << results.returns_mean << std::endl;
                 if(step_i > 10000){
                     ASSERT_GT(results.returns_mean, -400);
@@ -207,8 +207,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
                 }
                 rlt::randn(device_init, action_noise_critic_init[critic_i], rng_init);
                 rlt::copy(device_init, device, action_noise_critic_init[critic_i], action_noise_critic[critic_i]);
-                rlt::train_critic(device     , actor_critic     , critic_i == 0 ? actor_critic.critic_1      : actor_critic.critic_2     , critic_batch     , actor_critic.critic_optimizers[critic_i]     , actor_buffers[critic_i]     , critic_buffers[critic_i]     , critic_training_buffers     , action_noise_critic[critic_i]);
-                rlt::train_critic(device_init, actor_critic_init, critic_i == 0 ? actor_critic_init.critic_1 : actor_critic_init.critic_2, critic_batch_init, actor_critic_init.critic_optimizers[critic_i], actor_buffers_init[critic_i], critic_buffers_init[critic_i], critic_training_buffers_init, action_noise_critic_init[critic_i]);
+                rlt::train_critic(device     , actor_critic     , critic_i == 0 ? actor_critic.critic_1      : actor_critic.critic_2     , critic_batch     , actor_critic.critic_optimizers[critic_i]     , actor_buffers[critic_i]     , critic_buffers[critic_i]     , critic_training_buffers     , action_noise_critic[critic_i], rng);
+                rlt::train_critic(device_init, actor_critic_init, critic_i == 0 ? actor_critic_init.critic_1 : actor_critic_init.critic_2, critic_batch_init, actor_critic_init.critic_optimizers[critic_i], actor_buffers_init[critic_i], critic_buffers_init[critic_i], critic_training_buffers_init, action_noise_critic_init[critic_i], rng);
                 if(check_diff_now){
                     rlt::copy(device, device_init, critic_training_buffers, critic_training_buffers_init2);
 //                rlt::copy(device, device_init, critic_training_buffers.next_actions_mean, critic_training_buffers_init2.next_actions_mean);
@@ -266,8 +266,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
             rlt::copy(device, device_init, actor_batch, actor_batch_init);
             rlt::randn(device_init, action_noise_actor_init, rng_init);
             rlt::copy(device_init, device, action_noise_actor_init, action_noise_actor);
-            rlt::train_actor(device     , actor_critic     , actor_batch     , actor_critic.actor_optimizer     , actor_buffers[0]     , critic_buffers[0]     , actor_training_buffers     , action_noise_actor);
-            rlt::train_actor(device_init, actor_critic_init, actor_batch_init, actor_critic_init.actor_optimizer, actor_buffers_init[0], critic_buffers_init[0], actor_training_buffers_init, action_noise_actor_init);
+            rlt::train_actor(device     , actor_critic     , actor_batch     , actor_critic.actor_optimizer     , actor_buffers[0]     , critic_buffers[0]     , actor_training_buffers     , action_noise_actor, rng);
+            rlt::train_actor(device_init, actor_critic_init, actor_batch_init, actor_critic_init.actor_optimizer, actor_buffers_init[0], critic_buffers_init[0], actor_training_buffers_init, action_noise_actor_init, rng);
             if(check_diff_now){
                 rlt::copy(device, device_init, actor_training_buffers, actor_training_buffers_init2);
                 rlt::copy(device, device_init, actor_critic, actor_critic_init2);

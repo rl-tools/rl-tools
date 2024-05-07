@@ -62,8 +62,8 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     rlp::ACTOR_BATCH_TYPE* actor_batch_pointer;
     rlp::ACTOR_TRAINING_BUFFERS_TYPE actor_training_buffers;
     rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
-    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval;
-    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS> actor_buffers_eval_init;
+    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval;
+    rlp::ACTOR_NETWORK_TYPE::Buffer<rlp::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS> actor_buffers_eval_init;
 
     rlt::init(device);
     rlt::construct(device_init, device_init.logger);
@@ -118,9 +118,9 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
         rlt::rl::components::off_policy_runner::prologue(device, off_policy_runner_pointer, rng);
         rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-        rlt::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval);
+        rlt::rl::components::off_policy_runner::interlude(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
         rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
-        rlt::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, rng);
+        rlt::rl::components::off_policy_runner::epilogue(device, off_policy_runner_pointer, actor_critic.actor, rng);
 
         if(step_i % 1000 == 0){
             auto current_time = std::chrono::high_resolution_clock::now();
@@ -136,7 +136,7 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
                 rlt::target_action_noise(device, actor_critic, critic_training_buffers.target_next_action_noise, rng);
                 rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
                 rlt::gather_batch(device, off_policy_runner_pointer, critic_batch, rng);
-                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers);
+                rlt::train_critic(device, actor_critic, critic_i == 0 ? actor_critic.critic_1 : actor_critic.critic_2, critic_batch, optimizer, actor_buffers[critic_i], critic_buffers[critic_i], critic_training_buffers, rng);
 //                cudaDeviceSynchronize();
 //                auto end = std::chrono::high_resolution_clock::now();
 //                auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -149,7 +149,7 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
 //            auto start = std::chrono::high_resolution_clock::now();
             rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
             rlt::gather_batch(device, off_policy_runner_pointer, actor_batch, rng);
-            rlt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers);
+            rlt::train_actor(device, actor_critic, actor_batch, optimizer, actor_buffers[0], critic_buffers[0], actor_training_buffers, rng);
 //            cudaDeviceSynchronize();
 //            auto end = std::chrono::high_resolution_clock::now();
 //            auto duration_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -180,7 +180,7 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         }
         if(step_i % 1000 == 0){
             rlt::copy(device, device_init, actor_critic, actor_critic_init);
-            auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<1, rlp::EPISODE_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, false);
+            auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<1, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, false);
             std::cout << "Mean return: " << results.returns_mean << std::endl;
         }
     }

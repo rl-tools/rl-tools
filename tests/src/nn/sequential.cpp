@@ -178,20 +178,20 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     rlt::print(device, input);
 
     for(TI i = 0; i < 2; i++){
-        rlt::forward(device, mlp, input, output_mlp);
+        rlt::forward(device, mlp, input, output_mlp, rng);
         rlt::print(device, output_mlp);
 
-        rlt::forward(device, layer_1, input, hidden_tick);
-        rlt::forward(device, layer_2, hidden_tick, hidden_tock);
-        rlt::forward(device, layer_3, hidden_tock, output_chain);
+        rlt::forward(device, layer_1, input, hidden_tick, rng);
+        rlt::forward(device, layer_2, hidden_tick, hidden_tock, rng);
+        rlt::forward(device, layer_3, hidden_tock, output_chain, rng);
         rlt::print(device, output_chain);
 
-        rlt::forward(device, sequential.content                        , input, hidden_tick);
-        rlt::forward(device, sequential.next_module.content            , hidden_tick, hidden_tock);
-        rlt::forward(device, sequential.next_module.next_module.content, hidden_tock, output_sequential);
+        rlt::forward(device, sequential.content                        , input, hidden_tick, rng);
+        rlt::forward(device, sequential.next_module.content            , hidden_tick, hidden_tock, rng);
+        rlt::forward(device, sequential.next_module.next_module.content, hidden_tock, output_sequential, rng);
         rlt::print(device, output_sequential);
 
-        rlt::forward(device, sequential, input, output_sequential);
+        rlt::forward(device, sequential, input, output_sequential, rng);
         rlt::print(device, output_sequential);
 
         auto abs_diff_sequential = rlt::abs_diff(device, output_mlp, output_sequential);

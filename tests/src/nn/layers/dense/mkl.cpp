@@ -36,8 +36,8 @@ void test(){
     rlt::malloc(device_generic, output_mkl);
     rlt::randn(device_generic, input, rng);
     rlt::print(device_generic, input);
-    rlt::evaluate(device_generic, layer, input, output_generic);
-    rlt::evaluate(device_mkl, layer, input, output_mkl);
+    rlt::evaluate(device_generic, layer, input, output_generic, rng);
+    rlt::evaluate(device_mkl, layer, input, output_mkl, rng);
     auto diff = rlt::abs_diff(device_generic, output_generic, output_mkl);
     T diff_per_element = diff / (BATCH_SIZE * OUTPUT_DIM);
     std::cout << "Matrix mul diff: " << diff << " per element: " << diff_per_element << std::endl;

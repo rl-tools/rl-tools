@@ -83,7 +83,7 @@ namespace rl_tools{
         copy(device_source, device_target, source.observations_std, target.observations_std);
         copy(device_source, device_target, source.actor_deterministic_evaluation_buffers, target.actor_deterministic_evaluation_buffers);
 //        target.rng = source.rng;
-        target.off_policy_runner.parameters = source.off_policy_runner.parameters;
+        target.off_policy_runner.parameters.exploration_noise = source.off_policy_runner.parameters.exploration_noise;
         target.step = source.step;
     }
 

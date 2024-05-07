@@ -44,11 +44,17 @@ struct parameters_pendulum_0{
         using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, ALPHA_PARAMETER_TYPE, OPTIMIZER, OPTIMIZER, OPTIMIZER, ACTOR_CRITIC_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = rlt::rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 
-        static constexpr TI N_ENVIRONMENTS = 1;
-        static constexpr TI REPLAY_BUFFER_CAP = 500000;
-        static constexpr TI EPISODE_STEP_LIMIT = 200;
-        static constexpr bool STOCHASTIC_POLICY = true;
-        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS, false, REPLAY_BUFFER_CAP, EPISODE_STEP_LIMIT, STOCHASTIC_POLICY>;
+        struct OFF_POLICY_RUNNER_PARAMETERS{
+            static constexpr TI N_ENVIRONMENTS = 1;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = false;
+            static constexpr TI REPLAY_BUFFER_CAPACITY = 500000;
+            static constexpr TI EPISODE_STEP_LIMIT = 200;
+            static constexpr bool STOCHASTIC_POLICY = true;
+            static constexpr bool COLLECT_EPISODE_STATS = false;
+            static constexpr TI EPISODE_STATS_BUFFER_SIZE = false;
+            static constexpr T EXPLORATION_NOISE = 0.1;
+        };
+        using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS>;
         using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
         using CRITIC_BATCH_TYPE = rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
         using ACTOR_BATCH_TYPE = rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;

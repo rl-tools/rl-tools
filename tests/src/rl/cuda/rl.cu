@@ -49,7 +49,16 @@ public:
 //    using REPLAY_BUFFER = rlt::rl::components::ReplayBuffer<REPLAY_BUFFER_SPEC>;
     using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE_CPU::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
     using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
-    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE_CPU::index_t, ENVIRONMENT, 1, false, CAPACITY, 100>;
+    using T = DTYPE;
+    using TI = DEVICE_CPU::index_t;
+    struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<T, TI>{
+        static constexpr TI REPLAY_BUFFER_CAPACITY = CAPACITY;
+        static constexpr TI EPISODE_STEP_LIMIT = 100;
+        static constexpr bool STOCHASTIC_POLICY = false;
+        static constexpr bool COLLECT_EPISODE_STATS = false;
+        static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
+    };
+    using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE_CPU::index_t, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS>;
     using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
     using BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>;
     using BATCH_TYPE = rlt::rl::components::off_policy_runner::Batch<BATCH_SPEC>;
@@ -96,7 +105,6 @@ public:
     CRITIC_BUFFERS critic_buffers_cpu;
     CRITIC_BUFFERS critic_buffers_cpu_2;
     CRITIC_BUFFERS critic_buffers_gpu;
-    using TI = typename DEVICE_GPU::index_t;
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, TI, CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE, 1>> d_critic_output_cpu;
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, TI, CRITIC_NETWORK_TYPE::SPEC::BATCH_SIZE, 1>> d_critic_output_gpu;
 protected:
@@ -132,7 +140,7 @@ protected:
         rlt::malloc(device_gpu, d_critic_output_gpu);
 
         // init
-        for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; rb_i++) {
+        for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS; rb_i++) {
             rlt::test::rl::components::replay_buffer::sample(device_cpu, off_policy_runner_cpu.replay_buffers[rb_i], rng_cpu);
             rlt::copy(device_cpu, device_gpu, off_policy_runner_cpu.replay_buffers[rb_i], off_policy_runner_gpu_cpu.replay_buffers[rb_i]);
         }
@@ -194,7 +202,7 @@ TEST_F(RL_TOOLS_RL_CUDA, GATHER_BATCH) {
 
     auto rng_cpu = rlt::random::default_engine(DEVICE_CPU::SPEC::RANDOM());
     auto rng_gpu = rlt::random::default_engine(DEVICE_GPU::SPEC::RANDOM());
-    for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::N_ENVIRONMENTS; rb_i++) {
+    for(DEVICE_CPU::index_t rb_i = 0; rb_i < OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS; rb_i++) {
         rlt::copy(device_gpu, device_cpu, off_policy_runner_gpu_cpu.replay_buffers[rb_i], off_policy_runner_cpu_2.replay_buffers[rb_i]);
         auto abs_diff = rlt::abs_diff(device_cpu, off_policy_runner_cpu.replay_buffers[rb_i], off_policy_runner_cpu_2.replay_buffers[rb_i]);
         ASSERT_FLOAT_EQ(abs_diff, 0);
@@ -262,15 +270,15 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         std::cout << "abs_diff_actor_critic: " << abs_diff_actor_critic << std::endl;
         ASSERT_FLOAT_EQ(abs_diff_actor_critic, 0);
 
-        rlt::evaluate(device_cpu, actor_critic_cpu.actor.input_layer, batch_cpu.observations, actor_buffers_cpu.tick);
-        rlt::evaluate(device_gpu, actor_critic_gpu.actor.input_layer, batch_gpu.observations, actor_buffers_gpu.tick);
+        rlt::evaluate(device_cpu, actor_critic_cpu.actor.input_layer, batch_cpu.observations, actor_buffers_cpu.tick, rng_gpu);
+        rlt::evaluate(device_gpu, actor_critic_gpu.actor.input_layer, batch_gpu.observations, actor_buffers_gpu.tick, rng_gpu);
         rlt::copy(device_gpu, device_cpu, actor_buffers_gpu, actor_buffers_cpu_2);
         auto abs_diff_tick = rlt::abs_diff(device_cpu, actor_buffers_cpu_2.tick, actor_buffers_cpu.tick);
         std::cout << "abs_diff_tick: " << abs_diff_tick << std::endl;
         ASSERT_LT(abs_diff_tick, EPSILON);
 
-        rlt::evaluate(device_cpu, actor_critic_cpu.actor_target, batch_cpu.next_observations, critic_training_buffers_cpu.next_actions, actor_buffers_cpu);
-        rlt::evaluate(device_gpu, actor_critic_gpu.actor_target, batch_gpu.next_observations, critic_training_buffers_gpu.next_actions, actor_buffers_gpu);
+        rlt::evaluate(device_cpu, actor_critic_cpu.actor_target, batch_cpu.next_observations, critic_training_buffers_cpu.next_actions, actor_buffers_cpu, rng_gpu);
+        rlt::evaluate(device_gpu, actor_critic_gpu.actor_target, batch_gpu.next_observations, critic_training_buffers_gpu.next_actions, actor_buffers_gpu, rng_gpu);
 
         rlt::copy(device_gpu, device_cpu, critic_training_buffers_gpu, critic_training_buffers_cpu_2);
         auto abs_diff_next_actions = rlt::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_actions, critic_training_buffers_cpu.next_actions);
@@ -328,13 +336,13 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
 //        forward_backward_mse(device_cpu, critic_cpu, batch_cpu.observations_and_actions, critic_training_buffers_cpu.target_action_value, critic_buffers_cpu);
         {
-            rlt::forward(device_cpu, critic_cpu, batch_cpu.observations_and_actions);
+            rlt::forward(device_cpu, critic_cpu, batch_cpu.observations_and_actions, rng_cpu);
             rlt::nn::loss_functions::mse::gradient(device_cpu, output(critic_cpu), critic_training_buffers_cpu.target_action_value, d_critic_output_cpu);
             rlt::backward(device_cpu, critic_cpu, batch_cpu.observations_and_actions, d_critic_output_cpu, critic_buffers_cpu);
         }
 //        forward_backward_mse(device_gpu, critic_gpu, batch_gpu.observations_and_actions, critic_training_buffers_gpu.target_action_value, critic_buffers_gpu);
         {
-            rlt::forward(device_gpu, critic_gpu, batch_gpu.observations_and_actions);
+            rlt::forward(device_gpu, critic_gpu, batch_gpu.observations_and_actions, rng_gpu);
             rlt::nn::loss_functions::mse::gradient(device_gpu, output(critic_gpu), critic_training_buffers_gpu.target_action_value, d_critic_output_gpu);
             rlt::backward(device_gpu, critic_gpu, batch_gpu.observations_and_actions, d_critic_output_gpu, critic_buffers_gpu);
         }
@@ -410,8 +418,8 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_CORRECTNESS) {
         auto& critic_gpu = critic_i == 0 ? actor_critic_gpu.critic_1 : actor_critic_gpu.critic_2;
         auto& critic_cpu_2 = critic_i == 0 ? actor_critic_cpu_2.critic_1 : actor_critic_cpu_2.critic_2;
 
-        rlt::train_critic(device_cpu, actor_critic_cpu, critic_cpu, batch_cpu, actor_critic_cpu.critic_optimizers[0], actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu);
-        rlt::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, actor_critic_gpu.critic_optimizers[0], actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu);
+        rlt::train_critic(device_cpu, actor_critic_cpu, critic_cpu, batch_cpu, actor_critic_cpu.critic_optimizers[0], actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu, rng_cpu);
+        rlt::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, actor_critic_gpu.critic_optimizers[0], actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu, rng_gpu);
 
         rlt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu_2);
         auto abs_diff_critic_after_update = rlt::abs_diff(device_cpu, critic_cpu, critic_cpu_2);
@@ -474,7 +482,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
         auto& critic_cpu = actor_critic_cpu.critic_1;
         auto start = std::chrono::high_resolution_clock::now();
         for(typename DEVICE_CPU::index_t i = 0; i < N_STEPS; i++){
-            rlt::train_critic(device_mkl, actor_critic_cpu, critic_cpu, batch_cpu, actor_critic_cpu.critic_optimizers[0], actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu);
+            rlt::train_critic(device_mkl, actor_critic_cpu, critic_cpu, batch_cpu, actor_critic_cpu.critic_optimizers[0], actor_buffers_cpu, critic_buffers_cpu, critic_training_buffers_cpu, rng_cpu);
         }
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -485,7 +493,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_PERFORMANCE) {
         cudaDeviceSynchronize();
         auto start = std::chrono::high_resolution_clock::now();
         for(typename DEVICE_CPU::index_t i = 0; i < N_STEPS; i++){
-            rlt::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, actor_critic_gpu.critic_optimizers[0], actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu);
+            rlt::train_critic(device_gpu, actor_critic_gpu, critic_gpu, batch_gpu, actor_critic_gpu.critic_optimizers[0], actor_buffers_gpu, critic_buffers_gpu, critic_training_buffers_gpu, rng_gpu);
         }
         cudaDeviceSynchronize();
         auto end = std::chrono::high_resolution_clock::now();
@@ -513,8 +521,8 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_CORRECTNESS) {
     for(typename DEVICE_CPU::index_t step_i = 0; step_i < N_STEPS; step_i++){
         sample_batch(false);
 
-        rlt::train_actor(device_cpu, actor_critic_cpu, batch_cpu, actor_critic_cpu.actor_optimizer, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu);
-        rlt::train_actor(device_gpu, actor_critic_gpu, batch_gpu, actor_critic_gpu.actor_optimizer, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu);
+        rlt::train_actor(device_cpu, actor_critic_cpu, batch_cpu, actor_critic_cpu.actor_optimizer, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu, rng_cpu);
+        rlt::train_actor(device_gpu, actor_critic_gpu, batch_gpu, actor_critic_gpu.actor_optimizer, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu, rng_gpu);
 
         rlt::copy(device_gpu, device_cpu, actor_critic_gpu, actor_critic_cpu_2);
         auto abs_diff_actor_after_update = rlt::abs_diff(device_cpu, actor_critic_cpu.actor, actor_critic_cpu_2.actor);
@@ -544,7 +552,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
 
     auto start = std::chrono::high_resolution_clock::now();
     for(typename DEVICE_CPU::index_t step_i = 0; step_i < N_STEPS; step_i++){
-        rlt::train_actor(device_cpu, actor_critic_cpu, batch_cpu, actor_critic_cpu.actor_optimizer, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu);
+        rlt::train_actor(device_cpu, actor_critic_cpu, batch_cpu, actor_critic_cpu.actor_optimizer, actor_buffers_cpu, critic_buffers_cpu, actor_training_buffers_cpu, rng_cpu);
     }
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -553,7 +561,7 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_ACTOR_PERFORMANCE) {
     cudaDeviceSynchronize();
     start = std::chrono::high_resolution_clock::now();
     for(typename DEVICE_CPU::index_t step_i = 0; step_i < N_STEPS; step_i++){
-        rlt::train_actor(device_gpu, actor_critic_gpu, batch_gpu, actor_critic_gpu.actor_optimizer, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu);
+        rlt::train_actor(device_gpu, actor_critic_gpu, batch_gpu, actor_critic_gpu.actor_optimizer, actor_buffers_gpu, critic_buffers_gpu, actor_training_buffers_gpu, rng_gpu);
     }
     cudaDeviceSynchronize();
     end = std::chrono::high_resolution_clock::now();
