@@ -91,13 +91,26 @@ if(RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS)
 endif()
 if(RL_TOOLS_WARNINGS_AS_ERRORS)
-    if(MSVC)
-        target_compile_options(rl_tools_core_definitions INTERFACE /WX)
-    else()
-        target_compile_options(rl_tools_core_definitions INTERFACE -Wall -Wextra -Werror -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=unused-local-typedef -Wno-error=unused-but-set-variable)
-    endif()
+    target_compile_options(rl_tools_core_definitions INTERFACE
+        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
+            -Wall -Wextra -Werror -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=unused-local-typedef -Wno-error=unused-but-set-variable
+        >
+    )
 endif()
-target_compile_options(rl_tools_core_definitions INTERFACE -Wno-unused-parameter -Wno-unused-variable -Wno-unused-local-typedef -Wno-unused-but-set-variable)
+target_compile_options(rl_tools_core_definitions INTERFACE
+    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
+        -Wno-unused-parameter
+        -Wno-unused-variable
+        -Wno-unused-local-typedef
+        -Wno-unused-but-set-variable
+    >
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /wd4100   # 'identifier' : unreferenced formal parameter
+        /wd4101   # 'identifier' : unreferenced local variable
+        /wd4189   # 'identifier' : local variable is initialized but not referenced
+    >
+)
+
 
 target_link_libraries(rl_tools_core_definitions INTERFACE rl_tools_core)
 add_library(rl_tools_backend INTERFACE)

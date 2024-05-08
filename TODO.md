@@ -47,3 +47,4 @@
   - Renaming OpenBLAS to BLAS should be mostly sufficient
 - Remove the experiment option scaffolding from `rl_environments_pendulum_ppo_training`
 - Debug why Sequential sometimes diverges in TD3
+- Enable -Werror on Windows
