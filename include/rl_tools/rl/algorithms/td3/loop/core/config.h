@@ -52,7 +52,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_2 = LAYER_TYPE<LAYER_2_SPEC>;
             static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM;
-            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
+            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::TANH, PARAMETER_TYPE, BATCH_SIZE>;
             using LAYER_3 = LAYER_TYPE<LAYER_3_SPEC>;
 
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
