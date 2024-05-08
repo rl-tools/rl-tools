@@ -89,13 +89,13 @@ int main(){
     rlt::init_weights(device, network, rng);
 
     constexpr TI NUM_BATCHES = DATASET_SIZE_TRAIN / BATCH_SIZE;
-    for(int epoch_i=0; epoch_i < NUM_EPOCHS; epoch_i++){
+    for(TI epoch_i=0; epoch_i < NUM_EPOCHS; epoch_i++){
         T epoch_loss = 0;
         auto epoch_start_time = std::chrono::high_resolution_clock::now();
-        for (int batch_i=0; batch_i < NUM_BATCHES; batch_i++){
+        for (TI batch_i=0; batch_i < NUM_BATCHES; batch_i++){
             T loss = 0;
             rlt::zero_gradient(device, network);
-            for (int sample_i=0; sample_i < BATCH_SIZE; sample_i++){
+            for (TI sample_i=0; sample_i < BATCH_SIZE; sample_i++){
                 auto input = rlt::row(device, x_train, batch_i * BATCH_SIZE + sample_i);
                 auto output = rlt::row(device, y_train, batch_i * BATCH_SIZE + sample_i);
                 auto prediction = rlt::row(device, rlt::output(network), 0);
@@ -122,7 +122,7 @@ int main(){
 
         T val_loss = 0;
         T accuracy = 0;
-        for (int sample_i=0; sample_i < VALIDATION_LIMIT; sample_i++){
+        for (TI sample_i=0; sample_i < VALIDATION_LIMIT; sample_i++){
             auto input = rlt::row(device, x_val, sample_i);
             auto output = rlt::row(device, y_val, sample_i);
 

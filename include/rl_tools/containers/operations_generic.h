@@ -439,12 +439,12 @@ namespace rl_tools{
         return sum_of_squares(device, m) / (SPEC::ROWS * SPEC::COLS);
     }
     template<typename DEVICE, typename SPEC>
-    [[deprecated("Note: math::isnan might be optimized out by the compiler when using e.g. fast-math")]]
+//    [[deprecated("Note: math::isnan might be optimized out by the compiler when using e.g. fast-math")]]
     bool is_nan(DEVICE& device, const Matrix<SPEC>& m){
         return reduce_unary<DEVICE, SPEC, bool, containers::vectorization::operators::is_nan<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, false);
     }
     template<typename DEVICE, typename SPEC>
-    [[deprecated("Note: math::isfinite might be optimized out by the compiler when using e.g. fast-math")]]
+//    [[deprecated("Note: math::isfinite might be optimized out by the compiler when using e.g. fast-math")]]
     bool is_finite(DEVICE& device, const Matrix<SPEC>& m){
         return reduce_unary<DEVICE, SPEC, bool, containers::vectorization::operators::is_finite<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, true);
     }

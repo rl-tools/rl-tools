@@ -23,6 +23,7 @@ std::string get_data_file_path(){
 }
 #define DTYPE double
 using DEVICE = rlt::devices::DefaultCPU;
+using TI = typename DEVICE::index_t;
 typedef rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT env;
@@ -56,14 +57,14 @@ void load_dataset(DEVICE& device, HighFive::Group g, RB& rb){
     g.getDataSet("terminated").read(terminated_matrix);
     assert(terminated_matrix.size() == 1);
     auto terminated = terminated_matrix[0];
-    for(int i = 0; i < terminated.size(); i++){
+    for(TI i = 0; i < terminated.size(); i++){
         rlt::set(rb.terminated, i, 0, terminated[i] == 1);
     }
     std::vector<std::vector<typename RB::T>> truncated_matrix;
     g.getDataSet("truncated").read(truncated_matrix);
     assert(truncated_matrix.size() == 1);
     auto truncated = truncated_matrix[0];
-    for(int i = 0; i < truncated.size(); i++){
+    for(TI i = 0; i < truncated.size(); i++){
         rlt::set(rb.truncated, i, 0, truncated[i] == 1);
     }
     rb.position = terminated.size();
@@ -81,8 +82,8 @@ typename SPEC::T assign(const HighFive::Group g, rlt::nn::layers::dense::Layer<S
     std::vector<typename SPEC::T> biases;
     g.getDataSet("weight").read(weights);
     g.getDataSet("bias").read(biases);
-    for(int i = 0; i < SPEC::OUTPUT_DIM; i++){
-        for(int j = 0; j < SPEC::INPUT_DIM; j++){
+    for(TI i = 0; i < SPEC::OUTPUT_DIM; i++){
+        for(TI j = 0; j < SPEC::INPUT_DIM; j++){
             layer.weights[i][j] = weights[i][j];
         }
         layer.biases[i] = biases[i];
@@ -157,15 +158,15 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
     std::vector<std::vector<DTYPE>> outputs;
     data_file.getDataSet("batch_output").read(outputs);
 
-    for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
+    for(TI batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
         rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM>> input;
         rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
         rlt::malloc(device, input);
         rlt::malloc(device, output);
-        for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
+        for (TI i = 0; i < batch.states[batch_sample_i].size(); i++) {
             rlt::set(input, 0, i, batch.states[batch_sample_i][i]);
         }
-        for (int i = 0; i < batch.actions[batch_sample_i].size(); i++) {
+        for (TI i = 0; i < batch.actions[batch_sample_i].size(); i++) {
             rlt::set(input, 0, batch.states[batch_sample_i].size() + i, batch.actions[batch_sample_i][i]);
         }
 
@@ -219,7 +220,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
     DTYPE loss = 0;
     rlt::reset_optimizer_state(device, optimizer, actor_critic.critic_1);
     rlt::zero_gradient(device, actor_critic.critic_1);
-    for(int batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
+    for(TI batch_sample_i = 0; batch_sample_i < batch.states.size(); batch_sample_i++){
 //        DTYPE input[first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM];
         rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM>> input;
         rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, 1>> output;
@@ -227,10 +228,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
         rlt::malloc(device, input);
         rlt::malloc(device, output);
         rlt::malloc(device, target);
-        for (int i = 0; i < batch.states[batch_sample_i].size(); i++) {
+        for (TI i = 0; i < batch.states[batch_sample_i].size(); i++) {
             rlt::set(input, 0, i, batch.states[batch_sample_i][i]);
         }
-        for (int i = 0; i < batch.actions[batch_sample_i].size(); i++) {
+        for (TI i = 0; i < batch.actions[batch_sample_i].size(); i++) {
             rlt::set(input, 0, batch.states[batch_sample_i].size() + i, batch.actions[batch_sample_i][i]);
         }
         rlt::set(target, 0, 0, 1);
@@ -360,8 +361,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     DTYPE mean_ratio_grad = 0;
     DTYPE mean_ratio_adam = 0;
     auto critic_training_group = data_file.getGroup("critic_training");
-    int num_updates = critic_training_group.getNumberObjects();
-    for(int training_step_i = 0; training_step_i < num_updates; training_step_i++){
+    TI num_updates = critic_training_group.getNumberObjects();
+    for(TI training_step_i = 0; training_step_i < num_updates; training_step_i++){
         auto step_group = critic_training_group.getGroup(std::to_string(training_step_i));
         rlt::load(device, critic_training_buffers_target.next_actions, step_group.getGroup("train_critics"), "target_next_actions_clipped");
         rlt::load(device, critic_training_buffers_target.next_state_action_value_input, step_group.getGroup("train_critics"), "next_state_action_value_input");
@@ -377,8 +378,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         step_group.getDataSet("target_next_action_noise").read(target_next_action_noise_vector);
 
 
-        for(int i = 0; i < first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; i++){
-            for(int j = 0; j < first_stage_second_stage::ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM; j++){
+        for(TI i = 0; i < first_stage_second_stage::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; i++){
+            for(TI j = 0; j < first_stage_second_stage::ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM; j++){
                 rlt::set(critic_training_buffers.target_next_action_noise, i, j, target_next_action_noise_vector[i][j]);
             }
         }
@@ -517,8 +518,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     DTYPE mean_ratio = 0;
     DTYPE mean_ratio_grad = 0;
     DTYPE mean_ratio_adam = 0;
-    int num_updates = data_file.getGroup("actor_training").getNumberObjects();
-    for(int training_step_i = 0; training_step_i < num_updates; training_step_i++){
+    TI num_updates = data_file.getGroup("actor_training").getNumberObjects();
+    for(TI training_step_i = 0; training_step_i < num_updates; training_step_i++){
         decltype(actor_critic.actor) post_actor;
         rlt::malloc(device, post_actor);
         std::stringstream ss;

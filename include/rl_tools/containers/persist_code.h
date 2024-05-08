@@ -67,7 +67,7 @@ namespace rl_tools{
             for(TI j=0; j < SPEC::COLS; j++){
                 auto value = get(m, i, j);
                 auto* ptr = reinterpret_cast<containers::persist::STORAGE_TYPE*>(&value);
-                for(int k=0; k < sizeof(T); k++){
+                for(TI k=0; k < sizeof(T); k++){
                     if(!first){
                         ss << ", ";
                     }

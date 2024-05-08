@@ -66,7 +66,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
 
         auto output = wrapped.header + "\n" + wrapped.body;
 //        std::cout << "output: " << output << std::endl;
-        std::filesystem::create_directories("data");
+//        std::filesystem::create_directories("data");
         std::ofstream file;
         file.open("tests/data/nn_models_sequential_persist_code.h", std::ios::out | std::ios::trunc);
         std::cout << "Working directory: " << std::filesystem::current_path() << std::endl;

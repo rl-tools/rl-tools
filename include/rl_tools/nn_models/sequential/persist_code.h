@@ -56,6 +56,7 @@ namespace rl_tools{
                     ss << ", {";
                 }
             }
+            ss << ", {}";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << "}";
             }

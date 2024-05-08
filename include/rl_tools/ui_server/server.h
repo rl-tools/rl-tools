@@ -196,7 +196,7 @@ namespace rl_tools::ui_server{
     class http_connection: public std::enable_shared_from_this<http_connection>
     {
     public:
-        http_connection(tcp::socket socket, State& state, std::string static_path): socket_(std::move(socket)), state(state), static_path(static_path){ }
+        http_connection(tcp::socket socket, State& state, std::string static_path): static_path(static_path), state(state), socket_(std::move(socket)){ }
         void start(){
             read_request();
             check_deadline();

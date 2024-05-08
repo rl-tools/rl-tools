@@ -42,7 +42,7 @@ namespace rl_tools{
                << ", "
                << get_type_string_tag(device, typename CONTAINER::CATEGORY_TAG{})
                << ">;\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "rl_tools::nn::parameters::Adam::instance<PARAMETER_SPEC> parameters = {parameters_memory::container, gradient_memory::container, gradient_first_order_moment_memory::container, gradient_second_order_moment_memory::container, };\n";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "rl_tools::nn::parameters::Adam::instance<PARAMETER_SPEC> parameters = {{{parameters_memory::container}, gradient_memory::container}, gradient_first_order_moment_memory::container, gradient_second_order_moment_memory::container};\n";
         }
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};

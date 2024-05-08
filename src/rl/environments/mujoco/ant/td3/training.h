@@ -18,6 +18,7 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 };
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
+using TI = typename DEVICE::index_t;
 
 #include <rl_tools/nn/operations_cpu_mux.h>
 
@@ -203,7 +204,7 @@ void run(){
 
 
         // training
-        for(int step_i = 0; step_i < STEP_LIMIT; step_i++){
+        for(TI step_i = 0; step_i < STEP_LIMIT; step_i++){
             auto step_start = std::chrono::high_resolution_clock::now();
             rlt::set_step(device, device.logger, step_i);
             rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);

@@ -162,7 +162,7 @@ void train(){
     std::cout << "Total: " << sizeof(actor_critic) + sizeof(off_policy_runner) + sizeof(critic_batch) + sizeof(critic_training_buffers) + sizeof(critic_buffers) + sizeof(actor_batch) + sizeof(actor_training_buffers) + sizeof(actor_buffers) << std::endl;
 #endif
 
-    for(int step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS){
+    for(typename DEVICE::index_t step_i = 0; step_i < N_STEPS; step_i+=OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS){
         rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
         if(step_i % 100 == 0){

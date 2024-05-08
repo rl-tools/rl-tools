@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
 
         rlt::sample_initial_state(dev, env, state, rng);
         T reward_acc = 0;
-        for(int step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
+        for(TI step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
             rlt::observe(dev, env, state, observation, rng);
             rlt::normalize(dev, observation_normalizer.mean, observation_normalizer.std, observation);
@@ -134,14 +134,14 @@ int main(int argc, char** argv) {
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> diff = end-start;
             if(startup_timeout > 0 && episode_i == 0 && step_i == 0){
-                for(int timeout_step_i = 0; timeout_step_i < startup_timeout; timeout_step_i++){
+                for(TI timeout_step_i = 0; timeout_step_i < startup_timeout; timeout_step_i++){
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                     if(timeout_step_i % 100 == 0){
                         rlt::set_state(dev, ui, state);
                     }
                 }
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds((int)((dt - diff.count())*1000)));
+            std::this_thread::sleep_for(std::chrono::milliseconds((TI)((dt - diff.count())*1000)));
             if(terminated_flag || step_i == (MAX_EPISODE_LENGTH - 1)){
                 std::cout << "Episode terminated after " << step_i << " steps with reward " << reward_acc << std::endl;
                 break;

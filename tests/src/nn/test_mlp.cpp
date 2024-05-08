@@ -23,8 +23,10 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 //#define SKIP_TRAINING_TESTS
 
 
-constexpr uint32_t N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
+using DEVICE = NN_DEVICE;
+using TI = typename DEVICE::index_t;
 
+constexpr TI N_WEIGHTS = ((INPUT_DIM + 1) * LAYER_1_DIM + (LAYER_1_DIM + 1) * LAYER_2_DIM + (LAYER_2_DIM + 1) * OUTPUT_DIM);
 
 using NetworkType_1 = NetworkType;
 
@@ -46,7 +48,6 @@ T abs_diff_network(const NT network, const HighFive::Group g){
 //    acc += abs_diff_matrix<T, LAYER_1_DIM, INPUT_DIM>(network.input_layer.weights, weights);
 //    return acc;
 //}
-using DEVICE = NN_DEVICE;
 
 template <typename NetworkType>
 class NeuralNetworkTestLoadWeights : public NeuralNetworkTest {
@@ -65,8 +66,8 @@ protected:
         this->reset();
         DTYPE input[INPUT_DIM];
         DTYPE output[OUTPUT_DIM];
-        standardise<DTYPE, INPUT_DIM>(X_train[0].data(), X_mean.data(), X_std.data(), input);
-        standardise<DTYPE, OUTPUT_DIM>(Y_train[0].data(), Y_mean.data(), Y_std.data(), output);
+        standardise<DTYPE, TI, INPUT_DIM>(X_train[0].data(), X_mean.data(), X_std.data(), input);
+        standardise<DTYPE, TI, OUTPUT_DIM>(Y_train[0].data(), Y_mean.data(), Y_std.data(), output);
         rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t>>> input_matrix;
         input_matrix._data = input;
         rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t>>> output_matrix;
@@ -199,6 +200,7 @@ TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
 //    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_tensorflow<DTYPE>;
+    using TI = typename DEVICE::index_t;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     std::vector<std::vector<DTYPE>> batch_0_input_layer_weights;
@@ -215,8 +217,8 @@ TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     data_file.getDataSet("model_1/weights/0/output_layer/bias").read(batch_0_output_layer_biases);
     DTYPE input[INPUT_DIM];
     DTYPE output[OUTPUT_DIM];
-    standardise<DTYPE, INPUT_DIM>(&X_train[0][0], &X_mean[0], &X_std[0], input);
-    standardise<DTYPE, OUTPUT_DIM>(&Y_train[0][0], &Y_mean[0], &Y_std[0], output);
+    standardise<DTYPE, TI, INPUT_DIM>(&X_train[0][0], &X_mean[0], &X_std[0], input);
+    standardise<DTYPE, TI, OUTPUT_DIM>(&Y_train[0][0], &Y_mean[0], &Y_std[0], output);
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
     input_matrix._data = input;
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
@@ -252,10 +254,10 @@ TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
 //    DTYPE output[OUTPUT_DIM];
 //    standardise<DTYPE, INPUT_DIM>(X_train[1].data(), X_mean.data(), X_std.data(), input);
 //    standardise<DTYPE, OUTPUT_DIM>(Y_train[1].data(), Y_mean.data(), Y_std.data(), output);
-//    constexpr int n_iter = 1000;
+//    constexpr TI n_iter = 1000;
 //    DTYPE loss = 0;
 //    reset_optimizer_state(network);
-//    for (int batch_i = 0; batch_i < n_iter; batch_i++){
+//    for (TI batch_i = 0; batch_i < n_iter; batch_i++){
 //        forward(network, input);
 //        DTYPE d_loss_d_output[OUTPUT_DIM];
 //        d_mse_d_x<DTYPE, OUTPUT_DIM>(network.output_layer.output, output, d_loss_d_output);
@@ -296,8 +298,10 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     HighFive::Group g = data_file.getGroup("model_2/overfit_small_batch");
 
-    constexpr int n_iter = 1000;
-    constexpr int batch_size = 32;
+    using TI = typename DEVICE::index_t;
+
+    constexpr TI n_iter = 1000;
+    constexpr TI batch_size = 32;
     DTYPE loss = 0;
     rlt::reset_optimizer_state(device, optimizer, network);
     {
@@ -305,15 +309,15 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
         std::cout << "initial diff: " << diff << std::endl;
         ASSERT_EQ(diff, 0);
     }
-    for (int batch_i=0; batch_i < n_iter; batch_i++){
-        uint32_t batch_i_real = 0;
+    for (TI batch_i=0; batch_i < n_iter; batch_i++){
+        TI batch_i_real = 0;
         loss = 0;
         rlt::zero_gradient(device, network);
-        for (int sample_i=0; sample_i < batch_size; sample_i++){
+        for (TI sample_i=0; sample_i < batch_size; sample_i++){
             DTYPE input[INPUT_DIM];
             DTYPE output[OUTPUT_DIM];
-            standardise<DTYPE,  INPUT_DIM>(X_train[batch_i_real * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
-            standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i_real * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
+            standardise<DTYPE, TI, INPUT_DIM>(X_train[batch_i_real * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
+            standardise<DTYPE, TI,OUTPUT_DIM>(Y_train[batch_i_real * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename NN_DEVICE::index_t>>> input_matrix;
             input_matrix._data = input;
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
@@ -336,7 +340,7 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
         std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
 
         rlt::step(device, optimizer, network);
-//        constexpr int comp_batch = 100;
+//        constexpr TI comp_batch = 100;
 //        if(batch_i == comp_batch){
         std::stringstream ss;
         ss << "model_2/overfit_small_batch/" << batch_i;
@@ -366,22 +370,22 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
 TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     std::vector<DTYPE> losses;
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
-    constexpr int n_batches = 10;
-    for(int batch_i_real=0; batch_i_real < n_batches; batch_i_real++){
+    constexpr TI n_batches = 10;
+    for(TI batch_i_real=0; batch_i_real < n_batches; batch_i_real++){
         this->reset();
 
-        constexpr int n_iter = 1000;
-        constexpr int batch_size = 32;
+        constexpr TI n_iter = 1000;
+        constexpr TI batch_size = 32;
         DTYPE loss = 0;
         rlt::reset_optimizer_state(device, optimizer, network);
-        for (int batch_i=0; batch_i < n_iter; batch_i++){
+        for (TI batch_i=0; batch_i < n_iter; batch_i++){
             loss = 0;
             rlt::zero_gradient(device, network);
-            for (int sample_i=0; sample_i < batch_size; sample_i++){
+            for (TI sample_i=0; sample_i < batch_size; sample_i++){
                 DTYPE input[INPUT_DIM];
                 DTYPE output[OUTPUT_DIM];
-                standardise<DTYPE,  INPUT_DIM>(X_train[batch_i_real * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
-                standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i_real * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
+                standardise<DTYPE, TI, INPUT_DIM>(X_train[batch_i_real * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
+                standardise<DTYPE, TI,OUTPUT_DIM>(Y_train[batch_i_real * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> input_matrix;
                 input_matrix._data = input;
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
@@ -423,10 +427,10 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
     DTYPE min_loss = *min_element(losses.begin(), losses.end());
     DTYPE max_loss = *max_element(losses.begin(), losses.end());
     std::sort(losses.begin(), losses.end());
-    DTYPE perc1_loss = losses[(int)(n_batches * 0.01)];
-    DTYPE perc5_loss = losses[(int)(n_batches * 0.05)];
-    DTYPE perc95_loss = losses[(int)(n_batches * 0.95)];
-    DTYPE perc99_loss = losses[(int)(n_batches * 0.99)];
+    DTYPE perc1_loss = losses[(TI)(n_batches * 0.01)];
+    DTYPE perc5_loss = losses[(TI)(n_batches * 0.05)];
+    DTYPE perc95_loss = losses[(TI)(n_batches * 0.95)];
+    DTYPE perc99_loss = losses[(TI)(n_batches * 0.99)];
 
     constexpr DTYPE mean_loss_target   = 3.307228189225464e-12;
     constexpr DTYPE std_loss_target    = 1.363137554222238e-11;
@@ -477,22 +481,22 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
-    constexpr int n_epochs = 3;
+    constexpr TI n_epochs = 3;
     this->reset();
     rlt::reset_optimizer_state(device, optimizer, network);
-    constexpr int batch_size = 32;
-    int n_iter = X_train.size() / batch_size;
+    constexpr TI batch_size = 32;
+    TI n_iter = X_train.size() / batch_size;
 
-    for(int epoch_i=0; epoch_i < n_epochs; epoch_i++){
+    for(TI epoch_i=0; epoch_i < n_epochs; epoch_i++){
         DTYPE epoch_loss = 0;
-        for (int batch_i=0; batch_i < n_iter; batch_i++){
+        for (TI batch_i=0; batch_i < n_iter; batch_i++){
             DTYPE loss = 0;
             rlt::zero_gradient(device, network);
-            for (int sample_i=0; sample_i < batch_size; sample_i++){
+            for (TI sample_i=0; sample_i < batch_size; sample_i++){
                 DTYPE input[INPUT_DIM];
                 DTYPE output[OUTPUT_DIM];
-                standardise<DTYPE,  INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
-                standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
+                standardise<DTYPE, TI, INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
+                standardise<DTYPE, TI,OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> input_matrix;
                 input_matrix._data = input;
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
@@ -528,11 +532,11 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
         losses.push_back(epoch_loss);
 
         DTYPE val_loss = 0;
-        for (int sample_i=0; sample_i < X_val.size(); sample_i++){
+        for (typename DEVICE::index_t sample_i=0; sample_i < X_val.size(); sample_i++){
             DTYPE input[INPUT_DIM];
             DTYPE output[OUTPUT_DIM];
-            standardise<DTYPE,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
-            standardise<DTYPE, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
+            standardise<DTYPE, TI, INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
+            standardise<DTYPE, TI,OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> input_matrix;
             input_matrix._data = input;
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
@@ -551,7 +555,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
     }
 
 
-    for (int i=0; i < losses.size(); i++){
+    for (typename DEVICE::index_t i=0; i < losses.size(); i++){
         std::cout << "epoch_i " << i << " loss: train:" << losses[i] << " val: " << val_losses[i] << std::endl;
     }
     // loss
@@ -587,25 +591,25 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     rlt::malloc(device, network);
     std::vector<DTYPE> losses;
     std::vector<DTYPE> val_losses;
-    constexpr int n_epochs = 3;
+    constexpr TI n_epochs = 3;
 //    this->reset();
     rlt::reset_optimizer_state(device, optimizer, network);
     std::mt19937 rng(2);
     rlt::init_weights(device, network, rng);
 
-    constexpr int batch_size = 32;
-    int n_iter = X_train.size() / batch_size;
+    constexpr TI batch_size = 32;
+    TI n_iter = X_train.size() / batch_size;
 
-    for(int epoch_i=0; epoch_i < n_epochs; epoch_i++){
+    for(TI epoch_i=0; epoch_i < n_epochs; epoch_i++){
         DTYPE epoch_loss = 0;
-        for (int batch_i=0; batch_i < n_iter; batch_i++){
+        for (TI batch_i=0; batch_i < n_iter; batch_i++){
             DTYPE loss = 0;
             rlt::zero_gradient(device, network);
-            for (int sample_i=0; sample_i < batch_size; sample_i++){
+            for (TI sample_i=0; sample_i < batch_size; sample_i++){
                 DTYPE input[INPUT_DIM];
                 DTYPE output[OUTPUT_DIM];
-                standardise<DTYPE,  INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
-                standardise<DTYPE, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
+                standardise<DTYPE, TI, INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
+                standardise<DTYPE, TI,OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> input_matrix;
                 input_matrix._data = input;
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
@@ -641,11 +645,11 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
         losses.push_back(epoch_loss);
 
         DTYPE val_loss = 0;
-        for (int sample_i=0; sample_i < X_val.size(); sample_i++){
+        for (TI sample_i=0; sample_i < X_val.size(); sample_i++){
             DTYPE input[INPUT_DIM];
             DTYPE output[OUTPUT_DIM];
-            standardise<DTYPE,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
-            standardise<DTYPE, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
+            standardise<DTYPE, TI, INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
+            standardise<DTYPE, TI,OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, INPUT_DIM>> input_matrix;
             input_matrix._data = input;
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
@@ -664,7 +668,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
     }
 
 
-    for (int i=0; i < losses.size(); i++){
+    for (TI i=0; i < losses.size(); i++){
         std::cout << "epoch_i " << i << " loss: train:" << losses[i] << " val: " << val_losses[i] << std::endl;
     }
     // loss

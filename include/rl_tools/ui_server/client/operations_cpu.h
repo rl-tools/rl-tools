@@ -38,13 +38,14 @@ namespace rl_tools{
         static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
         static_assert(ACTION_SPEC::ROWS == 1);
         using T = typename ACTION_SPEC::T;
+        using TI = typename DEVICE::index_t;
         nlohmann::json message;
         message["namespace"] = ui.ns;
         message["channel"] = "setState";
         message["data"] = nlohmann::json();
         message["data"]["state"] = json(dev, state);
         std::vector<T> action_vector;
-        for(int i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
+        for(TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
             action_vector.push_back(get(action, 0, i));
         }
         message["data"]["action"] = action_vector;
@@ -55,12 +56,13 @@ namespace rl_tools{
         static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
         static_assert(ACTION_SPEC::ROWS == 1);
         using T = typename ACTION_SPEC::T;
+        using TI = typename DEVICE::index_t;
         nlohmann::json message;
         message["namespace"] = ui.ns;
         message["channel"] = "setAction";
         message["data"] = nlohmann::json();
         std::vector<T> action_vector;
-        for(int i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
+        for(TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
             action_vector.push_back(get(action, 0, i));
         }
         message["data"]["action"] = action_vector;

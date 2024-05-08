@@ -32,8 +32,6 @@ namespace execution_hints{
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
 };
-using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
-
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using T = float;
@@ -92,7 +90,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDENT){
 
     auto start = std::chrono::high_resolution_clock::now();
     for(TI env_i = 0; env_i < NUM_THREADS; env_i++){
-        threads[env_i] = std::thread([&device, &rngs, &actions, &envs, env_i, NUM_STEPS_PER_THREAD](){
+        threads[env_i] = std::thread([&device, &rngs, &actions, &envs, env_i](){
             STATE state, next_state;
             auto rng = rngs[env_i];
             auto& env = envs[env_i];
@@ -156,9 +154,9 @@ public:
     }
 
 private:
-    int count;
-    int waiting;
-    int waiting2;
+    TI count;
+    TI waiting;
+    TI waiting2;
     std::condition_variable cond;
     std::mutex mutex;
 };
@@ -188,11 +186,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_LOCKSTEP){
     TwoWayBarrier<NUM_THREADS> barrier;
 
     auto start = std::chrono::high_resolution_clock::now();
-    std::vector<int> order;
+    std::vector<TI> order;
     std::mutex order_mutex;
     T step_time[NUM_THREADS] = {0};
     for(TI env_i = 0; env_i < NUM_THREADS; env_i++){
-        threads[env_i] = std::thread([&device, &rngs, &actions, &envs, &barrier, &order, &order_mutex, &step_time, env_i, NUM_STEPS_PER_THREAD](){
+        threads[env_i] = std::thread([&device, &rngs, &actions, &envs, &barrier, &order, &order_mutex, env_i](){
             STATE state, next_state;
             auto rng = rngs[env_i];
             auto& env = envs[env_i];
@@ -280,7 +278,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
         for(TI step_i = 0; step_i < NUM_STEPS_PER_ENVIRONMENT; step_i++) {
             std::thread threads[NUM_THREADS];
             for(TI thread_i = 0; thread_i < NUM_THREADS; thread_i++){
-                threads[thread_i] = std::thread([&device, &rngs, &actions, &observations, &envs, &states, &next_states, thread_i, step_i, NUM_ENVIRONMENTS, NUM_THREADS](){
+                threads[thread_i] = std::thread([&device, &rngs, &actions, &observations, &envs, &states, &next_states, thread_i, step_i](){
                     for(TI env_i = thread_i; env_i < NUM_ENVIRONMENTS; env_i += NUM_THREADS){
                         auto rng = rngs[thread_i];
                         auto& env = envs[env_i];
@@ -347,7 +345,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDENT_FORW
 
     auto start = std::chrono::high_resolution_clock::now();
     for(TI env_i = 0; env_i < NUM_THREADS; env_i++){
-        threads[env_i] = std::thread([&device, &actors, &actor_buffers, &rngs, &observations, &actions, &envs, env_i, NUM_STEPS_PER_THREAD](){
+        threads[env_i] = std::thread([&device, &actors, &actor_buffers, &rngs, &observations, &actions, &envs, env_i](){
             STATE state, next_state;
             auto rng = rngs[env_i];
             auto& env = envs[env_i];
@@ -423,7 +421,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWA
         rlt::observe(device, envs[env_i], states[env_i], observation, rngs[0]);
     }
     for(TI thread_i = 0; thread_i < NUM_THREADS; thread_i++){
-        threads[thread_i] = std::thread([&device, &states, &next_states, &actor_buffers, &next_env_lock, &next_env, &barrier_1, &evaluation_time, &barrier_1_wait_time, &barrier_2_wait_time, &barrier_2, &actor, &rngs, &observations, &actions, &envs, thread_i, NUM_STEPS_PER_ENVIRONMENT, NUM_ENVIRONMENTS](){
+        threads[thread_i] = std::thread([&device, &states, &next_states, &actor_buffers, &next_env_lock, &next_env, &barrier_1, &evaluation_time, &barrier_1_wait_time, &barrier_2_wait_time, &barrier_2, &actor, &rngs, &observations, &actions, &envs, thread_i](){
             auto rng = rngs[thread_i];
             for(TI step_i = 0; step_i < NUM_STEPS_PER_ENVIRONMENT; step_i++){
                 {
@@ -535,7 +533,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWA
             rlt::observe(device, envs[env_i], states[env_i], observation, proto_rng);
         }
         for(TI thread_i = 0; thread_i < NUM_THREADS; thread_i++){
-            threads[thread_i] = std::thread([&device, &states, &next_states, &actor_buffers, &barrier_1, &evaluation_time, &barrier_1_wait_time, &barrier_2_wait_time, &barrier_2, &actor, &rngs, &observations, &actions, &envs, thread_i, NUM_STEPS_PER_ENVIRONMENT, NUM_ENVIRONMENTS, NUM_THREADS](){
+            threads[thread_i] = std::thread([&device, &states, &next_states, &actor_buffers, &barrier_1, &evaluation_time, &barrier_1_wait_time, &barrier_2_wait_time, &barrier_2, &actor, &rngs, &observations, &actions, &envs, thread_i](){
                 auto rng = rngs[thread_i];
                 for(TI step_i = 0; step_i < NUM_STEPS_PER_ENVIRONMENT; step_i++){
                     {

@@ -32,6 +32,7 @@ std::string get_data_file_path(){
 }
 #define DTYPE double
 using DEVICE = rlt::devices::DefaultCPU;
+using TI = typename DEVICE::index_t;
 typedef rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
 using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 #ifdef RL_TOOLS_TEST_RL_ALGORITHMS_TD3_SECOND_STAGE_EVALUATE_VISUALLY
@@ -87,7 +88,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_LOADING_TRAINED_ACTOR) {
     rlt::rl::environments::DummyUI ui;
 
     auto data_file = HighFive::File(get_data_file_path(), HighFive::File::ReadOnly);
-    int step = data_file.getGroup("full_training").getGroup("steps").getNumberObjects()-1;
+    TI step = data_file.getGroup("full_training").getGroup("steps").getNumberObjects()-1;
     assert(step >= 0);
     auto step_group = data_file.getGroup("full_training").getGroup("steps").getGroup(std::to_string(step));
     rlt::load(device, actor_critic.actor, step_group.getGroup("actor"));
@@ -110,10 +111,10 @@ using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specifica
 using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
 using DEVICE = rlt::devices::DefaultCPU;
 typedef OFF_POLICY_RUNNER_TYPE::REPLAY_BUFFER_TYPE ReplayBufferTypeCopyTraining;
-constexpr int BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
+constexpr TI BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
 template <typename DEVICE, typename T>
 void load(DEVICE& device, ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
-    for(int i = 0; i < batch.size(); i++){
+    for(TI i = 0; i < batch.size(); i++){
 //        rlt::utils::memcpy(&rb.     rlt::get(observations, i, 0), &batch[i][0], ENVIRONMENT::OBSERVATION_DIM);
         rlt::assign(device, &batch[i][0], rb.observations, i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
 //        rlt::utils::memcpy(&rb.          rlt::get(actions, i, 0), &batch[i][ENVIRONMENT::OBSERVATION_DIM], ENVIRONMENT::ACTION_DIM);
@@ -127,7 +128,7 @@ void load(DEVICE& device, ReplayBufferTypeCopyTraining& rb, std::vector<std::vec
     rb.position = batch.size();
 }
 TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, FP_ACC) {
-    for(int i = 0; i < 1000; i++){
+    for(TI i = 0; i < 1000; i++){
         std::normal_distribution<float> dist;
         auto rng = std::mt19937(0);
         float a = dist(rng) * 5e-3;
@@ -142,7 +143,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, FP_ACC) {
 
 //        std::cout << e << std::endl;
     }
-    for(int i = 0; i < 1000; i++){
+    for(TI i = 0; i < 1000; i++){
         std::normal_distribution<double> dist;
         auto rng = std::mt19937(0);
         double a = dist(rng) * 5e-3;
@@ -204,7 +205,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     DTYPE mean_ratio_critic_target = 0;
     auto full_training_group = data_file.getGroup("full_training");
     auto steps_group = full_training_group.getGroup("steps");
-    int num_steps = std::min(steps_group.getNumberObjects(), (typename DEVICE::index_t)1000);
+    TI num_steps = std::min(steps_group.getNumberObjects(), (typename DEVICE::index_t)1000);
     decltype(actor_critic.critic_1) pre_critic_1;
     rlt::malloc(device, pre_critic_1);
     rlt::copy(device, device, actor_critic.critic_1, pre_critic_1);
@@ -233,7 +234,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     rlt::malloc(device, actor_buffers[0]);
     rlt::malloc(device, actor_buffers[1]);
 
-    for(int step_i = 0; step_i < num_steps; step_i++){
+    for(TI step_i = 0; step_i < num_steps; step_i++){
         if(verbose){
             std::cout << "step_i: " << step_i << std::endl;
         }
@@ -322,7 +323,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 //            if(false){//(step_i % 100 == 0){
 //                DTYPE diff = 0;
-//                for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
+//                for(TI batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
 //                    DTYPE input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
 //                    rlt::utils::memcpy(input, &rlt::get(replay_buffer.observations, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
 //                    rlt::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &rlt::get(replay_buffer.actions, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
@@ -371,7 +372,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 //            if(true){//(step_i % 100 == 1){
 //                DTYPE diff = 0;
-//                for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE; batch_sample_i++){
+//                for(TI batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE; batch_sample_i++){
 //                    DTYPE current_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
 //                    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> current_action_matrix = {current_action};
 //                    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM>> observation_matrix = {&replay_buffer.observations.data[batch_sample_i]};
@@ -478,7 +479,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 
 //                    if(true){//(step_i % 100 == 0){
 //                        DTYPE diff = 0;
-//                        for(int batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
+//                        for(TI batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
 //                            DTYPE input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
 //                            rlt::utils::memcpy(input, &replay_buffer.observations.data[batch_sample_i*ENVIRONMENT::OBSERVATION_DIM], ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
 //                            rlt::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &replay_buffer.actions.data[batch_sample_i*ENVIRONMENT::ACTION_DIM], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);

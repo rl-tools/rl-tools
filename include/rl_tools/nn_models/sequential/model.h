@@ -45,7 +45,7 @@ namespace rl_tools::nn_models::sequential{
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
             return 0;
         } else {
-            auto max_downstream = find_max_hiddend_dim<TI, typename SPEC::NEXT_MODULE>();
+            TI max_downstream = find_max_hiddend_dim<TI, typename SPEC::NEXT_MODULE>();
             return max_downstream > current_max ? max_downstream : current_max;
         }
     }

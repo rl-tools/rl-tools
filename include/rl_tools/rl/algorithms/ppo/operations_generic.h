@@ -65,7 +65,7 @@ namespace rl_tools{
                 bool terminated = get(dataset.terminated, pos, 0);
                 bool truncated = get(dataset.truncated, pos, 0);
 #ifdef RL_TOOLS_DEBUG_RL_ALGORITHMS_PPO_GAE_CHECK_TERMINATED_TRUNCATED
-                utils::assert_exit(device, !terminated || terminated && truncated, "terminationn should imply truncation");
+                utils::assert_exit(device, !terminated || (terminated && truncated), "terminationn should imply truncation");
 #endif
                 T current_step_value = get(dataset.values, pos, 0);
                 bool terminated_actual = terminated && !PPO_PARAMETERS::IGNORE_TERMINATION;

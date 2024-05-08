@@ -19,10 +19,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
 
     DEVICE device;
+    using TI = typename DEVICE::index_t;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
     HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto episodes_group = file.getGroup("episodes");
-    for(int episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){
+    for(typename DEVICE::index_t episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){
         auto episode_group = episodes_group.getGroup(std::to_string(episode_i));
         std::vector<std::vector<DTYPE>> states;
         std::vector<std::vector<DTYPE>> actions;
@@ -42,7 +43,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
         ENVIRONMENT::State state;
         state.theta = states[0][0];
         state.theta_dot = states[0][1];
-        for(int step_i = 0; step_i < states.size(); step_i++){
+        for(TI step_i = 0; step_i < states.size(); step_i++){
             std::cout << "step i: " << step_i << std::endl;
             ENVIRONMENT::State next_state;
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;

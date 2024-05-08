@@ -23,6 +23,7 @@ typedef double T;
 
 
 using DEVICE = rlt::devices::DefaultCPU;
+using TI = typename DEVICE::index_t;
 //template <typename T_T>
 //struct StructureSpecification{
 //    typedef T_T T;
@@ -34,7 +35,7 @@ using DEVICE = rlt::devices::DefaultCPU;
 //    static constexpr rlt::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = rlt::nn::activation_functions::IDENTITY;
 //};
 
-constexpr int batch_size = 32;
+constexpr TI batch_size = 32;
 using StructureSpecification = rlt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY, 1>;
 
 
@@ -71,7 +72,10 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     data_file.getDataSet("data/Y_mean").read(Y_mean);
     data_file.getDataSet("data/Y_std").read(Y_std);
 
+
+
     DEVICE device;
+    using TI = typename DEVICE::index_t;
     OPTIMIZER optimizer;
     NetworkType network;
     typename NetworkType::Buffer<1> buffers;
@@ -80,26 +84,26 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     std::vector<T> losses;
     std::vector<T> val_losses;
     std::vector<T> epoch_durations;
-    constexpr int n_epochs = 3;
+    constexpr TI n_epochs = 3;
     //    this->reset();
     rlt::reset_optimizer_state(device, optimizer, network);
 //    typename DEVICE::index_t rng = 2;
     std::mt19937 rng(2);
     rlt::init_weights(device, network, rng);
 
-    int n_iter = X_train.size() / batch_size;
+    TI n_iter = X_train.size() / batch_size;
 
-    for(int epoch_i=0; epoch_i < n_epochs; epoch_i++){
+    for(TI epoch_i=0; epoch_i < n_epochs; epoch_i++){
         T epoch_loss = 0;
         auto epoch_start_time = std::chrono::high_resolution_clock::now();
-        for (int batch_i=0; batch_i < n_iter; batch_i++){
+        for (TI batch_i=0; batch_i < n_iter; batch_i++){
             T loss = 0;
             rlt::zero_gradient(device, network);
-            for (int sample_i=0; sample_i < batch_size; sample_i++){
+            for (TI sample_i=0; sample_i < batch_size; sample_i++){
                 T input[INPUT_DIM];
                 T output[OUTPUT_DIM];
-                standardise<T,  INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
-                standardise<T, OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
+                standardise<T, TI, INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
+                standardise<T, TI,OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
                 input_matrix._data = input;
                 rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
@@ -138,11 +142,11 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
         losses.push_back(epoch_loss);
 
         T val_loss = 0;
-        for (int sample_i=0; sample_i < X_val.size(); sample_i++){
+        for (DEVICE::index_t sample_i=0; sample_i < X_val.size(); sample_i++){
             T input[INPUT_DIM];
             T output[OUTPUT_DIM];
-            standardise<T,  INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
-            standardise<T, OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
+            standardise<T, TI, INPUT_DIM>(X_val[sample_i].data(), X_mean.data(), X_std.data(), input);
+            standardise<T, TI,OUTPUT_DIM>(Y_val[sample_i].data(), Y_mean.data(), Y_std.data(), output);
 
             rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
             input_matrix._data = input;
@@ -163,7 +167,7 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
 
 
     // epoch duration should be around 13s (Lenovo P1, Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz) when compiled with -O3
-    for (int i=0; i < losses.size(); i++){
+    for (typename DEVICE::index_t i=0; i < losses.size(); i++){
         std::cout << "epoch_i " << i << " loss: train:" << losses[i] << " val: " << val_losses[i] << " duration: " << epoch_durations[i] << std::endl;
     }
 
