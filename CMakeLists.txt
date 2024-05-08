@@ -92,17 +92,23 @@ if(RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS)
 endif()
 if(RL_TOOLS_WARNINGS_AS_ERRORS)
     target_compile_options(rl_tools_core_definitions INTERFACE
-        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
-            -Wall -Wextra -Werror -Wno-error=unused-parameter -Wno-error=unused-variable -Wno-error=unused-local-typedef -Wno-error=unused-but-set-variable
+        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:
+            -Wall -Wextra -Werror
+            -Wno-error=unused-parameter
+            -Wno-error=unused-variable
+            -Wno-error=unused-local-typedef
+            -Wno-error=unused-but-set-variable
+            -Wno-error=unused-lambda-capture
         >
     )
 endif()
 target_compile_options(rl_tools_core_definitions INTERFACE
-    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
+    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:
         -Wno-unused-parameter
         -Wno-unused-variable
         -Wno-unused-local-typedef
         -Wno-unused-but-set-variable
+        -Wno-unused-lambda-capture
     >
     $<$<CXX_COMPILER_ID:MSVC>:
         /wd4100   # 'identifier' : unreferenced formal parameter
