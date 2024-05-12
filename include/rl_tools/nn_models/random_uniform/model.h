@@ -1,10 +1,10 @@
 #include "../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_UNIFORM_RANDOM_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_RANDOM_UNIFORM_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_MODELS_UNIFORM_RANDOM_MODEL_H
+#define RL_TOOLS_NN_MODELS_RANDOM_UNIFORM_MODEL_H
 RL_TOOLS_NAMESPACE_WRAPPER_START
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::nn_models::uniform_random{
+namespace rl_tools::nn_models::random_uniform{
     enum class Range{
         MINUS_ONE_TO_ONE,
         ZERO_TO_ONE
@@ -22,7 +22,7 @@ namespace rl_tools::nn_models::uniform_random{
 RL_TOOLS_NAMESPACE_WRAPPER_END
 namespace rl_tools::nn_models{
     template <typename T_SPEC>
-    struct UniformRandom{
+    struct RandomUniform{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -30,7 +30,7 @@ namespace rl_tools::nn_models{
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
 
         template <TI BATCH_SIZE=1>
-        using Buffer = typename rl_tools::nn_models::uniform_random::Buffer;
+        using Buffer = typename random_uniform::Buffer;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
