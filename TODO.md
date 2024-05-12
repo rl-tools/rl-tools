@@ -29,6 +29,7 @@
     - In particular one needs to pay attention when exporting the model because the tanh-squashing is not exported
   - It would be best to implement a sampling layer and an element-wise layer (for the tanh squashing)
 - Make the `EPISODE_STEP_LIMIT` an assumed property of the Environment type
+- Move all C-style casts to C++ style casts (`static_cast` etc.)
 ## Atoms
 - nn-mlp: msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
   - find a fix for all compilers (tests with n_layers = 2 are disabled for msvc for now)

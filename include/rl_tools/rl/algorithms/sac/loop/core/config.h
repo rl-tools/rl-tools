@@ -5,7 +5,7 @@
 
 #include "../../../../../nn_models/sequential/model.h"
 #include "../../../../../nn_models/mlp/network.h"
-#include "../../../../../nn_models/uniform_random/model.h"
+#include "../../../../../nn_models/random_uniform/model.h"
 #include "../../../../../rl/algorithms/sac/sac.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
 #include "state.h"
@@ -34,6 +34,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         static constexpr bool COLLECT_EPISODE_STATS = true;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
+
+        static constexpr bool SHARED_BATCH = true;
 
         using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
     };
@@ -113,8 +115,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, CORE_PARAMETERS, CONTAINER_TYPE_TAG>;
 //        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 
-        using EXPLORATION_POLICY_SPEC = nn_models::uniform_random::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, nn_models::uniform_random::Range::MINUS_ONE_TO_ONE>;
-        using EXPLORATION_POLICY = nn_models::UniformRandom<EXPLORATION_POLICY_SPEC>;
+        using EXPLORATION_POLICY_SPEC = nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+        using EXPLORATION_POLICY = nn_models::RandomUniform<EXPLORATION_POLICY_SPEC>;
 
         using ALPHA_PARAMETER_TYPE = nn::parameters::Adam;
         using ALPHA_OPTIMIZER = nn::optimizers::Adam<typename NN::OPTIMIZER_SPEC>;

@@ -5,6 +5,7 @@
 
 #include "../../../../../nn_models/sequential/model.h"
 #include "../../../../../nn_models/mlp/network.h"
+#include "../../../../../nn_models/random_uniform/model.h"
 #include "../../../../../rl/algorithms/td3/td3.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
 #include "state.h"
@@ -34,6 +35,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 1000;
 
         static constexpr T EXPLORATION_NOISE = 0.1;
+        static constexpr bool SHARED_BATCH = true;
 
         using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
     };
@@ -116,9 +118,8 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
         using CORE_PARAMETERS = T_PARAMETERS;
 
-
-        using ALPHA_PARAMETER_TYPE = nn::parameters::Adam;
-        using ALPHA_OPTIMIZER = nn::optimizers::Adam<typename NN::OPTIMIZER_SPEC>;
+        using EXPLORATION_POLICY_SPEC = nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+        using EXPLORATION_POLICY = nn_models::RandomUniform<EXPLORATION_POLICY_SPEC>;
 
         using ACTOR_CRITIC_SPEC = rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::ACTOR_TARGET_TYPE, typename NN::CRITIC_TYPE, typename NN::CRITIC_TARGET_TYPE, typename NN::OPTIMIZER, typename CORE_PARAMETERS::TD3_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
