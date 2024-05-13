@@ -137,7 +137,7 @@ namespace rl_tools{
             }
             if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
                 randn(device, ts.action_noise_actor, ts.rng);
-                if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH) {
+                if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH){
                     train_actor(device, ts.actor_critic, ts.critic_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);
                 }
                 else{

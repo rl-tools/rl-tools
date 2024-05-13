@@ -205,7 +205,7 @@ namespace rl_tools{
 
         target_actions(device, batch, training_buffers, actor_critic.log_alpha);
         forward(device, critic, batch.observations_and_actions, rng);
-        nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output, 0.5);
+        nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
         step(device, optimizer, critic);
     }
@@ -234,7 +234,7 @@ namespace rl_tools{
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T log_std_pre_clip = get(output, batch_i, action_i + ACTION_DIM);
             T log_std_clip = math::clamp(device.math, log_std_pre_clip, (T)SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND);
-            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_pre_clip);
+            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_clip);
             // action_sample = noise * std + mean
 //            T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, (T)1, rng);
             T noise = get(action_noise, batch_i, action_i);
@@ -288,7 +288,7 @@ namespace rl_tools{
             T d_mu = 0;
             T d_std = 0;
             {
-                T d_input = 0;
+                T d_input = 0; // note this d_input is already taking into account the mean of the batch (d_output is -1/BATCH_SIZE for the backward pass of the critics)
                 if(critic_1_value) {
                     d_input = get(training_buffers.d_critic_1_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
                 }
