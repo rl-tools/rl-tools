@@ -92,7 +92,7 @@ if(RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS)
 endif()
 if(RL_TOOLS_WARNINGS_AS_ERRORS)
     target_compile_options(rl_tools_core_definitions INTERFACE
-        $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:
+            $<$<AND:$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>,$<NOT:$<COMPILE_LANGUAGE:CUDA>>>:
             -Wall -Wextra -Werror
             -Wno-error=unused-parameter
             -Wno-error=unused-variable
@@ -103,7 +103,7 @@ if(RL_TOOLS_WARNINGS_AS_ERRORS)
     )
 endif()
 target_compile_options(rl_tools_core_definitions INTERFACE
-    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:
+    $<$<AND:$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>,$<NOT:$<COMPILE_LANGUAGE:CUDA>>>:
         -Wno-unused-parameter
         -Wno-unused-variable
         -Wno-unused-local-typedef
