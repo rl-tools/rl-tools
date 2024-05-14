@@ -18,7 +18,7 @@ namespace MODEL_1{
     using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 20, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Plain>;
     using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
-    using IF = rlt::nn_models::sequential::Interface<rlt::nn::LayerCapability::Gradient>;
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::LayerCapability::Forward>;
     using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 }
 

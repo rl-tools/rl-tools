@@ -8,7 +8,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    constexpr char* to_string(nn::LayerCapability capability){
+    std::string to_string(nn::LayerCapability capability){
         switch(capability){
             case nn::LayerCapability::Forward:
                 return "Forward";

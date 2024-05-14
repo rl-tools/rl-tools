@@ -22,7 +22,7 @@ namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
     std::string get_timestamp_string(DEVICE& device, rl::loop::steps::extrack::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::extrack::State<T_CONFIG>;
-        auto now = std::chrono::high_resolution_clock::now();
+        auto now = std::chrono::system_clock::now();
         std::time_t now_c = std::chrono::system_clock::to_time_t(now);
         std::tm now_local;
 
