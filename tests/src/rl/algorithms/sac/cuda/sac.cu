@@ -28,6 +28,7 @@ using DEV_SPEC = DEVICE::SPEC;
 #include "parameters.h"
 
 #include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_cuda.h>
 #include <rl_tools/rl/algorithms/sac/operations_cuda.h>
 #include <rl_tools/rl/algorithms/sac/operations_generic.h>

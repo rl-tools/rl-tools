@@ -4,6 +4,7 @@
 
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/operations_generic.h>
 
@@ -45,14 +46,14 @@ struct TrainingConfig{
     using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
     using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
-    using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
-    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+    using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::ForwardSpecification<ActorStructureSpec>;
+    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<ACTOR_TARGET_NETWORK_SPEC>;
 
     using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
     using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-    using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
-    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+    using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::ForwardSpecification<CriticStructureSpec>;
+    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<CRITIC_TARGET_NETWORK_SPEC>;
 
     using ALPHA_PARAMETER_TYPE = rlt::nn::parameters::Adam;
     using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, ALPHA_PARAMETER_TYPE, OPTIMIZER, OPTIMIZER, OPTIMIZER, SAC_PARAMETERS>;

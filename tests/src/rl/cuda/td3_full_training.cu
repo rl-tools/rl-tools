@@ -24,6 +24,7 @@ using DEV_SPEC = DEVICE::SPEC;
 #include "td3_full_training_parameters_pendulum.h"
 
 #include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/components/off_policy_runner/operations_cuda.h>
 #include <rl_tools/rl/algorithms/td3/operations_cuda.h>
 #include <rl_tools/rl/algorithms/td3/operations_generic.h>

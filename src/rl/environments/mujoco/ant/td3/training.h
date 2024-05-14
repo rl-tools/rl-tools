@@ -24,6 +24,7 @@ using TI = typename DEVICE::index_t;
 
 // generic nn_model operations use the specialized layer operations depending on the backend device
 #include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 // simulation is run on the cpu and the environments functions are required in the off_policy_runner operations included afterwards
 #include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
 

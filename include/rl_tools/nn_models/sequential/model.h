@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_MODELS_SEQUENTIAL_MODEL_H
 
 #include "../../utils/generic/typing.h"
+#include "../../nn/nn.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::sequential{
@@ -140,12 +141,12 @@ namespace rl_tools::nn_models::sequential{
         utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Gradient,
                 ModuleGradient<SPEC>, void>>>;
 
-    template <nn::LayerCapability CAPABILITY = nn::LayerCapability::Gradient>
+    template <nn::LayerCapability T_CAPABILITY = nn::LayerCapability::Gradient>
     struct Interface{
         template <template <nn::LayerCapability> typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
-        struct Module: ModuleMux<CAPABILITY, Specification<T_CONTENT<CAPABILITY>, T_NEXT_MODULE>>{
-            template <nn::LayerCapability T_CAPABILITY>
-            using ModuleWithCapability = typename Interface<T_CAPABILITY>::template Module<T_CONTENT, T_NEXT_MODULE>;
+        struct Module: ModuleMux<T_CAPABILITY, Specification<T_CONTENT<T_CAPABILITY>, T_NEXT_MODULE>>{
+            template <nn::LayerCapability TT_CAPABILITY>
+            using ModuleWithCapability = typename Interface<TT_CAPABILITY>::template Module<T_CONTENT, T_NEXT_MODULE>;
         };
     };
 }

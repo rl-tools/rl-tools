@@ -37,14 +37,14 @@ namespace parameters_0{
         using ACTOR_SPEC = rlt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
         using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_SPEC>;
 
-        using ACTOR_TARGET_SPEC = rlt::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-        using ACTOR_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_SPEC>;
+        using ACTOR_TARGET_SPEC = rlt::nn_models::mlp::ForwardSpecification<ACTOR_STRUCTURE_SPEC>;
+        using ACTOR_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<ACTOR_TARGET_SPEC>;
 
         using CRITIC_SPEC = rlt::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
         using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
 
-        using CRITIC_TARGET_SPEC = rlt::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
+        using CRITIC_TARGET_SPEC = rlt::nn_models::mlp::ForwardSpecification<CRITIC_STRUCTURE_SPEC>;
+        using CRITIC_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<CRITIC_TARGET_SPEC>;
 
         using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::td3::Specification<T, TI, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_TYPE, CRITIC_TYPE, CRITIC_TARGET_TYPE, OPTIMIZER, ACTOR_CRITIC_PARAMETERS>;
         using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;

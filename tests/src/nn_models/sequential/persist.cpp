@@ -11,15 +11,15 @@ using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 
 namespace MODEL_1{
-    using namespace rlt::nn_models::sequential::interface;
     using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 15, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain>;
-    using LAYER_1 = rlt::nn::layers::dense::Layer<LAYER_1_SPEC>;
+    using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
     using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 15, 20, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain>;
-    using LAYER_2 = rlt::nn::layers::dense::Layer<LAYER_2_SPEC>;
+    using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
     using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 20, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Plain>;
-    using LAYER_3 = rlt::nn::layers::dense::Layer<LAYER_3_SPEC>;
+    using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
-    using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::LayerCapability::Gradient>;
+    using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 }
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load) {

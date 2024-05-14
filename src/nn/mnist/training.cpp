@@ -2,6 +2,7 @@
 #include <rl_tools/nn_models/models.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/containers/persist.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
@@ -29,16 +30,16 @@ using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, TI>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
 
 namespace mnist_model{ // to simplify the model definition we import the sequential interface but we don't want to pollute the global namespace hence we do it in a model definition namespace
-    using namespace rlt::nn_models::sequential::interface;
 
     using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam>;
-    using LAYER_1 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
+    using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
     using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam>;
-    using LAYER_2 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
+    using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
     using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Adam>;
-    using LAYER_3 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
+    using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
-    using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::LayerCapability::Gradient>;
+    using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 }
 
 using NETWORK_TYPE = mnist_model::MODEL;

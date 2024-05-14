@@ -46,13 +46,13 @@ namespace training_config {
             static constexpr TI HIDDEN_DIM = 64;
             static constexpr TI BATCH_SIZE = TD3_PARAMETERS::ACTOR_BATCH_SIZE;
             using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_1 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
+            using LAYER_1 = rlt::nn::layers::dense::LayerGradient<LAYER_1_SPEC>;
             using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_2 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
+            using LAYER_2 = rlt::nn::layers::dense::LayerGradient<LAYER_2_SPEC>;
             using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_3 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
+            using LAYER_3 = rlt::nn::layers::dense::LayerGradient<LAYER_3_SPEC>;
             using LAYER_4_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ENVIRONMENT::ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::TANH, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_4 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_4_SPEC>;
+            using LAYER_4 = rlt::nn::layers::dense::LayerGradient<LAYER_4_SPEC>;
 
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<LAYER_4>>>>;
         };
@@ -63,13 +63,13 @@ namespace training_config {
             static constexpr TI BATCH_SIZE = TD3_PARAMETERS::CRITIC_BATCH_SIZE;
 
             using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_1 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
+            using LAYER_1 = rlt::nn::layers::dense::LayerGradient<LAYER_1_SPEC>;
             using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_2 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
+            using LAYER_2 = rlt::nn::layers::dense::LayerGradient<LAYER_2_SPEC>;
             using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_3 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
+            using LAYER_3 = rlt::nn::layers::dense::LayerGradient<LAYER_3_SPEC>;
             using LAYER_4_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, rlt::nn::activation_functions::ActivationFunction::IDENTITY, PARAMETER_TYPE, BATCH_SIZE>;
-            using LAYER_4 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_4_SPEC>;
+            using LAYER_4 = rlt::nn::layers::dense::LayerGradient<LAYER_4_SPEC>;
 
             using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3, Module<LAYER_4>>>>;
         };

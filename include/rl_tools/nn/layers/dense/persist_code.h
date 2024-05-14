@@ -35,7 +35,7 @@ namespace rl_tools {
     }
 
     template<typename DEVICE, typename SPEC>
-    persist::Code save_split(DEVICE& device, nn::layers::dense::Layer <SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    persist::Code save_split(DEVICE& device, nn::layers::dense::LayerForward<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -66,6 +66,8 @@ namespace rl_tools {
             << "true, "
             << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
             << ">; \n";
+        ss << ind << "    " << "template <RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::LayerCapability CAPABILITY>" << "\n";
+        ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Layer<CAPABILITY, SPEC>;";
         ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::LayerForward<SPEC>;";
         ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE layer = {weights::parameters, biases::parameters};\n";
         ss << ind << "}\n";
@@ -73,7 +75,7 @@ namespace rl_tools {
         return {ss_header.str(), ss.str()};
     }
     template<typename DEVICE, typename SPEC>
-    std::string save_code(DEVICE& device, nn::layers::dense::Layer <SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
+    std::string save_code(DEVICE& device, nn::layers::dense::LayerForward<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0){
         auto code = save_split(device, layer, name, const_declaration, indent);
         return code.header + code.body;
     }

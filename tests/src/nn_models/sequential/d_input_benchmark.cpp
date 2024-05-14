@@ -8,8 +8,9 @@
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/concat_constant/operations_generic.h>
 
-#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <gtest/gtest.h>
 #include <thread>
@@ -17,7 +18,6 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace config{
-    using namespace rlt::nn_models::sequential::interface;
     template <typename T_T, typename T_TI>
     struct CONFIG{
         using T = T_T;
@@ -30,19 +30,23 @@ namespace config{
 
         using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, BATCH_SIZE>;
         using SPEC = rlt::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC>;
-        using MODEL = rlt::nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>;
+        using MODEL = rlt::nn_models::mlp::NeuralNetworkAdam<SPEC>;
 
         using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam, BATCH_SIZE>;
-        using LAYER_1 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
+        using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
         using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam, BATCH_SIZE>;
-        using LAYER_2 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
+        using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
         using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Adam, BATCH_SIZE>;
-        using LAYER_3 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
+        using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
         using OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI>>;
         using SEQUENTIAL_OPTIMIZER = rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<T, TI>>;
 
-        using SEQUENTIAL_MODEL = Module<CONFIG::LAYER_1, Module<CONFIG::LAYER_2, Module<CONFIG::LAYER_3>>>;
+        using IF = rlt::nn_models::sequential::Interface<rlt::nn::LayerCapability::Gradient>;
+        using MODULE_3 = IF::Module<LAYER_3::template Layer>;
+        using MODULE_2 = IF::Module<LAYER_2::template Layer, MODULE_3>;
+        using MODULE_1 = IF::Module<LAYER_1::template Layer, MODULE_2>;
+        using SEQUENTIAL_MODEL = MODULE_1;
     };
 }
 

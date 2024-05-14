@@ -26,7 +26,7 @@ namespace rl_tools::nn::layers::sample_and_squash {
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
     template <typename SPEC>
-    struct Layer{
+    struct LayerForward{
         using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -35,7 +35,7 @@ namespace rl_tools::nn::layers::sample_and_squash {
         static constexpr TI OUTPUT_DIM = DIM;
     };
     template<typename SPEC>
-    struct LayerBackward: public Layer<SPEC> {
+    struct LayerBackward: public LayerForward<SPEC> {
         static constexpr typename SPEC::TI BATCH_SIZE = SPEC::BATCH_SIZE;
         // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
         using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::DIM>;
@@ -43,11 +43,24 @@ namespace rl_tools::nn::layers::sample_and_squash {
         PRE_ACTIVATIONS_CONTAINER_TYPE noise;
     };
     template<typename SPEC>
-    struct LayerBackwardGradient: public LayerBackward<SPEC> {
+    struct LayerGradient: public LayerBackward<SPEC> {
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
         using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::DIM>;
         using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
+    };
+    template<nn::LayerCapability CAPABILITY, typename SPEC>
+    using Layer =
+        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Forward,
+                LayerForward<SPEC>,
+        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Backward,
+                LayerBackward<SPEC>,
+        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Gradient,
+                LayerGradient<SPEC>, void>>>;
+    template <typename T_SPEC>
+    struct BindSpecification{
+        template <nn::LayerCapability CAPABILITY>
+        using Layer = Layer<CAPABILITY, T_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

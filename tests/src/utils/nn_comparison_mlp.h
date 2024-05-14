@@ -4,7 +4,7 @@
 #include "nn_comparison.h"
 
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff(DEVICE& device, const rlt::nn_models::mlp::NeuralNetwork<SPEC>& n1, const rlt::nn_models::mlp::NeuralNetwork<SPEC>& n2) {
+typename SPEC::T abs_diff(DEVICE& device, const rlt::nn_models::mlp::NeuralNetworkForward<SPEC>& n1, const rlt::nn_models::mlp::NeuralNetworkForward<SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
     T acc = 0;
@@ -16,11 +16,11 @@ typename SPEC::T abs_diff(DEVICE& device, const rlt::nn_models::mlp::NeuralNetwo
     return acc;
 }
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_grad(DEVICE& device, const rlt::nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& n1, const rlt::nn_models::mlp::NeuralNetworkBackwardGradient<SPEC>& n2) {
+typename SPEC::T abs_diff_grad(DEVICE& device, const rlt::nn_models::mlp::NeuralNetworkGradient<SPEC>& n1, const rlt::nn_models::mlp::NeuralNetworkGradient<SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
-    using GradNetworkSpec = rlt::nn_models::mlp::BackwardGradientSpecification<typename SPEC::STRUCTURE_SPEC>;
-    using GradNetworkType = rlt::nn_models::mlp::NeuralNetworkBackwardGradient<GradNetworkSpec>;
+    using GradNetworkSpec = rlt::nn_models::mlp::GradientSpecification<typename SPEC::STRUCTURE_SPEC>;
+    using GradNetworkType = rlt::nn_models::mlp::NeuralNetworkGradient<GradNetworkSpec>;
     GradNetworkType n1g;
     rlt::malloc(device, n1g);
     rlt::copy(device, device, n1, n1g);

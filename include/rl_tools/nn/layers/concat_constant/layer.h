@@ -37,7 +37,7 @@ namespace rl_tools::nn::layers::concat_constant {
     };
 
     template<typename T_SPEC>
-    struct Layer {
+    struct LayerForward{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -50,11 +50,11 @@ namespace rl_tools::nn::layers::concat_constant {
         typename SPEC::PARAMETER_TYPE::template instance<WEIGHTS_CONTAINER_TYPE> constants;
     };
     template<typename SPEC>
-    struct LayerBackward : public Layer<SPEC> {
+    struct LayerBackward : public LayerForward<SPEC> {
         static constexpr typename SPEC::TI BATCH_SIZE = SPEC::BATCH_SIZE;
     };
     template<typename SPEC>
-    struct LayerBackwardGradient : public LayerBackward<SPEC> {
+    struct LayerGradient : public LayerBackward<SPEC> {
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
         using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
         using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;

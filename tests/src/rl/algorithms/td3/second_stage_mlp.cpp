@@ -1,6 +1,8 @@
 #include <rl_tools/operations/cpu.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
+#include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/environments/operations_cpu.h>
 #include <rl_tools/rl/algorithms/td3/operations_cpu.h>
 
@@ -56,14 +58,14 @@ using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<ActorStructureSpec>;
 using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
-using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<ActorStructureSpec>;
-using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::ForwardSpecification<ActorStructureSpec>;
+using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<ACTOR_TARGET_NETWORK_SPEC>;
 
 using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<CriticStructureSpec>;
 using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<CriticStructureSpec>;
-using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::ForwardSpecification<CriticStructureSpec>;
+using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<CRITIC_TARGET_NETWORK_SPEC>;
 
 
 using TD3_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3ParametersCopyTraining>;

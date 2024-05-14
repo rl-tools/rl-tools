@@ -17,6 +17,7 @@
 #include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 #include <rl_tools/nn_models/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_cuda.h>
 
 #include <rl_tools/rl/components/replay_buffer/operations_cpu.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>
@@ -72,12 +73,12 @@ public:
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
     using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
-    using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
-    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
+    using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::ForwardSpecification<ACTOR_STRUCTURE_SPEC>;
+    using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<ACTOR_TARGET_NETWORK_SPEC>;
     using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
     using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
-    using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+    using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::ForwardSpecification<CRITIC_STRUCTURE_SPEC>;
+    using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<CRITIC_TARGET_NETWORK_SPEC>;
     using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ACTOR_CRITIC_TYPE = rlt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
     using ACTOR_BUFFERS = rlt::nn_models::mlp::NeuralNetworkBuffers<rlt::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_NETWORK_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;

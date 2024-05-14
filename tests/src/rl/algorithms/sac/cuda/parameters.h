@@ -30,14 +30,14 @@ struct parameters_pendulum_0{
         using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
         using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<ACTOR_NETWORK_SPEC>;
 
-//        using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<ACTOR_STRUCTURE_SPEC>;
+//        using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::ForwardSpecification<ACTOR_STRUCTURE_SPEC>;
 //        using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
 
         using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
         using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<CRITIC_NETWORK_SPEC>;
 
-        using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-        using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_NETWORK_SPEC>;
+        using CRITIC_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::ForwardSpecification<CRITIC_STRUCTURE_SPEC>;
+        using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<CRITIC_TARGET_NETWORK_SPEC>;
 
 
         using ALPHA_PARAMETER_TYPE = rlt::nn::parameters::Adam;

@@ -51,7 +51,7 @@ static_assert(rlt::utils::typing::is_same_v<LayerSpec1, LayerSpec2>);
 
 TEST(RL_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     using Device1 = rlt::devices::DefaultDummy;
-    using Layer1 = rlt::nn::layers::dense::Layer<LayerSpec1>;
+    using Layer1 = rlt::nn::layers::dense::LayerForward<LayerSpec1>;
 
     Device1 device1;
     Layer1 layer1;
@@ -59,7 +59,7 @@ TEST(RL_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     Layer1 layer11;
 
     using Device2 = rlt::devices::DefaultCPU;
-    using Layer2 = rlt::nn::layers::dense::Layer<LayerSpec2>;
+    using Layer2 = rlt::nn::layers::dense::LayerForward<LayerSpec2>;
 
     Device2 device2;
     Layer2 layer2;

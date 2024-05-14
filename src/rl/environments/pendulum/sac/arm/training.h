@@ -60,8 +60,8 @@ struct APPROXIMATOR_CONFIG: rlt::rl::algorithms::sac::loop::core::ConfigApproxim
     using CRITIC_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE, CRITIC_CONTAINER_TYPE_TAG>;
     using CRITIC_SPEC = rlt::nn_models::mlp::AdamSpecification<CRITIC_STRUCTURE_SPEC>;
     using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetworkAdam<CRITIC_SPEC>;
-    using CRITIC_TARGET_SPEC = rlt::nn_models::mlp::InferenceSpecification<CRITIC_STRUCTURE_SPEC>;
-    using CRITIC_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_TARGET_SPEC>;
+    using CRITIC_TARGET_SPEC = rlt::nn_models::mlp::ForwardSpecification<CRITIC_STRUCTURE_SPEC>;
+    using CRITIC_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetworkForward<CRITIC_TARGET_SPEC>;
 };
 
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));

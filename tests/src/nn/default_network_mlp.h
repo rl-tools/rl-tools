@@ -16,7 +16,7 @@ using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<STRUCTURE_SPEC>;
 using NetworkType = rlt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
 
-using NETWORK_SPEC_BACKWARD_ONLY = rlt::nn_models::mlp::InferenceBackwardSpecification<StructureSpecification>;
+using NETWORK_SPEC_BACKWARD_ONLY = rlt::nn_models::mlp::BackwardSpecification<StructureSpecification>;
 using NetworkTypeBackwardOnly = rlt::nn_models::mlp::NeuralNetworkBackward<NETWORK_SPEC_BACKWARD_ONLY>;
 
 constexpr typename NN_DEVICE::index_t INPUT_DIM = STRUCTURE_SPEC::INPUT_DIM;

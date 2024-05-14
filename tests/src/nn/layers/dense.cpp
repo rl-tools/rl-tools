@@ -25,7 +25,7 @@ using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPU
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
 
-    rlt::nn::layers::dense::Layer<LAYER_SPEC> layer;
+    rlt::nn::layers::dense::LayerForward<LAYER_SPEC> layer;
     rlt::malloc(device, layer);
     rlt::init_kaiming(device, layer, rng);
     constexpr TI BATCH_SIZE = 1;
@@ -38,7 +38,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     rlt::evaluate(device, layer, input, output, rng);
     using PARAMETER_TYPE_2 = rlt::nn::parameters::Gradient;
     using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE_2>;
-    rlt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC> layer_2;
+    rlt::nn::layers::dense::LayerGradient<LAYER_2_SPEC> layer_2;
     rlt::malloc(device, layer_2);
     rlt::copy(device, device, layer, layer_2);
     rlt::zero_gradient(device, layer_2);

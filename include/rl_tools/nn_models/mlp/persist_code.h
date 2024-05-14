@@ -10,7 +10,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    persist::Code save_split(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0) {
+    persist::Code save_split(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using STRUCTURE_SPEC = typename SPEC::STRUCTURE_SPEC;
@@ -41,8 +41,8 @@ namespace rl_tools{
         ss << nn::layers::dense::persist::get_activation_function_string<STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>() << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<STRUCTURE_SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
         ss << ind << "1, rl_tools::MatrixDynamicTag, true, rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
-        ss << ind << "    using SPEC = rl_tools::nn_models::mlp::InferenceSpecification<STRUCTURE_SPEC>; \n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "rl_tools::nn_models::mlp::NeuralNetwork<SPEC> mlp = {";
+        ss << ind << "    using SPEC = rl_tools::nn_models::mlp::ForwardSpecification<STRUCTURE_SPEC>; \n";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "rl_tools::nn_models::mlp::NeuralNetworkForward<SPEC> mlp = {";
         ss << "input_layer::layer, ";
         ss << "{";
         for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
@@ -59,7 +59,7 @@ namespace rl_tools{
         return {ss_header.str(), ss.str()};
     }
     template<typename DEVICE, typename SPEC>
-    std::string save_code(DEVICE& device, nn_models::mlp::NeuralNetwork<SPEC>& network, std::string name, bool const_declaration = true, typename DEVICE::index_t indent = 0) {
+    std::string save_code(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, std::string name, bool const_declaration = true, typename DEVICE::index_t indent = 0) {
         auto code = save_split(device, network, name, const_declaration, indent);
         return code.header + code.body;
     }

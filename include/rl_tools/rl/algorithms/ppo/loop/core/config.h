@@ -15,7 +15,6 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::algorithms::ppo::loop::core{
         // Config State (Init/Step)
-        using namespace nn_models::sequential::interface;
 
         struct ParametersTag{};
         template<typename T, typename TI, typename ENVIRONMENT>

@@ -95,7 +95,7 @@ namespace rl_tools{
         }
     }
     template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
-    void target_actions(devices::CUDA<DEV_SPEC>& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
+    void target_action_values(devices::CUDA<DEV_SPEC>& device, const rl::algorithms::td3::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

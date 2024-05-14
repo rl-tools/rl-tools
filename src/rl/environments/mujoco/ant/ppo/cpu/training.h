@@ -1,6 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn_models/persist.h>
 #endif

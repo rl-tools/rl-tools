@@ -78,6 +78,8 @@ namespace rl_tools{
 //        set_all(device, p1.gradient_second_order_moment, 0);
 //    }
     template<typename DEVICE, typename SPEC, typename MODEL>
+    void _reset_optimizer_state(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model);
+    template<typename DEVICE, typename SPEC, typename MODEL>
     void reset_optimizer_state(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
         optimizer.age = 1;
         _reset_optimizer_state(device, model, optimizer);

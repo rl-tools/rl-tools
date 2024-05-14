@@ -1,4 +1,5 @@
 #include "adam.h"
+#include "operations_generic.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace nn::optimizers::adam::cuda {

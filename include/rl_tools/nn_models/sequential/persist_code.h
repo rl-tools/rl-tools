@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_H
 #include "../../containers/persist_code.h"
 #include "../../persist/code.h"
+#include "../../nn/persist_code.h"
 #include "model.h"
 
 #include <string>
@@ -11,7 +12,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, nn_models::sequential::Module<SPEC>& model, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0, typename DEVICE::index_t layer_i = 0) {
+    persist::Code save_code_split(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0, typename DEVICE::index_t layer_i = 0) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
@@ -35,12 +36,15 @@ namespace rl_tools{
         }
         if(layer_i == 0){
             ss << ind << "    " << "namespace model_definition {\n";
-            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
-            ss << ind << "    " << "    " << "using MODEL = Module<";
+//            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
+            std::string capability = "Forward";
+            ss << ind << "    " << "    " << "using IF = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Interface<RL_TOOLS""_NAMESPACE_WRAPPER::rl_tools::nn::LayerCapability::" << capability << ">;\n";
+
+            ss << ind << "    " << "    " << "using MODEL = IF::Module<";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
-                ss << "layer_" << layer_i << "::TYPE";
+                ss << "layer_" << layer_i << "::TEMPLATE";
                 if(layer_i < num_layers(model)-1){
-                    ss << ", Module<";
+                    ss << ", IF::Module<";
                 }
             }
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
@@ -68,7 +72,7 @@ namespace rl_tools{
         return {ss_header.str(), ss.str()};
     }
     template<typename DEVICE, typename SPEC>
-    std::string save_code(DEVICE& device, nn_models::sequential::Module<SPEC>& network, std::string name, bool const_declaration = false, typename DEVICE::index_t indent = 0) {
+    std::string save_code(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& network, std::string name, bool const_declaration = false, typename DEVICE::index_t indent = 0) {
         auto code = save_code_split(device, network, name, const_declaration, indent);
         return code.header + code.body;
     }

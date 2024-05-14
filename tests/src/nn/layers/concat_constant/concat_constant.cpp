@@ -25,19 +25,19 @@ constexpr TI OUTPUT_DIM = 1;
 constexpr TI BATCH_SIZE = 64;
 
 using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, BATCH_SIZE>;
-using SPEC = rlt::nn_models::mlp::BackwardGradientSpecification<STRUCTURE_SPEC>;
+using SPEC = rlt::nn_models::mlp::GradientSpecification<STRUCTURE_SPEC>;
 using MODEL = rlt::nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<SPEC>;
 
 using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam, BATCH_SIZE>;
-using LAYER_1 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_1_SPEC>;
+using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
 using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam, BATCH_SIZE>;
-using LAYER_2 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_2_SPEC>;
+using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
 using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Adam, BATCH_SIZE>;
-using LAYER_3 = rlt::nn::layers::dense::LayerBackwardGradient<LAYER_3_SPEC>;
+using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
 namespace sequential_model_factory{
-    using namespace rlt::nn_models::sequential::interface;
-    using MODEL = Module<LAYER_1, Module<LAYER_2, Module<LAYER_3>>>;
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::LayerCapability::Gradient>;
+    using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 }
 using SEQUENTIAL_MODEL = sequential_model_factory::MODEL;
 

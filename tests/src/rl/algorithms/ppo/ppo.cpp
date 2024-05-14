@@ -1,6 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "parameters_rl.h"
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>

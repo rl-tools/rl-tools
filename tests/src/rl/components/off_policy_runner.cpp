@@ -1,6 +1,7 @@
 #include <rl_tools/operations/cpu.h>
 
 
+#include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/rl/environments/environments.h>
 #include <rl_tools/rl/components/off_policy_runner/off_policy_runner.h>
 

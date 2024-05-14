@@ -6,7 +6,6 @@
 #include "../../nn_models/mlp/network.h"
 #include "../../nn/operations_generic.h"
 #include "../../nn/parameters/operations_generic.h"
-#include "../../nn/optimizers/adam/operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -159,7 +158,7 @@ namespace rl_tools {
     }
 
     template<typename DEVICE, typename SPEC>
-    void zero_gradient(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network) {
+    void zero_gradient(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& network) {
         zero_gradient(device, network.input_layer);
         for(typename DEVICE::index_t i = 0; i < SPEC::NUM_HIDDEN_LAYERS; i++){
             zero_gradient(device, network.hidden_layers[i]);
