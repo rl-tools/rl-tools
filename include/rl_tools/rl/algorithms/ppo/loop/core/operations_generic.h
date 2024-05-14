@@ -50,9 +50,6 @@ namespace rl_tools{
         set_all(device, ts.observations_std, 1);
         init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng);
 
-        init(device);
-        init(device, device.logger);
-
         ts.step = 0;
     }
 

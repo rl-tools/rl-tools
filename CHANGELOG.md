@@ -4,3 +4,4 @@
 - The default Adam parameters are set from compile-time constants now
 - All forward and evaluate operators take an `RNG` as input now
   - This is to allow for stochastic models (stochastic policies, VAEs etc.) that might e.g. be using the reparameterization trick to maintain differentiability
+- The `DEVICE` (and `device.logger` by extension) are initialized outside the core loop (they are instantiated outside anyways)

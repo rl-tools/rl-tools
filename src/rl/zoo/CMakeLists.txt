@@ -1,0 +1,23 @@
+if(RL_TOOLS_ENABLE_CLI11)
+add_executable(
+        rl_zoo
+        zoo.cpp
+)
+target_link_libraries(
+        rl_zoo
+        PRIVATE
+        RLtools::RLtools
+        CLI11::CLI11
+)
+
+add_executable(
+        rl_zoo_enjoy
+        enjoy.cpp
+)
+target_link_libraries(
+        rl_zoo_enjoy
+        PRIVATE
+        RLtools::RLtools
+        CLI11::CLI11
+)
+endif()

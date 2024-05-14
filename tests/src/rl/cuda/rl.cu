@@ -314,8 +314,8 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         ASSERT_LT(abs_diff_next_state_action_value_critic_1, EPSILON);
         ASSERT_LT(abs_diff_next_state_action_value_critic_2, EPSILON);
 
-        rlt::target_actions(device_cpu, actor_critic_cpu, batch_cpu, critic_training_buffers_cpu);
-        rlt::target_actions(device_gpu, actor_critic_gpu, batch_gpu, critic_training_buffers_gpu);
+        rlt::target_action_values(device_cpu, actor_critic_cpu, batch_cpu, critic_training_buffers_cpu);
+        rlt::target_action_values(device_gpu, actor_critic_gpu, batch_gpu, critic_training_buffers_gpu);
         rlt::copy(device_gpu, device_cpu, critic_training_buffers_gpu, critic_training_buffers_cpu_2);
         auto abs_diff_target_action_value = rlt::abs_diff(device_cpu, critic_training_buffers_cpu_2.target_action_value, critic_training_buffers_cpu.target_action_value);
         std::cout << "abs_diff_target_action_value: " << abs_diff_target_action_value << std::endl;

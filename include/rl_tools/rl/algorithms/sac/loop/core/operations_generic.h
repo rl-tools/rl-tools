@@ -57,9 +57,6 @@ namespace rl_tools{
         set_all(device, ts.observations_mean, 0);
         set_all(device, ts.observations_std, 1);
 
-        init(device);
-        init(device, device.logger);
-
         ts.step = 0;
     }
     template <typename DEVICE_SOURCE, typename DEVICE_TARGET, typename T_CONFIG_SOURCE, typename T_CONFIG_TARGET>

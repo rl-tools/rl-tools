@@ -25,20 +25,15 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger){
+    void init(DEVICE& device, devices::logging::CPU_TENSORBOARD<SPEC>& logger, std::filesystem::path run_dir){
         // the path is passed through the (CPU) device since the CPU device always supports the stdlib with std::string etc.
         utils::assert_exit(device, device.initialized, "CPU Device not initialized, can't init tensorboard logger");
-        std::filesystem::path runs_dir = std::filesystem::path(device.runs_path);
-        if(!std::filesystem::is_directory(runs_dir) || !std::filesystem::exists(runs_dir)) {
-            std::filesystem::create_directory(runs_dir);
-        }
-        std::filesystem::path run_dir = std::filesystem::path(device.run_path);
         if (!std::filesystem::is_directory(run_dir) || !std::filesystem::exists(run_dir)) {
-            std::filesystem::create_directory(run_dir);
+            std::filesystem::create_directories(run_dir);
         }
 
         auto log_file = run_dir / std::string("logs.tfevents");
-        std::cout << "Logging to " << log_file.string() << std::endl;
+        std::cerr << "Tensorboard Logger logging to: " << log_file.string() << std::endl;
         TensorBoardLoggerOptions opts;
         opts.flush_period_s(1);
         logger.tb = new TensorBoardLogger(log_file.string(), opts);

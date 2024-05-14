@@ -1,1 +1,2 @@
 add_subdirectory(environments)
+add_subdirectory(zoo)
