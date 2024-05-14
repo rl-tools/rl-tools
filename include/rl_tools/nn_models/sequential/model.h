@@ -110,7 +110,7 @@ namespace rl_tools::nn_models::sequential{
         TICK_TOCK_CONTAINER_TYPE tock;
     };
     template <typename T_SPEC>
-    struct Module{
+    struct ModuleForward{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -126,10 +126,28 @@ namespace rl_tools::nn_models::sequential{
         using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC, BATCH_SIZE, CONTAINER_TYPE_TAG, MEMORY_LAYOUT>>;
     };
 
-    namespace interface{
-        template <typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
-        struct Module: rl_tools::nn_models::sequential::Module<Specification<T_CONTENT, T_NEXT_MODULE>>{};
-    }
+    template <typename T_SPEC>
+    struct ModuleBackward: public ModuleForward<T_SPEC>{};
+    template <typename T_SPEC>
+    struct ModuleGradient: public ModuleBackward<T_SPEC>{};
+
+    template<nn::LayerCapability CAPABILITY, typename SPEC>
+    using ModuleMux =
+        utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Forward,
+                ModuleForward<SPEC>,
+        utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Backward,
+                ModuleBackward<SPEC>,
+        utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Gradient,
+                ModuleGradient<SPEC>, void>>>;
+
+    template <nn::LayerCapability CAPABILITY = nn::LayerCapability::Gradient>
+    struct Interface{
+        template <template <nn::LayerCapability> typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
+        struct Module: ModuleMux<CAPABILITY, Specification<T_CONTENT<CAPABILITY>, T_NEXT_MODULE>>{
+            template <nn::LayerCapability T_CAPABILITY>
+            using ModuleWithCapability = typename Interface<T_CAPABILITY>::template Module<T_CONTENT, T_NEXT_MODULE>;
+        };
+    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

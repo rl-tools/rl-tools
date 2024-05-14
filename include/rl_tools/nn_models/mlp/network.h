@@ -64,15 +64,15 @@ namespace rl_tools::nn_models::mlp {
     };
 
     template <typename T_STRUCTURE_SPEC>
-    struct InferenceSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>{
+    struct ForwardSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>{
         using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>;
-        using  INPUT_LAYER = nn::layers::dense::Layer<typename SUPER::INPUT_LAYER_SPEC >;
-        using HIDDEN_LAYER = nn::layers::dense::Layer<typename SUPER::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::Layer<typename SUPER::OUTPUT_LAYER_SPEC>;
+        using  INPUT_LAYER = nn::layers::dense::LayerForward<typename SUPER::INPUT_LAYER_SPEC >;
+        using HIDDEN_LAYER = nn::layers::dense::LayerForward<typename SUPER::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerForward<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
     template <typename T_STRUCTURE_SPEC>
-    struct InferenceBackwardSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>{
+    struct BackwardSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>{
         using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>;
         using  INPUT_LAYER = nn::layers::dense::LayerBackward<typename SUPER::INPUT_LAYER_SPEC>;
         using HIDDEN_LAYER = nn::layers::dense::LayerBackward<typename SUPER::HIDDEN_LAYER_SPEC>;
@@ -80,27 +80,27 @@ namespace rl_tools::nn_models::mlp {
     };
 
     template <typename T_STRUCTURE_SPEC>
-    struct BackwardGradientSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Gradient>{
+    struct GradientSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Gradient>{
         using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Gradient>;
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
+        using  INPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
     template<typename T_STRUCTURE_SPEC>
     struct SGDSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::SGD>{
         using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::SGD>;
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
+        using  INPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
     template<typename T_STRUCTURE_SPEC>
     struct AdamSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Adam>{
         using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Adam>;
-        using  INPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackwardGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
+        using  INPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::INPUT_LAYER_SPEC>;
+        using HIDDEN_LAYER = nn::layers::dense::LayerGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
+        using OUTPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
     };
 
     template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
@@ -126,7 +126,7 @@ namespace rl_tools::nn_models::mlp {
     };
 
     template<typename T_SPEC>
-    struct NeuralNetwork{
+    struct NeuralNetworkForward{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -152,13 +152,22 @@ namespace rl_tools::nn_models::mlp {
     };
 
     template<typename SPEC>
-    struct NeuralNetworkBackward: public NeuralNetwork<SPEC>{};
+    struct NeuralNetworkBackward: public NeuralNetworkForward<SPEC>{};
     template<typename SPEC>
-    struct NeuralNetworkBackwardGradient: public NeuralNetworkBackward<SPEC>{};
+    struct NeuralNetworkGradient: public NeuralNetworkBackward<SPEC>{};
     template<typename SPEC>
-    struct NeuralNetworkSGD: public NeuralNetworkBackwardGradient<SPEC>{};
+    struct NeuralNetworkSGD: public NeuralNetworkGradient<SPEC>{};
     template<typename SPEC>
-    struct NeuralNetworkAdam: public NeuralNetworkBackwardGradient<SPEC>{};
+    struct NeuralNetworkAdam: public NeuralNetworkGradient<SPEC>{};
+
+    template<nn::LayerCapability CAPABILITY, typename SPEC>
+    using NeuralNetwork =
+        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Forward,
+                NeuralNetworkForward<SPEC>,
+        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Backward,
+                NeuralNetworkBackward<SPEC>,
+        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Gradient,
+                NeuralNetworkGradient<SPEC>, void>>>;
 
 
 }

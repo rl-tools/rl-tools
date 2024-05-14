@@ -17,7 +17,7 @@ namespace rl_tools::nn_models::mlp_unconditional_stddev {
     };
 
     template <typename SPEC>
-    struct NeuralNetwork: NEURAL_NETWORK_FACTORY<nn_models::mlp::NeuralNetwork, SPEC>{
+    struct NeuralNetwork: NEURAL_NETWORK_FACTORY<nn_models::mlp::NeuralNetworkForward, SPEC>{
         using PARAMETER_SPEC = nn::parameters::Plain::spec<typename NeuralNetwork::LOG_STD_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Biases>;
         nn::parameters::Plain::instance<PARAMETER_SPEC> log_std;
     };
