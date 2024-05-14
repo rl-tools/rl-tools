@@ -12,25 +12,25 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn::layers::sample_and_squash::Layer<SPEC>){
+    void malloc(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>){
 
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC>& layer){
-        malloc(device, static_cast<nn::layers::sample_and_squash::Layer<SPEC>&>(layer));
+        malloc(device, static_cast<nn::layers::sample_and_squash::LayerForward<SPEC>&>(layer));
         malloc(device, layer.noise);
     }
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn::layers::sample_and_squash::LayerBackwardGradient<SPEC>& layer){
+    void malloc(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer){
         malloc(device, static_cast<nn::layers::sample_and_squash::LayerBackward<SPEC>&>(layer));
         malloc(device, layer.output);
     }
     template <typename DEVICE, typename SPEC, typename RNG>
-    void init_weights(DEVICE& device, nn::layers::sample_and_squash::Layer<SPEC>& layer, RNG& rng){
+    void init_weights(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, RNG& rng){
 
     }
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG>
-    void evaluate(const DEVICE& device, const nn::layers::sample_and_squash::Layer<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng){
+    void evaluate(const DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng){
         static_assert(INPUT_SPEC::COLS == 2*SPEC::DIM);
         static_assert(OUTPUT_SPEC::COLS == SPEC::DIM);
         static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);

@@ -1,6 +1,6 @@
 template<typename DEV_SPEC, typename SPEC, typename devices::CUDA<DEV_SPEC>::index_t BATCH_SIZE, typename devices::CUDA<DEV_SPEC>::index_t BLOCK_SIZE>
 __global__ void
-evaluate_batch_kernel(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::Layer<SPEC> layer, const typename SPEC::T* input, typename SPEC::T* output) {
+evaluate_batch_kernel(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<SPEC> layer, const typename SPEC::T* input, typename SPEC::T* output) {
     using T = typename SPEC::T;
     using TI = typename devices::CUDA<DEV_SPEC>::index_t;
     constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
