@@ -23,14 +23,13 @@ namespace rl_tools::nn::layers::dense {
     }
     template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     constexpr bool check_input_output = check_input_output_f<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>();
-    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, typename T_PARAMETER_TYPE, T_TI T_BATCH_SIZE=1, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
         static constexpr auto INPUT_DIM = T_INPUT_DIM;
         static constexpr auto OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
-        using PARAMETER_TYPE = T_PARAMETER_TYPE;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
         static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
@@ -38,6 +37,10 @@ namespace rl_tools::nn::layers::dense {
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
         // Summary
         static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
+    };
+    template <typename SPEC, typename T_PARAMETER_TYPE>
+    struct ParameterTypeSpecification: SPEC{
+        using PARAMETER_TYPE = T_PARAMETER_TYPE;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
@@ -83,19 +86,19 @@ namespace rl_tools::nn::layers::dense {
         using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };
-    template<nn::LayerCapability CAPABILITY, typename SPEC>
+    template<typename CAPABILITY, typename SPEC>
     using Layer =
-        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Forward,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
             LayerForward<SPEC>,
-        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Backward,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
             LayerBackward<SPEC>,
-        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Gradient,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
             LayerGradient<SPEC>, void>>>;
 
     template <typename T_SPEC>
     struct BindSpecification{
-        template <nn::LayerCapability CAPABILITY>
-        using Layer = nn::layers::dense::Layer<CAPABILITY, T_SPEC>;
+        template <typename CAPABILITY>
+        using Layer = nn::layers::dense::Layer<CAPABILITY, ParameterTypeSpecification<T_SPEC, typename CAPABILITY::PARAMETER_TYPE>>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

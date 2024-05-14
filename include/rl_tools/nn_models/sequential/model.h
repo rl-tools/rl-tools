@@ -132,20 +132,20 @@ namespace rl_tools::nn_models::sequential{
     template <typename T_SPEC>
     struct ModuleGradient: public ModuleBackward<T_SPEC>{};
 
-    template<nn::LayerCapability CAPABILITY, typename SPEC>
+    template<typename CAPABILITY, typename SPEC>
     using ModuleMux =
-        utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Forward,
+        utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
                 ModuleForward<SPEC>,
-        utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Backward,
+        utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
                 ModuleBackward<SPEC>,
-        utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Gradient,
+        utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
                 ModuleGradient<SPEC>, void>>>;
 
-    template <nn::LayerCapability T_CAPABILITY = nn::LayerCapability::Gradient>
+    template <typename T_CAPABILITY>
     struct Interface{
-        template <template <nn::LayerCapability> typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
+        template <template <typename> typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
         struct Module: ModuleMux<T_CAPABILITY, Specification<T_CONTENT<T_CAPABILITY>, T_NEXT_MODULE>>{
-            template <nn::LayerCapability TT_CAPABILITY>
+            template <typename TT_CAPABILITY>
             using ModuleWithCapability = typename Interface<TT_CAPABILITY>::template Module<T_CONTENT, T_NEXT_MODULE>;
         };
     };
