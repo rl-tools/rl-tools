@@ -21,10 +21,6 @@ namespace rl_tools{
         save(device, network.output_layer, group.createGroup("output_layer"));
     }
     template<typename DEVICE, typename SPEC>
-    void save(DEVICE& device, nn_models::mlp::NeuralNetworkAdam<SPEC>& network, HighFive::Group group) {
-        save(device, (nn_models::mlp::NeuralNetworkForward<SPEC>&)network, group);
-    }
-    template<typename DEVICE, typename SPEC>
     void load(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, HighFive::Group group){
         using NetworkType = typename utils::typing::remove_reference<decltype(network)>::type;
         load(device, network.input_layer, group.getGroup("input_layer"));

@@ -31,7 +31,7 @@ namespace rl_tools::nn::parameters{
             CONTAINER parameters;
         };
     };
-    struct Gradient: Plain{
+    struct Gradient{
         template <typename T_SPEC>
         struct instance: Plain::instance<T_SPEC>{
             using SPEC = T_SPEC;

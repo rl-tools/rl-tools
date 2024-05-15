@@ -38,9 +38,10 @@ namespace rl_tools::nn::layers::dense {
         // Summary
         static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
     };
-    template <typename SPEC, typename T_PARAMETER_TYPE>
-    struct ParameterTypeSpecification: SPEC{
-        using PARAMETER_TYPE = T_PARAMETER_TYPE;
+    template <typename T_CAPABILITY, typename T_SPEC>
+    struct CapabilitySpecification: T_SPEC{
+        using CAPABILITY = T_CAPABILITY;
+        using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
@@ -89,16 +90,16 @@ namespace rl_tools::nn::layers::dense {
     template<typename CAPABILITY, typename SPEC>
     using Layer =
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-            LayerForward<SPEC>,
+            LayerForward<CapabilitySpecification<CAPABILITY, SPEC>>,
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-            LayerBackward<SPEC>,
+            LayerBackward<CapabilitySpecification<CAPABILITY, SPEC>>,
         typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-            LayerGradient<SPEC>, void>>>;
+            LayerGradient<CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
 
     template <typename T_SPEC>
     struct BindSpecification{
         template <typename CAPABILITY>
-        using Layer = nn::layers::dense::Layer<CAPABILITY, ParameterTypeSpecification<T_SPEC, typename CAPABILITY::PARAMETER_TYPE>>;
+        using Layer = nn::layers::dense::Layer<CAPABILITY, T_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

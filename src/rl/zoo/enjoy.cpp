@@ -28,6 +28,9 @@ using TI = typename DEVICE::index_t;
 using LOOP_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CONFIG;
 
 
+#include "/home/jonas/rl_tools/experiments/2024-05-15_16-27-48/7f42933_zoo_algorithm_environment/td3_pendulum-v1/0000/steps/000000000020000/checkpoint.h"
+
+
 namespace fs = std::filesystem;
 
 template <typename DEVICE>
@@ -37,7 +40,7 @@ fs::path findLastLexicographicMatch(DEVICE& device, const fs::path& directory, c
     for (const auto& entry : fs::recursive_directory_iterator(directory)) {
         if (entry.is_regular_file()) {
             std::string filePath = entry.path().string();
-            std::cout << "TEsting " << filePath << " with: " << regex_pattern << std::endl;
+            std::cout << "Testing " << filePath << " with: " << regex_pattern << std::endl;
             std::smatch match;
             if(std::regex_search(filePath, match, r)){
                 rlt::utils::assert_exit(device, match.size() == 6, "The regex pattern must have 5 capture groups.");
@@ -60,6 +63,17 @@ fs::path findLastLexicographicMatch(DEVICE& device, const fs::path& directory, c
     else{
         return paths.back();
     }
+}
+
+
+template <typename DEVICE, typename ACTOR, typename ACTOR_BUFFER, typename RNG>
+void evaluate(DEVICE& device, ACTOR& actor, ACTOR_BUFFER& actor_buffer, RNG& rng){
+    using ENVIRONMENT = LOOP_CONFIG::ENVIRONMENT;
+    ENVIRONMENT env;
+    rlt::rl::environments::DummyUI ui;
+    auto result = rlt::evaluate(device, env, ui, actor, rlt::rl::utils::evaluation::Specification<10000, ENVIRONMENT::EPISODE_STEP_LIMIT>{}, actor_buffer, rng);
+    std::cout << "Mean return: " << result.returns_mean << " +/- " << result.returns_std << std::endl;
+
 }
 
 int main(int argc, char** argv){
@@ -86,19 +100,27 @@ int main(int argc, char** argv){
     }
     std::cerr << "Checkpoint: " << checkpoint_path << std::endl;
 //    using ACTOR = rlt::utils::typing::remove_reference<decltype(rlt::get_actor(std::declval<std::add_lvalue_reference_t<LOOP_STATE>>()))>;
-    using ACTOR = LOOP_CONFIG::NN::ACTOR_TYPE;
-    ACTOR actor;
-    ACTOR::template Buffer<> actor_buffer;
-    rlt::malloc(device, actor);
-    rlt::malloc(device, actor_buffer);
-    auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::ReadOnly);
-    rlt::load(device, actor, actor_file.getGroup("actor"));
+    constexpr bool use_hdf5 = false;
+    if constexpr(use_hdf5){
+        using ACTOR = LOOP_CONFIG::NN::ACTOR_TYPE::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward>;
+        ACTOR actor;
+        ACTOR::template Buffer<> actor_buffer;
+        rlt::malloc(device, actor);
+        auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::ReadOnly);
+        rlt::load(device, actor, actor_file.getGroup("actor"));
+        rlt::malloc(device, actor_buffer);
+        evaluate(device, actor, actor_buffer, rng);
+        rlt::free(device, actor);
+        rlt::free(device, actor_buffer);
+    }
+    else{
+        auto& actor = rlt::checkpoint::actor::model;
+        rlt::utils::typing::remove_cv_t<rlt::utils::typing::remove_reference<decltype(actor)>::type>::template Buffer<> actor_buffer;
+        rlt::malloc(device, actor_buffer);
+        evaluate(device, actor, actor_buffer, rng);
+        rlt::free(device, actor_buffer);
+    }
 
 
-    using ENVIRONMENT = LOOP_CONFIG::ENVIRONMENT;
-    ENVIRONMENT env;
-    rlt::rl::environments::DummyUI ui;
-    auto result = rlt::evaluate(device, env, ui, actor, rlt::rl::utils::evaluation::Specification<1000, ENVIRONMENT::EPISODE_STEP_LIMIT>{}, actor_buffer, rng);
-    std::cout << "Mean return: " << result.returns_mean << " +/- " << result.returns_std << std::endl;
     return 0;
 }

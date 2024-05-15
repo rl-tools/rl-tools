@@ -70,7 +70,7 @@ namespace rl_tools::nn::optimizers{
 RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters {
-    struct Adam: Gradient{
+    struct Adam{
         template <typename T_CONTAINER, typename T_GROUP_TAG, typename T_CATEGORY_TAG>
         struct spec {
             using CONTAINER = T_CONTAINER;

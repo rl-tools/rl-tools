@@ -17,7 +17,7 @@ namespace rl_tools::nn::optimizers::sgd {
 RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters{
-    struct SGD: Gradient{
+    struct SGD{
         template <typename T_SPEC>
         struct instance: Gradient::instance<T_SPEC>{};
     };

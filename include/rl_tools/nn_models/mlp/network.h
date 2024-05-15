@@ -13,12 +13,14 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp {
     template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, T_TI T_BATCH_SIZE=1, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
-    struct StructureSpecification{
+    struct Specification{
         using T = T_T;
         using TI = T_TI;
         static constexpr T_TI INPUT_DIM = T_INPUT_DIM;
         static constexpr T_TI OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr T_TI NUM_LAYERS = T_NUM_LAYERS; // The input and output layers count towards the total number of layers
+        static_assert(NUM_LAYERS >= 2); // At least input and output layer are required
+        static constexpr TI NUM_HIDDEN_LAYERS = NUM_LAYERS - 2;
         static constexpr T_TI HIDDEN_DIM = T_HIDDEN_DIM;
         static constexpr auto HIDDEN_ACTIVATION_FUNCTION = T_HIDDEN_ACTIVATION_FUNCTION;
         static constexpr auto OUTPUT_ACTIVATION_FUNCTION = T_OUTPUT_ACTIVATION_FUNCTION;
@@ -27,6 +29,9 @@ namespace rl_tools::nn_models::mlp {
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
+        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, nn::parameters::groups::Input , CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, OUTPUT_ACTIVATION_FUNCTION, BATCH_SIZE, nn::parameters::groups::Output, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
@@ -41,66 +46,10 @@ namespace rl_tools::nn_models::mlp {
             && SPEC_1::HIDDEN_ACTIVATION_FUNCTION == SPEC_2::HIDDEN_ACTIVATION_FUNCTION
             && SPEC_1::OUTPUT_ACTIVATION_FUNCTION == SPEC_2::OUTPUT_ACTIVATION_FUNCTION;
 
-
-    template <typename T_STRUCTURE_SPEC, typename T_PARAMETER_TYPE>
-    struct Specification{
-        using STRUCTURE_SPEC = T_STRUCTURE_SPEC;
-        using S = STRUCTURE_SPEC;
-        using PARAMETER_TYPE = T_PARAMETER_TYPE;
-        using T = typename S::T;
-        using TI = typename S::TI;
-        static constexpr TI NUM_HIDDEN_LAYERS = STRUCTURE_SPEC::NUM_LAYERS - 2;
-        static constexpr TI INPUT_DIM = S::INPUT_DIM;
-        static constexpr TI HIDDEN_DIM = S::HIDDEN_DIM;
-        static constexpr TI OUTPUT_DIM = S::OUTPUT_DIM;
-        static constexpr TI BATCH_SIZE = S::BATCH_SIZE;
-        using CONTAINER_TYPE_TAG = typename S::CONTAINER_TYPE_TAG;
-        static constexpr bool ENFORCE_FLOATING_POINT_TYPE = S::ENFORCE_FLOATING_POINT_TYPE;
-        using MEMORY_LAYOUT = typename S::MEMORY_LAYOUT;
-
-        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, nn::parameters::groups::Input , CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, S::HIDDEN_ACTIVATION_FUNCTION, BATCH_SIZE, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, S::OUTPUT_ACTIVATION_FUNCTION, BATCH_SIZE, nn::parameters::groups::Output, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-    };
-
-    template <typename T_STRUCTURE_SPEC>
-    struct ForwardSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>{
-        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>;
-        using  INPUT_LAYER = nn::layers::dense::LayerForward<typename SUPER::INPUT_LAYER_SPEC >;
-        using HIDDEN_LAYER = nn::layers::dense::LayerForward<typename SUPER::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerForward<typename SUPER::OUTPUT_LAYER_SPEC>;
-    };
-
-    template <typename T_STRUCTURE_SPEC>
-    struct BackwardSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>{
-        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Plain>;
-        using  INPUT_LAYER = nn::layers::dense::LayerBackward<typename SUPER::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerBackward<typename SUPER::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerBackward<typename SUPER::OUTPUT_LAYER_SPEC>;
-    };
-
-    template <typename T_STRUCTURE_SPEC>
-    struct GradientSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Gradient>{
-        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Gradient>;
-        using  INPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
-    };
-
-    template<typename T_STRUCTURE_SPEC>
-    struct SGDSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::SGD>{
-        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::SGD>;
-        using  INPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
-    };
-
-    template<typename T_STRUCTURE_SPEC>
-    struct AdamSpecification: Specification<T_STRUCTURE_SPEC, nn::parameters::Adam>{
-        using SUPER = Specification<T_STRUCTURE_SPEC, nn::parameters::Adam>;
-        using  INPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::INPUT_LAYER_SPEC>;
-        using HIDDEN_LAYER = nn::layers::dense::LayerGradient<typename SUPER::HIDDEN_LAYER_SPEC>;
-        using OUTPUT_LAYER = nn::layers::dense::LayerGradient<typename SUPER::OUTPUT_LAYER_SPEC>;
+    template <typename T_CAPABILITY, typename T_SPEC>
+    struct CapabilitySpecification: T_SPEC{
+        using CAPABILITY = T_CAPABILITY;
+        using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
     };
 
     template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
@@ -135,39 +84,41 @@ namespace rl_tools::nn_models::mlp {
         using Buffer = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
 
         // Convenience
-        static_assert(SPEC::STRUCTURE_SPEC::NUM_LAYERS >= 2); // At least input and output layer are required
-        static constexpr TI NUM_HIDDEN_LAYERS = SPEC::STRUCTURE_SPEC::NUM_LAYERS - 2;
+        static_assert(SPEC::NUM_LAYERS >= 2); // At least input and output layer are required
+        static constexpr TI NUM_HIDDEN_LAYERS = SPEC::NUM_LAYERS - 2;
         static_assert(SPEC::NUM_HIDDEN_LAYERS == NUM_HIDDEN_LAYERS);
 
         // Interface
-        static constexpr TI  INPUT_DIM = SPEC::INPUT_LAYER ::SPEC::INPUT_DIM;
-        static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_LAYER::SPEC::OUTPUT_DIM;
-        static constexpr TI NUM_WEIGHTS = SPEC::INPUT_LAYER::NUM_WEIGHTS + SPEC::HIDDEN_LAYER::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER::NUM_WEIGHTS;
+        static constexpr TI  INPUT_DIM = SPEC::INPUT_LAYER_SPEC::INPUT_DIM;
+        static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_LAYER_SPEC::OUTPUT_DIM;
+        static constexpr TI NUM_WEIGHTS = SPEC::INPUT_LAYER_SPEC::NUM_WEIGHTS + SPEC::HIDDEN_LAYER_SPEC::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER_SPEC::NUM_WEIGHTS;
 
 
         // Storage
-        typename SPEC:: INPUT_LAYER input_layer;
-        typename SPEC::HIDDEN_LAYER hidden_layers[NUM_HIDDEN_LAYERS];
-        typename SPEC::OUTPUT_LAYER output_layer;
+        typename nn::layers::dense::Layer<typename SPEC::CAPABILITY, typename SPEC::INPUT_LAYER_SPEC> input_layer;
+        typename nn::layers::dense::Layer<typename SPEC::CAPABILITY, typename SPEC::HIDDEN_LAYER_SPEC> hidden_layers[NUM_HIDDEN_LAYERS];
+        typename nn::layers::dense::Layer<typename SPEC::CAPABILITY, typename SPEC::OUTPUT_LAYER_SPEC> output_layer;
     };
 
     template<typename SPEC>
     struct NeuralNetworkBackward: public NeuralNetworkForward<SPEC>{};
     template<typename SPEC>
     struct NeuralNetworkGradient: public NeuralNetworkBackward<SPEC>{};
-    template<typename SPEC>
-    struct NeuralNetworkSGD: public NeuralNetworkGradient<SPEC>{};
-    template<typename SPEC>
-    struct NeuralNetworkAdam: public NeuralNetworkGradient<SPEC>{};
 
-    template<nn::LayerCapability CAPABILITY, typename SPEC>
-    using NeuralNetwork =
-        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Forward,
-                NeuralNetworkForward<SPEC>,
-        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Backward,
-                NeuralNetworkBackward<SPEC>,
-        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Gradient,
-                NeuralNetworkGradient<SPEC>, void>>>;
+    template<typename CAPABILITY, typename SPEC>
+    using _NeuralNetwork =
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
+                NeuralNetworkForward<CapabilitySpecification<CAPABILITY, SPEC>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
+                NeuralNetworkBackward<CapabilitySpecification<CAPABILITY, SPEC>>,
+        typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
+                NeuralNetworkGradient<CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+
+    template<typename T_CAPABILITY, typename T_SPEC>
+    struct NeuralNetwork: _NeuralNetwork<T_CAPABILITY, T_SPEC>{
+        template <typename TT_CAPABILITY>
+        using CHANGE_CAPABILITY = NeuralNetwork<TT_CAPABILITY, T_SPEC>;
+    };
 
 
 }

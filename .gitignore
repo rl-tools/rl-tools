@@ -30,6 +30,7 @@
 /tests/docker/context
 /**/*.png
 /logs
+/experiments
 
 /data
 /**/__pycache__

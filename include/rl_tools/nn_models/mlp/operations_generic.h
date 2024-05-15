@@ -250,10 +250,6 @@ namespace rl_tools {
         update(device, network.output_layer, optimizer);
     }
 
-    template<typename DEVICE, typename SPEC>
-    void _reset_optimizer_state(DEVICE& device, nn_models::mlp::NeuralNetworkSGD<SPEC>& network) {
-    }
-
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     void _reset_optimizer_state(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& network, OPTIMIZER& optimizer) {
         // this function is marked with a underscore because it should usually be called from the reset_optimizer_state function of the optimizer to have one coherent entrypoint for resetting the optimizer state in the optimizer and in the model
@@ -267,7 +263,7 @@ namespace rl_tools {
     // The following copy operators are more powerful than the default copy assignment operator in that they can e.g. copy between networks with different activation functions
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE,  typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp::NeuralNetworkForward<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>& target){
-        static_assert(rl_tools::nn_models::mlp::check_spec_memory<typename SOURCE_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The source and target network must have the same structure");
+        static_assert(rl_tools::nn_models::mlp::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>, "The source and target network must have the same structure");
         copy(source_device, target_device, source.input_layer, target.input_layer);
         for(typename SOURCE_SPEC::TI layer_i = 0; layer_i <  SOURCE_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
             copy(source_device, target_device, source.hidden_layers[layer_i], target.hidden_layers[layer_i]);
@@ -275,11 +271,11 @@ namespace rl_tools {
         copy(source_device, target_device, source.output_layer, target.output_layer);
     }
 
-    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
-    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>& target){
-        static_assert(rl_tools::nn_models::mlp::check_spec_memory<typename SOURCE_SPEC::STRUCTURE_SPEC, typename TARGET_SPEC::STRUCTURE_SPEC>, "The source and target network must have the same structure");
-        copy(source_device, target_device, (nn_models::mlp::NeuralNetworkForward<SOURCE_SPEC>&)source, (nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>&)target);
-    }
+//    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+//    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp::NeuralNetworkAdam<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkAdam<TARGET_SPEC>& target){
+//        static_assert(rl_tools::nn_models::mlp::check_spec_memory<SOURCE_SPEC, TARGET_SPEC>, "The source and target network must have the same structure");
+//        copy(source_device, target_device, (nn_models::mlp::NeuralNetworkForward<SOURCE_SPEC>&)source, (nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>&)target);
+//    }
 
     template<typename DEVICE, typename SPEC>
     void reset_forward_state(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& n){
@@ -292,7 +288,7 @@ namespace rl_tools {
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC_1>& n1, const nn_models::mlp::NeuralNetworkForward<SPEC_2>& n2){
-        static_assert(rl_tools::nn_models::mlp::check_spec_memory<typename SPEC_1::STRUCTURE_SPEC, typename SPEC_2::STRUCTURE_SPEC>, "The source and target network must have the same structure");
+        static_assert(rl_tools::nn_models::mlp::check_spec_memory<SPEC_1, SPEC_2>, "The source and target network must have the same structure");
         typename SPEC_1::T acc = 0;
 
         acc += abs_diff(device, n1.output_layer, n2.output_layer);

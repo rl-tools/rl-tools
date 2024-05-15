@@ -13,7 +13,6 @@ namespace rl_tools{
     persist::Code save_split(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        using STRUCTURE_SPEC = typename SPEC::STRUCTURE_SPEC;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
             indent_ss << "    ";
@@ -34,15 +33,16 @@ namespace rl_tools{
         auto output_layer = save_split(device, network.output_layer, "output_layer", const_declaration, indent+1);
         ss_header << output_layer.header;
         ss << output_layer.body;
-        ss << ind << "    using STRUCTURE_SPEC = rl_tools::nn_models::mlp::StructureSpecification<";
+        ss << ind << "    using SPEC = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::Specification<";
         ss << containers::persist::get_type_string<T>() << ", ";
         ss << containers::persist::get_type_string<TI>() << ", ";
-        ss << STRUCTURE_SPEC::INPUT_DIM << ", " << STRUCTURE_SPEC::OUTPUT_DIM << ", " << STRUCTURE_SPEC::NUM_LAYERS << ", " << STRUCTURE_SPEC::HIDDEN_DIM << ", ";
-        ss << nn::layers::dense::persist::get_activation_function_string<STRUCTURE_SPEC::HIDDEN_ACTIVATION_FUNCTION>() << ", ";
-        ss << nn::layers::dense::persist::get_activation_function_string<STRUCTURE_SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
-        ss << ind << "1, rl_tools::MatrixDynamicTag, true, rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
-        ss << ind << "    using SPEC = rl_tools::nn_models::mlp::ForwardSpecification<STRUCTURE_SPEC>; \n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "rl_tools::nn_models::mlp::NeuralNetworkForward<SPEC> mlp = {";
+        ss << SPEC::INPUT_DIM << ", " << SPEC::OUTPUT_DIM << ", " << SPEC::NUM_LAYERS << ", " << SPEC::HIDDEN_DIM << ", ";
+        ss << nn::layers::dense::persist::get_activation_function_string<SPEC::HIDDEN_ACTIVATION_FUNCTION>() << ", ";
+        ss << nn::layers::dense::persist::get_activation_function_string<SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
+        ss << ind << "1, RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag, true, RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
+        ss << ind << "    using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
+        ss << ind << "    using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CAPABILITY, SPEC>; \n";
+        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE model = {";
         ss << "input_layer::layer, ";
         ss << "{";
         for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){

@@ -7,6 +7,7 @@
 #include <sstream>
 #include "../../../persist/code.h"
 #include "../../../containers/persist_code.h"
+#include "../../../nn/capability/persist_code.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -59,16 +60,16 @@ namespace rl_tools {
             << SPEC::INPUT_DIM << ", "
             << SPEC::OUTPUT_DIM << ", "
             << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
-            << get_type_string(typename SPEC::PARAMETER_TYPE{}) << ", "
             << 1 << ", "
             << get_type_string_tag(device, typename SPEC::PARAMETER_GROUP{}) << ", "
             << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag" << ", "
             << "true, "
             << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>"
             << ">; \n";
-        ss << ind << "    " << "template <RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::LayerCapability CAPABILITY>" << "\n";
-        ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Layer<CAPABILITY, SPEC>;";
-        ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::LayerForward<SPEC>;";
+        ss << ind << "    " << "template <typename CAPABILITY>" << "\n";
+        ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Layer<CAPABILITY, SPEC>;" << "\n";
+        ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
+        ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Layer<CAPABILITY, SPEC>;" << "\n";
         ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE layer = {weights::parameters, biases::parameters};\n";
         ss << ind << "}\n";
 

@@ -30,6 +30,7 @@
   - It would be best to implement a sampling layer and an element-wise layer (for the tanh squashing)
 - Make the `EPISODE_STEP_LIMIT` an assumed property of the Environment type
 - Move all C-style casts to C++ style casts (`static_cast` etc.)
+- Add a mode tag to the `evaluate` and `forward` signature to signal the desired behavior (similar destincation as `.train()` and `.eval()` in PyTorch, but allowing for finer-grained and model specific control)
 ## Atoms
 - nn-mlp: msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
   - find a fix for all compilers (tests with n_layers = 2 are disabled for msvc for now)
