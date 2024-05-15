@@ -37,9 +37,9 @@ namespace rl_tools{
         if(layer_i == 0){
             ss << ind << "    " << "namespace model_definition {\n";
 //            ss << ind << "    " << "    " << "using namespace RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::interface;\n";
-            std::string capability = "Forward";
-            ss << ind << "    " << "    " << "using IF = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Interface<RL_TOOLS""_NAMESPACE_WRAPPER::rl_tools::nn::LayerCapability::" << capability << ">;\n";
-
+//            std::string capability = "Forward";
+            ss << ind << "    " << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
+            ss << ind << "    " << "    " << "using IF = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Interface<CAPABILITY>;\n";
             ss << ind << "    " << "    " << "using MODEL = IF::Module<";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
                 ss << "layer_" << layer_i << "::TEMPLATE";

@@ -32,10 +32,12 @@ namespace rl_tools {
     template<typename DEVICE, typename SPEC>
     void load(DEVICE& device, nn::layers::dense::LayerBackward<SPEC>& layer, HighFive::Group group) {
         load(device, (nn::layers::dense::LayerForward<SPEC>&)layer, group);
+        load(device, layer.pre_activations, group, "pre_activations");
     }
     template<typename DEVICE, typename SPEC>
     void load(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer, HighFive::Group group) {
         load(device, (nn::layers::dense::LayerBackward<SPEC>&)layer, group);
+        load(device, layer.output, group, "output");
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

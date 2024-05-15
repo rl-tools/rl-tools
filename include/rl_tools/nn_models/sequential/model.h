@@ -13,6 +13,8 @@ namespace rl_tools::nn_models::sequential{
             static constexpr auto INPUT_DIM = 0;
             static constexpr auto BATCH_SIZE = 0;
         };
+        template <typename>
+        using CHANGE_CAPABILITY = OutputModule;
     };
 
     // Required fields on CONTENT:
@@ -90,6 +92,12 @@ namespace rl_tools::nn_models::sequential{
         static_assert(utils::typing::is_same_v<NEXT_MODULE, OutputModule> || CONTENT::OUTPUT_DIM == NEXT_MODULE::CONTENT::INPUT_DIM);
     };
 
+    template <typename T_CAPABILITY, typename T_SPEC>
+    struct CapabilitySpecification: T_SPEC{
+        using CAPABILITY = T_CAPABILITY;
+        using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
+    };
+
     template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG, typename T_MEMORY_LAYOUT>
     struct ModuleBufferSpecification {
         using SPEC = T_SPEC;
@@ -132,22 +140,25 @@ namespace rl_tools::nn_models::sequential{
     template <typename T_SPEC>
     struct ModuleGradient: public ModuleBackward<T_SPEC>{};
 
-    template<typename CAPABILITY, typename SPEC>
-    using ModuleMux =
+    template <typename CAPABILITY, template <typename> typename CONTENT, typename NEXT_MODULE>
+    using _Module =
         utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
-                ModuleForward<SPEC>,
+                ModuleForward<CapabilitySpecification<CAPABILITY, Specification<CONTENT<CAPABILITY>, NEXT_MODULE>>>,
         utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-                ModuleBackward<SPEC>,
+                ModuleBackward<CapabilitySpecification<CAPABILITY, Specification<CONTENT<CAPABILITY>, NEXT_MODULE>>>,
         utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-                ModuleGradient<SPEC>, void>>>;
+                ModuleGradient<CapabilitySpecification<CAPABILITY, Specification<CONTENT<CAPABILITY>, NEXT_MODULE>>>, void>>>;
+
+    template <typename T_CAPABILITY, template <typename> typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
+    struct Module: _Module<T_CAPABILITY, T_CONTENT, T_NEXT_MODULE>{
+        template <typename TT_CAPABILITY>
+        using CHANGE_CAPABILITY = Module<TT_CAPABILITY, T_CONTENT, typename T_NEXT_MODULE::template CHANGE_CAPABILITY<TT_CAPABILITY>>;
+    };
 
     template <typename T_CAPABILITY>
     struct Interface{
         template <template <typename> typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
-        struct Module: ModuleMux<T_CAPABILITY, Specification<T_CONTENT<T_CAPABILITY>, T_NEXT_MODULE>>{
-            template <typename TT_CAPABILITY>
-            using ModuleWithCapability = typename Interface<TT_CAPABILITY>::template Module<T_CONTENT, T_NEXT_MODULE>;
-        };
+        using Module = sequential::Module<T_CAPABILITY, T_CONTENT, T_NEXT_MODULE>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

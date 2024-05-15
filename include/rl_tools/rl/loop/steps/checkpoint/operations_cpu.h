@@ -75,7 +75,7 @@ namespace rl_tools{
                 rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::OUTPUT_DIM>> output;
                 auto rng_copy = ts.rng;
                 rlt::randn(device, input, rng_copy);
-                rlt::evaluate(device, actor, input, output, actor_buffer);
+                rlt::evaluate(device, actor, input, output, actor_buffer, rng_copy);
                 actor_output_file << "\n" << rlt::save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
                 actor_output_file << "\n" << rlt::save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
                 rlt::free(device, input);

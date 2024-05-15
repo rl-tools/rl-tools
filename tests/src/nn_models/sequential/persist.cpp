@@ -1,4 +1,5 @@
 #include <rl_tools/operations/cpu.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
@@ -10,20 +11,26 @@ using T = float;
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 
-namespace MODEL_1{
-    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 15, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain>;
+namespace MODEL_FORWARD{
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 15, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 15, 20, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 15, 20, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 20, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Plain>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 20, 5, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
-    using IF = rlt::nn_models::sequential::Interface<rlt::nn::LayerCapability::Forward>;
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Forward>;
     using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 }
+namespace MODEL_BACKWARD{
+    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Backward>;
+}
+namespace MODEL_GRADIENT_ADAM{
+    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+}
 
-TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load) {
-    using MODEL = MODEL_1::MODEL;
+TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_forward) {
+    using MODEL = MODEL_FORWARD::MODEL;
 
     DEVICE device;
     MODEL model, model_loaded;
@@ -36,12 +43,157 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load) {
     rlt::init_weights(device, model, rng);
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_forward_forward.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
         rlt::save(device, model, file.createGroup("sequential_model"));
     }
 
     {
-        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save.h5", HighFive::File::ReadOnly);
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_forward_forward.h5", HighFive::File::ReadOnly);
+        rlt::load(device, model_loaded, file.getGroup("sequential_model"));
+    }
+
+    auto abs_diff = rlt::abs_diff(device, model, model_loaded);
+
+    ASSERT_EQ(abs_diff, 0);
+}
+
+TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_backward_forward) {
+
+    DEVICE device;
+    MODEL_BACKWARD::MODEL model;
+    MODEL_FORWARD::MODEL model_loaded;
+
+    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+
+    rlt::malloc(device, model);
+    rlt::malloc(device, model_loaded);
+
+    rlt::init_weights(device, model, rng);
+
+    {
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_backward_forward.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        rlt::save(device, model, file.createGroup("sequential_model"));
+    }
+
+    {
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_backward_forward.h5", HighFive::File::ReadOnly);
+        rlt::load(device, model_loaded, file.getGroup("sequential_model"));
+    }
+
+    auto abs_diff = rlt::abs_diff(device, model, model_loaded);
+
+    ASSERT_EQ(abs_diff, 0);
+}
+
+TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_gradient_adam_forward) {
+
+    DEVICE device;
+    MODEL_GRADIENT_ADAM::MODEL model;
+    MODEL_FORWARD::MODEL model_loaded;
+
+    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+
+    rlt::malloc(device, model);
+    rlt::malloc(device, model_loaded);
+
+    rlt::init_weights(device, model, rng);
+
+    {
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_gradient_adam_forward.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        rlt::save(device, model, file.createGroup("sequential_model"));
+    }
+
+    {
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_gradient_adam_forward.h5", HighFive::File::ReadOnly);
+        rlt::load(device, model_loaded, file.getGroup("sequential_model"));
+    }
+
+    auto abs_diff = rlt::abs_diff(device, model, model_loaded);
+
+    ASSERT_EQ(abs_diff, 0);
+}
+
+TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_gradient_adam) {
+
+    DEVICE device;
+    MODEL_FORWARD::MODEL model;
+    MODEL_GRADIENT_ADAM::MODEL model_loaded;
+
+    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+
+    rlt::malloc(device, model);
+    rlt::malloc(device, model_loaded);
+
+    rlt::init_weights(device, model, rng);
+
+    {
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_forward_gradient_adam.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        rlt::save(device, model, file.createGroup("sequential_model"));
+    }
+
+    bool got_expected_error = false;
+    {
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_forward_gradient_adam.h5", HighFive::File::ReadOnly);
+        try{
+            rlt::load(device, model_loaded, file.getGroup("sequential_model"));
+        }
+        catch(HighFive::DataSetException& e){
+
+            std::cerr << "Error while loading model: " << e.what() << std::endl;
+            if(std::string(e.what()) == std::string("Unable to open the dataset \"gradient\": (Symbol table) Object not found")){
+                got_expected_error = true;
+            }
+        }
+    }
+    ASSERT_EQ(got_expected_error, true);
+}
+
+TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_gradient_adam_gradient_adam) {
+
+    DEVICE device;
+    MODEL_GRADIENT_ADAM::MODEL model;
+    MODEL_GRADIENT_ADAM::MODEL model_loaded;
+
+    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+
+    rlt::malloc(device, model);
+    rlt::malloc(device, model_loaded);
+
+    rlt::init_weights(device, model, rng);
+    rlt::randn(device, model.content.output, rng);
+    rlt::randn(device, model.content.pre_activations, rng);
+    rlt::randn(device, model.content.weights.gradient, rng);
+    rlt::randn(device, model.content.weights.gradient_first_order_moment, rng);
+    rlt::randn(device, model.content.weights.gradient_second_order_moment, rng);
+    rlt::randn(device, model.content.biases.gradient, rng);
+    rlt::randn(device, model.content.biases.gradient_first_order_moment, rng);
+    rlt::randn(device, model.content.biases.gradient_second_order_moment, rng);
+
+    rlt::randn(device, model.next_module.content.output, rng);
+    rlt::randn(device, model.next_module.content.pre_activations, rng);
+    rlt::randn(device, model.next_module.content.weights.gradient, rng);
+    rlt::randn(device, model.next_module.content.weights.gradient_first_order_moment, rng);
+    rlt::randn(device, model.next_module.content.weights.gradient_second_order_moment, rng);
+    rlt::randn(device, model.next_module.content.biases.gradient, rng);
+    rlt::randn(device, model.next_module.content.biases.gradient_first_order_moment, rng);
+    rlt::randn(device, model.next_module.content.biases.gradient_second_order_moment, rng);
+
+    rlt::randn(device, model.next_module.next_module.content.output, rng);
+    rlt::randn(device, model.next_module.next_module.content.pre_activations, rng);
+    rlt::randn(device, model.next_module.next_module.content.weights.gradient, rng);
+    rlt::randn(device, model.next_module.next_module.content.weights.gradient_first_order_moment, rng);
+    rlt::randn(device, model.next_module.next_module.content.weights.gradient_second_order_moment, rng);
+    rlt::randn(device, model.next_module.next_module.content.biases.gradient, rng);
+    rlt::randn(device, model.next_module.next_module.content.biases.gradient_first_order_moment, rng);
+    rlt::randn(device, model.next_module.next_module.content.biases.gradient_second_order_moment, rng);
+
+    {
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_gradient_adam_gradient_adam.h5", HighFive::File::ReadWrite | HighFive::File::Create | HighFive::File::Overwrite);
+        rlt::save(device, model, file.createGroup("sequential_model"));
+    }
+
+    {
+        auto file = HighFive::File("test_rl_tools_nn_models_sequential_save_gradient_adam_gradient_adam.h5", HighFive::File::ReadOnly);
         rlt::load(device, model_loaded, file.getGroup("sequential_model"));
     }
 
