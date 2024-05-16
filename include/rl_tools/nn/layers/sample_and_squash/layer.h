@@ -49,18 +49,19 @@ namespace rl_tools::nn::layers::sample_and_squash {
         using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };
-    template<nn::LayerCapability CAPABILITY, typename SPEC>
+    template<typename CAPABILITY, typename SPEC>
     using Layer =
-        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Forward,
-                LayerForward<SPEC>,
-        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Backward,
-                LayerBackward<SPEC>,
-        typename utils::typing::conditional_t<CAPABILITY == nn::LayerCapability::Gradient,
-                LayerGradient<SPEC>, void>>>;
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
+            LayerForward<layers::dense::CapabilitySpecification<CAPABILITY, SPEC>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
+            LayerBackward<layers::dense::CapabilitySpecification<CAPABILITY, SPEC>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
+            LayerGradient<layers::dense::CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+
     template <typename T_SPEC>
     struct BindSpecification{
-        template <nn::LayerCapability CAPABILITY>
-        using Layer = Layer<CAPABILITY, T_SPEC>;
+        template <typename CAPABILITY>
+        using Layer = nn::layers::sample_and_squash::Layer<CAPABILITY, T_SPEC>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

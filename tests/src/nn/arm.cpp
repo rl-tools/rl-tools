@@ -29,14 +29,13 @@ void test_mlp_evaluate() {
     DEVICE device;
     DEVICE_ARM device_arm;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
-    using SPEC = rlt::nn_models::mlp::ForwardSpecification<STRUCTURE_SPEC>;
-    rlt::nn_models::mlp::NeuralNetworkForward<SPEC> mlp;
+    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, SPEC> mlp;
     rlt::malloc(device, mlp);
     rlt::init_weights(device, mlp, rng);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::OUTPUT_DIM>> output_orig, output_arm;
+    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::INPUT_DIM>> input;
+    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::OUTPUT_DIM>> output_orig, output_arm;
     rlt::malloc(device, input);
     rlt::malloc(device, output_orig);
     rlt::malloc(device, output_arm);
@@ -70,9 +69,8 @@ void test_mlp_forward() {
     DEVICE device;
     DEVICE_ARM device_arm;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1,  rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
-    using SPEC = rlt::nn_models::mlp::GradientSpecification<STRUCTURE_SPEC>;
-    using TYPE = rlt::nn_models::mlp::NeuralNetworkGradient<SPEC>;
+    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1,  rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, SPEC>;
     using FORWARD_BACKWARD_BUFFERS = typename TYPE::template Buffer<BATCH_SIZE>;
     TYPE mlp_cpu, mlp_arm;
     FORWARD_BACKWARD_BUFFERS buffers;
@@ -83,7 +81,7 @@ void test_mlp_forward() {
     rlt::zero_gradient(device, mlp_cpu);
     rlt::copy(device, device, mlp_cpu, mlp_arm);
 
-    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::STRUCTURE_SPEC::INPUT_DIM>> input;
+    rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::INPUT_DIM>> input;
     rlt::malloc(device, input);
     rlt::randn(device, input, rng);
     rlt::forward(device, mlp_cpu, input, rng);

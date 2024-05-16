@@ -20,21 +20,19 @@ constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::TANH;
 constexpr TI BATCH_SIZE = 16;
 using CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
 
-using MLP_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, INPUT_DIM, 2*OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, BATCH_SIZE, CONTAINER_TYPE_TAG>;
-using MLP_SPEC = rlt::nn_models::mlp::AdamSpecification<MLP_STRUCTURE_SPEC>;
-template <rlt::nn::LayerCapability CAPABILITY>
-using MLP_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY, MLP_SPEC>;
+using MLP_SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, 2*OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, BATCH_SIZE, CONTAINER_TYPE_TAG>;
+using MLP_TYPE = rlt::nn_models::mlp::BindSpecification<MLP_SPEC>;
 
 using SAMPLE_AND_SQUASH_PARAMETERS = rlt::nn::layers::sample_and_squash::DefaultParameters<T>;
 using SAMPLE_AND_SQUASH_SPEC = rlt::nn::layers::sample_and_squash::Specification<T, TI, OUTPUT_DIM, SAMPLE_AND_SQUASH_PARAMETERS, rlt::nn::activation_functions::TANH, BATCH_SIZE, CONTAINER_TYPE_TAG>;
 using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_SPEC>;
 
 //using SAMPLE_AND_SQUASH_MODULE_SPEC = rlt::nn_models::sequential::Specification<SAMPLE_AND_SQUASH>;
-constexpr auto CAPABILITY = rlt::nn::LayerCapability::Gradient;
-using IF = rlt::nn_models::sequential::Interface<CAPABILITY>;
+using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+using IF = rlt::nn_models::sequential::Interface<CAPABILITY_ADAM>;
 using SAMPLE_AND_SQUASH_MODULE = IF::Module<SAMPLE_AND_SQUASH::Layer>;
 //using ACTOR_SPEC = rlt::nn_models::sequential::Specification<MLP_TYPE, SAMPLE_AND_SQUASH_MODULE>;
-using ACTOR = IF::Module<MLP_TYPE, SAMPLE_AND_SQUASH_MODULE>;
+using ACTOR = IF::Module<MLP_TYPE::NeuralNetwork, SAMPLE_AND_SQUASH_MODULE>;
 
 int main(){
     ACTOR actor;

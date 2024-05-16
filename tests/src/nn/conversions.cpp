@@ -27,9 +27,9 @@ constexpr index_t OUTER_INPUT_DIM = 10;
 constexpr index_t OUTER_OUTPUT_DIM = 10;
 constexpr unsigned OUTER_INPUT_DIM_2 = 10;
 constexpr unsigned OUTER_OUTPUT_DIM_2 = 10;
-using LayerSpec1 = rlt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Plain>;
-using LayerSpec2 = rlt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::Plain>;
-using LayerSpec3 = rlt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain>;
+using LayerSpec1 = rlt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+using LayerSpec2 = rlt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+using LayerSpec3 = rlt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM, OUTER_OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::RELU>;
 
 struct LayerSpec4{
     typedef DTYPE T;
@@ -39,7 +39,7 @@ struct LayerSpec4{
     // Summary
     static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
 };
-using LayerSpec5 = rlt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM_2, OUTER_OUTPUT_DIM_2, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Plain>;
+using LayerSpec5 = rlt::nn::layers::dense::Specification<DTYPE, index_t, OUTER_INPUT_DIM_2, OUTER_OUTPUT_DIM_2, rlt::nn::activation_functions::ActivationFunction::RELU>;
 
 static_assert(rlt::utils::typing::is_same_v<LayerSpec1, LayerSpec2>);
 // these should fail
@@ -51,7 +51,7 @@ static_assert(rlt::utils::typing::is_same_v<LayerSpec1, LayerSpec2>);
 
 TEST(RL_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     using Device1 = rlt::devices::DefaultDummy;
-    using Layer1 = rlt::nn::layers::dense::LayerForward<LayerSpec1>;
+    using Layer1 = rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Forward, LayerSpec1>;
 
     Device1 device1;
     Layer1 layer1;
@@ -59,7 +59,7 @@ TEST(RL_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     Layer1 layer11;
 
     using Device2 = rlt::devices::DefaultCPU;
-    using Layer2 = rlt::nn::layers::dense::LayerForward<LayerSpec2>;
+    using Layer2 = rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Forward, LayerSpec2>;
 
     Device2 device2;
     Layer2 layer2;

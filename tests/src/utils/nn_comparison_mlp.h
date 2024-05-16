@@ -19,8 +19,7 @@ template <typename DEVICE, typename SPEC>
 typename SPEC::T abs_diff_grad(DEVICE& device, const rlt::nn_models::mlp::NeuralNetworkGradient<SPEC>& n1, const rlt::nn_models::mlp::NeuralNetworkGradient<SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
-    using GradNetworkSpec = rlt::nn_models::mlp::GradientSpecification<typename SPEC::STRUCTURE_SPEC>;
-    using GradNetworkType = rlt::nn_models::mlp::NeuralNetworkGradient<GradNetworkSpec>;
+    using GradNetworkType = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Gradient>, SPEC>;
     GradNetworkType n1g;
     rlt::malloc(device, n1g);
     rlt::copy(device, device, n1, n1g);
@@ -41,7 +40,8 @@ typename SPEC::T abs_diff_grad(DEVICE& device, const rlt::nn_models::mlp::Neural
 }
 
 template <typename DEVICE, typename SPEC>
-typename SPEC::T abs_diff_adam(DEVICE& device, const rlt::nn_models::mlp::NeuralNetworkAdam<SPEC>& n1, const rlt::nn_models::mlp::NeuralNetworkAdam<SPEC>& n2) {
+typename std::enable_if<std::is_same<typename SPEC::PARAMETER_TYPE, rlt::nn::parameters::Adam>::value, typename SPEC::T>::type
+abs_diff_adam(DEVICE& device, const rlt::nn_models::mlp::NeuralNetworkGradient<SPEC>& n1, const rlt::nn_models::mlp::NeuralNetworkGradient<SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
     T acc = 0;

@@ -21,11 +21,10 @@ void test(){
 //    constexpr TI INPUT_DIM = 5;
 //    constexpr TI OUTPUT_DIM = 5;
     constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::RELU;
-    using PARAMETER_TYPE = rlt::nn::parameters::Plain;
 
-    using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE>;
+    using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>;
 
-    rlt::nn::layers::dense::LayerForward<LAYER_SPEC> layer;
+    rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Forward, LAYER_SPEC> layer;
     rlt::malloc(device_generic, layer);
     rlt::init_kaiming(device_generic, layer, rng);
 //    constexpr TI BATCH_SIZE = 1;

@@ -8,23 +8,33 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp_unconditional_stddev {
 
-    template<template <typename> typename BASE, typename SPEC>
-    struct NEURAL_NETWORK_FACTORY: public BASE<SPEC>{
+    template <typename SPEC, template <typename> typename BASE = nn_models::mlp::NeuralNetworkForward>
+    struct NeuralNetworkForward: BASE<SPEC>{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using LOG_STD_CONTAINER_SPEC = matrix::Specification<T, TI, 1, SPEC::OUTPUT_DIM>;
         using LOG_STD_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<LOG_STD_CONTAINER_SPEC>;
+        using LOG_STD_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<LOG_STD_CONTAINER_TYPE, nn::parameters::groups::Output, nn::parameters::categories::Weights>;
+        typename SPEC::PARAMETER_TYPE::template instance<LOG_STD_PARAMETER_SPEC> log_std;
     };
+    template <typename SPEC, template <typename> typename BASE = nn_models::mlp::NeuralNetworkBackward>
+    struct NeuralNetworkBackward: NeuralNetworkForward<SPEC, BASE>{};
+    template <typename SPEC, template <typename> typename BASE = nn_models::mlp::NeuralNetworkGradient>
+    struct NeuralNetworkGradient: NeuralNetworkBackward<SPEC, BASE>{};
 
-    template <typename SPEC>
-    struct NeuralNetwork: NEURAL_NETWORK_FACTORY<nn_models::mlp::NeuralNetworkForward, SPEC>{
-        using PARAMETER_SPEC = nn::parameters::Plain::spec<typename NeuralNetwork::LOG_STD_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Biases>;
-        nn::parameters::Plain::instance<PARAMETER_SPEC> log_std;
-    };
-    template <typename SPEC>
-    struct NeuralNetworkAdam: NEURAL_NETWORK_FACTORY<nn_models::mlp::NeuralNetworkAdam, SPEC>{
-        using PARAMETER_SPEC = nn::parameters::Adam::spec<typename NeuralNetworkAdam::LOG_STD_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Biases>;
-        nn::parameters::Adam::instance<PARAMETER_SPEC> log_std;
+    template<typename CAPABILITY, typename SPEC>
+    using _NeuralNetwork =
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
+            NeuralNetworkForward<nn_models::mlp::CapabilitySpecification<CAPABILITY, SPEC>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
+            NeuralNetworkBackward<nn_models::mlp::CapabilitySpecification<CAPABILITY, SPEC>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
+            NeuralNetworkGradient<nn_models::mlp::CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+
+    template<typename T_CAPABILITY, typename T_SPEC>
+    struct NeuralNetwork: _NeuralNetwork<T_CAPABILITY, T_SPEC>{
+        template <typename TT_CAPABILITY>
+        using CHANGE_CAPABILITY = NeuralNetwork<TT_CAPABILITY, T_SPEC>;
     };
 
 

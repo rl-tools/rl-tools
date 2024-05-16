@@ -14,7 +14,7 @@ constexpr TI OUTPUT_DIM = 5;
 constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::RELU;
 using PARAMETER_TYPE = rlt::nn::parameters::Plain;
 
-using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE>;
+using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>;
 
 
 
@@ -25,7 +25,7 @@ using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPU
 
 TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
 
-    rlt::nn::layers::dense::LayerForward<LAYER_SPEC> layer;
+    rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Forward, LAYER_SPEC> layer;
     rlt::malloc(device, layer);
     rlt::init_kaiming(device, layer, rng);
     constexpr TI BATCH_SIZE = 1;
@@ -37,8 +37,8 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     rlt::print(device, input);
     rlt::evaluate(device, layer, input, output, rng);
     using PARAMETER_TYPE_2 = rlt::nn::parameters::Gradient;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION, PARAMETER_TYPE_2>;
-    rlt::nn::layers::dense::LayerGradient<LAYER_2_SPEC> layer_2;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>;
+    rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Gradient>, LAYER_2_SPEC> layer_2;
     rlt::malloc(device, layer_2);
     rlt::copy(device, device, layer, layer_2);
     rlt::zero_gradient(device, layer_2);

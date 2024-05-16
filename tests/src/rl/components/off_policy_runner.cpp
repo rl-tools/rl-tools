@@ -23,15 +23,15 @@ using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
 typedef rlt::rl::components::off_policy_runner::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, DEVICE::index_t>> OffPolicyRunnerSpec;
 typedef rlt::rl::components::OffPolicyRunner<OffPolicyRunnerSpec> OffPolicyRunner;
 
-using PendulumStructureSpecification = rlt::nn_models::mlp::StructureSpecification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
+using PendulumStructureSpecification = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 30, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 
 TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, TI>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-    typedef rlt::nn_models::mlp::AdamSpecification<PendulumStructureSpecification> SPEC;
+    using SPEC = PendulumStructureSpecification;
     DEVICE device;
     OPTIMIZER optimizer;
-    rlt::nn_models::mlp::NeuralNetworkAdam<SPEC> policy;
+    rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, SPEC> policy;
     rlt::malloc(device, policy);
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
     rlt::init_weights(device, policy, rng);

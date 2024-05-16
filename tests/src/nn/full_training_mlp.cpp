@@ -37,13 +37,13 @@ using TI = typename DEVICE::index_t;
 //};
 
 constexpr TI batch_size = 32;
-using StructureSpecification = rlt::nn_models::mlp::StructureSpecification<T, DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY, 1>;
+using NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY, 1>;
 
 
 using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-using NETWORK_SPEC = rlt::nn_models::mlp::AdamSpecification<StructureSpecification>;
-using NetworkType = rlt::nn_models::mlp::NeuralNetworkAdam<NETWORK_SPEC>;
+using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+using NetworkType = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
 std::vector<std::vector<T>> Y_train;
@@ -54,8 +54,8 @@ std::vector<T> X_std;
 std::vector<T> Y_mean;
 std::vector<T> Y_std;
 
-constexpr typename DEVICE::index_t INPUT_DIM = StructureSpecification::INPUT_DIM;
-constexpr typename DEVICE::index_t OUTPUT_DIM = StructureSpecification::OUTPUT_DIM;
+constexpr typename DEVICE::index_t INPUT_DIM = NETWORK_SPEC::INPUT_DIM;
+constexpr typename DEVICE::index_t OUTPUT_DIM = NETWORK_SPEC::OUTPUT_DIM;
 
 TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     // loading data

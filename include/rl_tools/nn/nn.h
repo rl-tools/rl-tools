@@ -7,9 +7,9 @@
 #endif
 
 
+#include "capability/capability.h"
 #include "activation_functions.h"
 #include "layers/layers.h"
-#include "capability/capability.h"
 #include "optimizers/adam/adam.h"
 
 #endif

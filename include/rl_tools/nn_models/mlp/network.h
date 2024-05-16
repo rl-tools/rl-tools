@@ -120,6 +120,12 @@ namespace rl_tools::nn_models::mlp {
         using CHANGE_CAPABILITY = NeuralNetwork<TT_CAPABILITY, T_SPEC>;
     };
 
+    template <typename T_SPEC>
+    struct BindSpecification{
+        template <typename CAPABILITY>
+        using NeuralNetwork = nn_models::mlp::NeuralNetwork<CAPABILITY, T_SPEC>;
+    };
+
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -6,6 +6,8 @@
 #define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+#include "../parameters/parameters.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn{
     enum class LayerCapability{
