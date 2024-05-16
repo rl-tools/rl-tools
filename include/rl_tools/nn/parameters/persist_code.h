@@ -52,6 +52,7 @@ namespace rl_tools {
         ss << ind << "namespace " << name << " {\n";
         auto container = save_split(device, parameter.parameters, "parameters_memory", const_declaration, indent+1);
         ss_header << container.header;
+        ss_header << "#include <rl_tools/nn/parameters/parameters.h>\n";
         ss << container.body;
         if(!output_memory_only){
             ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::spec<parameters_memory::CONTAINER_TYPE, "
@@ -62,7 +63,7 @@ namespace rl_tools {
             ss << ind << "    " << (const_declaration ? "const " : "") << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::instance<PARAMETER_SPEC> parameters = {parameters_memory::container};\n";
         }
         ss << ind << "}\n";
-        return {"", ss.str()};
+        return {ss_header.str(), ss.str()};
     }
 
     template<typename DEVICE, typename CONTAINER>

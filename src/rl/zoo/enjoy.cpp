@@ -27,10 +27,6 @@ using TI = typename DEVICE::index_t;
 
 using LOOP_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CONFIG;
 
-
-//#include "/home/jonas/rl_tools/experiments/2024-05-15_17-06-33/7f42933_zoo_algorithm_environment/td3_pendulum-v1/0000/steps/000000000020000/checkpoint.h"
-
-
 namespace fs = std::filesystem;
 
 template <typename DEVICE>
@@ -100,26 +96,16 @@ int main(int argc, char** argv){
     }
     std::cerr << "Checkpoint: " << checkpoint_path << std::endl;
 //    using ACTOR = rlt::utils::typing::remove_reference<decltype(rlt::get_actor(std::declval<std::add_lvalue_reference_t<LOOP_STATE>>()))>;
-    constexpr bool use_hdf5 = false;
-    if constexpr(use_hdf5){
-        using ACTOR = LOOP_CONFIG::NN::ACTOR_TYPE::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward>;
-        ACTOR actor;
-        ACTOR::template Buffer<1> actor_buffer;
-        rlt::malloc(device, actor);
-        auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::ReadOnly);
-        rlt::load(device, actor, actor_file.getGroup("actor"));
-        rlt::malloc(device, actor_buffer);
-        evaluate(device, actor, actor_buffer, rng);
-        rlt::free(device, actor);
-        rlt::free(device, actor_buffer);
-    }
-    else{
-//        auto& actor = rlt::checkpoint::actor::model;
-//        rlt::utils::typing::remove_cv_t<rlt::utils::typing::remove_reference<decltype(actor)>::type>::template Buffer<1> actor_buffer;
-//        rlt::malloc(device, actor_buffer);
-//        evaluate(device, actor, actor_buffer, rng);
-//        rlt::free(device, actor_buffer);
-    }
+    using ACTOR = LOOP_CONFIG::NN::ACTOR_TYPE::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward>;
+    ACTOR actor;
+    ACTOR::template Buffer<1> actor_buffer;
+    rlt::malloc(device, actor);
+    auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::ReadOnly);
+    rlt::load(device, actor, actor_file.getGroup("actor"));
+    rlt::malloc(device, actor_buffer);
+    evaluate(device, actor, actor_buffer, rng);
+    rlt::free(device, actor);
+    rlt::free(device, actor_buffer);
 
 
     return 0;

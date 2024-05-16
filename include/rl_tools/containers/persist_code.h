@@ -57,6 +57,7 @@ namespace rl_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss_header;
+        ss_header << "// NOTE: This code export assumes that the endianness of the target platform is the same as the endianness of the source platform\n";
         ss_header << "#include <rl_tools/containers.h>\n";
         std::stringstream ss;
         ss << ind << "namespace " << name << " {\n";

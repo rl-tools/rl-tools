@@ -20,14 +20,13 @@ namespace rl_tools{
             indent_ss << "    ";
         }
         std::string ind = indent_ss.str();
-        std::stringstream ss_header;
-        std::stringstream ss;
-        if(layer_i == 0){
-            ss_header << "#include <rl_tools/nn_models/sequential/model.h>\n";
-            ss << ind << "namespace " << name << " {\n";
-        }
+        std::stringstream ss, ss_header;
         auto layer_output = save_split(device, model.content, "layer_" + std::to_string(layer_i), const_declaration, indent+1);
         ss_header << layer_output.header;
+        ss_header << "#include <rl_tools/nn_models/sequential/model.h>\n";
+        if(layer_i == 0){
+            ss << ind << "namespace " << name << " {\n";
+        }
         ss << layer_output.body;
         if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             auto downstream_output = save_code_split(device, model.next_module, name, const_declaration, indent, layer_i+1);
