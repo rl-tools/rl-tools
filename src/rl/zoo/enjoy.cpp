@@ -28,7 +28,7 @@ using TI = typename DEVICE::index_t;
 using LOOP_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CONFIG;
 
 
-#include "/home/jonas/rl_tools/experiments/2024-05-15_17-06-33/7f42933_zoo_algorithm_environment/td3_pendulum-v1/0000/steps/000000000020000/checkpoint.h"
+//#include "/home/jonas/rl_tools/experiments/2024-05-15_17-06-33/7f42933_zoo_algorithm_environment/td3_pendulum-v1/0000/steps/000000000020000/checkpoint.h"
 
 
 namespace fs = std::filesystem;
@@ -114,11 +114,11 @@ int main(int argc, char** argv){
         rlt::free(device, actor_buffer);
     }
     else{
-        auto& actor = rlt::checkpoint::actor::model;
-        rlt::utils::typing::remove_cv_t<rlt::utils::typing::remove_reference<decltype(actor)>::type>::template Buffer<1> actor_buffer;
-        rlt::malloc(device, actor_buffer);
-        evaluate(device, actor, actor_buffer, rng);
-        rlt::free(device, actor_buffer);
+//        auto& actor = rlt::checkpoint::actor::model;
+//        rlt::utils::typing::remove_cv_t<rlt::utils::typing::remove_reference<decltype(actor)>::type>::template Buffer<1> actor_buffer;
+//        rlt::malloc(device, actor_buffer);
+//        evaluate(device, actor, actor_buffer, rng);
+//        rlt::free(device, actor_buffer);
     }
 
 
