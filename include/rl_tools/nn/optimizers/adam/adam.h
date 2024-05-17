@@ -15,6 +15,7 @@ namespace rl_tools::nn::optimizers{
             T beta_1;
             T beta_2;
             T epsilon;
+            T epsilon_sqrt;
             T weight_decay;
             T weight_decay_input;
             T weight_decay_output;
@@ -26,6 +27,7 @@ namespace rl_tools::nn::optimizers{
             static constexpr T BETA_1 = 0.9;
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-7;
+            static constexpr T EPSILON_SQRT = 1e-7;
             static constexpr T WEIGHT_DECAY = 0;
             static constexpr T WEIGHT_DECAY_INPUT = 0;
             static constexpr T WEIGHT_DECAY_OUTPUT = 0;
@@ -34,6 +36,7 @@ namespace rl_tools::nn::optimizers{
         template <typename T>
         struct DEFAULT_PARAMETERS_PYTORCH: DEFAULT_PARAMETERS_TENSORFLOW<T>{
             static constexpr T EPSILON = 1e-8;
+            static constexpr T EPSILON_SQRT = 1e-8;
         };
         template <typename T_T, typename T_TI, typename T_DEFAULT_PARAMETERS=DEFAULT_PARAMETERS_TENSORFLOW<T_T>, bool T_ENABLE_WEIGHT_DECAY = false, bool T_ENABLE_BIAS_LR_FACTOR = false>
         struct Specification{
@@ -55,6 +58,7 @@ namespace rl_tools::nn::optimizers{
             DEFAULT_PARAMETERS::BETA_1,
             DEFAULT_PARAMETERS::BETA_2,
             DEFAULT_PARAMETERS::EPSILON,
+            DEFAULT_PARAMETERS::EPSILON_SQRT,
             DEFAULT_PARAMETERS::WEIGHT_DECAY,
             DEFAULT_PARAMETERS::WEIGHT_DECAY_INPUT,
             DEFAULT_PARAMETERS::WEIGHT_DECAY_OUTPUT,

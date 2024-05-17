@@ -31,9 +31,13 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC>
     void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
-        for(typename DEVICE::index_t row_i = 0; row_i < PARAMETER_SPEC::CONTAINER::ROWS; row_i++) {
-            for(typename DEVICE::index_t col_i = 0; col_i < PARAMETER_SPEC::CONTAINER::COLS; col_i++) {
-                typename PARAMETER_SPEC::CONTAINER::T parameter_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction) + optimizer.parameters.epsilon);
+        using TI = typename DEVICE::index_t;
+        using T = typename PARAMETER_SPEC::CONTAINER::T;
+        for(TI row_i = 0; row_i < PARAMETER_SPEC::CONTAINER::ROWS; row_i++) {
+            for(TI col_i = 0; col_i < PARAMETER_SPEC::CONTAINER::COLS; col_i++) {
+                T pre_sqrt_term = get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction;
+                pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T)optimizer.parameters.epsilon_sqrt);
+                T parameter_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer.parameters.epsilon);
                 if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && SPEC::ENABLE_BIAS_LR_FACTOR){
                     parameter_update *= optimizer.parameters.bias_lr_factor;
                 }

@@ -86,15 +86,23 @@ namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
         utils::assert_exit(device, matrix._data != nullptr, "Matrix has not been allocated");
 #endif
+#ifndef RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS
         char* aligned_byte_pointer = reinterpret_cast<char*>(matrix._data);
         static constexpr TI POINTER_SIZE = sizeof(void*);
         char* original_pointer_storage = aligned_byte_pointer - POINTER_SIZE;
-#ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
-        void* original_pointer = *((void**)original_pointer_storage);
-        ::free(original_pointer);
+    #ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
+            void* original_pointer = *((void**)original_pointer_storage);
+            ::free(original_pointer);
+    #else
+            char* original_pointer = *((char**)original_pointer_storage);
+            delete original_pointer;
+    #endif
 #else
-        char* original_pointer = *((char**)original_pointer_storage);
-        delete original_pointer;
+        #ifdef RL_TOOLS_CONTAINERS_USE_MALLOC
+            ::free(matrix._data);
+        #else
+            delete matrix._data;
+        #endif
 #endif
         matrix._data = nullptr;
     }

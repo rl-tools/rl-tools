@@ -31,6 +31,7 @@
 - Make the `EPISODE_STEP_LIMIT` an assumed property of the Environment type
 - Move all C-style casts to C++ style casts (`static_cast` etc.)
 - Add a mode tag to the `evaluate` and `forward` signature to signal the desired behavior (similar destincation as `.train()` and `.eval()` in PyTorch, but allowing for finer-grained and model specific control)
+- Move the `observation_mean` and `observation_std` into the `nn_model`
 ## Atoms
 - nn-mlp: msvc does not allow zero-sized arrays (hidden_layers are 0 if n layers = 2)
   - find a fix for all compilers (tests with n_layers = 2 are disabled for msvc for now)
@@ -48,5 +49,4 @@
 - Allow generic BLAS (`-lblas`)
   - Renaming OpenBLAS to BLAS should be mostly sufficient
 - Remove the experiment option scaffolding from `rl_environments_pendulum_ppo_training`
-- Debug why Sequential sometimes diverges in TD3
 - Enable -Werror on Windows

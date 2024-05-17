@@ -6,8 +6,10 @@
 #include <rl_tools/nn/optimizers/adam/persist_code.h>
 
 #include "td3/pendulum-v1.h"
+#include "sac/pendulum-v1.h"
 
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
+#include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
@@ -20,7 +22,13 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using T = float;
 using TI = typename DEVICE::index_t;
 
-using LOOP_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CONFIG;
+// These options should be coherent ------------------------------------------------------
+//using LOOP_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CONFIG;
+//std::string algorithm = "td3";
+using LOOP_CONFIG = rlt::rl::zoo::sac::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CONFIG;
+std::string algorithm = "sac";
+std::string environment = "pendulum-v1";
+// ---------------------------------------------------------------------------------------
 
 
 int main(int argc, char** argv){
@@ -43,8 +51,6 @@ int main(int argc, char** argv){
         ts.extrack_setup_path = ts.extrack_experiment_path / setup_name;
     }
     {
-        std::string algorithm = "td3";
-        std::string environment = "pendulum-v1";
         std::string config_name = algorithm + "_" + environment;
         ts.extrack_config_path = ts.extrack_setup_path / config_name;
     }

@@ -19,7 +19,9 @@ namespace rl_tools {
                 set(parameter.gradient_first_order_moment, row_i, col_i, d_weight_first_order_moment);
                 T d_weight_second_order_moment = optimizer.parameters.beta_2 * get(parameter.gradient_second_order_moment, row_i, col_i) + (1 - optimizer.parameters.beta_2) * d_weight * d_weight;
                 set(parameter.gradient_second_order_moment, row_i, col_i, d_weight_second_order_moment);
-                T parameter_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), d_weight_second_order_moment * optimizer.second_order_moment_bias_correction) + optimizer.parameters.epsilon);
+                T pre_sqrt_term = d_weight_second_order_moment * optimizer.second_order_moment_bias_correction;
+                pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T)optimizer.parameters.epsilon_sqrt);
+                T parameter_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), pre_sqrt_term) + optimizer.parameters.epsilon);
                 if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && SPEC::ENABLE_BIAS_LR_FACTOR){
                     parameter_update *= optimizer.parameters.bias_lr_factor;
                 }
