@@ -199,6 +199,7 @@ typedef RL_TOOLS_NN_MLP_BACKWARD_PASS RL_TOOLS_NN_MLP_ADAM_UPDATE;
 TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     this->reset();
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
+    optimizer.parameters.epsilon_sqrt = 0;
 //    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_tensorflow<DTYPE>;
     using TI = typename DEVICE::index_t;
 
@@ -293,7 +294,7 @@ protected:
 TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
     this->reset();
     rlt::nn::optimizers::Adam<rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>> optimizer;
-//    optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_tensorflow<DTYPE>;
+    optimizer.parameters.epsilon_sqrt = 0;
 
     auto data_file = HighFive::File(DATA_FILE_PATH, HighFive::File::ReadOnly);
     HighFive::Group g = data_file.getGroup("model_2/overfit_small_batch");
