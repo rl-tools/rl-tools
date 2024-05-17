@@ -48,6 +48,7 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
     DEVICE device;
     DEVICE_INIT device_init;
     rlp::OPTIMIZER optimizer;
+    optimizer.parameters.epsilon_sqrt = 0;
 
     rlp::ACTOR_CRITIC_TYPE actor_critic_init;
     rlp::ACTOR_CRITIC_TYPE actor_critic;

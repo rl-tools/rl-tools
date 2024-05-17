@@ -166,9 +166,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     AC_DEVICE device;
     NN_DEVICE nn_device;
     ActorCriticType actor_critic;
-//    actor_critic.actor_optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
-//    actor_critic.critic_optimizers[0].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
-//    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
+    actor_critic.actor_optimizer.parameters.epsilon_sqrt = 0;
+    actor_critic.critic_optimizers[0].parameters.epsilon_sqrt = 0;
+    actor_critic.critic_optimizers[1].parameters.epsilon_sqrt = 0;
     ActorCriticType::SPEC::ACTOR_TYPE::Buffer<1> actor_eval_buffers;
     rlt::malloc(device, actor_critic);
     rlt::malloc(device, actor_eval_buffers);
