@@ -17,7 +17,7 @@ namespace rl_tools::rl::zoo::td3{
         template <typename ENVIRONMENT>
         struct _LoopSpec{ // underscore such that only the ENVIRONMENT and LOOP_CONFIG are exposed
             struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-                static constexpr TI STEP_LIMIT = 20000;
+                static constexpr TI STEP_LIMIT = 200000;
                 static constexpr TI ACTOR_NUM_LAYERS = 3;
                 static constexpr TI ACTOR_HIDDEN_DIM = 64;
                 static constexpr TI CRITIC_NUM_LAYERS = 3;
@@ -32,7 +32,7 @@ namespace rl_tools::rl::zoo::td3{
             struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
                 static constexpr TI NUM_EVALUATION_EPISODES = 100;
             };
-            using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CHECKPOINT_CONFIG>;
+            using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CHECKPOINT_CONFIG, LOOP_EVAL_PARAMETERS>;
             using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
             using LOOP_CONFIG = LOOP_TIMING_CONFIG;
         };

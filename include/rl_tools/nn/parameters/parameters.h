@@ -14,6 +14,7 @@ namespace rl_tools::nn::parameters{
     namespace categories{
         struct Weights{};
         struct Biases{};
+        struct Constant{};
     }
 
     struct Plain{

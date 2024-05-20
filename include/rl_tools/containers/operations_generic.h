@@ -574,6 +574,28 @@ namespace rl_tools{
         }
         return acc/(SPEC::ROWS * SPEC::COLS);
     }
+    template <typename DEVICE, typename SPEC, typename OUTPUT_SPEC_1, typename OUTPUT_SPEC_2>
+    void mean_std_colwise(DEVICE& device, rl_tools::Matrix<SPEC>& m, rl_tools::Matrix<OUTPUT_SPEC_1>& mean, rl_tools::Matrix<OUTPUT_SPEC_2>& std){
+        static_assert(SPEC::COLS == OUTPUT_SPEC_1::COLS);
+        static_assert(SPEC::COLS == OUTPUT_SPEC_2::COLS);
+        static_assert(SPEC::ROWS >= 2);
+        using T = typename SPEC::T;
+        for(typename DEVICE::index_t row_i = 0; row_i < SPEC::ROWS; row_i++){
+            for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
+                if(row_i == 0){
+                    set(mean, 0, col_i, 0);
+                    set(std, 0, col_i, 0);
+                }
+                T current_value = get(m, row_i, col_i);
+                increment(mean, 0, col_i, current_value);
+                increment(std, 0, col_i, current_value * current_value);
+            }
+        }
+        for(typename DEVICE::index_t col_i = 0; col_i < SPEC::COLS; col_i++){
+            set(mean, 0, col_i, get(mean, 0, col_i) / SPEC::ROWS);
+            set(std, 0, col_i, math::sqrt(device.math, get(std, 0, col_i) / SPEC::ROWS - get(mean, 0, col_i) * get(mean, 0, col_i)));
+        }
+    }
     template <typename DEVICE, typename SPEC>
     typename SPEC::T std(DEVICE& device, rl_tools::Matrix<SPEC>& m){
         using T = typename SPEC::T;

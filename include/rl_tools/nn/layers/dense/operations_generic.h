@@ -71,8 +71,8 @@ namespace rl_tools{
     void evaluate(DEVICE& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng) {
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // Warning do not use the same buffer for input and output!
-        constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             for(TI output_i = 0; output_i < LAYER_SPEC::OUTPUT_DIM; output_i++) {
                 set(output, batch_i, output_i, get(layer.biases.parameters, 0, output_i));
