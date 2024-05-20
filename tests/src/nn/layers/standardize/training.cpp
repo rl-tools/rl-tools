@@ -2,6 +2,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
@@ -42,7 +43,9 @@ namespace config{
                 static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
                 static constexpr TI BATCH_SIZE = PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE;
                 static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
-                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, BATCH_SIZE, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
+                using LAYER_0_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, BATCH_SIZE, CONTAINER_TYPE_TAG>;
+                using LAYER_0 = nn::layers::standardize::BindSpecification<LAYER_0_SPEC>;
+                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, BATCH_SIZE, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
                 using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
                 using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, BATCH_SIZE, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
                 using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
@@ -51,7 +54,7 @@ namespace config{
                 using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
                 using IF = nn_models::sequential::Interface<CAPABILITY>;
-                using MODEL = typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>;
+                using MODEL = typename IF::template Module<LAYER_0::template Layer, typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>>;
             };
 
             template <typename CAPABILITY>
@@ -79,7 +82,7 @@ namespace config{
             using CRITIC_TYPE = typename CRITIC<nn::layer_capability::Gradient<nn::parameters::Adam>>::MODEL;
             using CRITIC_TARGET_TYPE = typename CRITIC<nn::layer_capability::Forward>::MODEL;
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, T_ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, T_ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximatorsSequential>;
         struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG>{
             static constexpr TI NUM_EVALUATION_EPISODES = 100;
         };

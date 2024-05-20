@@ -66,7 +66,8 @@ namespace rl_tools{
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
         static_assert(BUFFER_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
-        constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
+        using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
@@ -112,42 +113,52 @@ namespace rl_tools{
             reset_forward_state(device, module.next_module);
         }
     }
-    template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
+    template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC>
     void backward_full(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers) {
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
+        using TI = typename DEVICE::index_t;
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
+        constexpr TI BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             backward(device, model.content, input, d_output, d_input);
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
-            backward_full<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(model.content.output)::SPEC, D_OUTPUT_SPEC, typename DOUBLE_BUFFER_TYPE::SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer, buffers);
+            auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
+            backward_full<!TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer_view, buffers);
             backward(device, model.content, input, current_d_output_buffer, d_input);
         }
     }
-    template<typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
+    template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC>
     void backward_input(DEVICE& device, nn_models::sequential::ModuleBackward<MODULE_SPEC>& model, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers) {
         static_assert(nn_models::sequential::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn_models::sequential::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
+        using TI = typename DEVICE::index_t;
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
+        constexpr TI BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             backward_input(device, model.content, d_output, d_input);
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
-            backward_input<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, D_OUTPUT_SPEC, typename DOUBLE_BUFFER_TYPE::SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, d_output, current_d_output_buffer, buffers);
+            auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
+            backward_input<!TICK>(device, model.next_module, d_output, current_d_output_buffer_view, buffers);
             backward_input(device, model.content, current_d_output_buffer, d_input);
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC>
     void backward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers) {
         static_assert(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>);
-        backward_full<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(model.content.output)::SPEC, D_OUTPUT_SPEC, typename decltype(buffers.tick)::SPEC, BUFFER_SPEC, false>(device, model.next_module, model.content.output, d_output, buffers.tick, buffers);
-        backward_param(device, model.content, input, buffers.tick);
+        using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
+        auto current_d_input_buffer_view = view(device, buffers.tick, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
+        // todo: check if the following to are partially redundant
+        backward_full<false>(device, model.next_module, model.content.output, d_output, current_d_input_buffer_view, buffers);
+        backward_param(device, model.content, input, current_d_input_buffer_view);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     void update(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& model, OPTIMIZER& optimizer) {

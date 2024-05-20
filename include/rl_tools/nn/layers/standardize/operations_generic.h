@@ -116,16 +116,16 @@ namespace rl_tools{
         backward_input(device, layer, d_output, d_input);
     }
     template<typename DEVICE, typename SPEC>
-    void zero_gradient(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer) {
+    void zero_gradient(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer) {
         // this is a no-op as the standardize layer does not have trainable parameters
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    void update(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
+    void update(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
         // this is a no-op as the standardize layer does not have trainable parameters
     }
 
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
-    void _reset_optimizer_state(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {
+    void _reset_optimizer_state(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {
         // this is a no-op as the standardize layer does not have trainable parameters
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
