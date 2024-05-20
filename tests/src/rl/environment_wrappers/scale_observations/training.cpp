@@ -74,15 +74,16 @@ T lifetime_return(){
 }
 
 TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, DETRIMENT_TRAINING) {
-    T return_1x = lifetime_return<1>();
+//    T return_1x = lifetime_return<1>();
     T return_10x = lifetime_return<10>();
-    T return_100x = lifetime_return<100>();
-    T return_1000x = lifetime_return<1000>();
+//    T return_100x = lifetime_return<100>();
+//    T return_1000x = lifetime_return<1000>();
     T return_10000x = lifetime_return<10000>();
 
-    std::cout << "return_1x: " << return_1x << std::endl;
+//    std::cout << "return_1x: " << return_1x << std::endl;
     std::cout << "return_10x: " << return_10x << std::endl;
-    std::cout << "return_100x: " << return_100x << std::endl;
-    std::cout << "return_1000x: " << return_1000x << std::endl;
+//    std::cout << "return_100x: " << return_100x << std::endl;
+//    std::cout << "return_1000x: " << return_1000x << std::endl;
     std::cout << "return_10000x: " << return_10000x << std::endl;
+    ASSERT_GT(return_10000x / return_10x, 3);
 }
