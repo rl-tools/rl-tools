@@ -13,7 +13,7 @@ namespace rl_tools::rl::environment_wrappers {
         static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED;
         static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
-        static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::STEP_LIMIT;
+        static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
         using State = typename ENVIRONMENT::State;
 
         ENVIRONMENT env;

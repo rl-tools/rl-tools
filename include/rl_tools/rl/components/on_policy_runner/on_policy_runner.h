@@ -46,8 +46,6 @@ namespace rl_tools::rl::components{
 
             DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM, true> all_observations;
             DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM> observations;
-            DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM, true> all_observations_normalized;
-            DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM> observations_normalized;
             DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions_mean;
             DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions;
             DATA_VIEW<1> action_log_probs;

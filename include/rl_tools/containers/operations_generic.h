@@ -598,6 +598,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     typename SPEC::T std(DEVICE& device, rl_tools::Matrix<SPEC>& m){
+        static_assert(SPEC::ROWS * SPEC::COLS > 1);
         using T = typename SPEC::T;
         T acc = 0;
         T avg = mean(device, m);
@@ -607,7 +608,7 @@ namespace rl_tools{
                 acc += diff * diff;
             }
         }
-        return math::sqrt(device.math, acc/(SPEC::ROWS * SPEC::COLS));
+        return math::sqrt(device.math, acc/(SPEC::ROWS * SPEC::COLS - 1));
     }
 
     template <typename DEVICE, typename T, typename DEVICE::index_t DIM>

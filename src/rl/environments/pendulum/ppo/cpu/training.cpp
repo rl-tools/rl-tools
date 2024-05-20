@@ -4,9 +4,12 @@
 #include <rl_tools/nn/operations_cpu_mux.h>
 
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
+#include <rl_tools/rl/environment_wrappers/scale_observations/operations_generic.h>
+
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
+
 
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
@@ -29,7 +32,9 @@ using T = float;
 using TI = typename DEVICE::index_t;
 
 using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
-using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
+using PRE_ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
+using SCALE_OBSERVATIONS_WRAPPER_SPEC = rlt::rl::environment_wrappers::scale_observations::Specification<T, TI>;
+using ENVIRONMENT = rlt::rl::environment_wrappers::ScaleObservations<SCALE_OBSERVATIONS_WRAPPER_SPEC, PRE_ENVIRONMENT>;
 enum class BENCHMARK_MODE: TI{
     LARGE = 0,
     MEDIUM = 1,
@@ -58,6 +63,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::Parameters<T,
         static constexpr TI N_EPOCHS = MODE == BENCHMARK_MODE::LARGE ? 5 : (MODE == BENCHMARK_MODE::TINY ? 1 : 2);
         static constexpr T GAMMA = 0.9;
         static constexpr T INITIAL_ACTION_STD = 2.0;
+        static constexpr bool NORMALIZE_OBSERVATIONS = true;
     };
     static constexpr TI BATCH_SIZE = MODE == BENCHMARK_MODE::LARGE ? 512 : (MODE == BENCHMARK_MODE::MEDIUM ? 256 : (MODE == BENCHMARK_MODE::SMALL ? 64 : (MODE == BENCHMARK_MODE::TINY ? 32 : 64)));
     static constexpr TI ACTOR_HIDDEN_DIM = MODE == BENCHMARK_MODE::LARGE ? 256 : (MODE == BENCHMARK_MODE::MEDIUM ? 64 : (MODE == BENCHMARK_MODE::SMALL ? 32 : (MODE == BENCHMARK_MODE::TINY ? 16 : 64)));
@@ -98,7 +104,7 @@ auto run(TI seed, bool verbose){
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){
     }
-    auto result = evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), rlt::rl::utils::evaluation::Specification<NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+    auto result = evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), rlt::rl::utils::evaluation::Specification<NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>(), ts.actor_deterministic_evaluation_buffers, ts.rng, false);
     rlt::log(device, device.logger, "Final return: ", result.returns_mean);
     rlt::log(device, device.logger, "              mean: ", result.returns_mean);
     rlt::log(device, device.logger, "              std : ", result.returns_std);
@@ -143,7 +149,7 @@ int main(int argc, char** argv) {
     BENCHMARK_MODE mode = BENCHMARK_MODE::MEDIUM;
     bool verbose = true;
     std::vector<decltype(run(0, verbose, mode))> returns;
-    for (TI seed=0; seed < 100; seed++){
+    for (TI seed=0; seed < 1; seed++){
         auto return_stats = run(seed, verbose, mode);
         returns.push_back(return_stats);
     }

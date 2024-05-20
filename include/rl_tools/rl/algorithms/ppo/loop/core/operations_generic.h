@@ -25,8 +25,6 @@ namespace rl_tools{
         malloc(device, ts.critic_buffers);
         malloc(device, ts.critic_buffers_gae);
         malloc(device, ts.observation_normalizer);
-        malloc(device, ts.observations_mean);
-        malloc(device, ts.observations_std);
         for(auto& env: ts.envs){
             malloc(device, env);
         }
@@ -47,8 +45,6 @@ namespace rl_tools{
 
         init(device, ts.on_policy_runner, ts.envs, ts.rng);
         init(device, ts.observation_normalizer);
-        set_all(device, ts.observations_mean, 0);
-        set_all(device, ts.observations_std, 1);
         init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng);
 
         ts.step = 0;
@@ -61,6 +57,7 @@ namespace rl_tools{
         free(device, ts.on_policy_runner_dataset);
         free(device, ts.on_policy_runner);
         free(device, ts.actor_eval_buffers);
+        free(device, ts.actor_deterministic_evaluation_buffers);
         free(device, ts.actor_buffers);
         free(device, ts.critic_buffers);
         free(device, ts.critic_buffers_gae);
@@ -75,9 +72,9 @@ namespace rl_tools{
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;
-        collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.observation_normalizer.mean, ts.observation_normalizer.std, ts.rng);
-        auto on_policy_runner_dataset_all_observations = CONFIG::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? ts.on_policy_runner_dataset.all_observations_normalized : ts.on_policy_runner_dataset.all_observations;
-        evaluate(device, ts.ppo.critic, on_policy_runner_dataset_all_observations, ts.on_policy_runner_dataset.all_values, ts.critic_buffers_gae, ts.rng);
+        collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
+        update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.all_observations);
+        evaluate(device, ts.ppo.critic, ts.on_policy_runner_dataset.all_observations, ts.on_policy_runner_dataset.all_values, ts.critic_buffers_gae, ts.rng);
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
 
