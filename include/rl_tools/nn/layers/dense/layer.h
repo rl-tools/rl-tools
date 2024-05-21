@@ -27,16 +27,16 @@ namespace rl_tools::nn::layers::dense {
     struct Specification {
         using T = T_T;
         using TI = T_TI;
-        static constexpr auto INPUT_DIM = T_INPUT_DIM;
-        static constexpr auto OUTPUT_DIM = T_OUTPUT_DIM;
+        static constexpr TI INPUT_DIM = T_INPUT_DIM;
+        static constexpr TI OUTPUT_DIM = T_OUTPUT_DIM;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
-        static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
+        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-        static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
+        static constexpr TI ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
         // Summary
-        static constexpr auto NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
+        static constexpr TI NUM_WEIGHTS = OUTPUT_DIM * INPUT_DIM + OUTPUT_DIM;
     };
     template <typename T_CAPABILITY, typename T_SPEC>
     struct CapabilitySpecification: T_SPEC{
@@ -52,6 +52,8 @@ namespace rl_tools::nn::layers::dense {
     constexpr bool check_spec =
         check_spec_memory<SPEC_1, SPEC_2>
         && SPEC_1::ACTIVATION_FUNCTION == SPEC_2::ACTIVATION_FUNCTION;
+
+    struct Buffer{};
 
     template<typename T_SPEC>
     struct LayerForward {
@@ -71,6 +73,8 @@ namespace rl_tools::nn::layers::dense {
         using BIASES_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<BIASES_CONTAINER_SPEC>;
         using BIASES_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<BIASES_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<BIASES_PARAMETER_SPEC> biases;
+        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
+        using Buffer = dense::Buffer;
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC> {

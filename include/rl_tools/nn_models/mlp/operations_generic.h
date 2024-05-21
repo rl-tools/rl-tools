@@ -239,6 +239,10 @@ namespace rl_tools {
             backward_param(device, network.input_layer, input, buffer.tock);
         }
     }
+    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC>
+    void backward_param(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffer) {
+        backward(device, network, input, d_output, buffer);
+    }
 
     template<typename DEVICE, typename SPEC, typename ADAM_PARAMETERS>
     void update(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& network, nn::optimizers::Adam<ADAM_PARAMETERS>& optimizer) {
@@ -312,6 +316,10 @@ namespace rl_tools {
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn_models::mlp::NeuralNetworkBuffers<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkBuffers<TARGET_SPEC>& target){
         copy(source_device, target_device, source.tick, target.tick);
         copy(source_device, target_device, source.tock, target.tock);
+    }
+    template<typename DEVICE,  typename SPEC>
+    constexpr auto& output(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& nn){
+        return nn.output_layer.output;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

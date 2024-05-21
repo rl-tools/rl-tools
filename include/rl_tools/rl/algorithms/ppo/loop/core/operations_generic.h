@@ -37,8 +37,6 @@ namespace rl_tools{
 
         ts.rng = random::default_engine(typename DEVICE::SPEC::RANDOM(), seed);
 
-//        ts.actor_optimizer.parameters.alpha = 3e-4;
-//        ts.critic_optimizer.parameters.alpha = 3e-4 * 2;
         for(auto& env: ts.envs){
             rl_tools::init(device, env);
         }
@@ -74,6 +72,7 @@ namespace rl_tools{
         bool finished = false;
         collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
         update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.all_observations);
+//        set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
         evaluate(device, ts.ppo.critic, ts.on_policy_runner_dataset.all_observations, ts.on_policy_runner_dataset.all_values, ts.critic_buffers_gae, ts.rng);
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);

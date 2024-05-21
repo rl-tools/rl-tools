@@ -97,14 +97,41 @@ namespace rl_tools::nn_models::sequential{
         using CAPABILITY = T_CAPABILITY;
         using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
     };
+    template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG>
+    struct ContentBufferSpecification {
+        using SPEC = T_SPEC;
+        using TI = typename SPEC::TI;
+        using CONTENT = typename SPEC::CONTENT;
+        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        using CONTENT_BUFFER = typename CONTENT::template Buffer<BATCH_SIZE, CONTAINER_TYPE_TAG>;
+        using NEXT_SPEC = utils::typing::conditional_t<
+                utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>,
+                OutputModule,
+                ContentBufferSpecification<typename SPEC::NEXT_MODULE, BATCH_SIZE, CONTAINER_TYPE_TAG>>
+        ;
+    };
+    template <typename T_SPEC>
+    struct ContentBuffer{
+        using SPEC = T_SPEC;
+        using CONTENT_BUFFER = typename SPEC::CONTENT_BUFFER;
+        using NEXT_SPEC = typename SPEC::NEXT_SPEC;
+        CONTENT_BUFFER content_buffer;
+        using NEXT_CONTENT_BUFFER = utils::typing::conditional_t<utils::typing::is_same_v<NEXT_SPEC, OutputModule>,
+                OutputModule,
+                ContentBuffer<NEXT_SPEC>>;
+        NEXT_CONTENT_BUFFER next_content_buffer;
+    };
 
     template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG, typename T_MEMORY_LAYOUT>
     struct ModuleBufferSpecification {
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
+        using CONTENT = typename SPEC::CONTENT;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
+        using CONTENT_BUFFER_SPEC = ContentBufferSpecification<SPEC, BATCH_SIZE, CONTAINER_TYPE_TAG>;
     };
     template <typename T_BUFFER_SPEC>
     struct ModuleBuffer{
@@ -117,6 +144,8 @@ namespace rl_tools::nn_models::sequential{
         using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
+        using CONTENT_BUFFER = ContentBuffer<typename BUFFER_SPEC::CONTENT_BUFFER_SPEC>;
+        CONTENT_BUFFER content_buffer;
     };
     template <typename T_SPEC>
     struct ModuleForward{
@@ -160,6 +189,7 @@ namespace rl_tools::nn_models::sequential{
         template <template <typename> typename T_CONTENT, typename T_NEXT_MODULE = OutputModule>
         using Module = sequential::Module<T_CAPABILITY, T_CONTENT, T_NEXT_MODULE>;
     };
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

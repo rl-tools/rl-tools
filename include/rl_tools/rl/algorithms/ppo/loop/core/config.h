@@ -40,14 +40,25 @@ namespace rl_tools{
 
         template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
         struct ConfigApproximatorsMLP{
-            using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::BATCH_SIZE>;
+            template <typename CAPABILITY>
+            struct Actor{
+                using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::BATCH_SIZE>;
+                using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
+                using IF = nn_models::sequential::Interface<CAPABILITY>;
+                using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
+            };
+            template <typename CAPABILITY>
+            struct Critic{
+            };
             using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
             using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
+
             using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam>;
-            using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
-            using ACTOR_TYPE_INFERENCE = nn_models::mlp_unconditional_stddev::NeuralNetwork<nn::layer_capability::Forward, ACTOR_SPEC>;
+
+            using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
+            using ACTOR_TYPE_INFERENCE = typename Actor<nn::layer_capability::Forward>::MODEL;
             using CRITIC_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, PARAMETERS::BATCH_SIZE>;
             using CRITIC_TYPE = nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_SPEC>;
         };

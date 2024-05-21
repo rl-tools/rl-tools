@@ -101,7 +101,9 @@ namespace rl_tools::nn_models::mlp {
     };
 
     template<typename SPEC>
-    struct NeuralNetworkBackward: public NeuralNetworkForward<SPEC>{};
+    struct NeuralNetworkBackward: public NeuralNetworkForward<SPEC>{
+        static constexpr typename SPEC::TI BATCH_SIZE = SPEC::BATCH_SIZE;
+    };
     template<typename SPEC>
     struct NeuralNetworkGradient: public NeuralNetworkBackward<SPEC>{};
 

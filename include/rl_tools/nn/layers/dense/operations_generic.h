@@ -43,6 +43,10 @@ namespace rl_tools{
         free(device, (nn::layers::dense::LayerBackward<SPEC>&) layer);
         free(device, layer.output);
     }
+    template<typename DEVICE>
+    void malloc(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
+    template<typename DEVICE>
+    void free(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
 
     template<typename DEVICE, typename SPEC, typename RNG>
     void init_kaiming(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {

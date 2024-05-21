@@ -65,6 +65,8 @@ namespace rl_tools::nn::layers::standardize {
         using STATISTICS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<STATISTICS_CONTAINER_SPEC>;
         using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::spec<STATISTICS_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant>; // Constant from the view of a forward or backward pass
         typename SPEC::PARAMETER_TYPE::template instance<STATISTICS_PARAMETER_SPEC> mean, precision;
+        template <TI BATCH_SIZE=1>
+        struct Buffer{};
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC> {
