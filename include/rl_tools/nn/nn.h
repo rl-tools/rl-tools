@@ -8,8 +8,9 @@
 
 
 #include "capability/capability.h"
-#include "activation_functions.h"
 #include "layers/layers.h"
-#include "optimizers/adam/adam.h"
+#include "optimizers/optimizers.h"
+#include "parameters/parameters.h"
+#include "activation_functions.h"
 
 #endif

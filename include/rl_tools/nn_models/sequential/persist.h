@@ -3,7 +3,6 @@
 #pragma once
 #define RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_H
 #include "../../nn/parameters/persist.h"
-#include "../../nn/optimizers/adam/persist.h"
 #include "../../nn/persist.h"
 #include "model.h"
 

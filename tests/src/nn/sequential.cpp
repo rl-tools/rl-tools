@@ -251,7 +251,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
     using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
-    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+    using IF = rlt::nn_models::sequential::Interface<CAPABILITY_ADAM>;
     using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 
     std::cout << "Max hidden dim: " << rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() << std::endl;

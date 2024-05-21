@@ -1,4 +1,9 @@
-#include "adam.h"
+#include "../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_OPTIMIZERS_ADAM_INSTANCE_OPERATIONS_CUDA_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_NN_OPTIMIZERS_ADAM_INSTANCE_OPERATIONS_CUDA_H
+
+#include "../adam.h"
 #include "operations_generic.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -7,6 +12,7 @@ namespace rl_tools {
         __global__
         void update_kernel(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::instance<PARAMETER_SPEC> parameter, nn::optimizers::Adam<SPEC> optimizer) {
             // fully fused adam update
+            // note some of this is fused into the Layer update: include/rl_tools/nn/layers/dense/operations_cuda.h
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using T = typename PARAMETER_SPEC::CONTAINER::T;
             using TI = typename DEVICE::index_t;
@@ -53,3 +59,5 @@ namespace rl_tools {
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif

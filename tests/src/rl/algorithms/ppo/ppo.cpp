@@ -1,9 +1,10 @@
 #include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_cpu.h>
-#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "parameters_rl.h"
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
 
@@ -64,7 +65,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
             rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
         }
         for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
-            T action_log_std = rlt::get(ppo.actor.log_std.parameters, 0, action_i);
+            auto& last_layer = get_layer(device, ppo.actor, rlt::Constant<rlt::num_layers(decltype(ppo.actor){})-1>{});
+            T action_log_std = rlt::get(last_layer.log_std.parameters, 0, action_i);
             std::stringstream topic;
             topic << "actor/action_std/" << action_i;
             rlt::add_scalar(device, device.logger, topic.str(), rlt::math::exp(DEVICE::SPEC::MATH(), action_log_std));

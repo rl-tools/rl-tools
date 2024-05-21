@@ -6,7 +6,8 @@
 #include "../../../utils/generic/typing.h"
 #include "../../../containers.h"
 
-#include "../../../nn/nn.h"
+//#include "../../../nn/nn.h"
+#include "../../../nn/capability/capability.h"
 #include "../../../nn/parameters/parameters.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

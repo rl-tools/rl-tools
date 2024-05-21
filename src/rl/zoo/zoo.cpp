@@ -1,9 +1,10 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
-#include <rl_tools/nn/optimizers/adam/persist_code.h>
+#include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 
 #include "td3/pendulum-v1.h"
 #include "sac/pendulum-v1.h"
@@ -15,7 +16,9 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
+#ifdef RL_TOOLS_ENABLE_CLI11
 #include <CLI/CLI.hpp>
+#endif
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
@@ -30,17 +33,18 @@ std::string algorithm = "sac";
 std::string environment = "pendulum-v1";
 // ---------------------------------------------------------------------------------------
 
-
 int main(int argc, char** argv){
     using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
     DEVICE device;
     TI seed = 0;
     LOOP_STATE ts;
+#ifdef RL_TOOLS_ENABLE_CLI11
     CLI::App app{"rl_zoo"};
     app.add_option("-s,--seed", seed, "seed");
     app.add_option("-e,--extrack", ts.extrack_base_path, "extrack");
     app.add_option("--ee,--extrack-experiment", ts.extrack_experiment_path, "extrack-experiment");
     CLI11_PARSE(app, argc, argv);
+#endif
     if(ts.extrack_experiment_path.empty()){
         rlt::utils::assert_exit(device, !ts.extrack_base_path.empty(), "Extrack base path (-e,--extrack) must be set if the Extrack experiment path (--ee,--extrack-experiment) is not set.");
         ts.extrack_experiment_path = ts.extrack_base_path / rlt::get_timestamp_string(device, ts);
@@ -63,7 +67,9 @@ int main(int argc, char** argv){
     std::cerr << "Extrack Experiment: " << ts.extrack_seed_path << std::endl;
     rlt::malloc(device);
     rlt::init(device);
+#ifdef RL_TOOLS_ENABLE_HDF5
     rlt::init(device, device.logger, ts.extrack_seed_path);
+#endif
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){

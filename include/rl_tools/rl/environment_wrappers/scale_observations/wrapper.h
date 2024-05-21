@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_SCALE_OBSERVATIONS_WRAPPER_H
 
-#include "../wrapper.h"
+#include "../wrappers.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environment_wrappers::scale_observations {

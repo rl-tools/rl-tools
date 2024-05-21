@@ -10,6 +10,11 @@ namespace rl_tools::rl::environments{
     };
     struct DummyUI{};
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
+#include "acrobot/acrobot.h"
+#include "car/car.h"
+//#include "mujoco/mujoco.h" // mujoco is not generic so needs to be included separately
+#include "pendulum/pendulum.h"
 
 #endif

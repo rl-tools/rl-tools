@@ -2,7 +2,7 @@
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_OPERATIONS_GENERIC_H
-#include "wrapper.h"
+#include "wrappers.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

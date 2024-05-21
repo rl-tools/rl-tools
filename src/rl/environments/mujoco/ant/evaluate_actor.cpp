@@ -3,7 +3,10 @@
 #include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
 #include <rl_tools/rl/environments/mujoco/ant/ui.h>
 #include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/persist.h>
+#include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
@@ -55,6 +58,7 @@ int main(int argc, char** argv) {
     ENVIRONMENT env;
     UI ui;
     parameters_rl::ACTOR_TYPE actor;
+    parameters_rl::ACTOR_TYPE::Buffer<1> actor_buffer;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
     typename ENVIRONMENT::State state, next_state;
@@ -63,6 +67,7 @@ int main(int argc, char** argv) {
 
     rlt::malloc(dev, env);
     rlt::malloc(dev, actor);
+    rlt::malloc(dev, actor_buffer);
     rlt::malloc(dev, action);
     rlt::malloc(dev, observation);
     rlt::malloc(dev, observation_normalizer);
@@ -125,7 +130,7 @@ int main(int argc, char** argv) {
             auto start = std::chrono::high_resolution_clock::now();
             rlt::observe(dev, env, state, observation, rng);
             rlt::normalize(dev, observation_normalizer.mean, observation_normalizer.std, observation);
-            rlt::evaluate(dev, actor, observation, action, rng);
+            rlt::evaluate(dev, actor, observation, action, actor_buffer, rng);
             T dt = rlt::step(dev, env, state, action, next_state, rng);
             bool terminated_flag = rlt::terminated(dev, env, next_state, rng);
             reward_acc += rlt::reward(dev, env, state, action, next_state, rng);

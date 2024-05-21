@@ -5,8 +5,8 @@
 #include "../../../nn/activation_functions.h"
 #include "../../../utils/generic/typing.h"
 #include "../../../containers.h"
-
 #include "../../../nn/parameters/parameters.h"
+#include "../dense/layer.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::sample_and_squash {
@@ -15,6 +15,7 @@ namespace rl_tools::nn::layers::sample_and_squash {
         static constexpr T LOG_STD_LOWER_BOUND = -20;
         static constexpr T LOG_STD_UPPER_BOUND = 2;
     };
+    struct Buffer{};
     template<typename T_T, typename T_TI, T_TI T_DIM, typename T_PARAMETERS, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION=nn::activation_functions::ActivationFunction::TANH, T_TI T_BATCH_SIZE=1, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification {
         using T = T_T;
@@ -33,6 +34,8 @@ namespace rl_tools::nn::layers::sample_and_squash {
         static constexpr TI DIM = SPEC::DIM;
         static constexpr TI INPUT_DIM = 2*DIM; // mean and std
         static constexpr TI OUTPUT_DIM = DIM;
+        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG>
+        using Buffer = dense::Buffer;
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC> {

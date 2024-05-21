@@ -1,4 +1,5 @@
 #include <rl_tools/operations/arm.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
 #include <rl_tools/nn/operations_generic.h>
 

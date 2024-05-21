@@ -261,9 +261,10 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
 endif()
 
 if(RL_TOOLS_ENABLE_CLI11)
+    set(CLI11_PRECOMPILED ON)
     add_subdirectory(external/cli11)
     target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_ENABLE_CLI11)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/licenses/cli11.txt" DESTINATION licenses)
+    Install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/redistributable/licenses/cli11.txt" DESTINATION licenses)
 endif()
 
 if(RL_TOOLS_ENABLE_HDF5)

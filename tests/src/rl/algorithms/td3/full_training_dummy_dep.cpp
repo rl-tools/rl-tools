@@ -6,6 +6,7 @@
 #endif
 
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn_models/models.h>
 #include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>

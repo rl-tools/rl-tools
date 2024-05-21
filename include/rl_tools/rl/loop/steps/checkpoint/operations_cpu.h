@@ -20,6 +20,9 @@
 #include <rl_tools/nn_models/sequential/persist_code.h>
 
 #include <filesystem>
+#include <iostream>
+#include <fstream>
+
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

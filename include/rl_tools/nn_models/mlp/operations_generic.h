@@ -135,7 +135,7 @@ namespace rl_tools {
         }
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename RNG>
-    void forward(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers, RNG& rng){
+    void forward(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffers, RNG& rng){
         static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
         forward_memless(device, network, input, output, buffers.tick, buffers.tock);
     }
@@ -166,7 +166,7 @@ namespace rl_tools {
         zero_gradient(device, network.output_layer);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC>
-    void backward_input(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC> buffers) {
+    void backward_input(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffers) {
         // ATTENTION: this modifies d_output (uses it as a buffer for the d_pre_activations
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = D_INPUT_SPEC::ROWS;
@@ -317,8 +317,8 @@ namespace rl_tools {
         copy(source_device, target_device, source.tick, target.tick);
         copy(source_device, target_device, source.tock, target.tock);
     }
-    template<typename DEVICE,  typename SPEC>
-    constexpr auto& output(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& nn){
+    template<typename SPEC>
+    constexpr auto& output(nn_models::mlp::NeuralNetworkGradient<SPEC>& nn){
         return nn.output_layer.output;
     }
 }

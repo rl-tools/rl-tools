@@ -6,6 +6,7 @@
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/rl/environment_wrappers/scale_observations/operations_generic.h>
 
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>

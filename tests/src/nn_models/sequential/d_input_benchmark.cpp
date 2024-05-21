@@ -8,6 +8,7 @@
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/concat_constant/operations_generic.h>
 
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>

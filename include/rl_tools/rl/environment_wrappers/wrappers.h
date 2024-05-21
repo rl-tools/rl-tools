@@ -21,5 +21,7 @@ namespace rl_tools::rl::environment_wrappers {
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
+#include "scale_observations/wrapper.h"
+
 #endif
 

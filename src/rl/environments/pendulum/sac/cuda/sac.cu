@@ -3,12 +3,13 @@
 #endif
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 
-#include <rl_tools/nn/optimizers/adam/operations_cuda.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/operations_cuda.h>
 
 #include <rl_tools/rl/algorithms/sac/loop/core/config.h>

@@ -38,5 +38,5 @@ TEST(RL_TOOLS_CONTAINER_CUDA, RANDN){
     test<DEVICE_CPU, DEVICE_GPU, T, TI, 100, 100>(device_cpu, device_gpu);
     test<DEVICE_CPU, DEVICE_GPU, T, TI, 101, 101>(device_cpu, device_gpu);
     test<DEVICE_CPU, DEVICE_GPU, T, TI, 10, 10>(device_cpu, device_gpu);
-    test<DEVICE_CPU, DEVICE_GPU, T, TI, 1, 1>(device_cpu, device_gpu);
+    test<DEVICE_CPU, DEVICE_GPU, T, TI, 1, 2>(device_cpu, device_gpu);
 }

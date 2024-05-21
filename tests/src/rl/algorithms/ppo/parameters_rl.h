@@ -1,8 +1,10 @@
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/ppo.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 namespace parameters_0{
+    using namespace rlt;
     template <typename T, typename TI>
     struct environment{
         using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI>;
@@ -15,8 +17,23 @@ namespace parameters_0{
         using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, TI>;
         using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
         using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY, BATCH_SIZE>;
-        using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
-        using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
+        using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+
+        template <typename CAPABILITY>
+        struct Actor{
+            using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, nn::activation_functions::IDENTITY, BATCH_SIZE>;
+            using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
+            using IF = nn_models::sequential::Interface<CAPABILITY>;
+            using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
+        };
+//        using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+//        using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+//        using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
+//        using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
+
+        using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
+//        using ACTOR_TYPE_INFERENCE = typename Actor<nn::layer_capability::Forward>::MODEL;
+//        using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
         using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY, BATCH_SIZE>;
         using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_SPEC>;
 

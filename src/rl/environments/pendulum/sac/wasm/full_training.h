@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_generic.h>
 
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>

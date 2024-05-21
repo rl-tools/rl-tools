@@ -47,9 +47,6 @@ namespace rl_tools{
                 using IF = nn_models::sequential::Interface<CAPABILITY>;
                 using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
             };
-            template <typename CAPABILITY>
-            struct Critic{
-            };
             using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
             using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;

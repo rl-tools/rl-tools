@@ -38,17 +38,16 @@ namespace rl_tools{
             auto actions_mean            = view(device, dataset.actions_mean           , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto actions                 = view(device, dataset.actions                , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()     , step_i*SPEC::N_ENVIRONMENTS, 0);
             auto observations            = view(device, dataset.observations           , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto observations_normalized = view(device, dataset.observations_normalized, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
 
             {
 //                auto start = std::chrono::high_resolution_clock::now();
-                rl::components::on_policy_runner::prologue(device, observations, observations_normalized, runner, observations_mean, observations_std, rng, step_i);
+                rl::components::on_policy_runner::prologue(device, observations, runner, observations_mean, observations_std, rng, step_i);
 //                auto end = std::chrono::high_resolution_clock::now();
 //                prologue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
             {
 //                auto start = std::chrono::high_resolution_clock::now();
-                copy(device, device_evaluation, observations_normalized, evaluation_buffer_evaluation.observations);
+                copy(device, device_evaluation, observations, evaluation_buffer_evaluation.observations);
 //                auto end = std::chrono::high_resolution_clock::now();
 //                copy_observations_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
@@ -69,7 +68,8 @@ namespace rl_tools{
             }
             {
 //                auto start = std::chrono::high_resolution_clock::now();
-                rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, actor.log_std.parameters, rng, step_i);
+                auto& last_layer = get_layer(device, actor, Constant<num_layers(ACTOR{})-1>{});
+                rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, last_layer.log_std.parameters, rng, step_i);
 //                auto end = std::chrono::high_resolution_clock::now();
 //                epilogue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
             }
@@ -87,8 +87,8 @@ namespace rl_tools{
             TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
             auto observation = row(device, dataset.all_observations, row_i);
             observe(device, env, state, observation, rng);
-            auto observation_normalized = row(device, dataset.all_observations_normalized, row_i);
-            normalize(device, observations_mean, observations_std, observation, observation_normalized);
+//            auto observation = row(device, dataset.all_observations_normalized, row_i);
+//            normalize(device, observations_mean, observations_std, observation, observation_normalized);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }

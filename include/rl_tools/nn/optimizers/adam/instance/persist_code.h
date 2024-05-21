@@ -1,10 +1,10 @@
-#include "../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_OPTIMIZERS_ADAM_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#include "../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_OPTIMIZERS_ADAM_INSTANCE_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_OPTIMIZERS_ADAM_PERSIST_CODE_H
+#define RL_TOOLS_NN_OPTIMIZERS_ADAM_INSTANCE_PERSIST_CODE_H
 
-#include "adam.h"
-#include "../../../nn/parameters/persist_code.h"
+#include "../adam.h"
+#include "../../../../nn/parameters/persist_code.h"
 
 #include <string>
 

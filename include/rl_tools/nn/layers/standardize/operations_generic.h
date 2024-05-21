@@ -31,6 +31,10 @@ namespace rl_tools{
         free(device, static_cast<nn::layers::standardize::LayerForward<SPEC>&>(layer));
         free(device, layer.output);
     }
+    template <typename DEVICE>
+    void malloc(DEVICE& device, nn::layers::standardize::Buffer& buffer){ }
+    template <typename DEVICE>
+    void free(DEVICE& device, nn::layers::standardize::Buffer& buffer){ }
     template<typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::standardize::LayerForward<SPEC>& layer, RNG& rng) {
         set_all(device, layer.mean.parameters, 0);
@@ -84,7 +88,7 @@ namespace rl_tools{
 //    }
 
     template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward_input(DEVICE& device, nn::layers::standardize::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input){
+    void backward_input(DEVICE& device, nn::layers::standardize::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::standardize::Buffer& buffer){
         static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(LAYER_SPEC::INPUT_DIM == LAYER_SPEC::OUTPUT_DIM);
@@ -104,14 +108,19 @@ namespace rl_tools{
             }
         }
     }
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
+    void backward_input(DEVICE& device, nn::layers::standardize::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input){
+        nn::layers::standardize::Buffer buffer;
+        backward_input(device, layer, d_output, d_input, buffer);
+    }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC>
-    void backward_param(DEVICE& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output) {
+    void backward_param(DEVICE& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn::layers::standardize::Buffer& buffer) {
         // this is a no-op as the standardize layer does not have trainable parameters
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward(DEVICE& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
+    void backward(DEVICE& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::standardize::Buffer& buffer) {
         // this is the same as the standardize layer does not have trainable parameters
         backward_input(device, layer, d_output, d_input);
     }

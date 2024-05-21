@@ -1,7 +1,5 @@
 
 #include "network.h"
-#include "../../nn/optimizers/adam/persist_code.h"
-#include "../../nn/layers/dense/persist_code.h"
 
 
 

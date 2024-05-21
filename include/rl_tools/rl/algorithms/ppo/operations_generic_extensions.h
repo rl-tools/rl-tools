@@ -69,20 +69,21 @@ namespace rl_tools{
         constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
         constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::OBSERVATION_DIM;
         constexpr bool NORMALIZE_OBSERVATIONS = PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS;
-        auto all_observations = NORMALIZE_OBSERVATIONS ? dataset.all_observations_normalized : dataset.all_observations;
-        auto observations = NORMALIZE_OBSERVATIONS ? dataset.observations_normalized : dataset.observations;
+//        auto all_observations = NORMALIZE_OBSERVATIONS ? dataset.all_observations_normalized : dataset.all_observations;
+//        auto observations = NORMALIZE_OBSERVATIONS ? dataset.observations_normalized : dataset.observations;
         // batch needs observations, original log-probs, advantages
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
-            copy(device, device, ppo.actor.log_std.parameters, ppo_buffers.rollout_log_std);
+            auto& last_layer = get_layer(device, ppo.actor, Constant<num_layers(decltype(ppo.actor){})-1>{});
+            copy(device, device, last_layer.log_std.parameters, ppo_buffers.rollout_log_std);
         }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // shuffling
             for(TI dataset_i = 0; dataset_i < BUFFER::STEPS_TOTAL; dataset_i++){
                 TI sample_index = random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), dataset_i, BUFFER::STEPS_TOTAL-1, rng);
                 {
-                    auto target_row = row(device, observations, dataset_i);
-                    auto source_row = row(device, observations, sample_index);
+                    auto target_row = row(device, dataset.observations, dataset_i);
+                    auto source_row = row(device, dataset.observations, sample_index);
                     swap(device, target_row, source_row);
                 }
                 if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
@@ -105,7 +106,7 @@ namespace rl_tools{
                 zero_gradient(device_evaluation, ppo_evaluation.actor); // has to be reset before accumulating the action-log-std gradient
 
                 auto batch_offset = batch_i * BATCH_SIZE;
-                auto batch_observations     = view(device, observations            , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM>(), batch_offset, 0);
+                auto batch_observations     = view(device, dataset.observations    , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM>(), batch_offset, 0);
                 auto batch_actions_mean     = view(device, dataset.actions_mean    , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
                 auto batch_actions          = view(device, dataset.actions         , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
                 auto batch_action_log_probs = view(device, dataset.action_log_probs, matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
@@ -131,15 +132,18 @@ namespace rl_tools{
                 copy(device_evaluation, device, hybrid_buffers.actions, ppo_buffers.current_batch_actions);
 //                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
 
-                copy(device_evaluation, device, ppo_evaluation.actor.log_std.parameters, ppo.actor.log_std.parameters);
-                copy(device_evaluation, device, ppo_evaluation.actor.log_std.gradient, ppo.actor.log_std.gradient);
+                auto& last_layer = get_layer(device, ppo.actor, Constant<num_layers(decltype(ppo.actor){})-1>{});
+                auto& last_layer_eval = get_layer(device, ppo_evaluation.actor, Constant<num_layers(decltype(ppo_evaluation.actor){})-1>{});
+                copy(device_evaluation, device, last_layer_eval.log_std.parameters, last_layer.log_std.parameters);
+                copy(device_evaluation, device, last_layer_eval.log_std.gradient, last_layer.log_std.gradient);
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     T action_log_prob = 0;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
 
                         T current_action = get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
                         T rollout_action = get(batch_actions, batch_step_i, action_i);
-                        T current_action_log_std = get(ppo.actor.log_std.parameters, 0, action_i);
+                        auto& last_layer = get_layer(device, ppo.actor, Constant<num_layers(decltype(ppo.actor){})-1>{});
+                        T current_action_log_std = get(last_layer.log_std.parameters, 0, action_i);
                         T current_action_std = math::exp(device.math, current_action_log_std);
                         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
                             T rollout_action_log_std = get(ppo_buffers.rollout_log_std, 0, action_i);
@@ -162,7 +166,8 @@ namespace rl_tools{
                         // todo: think about possible implementation detail: clipping entropy bonus as well (because it changes the distribution)
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
-                            increment(ppo.actor.log_std.gradient, 0, action_i, d_entropy_loss_d_current_action_log_std);
+                            auto& last_layer = get_layer(device, ppo.actor, Constant<num_layers(decltype(ppo.actor){})-1>{});
+                            increment(last_layer.log_std.gradient, 0, action_i, d_entropy_loss_d_current_action_log_std);
 //                          derivation: d_current_action_log_prob_d_action_log_std
 //                          d_current_action_log_prob_d_action_std =  (-action_diff_by_action_std) * (-action_diff_by_action_std)      / action_std - 1 / action_std)
 //                          d_current_action_log_prob_d_action_std = ((-action_diff_by_action_std) * (-action_diff_by_action_std) - 1) / action_std)
@@ -197,7 +202,8 @@ namespace rl_tools{
                         multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T current_d_action_log_prob_d_action_log_std = get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
-                            increment(ppo.actor.log_std.gradient, 0, action_i, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
+                            auto& last_layer = get_layer(device, ppo.actor, Constant<num_layers(decltype(ppo.actor){})-1>{});
+                            increment(last_layer.log_std.gradient, 0, action_i, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
                         }
                     }
                 }
@@ -210,8 +216,8 @@ namespace rl_tools{
                         actor_optimizer.parameters.alpha = math::min(device.math, actor_optimizer.parameters.alpha / PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_DECAY, PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE_MAX);
                     }
                 }
-                copy(device, device_evaluation, ppo.actor.log_std.parameters, ppo_evaluation.actor.log_std.parameters);
-                copy(device, device_evaluation, ppo.actor.log_std.gradient, ppo_evaluation.actor.log_std.gradient);
+                copy(device, device_evaluation, last_layer.log_std.parameters, last_layer_eval.log_std.parameters);
+                copy(device, device_evaluation, last_layer.log_std.gradient, last_layer_eval.log_std.gradient);
 
                 copy(device, device_evaluation, ppo_buffers.d_action_log_prob_d_action, hybrid_buffers.d_action_log_prob_d_action);
                 backward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.d_action_log_prob_d_action, actor_buffers);

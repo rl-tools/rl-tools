@@ -20,6 +20,7 @@ struct DEV_SPEC: DEV_SPEC_SUPER{
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using TI = typename DEVICE::index_t;
 
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 
 // generic nn_model operations use the specialized layer operations depending on the backend device

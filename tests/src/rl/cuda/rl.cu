@@ -13,11 +13,12 @@
 #include <rl_tools/operations/cpu/group_3.h>
 #include <rl_tools/operations/cpu_mkl/group_3.h>
 
+#include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
 #include <rl_tools/nn/operations_cpu_mkl.h>
 #include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 #include <rl_tools/nn_models/operations_generic.h>
-#include <rl_tools/nn/optimizers/adam/operations_cuda.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/rl/components/replay_buffer/operations_cpu.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>

@@ -111,7 +111,7 @@ namespace rl_tools::nn_models::sequential{
         using NEXT_MODULE = utils::typing::conditional_t<!IS_FINAL, typename SPEC::NEXT_MODULE, ModuleForward<SPEC>>;
         using NEXT_SPEC = utils::typing::conditional_t<
                 !IS_FINAL,
-                ContentBufferSpecification<NEXT_MODULE, BATCH_SIZE, CONTAINER_TYPE_TAG>,
+                ContentBufferSpecification<typename NEXT_MODULE::SPEC, BATCH_SIZE, CONTAINER_TYPE_TAG>,
                 OutputModule
         >;
     };

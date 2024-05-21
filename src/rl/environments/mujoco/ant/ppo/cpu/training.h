@@ -1,9 +1,12 @@
 #include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn_models/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 #endif
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../parameters.h"
@@ -165,8 +168,8 @@ void run(){
         }
         rlt::malloc(device, evaluation_env);
 
-        auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
-        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
+//        auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
+//        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
 
         rlt::init(device);
         rlt::init(device, on_policy_runner, envs, rng);
@@ -176,7 +179,7 @@ void run(){
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
+                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
                 rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
             }
             std::cout << "Observation means: " << std::endl;
@@ -213,7 +216,7 @@ void run(){
                 next_checkpoint_id++;
             }
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
-                auto result = rlt::evaluate(device, evaluation_env, ui, ppo.actor, rlt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, actor_deterministic_eval_buffers, evaluation_rng);
+                auto result = rlt::evaluate(device, evaluation_env, ui, ppo.actor, rlt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), actor_deterministic_eval_buffers, evaluation_rng);
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
@@ -236,13 +239,14 @@ void run(){
                 rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.parameters.alpha);
             }
             for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
-                T action_log_std = rlt::get(ppo.actor.log_std.parameters, 0, action_i);
+                auto& last_layer = get_layer(device, ppo.actor, rlt::Constant<rlt::num_layers(decltype(ppo.actor){})-1>{});
+                T action_log_std = rlt::get(last_layer.log_std.parameters, 0, action_i);
                 std::stringstream topic;
                 topic << "actor/action_std/" << action_i;
                 rlt::add_scalar(device, device.logger, topic.str(), rlt::math::exp(DEVICE::SPEC::MATH(), action_log_std));
             }
             auto start = std::chrono::high_resolution_clock::now();
-            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
+            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
             if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
                 rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
                 for(TI state_i = 0; state_i < penv::ENVIRONMENT::OBSERVATION_DIM; state_i++){
@@ -256,7 +260,7 @@ void run(){
             rlt::add_scalar(device, device.logger, "opr/action/std", rlt::std(device, on_policy_runner_dataset.actions));
             rlt::add_scalar(device, device.logger, "opr/rewards/mean", rlt::mean(device, on_policy_runner_dataset.rewards));
             rlt::add_scalar(device, device.logger, "opr/rewards/std", rlt::std(device, on_policy_runner_dataset.rewards));
-            evaluate(device, ppo.critic, on_policy_runner_dataset_all_observations, on_policy_runner_dataset.all_values, critic_buffers_gae);
+            evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations, on_policy_runner_dataset.all_values, critic_buffers_gae);
             rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
             rlt::train(device, ppo, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
 

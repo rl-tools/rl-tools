@@ -3,6 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_SAC_LOOP_CORE_OPERATIONS_GENERIC_H
 
+#include "../../../../../nn/optimizers/adam/instance/operations_generic.h"
 #include "../../../../../nn_models/operations_generic.h"
 #include "../../../../../nn_models/random_uniform/operations_generic.h"
 #include "../../../../../rl/algorithms/sac/operations_generic.h"

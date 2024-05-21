@@ -4,6 +4,8 @@
 #define RL_TOOLS_NN_OPTIMIZERS_ADAM_ADAM_H
 
 #include "../../../nn/parameters/parameters.h"
+// Note the Adam operations are divided into "./instance/operations_xxx." operations which are operations on the parameters and "./operations_xxx.h" which are operations on the optimizer (and possibly a `nn_model`).
+// So the instance operations should be imported before any imports that use parameters (particularly `nn/layers` and `nn_models`). Then the chain is `optimizer operation` (e.g. gradient descent weight update) calls `nn_model` update calls e.g. `nn::layers::dense` update calls `parameters::Adam::instance` update. Hence, the instance operations need to be included first
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::optimizers{

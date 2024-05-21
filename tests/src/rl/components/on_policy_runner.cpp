@@ -2,6 +2,7 @@
 #include <rl_tools/rl/environments/pendulum/pendulum.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_cpu.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/persist.h>
@@ -11,13 +12,21 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 
+using DEVICE = rlt::devices::DefaultCPU;
+using T = float;
+using TI = typename DEVICE::index_t;
+using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI>;
+using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
+
+template <typename CAPABILITY>
+struct Actor{
+    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::TANH, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
+    using IF = rlt::nn_models::sequential::Interface<CAPABILITY>;
+    using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
+};
 
 TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
-    using DEVICE = rlt::devices::DefaultCPU;
-    using T = float;
-    using TI = typename DEVICE::index_t;
-    using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI>;
-    using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
 
     constexpr TI N_ENVIRONMENTS = 3;
     using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<T, TI, ENVIRONMENT, N_ENVIRONMENTS>;
@@ -33,7 +42,8 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
 
     using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::TANH>;
     using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
-    using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
+//    using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
+    using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
     using ACTOR_BUFFERS = typename ACTOR_TYPE::template Buffer<ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS>;
 
 

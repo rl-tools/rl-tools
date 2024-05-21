@@ -1,11 +1,11 @@
-#include "../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_OPTIMIZERS_ADAM_PERSIST_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#include "../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_OPTIMIZERS_ADAM_INSTANCE_PERSIST_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_NN_OPTIMIZERS_ADAM_PERSIST_H
+#define RL_TOOLS_NN_OPTIMIZERS_ADAM_INSTANCE_PERSIST_H
 
 #include <highfive/H5Group.hpp>
 
-#include "adam.h"
+#include "../adam.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

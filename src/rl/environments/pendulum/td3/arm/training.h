@@ -4,6 +4,7 @@
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
 //#include <rl_tools/nn/layers/dense/operations_arm/dsp.h>
 #include <rl_tools/nn/operations_generic.h>

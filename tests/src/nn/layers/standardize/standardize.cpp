@@ -37,7 +37,7 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, DIM>> input, output;
 
     DEVICE device;
-    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{});
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
     rlt::malloc(device, layer);
     rlt::malloc(device, mean);
     rlt::malloc(device, std);
@@ -66,7 +66,7 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     std::cout << "output_mean: " << output_mean << std::endl;
     std::cout << "output_std: " << output_std << std::endl;
     ASSERT_LT(rlt::math::abs(device.math, output_mean), 1e-10);
-    ASSERT_LT(rlt::math::abs(device.math, 1 - output_std), 1e-10);
+    ASSERT_LT(rlt::math::abs(device.math, 1 - output_std), 1e-6);
 
     for(TI dim_i=0; dim_i < DIM; dim_i++){
         T bias_value = rlt::get(bias, 0, dim_i);

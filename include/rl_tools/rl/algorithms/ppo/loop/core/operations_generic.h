@@ -3,6 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_OPERATIONS_GENERIC_H
 
+#include "../../../../../nn/optimizers/adam/instance/operations_generic.h"
 #include "../../../../../nn/optimizers/adam/operations_generic.h"
 #include "../../../../../rl/algorithms/sac/operations_generic.h"
 #include "../../../../../rl/algorithms/ppo/operations_generic.h"

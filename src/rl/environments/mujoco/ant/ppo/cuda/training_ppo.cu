@@ -1,16 +1,21 @@
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
 // -------------- added for cuda training ----------------
-#include <rl_tools/nn/optimizers/adam/operations_cuda.h>
 // -------------------------------------------------------
 #include <rl_tools/nn/operations_cpu_mux.h>
-#include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
+//#include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/nn_models/persist.h>
 #endif
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 // --------------- changed for cuda training -----------------
 #include "../parameters.h"
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 // -------------------------------------------------------
 #if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
@@ -226,8 +231,8 @@ int main(int argc, char** argv){
         rlt::malloc(device_gpu, gae_all_values);
         // -------------------------------------------------------
 
-        auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
-        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
+//        auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
+//        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
 
         rlt::init(device);
         rlt::init(device, on_policy_runner, envs, rng);
@@ -240,7 +245,7 @@ int main(int argc, char** argv){
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, observation_normalizer.mean, observation_normalizer.std, rng);
+                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
                 rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
             }
             std::cout << "Observation means: " << std::endl;
@@ -280,7 +285,7 @@ int main(int argc, char** argv){
             }
 #endif
             if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
-                auto result = rlt::evaluate(device, evaluation_env, ui, ppo.actor, rlt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), observation_normalizer.mean, observation_normalizer.std, actor_deterministic_eval_buffers, evaluation_rng);
+                auto result = rlt::evaluate(device, evaluation_env, ui, ppo.actor, rlt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>(), actor_deterministic_eval_buffers, evaluation_rng);
 //                rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.mean);
 //                rlt::add_scalar(device, device.logger, "evaluation/return/std", result.std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
@@ -322,7 +327,7 @@ int main(int argc, char** argv){
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                copy(device, device_gpu, on_policy_runner_dataset_all_observations, gae_all_observations);
+                copy(device, device_gpu, on_policy_runner_dataset.all_observations, gae_all_observations);
                 evaluate(device_gpu, ppo_gpu.critic, gae_all_observations, gae_all_values, critic_buffers_gae);
                 copy(device_gpu, device, gae_all_values, on_policy_runner_dataset.all_values);
                 // ----------------------------------------------------------
