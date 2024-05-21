@@ -97,6 +97,8 @@ namespace rl_tools::nn_models::sequential{
         using CAPABILITY = T_CAPABILITY;
         using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
     };
+    template <typename T_SPEC>
+    struct ModuleForward;
     template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG>
     struct ContentBufferSpecification {
         using SPEC = T_SPEC;
@@ -105,18 +107,20 @@ namespace rl_tools::nn_models::sequential{
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         using CONTENT_BUFFER = typename CONTENT::template Buffer<BATCH_SIZE, CONTAINER_TYPE_TAG>;
+        static constexpr bool IS_FINAL = utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>;
+        using NEXT_MODULE = utils::typing::conditional_t<!IS_FINAL, typename SPEC::NEXT_MODULE, ModuleForward<SPEC>>;
         using NEXT_SPEC = utils::typing::conditional_t<
-                utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>,
-                OutputModule,
-                ContentBufferSpecification<typename SPEC::NEXT_MODULE, BATCH_SIZE, CONTAINER_TYPE_TAG>>
-        ;
+                !IS_FINAL,
+                ContentBufferSpecification<NEXT_MODULE, BATCH_SIZE, CONTAINER_TYPE_TAG>,
+                OutputModule
+        >;
     };
     template <typename T_SPEC>
     struct ContentBuffer{
         using SPEC = T_SPEC;
         using CONTENT_BUFFER = typename SPEC::CONTENT_BUFFER;
         using NEXT_SPEC = typename SPEC::NEXT_SPEC;
-        CONTENT_BUFFER content_buffer;
+        CONTENT_BUFFER buffer;
         using NEXT_CONTENT_BUFFER = utils::typing::conditional_t<utils::typing::is_same_v<NEXT_SPEC, OutputModule>,
                 OutputModule,
                 ContentBuffer<NEXT_SPEC>>;
@@ -160,6 +164,7 @@ namespace rl_tools::nn_models::sequential{
         static constexpr auto INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr auto OUTPUT_DIM = SPEC::OUTPUT_DIM;
 
+        // We have one module Buffer for the whole module and possible ContentBuffers for the intermediate steps (that are unwrapped recursively in tandem with the module/content)
         template <typename SPEC::TI BATCH_SIZE, typename CONTAINER_TYPE_TAG=typename SPEC::CONTAINER_TYPE_TAG, typename MEMORY_LAYOUT = matrix::layouts::DEFAULT<typename SPEC::TI>>
         using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC, BATCH_SIZE, CONTAINER_TYPE_TAG, MEMORY_LAYOUT>>;
     };
@@ -167,7 +172,10 @@ namespace rl_tools::nn_models::sequential{
     template <typename T_SPEC>
     struct ModuleBackward: public ModuleForward<T_SPEC>{};
     template <typename T_SPEC>
-    struct ModuleGradient: public ModuleBackward<T_SPEC>{};
+    struct ModuleGradient: public ModuleBackward<T_SPEC>{
+        using TI = typename T_SPEC::TI;
+        static constexpr TI BATCH_SIZE = T_SPEC::CAPABILITY::BATCH_SIZE;
+    };
 
     template <typename CAPABILITY, template <typename> typename CONTENT, typename NEXT_MODULE>
     using _Module =

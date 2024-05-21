@@ -55,7 +55,7 @@ namespace rl_tools{
             using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
             using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
 
-            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam>;
+            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::BATCH_SIZE>;
 
             using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
             using ACTOR_TYPE_INFERENCE = typename Actor<nn::layer_capability::Forward>::MODEL;

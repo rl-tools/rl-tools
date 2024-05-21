@@ -24,19 +24,19 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename BUFFER_SPEC>
-    void malloc(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffer){
+    void malloc(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& content_buffer){
         using namespace nn_models::sequential;
-        malloc(device, buffer.content_buffer);
-        if constexpr(!utils::typing::is_same_v<typename BUFFER_SPEC::NEXT_BUFFER, OutputModule>){
-            malloc(device, buffer.next_content_buffer);
+        malloc(device, content_buffer.buffer);
+        if constexpr(!utils::typing::is_same_v<typename BUFFER_SPEC::NEXT_SPEC, OutputModule>){
+            malloc(device, content_buffer.next_content_buffer);
         }
     }
     template <typename DEVICE, typename BUFFER_SPEC>
-    void free(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffer){
+    void free(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& content_buffer){
         using namespace nn_models::sequential;
-        free(device, buffer.content_buffer);
-        if constexpr(!utils::typing::is_same_v<typename BUFFER_SPEC::NEXT_BUFFER, OutputModule>){
-            free(device, buffer.next_content_buffer);
+        free(device, content_buffer.content_buffer);
+        if constexpr(!utils::typing::is_same_v<typename BUFFER_SPEC::NEXT_SPEC, OutputModule>){
+            free(device, content_buffer.next_content_buffer);
         }
     }
     template <typename DEVICE, typename BUFFER_SPEC>
@@ -140,13 +140,13 @@ namespace rl_tools{
         constexpr TI BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            backward(device, model.content, input, d_output, d_input, content_buffer.content_buffer);
+            backward(device, model.content, input, d_output, d_input, content_buffer.buffer);
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
             auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             backward_full<!TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer);
-            backward(device, model.content, input, current_d_output_buffer, d_input, content_buffer.content_buffer);
+            backward(device, model.content, input, current_d_output_buffer, d_input, content_buffer.buffer);
         }
     }
     template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename CONTENT_BUFFER_SPEC>
@@ -158,13 +158,13 @@ namespace rl_tools{
         constexpr TI BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            backward_input(device, model.content, d_output, d_input, content_buffer.content_buffer);
+            backward_input(device, model.content, d_output, d_input, content_buffer.buffer);
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
             auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             backward_input<!TICK>(device, model.next_module, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer);
-            backward_input(device, model.content, current_d_output_buffer, d_input, content_buffer.content_buffer);
+            backward_input(device, model.content, current_d_output_buffer, d_input, content_buffer.buffer);
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC>
@@ -176,10 +176,10 @@ namespace rl_tools{
         if constexpr(!NEXT_IS_FINAL){
             auto current_d_input_buffer_view = view(device, buffers.tick, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             backward_full<false>(device, model.next_module, model.content.output, d_output, current_d_input_buffer_view, buffers);
-            backward_param(device, model.content, input, current_d_input_buffer_view, buffers.content_buffer);
+            backward_param(device, model.content, input, current_d_input_buffer_view, buffers.content_buffer.buffer);
         }
         else{
-            backward_param(device, model.content, input, d_output, buffers.content_buffer);
+            backward_param(device, model.content, input, d_output, buffers.content_buffer.buffer);
         }
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
