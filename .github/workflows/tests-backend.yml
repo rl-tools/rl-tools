@@ -23,14 +23,14 @@ jobs:
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-20.04, macos-latest]
+        os: [ubuntu-latest, macos-latest]
         build_type: [Release]
         c_compiler: [gcc, clang, cl]
         include:
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             c_compiler: clang
             cpp_compiler: clang++
             rl_tools_backend: -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
