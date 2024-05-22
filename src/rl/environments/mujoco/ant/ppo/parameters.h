@@ -28,6 +28,17 @@ namespace parameters_0{
             using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
 //            using MODEL = ACTOR_MODULE;
         };
+        template <typename CAPABILITY>
+        struct Critic{
+            using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY, BATCH_SIZE>;
+            using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
+            using IF = nn_models::sequential::Interface<CAPABILITY>;
+            using ACTOR_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
+            using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, BATCH_SIZE>;
+            using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
+            using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
+//            using MODEL = ACTOR_MODULE;
+        };
 
         using ACTOR_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
         using CRITIC_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
@@ -37,8 +48,9 @@ namespace parameters_0{
 //        using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY_ADAM, ACTOR_SPEC>;
         using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
 //        using ACTOR_TYPE_INFERENCE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetwork<rlt::nn::layer_capability::Forward, ACTOR_SPEC>;
-        using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY, BATCH_SIZE>;
-        using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_SPEC>;
+//        using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY, BATCH_SIZE>;
+//        using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_SPEC>;
+        using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
 
         struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI>{
             static constexpr TI N_EPOCHS = 4;

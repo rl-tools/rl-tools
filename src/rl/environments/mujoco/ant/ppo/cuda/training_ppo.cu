@@ -258,6 +258,7 @@ int main(int argc, char** argv){
             rlt::print(device, observation_normalizer.std);
             rlt::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
             rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
+            rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
             rlt::copy(device, device_gpu, ppo, ppo_gpu);
         }
         for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
@@ -316,6 +317,7 @@ int main(int argc, char** argv){
                 if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
                     rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
                     rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
+                    rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
                     rlt::copy(device, device_gpu, ppo, ppo_gpu);
                     for(TI state_i = 0; state_i < penv::ENVIRONMENT::OBSERVATION_DIM; state_i++){
 //                        rlt::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));

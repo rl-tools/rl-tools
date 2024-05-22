@@ -190,6 +190,7 @@ void run(){
             rlt::print(device, observation_normalizer.std);
             rlt::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
             rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
+            rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
         }
         for(TI ppo_step_i = 0; ppo_step_i < NUM_STEPS; ppo_step_i++) {
             if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
@@ -253,6 +254,7 @@ void run(){
             if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
                 rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
                 rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
+                rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
                 for(TI state_i = 0; state_i < penv::ENVIRONMENT::OBSERVATION_DIM; state_i++){
                     rlt::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));
                     rlt::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
@@ -264,7 +266,7 @@ void run(){
             rlt::add_scalar(device, device.logger, "opr/action/std", rlt::std(device, on_policy_runner_dataset.actions));
             rlt::add_scalar(device, device.logger, "opr/rewards/mean", rlt::mean(device, on_policy_runner_dataset.rewards));
             rlt::add_scalar(device, device.logger, "opr/rewards/std", rlt::std(device, on_policy_runner_dataset.rewards));
-            evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations, on_policy_runner_dataset.all_values, critic_buffers_gae);
+            evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations, on_policy_runner_dataset.all_values, critic_buffers_gae, rng);
             rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
             rlt::train(device, ppo, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
 

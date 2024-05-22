@@ -14,8 +14,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
 
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVAL_BUFFERS, typename RNG>
-    bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVAL_BUFFERS& policy_eval_buffers, RNG& rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE,typename POLICY_EVAL_BUFFERS, typename RNG>
+    bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, POLICY_EVAL_BUFFERS& policy_eval_buffers, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM));
@@ -24,19 +24,17 @@ namespace rl_tools{
 
 #ifndef RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
         MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> action_full;
-        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
+        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
 #else
         MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> action_full;
-        MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation, observation_normalized;
+        MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
 #endif
         malloc(device, observation);
-        malloc(device, observation_normalized);
         malloc(device, action_full);
         observe(device, env, state, observation, rng);
-        normalize(device, observation_mean, observation_std, observation, observation_normalized);
 
         auto action = view(device, action_full, matrix::ViewSpec<1, ENVIRONMENT::ACTION_DIM>{});
-        evaluate(device, policy, observation_normalized, action_full, policy_eval_buffers, rng);
+        evaluate(device, policy, observation, action_full, policy_eval_buffers, rng);
 
         if constexpr(STOCHASTIC_POLICY){ // todo: This is a special case for SAC, will be uneccessary once (https://github.com/rl-tools/rl-tools/blob/72a59eabf4038502c3be86a4f772bd72526bdcc8/TODO.md?plain=1#L22) is implemented
             for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
@@ -54,12 +52,11 @@ namespace rl_tools{
         eval_state.episode_step += 1;
         eval_state.state = state;
         free(device, observation);
-        free(device, observation_normalized);
         free(device, action_full);
         return terminated(device, env, state, rng);
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVALUATION_BUFFERS, typename RNG>
-    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG& rng) {
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename POLICY_EVALUATION_BUFFERS, typename RNG>
+    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG& rng) {
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         rl::utils::evaluation::State<T, TI, typename ENVIRONMENT::State> state;
@@ -67,14 +64,14 @@ namespace rl_tools{
         state.episode_return = 0;
         state.episode_step = 0;
         for (TI i = 0; i < SPEC::STEP_LIMIT; i++) {
-            if(evaluate_step(device, env, ui, policy, state, observation_mean, observation_std, policy_evaluation_buffers, rng)){
+            if(evaluate_step(device, env, ui, policy, state, policy_evaluation_buffers, rng)){
                 break;
             }
         }
         return state;
     }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename OBSERVATION_MEAN_SPEC, typename OBSERVATION_STD_SPEC, typename POLICY_EVALUATION_BUFFERS>
-    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, Matrix<OBSERVATION_MEAN_SPEC>& observation_mean, Matrix<OBSERVATION_STD_SPEC>& observation_std, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
+    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>
+    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
@@ -93,7 +90,7 @@ namespace rl_tools{
             else{
                 sample_initial_state(device, env, initial_state, rng);
             }
-            auto final_state = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, observation_mean, observation_std, policy_evaluation_buffers, rng);
+            auto final_state = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, policy_evaluation_buffers, rng);
             results.returns[i] = final_state.episode_return;
             results.returns_mean += final_state.episode_return;
             results.returns_std += final_state.episode_return*final_state.episode_return;
@@ -105,21 +102,6 @@ namespace rl_tools{
         results.returns_std = math::sqrt(device.math, results.returns_std/SPEC::N_EPISODES - results.returns_mean*results.returns_mean);
         results.episode_length_mean /= SPEC::N_EPISODES;
         results.episode_length_std = math::sqrt(device.math, results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean);
-        return results;
-    }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>
-    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
-        using T = typename POLICY::T;
-        using TI = typename DEVICE::index_t;
-        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_mean;
-        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation_std;
-        malloc(device, observation_mean);
-        malloc(device, observation_std);
-        set_all(device, observation_mean, 0);
-        set_all(device, observation_std, 1);
-        auto results = evaluate(device, env, ui, policy, eval_spec_tag, observation_mean, observation_std, policy_evaluation_buffers, rng, deterministic);
-        free(device, observation_mean);
-        free(device, observation_std);
         return results;
     }
 }

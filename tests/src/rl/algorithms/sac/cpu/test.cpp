@@ -16,7 +16,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING){
     std::chrono::time_point<std::chrono::high_resolution_clock> start_time = std::chrono::high_resolution_clock::now();
     while(!rlt::step(device, ts)){
         if(ts.step % 1000 == 0){
-            auto result = evaluate(device, ts.env_eval, ts.ui, get_actor(ts), rlt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, LOOP_CONFIG::EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
+            auto result = evaluate(device, ts.env_eval, ts.ui, get_actor(ts), rlt::rl::utils::evaluation::Specification<NUM_EVALUATION_EPISODES, LOOP_CONFIG::EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT>(), ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
             evaluation_returns.push_back(result.returns_mean);
             std::sort(evaluation_returns.begin(), evaluation_returns.end());
             std::cout << "perc60: " << evaluation_returns[evaluation_returns.size()*0.6] << std::endl;
