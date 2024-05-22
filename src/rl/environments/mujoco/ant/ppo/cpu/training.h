@@ -26,7 +26,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/rl/components/running_normalizer/persist.h>
 #endif
-#include <rl_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
 #include <filesystem>
 #include <sstream>

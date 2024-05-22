@@ -14,7 +14,7 @@
 #include <rl_tools/rl/components/off_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/td3/operations_generic.h>
 
-#include <rl_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 

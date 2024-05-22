@@ -9,7 +9,6 @@
 #include "../../../../../rl/algorithms/sac/operations_generic.h"
 #include "../../../../../nn/optimizers/adam/operations_generic.h"
 #include "../../../../../rl/components/off_policy_runner/operations_generic.h"
-#include "../../../../../rl/utils/evaluation.h"
 
 #include "config.h"
 
@@ -31,8 +30,6 @@ namespace rl_tools{
         malloc(device, ts.actor_buffers_eval);
         malloc(device, ts.actor_buffers[0]);
         malloc(device, ts.actor_buffers[1]);
-        malloc(device, ts.observations_mean);
-        malloc(device, ts.observations_std);
         malloc(device, ts.actor_deterministic_evaluation_buffers);
         for(auto& env: ts.envs){
             rl_tools::malloc(device, env);
@@ -55,10 +52,6 @@ namespace rl_tools{
 
         init(device, ts.off_policy_runner, ts.envs);
 
-
-        set_all(device, ts.observations_mean, 0);
-        set_all(device, ts.observations_std, 1);
-
         ts.step = 0;
     }
     template <typename DEVICE_SOURCE, typename DEVICE_TARGET, typename T_CONFIG_SOURCE, typename T_CONFIG_TARGET>
@@ -75,8 +68,6 @@ namespace rl_tools{
         copy(device_source, device_target, source.actor_buffers_eval, target.actor_buffers_eval);
         copy(device_source, device_target, source.actor_buffers[0], target.actor_buffers[0]);
         copy(device_source, device_target, source.actor_buffers[1], target.actor_buffers[1]);
-        copy(device_source, device_target, source.observations_mean, target.observations_mean);
-        copy(device_source, device_target, source.observations_std, target.observations_std);
         copy(device_source, device_target, source.actor_deterministic_evaluation_buffers, target.actor_deterministic_evaluation_buffers);
 //        target.rng = source.rng;
         target.off_policy_runner.parameters.exploration_noise = source.off_policy_runner.parameters.exploration_noise;
@@ -99,8 +90,6 @@ namespace rl_tools{
         free(device, ts.actor_buffers_eval);
         free(device, ts.actor_buffers[0]);
         free(device, ts.actor_buffers[1]);
-        free(device, ts.observations_mean);
-        free(device, ts.observations_std);
         free(device, ts.actor_deterministic_evaluation_buffers);
         for(auto& env: ts.envs){
             rl_tools::free(device, env);

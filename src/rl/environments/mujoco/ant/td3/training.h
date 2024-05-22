@@ -37,7 +37,7 @@ using TI = typename DEVICE::index_t;
 #include <rl_tools/rl/components/replay_buffer/persist.h>
 #endif
 
-#include <rl_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
 #include "parameters.h"
 

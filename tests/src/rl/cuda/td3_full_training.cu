@@ -30,7 +30,7 @@ using DEV_SPEC = DEVICE::SPEC;
 #include <rl_tools/rl/algorithms/td3/operations_cuda.h>
 #include <rl_tools/rl/algorithms/td3/operations_generic.h>
 
-#include <rl_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
 
 #include <gtest/gtest.h>

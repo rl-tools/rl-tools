@@ -14,7 +14,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #endif
 #endif
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
-#include <rl_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
 #include <gtest/gtest.h>
 #include <highfive/H5File.hpp>

@@ -8,7 +8,6 @@
 #include "../../../../../rl/algorithms/td3/operations_generic.h"
 #include "../../../../../nn_models/random_uniform/operations_generic.h"
 #include "../../../../../rl/components/off_policy_runner/operations_generic.h"
-#include "../../../../../rl/utils/evaluation.h"
 
 #include "config.h"
 
@@ -27,8 +26,6 @@ namespace rl_tools{
         malloc(device, ts.actor_buffers_eval);
         malloc(device, ts.actor_buffers[0]);
         malloc(device, ts.actor_buffers[1]);
-        malloc(device, ts.observations_mean);
-        malloc(device, ts.observations_std);
         malloc(device, ts.actor_deterministic_evaluation_buffers);
         for(auto& env: ts.envs){
             rl_tools::malloc(device, env);
@@ -47,8 +44,6 @@ namespace rl_tools{
             rl_tools::init(device, env);
         }
         init(device, ts.off_policy_runner, ts.envs);
-        set_all(device, ts.observations_mean, 0);
-        set_all(device, ts.observations_std, 1);
 
         ts.step = 0;
     }
@@ -61,8 +56,6 @@ namespace rl_tools{
         free(device, ts.actor_training_buffers);
         free(device, ts.off_policy_runner);
         free(device, ts.actor_critic);
-        free(device, ts.observations_mean);
-        free(device, ts.observations_std);
         for(auto& env: ts.envs){
             rl_tools::free(device, env);
         }

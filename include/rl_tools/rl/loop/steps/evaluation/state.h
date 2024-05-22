@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_LOOP_STEPS_EVALUATION_STATE_H
 
-#include "../../../../rl/utils/evaluation.h"
+#include "../../../../rl/utils/evaluation/operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::evaluation{

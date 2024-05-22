@@ -6,11 +6,15 @@
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
 //#include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn/layers/standardize/operations_generic.h>
+#include <rl_tools/nn/layers/standardize/operations_cuda.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+#include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn_models/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 #endif
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 // --------------- changed for cuda training -----------------
@@ -37,7 +41,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <rl_tools/rl/components/running_normalizer/persist.h>
 #endif
-#include <rl_tools/rl/utils/evaluation.h>
+#include <rl_tools/rl/utils/evaluation/operations_generic.h>
 
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
 #include <highfive/H5File.hpp>
@@ -253,6 +257,8 @@ int main(int argc, char** argv){
             std::cout << "Observation std: " << std::endl;
             rlt::print(device, observation_normalizer.std);
             rlt::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
+            rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
+            rlt::copy(device, device_gpu, ppo, ppo_gpu);
         }
         for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
             // -------------- added for cuda training ----------------
@@ -305,10 +311,12 @@ int main(int argc, char** argv){
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                rlt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, observation_normalizer.mean, observation_normalizer.std, rng);
+                rlt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng);
                 // ----------------------------------------------------------
                 if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
                     rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+                    rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
+                    rlt::copy(device, device_gpu, ppo, ppo_gpu);
                     for(TI state_i = 0; state_i < penv::ENVIRONMENT::OBSERVATION_DIM; state_i++){
 //                        rlt::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));
 //                        rlt::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
