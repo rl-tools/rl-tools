@@ -45,8 +45,8 @@ namespace rl_tools{
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         using LAYER = nn::layers::standardize::LayerForward<LAYER_SPEC>;
-        containers::check_structure<MEAN_SPEC, typename LAYER::STATISTICS_CONTAINER_SPEC>;
-        containers::check_structure<STD_SPEC, typename LAYER::STATISTICS_CONTAINER_SPEC>;
+        static_assert(containers::check_structure<MEAN_SPEC, typename LAYER::STATISTICS_CONTAINER_SPEC>);
+        static_assert(containers::check_structure<STD_SPEC, typename LAYER::STATISTICS_CONTAINER_SPEC>);
         static_assert(MEAN_SPEC::ROWS == 1);
         copy(device, device, mean, layer.mean.parameters);
         for(TI i=0; i < LAYER_SPEC::INPUT_DIM; i++){
