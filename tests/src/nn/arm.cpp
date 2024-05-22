@@ -35,6 +35,7 @@ void test_mlp_evaluate() {
     typename MLP::template Buffer<BATCH_SIZE> buffers;
 
     rlt::malloc(device, mlp);
+    rlt::malloc(device, buffers);
     rlt::init_weights(device, mlp, rng);
 
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::INPUT_DIM>> input;
