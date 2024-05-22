@@ -37,3 +37,11 @@ target_link_libraries(
         rl_tools_test
 )
 gtest_discover_tests(test_nn_models_sequential_d_input_benchmark)
+
+add_executable(test_nn_models_sequential_compose compose.cpp)
+target_link_libraries(test_nn_models_sequential_compose
+        PRIVATE
+        rl_tools
+        rl_tools_test
+)
+gtest_discover_tests(test_nn_models_sequential_compose)

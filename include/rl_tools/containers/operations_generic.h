@@ -23,7 +23,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, MatrixStatic<SPEC>& matrix){
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC
-        utils::assert_exit(device, matrix._data == nullptr, "Matrix is already allocated");
+        utils::assert_exit(device, matrix._data == nullptr, "Trying to malloc a MatrixStatic. Matrix is already allocated (stack)");
 #endif
 //        matrix._data = (typename SPEC::T*)&matrix._data_memory[0];
 #ifdef RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
