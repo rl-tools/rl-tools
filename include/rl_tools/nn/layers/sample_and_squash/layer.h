@@ -35,7 +35,7 @@ namespace rl_tools::nn::layers::sample_and_squash {
         static constexpr TI INPUT_DIM = 2*DIM; // mean and std
         static constexpr TI OUTPUT_DIM = DIM;
         template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG>
-        using Buffer = dense::Buffer;
+        using Buffer = sample_and_squash::Buffer;
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC> {

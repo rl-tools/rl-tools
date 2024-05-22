@@ -300,7 +300,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING){
             for(TI env_i = 0; env_i < NUM_THREADS; env_i++){
                 threads[env_i].join();
             }
-            rlt::evaluate(device, actor, observations, actions, actor_buffers);
+            rlt::evaluate(device, actor, observations, actions, actor_buffers, rngs[0]);
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
@@ -356,7 +356,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_INDEPENDENT_FORW
             rlt::sample_initial_state(device, env, state, rng);
             for(TI step_i = 0; step_i < NUM_STEPS_PER_THREAD; step_i++){
                 rlt::observe(device, env, state, observation, rng);
-                rlt::evaluate(device, actor, observation, action, actor_buffer);
+                rlt::evaluate(device, actor, observation, action, actor_buffer, rng);
                 rlt::step(device, env, state, action, next_state, rng);
                 if(step_i % 1000 == 0 || rlt::terminated(device, env, next_state, rng)) {
                     rlt::sample_initial_state(device, env, state, rng);
@@ -435,7 +435,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWA
                     next_env = 0;
                     {
                         auto start = std::chrono::high_resolution_clock::now();
-                        rlt::evaluate(device, actor, observations, actions, actor_buffers);
+                        rlt::evaluate(device, actor, observations, actions, actor_buffers, rng);
                         auto end = std::chrono::high_resolution_clock::now();
                         evaluation_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
                     }
@@ -546,7 +546,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_COLLECTIVE_FORWA
                     if(thread_i == 0){
                         {
                             auto start = std::chrono::high_resolution_clock::now();
-                            rlt::evaluate(device, actor, observations, actions, actor_buffers);
+                            rlt::evaluate(device, actor, observations, actions, actor_buffers, rng);
                             auto end = std::chrono::high_resolution_clock::now();
                             evaluation_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
                         }

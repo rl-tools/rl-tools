@@ -64,52 +64,31 @@ namespace rl_tools {
         template <typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
         constexpr bool check_input_output = check_input_output_f<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>();
     }
-    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename TEMP_SPEC, typename RNG>
-    void evaluate_memless(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, Matrix<TEMP_SPEC>& layer_output_tick, Matrix<TEMP_SPEC>& layer_output_tock, RNG& rng){
-        static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
-        constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        static_assert(TEMP_SPEC::ROWS >= BATCH_SIZE);
-        static_assert(TEMP_SPEC::COLS >= MODEL_SPEC::HIDDEN_DIM);
-        evaluate(device, network.input_layer, input, layer_output_tick, rng);
-        for (typename DEVICE::index_t layer_i = 0; layer_i < MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
-            if(layer_i % 2 == 0){
-                evaluate(device, network.hidden_layers[layer_i], layer_output_tick, layer_output_tock, rng);
-            } else {
-                evaluate(device, network.hidden_layers[layer_i], layer_output_tock, layer_output_tick, rng);
-            }
-        }
-        if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
-            evaluate(device, network.output_layer, layer_output_tick, output, rng);
-        } else {
-            evaluate(device, network.output_layer, layer_output_tock, output, rng);
-        }
-    }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename RNG>
     void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffers, RNG& rng){
-        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE >= OUTPUT_SPEC::ROWS);
-        static_assert(BUFFER_MODEL_SPEC::SPEC::HIDDEN_DIM == MODEL_SPEC::HIDDEN_DIM);
-        auto tick = view(device, buffers.tick, matrix::ViewSpec<OUTPUT_SPEC::ROWS, BUFFER_MODEL_SPEC::SPEC::HIDDEN_DIM>{});
-        auto tock = view(device, buffers.tock, matrix::ViewSpec<OUTPUT_SPEC::ROWS, BUFFER_MODEL_SPEC::SPEC::HIDDEN_DIM>{});
-        evaluate_memless(device, network, input, output, tick, tock, rng);
-    }
-    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG>
-    void evaluate(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng){
         static_assert(nn_models::mlp::check_input_output<MODEL_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
-        using T = typename MODEL_SPEC::T;
-        using TICK_TOCK_SPEC = matrix::Specification<T, typename DEVICE::index_t, BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>;
-#ifndef RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
-        MatrixDynamic<TICK_TOCK_SPEC> layer_output_tick;
-        MatrixDynamic<TICK_TOCK_SPEC> layer_output_tock;
-#else
-        MatrixStatic<TICK_TOCK_SPEC> layer_output_tick;
-        MatrixStatic<TICK_TOCK_SPEC> layer_output_tock;
-#endif
-        malloc(device, layer_output_tick);
-        malloc(device, layer_output_tock);
-        evaluate_memless(device, network, input, output, layer_output_tick, layer_output_tock, rng);
-        free(device, layer_output_tick);
-        free(device, layer_output_tock);
+        static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE >= BATCH_SIZE);
+        static_assert(BUFFER_MODEL_SPEC::DIM >= MODEL_SPEC::HIDDEN_DIM);
+        matrix::ViewSpec<BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM> hidden_vs;
+        {
+            auto output_buffer_view = view(device, buffers.tick, matrix::ViewSpec<BATCH_SIZE, MODEL_SPEC::HIDDEN_DIM>{});
+            evaluate(device, network.input_layer, input, output_buffer_view, buffers.layer_buffer, rng);
+        }
+        for (typename DEVICE::index_t layer_i = 0; layer_i < MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i++){
+            auto& input_buffer = (layer_i % 2 == 0) ? buffers.tick : buffers.tock;
+            auto input_buffer_view = view(device, input_buffer, hidden_vs);
+            auto& output_buffer = (layer_i % 2 == 0) ? buffers.tock : buffers.tick;
+            auto output_buffer_view = view(device, output_buffer, hidden_vs);
+            evaluate(device, network.hidden_layers[layer_i], input_buffer_view, output_buffer_view, buffers.layer_buffer, rng);
+        }
+        if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
+            auto input_buffer_view = view(device, buffers.tick, hidden_vs);
+            evaluate(device, network.output_layer, input_buffer_view, output, buffers.layer_buffer, rng);
+        } else {
+            auto input_buffer_view = view(device, buffers.tock, hidden_vs);
+            evaluate(device, network.output_layer, input_buffer_view, output, buffers.layer_buffer, rng);
+        }
     }
 
     // forward modifies intermediate outputs and pre activations to facilitate backward pass
@@ -137,7 +116,7 @@ namespace rl_tools {
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename RNG>
     void forward(DEVICE& device, const nn_models::mlp::NeuralNetworkForward<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffers, RNG& rng){
         static_assert(BUFFER_MODEL_SPEC::BATCH_SIZE == OUTPUT_SPEC::ROWS);
-        forward_memless(device, network, input, output, buffers.tick, buffers.tock);
+        forward_memless(device, network, input, output, buffers.tick, buffers.tock, rng);
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename RNG>
     void forward(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<MODEL_SPEC>& network, const Matrix<INPUT_SPEC>& input, RNG& rng) {

@@ -52,13 +52,15 @@ namespace rl_tools::nn_models::mlp {
         using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
     };
 
-    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    // T_LAYER_PROTOTYPE is any of INPUT_LAYER, HIDDEN_LAYER, or OUTPUT_LAYER. It is assumed that the buffer for all of them are the same (likely empty)
+    template<typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE, typename T_LAYER_PROTOTYPE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct NeuralNetworkBuffersSpecification{
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr TI DIM = SPEC::HIDDEN_DIM;
+        using LAYER_PROTOTYPE = T_LAYER_PROTOTYPE;
     };
 
     template<typename T_BUFFER_SPEC>
@@ -72,6 +74,8 @@ namespace rl_tools::nn_models::mlp {
         using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
+        using LayerBuffer = typename BUFFER_SPEC::LAYER_PROTOTYPE::template Buffer<BATCH_SIZE, typename SPEC::CONTAINER_TYPE_TAG>;
+        LayerBuffer layer_buffer;
     };
 
     template<typename T_SPEC>
@@ -80,8 +84,7 @@ namespace rl_tools::nn_models::mlp {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG;
-        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
-        using Buffer = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
+        // Could be dependent on the capability but in this case the buffer-requirements of forward and backward are the same
 
         // Convenience
         static_assert(SPEC::NUM_LAYERS >= 2); // At least input and output layer are required
@@ -98,6 +101,11 @@ namespace rl_tools::nn_models::mlp {
         typename nn::layers::dense::Layer<typename SPEC::CAPABILITY, typename SPEC::INPUT_LAYER_SPEC> input_layer;
         typename nn::layers::dense::Layer<typename SPEC::CAPABILITY, typename SPEC::HIDDEN_LAYER_SPEC> hidden_layers[NUM_HIDDEN_LAYERS];
         typename nn::layers::dense::Layer<typename SPEC::CAPABILITY, typename SPEC::OUTPUT_LAYER_SPEC> output_layer;
+
+        using LAYER_PROTOTYPE = decltype(input_layer);
+
+        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
+        using Buffer = NeuralNetworkBuffers<NeuralNetworkBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, LAYER_PROTOTYPE, T_CONTAINER_TYPE_TAG>>;
     };
 
     template<typename SPEC>

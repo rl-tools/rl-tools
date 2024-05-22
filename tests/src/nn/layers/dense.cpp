@@ -26,7 +26,9 @@ using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPU
 TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
 
     rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Forward, LAYER_SPEC> layer;
+    decltype(layer)::template Buffer<1> buffer;
     rlt::malloc(device, layer);
+    rlt::malloc(device, buffer);
     rlt::init_kaiming(device, layer, rng);
     constexpr TI BATCH_SIZE = 1;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
@@ -35,7 +37,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     rlt::malloc(device, output);
     rlt::randn(device, input, rng);
     rlt::print(device, input);
-    rlt::evaluate(device, layer, input, output, rng);
+    rlt::evaluate(device, layer, input, output, buffer, rng);
     using PARAMETER_TYPE_2 = rlt::nn::parameters::Gradient;
     using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>;
     rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Gradient>, LAYER_2_SPEC> layer_2;

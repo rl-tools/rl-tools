@@ -14,17 +14,20 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD_DEFAULT){
     using SPEC = rlt::nn::layers::standardize::Specification<T, TI, DIM>;
     using CAPABILITY = rlt::nn::layer_capability::Forward;
     rlt::nn::layers::standardize::Layer<CAPABILITY, SPEC> layer;
+    typename decltype(layer)::template Buffer<> buffer;
     rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, DIM>> input, output;
 
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{});
     rlt::malloc(device, layer);
+    rlt::malloc(device, buffer);
     rlt::init_weights(device, layer, rng);
     rlt::randn(device, input, rng);
     rlt::print(device, input);
-    rlt::evaluate(device, layer, input, output, rng);
+    rlt::evaluate(device, layer, input, output, buffer, rng);
     T diff = rlt::abs_diff(device, input, output);
     ASSERT_LT(diff, 1e-10);
+
 }
 
 TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
@@ -33,12 +36,14 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     using SPEC = rlt::nn::layers::standardize::Specification<T, TI, DIM>;
     using CAPABILITY = rlt::nn::layer_capability::Forward;
     rlt::nn::layers::standardize::Layer<CAPABILITY, SPEC> layer;
+    typename decltype(layer)::template Buffer<> buffer;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, DIM>> mean, std, bias, variance;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, DIM>> input, output;
 
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
     rlt::malloc(device, layer);
+    rlt::malloc(device, buffer);
     rlt::malloc(device, mean);
     rlt::malloc(device, std);
     rlt::malloc(device, bias);
@@ -60,7 +65,7 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     }
     rlt::mean_std_colwise(device, input, mean, std);
     rlt::set_statistics(device, layer, mean, std);
-    rlt::evaluate(device, layer, input, output, rng);
+    rlt::evaluate(device, layer, input, output, buffer, rng);
     T output_mean = rlt::mean(device, output);
     T output_std = rlt::std(device, output);
     std::cout << "output_mean: " << output_mean << std::endl;

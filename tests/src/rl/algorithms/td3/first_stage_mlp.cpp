@@ -170,13 +170,19 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
             rlt::set(input, 0, batch.states[batch_sample_i].size() + i, batch.actions[batch_sample_i][i]);
         }
 
-        rlt::evaluate(device, actor_critic.critic_1, input, output, rng);
+        typename decltype(actor_critic.critic_1)::template Buffer<> critic_buffer;
+        rlt::malloc(device, critic_buffer);
+        rlt::evaluate(device, actor_critic.critic_1, input, output, critic_buffer, rng);
         std::cout << "output: " << rlt::get(output, 0, 0) << std::endl;
         ASSERT_LT(abs(rlt::get(output, 0, 0) - outputs[batch_sample_i][0]), 1e-15);
 
-        rlt::evaluate(device, actor_critic.critic_target_1, input, output, rng);
+        typename decltype(actor_critic.critic_1)::template Buffer<> critic_target_buffer;
+        rlt::malloc(device, critic_target_buffer);
+        rlt::evaluate(device, actor_critic.critic_target_1, input, output, critic_target_buffer, rng);
         std::cout << "output: " << rlt::get(output, 0, 0) << std::endl;
         ASSERT_LT(abs(rlt::get(output, 0, 0) - outputs[batch_sample_i][0]), 1e-15);
+        rlt::free(device, critic_buffer);
+        rlt::free(device, critic_target_buffer);
         rlt::free(device, input);
         rlt::free(device, output);
     }
@@ -235,7 +241,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
             rlt::set(input, 0, batch.states[batch_sample_i].size() + i, batch.actions[batch_sample_i][i]);
         }
         rlt::set(target, 0, 0, 1);
-        rlt::evaluate(device, actor_critic.critic_1, input, output, rng);
+        typename decltype(actor_critic.critic_1)::template Buffer<> critic_buffer;
+        rlt::malloc(device, critic_buffer);
+        rlt::evaluate(device, actor_critic.critic_1, input, output, critic_buffer, rng);
         loss += rlt::nn::loss_functions::mse::evaluate(device, output, target);
 
 //        rlt::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
@@ -245,6 +253,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
             rlt::backward_full(device, actor_critic.critic_1, input, d_output_critic, d_input_critic, critic_buffers);
         }
         std::cout << "output: " << rlt::get(actor_critic.critic_1.output_layer.output, 0, 0) << std::endl;
+        rlt::free(device, critic_buffer);
         rlt::free(device, input);
         rlt::free(device, output);
         rlt::free(device, target);

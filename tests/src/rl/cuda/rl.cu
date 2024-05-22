@@ -79,8 +79,8 @@ public:
     using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_SPEC>;
     using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
     using ACTOR_CRITIC_TYPE = rlt::rl::algorithms::td3::ActorCritic<ACTOR_CRITIC_SPEC>;
-    using ACTOR_BUFFERS = rlt::nn_models::mlp::NeuralNetworkBuffers<rlt::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;
-    using CRITIC_BUFFERS = rlt::nn_models::mlp::NeuralNetworkBuffers<rlt::nn_models::mlp::NeuralNetworkBuffersSpecification<CRITIC_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
+    using ACTOR_BUFFERS = ACTOR_NETWORK_TYPE::template Buffer<ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>; //rlt::nn_models::mlp::NeuralNetworkBuffers<rlt::nn_models::mlp::NeuralNetworkBuffersSpecification<ACTOR_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::ACTOR_BATCH_SIZE>>;
+    using CRITIC_BUFFERS = CRITIC_NETWORK_TYPE::template Buffer<ACTOR_CRITIC_SPEC::PARAMETERS::CRITIC_BATCH_SIZE>; //= rlt::nn_models::mlp::NeuralNetworkBuffers<rlt::nn_models::mlp::NeuralNetworkBuffersSpecification<CRITIC_SPEC, ACTOR_CRITIC_SPEC::PARAMETERS::CRITIC_BATCH_SIZE>>;
     DEVICE_CPU device_cpu;
     DEVICE_GPU device_gpu;
     OFF_POLICY_RUNNER_TYPE off_policy_runner_cpu;
@@ -269,8 +269,8 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         std::cout << "abs_diff_actor_critic: " << abs_diff_actor_critic << std::endl;
         ASSERT_FLOAT_EQ(abs_diff_actor_critic, 0);
 
-        rlt::evaluate(device_cpu, actor_critic_cpu.actor.input_layer, batch_cpu.observations, actor_buffers_cpu.tick, rng_gpu);
-        rlt::evaluate(device_gpu, actor_critic_gpu.actor.input_layer, batch_gpu.observations, actor_buffers_gpu.tick, rng_gpu);
+        rlt::evaluate(device_cpu, actor_critic_cpu.actor.input_layer, batch_cpu.observations, actor_buffers_cpu.tick, actor_buffers_cpu.layer_buffer, rng_gpu);
+        rlt::evaluate(device_gpu, actor_critic_gpu.actor.input_layer, batch_gpu.observations, actor_buffers_gpu.tick,  actor_buffers_gpu.layer_buffer, rng_gpu);
         rlt::copy(device_gpu, device_cpu, actor_buffers_gpu, actor_buffers_cpu_2);
         auto abs_diff_tick = rlt::abs_diff(device_cpu, actor_buffers_cpu_2.tick, actor_buffers_cpu.tick);
         std::cout << "abs_diff_tick: " << abs_diff_tick << std::endl;
@@ -299,11 +299,11 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
         std::cout << "abs_diff_next_state_action_value_input: " << abs_diff_next_state_action_value_input << std::endl;
         ASSERT_LT(abs_diff_next_state_action_value_input, EPSILON);
 
-        rlt::evaluate(device_cpu, actor_critic_cpu.critic_target_1, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_1, critic_buffers_cpu);
-        rlt::evaluate(device_cpu, actor_critic_cpu.critic_target_2, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_2, critic_buffers_cpu);
+        rlt::evaluate(device_cpu, actor_critic_cpu.critic_target_1, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_1, critic_buffers_cpu, rng_cpu);
+        rlt::evaluate(device_cpu, actor_critic_cpu.critic_target_2, critic_training_buffers_cpu.next_state_action_value_input, critic_training_buffers_cpu.next_state_action_value_critic_2, critic_buffers_cpu, rng_gpu);
 
-        rlt::evaluate(device_gpu, actor_critic_gpu.critic_target_1, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_1, critic_buffers_gpu);
-        rlt::evaluate(device_gpu, actor_critic_gpu.critic_target_2, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_2, critic_buffers_gpu);
+        rlt::evaluate(device_gpu, actor_critic_gpu.critic_target_1, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_1, critic_buffers_gpu, rng_cpu);
+        rlt::evaluate(device_gpu, actor_critic_gpu.critic_target_2, critic_training_buffers_gpu.next_state_action_value_input, critic_training_buffers_gpu.next_state_action_value_critic_2, critic_buffers_gpu, rng_gpu);
 
         rlt::copy(device_gpu, device_cpu, critic_training_buffers_gpu, critic_training_buffers_cpu_2);
         auto abs_diff_next_state_action_value_critic_1 = rlt::abs_diff(device_cpu, critic_training_buffers_cpu_2.next_state_action_value_critic_1, critic_training_buffers_cpu.next_state_action_value_critic_1);

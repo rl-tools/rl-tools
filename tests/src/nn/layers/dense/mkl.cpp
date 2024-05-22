@@ -25,7 +25,9 @@ void test(){
     using LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>;
 
     rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Forward, LAYER_SPEC> layer;
+    typename decltype(layer)::template Buffer<BATCH_SIZE> layer_buffer;
     rlt::malloc(device_generic, layer);
+    rlt::malloc(device_generic, layer_buffer);
     rlt::init_kaiming(device_generic, layer, rng);
 //    constexpr TI BATCH_SIZE = 1;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
@@ -35,8 +37,8 @@ void test(){
     rlt::malloc(device_generic, output_mkl);
     rlt::randn(device_generic, input, rng);
     rlt::print(device_generic, input);
-    rlt::evaluate(device_generic, layer, input, output_generic, rng);
-    rlt::evaluate(device_mkl, layer, input, output_mkl, rng);
+    rlt::evaluate(device_generic, layer, input, output_generic, layer_buffer, rng);
+    rlt::evaluate(device_mkl, layer, input, output_mkl, layer_buffer, rng);
     auto diff = rlt::abs_diff(device_generic, output_generic, output_mkl);
     T diff_per_element = diff / (BATCH_SIZE * OUTPUT_DIM);
     std::cout << "Matrix mul diff: " << diff << " per element: " << diff_per_element << std::endl;
