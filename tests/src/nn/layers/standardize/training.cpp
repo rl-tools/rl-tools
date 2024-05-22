@@ -103,12 +103,22 @@ T lifetime_return(){
     typename LOOP_CONFIG::template State<LOOP_CONFIG> ts;
 
     T acc = 0;
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+    static constexpr TI N_SEEDS_ACTUAL = 1;
+#else
+    static constexpr TI N_SEEDS_ACTUAL = N_SEEDS;
+#endif
     for(TI seed = 0; seed < N_SEEDS; seed++){
         rlt::malloc(device);
         rlt::init(device);
         rlt::malloc(device, ts);
         rlt::init(device, ts, seed);
         while(!rlt::step(device, ts)){
+#ifdef RL_TOOLS_TESTS_CODE_COVERAGE
+            if(ts.step > 2000){
+                break;
+            }
+#endif
             if(ts.step == 5000){
                 std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
             }
@@ -134,5 +144,7 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, DETRIMENT_TRAINING) {
 //    std::cout << "return_100x: " << return_100x << std::endl;
 //    std::cout << "return_1000x: " << return_1000x << std::endl;
     std::cout << "return_10000x: " << return_10000x << std::endl;
+#ifndef RL_TOOLS_TESTS_CODE_COVERAGE
     ASSERT_GT(return_10000x / return_10x, 3);
+#endif
 }
