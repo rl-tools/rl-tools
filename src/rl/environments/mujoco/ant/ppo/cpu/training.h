@@ -1,7 +1,9 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
-#include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn/layers/standardize/operations_generic.h>
+#include <rl_tools/nn/layers/standardize/persist.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
