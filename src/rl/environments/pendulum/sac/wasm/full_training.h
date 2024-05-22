@@ -208,7 +208,7 @@ bool training_step(DEVICE& device, TRAINING_STATE& ts){
     }
 #ifndef RL_TOOLS_BENCHMARK
     if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
-        auto result = rlt::evaluate(device, ts.envs[0], ts.ui, ts.actor_critic.actor, rlt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), ts.observations_mean, ts.observations_std, ts.actor_deterministic_evaluation_buffers, ts.rng);
+        auto result = rlt::evaluate(device, ts.envs[0], ts.ui, ts.actor_critic.actor, rlt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), ts.actor_deterministic_evaluation_buffers, ts.rng);
         std::cout << "Mean return: " << result.returns_mean << std::endl;
         ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
     }

@@ -192,7 +192,7 @@ void train(){
         }
 #ifndef RL_TOOLS_DISABLE_EVALUATION
         if(step_i % EVALUATION_INTERVAL == 0){
-            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), observations_mean, observations_std, actor_buffers, rng);
+            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), actor_buffers, rng);
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }
