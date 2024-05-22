@@ -141,13 +141,13 @@ namespace rl_tools{
         constexpr TI BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            backward(device, model.content, input, d_output, d_input, content_buffer.buffer);
+            backward_full(device, model.content, input, d_output, d_input, content_buffer.buffer);
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
             auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             _backward_full<!TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer);
-            backward(device, model.content, input, current_d_output_buffer, d_input, content_buffer.buffer);
+            backward_full(device, model.content, input, current_d_output_buffer, d_input, content_buffer.buffer);
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC>
@@ -185,10 +185,10 @@ namespace rl_tools{
         if constexpr(!NEXT_IS_FINAL){
             auto current_d_input_buffer_view = view(device, buffers.tick, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             _backward_full<false>(device, model.next_module, model.content.output, d_output, current_d_input_buffer_view, buffers, buffers.content_buffer.next_content_buffer);
-            backward_param(device, model.content, input, current_d_input_buffer_view, buffers.content_buffer.buffer);
+            backward(device, model.content, input, current_d_input_buffer_view, buffers.content_buffer.buffer);
         }
         else{
-            backward_param(device, model.content, input, d_output, buffers.content_buffer.buffer);
+            backward(device, model.content, input, d_output, buffers.content_buffer.buffer);
         }
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>

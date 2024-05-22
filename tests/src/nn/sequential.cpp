@@ -385,9 +385,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     rlt::forward(device, layer_1, input, hidden_tick, rng);
     rlt::forward(device, layer_2, hidden_tick, hidden_tock, rng);
     rlt::forward(device, layer_3, hidden_tock, output_chain, rng);
-    rlt::backward(device, layer_3, hidden_tock, d_output, d_hidden_tick);
-    rlt::backward(device, layer_2, hidden_tick, d_hidden_tick, d_hidden_tock);
-    rlt::backward(device, layer_1, input, d_hidden_tock, d_input_chain);
+    rlt::backward_full(device, layer_3, hidden_tock, d_output, d_hidden_tick);
+    rlt::backward_full(device, layer_2, hidden_tick, d_hidden_tick, d_hidden_tock);
+    rlt::backward_full(device, layer_1, input, d_hidden_tock, d_input_chain);
 
     rlt::print(device, d_input_chain);
 
