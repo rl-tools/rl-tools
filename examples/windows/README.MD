@@ -39,7 +39,12 @@ Alternatively if you are using PowerShell:
 ```
 cmd.exe "/K" '"C:\Program Files (x86)\Intel\oneAPI\setvars.bat" && powershell'
 ```
-Note: This step needs to be re-done after every restart of the terminal.
+Note: This step needs to be re-done after every restart of the terminal. You can create a batch file to e.g. start Clion with the MKL sourced (e.g. `clion_mkl.bat`):
+
+```
+call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+"C:\Program Files\JetBrains\CLion 2023.3.3\bin\clion64.exe"
+```
 Now, after moving to the previously created `build` directory, configure the RLtools to use MKL:
 Sourcing MKL is important because even if CMake can find the libraries during the build, the execution will fail because it can not find the libraries at runtime.
 For VS code you can alter the link in the start menu entry to contain the sourcing adding `setvars.bat` to the Target field in the same manner as e.g. in the following:
