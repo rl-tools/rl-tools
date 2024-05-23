@@ -25,7 +25,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>
-    void evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
+    void evaluate(DEVICE& device, ENVIRONMENT&, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
@@ -35,8 +35,6 @@ namespace rl_tools{
         results.returns_std = 0;
         results.episode_length_mean = 0;
         results.episode_length_std = 0;
-        T episode_returns[SPEC::N_EPISODES];
-        TI episode_steps[SPEC::N_EPISODES];
 
         MatrixStatic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> actions_buffer_full;
         MatrixStatic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::OBSERVATION_DIM>> observations;
@@ -45,9 +43,15 @@ namespace rl_tools{
         rl::utils::evaluation::Data<SPEC> local_data;
         auto& data = get_data(results, local_data);
 
+        ENVIRONMENT envs[SPEC::N_EPISODES];
+
+
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
-            episode_returns[env_i] = 0;
-            episode_steps[env_i] = 0;
+            auto& env = envs[env_i];
+            malloc(device, env);
+            init(device, env);
+            results.returns[env_i] = 0;
+            results.episode_length[env_i] = 0;
             auto& current_state = data.states[env_i][0];
             if(deterministic) {
                 rl_tools::initial_state(device, env, current_state);
@@ -60,6 +64,7 @@ namespace rl_tools{
             for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
                 auto observation = row(device, observations, env_i);
                 auto& state = data.states[env_i][step_i];
+                auto& env = envs[env_i];
                 observe(device, env, state, observation, rng);
             }
             constexpr TI BATCH_SIZE = POLICY_EVALUATION_BUFFERS::BATCH_SIZE;
@@ -90,6 +95,12 @@ namespace rl_tools{
                 }
             }
             for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
+                if(step_i > 0){
+                    if(data.terminated[env_i][step_i-1]){
+                        continue;
+                    }
+                }
+                auto& env = envs[env_i];
                 typename ENVIRONMENT::State next_state;
                 auto& state = data.states[env_i][step_i];
                 auto action = row(device, actions_buffer, env_i);
@@ -98,25 +109,32 @@ namespace rl_tools{
                 set_action(device, env, ui, action);
                 render(device, env, ui);
                 T r = reward(device, env, state, action, next_state, rng);
+                data.rewards[env_i][step_i] = r;
                 if(step_i != SPEC::STEP_LIMIT - 1){
                     data.states[env_i][step_i+1] = next_state;
                 }
-                episode_returns[env_i] += r;
-                episode_steps[env_i] += 1;
                 bool terminated_flag = false;
                 if(step_i > 0){
-                    terminated_flag |= data.terminated[env_i][step_i-1];
+                    terminated_flag = data.terminated[env_i][step_i-1];
                 }
-                data.terminated[env_i][step_i] = terminated_flag | terminated(device, env, state, rng);
+                if(!terminated_flag){
+                    results.returns[env_i] += r;
+                    results.episode_length[env_i] += 1;
+                }
+                data.terminated[env_i][step_i] = terminated_flag || terminated(device, env, next_state, rng);
             }
         }
+        for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
+            auto &env = envs[env_i];
+            free(device, env);
+        }
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
-            results.returns[env_i] = episode_returns[env_i];
-            results.returns_mean += episode_returns[env_i];
-            results.returns_std += episode_returns[env_i]*episode_returns[env_i];
-            results.episode_length[env_i] = episode_steps[env_i];
-            results.episode_length_mean += episode_steps[env_i];
-            results.episode_length_std += episode_steps[env_i]*episode_steps[env_i];
+            results.returns[env_i] = results.returns[env_i];
+            results.returns_mean += results.returns[env_i];
+            results.returns_std += results.returns[env_i]*results.returns[env_i];
+            results.episode_length[env_i] = results.episode_length[env_i];
+            results.episode_length_mean += results.episode_length[env_i];
+            results.episode_length_std += results.episode_length[env_i]*results.episode_length[env_i];
         }
         results.returns_mean /= SPEC::N_EPISODES;
         results.returns_std = math::sqrt(device.math, results.returns_std/SPEC::N_EPISODES - results.returns_mean*results.returns_mean);

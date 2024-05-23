@@ -27,9 +27,9 @@ using DEVICE = rlt::devices::DefaultDummy;
 using NN_DEVICE = rlt::devices::DefaultDummy;
 using AC_DEVICE = rlt::devices::DefaultDummy;
 #endif
-using DTYPE = float;
+using T = float;
 using TI = typename DEVICE::index_t;
-typedef rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>> PENDULUM_SPEC;
+typedef rlt::rl::environments::pendulum::Specification<T, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
 typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT envs[1];
 ENVIRONMENT& env = envs[0];
@@ -40,14 +40,14 @@ struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, AC_
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
 
-using TD3_PARAMETERS = TD3PendulumParameters<DTYPE>;
+using TD3_PARAMETERS = TD3PendulumParameters<T>;
 
-using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
-using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
 
 using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, TI>;
+using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, TI>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_NETWORK_SPEC>;
 
@@ -58,21 +58,21 @@ using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY
 
 using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_NETWORK_SPEC>;
 
-using TD3_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
+using TD3_SPEC = rlt::rl::algorithms::td3::Specification<T, AC_DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS>;
 using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
 constexpr typename DEVICE::index_t REPLAY_BUFFER_CAP = 500000;
 constexpr typename DEVICE::index_t EPISODE_STEP_LIMIT = 200;
 using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
-        DTYPE,
+        T,
         AC_DEVICE::index_t,
         ENVIRONMENT,
-        rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, AC_DEVICE::index_t>
+        rlt::rl::components::off_policy_runner::ParametersDefault<T, AC_DEVICE::index_t>
 >;
 rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 ActorCriticType actor_critic;
-const DTYPE STATE_TOLERANCE = 0.00001;
+const T STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
@@ -131,7 +131,9 @@ int main() {
             }
         }
         if(step_i % 1000 == 0){
-            auto result = rlt::evaluate(device, env, ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, EPISODE_STEP_LIMIT>(), actor_buffers_eval, rng, true);
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(env), 10, EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+            rlt::evaluate(device, env, ui, actor_critic.actor, result, actor_buffers_eval, rng, true);
             rlt::log(device, device.logger, "Mean return: ", result.returns_mean);
             if(result.returns_mean > -200000){
                 return 0;
