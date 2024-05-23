@@ -43,14 +43,13 @@ namespace rl_tools{
         using PARAMETERS = typename CONFIG::EVALUATION_PARAMETERS;
         using STATE = rl::loop::steps::evaluation::State<CONFIG>;
         if constexpr(PARAMETERS::DETERMINISTIC_EVALUATION == true){
-
             TI evaluation_index = ts.step / PARAMETERS::EVALUATION_INTERVAL;
             if(ts.step % PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < PARAMETERS::N_EVALUATIONS){
-                auto result = evaluate(device, ts.env_eval, ts.ui, get_actor(ts), (typename TS::RESULT_SPEC){}, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
+                auto& result = ts.evaluation_results[evaluation_index];
+                evaluate(device, ts.env_eval, ts.ui, get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
                 log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean);
                 add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
-                ts.evaluation_results[evaluation_index] = result;
             }
         }
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));

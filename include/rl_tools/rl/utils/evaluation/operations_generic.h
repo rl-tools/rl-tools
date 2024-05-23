@@ -25,13 +25,12 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>
-    rl::utils::evaluation::Result<SPEC> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC eval_spec_tag, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
+    void evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM), "Action and policy output dimensions must match");
         static constexpr bool STOCHASTIC_POLICY = ENVIRONMENT::ACTION_DIM == 2*POLICY::OUTPUT_DIM;
-        rl::utils::evaluation::Result<SPEC> results;
         results.returns_mean = 0;
         results.returns_std = 0;
         results.episode_length_mean = 0;
@@ -116,7 +115,6 @@ namespace rl_tools{
         results.returns_std = math::sqrt(device.math, results.returns_std/SPEC::N_EPISODES - results.returns_mean*results.returns_mean);
         results.episode_length_mean /= SPEC::N_EPISODES;
         results.episode_length_std = math::sqrt(device.math, results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean);
-        return results;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

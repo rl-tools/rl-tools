@@ -105,7 +105,8 @@ auto run(TI seed, bool verbose){
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){
     }
-    auto result = evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), typename decltype(ts)::RESULT_SPEC{}, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+    rlt::rl::utils::evaluation::Result<typename decltype(ts)::RESULT_SPEC> result;
+    evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
     rlt::log(device, device.logger, "Final return: ", result.returns_mean);
     rlt::log(device, device.logger, "              mean: ", result.returns_mean);
     rlt::log(device, device.logger, "              std : ", result.returns_std);
