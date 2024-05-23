@@ -74,7 +74,6 @@ target_link_libraries(
         rl_tools
         GTest::gtest_main
         HighFive
-        tensorboard_logger
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_throughput)

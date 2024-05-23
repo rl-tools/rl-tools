@@ -23,9 +23,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 namespace parameters = parameters_0;
 
-using LOGGER = rlt::devices::logging::CPU_TENSORBOARD<>;
-
-using DEV_SPEC_SUPER = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
+using DEV_SPEC_SUPER = rlt::devices::DefaultCPUSpecification;
 using TI = typename rlt::devices::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
     struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};

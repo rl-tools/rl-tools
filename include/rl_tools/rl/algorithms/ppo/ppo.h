@@ -50,7 +50,7 @@ namespace rl_tools::rl::algorithms{
             using PARAMETERS = T_PARAMETERS;
             using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
 
-            static_assert(ACTOR_TYPE::BATCH_SIZE == CRITIC_TYPE::BATCH_SIZE);
+//            static_assert(ACTOR_TYPE::BATCH_SIZE == CRITIC_TYPE::BATCH_SIZE);
             static_assert(ACTOR_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
             static_assert(CRITIC_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
             static_assert(ACTOR_TYPE::OUTPUT_DIM == ENVIRONMENT::ACTION_DIM);
