@@ -13,90 +13,104 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename EVAL_STATE,typename POLICY_EVAL_BUFFERS, typename RNG>
-    bool evaluate_step(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, EVAL_STATE& eval_state, POLICY_EVAL_BUFFERS& policy_eval_buffers, RNG& rng) {
-        using T = typename POLICY::T;
-        using TI = typename DEVICE::index_t;
-        static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM));
-        constexpr bool STOCHASTIC_POLICY = ENVIRONMENT::ACTION_DIM*2 == POLICY::OUTPUT_DIM;
-        typename ENVIRONMENT::State state = eval_state.state;
-
-#ifndef RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
-        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> action_full;
-        MatrixDynamic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
-#else
-        MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> action_full;
-        MatrixStatic<matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
-#endif
-        malloc(device, observation);
-        malloc(device, action_full);
-        observe(device, env, state, observation, rng);
-
-        auto action = view(device, action_full, matrix::ViewSpec<1, ENVIRONMENT::ACTION_DIM>{});
-        evaluate(device, policy, observation, action_full, policy_eval_buffers, rng);
-
-        if constexpr(STOCHASTIC_POLICY){ // todo: This is a special case for SAC, will be uneccessary once (https://github.com/rl-tools/rl-tools/blob/72a59eabf4038502c3be86a4f772bd72526bdcc8/TODO.md?plain=1#L22) is implemented
-            for(TI action_i=0; action_i<ENVIRONMENT::ACTION_DIM; action_i++){
-                    set(action, 0, action_i, math::tanh<T>(device.math, get(action, 0, action_i)));
+    namespace rl::utils::evaluation{
+        template <typename SPEC>
+        auto& get_data(Result<SPEC> result, Data<SPEC>& alternative_data){
+            if constexpr(SPEC::INCLUDE_DATA){
+                return result.data;
+            }
+            else{
+                return alternative_data;
             }
         }
-        typename ENVIRONMENT::State next_state;
-        T dt = step(device, env, state, action, next_state, rng);
-        set_state(device, env, ui, state);
-        set_action(device, env, ui, action);
-        render(device, env, ui);
-        T r = reward(device, env, state, action, next_state, rng);
-        state = next_state;
-        eval_state.episode_return += r;
-        eval_state.episode_step += 1;
-        eval_state.state = state;
-        free(device, observation);
-        free(device, action_full);
-        return terminated(device, env, state, rng);
-    }
-    template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename SPEC, typename POLICY_EVALUATION_BUFFERS, typename RNG>
-    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const typename ENVIRONMENT::State initial_state, const SPEC& eval_spec_tag, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG& rng) {
-        using T = typename POLICY::T;
-        using TI = typename DEVICE::index_t;
-        rl::utils::evaluation::State<T, TI, typename ENVIRONMENT::State> state;
-        state.state = initial_state;
-        state.episode_return = 0;
-        state.episode_step = 0;
-        for (TI i = 0; i < SPEC::STEP_LIMIT; i++) {
-            if(evaluate_step(device, env, ui, policy, state, policy_evaluation_buffers, rng)){
-                break;
-            }
-        }
-        return state;
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>
-    auto evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC& eval_spec_tag, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
+    rl::utils::evaluation::Result<SPEC> evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, const SPEC eval_spec_tag, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
         static_assert(ENVIRONMENT::OBSERVATION_DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
         static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM), "Action and policy output dimensions must match");
-        static bool STOCHASTIC_POLICY = ENVIRONMENT::ACTION_DIM == 2*POLICY::OUTPUT_DIM;
-        rl::utils::evaluation::Result<T, TI, SPEC::N_EPISODES> results;
+        static constexpr bool STOCHASTIC_POLICY = ENVIRONMENT::ACTION_DIM == 2*POLICY::OUTPUT_DIM;
+        rl::utils::evaluation::Result<SPEC> results;
         results.returns_mean = 0;
         results.returns_std = 0;
         results.episode_length_mean = 0;
         results.episode_length_std = 0;
-        for(TI i = 0; i < SPEC::N_EPISODES; i++) {
-            typename ENVIRONMENT::State initial_state;
+        T episode_returns[SPEC::N_EPISODES];
+        TI episode_steps[SPEC::N_EPISODES];
+
+        MatrixStatic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> actions_buffer_full;
+        MatrixStatic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::OBSERVATION_DIM>> observations;
+        auto actions_buffer = view(device, actions_buffer_full, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>{});
+
+        rl::utils::evaluation::Data<SPEC> local_data;
+        auto& data = get_data(results, local_data);
+
+        for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
+            episode_returns[env_i] = 0;
+            episode_steps[env_i] = 0;
+            auto& current_state = data.states[env_i][0];
             if(deterministic) {
-                rl_tools::initial_state(device, env, initial_state);
+                rl_tools::initial_state(device, env, current_state);
             }
             else{
-                sample_initial_state(device, env, initial_state, rng);
+                sample_initial_state(device, env, current_state, rng);
             }
-            auto final_state = evaluate(device, env, ui, policy, initial_state, eval_spec_tag, policy_evaluation_buffers, rng);
-            results.returns[i] = final_state.episode_return;
-            results.returns_mean += final_state.episode_return;
-            results.returns_std += final_state.episode_return*final_state.episode_return;
-            results.episode_length[i] = final_state.episode_step;
-            results.episode_length_mean += final_state.episode_step;
-            results.episode_length_std += final_state.episode_step*final_state.episode_step;
+        }
+        for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++) {
+            for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
+                auto observation = row(device, observations, env_i);
+                auto& state = data.states[env_i][step_i];
+                observe(device, env, state, observation, rng);
+            }
+            constexpr TI BATCH_SIZE = POLICY_EVALUATION_BUFFERS::BATCH_SIZE;
+            constexpr TI NUM_FORWARD_PASSES = SPEC::N_EPISODES / BATCH_SIZE;
+            for(TI forward_pass_i = 0; forward_pass_i < NUM_FORWARD_PASSES; forward_pass_i++){
+                auto observations_chunk = view(device, observations, matrix::ViewSpec<BATCH_SIZE, ENVIRONMENT::OBSERVATION_DIM>{}, forward_pass_i*BATCH_SIZE, 0);
+                auto actions_buffer_chunk = view(device, actions_buffer, matrix::ViewSpec<BATCH_SIZE, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>{}, forward_pass_i*BATCH_SIZE, 0);
+                evaluate(device, policy, observations_chunk, actions_buffer_chunk, policy_evaluation_buffers, rng);
+            }
+
+            if constexpr(STOCHASTIC_POLICY){ // todo: This is a special case for SAC, will be uneccessary once (https://github.com/rl-tools/rl-tools/blob/72a59eabf4038502c3be86a4f772bd72526bdcc8/TODO.md?plain=1#L22) is implemented
+                for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
+                    for (TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++) {
+                        set(actions_buffer, env_i, action_i, math::tanh<T>(device.math, get(actions_buffer, env_i, action_i)));
+                    }
+                }
+            }
+            for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
+                for (TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++) {
+                    data.actions[env_i][step_i][action_i] = get(actions_buffer, env_i, action_i);
+                }
+            }
+            for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
+                typename ENVIRONMENT::State next_state;
+                auto& state = data.states[env_i][step_i];
+                auto action = row(device, actions_buffer, env_i);
+                T dt = step(device, env, state, action, next_state, rng);
+                set_state(device, env, ui, state);
+                set_action(device, env, ui, action);
+                render(device, env, ui);
+                T r = reward(device, env, state, action, next_state, rng);
+                if(step_i != SPEC::STEP_LIMIT - 1){
+                    data.states[env_i][step_i+1] = next_state;
+                }
+                episode_returns[env_i] += r;
+                episode_steps[env_i] += 1;
+                bool terminated_flag = false;
+                if(step_i > 0){
+                    terminated_flag |= data.terminated[env_i][step_i-1];
+                }
+                data.terminated[env_i][step_i] = terminated_flag | terminated(device, env, state, rng);
+            }
+        }
+        for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
+            results.returns[env_i] = episode_returns[env_i];
+            results.returns_mean += episode_returns[env_i];
+            results.returns_std += episode_returns[env_i]*episode_returns[env_i];
+            results.episode_length[env_i] = episode_steps[env_i];
+            results.episode_length_mean += episode_steps[env_i];
+            results.episode_length_std += episode_steps[env_i]*episode_steps[env_i];
         }
         results.returns_mean /= SPEC::N_EPISODES;
         results.returns_std = math::sqrt(device.math, results.returns_std/SPEC::N_EPISODES - results.returns_mean*results.returns_mean);

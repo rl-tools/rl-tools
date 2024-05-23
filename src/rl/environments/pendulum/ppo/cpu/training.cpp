@@ -80,7 +80,7 @@ template <BENCHMARK_MODE MODE>
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS<MODE>, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsMLP>;
 template <typename NEXT>
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
-    static constexpr TI EVALUATION_INTERVAL = 1;
+    static constexpr TI EVALUATION_INTERVAL = 10;
     static constexpr TI NUM_EVALUATION_EPISODES = 1000;
     static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };
@@ -105,7 +105,7 @@ auto run(TI seed, bool verbose){
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){
     }
-    auto result = evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), rlt::rl::utils::evaluation::Specification<NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>(), ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+    auto result = evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), typename decltype(ts)::RESULT_SPEC{}, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
     rlt::log(device, device.logger, "Final return: ", result.returns_mean);
     rlt::log(device, device.logger, "              mean: ", result.returns_mean);
     rlt::log(device, device.logger, "              std : ", result.returns_std);
@@ -113,7 +113,7 @@ auto run(TI seed, bool verbose){
 }
 
 static constexpr TI NUM_EPISODES_FINAL_EVAL = 1000;
-rlt::rl::utils::evaluation::Result<T, TI, NUM_EPISODES_FINAL_EVAL> run(TI seed, bool verbose, BENCHMARK_MODE mode){
+auto run(TI seed, bool verbose, BENCHMARK_MODE mode){
     if(mode == BENCHMARK_MODE::LARGE){
         return run<BENCHMARK_MODE::LARGE, NUM_EPISODES_FINAL_EVAL>(seed, verbose);
     }else if(mode == BENCHMARK_MODE::MEDIUM){
@@ -124,7 +124,7 @@ rlt::rl::utils::evaluation::Result<T, TI, NUM_EPISODES_FINAL_EVAL> run(TI seed, 
         return run<BENCHMARK_MODE::TINY, NUM_EPISODES_FINAL_EVAL>(seed, verbose);
     }else{
         std::cout << "Unknown benchmark mode: " << static_cast<TI>(mode) << std::endl;
-        return {};
+        return decltype(run<BENCHMARK_MODE::TINY, NUM_EPISODES_FINAL_EVAL>(seed, verbose)){};
     }
 }
 
