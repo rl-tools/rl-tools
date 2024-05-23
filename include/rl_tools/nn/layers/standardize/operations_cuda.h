@@ -49,7 +49,7 @@ namespace rl_tools{
         }
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG>
-    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::standardize::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng) {
+    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::standardize::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::standardize::Buffer& buffer, RNG& rng) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -68,7 +68,8 @@ namespace rl_tools{
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG>
     void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng){
         static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
-        evaluate(device, layer, input, output, rng);
+        nn::layers::standardize::Buffer buffer;
+        evaluate(device, layer, input, output, buffer, rng);
     }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG>
     void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, RNG& rng){
@@ -103,11 +104,6 @@ namespace rl_tools{
         devices::cuda::TAG<DEVICE, true> tag_device{};
         nn::layers::standardize::cuda::kernel::backward_input<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, d_output, d_input);
         check_status(device);
-    }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward_input(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input){
-        nn::layers::standardize::Buffer buffer;
-        backward_input(device, layer, d_output, d_input, buffer);
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC>

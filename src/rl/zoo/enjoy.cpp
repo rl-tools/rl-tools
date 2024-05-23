@@ -67,7 +67,9 @@ void evaluate(DEVICE& device, ACTOR& actor, ACTOR_BUFFER& actor_buffer, RNG& rng
     using ENVIRONMENT = LOOP_CONFIG::ENVIRONMENT;
     ENVIRONMENT env;
     rlt::rl::environments::DummyUI ui;
-    auto result = rlt::evaluate(device, env, ui, actor, rlt::rl::utils::evaluation::Specification<10000, ENVIRONMENT::EPISODE_STEP_LIMIT>{}, actor_buffer, rng);
+    using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10000, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+    rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+    rlt::evaluate(device, env, ui, actor, result, actor_buffer, rng);
     std::cout << "Mean return: " << result.returns_mean << " +/- " << result.returns_std << std::endl;
 
 }

@@ -105,7 +105,8 @@ auto run(TI seed, bool verbose){
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){
     }
-    rlt::rl::utils::evaluation::Result<typename decltype(ts)::RESULT_SPEC> result;
+    using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_CONFIG::ENVIRONMENT_EVALUATION, NUM_EPISODES_FINAL_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+    rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
     evaluate(device, ts.envs[0], ts.ui, rlt::get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
     rlt::log(device, device.logger, "Final return: ", result.returns_mean);
     rlt::log(device, device.logger, "              mean: ", result.returns_mean);

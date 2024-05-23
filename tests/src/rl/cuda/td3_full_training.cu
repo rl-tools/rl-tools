@@ -20,6 +20,7 @@ using DEV_SPEC_INIT = rlt::devices::cpu::Specification<rlt::devices::math::CPU, 
 using DEVICE_INIT = rlt::devices::CPU<DEV_SPEC_INIT>;
 //using DEVICE = rlt::devices::CPU_MKL<DEV_SPEC_INIT>;
 using DEVICE = rlt::devices::DefaultCUDA;
+using TI = DEVICE::index_t;
 using DEV_SPEC = DEVICE::SPEC;
 
 #include "td3_full_training_parameters_pendulum.h"
@@ -36,10 +37,10 @@ using DEV_SPEC = DEVICE::SPEC;
 #include <gtest/gtest.h>
 #include <filesystem>
 
-using DTYPE = float;
+using T = float;
 
 
-using p = parameters_pendulum_0<DEVICE, DTYPE>;
+using p = parameters_pendulum_0<DEVICE, T>;
 using rlp = p::rl<p::env::ENVIRONMENT>;
 
 static_assert(rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == rlp::ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
@@ -183,7 +184,9 @@ TEST(RL_TOOLS_RL_CUDA_TD3, TEST_FULL_TRAINING) {
         }
         if(step_i % 1000 == 0){
             rlt::copy(device, device_init, actor_critic, actor_critic_init);
-            auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<1, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), actor_buffers_eval_init, rng_init, false);
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, p::env::ENVIRONMENT, 1, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> results;
+            rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, results, actor_buffers_eval_init, rng_init, false);
             std::cout << "Mean return: " << results.returns_mean << std::endl;
         }
     }

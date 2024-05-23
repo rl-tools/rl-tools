@@ -131,7 +131,7 @@ int main() {
             }
         }
         if(step_i % 1000 == 0){
-            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, decltype(env), 10, EPISODE_STEP_LIMIT>;
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
             rlt::evaluate(device, env, ui, actor_critic.actor, result, actor_buffers_eval, rng, true);
             rlt::log(device, device.logger, "Mean return: ", result.returns_mean);

@@ -47,7 +47,10 @@ int main(int argc, char** argv){
     rlt::malloc(device, ts);
     rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){}
-    auto result = evaluate(device, ts.env_eval, ts.ui, ts.actor_critic.actor, rl_tools::rl::utils::evaluation::Specification<LOOP_EVAL_CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, LOOP_EVAL_CONFIG::CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts.actor_deterministic_evaluation_buffers, ts.rng, false);
+
+    using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, LOOP_EVAL_CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, LOOP_EVAL_CONFIG::CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+    rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+    evaluate(device, ts.env_eval, ts.ui, ts.actor_critic.actor, result, ts.actor_deterministic_evaluation_buffers, ts.rng, false);
     TI return_code = (TI)(-result.returns_mean / 100);
     rlt::free(device, ts);
     return return_code < 4 ? 0 : return_code;

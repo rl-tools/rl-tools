@@ -9,6 +9,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 //#include <rl_tools/nn/layers/dense/operations_arm/dsp.h>
 #include <rl_tools/nn/operations_generic.h>
 using DEVICE = rlt::devices::arm::Generic<rlt::devices::DefaultARMSpecification>;
+using TI = typename DEVICE::index_t;
 
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
@@ -22,27 +23,27 @@ using DEVICE = rlt::devices::arm::Generic<rlt::devices::DefaultARMSpecification>
 #include <iostream>
 #endif
 
-using DTYPE = float;
+using T = float;
 using CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
 using CONTAINER_TYPE_TAG_CRITIC = rlt::MatrixStaticTag;
 using CONTAINER_TYPE_TAG_OFF_POLICY_RUNNER = rlt::MatrixStaticTag;
 using CONTAINER_TYPE_TAG_TRAINING_BUFFERS = rlt::MatrixDynamicTag;
 
-using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<DTYPE, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<DTYPE>>;
+using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<T>>;
 typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 
-struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<DTYPE, DEVICE::index_t>{
+struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, DEVICE::index_t>{
     constexpr static typename DEVICE::index_t CRITIC_BATCH_SIZE = 100;
     constexpr static typename DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-using ACTOR_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, CONTAINER_TYPE_TAG>;
-using CRITIC_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, CONTAINER_TYPE_TAG_CRITIC>;
+using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, CONTAINER_TYPE_TAG>;
+using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, CONTAINER_TYPE_TAG_CRITIC>;
 
 
-using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>;
+using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
 using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY , ACTOR_SPEC>;
@@ -52,7 +53,7 @@ using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameter
 using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
 using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_SPEC>;
 
-using TD3_SPEC = rlt::rl::algorithms::td3::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS, CONTAINER_TYPE_TAG>;
+using TD3_SPEC = rlt::rl::algorithms::td3::Specification<T, DEVICE::index_t, ENVIRONMENT, ACTOR_NETWORK_TYPE, ACTOR_TARGET_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, OPTIMIZER, TD3_PARAMETERS, CONTAINER_TYPE_TAG>;
 using ActorCriticType = rlt::rl::algorithms::td3::ActorCritic<TD3_SPEC>;
 
 
@@ -61,19 +62,19 @@ constexpr DEVICE::index_t N_STEPS = 10000;
 constexpr DEVICE::index_t EVALUATION_INTERVAL = 1000;
 constexpr DEVICE::index_t N_EVALUATIONS = N_STEPS / EVALUATION_INTERVAL;
 #ifndef RL_TOOLS_DISABLE_EVALUATION
-DTYPE evaluation_returns[N_EVALUATIONS];
+T evaluation_returns[N_EVALUATIONS];
 #endif
 
-struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<DTYPE, DEVICE::index_t>{
+struct OFF_POLICY_RUNNER_PARAMETERS: rlt::rl::components::off_policy_runner::ParametersDefault<T, DEVICE::index_t>{
     static constexpr TI REPLAY_BUFFER_CAPACITY = 10000;
     static constexpr TI EPISODE_STEP_LIMIT = 200;
     static constexpr bool STOCHASTIC_POLICY = false;
     static constexpr bool COLLECT_EPISODE_STATS = false;
     static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
-    static constexpr DTYPE EXPLORATION_NOISE = 0.1;
+    static constexpr T EXPLORATION_NOISE = 0.1;
 };
 using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specification<
-        DTYPE,
+        T,
         DEVICE::index_t,
         ENVIRONMENT,
         OFF_POLICY_RUNNER_PARAMETERS,
@@ -86,7 +87,7 @@ rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC> off_policy_runner;
 #endif
 ActorCriticType actor_critic;
 
-const DTYPE STATE_TOLERANCE = 0.00001;
+const T STATE_TOLERANCE = 0.00001;
 constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE;
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
@@ -101,8 +102,8 @@ rlt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_trai
 ACTOR_NETWORK_TYPE::Buffer<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers;
 ACTOR_NETWORK_TYPE::Buffer<OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers_eval;
 
-typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
-typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
+typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
+typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
 
 
 void train(){
@@ -193,7 +194,9 @@ void train(){
         }
 #ifndef RL_TOOLS_DISABLE_EVALUATION
         if(step_i % EVALUATION_INTERVAL == 0){
-            auto result = rlt::evaluate(device, envs[0], ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), actor_buffers, rng);
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+            rlt::evaluate(device, envs[0], ui, actor_critic.actor, result, actor_buffers, rng);
             if(N_EVALUATIONS > 0){
                 evaluation_returns[(step_i / EVALUATION_INTERVAL) % N_EVALUATIONS] = result.returns_mean;
             }

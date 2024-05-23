@@ -25,8 +25,8 @@ struct TrainingConfig{
     using TI = typename DEVICE::index_t;
     using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 
-    typedef rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
-    typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
+    using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+    using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC> ;
 
     struct DEVICE_SPEC: rlt::devices::DefaultCPUSpecification {
         using LOGGING = rlt::devices::logging::CPU;
@@ -209,7 +209,11 @@ bool training_step(DEVICE& device, TRAINING_STATE& ts){
     }
 #ifndef RL_TOOLS_BENCHMARK
     if(ts.step % TRAINING_CONFIG::EVALUATION_INTERVAL == 0){
-        auto result = rlt::evaluate(device, ts.envs[0], ts.ui, ts.actor_critic.actor, rlt::rl::utils::evaluation::Specification<1, TRAINING_CONFIG::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), ts.actor_deterministic_evaluation_buffers, ts.rng);
+        using T = typename TRAINING_CONFIG::T;
+        using TI = typename TRAINING_CONFIG::TI;
+        using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename TRAINING_CONFIG::ENVIRONMENT, 1, TRAINING_CONFIG::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
+        rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+        rlt::evaluate(device, ts.envs[0], ts.ui, ts.actor_critic.actor, result, ts.actor_deterministic_evaluation_buffers, ts.rng);
         std::cout << "Mean return: " << result.returns_mean << std::endl;
         ts.evaluation_returns[ts.step / TRAINING_CONFIG::EVALUATION_INTERVAL] = result.returns_mean;
     }

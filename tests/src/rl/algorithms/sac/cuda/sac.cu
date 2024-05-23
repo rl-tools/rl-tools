@@ -162,7 +162,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
             {
                 auto rng_init_copy = rng_init;
                 rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init2.actor, rlt::rl::utils::evaluation::Specification<100, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
+                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, p::env::ENVIRONMENT, 100, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
+                rlt::rl::utils::evaluation::Result<RESULT_SPEC> results;
+                rlt::evaluate(device_init, envs[0], ui, actor_critic_init2.actor, results, actor_buffers_eval_init, rng_init_copy);
                 std::cout << "Mean return (GPU): " << results.returns_mean << std::endl;
                 if(step_i > 10000){
                     ASSERT_GT(results.returns_mean, -400);
@@ -172,7 +174,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
             }
             {
                 auto rng_init_copy = rng_init;
-                auto results = rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, rlt::rl::utils::evaluation::Specification<100, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>(), actor_buffers_eval_init, rng_init_copy);
+                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, p::env::ENVIRONMENT, 100, rlp::OFF_POLICY_RUNNER_PARAMETERS::EPISODE_STEP_LIMIT>;
+                rlt::rl::utils::evaluation::Result<RESULT_SPEC> results;
+                rlt::evaluate(device_init, envs[0], ui, actor_critic_init.actor, results, actor_buffers_eval_init, rng_init_copy);
                 std::cout << "Mean return (CPU): " << results.returns_mean << std::endl;
                 if(step_i > 10000){
                     ASSERT_GT(results.returns_mean, -400);

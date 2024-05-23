@@ -55,14 +55,14 @@ using TI = typename DEVICE::index_t;
 #include <string>
 #include <sstream>
 
-using DTYPE = float;
+using T = float;
 
 namespace parameter_set = parameters_0;
 
 using parameters_environment = parameter_set::environment<double, typename DEVICE::index_t>;
 using ENVIRONMENT = typename parameters_environment::ENVIRONMENT;
 
-using parameters_rl = parameter_set::rl<DTYPE, typename DEVICE::index_t, ENVIRONMENT>;
+using parameters_rl = parameter_set::rl<T, typename DEVICE::index_t, ENVIRONMENT>;
 static_assert(parameters_rl::ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 #if !defined(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_DISABLE_EVALUATION)
@@ -110,12 +110,12 @@ void run(){
     }
 #endif
     std::string DATA_FILE_PATH = "learning_curves.h5";
-    std::vector<std::vector<DTYPE>> episode_step;
-    std::vector<std::vector<DTYPE>> episode_returns;
-    std::vector<std::vector<DTYPE>> episode_steps;
+    std::vector<std::vector<T>> episode_step;
+    std::vector<std::vector<T>> episode_returns;
+    std::vector<std::vector<T>> episode_steps;
 
-    std::vector<std::vector<DTYPE>> eval_step;
-    std::vector<std::vector<DTYPE>> eval_return;
+    std::vector<std::vector<T>> eval_step;
+    std::vector<std::vector<T>> eval_return;
 
     for(typename DEVICE::index_t run_i = 0; run_i < NUM_RUNS; run_i++){
         std::string run_name;
@@ -160,7 +160,7 @@ void run(){
         critic_optimizers[1].parameters.alpha = alpha;
 
         // environment
-        DTYPE ui_speed_factor = 1;
+        T ui_speed_factor = 1;
 //        auto parameters = parameters_environment::parameters;
         rlt::rl::environments::DummyUI ui;
 
@@ -262,17 +262,17 @@ void run(){
                 }
                 if(step_i % ACTOR_CRITIC_EVALUATION_SYNC_INTERVAL == 0){
                     rlt::gather_batch(device, off_policy_runner, critic_batches[0], rng);
-                    DTYPE critic_1_loss = rlt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng);
+                    T critic_1_loss = rlt::critic_loss(device, actor_critic, actor_critic.critic_1, critic_batches[0], actor_buffers[0], critic_buffers[0], critic_training_buffers[0], rng);
                     rlt::add_scalar(device, device.logger, "critic_1_loss", critic_1_loss, 100);
 
                     rlt::gather_batch(device, off_policy_runner, actor_batch, rng);
-                    DTYPE actor_value = rlt::mean(device, actor_training_buffers.state_action_value);
+                    T actor_value = rlt::mean(device, actor_training_buffers.state_action_value);
                     rlt::add_scalar(device, device.logger, "actor_value", actor_value, 100);
 
                     {
                         typename DEVICE::index_t num_episodes = 0;
-                        DTYPE mean_return = 0;
-                        DTYPE mean_steps = 0;
+                        T mean_return = 0;
+                        T mean_steps = 0;
 
                         for(typename DEVICE::index_t env_i = 0; env_i < parameters_rl::OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
                             auto& episode_stats = off_policy_runner.episode_stats[env_i];
@@ -301,7 +301,9 @@ void run(){
             auto step_end = std::chrono::high_resolution_clock::now();
             rlt::add_scalar(device, device.logger, "performance/step_duration", std::chrono::duration_cast<std::chrono::microseconds>(step_end - step_start).count(), performance_logging_interval);
             if(step_i % DETERMINISTIC_EVALUATION_INTERVAL == 0){
-                auto result = rlt::evaluate(device, evaluation_env, ui, actor_critic.actor, rlt::rl::utils::evaluation::Specification<10, parameters_rl::EPISODE_STEP_LIMIT>(), actor_buffers_deterministic_eval, evaluation_rng);
+                using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, 10, parameters_rl::EPISODE_STEP_LIMIT>;
+                rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+                rlt::evaluate(device, evaluation_env, ui, actor_critic.actor, result, actor_buffers_deterministic_eval, evaluation_rng);
                 rlt::add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 rlt::add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
