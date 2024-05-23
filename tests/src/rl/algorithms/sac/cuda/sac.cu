@@ -16,6 +16,7 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER::rl_tools;
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
+#include <rl_tools/nn/layers/dense/operations_cuda.h>
 #include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn/operations_cpu_mkl.h>
 using DEV_SPEC_INIT = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, rlt::devices::logging::CPU_TENSORBOARD<>>;
