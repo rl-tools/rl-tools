@@ -1,4 +1,4 @@
-
+if(RL_TOOLS_ENABLE_HDF5)
 add_executable(
     test_rl_environments_mujoco_ant
     ant.cpp
@@ -10,6 +10,7 @@ target_link_libraries(
         rl_tools_test
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant)
+endif()
 
 add_executable(
         test_rl_environments_mujoco_ant_td3_test
@@ -44,6 +45,7 @@ gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
 endif()
 
 
+if(RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_ENABLE_TENSORBOARD)
 add_executable(
         test_rl_environments_mujoco_ant_ppo_test
         training_ppo_test.cpp
@@ -58,8 +60,10 @@ target_link_libraries(
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_ppo_test)
+endif()
 
 
+if(RL_TOOLS_ENABLE_HDF5)
 add_executable(
         test_rl_environments_mujoco_ant_throughput
         throughput.cpp
@@ -74,4 +78,5 @@ target_link_libraries(
         mujoco
 )
 gtest_discover_tests(test_rl_environments_mujoco_ant_throughput)
+endif()
 

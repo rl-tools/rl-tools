@@ -1,4 +1,4 @@
-#include <rl_tools/operations/cpu_tensorboard.h>
+#include <rl_tools/operations/cpu.h>
 
 #include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
 
@@ -13,7 +13,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <highfive/H5File.hpp>
 
 namespace TEST_DEFINITIONS{
-    using DEVICE = rlt::devices::DefaultCPU_TENSORBOARD;
+    using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TI = typename DEVICE::index_t;
     using ENVIRONMENT_SPEC = rlt::rl::environments::mujoco::ant::Specification<T, TI, rlt::rl::environments::mujoco::ant::DefaultParameters<T, TI>>;
