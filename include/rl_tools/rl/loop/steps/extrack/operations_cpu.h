@@ -27,7 +27,7 @@ namespace rl_tools{
         std::tm now_local;
 
 #if defined(_WIN32) || defined(_WIN64)
-        localtime_s(&now_c, &now_local);
+        localtime_s(&now_local, &now_c);
 #else
         localtime_r(&now_c, &now_local);
 #endif
