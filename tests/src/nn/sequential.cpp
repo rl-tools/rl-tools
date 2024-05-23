@@ -329,6 +329,8 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     LAYER_2::Layer<CAPABILITY_ADAM> layer_2;
     LAYER_3::Layer<CAPABILITY_ADAM> layer_3;
 
+    decltype(layer_3)::Buffer<1> layer_buffer;
+
     SEQUENTIAL sequential;
     SEQUENTIAL::Buffer<1> buffer_sequential;
 
@@ -389,9 +391,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     rlt::forward(device, layer_1, input, hidden_tick, rng);
     rlt::forward(device, layer_2, hidden_tick, hidden_tock, rng);
     rlt::forward(device, layer_3, hidden_tock, output_chain, rng);
-    rlt::backward_full(device, layer_3, hidden_tock, d_output, d_hidden_tick);
-    rlt::backward_full(device, layer_2, hidden_tick, d_hidden_tick, d_hidden_tock);
-    rlt::backward_full(device, layer_1, input, d_hidden_tock, d_input_chain);
+    rlt::backward_full(device, layer_3, hidden_tock, d_output, d_hidden_tick, layer_buffer);
+    rlt::backward_full(device, layer_2, hidden_tick, d_hidden_tick, d_hidden_tock, layer_buffer);
+    rlt::backward_full(device, layer_1, input, d_hidden_tock, d_input_chain, layer_buffer);
 
     rlt::print(device, d_input_chain);
 

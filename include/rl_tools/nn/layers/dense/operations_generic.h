@@ -142,11 +142,6 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward_input(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input){
-        nn::layers::dense::Buffer buffer;
-        backward_input(device, layer, d_output, d_input, buffer);
-    }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC>
     void backward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn::layers::dense::Buffer&) {
@@ -168,11 +163,6 @@ namespace rl_tools{
                 }
             }
         }
-    }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC>
-    void backward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output) {
-        nn::layers::dense::Buffer buffer;
-        backward(device, layer, input, d_output, buffer);
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
@@ -200,11 +190,6 @@ namespace rl_tools{
                 }
             }
         }
-    }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward_full(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
-        nn::layers::dense::Buffer buffer;
-        backward_full(device, layer, input, d_output, d_input, buffer);
     }
 
 #endif
