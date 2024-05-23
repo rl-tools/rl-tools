@@ -40,7 +40,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     rlt::evaluate(device, layer, input, output, buffer, rng);
     using PARAMETER_TYPE_2 = rlt::nn::parameters::Gradient;
     using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, ACTIVATION_FUNCTION>;
-    rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Gradient>, LAYER_2_SPEC> layer_2;
+    rlt::nn::layers::dense::Layer<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Gradient, BATCH_SIZE>, LAYER_2_SPEC> layer_2;
     rlt::malloc(device, layer_2);
     rlt::copy(device, device, layer, layer_2);
     rlt::zero_gradient(device, layer_2);

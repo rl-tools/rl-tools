@@ -50,18 +50,19 @@ struct TD3ParametersCopyTraining: public rlt::rl::algorithms::td3::DefaultParame
     constexpr static typename AC_DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
 
-using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, TD3ParametersCopyTraining::ACTOR_BATCH_SIZE>;
-using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3ParametersCopyTraining::CRITIC_BATCH_SIZE>;
+using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
 using NN_DEVICE = rlt::devices::DefaultCPU;
 using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<DTYPE>>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
-using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, ACTOR_NETWORK_SPEC>;
+using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3ParametersCopyTraining::ACTOR_BATCH_SIZE>;
+using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_NETWORK_SPEC>;
 
 using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, ACTOR_NETWORK_SPEC>;
 
-using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_NETWORK_SPEC>;
+using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3ParametersCopyTraining::CRITIC_BATCH_SIZE>;
+using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_NETWORK_SPEC>;
 
 using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_NETWORK_SPEC>;
 
@@ -219,7 +220,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
     rlt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batch;
     rlt::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
-    CRITIC_TYPE::Buffer<> critic_buffers[2];
+    CRITIC_TYPE::Buffer<TD3ParametersCopyTraining::CRITIC_BATCH_SIZE> critic_buffers[2];
     rlt::malloc(device, critic_batch);
     rlt::malloc(device, critic_training_buffers);
     rlt::malloc(device, critic_buffers[0]);
@@ -228,7 +229,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
     using ACTOR_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE>;
     rlt::rl::components::off_policy_runner::Batch<ACTOR_BATCH_SPEC> actor_batch;
     rlt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_training_buffers;
-    ACTOR_TYPE::Buffer<> actor_buffers[2];
+    ACTOR_TYPE::Buffer<TD3ParametersCopyTraining::ACTOR_BATCH_SIZE> actor_buffers[2];
     rlt::malloc(device, actor_batch);
     rlt::malloc(device, actor_training_buffers);
     rlt::malloc(device, actor_buffers[0]);

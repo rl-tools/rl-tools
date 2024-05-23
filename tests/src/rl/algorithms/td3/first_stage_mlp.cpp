@@ -109,18 +109,21 @@ struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, AC_
 namespace first_stage_first_stage{
     using TD3_PARAMETERS = TD3PendulumParameters<DTYPE>;
 
-    using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, 1>;
-    using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, 1>;
+    using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+    using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
     using NN_DEVICE = rlt::devices::DefaultCPU;
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    constexpr TI ACTOR_BATCH_SIZE = 1;
+    constexpr TI CRITIC_BATCH_SIZE = 1;
+    using ACTOR_CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, ACTOR_BATCH_SIZE>;
+    using CRITIC_CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, CRITIC_BATCH_SIZE>;
     using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<DTYPE>>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-    using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, ACTOR_NETWORK_SPEC>;
+    using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPA, ACTOR_NETWORK_SPEC>;
 
     using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, ACTOR_NETWORK_SPEC>;
 
-    using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_NETWORK_SPEC>;
+    using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPA, CRITIC_NETWORK_SPEC>;
 
     using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_NETWORK_SPEC>;
 
@@ -138,6 +141,7 @@ T abs_diff_network(const NT network, const HighFive::Group g){
     return acc;
 }
 TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
+    constexpr TI BATCH_SIZE = 1;
     AC_DEVICE device;
     first_stage_first_stage::NN_DEVICE nn_device;
     first_stage_first_stage::ActorCriticType actor_critic;
@@ -170,13 +174,13 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
             rlt::set(input, 0, batch.states[batch_sample_i].size() + i, batch.actions[batch_sample_i][i]);
         }
 
-        typename decltype(actor_critic.critic_1)::template Buffer<> critic_buffer;
+        typename decltype(actor_critic.critic_1)::template Buffer<BATCH_SIZE> critic_buffer;
         rlt::malloc(device, critic_buffer);
         rlt::evaluate(device, actor_critic.critic_1, input, output, critic_buffer, rng);
         std::cout << "output: " << rlt::get(output, 0, 0) << std::endl;
         ASSERT_LT(abs(rlt::get(output, 0, 0) - outputs[batch_sample_i][0]), 1e-15);
 
-        typename decltype(actor_critic.critic_1)::template Buffer<> critic_target_buffer;
+        typename decltype(actor_critic.critic_1)::template Buffer<BATCH_SIZE> critic_target_buffer;
         rlt::malloc(device, critic_target_buffer);
         rlt::evaluate(device, actor_critic.critic_target_1, input, output, critic_target_buffer, rng);
         std::cout << "output: " << rlt::get(output, 0, 0) << std::endl;
@@ -189,6 +193,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_FORWARD) {
 
 }
 TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
+    constexpr TI BATCH_SIZE = 1;
 //    using ActorCriticSpec = rlt::rl::algorithms::td3::ActorCriticSpecification<rlt::devices::Generic, DTYPE, ENVIRONMENT, TestActorNetworkDefinition<DTYPE>, TestCriticNetworkDefinition<DTYPE>, TD3_PARAMETERS>;
 //    typedef rlt::rl::algorithms::td3::ActorCritic<rlt::devices::Generic, ActorCriticSpec> ActorCriticType;
     AC_DEVICE device;
@@ -197,8 +202,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 //    actor_critic.actor_optimizer.parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
 //    actor_critic.critic_optimizers[0].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
 //    actor_critic.critic_optimizers[1].parameters = rlt::nn::optimizers::adam::default_parameters_torch<DTYPE>;
-    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::Buffer<> critic_buffers;
-    typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_TYPE::Buffer<> actor_buffers;
+    typename first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::Buffer<BATCH_SIZE> critic_buffers;
+    typename first_stage_first_stage::ActorCriticType::SPEC::ACTOR_TYPE::Buffer<BATCH_SIZE> actor_buffers;
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, 1>> d_output_critic;
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, 1, first_stage_first_stage::ActorCriticType::SPEC::CRITIC_TYPE::INPUT_DIM>> d_input_critic;
     using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t>;
@@ -241,7 +246,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
             rlt::set(input, 0, batch.states[batch_sample_i].size() + i, batch.actions[batch_sample_i][i]);
         }
         rlt::set(target, 0, 0, 1);
-        typename decltype(actor_critic.critic_1)::template Buffer<> critic_buffer;
+        typename decltype(actor_critic.critic_1)::template Buffer<BATCH_SIZE> critic_buffer;
         rlt::malloc(device, critic_buffer);
         rlt::evaluate(device, actor_critic.critic_1, input, output, critic_buffer, rng);
         loss += rlt::nn::loss_functions::mse::evaluate(device, output, target);
@@ -272,18 +277,19 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 namespace first_stage_second_stage{
     using TD3_PARAMETERS = TD3PendulumParameters<DTYPE>;
 
-    using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
-    using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
+    using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+    using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
     using NN_DEVICE = rlt::devices::DefaultCPU;
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using ACTOR_CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;
+    using CRITIC_CAPA = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::CRITIC_BATCH_SIZE>;
     using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<DTYPE>>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-    using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, ACTOR_NETWORK_SPEC>;
+    using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPA, ACTOR_NETWORK_SPEC>;
 
     using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, ACTOR_NETWORK_SPEC>;
 
-    using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_NETWORK_SPEC>;
+    using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPA, CRITIC_NETWORK_SPEC>;
 
     using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_NETWORK_SPEC>;
 
@@ -369,11 +375,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
     rlt::malloc(device, critic_training_buffers);
     rlt::malloc(device, critic_training_buffers_target);
 
-    first_stage_second_stage::CRITIC_TYPE::Buffer<> critic_buffers[2];
+    first_stage_second_stage::CRITIC_TYPE::Buffer<decltype(actor_critic)::SPEC::PARAMETERS::CRITIC_BATCH_SIZE> critic_buffers[2];
     rlt::malloc(device, critic_buffers[0]);
     rlt::malloc(device, critic_buffers[1]);
 
-    first_stage_second_stage::ACTOR_TYPE::Buffer<> actor_buffers[2];
+    first_stage_second_stage::ACTOR_TYPE::Buffer<decltype(actor_critic)::SPEC::PARAMETERS::ACTOR_BATCH_SIZE> actor_buffers[2];
     rlt::malloc(device, actor_buffers[0]);
     rlt::malloc(device, actor_buffers[1]);
 
@@ -394,7 +400,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_TRAINING) {
         rlt::load(device, critic_training_buffers_target.next_state_action_value_critic_2, step_group.getGroup("train_critics"), "next_state_action_values_critic_2");
         rlt::load(device, critic_training_buffers_target.target_action_value, step_group.getGroup("train_critics"), "target_action_values");
 
-        first_stage_second_stage::ActorCriticType::SPEC::CRITIC_TYPE post_critic_1;
+        decltype(actor_critic.critic_1) post_critic_1;
         rlt::malloc(device, post_critic_1);
         rlt::load(device, post_critic_1, step_group.getGroup("critic"));
 
@@ -526,11 +532,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_ACTOR_TRAINING) {
     rlt::malloc(device, actor_batch);
     rlt::malloc(device, actor_training_buffers);
 
-    first_stage_second_stage::CRITIC_TYPE::Buffer<> critic_buffers[2];
+    first_stage_second_stage::CRITIC_TYPE::Buffer<first_stage_second_stage::TD3_PARAMETERS::ACTOR_BATCH_SIZE> critic_buffers[2];
     rlt::malloc(device, critic_buffers[0]);
     rlt::malloc(device, critic_buffers[1]);
 
-    first_stage_second_stage::ACTOR_TYPE::Buffer<> actor_buffers[2];
+    first_stage_second_stage::ACTOR_TYPE::Buffer<first_stage_second_stage::TD3_PARAMETERS::CRITIC_BATCH_SIZE> actor_buffers[2];
     rlt::malloc(device, actor_buffers[0]);
     rlt::malloc(device, actor_buffers[1]);
 

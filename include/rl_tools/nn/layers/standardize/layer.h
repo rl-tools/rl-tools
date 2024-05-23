@@ -34,13 +34,12 @@ namespace rl_tools::nn::layers::standardize {
 
     template <typename LAYER_SPEC_1, typename LAYER_SPEC_2>
     constexpr bool check_compatibility = check_compatibility_f<LAYER_SPEC_1, LAYER_SPEC_2>();
-    template<typename T_T, typename T_TI, T_TI T_DIM, T_TI T_BATCH_SIZE=1, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    template<typename T_T, typename T_TI, T_TI T_DIM, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
         static constexpr auto INPUT_DIM = T_DIM;
         static constexpr auto OUTPUT_DIM = T_DIM;
-        static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
@@ -66,17 +65,16 @@ namespace rl_tools::nn::layers::standardize {
         using STATISTICS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<STATISTICS_CONTAINER_SPEC>;
         using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::spec<STATISTICS_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant>; // Constant from the view of a forward or backward pass
         typename SPEC::PARAMETER_TYPE::template instance<STATISTICS_PARAMETER_SPEC> mean, precision;
-        template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
+        template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Buffer = standardize::Buffer;
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC> {
-        static constexpr typename SPEC::TI BATCH_SIZE = SPEC::BATCH_SIZE;
     };
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC> {
         // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
-        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
+        using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::CAPABILITY::BATCH_SIZE, SPEC::OUTPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
         using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
     };

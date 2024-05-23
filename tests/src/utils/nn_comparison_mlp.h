@@ -19,7 +19,8 @@ template <typename DEVICE, typename SPEC>
 typename SPEC::T abs_diff_grad(DEVICE& device, const rlt::nn_models::mlp::NeuralNetworkGradient<SPEC>& n1, const rlt::nn_models::mlp::NeuralNetworkGradient<SPEC>& n2) {
     using NetworkType = typename std::remove_reference<decltype(n1)>::type;
     typedef typename SPEC::T T;
-    using GradNetworkType = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Gradient>, SPEC>;
+//    constexpr typename DEVICE::index_t BATCH_SIZE = 1;
+    using GradNetworkType = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Gradient, SPEC::CAPABILITY::BATCH_SIZE>, SPEC>;
     GradNetworkType n1g;
     rlt::malloc(device, n1g);
     rlt::copy(device, device, n1, n1g);

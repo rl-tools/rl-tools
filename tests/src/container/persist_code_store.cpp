@@ -52,7 +52,8 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     using LAYER_SPEC = rlt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, rlt::nn::activation_functions::ActivationFunction::RELU>;
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    constexpr TI BATCH_SIZE = 1;
+    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     rlt::nn::layers::dense::Layer<CAPABILITY_ADAM, LAYER_SPEC> layer;
     rlt::malloc(device, layer);
     rlt::init_kaiming(device, layer, rng);
@@ -78,11 +79,13 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
 
 TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     using DEVICE = rlt::devices::DefaultCPU;
+    using TI = typename DEVICE::index_t;
     using DTYPE = float;
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    constexpr TI BATCH_SIZE = 1;
+    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, SPEC> mlp;
     rlt::malloc(device, mlp);
     rlt::init_weights(device, mlp, rng);

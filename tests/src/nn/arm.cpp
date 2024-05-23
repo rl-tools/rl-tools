@@ -29,7 +29,7 @@ void test_mlp_evaluate() {
     DEVICE device;
     DEVICE_ARM device_arm;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
     using MLP = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, SPEC>;
     MLP mlp;
     typename MLP::template Buffer<BATCH_SIZE> buffers;
@@ -72,9 +72,10 @@ void test_mlp_forward() {
     using DEVICE_ARM = rlt::devices::DefaultARM;
     DEVICE device;
     DEVICE_ARM device_arm;
+    using TI = typename DEVICE::index_t;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, 1,  rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
-    using TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, SPEC>;
+    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, INPUT_DIM, OUTPUT_DIM, N_LAYERS, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, ACTIVATION_FUNCTION, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>, SPEC>;
     using FORWARD_BACKWARD_BUFFERS = typename TYPE::template Buffer<BATCH_SIZE>;
     TYPE mlp_cpu, mlp_arm;
     FORWARD_BACKWARD_BUFFERS buffers;

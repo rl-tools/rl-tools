@@ -31,7 +31,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     using SPEC = PendulumStructureSpecification;
     DEVICE device;
     OPTIMIZER optimizer;
-    rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>, SPEC> policy;
+    constexpr TI BATCH_SIZE = 1;
+    rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>, SPEC> policy;
     rlt::malloc(device, policy);
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
     rlt::init_weights(device, policy, rng);

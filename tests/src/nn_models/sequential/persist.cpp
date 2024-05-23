@@ -12,6 +12,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using T = float;
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
+constexpr TI BATCH_SIZE = 1;
 
 namespace MODEL_FORWARD{
     using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 15, rlt::nn::activation_functions::ActivationFunction::RELU>;
@@ -25,10 +26,10 @@ namespace MODEL_FORWARD{
     using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 }
 namespace MODEL_BACKWARD{
-    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Backward>;
+    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Backward<BATCH_SIZE>>;
 }
 namespace MODEL_GRADIENT_ADAM{
-    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+    using MODEL = MODEL_FORWARD::MODEL::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
 }
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST, save_and_load_forward_forward) {

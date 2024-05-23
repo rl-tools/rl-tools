@@ -11,12 +11,13 @@ namespace rl_tools{
     std::string to_string(nn::layer_capability::Forward){
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Forward";
     }
-    std::string to_string(nn::layer_capability::Backward){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Backward";
+    template <auto BATCH_SIZE>
+    std::string to_string(nn::layer_capability::Backward<BATCH_SIZE>){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Backward<" + std::to_string(BATCH_SIZE) + ">";
     }
-    template <typename T_PARAMETER_TYPE>
-    std::string to_string(nn::layer_capability::Gradient<T_PARAMETER_TYPE>){
-        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Gradient<"+ get_type_string(T_PARAMETER_TYPE{}) + ">";
+    template <typename T_PARAMETER_TYPE, auto BATCH_SIZE>
+    std::string to_string(nn::layer_capability::Gradient<T_PARAMETER_TYPE, BATCH_SIZE>){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layer_capability::Gradient<"+ get_type_string(T_PARAMETER_TYPE{}) + std::string(", ") + std::to_string(BATCH_SIZE) + ">";
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -16,14 +16,13 @@ namespace rl_tools::nn::layers::sample_and_squash {
         static constexpr T LOG_STD_UPPER_BOUND = 2;
     };
     struct Buffer{};
-    template<typename T_T, typename T_TI, T_TI T_DIM, typename T_PARAMETERS, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION=nn::activation_functions::ActivationFunction::TANH, T_TI T_BATCH_SIZE=1, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template<typename T_T, typename T_TI, T_TI T_DIM, typename T_PARAMETERS, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION=nn::activation_functions::ActivationFunction::TANH, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
         static constexpr auto DIM = T_DIM;
         using PARAMETERS = T_PARAMETERS;
         static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
-        static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
     template <typename SPEC>

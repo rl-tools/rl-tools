@@ -8,6 +8,10 @@
 
 #include "../parameters/parameters.h"
 
+
+// The Capability Configuraiton carries properties that apply to multiple parts of a model (e.g. the high-level mode, the layers, etc.)
+// This allows e.g. to simply change the capabilities of a model without adapting all the involved specifications individually
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn{
     enum class LayerCapability{
@@ -26,11 +30,13 @@ namespace rl_tools::nn{
             static constexpr LayerCapability TAG = LayerCapability::Forward;
             using PARAMETER_TYPE = nn::parameters::Plain;
         };
+        template <auto T_BATCH_SIZE>
         struct Backward{
             static constexpr LayerCapability TAG = LayerCapability::Backward;
             using PARAMETER_TYPE = nn::parameters::Plain;
+            static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
         };
-        template <typename T_PARAMETER_TYPE, auto T_BATCH_SIZE=1>
+        template <typename T_PARAMETER_TYPE, auto T_BATCH_SIZE>
         struct Gradient{
             static constexpr LayerCapability TAG = LayerCapability::Gradient;
             using PARAMETER_TYPE = T_PARAMETER_TYPE;

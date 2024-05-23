@@ -7,12 +7,15 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using DTYPE = double;
 
 
+
 using NN_DEVICE = rlt::devices::DefaultCPU;
+using TI = typename NN_DEVICE::index_t;
+constexpr TI BATCH_SIZE = 1;
 using NETWORK_SPEC = rlt::nn_models::mlp::Specification<DTYPE, NN_DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
 using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<DTYPE, typename NN_DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
 using NetworkType = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, NETWORK_SPEC>;
 
 using NetworkTypeBackwardOnly = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::parameters::Plain, NETWORK_SPEC>;

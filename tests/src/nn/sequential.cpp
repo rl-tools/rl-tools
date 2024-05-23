@@ -37,12 +37,14 @@ namespace model3{
 
 TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
 
+
+    constexpr TI BATCH_SIZE = 1;
     {
 
         using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 20, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
         
-        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
         using SEQUENTIAL = IF::Module<LAYER_1::Layer>;
 
         static_assert(rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() == 0);
@@ -57,7 +59,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
         using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
 
-        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
         using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer>>;
 
         static_assert(rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() == 10);
@@ -71,7 +73,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
         using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 100, rlt::nn::activation_functions::ActivationFunction::RELU>;
         using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
 
-        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
         using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer>>;
 
         static_assert(rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() == 10);
@@ -89,7 +91,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
         using LAYER_4_SPEC = rlt::nn::layers::dense::Specification<T, TI, 11, 20, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_4 = rlt::nn::layers::dense::BindSpecification<LAYER_4_SPEC>;
 
-        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
         using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer, IF::Module<LAYER_4::Layer>>>>;
 
         static_assert(rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() == 11);
@@ -109,7 +111,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_SEQUENTIAL_STATIC){
         using LAYER_5_SPEC = rlt::nn::layers::dense::Specification<T, TI, 100, 20, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
         using LAYER_5 = rlt::nn::layers::dense::BindSpecification<LAYER_5_SPEC>;
 
-        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+        using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
         using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer, IF::Module<LAYER_4::Layer, IF::Module<LAYER_5::Layer>>>>>;
 
         static_assert(rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() == 100);
@@ -125,8 +127,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     using T = float;
     using TI = typename DEVICE::index_t;
 
+    constexpr TI BATCH_SIZE = 1;
     using MLP_SPEC = rlt::nn_models::mlp::Specification<T, TI, 5, 2, 3, 10, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     using MLP = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, MLP_SPEC>;
 
     using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 5, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
@@ -136,7 +139,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
-    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
     using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 
     std::cout << "Max hidden dim: " << rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() << std::endl;
@@ -220,12 +223,13 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_INCOMPATIBLE_DEFINITION){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TI = typename DEVICE::index_t;
-    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 1, 10, rlt::nn::activation_functions::ActivationFunction::RELU, 10>;
+    constexpr TI BATCH_SIZE = 10;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 1, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 1, rlt::nn::activation_functions::ActivationFunction::RELU, 10>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
 
-    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
     using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer>>;
 
     DEVICE device;
@@ -242,7 +246,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TI = typename DEVICE::index_t;
-
+    constexpr TI BATCH_SIZE = 1;
     using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 5, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
     using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
     using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
@@ -250,7 +254,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     using IF = rlt::nn_models::sequential::Interface<CAPABILITY_ADAM>;
     using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 
@@ -297,10 +301,10 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TI = typename DEVICE::index_t;
-
+    constexpr TI BATCH_SIZE = 1;
     constexpr T THRESHOLD = 1e-8;
 
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     using MLP_SPEC = rlt::nn_models::mlp::Specification<T, TI, 5, 2, 3, 10, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using MLP = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, MLP_SPEC>;
 
@@ -311,7 +315,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
-    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>>;
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
     using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 
     std::cout << "Max hidden dim: " << rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() << std::endl;

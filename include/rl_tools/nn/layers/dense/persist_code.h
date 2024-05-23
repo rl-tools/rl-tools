@@ -55,7 +55,6 @@ namespace rl_tools {
                << SPEC::INPUT_DIM << ", "
                << SPEC::OUTPUT_DIM << ", "
                << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
-               << 1 << ", "
                << get_type_string_tag(device, typename SPEC::PARAMETER_GROUP{}) << ", "
                << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag" << ", "
                << "true, "

@@ -17,6 +17,7 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecificatio
 using TI = typename DEVICE::index_t;
 
 constexpr TI BATCH_SIZE = 32;
+constexpr TI INTERNAL_BATCH_SIZE = 1;
 constexpr TI NUM_EPOCHS = 1;
 constexpr TI INPUT_DIM = 28 * 28;
 constexpr TI OUTPUT_DIM = 10;
@@ -39,7 +40,7 @@ namespace mnist_model{ // to simplify the model definition we import the sequent
     using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
-    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, INTERNAL_BATCH_SIZE>;
     using IF = rlt::nn_models::sequential::Interface<CAPABILITY_ADAM >;
     using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 }
@@ -57,7 +58,7 @@ int main(){
     DEVICE device;
     OPTIMIZER optimizer;
     NETWORK_TYPE network;
-    typename NETWORK_TYPE::Buffer<1> buffers;
+    typename NETWORK_TYPE::Buffer<INTERNAL_BATCH_SIZE> buffers;
 
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, DATASET_SIZE_TRAIN, INPUT_DIM>> x_train;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, DATASET_SIZE_VAL, INPUT_DIM>> x_val;

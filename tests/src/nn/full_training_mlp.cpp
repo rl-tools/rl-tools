@@ -37,13 +37,14 @@ using TI = typename DEVICE::index_t;
 //    static constexpr rlt::nn::activation_functions::ActivationFunction OUTPUT_ACTIVATION_FUNCTION = rlt::nn::activation_functions::IDENTITY;
 //};
 
-constexpr TI batch_size = 32;
-using NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY, 1>;
+constexpr TI BATCH_SIZE = 32;
+constexpr TI INTERNAL_BATCH_SIZE = 1;
+using NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, 17, 13, 3, 50, rlt::nn::activation_functions::GELU, rlt::nn::activation_functions::IDENTITY>;
 
 
 using OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_PARAMETERS>;
-using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam>;
+using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, INTERNAL_BATCH_SIZE>;
 using NetworkType = rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, NETWORK_SPEC>;
 
 std::vector<std::vector<T>> X_train;
@@ -93,7 +94,7 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
     std::mt19937 rng(2);
     rlt::init_weights(device, network, rng);
 
-    TI n_iter = X_train.size() / batch_size;
+    TI n_iter = X_train.size() / BATCH_SIZE;
 
     for(TI epoch_i=0; epoch_i < n_epochs; epoch_i++){
         T epoch_loss = 0;
@@ -101,11 +102,11 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
         for (TI batch_i=0; batch_i < n_iter; batch_i++){
             T loss = 0;
             rlt::zero_gradient(device, network);
-            for (TI sample_i=0; sample_i < batch_size; sample_i++){
+            for (TI sample_i=0; sample_i < BATCH_SIZE; sample_i++){
                 T input[INPUT_DIM];
                 T output[OUTPUT_DIM];
-                standardise<T, TI, INPUT_DIM>(X_train[batch_i * batch_size + sample_i].data(), X_mean.data(), X_std.data(), input);
-                standardise<T, TI,OUTPUT_DIM>(Y_train[batch_i * batch_size + sample_i].data(), Y_mean.data(), Y_std.data(), output);
+                standardise<T, TI, INPUT_DIM>(X_train[batch_i * BATCH_SIZE + sample_i].data(), X_mean.data(), X_std.data(), input);
+                standardise<T, TI,OUTPUT_DIM>(Y_train[batch_i * BATCH_SIZE + sample_i].data(), Y_mean.data(), Y_std.data(), output);
                 rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, INPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> input_matrix;
                 input_matrix._data = input;
                 rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
@@ -115,12 +116,12 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
                 T d_loss_d_output[OUTPUT_DIM];
                 rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
-                rlt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(batch_size));
-                loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/T(batch_size));
+                rlt::nn::loss_functions::mse::gradient(device, network.output_layer.output, output_matrix, d_loss_d_output_matrix, T(1)/T(BATCH_SIZE));
+                loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/T(BATCH_SIZE));
 
                 rlt::backward(device, network, input_matrix, d_loss_d_output_matrix, buffers);
             }
-            loss /= batch_size;
+            loss /= BATCH_SIZE;
             epoch_loss += loss;
 
             //            std::cout << "batch_i " << batch_i << " loss: " << loss << std::endl;
@@ -156,7 +157,7 @@ TEST(RL_TOOLS_NN_MLP_FULL_TRAINING, FULL_TRAINING) {
             output_matrix._data = output;
             bool rng = false;
             rlt::forward(device, network, input_matrix, rng);
-            val_loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/batch_size);
+            val_loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, T(1)/BATCH_SIZE);
 #ifdef RL_TOOLS_TESTS_CODE_COVERAGE
             if (sample_i >= 10){
                 break;

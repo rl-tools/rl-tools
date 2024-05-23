@@ -14,7 +14,8 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD_DEFAULT){
     using SPEC = rlt::nn::layers::standardize::Specification<T, TI, DIM>;
     using CAPABILITY = rlt::nn::layer_capability::Forward;
     rlt::nn::layers::standardize::Layer<CAPABILITY, SPEC> layer;
-    typename decltype(layer)::template Buffer<> buffer;
+    constexpr TI BATCH_SIZE = 1;
+    typename decltype(layer)::template Buffer<BATCH_SIZE> buffer;
     rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, DIM>> input, output;
 
     DEVICE device;
@@ -36,7 +37,7 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, FORWARD){
     using SPEC = rlt::nn::layers::standardize::Specification<T, TI, DIM>;
     using CAPABILITY = rlt::nn::layer_capability::Forward;
     rlt::nn::layers::standardize::Layer<CAPABILITY, SPEC> layer;
-    typename decltype(layer)::template Buffer<> buffer;
+    typename decltype(layer)::template Buffer<BATCH_SIZE> buffer;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, DIM>> mean, std, bias, variance;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, DIM>> input, output;
 

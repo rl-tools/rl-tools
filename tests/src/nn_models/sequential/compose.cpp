@@ -22,11 +22,11 @@ constexpr TI BATCH_SIZE_OTHER = 30;
 
 template <typename CAPABILITY>
 struct Actor{
-    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY, BATCH_SIZE_DEFINITION_MLP>;
+    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, OUTPUT_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
     using IF = rlt::nn_models::sequential::Interface<CAPABILITY>;
     using ACTOR_MODULE = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
-    using STANDARDIZATION_LAYER_SPEC = rlt::nn::layers::standardize::Specification<T, TI, INPUT_DIM, BATCH_SIZE_DEFINITION>;
+    using STANDARDIZATION_LAYER_SPEC = rlt::nn::layers::standardize::Specification<T, TI, INPUT_DIM>;
     using STANDARDIZATION_LAYER = rlt::nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
     using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
 };
