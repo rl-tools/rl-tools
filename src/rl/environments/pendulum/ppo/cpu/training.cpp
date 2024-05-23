@@ -81,7 +81,7 @@ using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG
 template <typename NEXT>
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 10;
-    static constexpr TI NUM_EVALUATION_EPISODES = 1000;
+    static constexpr TI NUM_EVALUATION_EPISODES = 100;
     static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
 };
 
