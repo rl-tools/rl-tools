@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/operations_cpu.h>
 #include <rl_tools/nn_models/persist.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;

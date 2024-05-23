@@ -243,7 +243,7 @@ void run(){
                 rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.parameters.alpha);
             }
             for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
-                auto& last_layer = get_layer(device, ppo.actor, rlt::Constant<rlt::num_layers(decltype(ppo.actor){})-1>{});
+                auto& last_layer = rlt::get_layer<rlt::num_layers(decltype(ppo.actor){})-1>(device, ppo.actor);
                 T action_log_std = rlt::get(last_layer.log_std.parameters, 0, action_i);
                 std::stringstream topic;
                 topic << "actor/action_std/" << action_i;

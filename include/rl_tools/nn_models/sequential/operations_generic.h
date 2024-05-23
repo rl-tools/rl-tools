@@ -219,15 +219,15 @@ namespace rl_tools{
         return diff;
     }
 
-    template<typename DEVICE, typename MODULE_SPEC, auto LAYER_I>
-    constexpr auto& get_layer(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model, Constant<LAYER_I>){
+    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
+    constexpr auto& get_layer(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         static_assert(LAYER_I >= 0);
         static_assert(LAYER_I < num_layers(nn_models::sequential::ModuleForward<MODULE_SPEC>{}));
         if constexpr(LAYER_I == 0){
             return model.content;
         }
         else{
-            return get_layer(device, model.next_module, Constant<LAYER_I - 1>{});
+            return get_layer<LAYER_I - 1>(device, model.next_module);
         }
     }
 
