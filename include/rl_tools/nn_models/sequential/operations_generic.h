@@ -60,13 +60,31 @@ namespace rl_tools{
             init_weights(device, module.next_module, rng);
         }
     }
+    namespace nn_models::sequential{
+        template <typename SPEC>
+        constexpr typename SPEC::TI num_layers(){
+            if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+                return num_layers<typename SPEC::NEXT_MODULE::SPEC>() + 1;
+            }
+            else{
+                return 1;
+            }
+        }
+    }
     template <typename SPEC>
     constexpr typename SPEC::TI num_layers(nn_models::sequential::ModuleForward<SPEC>){
-        if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            return num_layers(typename SPEC::NEXT_MODULE{}) + 1;
+        return nn_models::sequential::num_layers<SPEC>();
+    }
+
+    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
+    constexpr auto& get_layer(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        static_assert(LAYER_I >= 0);
+        static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
+        if constexpr(LAYER_I == 0){
+            return model.content;
         }
         else{
-            return 1;
+            return get_layer<LAYER_I - 1>(device, model.next_module);
         }
     }
     template <typename SPEC>
@@ -219,17 +237,6 @@ namespace rl_tools{
         return diff;
     }
 
-    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
-    constexpr auto& get_layer(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
-        static_assert(LAYER_I >= 0);
-        static_assert(LAYER_I < num_layers(nn_models::sequential::ModuleForward<MODULE_SPEC>{}));
-        if constexpr(LAYER_I == 0){
-            return model.content;
-        }
-        else{
-            return get_layer<LAYER_I - 1>(device, model.next_module);
-        }
-    }
 
     template<typename DEVICE, typename MODULE_SPEC>
     bool is_nan(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
