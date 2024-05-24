@@ -14,6 +14,7 @@
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
+#include <rl_tools/rl/loop/steps/save_trajectories/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
 #ifdef RL_TOOLS_ENABLE_CLI11

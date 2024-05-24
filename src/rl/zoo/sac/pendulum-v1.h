@@ -4,6 +4,7 @@
 #include <rl_tools/rl/loop/steps/extrack/config.h>
 #include <rl_tools/rl/loop/steps/checkpoint/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
+#include <rl_tools/rl/loop/steps/save_trajectories/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
 
 namespace rlt = rl_tools;
@@ -33,7 +34,9 @@ namespace rl_tools::rl::zoo::sac{
                 static constexpr TI NUM_EVALUATION_EPISODES = 100;
             };
             using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CHECKPOINT_CONFIG, LOOP_EVAL_PARAMETERS>;
-            using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
+            struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectories::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{ };
+            using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_EVAL_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
+            using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_SAVE_TRAJECTORIES_CONFIG>;
             using LOOP_CONFIG = LOOP_TIMING_CONFIG;
         };
         using ENVIRONMENT = rlt::rl::environments::Pendulum<typename _EnvironmentSpec::PENDULUM_SPEC>;
