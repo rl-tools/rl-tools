@@ -1,4 +1,3 @@
-if(RL_TOOLS_ENABLE_CLI11)
 add_executable(
         rl_zoo
         zoo.cpp
@@ -7,6 +6,11 @@ target_link_libraries(
         rl_zoo
         PRIVATE
         RLtools::RLtools
+)
+if(RL_TOOLS_ENABLE_CLI11)
+target_link_libraries(
+        rl_zoo
+        PRIVATE
         CLI11::CLI11
 )
 

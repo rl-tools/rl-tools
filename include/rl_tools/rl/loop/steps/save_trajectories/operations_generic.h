@@ -19,7 +19,7 @@ namespace rl_tools{
     void malloc(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         malloc(device, ts.env_save_trajectories);
-        ts.save_trajectories_buffer = new STATE::DATA_TYPE<typename T_CONFIG::SAVE_TRAJECTORIES_SPEC>;
+        ts.save_trajectories_buffer = new typename STATE::DATA_TYPE<typename T_CONFIG::SAVE_TRAJECTORIES_SPEC>;
         malloc(device, static_cast<typename STATE::NEXT&>(ts));
     }
     template <typename DEVICE, typename T_CONFIG>

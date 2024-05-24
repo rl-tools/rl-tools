@@ -62,7 +62,7 @@ namespace rl_tools{
         auto actions_buffer = view(device, actions_buffer_full, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>{});
 
         ENVIRONMENT envs[SPEC::N_EPISODES];
-        ENVIRONMENT::State states[SPEC::N_EPISODES];
+        typename ENVIRONMENT::State states[SPEC::N_EPISODES];
         bool terminated[SPEC::N_EPISODES];
 
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
@@ -154,9 +154,9 @@ namespace rl_tools{
         results.episode_length_std = math::sqrt(device.math, results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>
-    void evaluate(DEVICE& device, ENVIRONMENT&, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
+    void evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
         rl::utils::evaluation::NoData<SPEC> data;
-        evaluate(device, ENVIRONMENT{}, ui, policy, results, data, policy_evaluation_buffers, rng, deterministic);
+        evaluate(device, env, ui, policy, results, data, policy_evaluation_buffers, rng, deterministic);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
