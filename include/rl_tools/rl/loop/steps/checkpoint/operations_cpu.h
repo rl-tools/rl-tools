@@ -47,9 +47,9 @@ namespace rl_tools{
             std::stringstream step_ss;
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
             std::filesystem::path step_folder = ts.extrack_seed_path / "steps" / step_ss.str();
-            std::cerr << "Checkpointing at step: " << ts.step << " to: " << step_folder << std::endl;
             std::filesystem::create_directories(step_folder);
             std::filesystem::path checkpoint_path = step_folder / "checkpoint.h5";
+            std::cerr << "Checkpointing at step: " << ts.step << " to: " << checkpoint_path << std::endl;
             auto& actor = get_actor(ts);
             using ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE;
             using ACTOR_FORWARD_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward>;
