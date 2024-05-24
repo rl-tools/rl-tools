@@ -18,7 +18,7 @@ target_link_libraries(test_nn_models_sequential_persist_code
 )
 gtest_discover_tests(test_nn_models_sequential_persist_code)
 
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code.h)
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code.h)
 add_executable(test_nn_models_sequential_persist_code_compile persist_code_compile.cpp)
 target_link_libraries(test_nn_models_sequential_persist_code_compile
         PRIVATE
@@ -27,7 +27,7 @@ target_link_libraries(test_nn_models_sequential_persist_code_compile
         )
 gtest_discover_tests(test_nn_models_sequential_persist_code_compile)
 else()
-message(WARNING "test_nn_models_sequential_persist_code_compile is disabled because the file tests/data/nn_models_sequential_persist_code.h is missing")
+message(WARNING "test_nn_models_sequential_persist_code_compile is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code.h")
 endif()
 
 add_executable(
