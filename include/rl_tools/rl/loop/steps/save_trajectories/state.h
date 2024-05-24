@@ -4,6 +4,7 @@
 #define RL_TOOLS_RL_LOOP_STEPS_EVALUATION_STATE_H
 
 #include "../../../../rl/utils/evaluation/operations_generic.h"
+#include "../../../../utils/generic/typing.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop::steps::evaluation{
@@ -13,8 +14,10 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using NEXT = T_NEXT;
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
-        using RESULT_SPEC = rl::utils::evaluation::Specification<T, TI, typename CONFIG::ENVIRONMENT_EVALUATION, CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, CONFIG::EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT>;
-        rl::utils::evaluation::Result<RESULT_SPEC> evaluation_results[CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS];
+        rl::utils::evaluation::Result<typename CONFIG::EVALUATION_SPEC> evaluation_results[CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS];
+        template <typename SPEC>
+        using DATA_TYPE = rl_tools::utils::typing::conditional_t<CONFIG::EVALUATION_PARAMETERS::SAVE_TRAJECTORIES, rl::utils::evaluation::Data<SPEC>, rl::utils::evaluation::NoData<SPEC>>;
+        DATA_TYPE<typename CONFIG::EVALUATION_SPEC>* evaluation_trajectory_buffer = nullptr;
         typename CONFIG::RNG rng_eval;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION env_eval;
         typename CONFIG::UI ui;

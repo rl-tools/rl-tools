@@ -16,14 +16,13 @@ namespace rl_tools::rl::utils::evaluation{
 
         ENV_STATE state;
     };
-    template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_EPISODES, T_TI T_STEP_LIMIT, bool T_INCLUDE_DATA=false>
+    template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_EPISODES, T_TI T_STEP_LIMIT>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
         using ENVIRONMENT = T_ENVIRONMENT;
         constexpr static TI N_EPISODES = T_N_EPISODES;
         constexpr static TI STEP_LIMIT = T_STEP_LIMIT;
-        constexpr static bool INCLUDE_DATA = T_INCLUDE_DATA;
     };
     template <typename T_SPEC>
     struct Data{
@@ -37,14 +36,9 @@ namespace rl_tools::rl::utils::evaluation{
         T actions[SPEC::N_EPISODES][SPEC::STEP_LIMIT][ENVIRONMENT::ACTION_DIM];
     };
     template <typename T_SPEC>
-    struct ResultData {
-        Data<T_SPEC> data;
-    };
-    struct ResultNoData {
-        bool data;
-    };
+    struct NoData{};
     template <typename T_SPEC>
-    struct Result: rl_tools::utils::typing::conditional_t<T_SPEC::INCLUDE_DATA, ResultData<T_SPEC>, ResultNoData>{
+    struct Result{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
