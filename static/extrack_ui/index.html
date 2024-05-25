@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trajectory Player</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
+    <script type="module">
+        import { render } from '../../experiments/2024-05-24_20-29-23/44c5e90_zoo_algorithm_environment/sac_pendulum-v1/0000/ui.esm.js';
+
+        async function fetchAndDecompressData(url) {
+            const response = await fetch(url);
+            const compressedData = await response.arrayBuffer();
+            const decompressedData = pako.ungzip(new Uint8Array(compressedData), { to: 'string' });
+            return JSON.parse(decompressedData);
+        }
+
+        async function playTrajectory() {
+            const trajectoryData = await fetchAndDecompressData('../../experiments/2024-05-24_20-29-23/44c5e90_zoo_algorithm_environment/sac_pendulum-v1/0000/steps/000000000020000/trajectories.json.gz');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            let currentEpisode = 0;
+            let currentStep = 0;
+
+            function step() {
+                if (currentEpisode < trajectoryData.length) {
+                    const episode = trajectoryData[currentEpisode];
+                    if (currentStep < episode.length) {
+                        const { state, action } = episode[currentStep];
+                        render(ctx, state, action);
+                        currentStep++;
+                    } else {
+                        currentStep = 0;
+                        currentEpisode++;
+                        console.log(`Episode ${currentEpisode} finished`)
+                    }
+                }
+            }
+
+            setInterval(step, 50);
+        }
+
+        document.addEventListener('DOMContentLoaded', playTrajectory);
+    </script>
+</head>
+<body>
+    <canvas id="canvas" width="1000" height="1000"></canvas>
+</body>
+</html>

@@ -13,6 +13,7 @@ namespace rl_tools::rl::loop::steps::extrack{
     struct State: T_NEXT {
         using CONFIG = T_CONFIG;
         using NEXT = T_NEXT;
+        std::string config_name = "default";
         std::filesystem::path extrack_base_path = "experiments";
         std::filesystem::path extrack_experiment_path;
         std::filesystem::path extrack_setup_path;

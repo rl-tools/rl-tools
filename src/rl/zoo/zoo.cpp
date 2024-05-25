@@ -46,33 +46,14 @@ int main(int argc, char** argv){
     app.add_option("--ee,--extrack-experiment", ts.extrack_experiment_path, "extrack-experiment");
     CLI11_PARSE(app, argc, argv);
 #endif
-    if(ts.extrack_experiment_path.empty()){
-        rlt::utils::assert_exit(device, !ts.extrack_base_path.empty(), "Extrack base path (-e,--extrack) must be set if the Extrack experiment path (--ee,--extrack-experiment) is not set.");
-        ts.extrack_experiment_path = ts.extrack_base_path / rlt::get_timestamp_string(device, ts);
-    }
-    {
-        std::string commit_hash = RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH);
-        std::string setup_name = commit_hash.substr(0, 7) + "_zoo_algorithm_environment";
-        ts.extrack_setup_path = ts.extrack_experiment_path / setup_name;
-    }
-    {
-        std::string config_name = algorithm + "_" + environment;
-        ts.extrack_config_path = ts.extrack_setup_path / config_name;
-    }
-    {
-        std::stringstream padded_seed_ss;
-        padded_seed_ss << std::setw(4) << std::setfill('0') << seed;
-        ts.extrack_seed_path = ts.extrack_config_path / padded_seed_ss.str();
-    }
-    std::cerr << "Seed: " << seed << std::endl;
-    std::cerr << "Extrack Experiment: " << ts.extrack_seed_path << std::endl;
+    ts.config_name = algorithm + "_" + environment;
     rlt::malloc(device);
     rlt::init(device);
+    rlt::malloc(device, ts);
+    rlt::init(device, ts, seed);
 #ifdef RL_TOOLS_ENABLE_HDF5
     rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
-    rlt::malloc(device, ts);
-    rlt::init(device, ts, seed);
     while(!rlt::step(device, ts)){
         if(ts.step == 5000){
             std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;

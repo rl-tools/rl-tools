@@ -14,12 +14,6 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void init(DEVICE& device, rl::loop::steps::extrack::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
-        using STATE = rl::loop::steps::extrack::State<T_CONFIG>;
-        init(device, static_cast<typename STATE::NEXT&>(ts), seed);
-    }
-
-    template <typename DEVICE, typename T_CONFIG>
     std::string get_timestamp_string(DEVICE& device, rl::loop::steps::extrack::State<T_CONFIG>& ts){
         using STATE = rl::loop::steps::extrack::State<T_CONFIG>;
         auto now = std::chrono::system_clock::now();
@@ -36,6 +30,29 @@ namespace rl_tools{
 
         return ss.str();
     }
+    template <typename DEVICE, typename T_CONFIG>
+    void init(DEVICE& device, rl::loop::steps::extrack::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
+        using STATE = rl::loop::steps::extrack::State<T_CONFIG>;
+        init(device, static_cast<typename STATE::NEXT&>(ts), seed);
+        if(ts.extrack_experiment_path.empty()){
+            rlt::utils::assert_exit(device, !ts.extrack_base_path.empty(), "Extrack base path (-e,--extrack) must be set if the Extrack experiment path (--ee,--extrack-experiment) is not set.");
+            ts.extrack_experiment_path = ts.extrack_base_path / rlt::get_timestamp_string(device, ts);
+        }
+        {
+            std::string commit_hash = RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH);
+            std::string setup_name = commit_hash.substr(0, 7) + "_zoo_algorithm_environment";
+            ts.extrack_setup_path = ts.extrack_experiment_path / setup_name;
+            ts.extrack_config_path = ts.extrack_setup_path / ts.config_name;
+        }
+        {
+            std::stringstream padded_seed_ss;
+            padded_seed_ss << std::setw(4) << std::setfill('0') << seed;
+            ts.extrack_seed_path = ts.extrack_config_path / padded_seed_ss.str();
+        }
+        std::cerr << "Seed: " << seed << std::endl;
+        std::cerr << "Extrack Experiment: " << ts.extrack_seed_path << std::endl;
+    }
+
 
     template <typename DEVICE, typename T_CONFIG>
     void free(DEVICE& device, rl::loop::steps::extrack::State<T_CONFIG>& ts){

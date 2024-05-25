@@ -36,6 +36,7 @@ namespace rl_tools{
         init(device, ts.env_save_trajectories);
         init(device, ts.env_save_trajectories, ts.ui);
         ts.rng_save_trajectories = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
+        ts.save_trajectories_ui_written = false;
     }
 
     template <typename DEVICE, typename T_CONFIG>
@@ -115,6 +116,15 @@ namespace rl_tools{
         using STATE = rl::loop::steps::save_trajectories::State<CONFIG>;
         if constexpr(PARAMETERS::SAVE_TRAJECTORIES == true){
             if(ts.step % PARAMETERS::INTERVAL == 0){
+                if(!ts.save_trajectories_ui_written){
+                    ts.save_trajectories_ui_written = true;
+                    std::string ui = get_ui(device, ts.env_eval);
+                    std::string us_jsm = ui + "\nexport { render };";
+                    std::ofstream uif(ts.extrack_seed_path / "ui.js");
+                    uif << ui;
+                    std::ofstream us_jsmf(ts.extrack_seed_path / "ui.esm.js");
+                    us_jsmf << us_jsm;
+                }
                 evaluate(device, ts.env_eval, ts.ui, get_actor(ts), ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;

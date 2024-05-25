@@ -21,6 +21,7 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         typename CONFIG::RNG rng_save_trajectories;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION env_save_trajectories;
         typename CONFIG::UI ui_save_trajectories;
+        bool save_trajectories_ui_written = false;
     };
 }
 #endif
