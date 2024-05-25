@@ -16,26 +16,44 @@
         }
 
         async function playTrajectory() {
-            const trajectoryData = await fetchAndDecompressData('../../experiments/2024-05-24_20-29-23/44c5e90_zoo_algorithm_environment/sac_pendulum-v1/0000/steps/000000000020000/trajectories.json.gz');
+            const trajectoryData = await fetchAndDecompressData('../../experiments/2024-05-24_20-29-23/44c5e90_zoo_algorithm_environment/sac_pendulum-v1/0000/steps/000000000008000/trajectories.json.gz');
             const canvas = document.getElementById('canvas');
             const ctx = canvas.getContext('2d');
             let currentEpisode = 0;
             let currentStep = 0;
+            let currentEpisodeLength = 0;
+            let currentEpisodeReturn = 0;
 
             function step() {
                 if (currentEpisode < trajectoryData.length) {
                     const episode = trajectoryData[currentEpisode];
                     if (currentStep < episode.length) {
-                        const { state, action } = episode[currentStep];
+                        const { state, action, reward, terminated } = episode[currentStep];
                         render(ctx, state, action);
+                        currentEpisodeLength++;
+                        currentEpisodeReturn += reward;
                         currentStep++;
                     } else {
                         currentStep = 0;
                         currentEpisode++;
-                        console.log(`Episode ${currentEpisode} finished`)
+                        console.log(`Episode ${currentEpisode} finished. Return = ${currentEpisodeReturn}, Length = ${currentEpisodeLength}`);
+                        currentEpisodeLength = 0;
+                        currentEpisodeReturn = 0;
                     }
+
                 }
             }
+
+            function skipEpisode() {
+                currentStep = 0;
+                currentEpisode++;
+                if (currentEpisode >= trajectoryData.length) {
+                    currentEpisode = 0; // Restart from the beginning if all episodes are finished
+                }
+                console.log(`Skipped to Episode ${currentEpisode}`);
+            }
+
+            document.getElementById('skipButton').addEventListener('click', skipEpisode);
 
             setInterval(step, 50);
         }
@@ -44,6 +62,8 @@
     </script>
 </head>
 <body>
-    <canvas id="canvas" width="1000" height="1000"></canvas>
+    <canvas id="canvas" width="500" height="500"></canvas>
+    <button id="skipButton">Skip to Next Episode</button>
 </body>
 </html>
+
