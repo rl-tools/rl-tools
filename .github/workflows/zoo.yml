@@ -56,8 +56,9 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -S .
           -DRL_TOOLS_ENABLE_TARGETS=ON
-#          -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
           -DRL_TOOLS_ENABLE_ZLIB=ON
+#          -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
+
       - name: Build
         run: cmake --build build --target rl_zoo
 
