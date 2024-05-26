@@ -17,6 +17,7 @@
 #include <fstream>
 #ifdef RL_TOOLS_ENABLE_ZLIB
 #include <zlib.h>
+#include <cstring>
 #endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
