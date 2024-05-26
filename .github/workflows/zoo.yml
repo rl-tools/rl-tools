@@ -12,6 +12,8 @@ jobs:
         with:
           app-id: ${{ vars.ZOO_BLOB_APP_ID }}
           private-key: ${{ secrets.ZOO_BLOB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: "rl-tools,zoo-blob"
       - name: Use the token
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
@@ -24,7 +26,7 @@ jobs:
         run: |
           git config --global user.name 'RLtools Bot'
           git config --global user.email 'jonas.eschmann@gmail.com'
-          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob.git
+          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob.git experiments
 
 #      - name: Intel Apt repository
 #        timeout-minutes: 1
