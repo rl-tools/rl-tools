@@ -22,7 +22,7 @@ jobs:
           gh api octocat
           gh repo view rl-tools/zoo-blob --json name
 
-      - name: Commit report
+      - name: Setup Git
         run: |
           git config --global user.name 'RLtools Bot'
           git config --global user.email 'jonas.eschmann@gmail.com'
@@ -58,3 +58,14 @@ jobs:
       - name: Run Zoo
         working-directory: ${{ github.workspace }}
         run: ./build/src/rl/zoo/rl_zoo
+
+      - name: Generate Index
+        working-directory: ${{ github.workspace }}/tools
+        run: ./index_experiments.sh
+      - name: Commit Results
+        working-directory: ${{ github.workspace }}/experiments
+        run: |
+          git add .
+          git status
+          git commit -m "workflow results"
+          git push
