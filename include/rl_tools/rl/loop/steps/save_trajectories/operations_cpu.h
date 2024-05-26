@@ -122,10 +122,11 @@ namespace rl_tools{
                     std::string us_jsm = ui + "\nexport { render };";
                     std::ofstream uif(ts.extrack_seed_path / "ui.js");
                     uif << ui;
-                    std::ofstream us_jsmf(ts.extrack_seed_path / "ui.esm.js");
-                    us_jsmf << us_jsm;
+                    std::ofstream ui_jsmf(ts.extrack_seed_path / "ui.esm.js");
+                    ui_jsmf << us_jsm;
+                    std::cout << "UI written to: " << ts.extrack_seed_path / "ui.js" << std::endl;
                 }
-                evaluate(device, ts.env_eval, ts.ui, get_actor(ts), ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
+                evaluate(device, ts.env_eval, ts.ui, get_actor(ts), ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_evaluation_buffers, ts.rng_save_trajectories, false);
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 
