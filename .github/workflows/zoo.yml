@@ -17,13 +17,14 @@ jobs:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
           gh api octocat
+          gh repo view rl-tools/zoo-blob --json name
       - uses: actions/checkout@v3
 
       - name: Commit report
         run: |
           git config --global user.name 'RLtools Bot'
           git config --global user.email 'jonas.eschmann@gmail.com'
-          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob.git experiments
+          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob.git
 
 #      - name: Intel Apt repository
 #        timeout-minutes: 1
