@@ -6,6 +6,8 @@
 #include "pendulum.h"
 #include "operations_generic.h"
 
+#include <string>
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
