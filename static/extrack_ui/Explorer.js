@@ -22,9 +22,87 @@ class Spoiler{
     }
     setContent(content){
         if(!this.terminal){
-            throw "Cannot set content to terminal spoiler";
+            throw "Cannot set content to non terminal spoiler";
         }
         this.spoiler.appendChild(content);
+    }
+}
+
+export class Step{
+    constructor(parent, experiments_base_path, step_paths, run){
+
+        this.config = null
+        for(const step_path of step_paths){
+            if(this.config === null){
+                this.config = step_path;
+                this.step = this.config.step
+            }
+            if(step_path.checkpoint_code){
+                this.checkpoint_code = step_path.path
+            }
+            if(step_path.checkpoint_hdf5){
+                this.checkpoint_hdf5 = step_path.path
+            }
+            if(step_path.trajectories){
+                this.trajectories = step_path.path
+            }
+            if(step_path.trajectories_compressed){
+                this.trajectories_compressed = step_path.path
+            }
+        }
+
+        const step = new Spoiler(parent, this.step, true);
+        const content = document.createElement('div');
+        const link = document.createElement('a');
+        const url = new URL("./play_trajectories.html", window.location.href)
+        url.searchParams.append("experiments", experiments_base_path)
+        url.searchParams.append("trajectories", this.trajectories_compressed)
+        if(!run.ui_jsm){
+            throw "No ui_jsm found"
+        }
+        url.searchParams.append("ui", run.ui_jsm)
+        link.href = url;
+        link.innerText = JSON.stringify(this.config, null, 4)
+        content.appendChild(link);
+        step.setContent(content)
+    }
+}
+export class Run{
+    constructor(parent, experiments_base_path, experiments){
+        this.config = null
+        this.container = document.createElement('div');
+        parent.setContent(this.container);
+        for(const experiment of experiments){
+            if(this.config === null){
+                this.config = experiment;
+                this.path = experiment.path;
+            }
+            if(experiment.ui_js){
+                this.ui_js = experiment.path
+            }
+            if(experiment.ui_jsm){
+                this.ui_jsm = experiment.path
+            }
+        }
+        // second round
+        this.steps_spoiler = new Spoiler(this.container, "Steps", false);
+        this.steps = {}
+        for(const experiment of experiments){
+            if(experiment.step){
+                if(experiment.step in this.steps){
+                    this.steps[experiment.step].push(experiment);
+                }
+                else{
+                    this.steps[experiment.step] = [experiment];
+                }
+            }
+        }
+        // third round
+        for(const step_id in this.steps) {
+            // const step_spoiler = new Spoiler(this.steps_spoiler, this.steps[step_id], );
+            const step = new Step(this.steps_spoiler, experiments_base_path, this.steps[step_id], this);
+        }
+
     }
 }
 
@@ -49,15 +127,8 @@ export class Explorer{
                     for (const config of Object.keys(this.experiments[experiment][population]).sort()) {
                         const config_spoiler = new Spoiler(population_spoiler, config, false);
                         for (const seed of Object.keys(this.experiments[experiment][population][config]).sort()) {
-                            const seed_spoiler = new Spoiler(config_spoiler, seed, false);
-                            for (const step of Object.keys(this.experiments[experiment][population][config][seed]).sort()) {
-                                const step_spoiler = new Spoiler(seed_spoiler, step, true);
-                                const step_data = this.experiments[experiment][population][config][seed][step];
-                                const step_info = document.createElement('div');
-                                step_info.classList.add("step-info");
-                                step_info.innerHTML = JSON.stringify(step_data);
-                                step_spoiler.setContent(step_info);
-                            }
+                            const seed_spoiler = new Spoiler(config_spoiler, seed, true);
+                            const run = new Run(seed_spoiler, experiments_base_path, this.experiments[experiment][population][config][seed]);
                         }
                     }
                 }
@@ -76,10 +147,16 @@ export class Explorer{
         const regex_ui_js = new RegExp(regex_seed.source + /\/ui\.js/.source)
         const regex_ui_jsm = new RegExp(regex_seed.source + /\/ui\.esm\.js/.source)
         const regex_step = new RegExp(regex_seed.source + /\/steps\/(\d+)/.source)
+        const regex_checkpoint_code = new RegExp(regex_step.source + /\/checkpoint\.h/.source)
+        const regex_checkpoint_hdf5 = new RegExp(regex_step.source + /\/checkpoint\.h5/.source)
+        const trajectories = new RegExp(regex_step.source + /\/trajectories\.json/.source)
+        const trajectories_compressed = new RegExp(regex_step.source + /\/trajectories\.json.gz/.source)
         const lines = index.split("\n");
         const experiments_list = [];
         for (const line of lines){
-            const experiment = {};
+            const experiment = {
+                "path": line
+            };
             const experiment_match = line.match(regex_experiment);
             if (experiment_match){
                 if(experiment_match[1] !== "index.txt"){
@@ -127,6 +204,18 @@ export class Explorer{
             if (step_match){
                 experiment["step"] = step_match[6];
             }
+            if (line.match(regex_checkpoint_code)){
+                experiment["checkpoint_code"] = true;
+            }
+            if (line.match(regex_checkpoint_hdf5)){
+                experiment["checkpoint_hdf5"] = true;
+            }
+            if (line.match(trajectories)){
+                experiment["trajectories"] = true;
+            }
+            if (line.match(trajectories_compressed)) {
+                experiment["trajectories_compressed"] = true;
+            }
             experiments_list.push(experiment);
         }
         const experiments = {}
@@ -142,7 +231,7 @@ export class Explorer{
             experiments_population[experiment] = {}
             for(const config of experiments[experiment]){
                 const population = config.commit_hash + "_" + config.config_population;
-                if (population in experiments[experiment]){
+                if (population in experiments_population[experiment]){
                     experiments_population[experiment][population].push(config);
                 } else {
                     experiments_population[experiment][population] = [config];
