@@ -1,0 +1,7 @@
+@import url('./play_trajectory.css');
+.run-container{
+    margin-left: 30px;
+}
+.explorer-trajectory-player-container{
+    height: 500px;
+}

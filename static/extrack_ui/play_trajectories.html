@@ -13,7 +13,7 @@
 
         const trajectories_path = params.get("experiments") + "/" + params.get('trajectories');
         const ui_path = params.get("experiments") + "/" + params.get('ui');
-        const trajectory_player = new TrajectoryPlayer(ui_path);
+        const trajectory_player = new TrajectoryPlayer(ui_path, {"verbose": true});
 
         const trajectoryPlayerContainer = document.getElementById('trajectoryPlayerContainer');
         trajectoryPlayerContainer.appendChild(trajectory_player.getCanvas())
