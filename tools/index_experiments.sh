@@ -5,8 +5,8 @@ create_index_files() {
   echo "Indexing $dir."
   local files_index="${dir}/index_files.txt"
   local directories_index="${dir}/index_directories.txt"
-  find "$dir" -maxdepth 1 -type f ! -name 'index_files.txt' ! -name 'index_directories.txt' ! -name 'index_full.txt' !  -name '.*' -exec basename {} \; | grep -v '^$' > "$files_index"
-  find "$dir" -maxdepth 1 -type d ! -path "$dir" ! -name 'index_files.txt' ! -name 'index_directories.txt' ! -name 'index_full.txt' ! -name '.*' -exec basename {} \; | grep -v '^$' > "$directories_index"
+  find "$dir" -maxdepth 1 -type f ! -name 'index_files.txt' ! -name 'index_directories.txt' ! -name 'index_static.txt' !  -name '.*' -exec basename {} \; | grep -v '^$' > "$files_index"
+  find "$dir" -maxdepth 1 -type d ! -path "$dir" ! -name 'index_files.txt' ! -name 'index_directories.txt' ! -name 'index_static.txt' ! -name '.*' -exec basename {} \; | grep -v '^$' > "$directories_index"
 }
 
 export -f create_index_files

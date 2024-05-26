@@ -1,9 +1,10 @@
-export class FileSystem{
+export class StaticFileSystem{
     constructor(base_path){
         this.base_path = base_path;
+        this.index_path = `${base_path}index_static.txt`
     }
-    async loadTree(base_path){
-         const files_promise = fetch(`${base_path}/index_files.txt`)
+    async loadTree(){
+        this.tree = fetch(this.index_path)
             .then(response => {
                 if(!response.ok){
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -11,18 +12,12 @@ export class FileSystem{
                 return response.text()
             })
             .then(index => {
-                return index.split("\n").filter(line => line.length > 0)
+                return this.parse(index)
             })
-         const directories_promise = fetch(`${base_path}/index_directories.txt`)
-            .then(response => {
-                if(!response.ok){
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.text()
-            })
-            .then(index => {
-                return index.split("\n").filter(line => line.length > 0)
-            })
+        return this.tree
+    }
+    async refresh(node){
+        return node.path.split("/").reduce((acc, val) => acc.children[val], this.tree)
     }
     normalize(path){
         // this should remove all relative path components like test/../hello.txt => test/hello.txt
@@ -77,10 +72,5 @@ export class FileSystem{
             }
         }
         return tree
-    }
-    async ls(path){
-
-    }
-    async load(node, path){
     }
 }
