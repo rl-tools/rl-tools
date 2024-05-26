@@ -7,27 +7,36 @@
     <link rel="stylesheet" href="index.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
     <script type="module">
-
-        import { TrajectoryPlayer } from './TrajectoryPlayer.js';
-
         const experiments_stub = "../../experiments"
 
-        const trajectories_path = `${experiments_stub}/2024-05-25_16-10-02/32e6580_zoo_algorithm_environment/sac_pendulum-v1/0000/steps/000000000010000/trajectories.json.gz`
-        const render_function_path = `${experiments_stub}/2024-05-25_16-10-02/32e6580_zoo_algorithm_environment/sac_pendulum-v1/0000/ui.esm.js`
+        // import { TrajectoryPlayer } from './TrajectoryPlayer.js';
+        //
+        // const experiments_stub = "../../experiments"
+        //
+        // const trajectories_path = `${experiments_stub}/2024-05-25_16-10-02/32e6580_zoo_algorithm_environment/sac_pendulum-v1/0000/steps/000000000010000/trajectories.json.gz`
+        // const render_function_path = `${experiments_stub}/2024-05-25_16-10-02/32e6580_zoo_algorithm_environment/sac_pendulum-v1/0000/ui.esm.js`
+        //
+        // const trajectory_player = new TrajectoryPlayer(render_function_path);
+        //
+        // const trajectoryPlayerContainer = document.getElementById('trajectoryPlayerContainer');
+        // trajectoryPlayerContainer.appendChild(trajectory_player.getCanvas())
+        //
+        //
+        // document.addEventListener('DOMContentLoaded', ()=>{
+        //     trajectory_player.playTrajectories(trajectories_path);
+        // });
 
-        const trajectory_player = new TrajectoryPlayer(render_function_path);
+        import { Explorer } from "./Explorer.js";
+        const explorer = new Explorer(experiments_stub);
+        const explorerContainer = document.getElementById('explorerContainer');
+        explorerContainer.appendChild(explorer.getContainer());
 
-        const trajectoryPlayerContainer = document.getElementById('trajectoryPlayerContainer');
-        trajectoryPlayerContainer.appendChild(trajectory_player.getCanvas())
 
-
-        document.addEventListener('DOMContentLoaded', ()=>{
-            trajectory_player.playTrajectories(trajectories_path);
-        });
     </script>
 </head>
 <body>
 <!--    <canvas id="canvas" width="500" height="500"></canvas>-->
+    <div id="explorerContainer"></div>
     <div id="trajectoryPlayerContainer"></div>
 </body>
 </html>

@@ -1,4 +1,2 @@
-if [ ! EXPERIMENTS ]; then
-EXPERIMENTS=experiments
-fi
-find $EXPERIMENTS -type f | sort > $EXPERIMENTS/index.txt
+cd ../experiments
+find . -type f | sort > index.txt
