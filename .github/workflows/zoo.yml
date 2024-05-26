@@ -14,7 +14,7 @@ jobs:
           app-id: ${{ vars.ZOO_BLOB_APP_ID }}
           private-key: ${{ secrets.ZOO_BLOB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: "rl-tools,zoo-blob"
+          repositories: "rl-tools,zoo-blob,zoo.rl.tools"
       - name: Use the token
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
@@ -76,3 +76,13 @@ jobs:
           git status
           git commit -m "workflow results"
           git push
+
+      - name: Bump Page
+        run: |
+          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo.rl.tools.git _temp_zoo
+          cd _temp_zoo
+          git submodule update --remote
+          git add .
+          git commit -m "bump"
+          git push
+          
