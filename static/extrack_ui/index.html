@@ -9,7 +9,7 @@
         const experiments_stub = "../../experiments/"
 
         import { Explorer } from "./Explorer.js";
-        const explorer = new Explorer(experiments_stub);
+        const explorer = new Explorer(experiments_stub, {"verbose": true})
         const explorerContainer = document.getElementById('explorerContainer');
         explorerContainer.appendChild(explorer.getContainer());
 

@@ -44,7 +44,8 @@ class Spoiler{
 }
 
 export class Step{
-    constructor(parent, experiments_base_path, step_paths, run){
+    constructor(parent, experiments_base_path, step_paths, run, options){
+        this.options = options || {};
 
         this.config = null
         for(const step_path of step_paths){
@@ -67,17 +68,20 @@ export class Step{
         }
 
         this.content = document.createElement('div');
-        const link = document.createElement('a');
-        const url = new URL("./play_trajectories.html", window.location.href)
-        url.searchParams.append("experiments", experiments_base_path)
-        url.searchParams.append("trajectories", this.trajectories_compressed)
-        if(!run.ui_jsm){
-            throw "No ui_jsm found"
+
+        if(options["verbose"]){
+            const url = new URL("./play_trajectories.html", window.location.href)
+            url.searchParams.append("experiments", experiments_base_path)
+            url.searchParams.append("trajectories", this.trajectories_compressed)
+            if(!run.ui_jsm){
+                throw `No ui_jsm found in ${this.config.path}"`
+            }
+            url.searchParams.append("ui", run.ui_jsm)
+            const link = document.createElement('a');
+            link.href = url.href;
+            link.innerText = "Play isolated"
+            this.content.appendChild(link);
         }
-        url.searchParams.append("ui", run.ui_jsm)
-        link.href = url.href;
-        link.innerText = "Play isolated"
-        this.content.appendChild(link);
 
         const play_button = document.createElement('button');
         play_button.innerHTML = "Play Trajectories";
@@ -102,7 +106,7 @@ export class Step{
     }
 }
 export class Run{
-    constructor(parent, experiments_base_path, experiments){
+    constructor(parent, experiments_base_path, experiments, options){
         this.config = null
         this.container = document.createElement('div');
         this.container.classList.add("run-container");
@@ -135,14 +139,14 @@ export class Run{
         // third round
         for(const step_id in this.steps) {
             // const step_spoiler = new Spoiler(this.steps_spoiler, this.steps[step_id], );
-            const step = new Step(this.steps_spoiler, experiments_base_path, this.steps[step_id], this);
+            const step = new Step(this.steps_spoiler, experiments_base_path, this.steps[step_id], this, options);
         }
 
     }
 }
 
 export class Explorer{
-    constructor(experiments_base_path){
+    constructor(experiments_base_path, options){
         this.container = document.createElement('div');
         this.loading_text = document.createElement('div');
         this.loading_text.style.display = "block";
@@ -163,7 +167,7 @@ export class Explorer{
                         const config_spoiler = new Spoiler(population_spoiler, config, false);
                         for (const seed of Object.keys(this.experiments[experiment][population][config]).sort()) {
                             const seed_spoiler = new Spoiler(config_spoiler, seed, true);
-                            const run = new Run(seed_spoiler, experiments_base_path, this.experiments[experiment][population][config][seed]);
+                            const run = new Run(seed_spoiler, experiments_base_path, this.experiments[experiment][population][config][seed], options);
                         }
                     }
                 }
