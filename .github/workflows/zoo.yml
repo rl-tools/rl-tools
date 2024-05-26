@@ -23,7 +23,7 @@ jobs:
         run: |
           git config --global user.name 'RLtools Bot'
           git config --global user.email 'jonas.eschmann@gmail.com'
-          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob experiments
+          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob.git experiments
 
 #      - name: Intel Apt repository
 #        timeout-minutes: 1
