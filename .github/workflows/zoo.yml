@@ -1,0 +1,66 @@
+on:
+#  workflow_dispatch:
+  push:
+    branches: [ "master" ]
+jobs:
+  zoo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - name: Use the token
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          gh api octocat
+      - uses: actions/checkout@v3
+
+      - name: Commit report
+        run: |
+          git config --global user.name 'RLtools Bot'
+          git config --global user.email 'jonas.eschmann@gmail.com'
+          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob experiments
+
+#      - name: Intel Apt repository
+#        timeout-minutes: 1
+#        run: |
+#          sudo apt update
+#          sudo apt install -y gpg-agent wget
+#          wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+#          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+#          sudo apt update
+#      - name: Install MKL
+#        run: |
+#          sudo apt install intel-oneapi-mkl-devel
+#
+#      - name: Setup Intel oneAPI environment
+#        run: |
+#          source /opt/intel/oneapi/setvars.sh
+#          printenv >> $GITHUB_ENV
+
+      - name: Set reusable strings
+        # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+        id: strings
+        shell: bash
+        run: |
+          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+      - name: Configure CMake (Linux, macOS)
+        if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'macos')
+        run: >
+          cmake -B ${{ steps.strings.outputs.build-output-dir }}
+          -DCMAKE_BUILD_TYPE=Release
+          -S ${{ github.workspace }}
+          -DRL_TOOLS_ENABLE_TARGETS=ON
+#          -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
+      - name: Build
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --target rl_zoo
+
+      - name: Test
+        working-directory: ${{ github.workspace }}
+        # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+        run: ./${{ steps.strings.outputs.build-output-dir }}/src/rl/zoo/rl_zoo
