@@ -28,22 +28,22 @@ jobs:
           git config --global user.email 'jonas.eschmann@gmail.com'
           git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob.git experiments
 
-#      - name: Intel Apt repository
-#        timeout-minutes: 1
-#        run: |
-#          sudo apt update
-#          sudo apt install -y gpg-agent wget
-#          wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
-#          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
-#          sudo apt update
-#      - name: Install MKL
-#        run: |
-#          sudo apt install intel-oneapi-mkl-devel
-#
-#      - name: Setup Intel oneAPI environment
-#        run: |
-#          source /opt/intel/oneapi/setvars.sh
-#          printenv >> $GITHUB_ENV
+      - name: Intel Apt repository
+        timeout-minutes: 1
+        run: |
+          sudo apt update
+          sudo apt install -y gpg-agent wget
+          wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt update
+      - name: Install MKL
+        run: |
+          sudo apt install intel-oneapi-mkl-devel
+
+      - name: Setup Intel oneAPI environment
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          printenv >> $GITHUB_ENV
 
       - name: Install Dependencies
         run: |
@@ -57,7 +57,7 @@ jobs:
           -S .
           -DRL_TOOLS_ENABLE_TARGETS=ON
           -DRL_TOOLS_ENABLE_ZLIB=ON
-#          -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
+          -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
 
       - name: Build
         run: cmake --build build --target rl_zoo

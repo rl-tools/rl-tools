@@ -120,6 +120,7 @@ namespace rl_tools{
                     ts.save_trajectories_ui_written = true;
                     std::string ui = get_ui(device, ts.env_eval);
                     std::string us_jsm = ui + "\nexport { render };";
+                    std::filesystem::create_directories(ts.extrack_seed_path);
                     std::ofstream uif(ts.extrack_seed_path / "ui.js");
                     uif << ui;
                     std::ofstream ui_jsmf(ts.extrack_seed_path / "ui.esm.js");
