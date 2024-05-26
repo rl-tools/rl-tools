@@ -84,7 +84,7 @@ namespace rl_tools{
             for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {
                 auto observation = row(device, observations, env_i);
                 auto& state = states[env_i];
-                rl::utils::evaluation::set_state(data, env_i, step_i, states[0]);
+                rl::utils::evaluation::set_state(data, env_i, step_i, states[env_i]);
                 auto& env = envs[env_i];
                 observe(device, env, state, observation, rng);
             }

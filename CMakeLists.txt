@@ -26,6 +26,7 @@ option(RL_TOOLS_ENABLE_TARGETS "Disable default targets" OFF)
 option(RL_TOOLS_ENABLE_TESTS "Build the unit tests when enabled." off)
 
 # To obtain MKL: sudo apt install intel-oneapi-mkl-devel
+option(RL_TOOLS_ENABLE_ZLIB "Enable the zlib compression library" OFF)
 option(RL_TOOLS_ENABLE_HDF5 "Enable HDF5 to allow persisting data to disk" OFF)
 option(RL_TOOLS_ENABLE_TENSORBOARD "Enable the Tensorboard logging interface" OFF)
 option(RL_TOOLS_ENABLE_LIBATTOPNG "Enable the libattopng library to log images to TensorBoard" OFF)
@@ -150,6 +151,11 @@ install(EXPORT RLtoolsTargets NAMESPACE RLtools:: DESTINATION lib/cmake/RLtools)
 
 set(RL_TOOLS_INSTALL_PREFIX ".")
 
+
+if(RL_TOOLS_ENABLE_ZLIB)
+    find_package(ZLIB REQUIRED)
+    target_compile_definitions(rl_tools_core_definitions INTERFACE RL_TOOLS_ENABLE_ZLIB)
+endif()
 
 if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
     if(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)

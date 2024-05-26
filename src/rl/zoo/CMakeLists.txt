@@ -8,12 +8,13 @@ target_link_libraries(
         RLtools::RLtools
 )
 if(RL_TOOLS_ENABLE_CLI11)
-target_link_libraries(
-        rl_zoo
-        PRIVATE
-        CLI11::CLI11
-)
+    target_link_libraries(rl_zoo PRIVATE CLI11::CLI11)
+endif()
+if(RL_TOOLS_ENABLE_ZLIB)
+    target_link_libraries(rl_zoo PRIVATE ZLIB::ZLIB)
+endif()
 
+if(RL_TOOLS_ENABLE_CLI11)
 add_executable(
         rl_zoo_enjoy
         enjoy.cpp

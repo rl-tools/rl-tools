@@ -15,7 +15,6 @@
 #include <string>
 #include <sstream>
 #include <fstream>
-#define RL_TOOLS_ENABLE_ZLIB
 #ifdef RL_TOOLS_ENABLE_ZLIB
 #include <zlib.h>
 #endif

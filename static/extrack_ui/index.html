@@ -4,66 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trajectory Player</title>
+    <link rel="stylesheet" href="index.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.0.4/pako.min.js"></script>
     <script type="module">
-        import { render } from '../../experiments/2024-05-24_20-29-23/44c5e90_zoo_algorithm_environment/sac_pendulum-v1/0000/ui.esm.js';
 
-        async function fetchAndDecompressData(url) {
-            const response = await fetch(url);
-            const compressedData = await response.arrayBuffer();
-            const decompressedData = pako.ungzip(new Uint8Array(compressedData), { to: 'string' });
-            return JSON.parse(decompressedData);
-        }
+        import { TrajectoryPlayer } from './TrajectoryPlayer.js';
 
-        async function playTrajectory() {
-            const trajectoryData = await fetchAndDecompressData('../../experiments/2024-05-24_20-29-23/44c5e90_zoo_algorithm_environment/sac_pendulum-v1/0000/steps/000000000008000/trajectories.json.gz');
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
-            let currentEpisode = 0;
-            let currentStep = 0;
-            let currentEpisodeLength = 0;
-            let currentEpisodeReturn = 0;
+        const experiments_stub = "../../experiments"
 
-            function step() {
-                if (currentEpisode < trajectoryData.length) {
-                    const episode = trajectoryData[currentEpisode];
-                    if (currentStep < episode.length) {
-                        const { state, action, reward, terminated } = episode[currentStep];
-                        render(ctx, state, action);
-                        currentEpisodeLength++;
-                        currentEpisodeReturn += reward;
-                        currentStep++;
-                    } else {
-                        currentStep = 0;
-                        currentEpisode++;
-                        console.log(`Episode ${currentEpisode} finished. Return = ${currentEpisodeReturn}, Length = ${currentEpisodeLength}`);
-                        currentEpisodeLength = 0;
-                        currentEpisodeReturn = 0;
-                    }
+        const trajectories_path = `${experiments_stub}/2024-05-25_16-10-02/32e6580_zoo_algorithm_environment/sac_pendulum-v1/0000/steps/000000000010000/trajectories.json.gz`
+        const render_function_path = `${experiments_stub}/2024-05-25_16-10-02/32e6580_zoo_algorithm_environment/sac_pendulum-v1/0000/ui.esm.js`
 
-                }
-            }
+        const trajectory_player = new TrajectoryPlayer(render_function_path);
 
-            function skipEpisode() {
-                currentStep = 0;
-                currentEpisode++;
-                if (currentEpisode >= trajectoryData.length) {
-                    currentEpisode = 0; // Restart from the beginning if all episodes are finished
-                }
-                console.log(`Skipped to Episode ${currentEpisode}`);
-            }
+        const trajectoryPlayerContainer = document.getElementById('trajectoryPlayerContainer');
+        trajectoryPlayerContainer.appendChild(trajectory_player.getCanvas())
 
-            document.getElementById('skipButton').addEventListener('click', skipEpisode);
 
-            setInterval(step, 50);
-        }
-
-        document.addEventListener('DOMContentLoaded', playTrajectory);
+        document.addEventListener('DOMContentLoaded', ()=>{
+            trajectory_player.playTrajectories(trajectories_path);
+        });
     </script>
 </head>
 <body>
-    <canvas id="canvas" width="500" height="500"></canvas>
-    <button id="skipButton">Skip to Next Episode</button>
+<!--    <canvas id="canvas" width="500" height="500"></canvas>-->
+    <div id="trajectoryPlayerContainer"></div>
 </body>
 </html>
 

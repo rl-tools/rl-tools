@@ -1,0 +1,27 @@
+#trajectoryPlayerContainer {
+    height: 500px;
+}
+
+.trajectory-player-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: scroll;
+}
+
+.trajectory-player-canvas-container {
+    flex-grow: 1;
+    display: flex;
+    /*justify-content: center;*/
+    align-items: center;
+    position: relative;
+}
+
+.trajectory-player-canvas-container > canvas {
+    display: block;
+    position: absolute;
+}
+
+.trajectory-player-controls-container > * {
+    margin: 5px;
+}
