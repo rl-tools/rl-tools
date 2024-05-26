@@ -1,7 +1,7 @@
 class Step{
-    constructor(run, step_id, node){
+    constructor(run, step, node){
         this.run = run;
-        this.step_id = step_id;
+        this.step = step;
         this.node = node;
         this.checkpoint_code = "checkpoint.h" in node.children ? node.children["checkpoint.h"] : null
         this.checkpoint_hdf5 = "checkpoint.h5" in node.children ? node.children["checkpoint.h5"] : null
@@ -66,6 +66,24 @@ export class Index{
                 }
             }
         }
-        return run_list;
+        const run_hierarchy = {}
+        for(const run of run_list){
+            let current = run_hierarchy
+            for(const key of ["experiment", "commit", "population"]){
+                let value = run.config[key]
+                if(key === "population"){
+                    value = `${run.config["commit"]}_${value}`
+                }
+                if(!(value in current)){
+                    current[value] = {}
+                }
+                current = current[value]
+            }
+            current[run.config["seed"]] = run
+        }
+        return {
+            "run_list": run_list,
+            "run_hierarchy": run_hierarchy
+        };
     }
 }

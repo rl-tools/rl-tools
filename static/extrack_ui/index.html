@@ -6,24 +6,22 @@
     <title>Trajectory Player</title>
     <link rel="stylesheet" href="index.css">
     <script type="module">
-        const experiments_stub = "../../experiments/"
+        const experiments_base_path = "../../experiments/"
 
-        // import { Explorer } from "./Explorer.js";
-        // const explorer = new Explorer(experiments_stub, {"verbose": true})
-        // const explorerContainer = document.getElementById('explorerContainer');
-        // explorerContainer.appendChild(explorer.getContainer());
 
-        import { StaticFileSystem} from "./StaticFileSystem.js";
         import { DynamicFileSystem } from "./DynamicFileSystem.js";
         import {Index} from "./Index.js";
-        // const fs = new StaticFileSystem(experiments_stub)
-        const fs = new DynamicFileSystem(experiments_stub)
-
+        const fs = new DynamicFileSystem(experiments_base_path)
         const idx = new Index(fs)
         const loadTree = async () => {
             window.tree = await idx.refresh()
         }
         loadTree()
+
+        import { Explorer } from "./Explorer.js";
+        const explorer = new Explorer(experiments_base_path, idx, {"verbose": true})
+        const explorerContainer = document.getElementById('explorerContainer');
+        explorerContainer.appendChild(explorer.getContainer());
 
 
     </script>
