@@ -10,8 +10,9 @@
 
 
         import { DynamicFileSystem } from "./DynamicFileSystem.js";
+        import { StaticFileSystem } from "./StaticFileSystem.js";
         import {Index} from "./Index.js";
-        const fs = new DynamicFileSystem(experiments_base_path)
+        const fs = new StaticFileSystem(experiments_base_path)
         const idx = new Index(fs)
         const loadTree = async () => {
             window.tree = await idx.refresh()

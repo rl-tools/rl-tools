@@ -43,7 +43,7 @@ export class StaticFileSystem{
             if(name in node.children) {
                 throw new Error(`Duplicate node ${name} at ${fullPath}`)
             }
-            node.children[name] = fullPath
+            node.children[name] = this.base_path + fullPath
         }
         else {
             if(!(name in node.children)) {

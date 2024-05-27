@@ -65,7 +65,7 @@ int main(int argc, char** argv){
     DEVICE device;
 
     std::string extrack_experiment = "";
-    for(TI seed = 0; seed < 10; seed++){
+    for(TI seed = 0; seed < 100; seed++){
         LOOP_STATE ts;
 //#ifdef RL_TOOLS_ENABLE_CLI11
 //    CLI::App app{"rl_zoo"};
