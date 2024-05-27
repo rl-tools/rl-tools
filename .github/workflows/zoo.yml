@@ -81,7 +81,7 @@ jobs:
         run: |
           git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo.rl.tools.git _temp_zoo
           cd _temp_zoo
-          git submodule update --remote
+          git submodule update --init --remote
           git add .
           git commit -m "bump"
           git push
