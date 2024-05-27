@@ -68,7 +68,9 @@ jobs:
 
       - name: Generate Index
         working-directory: ${{ github.workspace }}/tools
-        run: ./index_experiments.sh
+        run: | 
+          ./index_experiments.sh
+          ./index_experiments_static.sh
       - name: Commit Results
         working-directory: ${{ github.workspace }}/experiments
         run: |
