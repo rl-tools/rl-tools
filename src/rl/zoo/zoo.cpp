@@ -33,7 +33,7 @@ using TI = typename DEVICE::index_t;
 using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 
 constexpr TI NUM_CHECKPOINTS = 10;
-constexpr TI NUM_EVALUATIONS = 100;
+constexpr TI NUM_EVALUATIONS = 13;
 constexpr TI NUM_SAVE_TRAJECTORIES = 10;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
