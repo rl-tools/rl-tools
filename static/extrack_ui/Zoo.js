@@ -1,4 +1,4 @@
-import {make_chart} from "./ZooChart.js"
+import {make_chart} from "./ZooLearningCurves.js"
 
 
 export class Zoo{
