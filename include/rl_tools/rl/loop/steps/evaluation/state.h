@@ -13,8 +13,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         using NEXT = T_NEXT;
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
-        using RESULT_SPEC = rl::utils::evaluation::Specification<T, TI, typename CONFIG::ENVIRONMENT_EVALUATION, CONFIG::EVALUATION_PARAMETERS::NUM_EVALUATION_EPISODES, CONFIG::EVALUATION_PARAMETERS::EPISODE_STEP_LIMIT>;
-        rl::utils::evaluation::Result<RESULT_SPEC> evaluation_results[CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS];
+        rl::utils::evaluation::Result<typename CONFIG::RESULT_SPEC> evaluation_results[CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS];
         typename CONFIG::RNG rng_eval;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION env_eval;
         typename CONFIG::UI ui;
