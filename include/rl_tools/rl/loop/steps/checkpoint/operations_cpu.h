@@ -43,7 +43,7 @@ namespace rl_tools{
         using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
         using STATE = rl::loop::steps::checkpoint::State<CONFIG>;
-        if(ts.step % CONFIG::PARAMETERS::CHECKPOINT_INTERVAL == 0){
+        if(ts.step % CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0){
             std::stringstream step_ss;
             step_ss << std::setw(15) << std::setfill('0') << ts.step;
             std::filesystem::path step_folder = ts.extrack_seed_path / "steps" / step_ss.str();

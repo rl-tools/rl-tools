@@ -14,7 +14,7 @@ namespace rl_tools::rl::loop::steps::checkpoint{
     template<typename T_NEXT, typename T_PARAMETERS = Parameters<typename T_NEXT::T, typename T_NEXT::TI>>
     struct Config: T_NEXT {
         using NEXT = T_NEXT;
-        using PARAMETERS = T_PARAMETERS;
+        using CHECKPOINT_PARAMETERS = T_PARAMETERS;
         template <typename CONFIG>
         using State = State<CONFIG>;
     };
