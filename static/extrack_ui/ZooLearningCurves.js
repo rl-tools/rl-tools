@@ -40,12 +40,17 @@ export function make_chart(data) {
         });
     }
 
+    // let color_palette = [
+    //     "#d53e4f",
+    //     "#fc8d59",
+    //     "#fee08b",
+    //     "#ffffbf",
+    //     "#e6f598",
+    // ]
     let color_palette = [
-        "#d53e4f",
-        "#fc8d59",
-        "#fee08b",
-        "#ffffbf",
-        "#e6f598",
+        "#e41a1c",
+        "#377eb8",
+        "#4daf4a"
     ]
 
     let datasets = [];

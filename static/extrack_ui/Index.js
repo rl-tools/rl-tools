@@ -72,7 +72,7 @@ export class Index{
         const run_hierarchy = {}
         for(const run of run_list){
             let current = run_hierarchy
-            for(const key of ["experiment", "commit", "population"]){
+            for(const key of ["experiment", "commit", "population_variates"]){
                 let value = run.config[key]
                 if(key === "population"){
                     value = `${run.config["commit"]}_${value}`
