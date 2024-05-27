@@ -23,11 +23,17 @@
         const explorerContainer = document.getElementById('explorerContainer');
         explorerContainer.appendChild(explorer.getContainer());
 
+        import { Zoo } from "./Zoo.js";
+        const zoo = new Zoo(experiments_base_path, idx, {"verbose": true})
+        const zooContainer = document.getElementById('zooContainer');
+        zooContainer.appendChild(zoo.getContainer());
+
 
     </script>
 </head>
 <body>
     <div id="explorerContainer"></div>
+    <div id="zooContainer"></div>
 </body>
 </html>
 
