@@ -36,13 +36,19 @@ namespace rl_tools{
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
         if(ts.extrack_experiment_path.empty()){
             rlt::utils::assert_exit(device, !ts.extrack_base_path.empty(), "Extrack base path (-e,--extrack) must be set if the Extrack experiment path (--ee,--extrack-experiment) is not set.");
-            ts.extrack_experiment_path = ts.extrack_base_path / rlt::get_timestamp_string(device, ts);
+            if(ts.extrack_experiment.empty()){
+                ts.extrack_experiment = rlt::get_timestamp_string(device, ts);
+            }
+            ts.extrack_experiment_path = ts.extrack_base_path / ts.extrack_experiment;
         }
         {
             std::string commit_hash = RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH);
-            std::string setup_name = commit_hash.substr(0, 7) + "_zoo_algorithm_environment";
+            std::string setup_name = commit_hash.substr(0, 7) + "_" + ts.extrack_name;
+            if(ts.extrack_population_variates != ""){
+                setup_name = setup_name + "_" + ts.extrack_population_variates;
+            }
             ts.extrack_setup_path = ts.extrack_experiment_path / setup_name;
-            ts.extrack_config_path = ts.extrack_setup_path / ts.config_name;
+            ts.extrack_config_path = ts.extrack_setup_path / ts.extrack_population_values;
         }
         {
             std::stringstream padded_seed_ss;

@@ -54,11 +54,12 @@ export class Index{
             for(const commit_population_key of Object.keys(experiment.children).sort()){
                 const commit = commit_population_key.split("_")[0]
                 const name = commit_population_key.split("_")[1]
-                const population = commit_population_key.split("_").slice(2).join("_")
-                const population_config = {...run_config, "commit": commit, "name": name, "population": population}
+                const population_variates = commit_population_key.split("_").slice(2)
+                const population_config = {...run_config, "commit": commit, "name": name, "population_variates": population_variates.join("_")}
                 const commit_population = experiment.children[commit_population_key]
                 for(const config_key of Object.keys(commit_population.children).sort()){
-                    const config_config = {...population_config, "config": config_key}
+                    const population_values = config_key.split("_")
+                    const config_config = {...population_config, "population_values": population_values.join("_"), "population": Object.fromEntries(population_variates.map((key, index) => [key, population_values[index]]))}
                     const config = commit_population.children[config_key]
                     for(const seed_key of Object.keys(config.children).sort()){
                         const seed_config = {...config_config, "seed": seed_key}

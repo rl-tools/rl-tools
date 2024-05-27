@@ -51,33 +51,35 @@ export class ExplorerStep{
 
         this.content = document.createElement('div');
 
-        if(options["verbose"]){
-            const url = new URL("./play_trajectories.html", window.location.href)
-            url.searchParams.append("experiments", experiments_base_path)
-            url.searchParams.append("trajectories", this.step.trajectories_compressed)
-            if(!run.ui_jsm){
-                throw `No ui_jsm found in ${this.run.config.path}"`
+        if(this.run.ui_jsm && this.step.trajectories_compressed){
+            if(options["verbose"]){
+                const url = new URL("./play_trajectories.html", window.location.href)
+                url.searchParams.append("experiments", experiments_base_path)
+                url.searchParams.append("trajectories", this.step.trajectories_compressed)
+                if(!run.ui_jsm){
+                    throw `No ui_jsm found in ${this.run.config.path}"`
+                }
+                url.searchParams.append("ui", run.ui_jsm)
+                const link = document.createElement('a');
+                link.href = url.href;
+                link.innerText = "Play isolated"
+                this.content.appendChild(link);
             }
-            url.searchParams.append("ui", run.ui_jsm)
-            const link = document.createElement('a');
-            link.href = url.href;
-            link.innerText = "Play isolated"
-            this.content.appendChild(link);
-        }
 
-        const play_button = document.createElement('button');
-        play_button.innerHTML = "Play Trajectories";
-        this.content.appendChild(play_button);
-        this.trajectory_player_container = document.createElement('div');
-        this.trajectory_player_container.classList.add("explorer-trajectory-player-container")
-        this.trajectory_player_container.style.display = "none";
-        this.content.appendChild(this.trajectory_player_container);
-        play_button.addEventListener('click', () => {
-            const trajectory_player = new TrajectoryPlayer(experiments_base_path + "/" + run.ui_jsm);
-            this.trajectory_player_container.appendChild(trajectory_player.getCanvas());
-            this.trajectory_player_container.style.display = "block";
-            trajectory_player.playTrajectories(experiments_base_path + "/" + this.step.trajectories_compressed);
-        })
+            const play_button = document.createElement('button');
+            play_button.innerHTML = "Play Trajectories";
+            this.content.appendChild(play_button);
+            this.trajectory_player_container = document.createElement('div');
+            this.trajectory_player_container.classList.add("explorer-trajectory-player-container")
+            this.trajectory_player_container.style.display = "none";
+            this.content.appendChild(this.trajectory_player_container);
+            play_button.addEventListener('click', () => {
+                const trajectory_player = new TrajectoryPlayer(experiments_base_path + "/" + run.ui_jsm);
+                this.trajectory_player_container.appendChild(trajectory_player.getCanvas());
+                this.trajectory_player_container.style.display = "block";
+                trajectory_player.playTrajectories(experiments_base_path + "/" + this.step.trajectories_compressed);
+            })
+        }
 
         const step_spoiler = new Spoiler(parent, this.step.step, true, () => {
         }, () => {

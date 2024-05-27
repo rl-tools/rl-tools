@@ -33,7 +33,7 @@ using TI = typename DEVICE::index_t;
 using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 
 constexpr TI NUM_CHECKPOINTS = 10;
-constexpr TI NUM_EVALUATIONS = 13;
+constexpr TI NUM_EVALUATIONS = 100;
 constexpr TI NUM_SAVE_TRAJECTORIES = 10;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
 struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
@@ -63,58 +63,67 @@ std::string environment = "pendulum-v1";
 int main(int argc, char** argv){
     using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
     DEVICE device;
-    TI seed = 0;
-    LOOP_STATE ts;
-#ifdef RL_TOOLS_ENABLE_CLI11
-    CLI::App app{"rl_zoo"};
-    app.add_option("-s,--seed", seed, "seed");
-    app.add_option("-e,--extrack", ts.extrack_base_path, "extrack");
-    app.add_option("--ee,--extrack-experiment", ts.extrack_experiment_path, "extrack-experiment");
-    CLI11_PARSE(app, argc, argv);
-#endif
-    ts.config_name = algorithm + "_" + environment;
-    rlt::malloc(device);
-    rlt::init(device);
-    rlt::malloc(device, ts);
-    rlt::init(device, ts, seed);
-#ifdef RL_TOOLS_ENABLE_HDF5
-    rlt::init(device, device.logger, ts.extrack_seed_path);
-#endif
-    std::cout << "Checkpoint Interval: " << LOOP_CHECKPOINT_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
-    std::cout << "Evaluation Interval: " << LOOP_EVALUATION_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
-    while(!rlt::step(device, ts)){
-        if(ts.step == 5000){
-            std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
+
+    std::string extrack_experiment = "";
+    for(TI seed = 0; seed < 10; seed++){
+        LOOP_STATE ts;
+//#ifdef RL_TOOLS_ENABLE_CLI11
+//    CLI::App app{"rl_zoo"};
+//    app.add_option("-s,--seed", seed, "seed");
+//    app.add_option("-e,--extrack", ts.extrack_base_path, "extrack");
+//    app.add_option("--ee,--extrack-experiment", ts.extrack_experiment_path, "extrack-experiment");
+//    CLI11_PARSE(app, argc, argv);
+//#endif
+        ts.extrack_name = "zoo";
+        ts.extrack_population_variates = "algorithm_environment";
+        ts.extrack_population_values = algorithm + "_" + environment;
+        if(extrack_experiment != ""){
+            ts.extrack_experiment = extrack_experiment;
         }
-    }
-    std::filesystem::create_directories(ts.extrack_seed_path);
-    std::ofstream return_file(ts.extrack_seed_path / "return.json");
-    return_file << "[";
-    for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
-        return_file << "{";
-        return_file << "\"step\": " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL * evaluation_i << ", ";
-        return_file << "\"returns_mean\": " << ts.evaluation_results[evaluation_i].returns_mean << ", ";
-        return_file << "\"returns_std\": " << ts.evaluation_results[evaluation_i].returns_std << ", ";
-        return_file << "\"episode_length_mean\": " << ts.evaluation_results[evaluation_i].episode_length_mean << ", ";
-        return_file << "\"episode_length_std\": " << ts.evaluation_results[evaluation_i].episode_length_std << ", ";
-        return_file << "\"returns\": [";
-        for(TI episode_i = 0; episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES; episode_i++){
-            return_file << ts.evaluation_results[evaluation_i].returns[episode_i];
-            if(episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES - 1){
+        rlt::malloc(device);
+        rlt::init(device);
+        rlt::malloc(device, ts);
+        rlt::init(device, ts, seed);
+        extrack_experiment = ts.extrack_experiment;
+#ifdef RL_TOOLS_ENABLE_HDF5
+        rlt::init(device, device.logger, ts.extrack_seed_path);
+#endif
+        std::cout << "Checkpoint Interval: " << LOOP_CHECKPOINT_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
+        std::cout << "Evaluation Interval: " << LOOP_EVALUATION_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
+        while(!rlt::step(device, ts)){
+            if(ts.step == 5000){
+                std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
+            }
+        }
+        std::filesystem::create_directories(ts.extrack_seed_path);
+        std::ofstream return_file(ts.extrack_seed_path / "return.json");
+        return_file << "[";
+        for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
+            return_file << "{";
+            return_file << "\"step\": " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL * evaluation_i << ", ";
+            return_file << "\"returns_mean\": " << ts.evaluation_results[evaluation_i].returns_mean << ", ";
+            return_file << "\"returns_std\": " << ts.evaluation_results[evaluation_i].returns_std << ", ";
+            return_file << "\"episode_length_mean\": " << ts.evaluation_results[evaluation_i].episode_length_mean << ", ";
+            return_file << "\"episode_length_std\": " << ts.evaluation_results[evaluation_i].episode_length_std << ", ";
+            return_file << "\"returns\": [";
+            for(TI episode_i = 0; episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES; episode_i++){
+                return_file << ts.evaluation_results[evaluation_i].returns[episode_i];
+                if(episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES - 1){
+                    return_file << ", ";
+                }
+            }
+            return_file << "]";
+            return_file << "}";
+            if(evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1){
                 return_file << ", ";
             }
         }
         return_file << "]";
-        return_file << "}";
-        if(evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1){
-            return_file << ", ";
-        }
-    }
-    return_file << "]";
 
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
-    rlt::free(device, device.logger);
+        rlt::free(device, device.logger);
 #endif
-    rlt::free(device);
+        rlt::free(device);
+    }
     return 0;
 }
