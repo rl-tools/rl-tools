@@ -95,7 +95,7 @@ export class ExplorerRun{
         parent.setContent(this.container);
 
         this.steps_spoiler = new Spoiler(this.container, "Steps", false);
-        for(const step in run.steps) {
+        for(const step of Object.keys(run.steps).sort()) {
             // const step_spoiler = new Spoiler(this.steps_spoiler, this.steps[step_id], );
             new ExplorerStep(this.steps_spoiler, experiments_base_path, run, run.steps[step], options);
         }
