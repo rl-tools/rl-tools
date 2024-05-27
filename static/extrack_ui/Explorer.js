@@ -74,7 +74,7 @@ export class ExplorerStep{
             this.trajectory_player_container.style.display = "none";
             this.content.appendChild(this.trajectory_player_container);
             play_button.addEventListener('click', () => {
-                const trajectory_player = new TrajectoryPlayer(experiments_base_path + "/" + run.ui_jsm);
+                const trajectory_player = new TrajectoryPlayer(run.ui_jsm);
                 this.trajectory_player_container.appendChild(trajectory_player.getCanvas());
                 this.trajectory_player_container.style.display = "block";
                 trajectory_player.playTrajectories(experiments_base_path + "/" + this.step.trajectories_compressed);
