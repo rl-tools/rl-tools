@@ -15,6 +15,9 @@ namespace rl_tools::rl::zoo::sac{
         using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
         using ENVIRONMENT = rlt::rl::environments::Pendulum<ENVIRONMENT_SPEC>;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+            struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+                static constexpr T ALPHA = 1.0;
+            };
             static constexpr TI STEP_LIMIT = 20000;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
