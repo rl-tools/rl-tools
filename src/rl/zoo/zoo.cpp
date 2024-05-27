@@ -87,6 +87,31 @@ int main(int argc, char** argv){
             std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
         }
     }
+    std::filesystem::create_directories(ts.extrack_seed_path);
+    std::ofstream return_file(ts.extrack_seed_path / "return.json");
+    return_file << "[";
+    for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
+        return_file << "{";
+        return_file << "\"step\": " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL * evaluation_i << ", ";
+        return_file << "\"returns_mean\": " << ts.evaluation_results[evaluation_i].returns_mean << ", ";
+        return_file << "\"returns_std\": " << ts.evaluation_results[evaluation_i].returns_std << ", ";
+        return_file << "\"episode_length_mean\": " << ts.evaluation_results[evaluation_i].episode_length_mean << ", ";
+        return_file << "\"episode_length_std\": " << ts.evaluation_results[evaluation_i].episode_length_std << ", ";
+        return_file << "\"returns\": [";
+        for(TI episode_i = 0; episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES; episode_i++){
+            return_file << ts.evaluation_results[evaluation_i].returns[episode_i];
+            if(episode_i < LOOP_CONFIG::EVALUATION_RESULT_SPEC::N_EPISODES - 1){
+                return_file << ", ";
+            }
+        }
+        return_file << "]";
+        return_file << "}";
+        if(evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1){
+            return_file << ", ";
+        }
+    }
+    return_file << "]";
+
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
     rlt::free(device, device.logger);
 #endif
