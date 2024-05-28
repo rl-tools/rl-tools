@@ -84,6 +84,11 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ./build/src/rl/zoo/rl_zoo_ppo_pendulum_v1 $NUM_SEEDS
 
+      - name: Pull Zoo Blob Again
+        working-directory: ${{ github.workspace }}/experiments
+        run: |
+          git pull
+
       - name: Generate Index
         working-directory: ${{ github.workspace }}/tools
         run: | 

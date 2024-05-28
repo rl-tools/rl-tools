@@ -91,7 +91,7 @@ int main(int argc, char** argv){
         return_file << "[";
         for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
             return_file << "{";
-            return_file << "\"step\": " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL * evaluation_i << ", ";
+            return_file << "\"step\": " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL *  LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i << ", ";
             return_file << "\"returns_mean\": " << ts.evaluation_results[evaluation_i].returns_mean << ", ";
             return_file << "\"returns_std\": " << ts.evaluation_results[evaluation_i].returns_std << ", ";
             return_file << "\"episode_length_mean\": " << ts.evaluation_results[evaluation_i].episode_length_mean << ", ";
@@ -110,6 +110,8 @@ int main(int argc, char** argv){
             }
         }
         return_file << "]";
+        std::ofstream return_file_confirmation(ts.extrack_seed_path / "return.json.set");
+        return_file_confirmation.close();
 
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
         rlt::free(device, device.logger);

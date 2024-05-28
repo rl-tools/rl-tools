@@ -69,10 +69,26 @@ export class Zoo{
             const all_data = Object.fromEntries(await Promise.all(Object.keys(run_list_grouped_truncated).map(async population => {
                 const population_data = Object.fromEntries(await Promise.all(Object.entries(run_list_grouped_truncated[population]).map(async ([experiment, experiment_runs]) => {
                     return [experiment, await Promise.all(experiment_runs.items.map(async (run) => {
+                        let return_data = null
+                        try{
+                            return_data = await (await fetch(run.return)).text()
+                        }
+                        catch(e){
+                            console.error(`Failed to fetch return data from ${run.return}`)
+                            // throw new Error(`Failed to fetch return data from ${run.return}`)
+                        }
+                        let data = null;
+                        try{
+                            data = JSON.parse(return_data)
+                        }
+                        catch(e){
+                            console.error(`Failed to parse return data from ${run.return}`)
+                            // throw new Error(`Failed to parse return data from ${run.return}`)
+                        }
                         return {
                             config: run.config,
                             label: run.config["seed"],
-                            data: JSON.parse(await (await fetch(run.return)).text())
+                            data: data
                         }
                     }))]
                 })))
