@@ -58,7 +58,7 @@ auto constexpr name(MODE mode){
 }
 
 template <BENCHMARK_MODE MODE>
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::Parameters<T, TI, ENVIRONMENT>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI>{
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0;
         static constexpr TI N_EPOCHS = MODE == BENCHMARK_MODE::LARGE ? 5 : (MODE == BENCHMARK_MODE::TINY ? 1 : 2);

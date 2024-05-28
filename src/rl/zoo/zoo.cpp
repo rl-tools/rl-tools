@@ -6,24 +6,13 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 
-#if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
-#ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1
 #include "sac/pendulum-v1.h"
-#else
-#error "RLtools Zoo: Environment not defined"
-#endif
-#elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
-#ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1
 #include "td3/pendulum-v1.h"
-#else
-#error "RLtools Zoo: Environment not defined"
-#endif
-#else
-#error "RLtools Zoo: Algorithm not defined"
-#endif
+#include "ppo/pendulum-v1.h"
 
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
+#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
@@ -35,45 +24,14 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using T = float;
 using TI = typename DEVICE::index_t;
 
-// These options should be coherent ------------------------------------------------------
-//using LOOP_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CONFIG;
-//std::string algorithm = "td3";
-#if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
-#elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
-using LOOP_CORE_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
-#else
-#error "RLtools Zoo: Algorithm not defined"
-#endif
+#include "config.h"
 
-constexpr TI NUM_CHECKPOINTS = 10;
-constexpr TI NUM_EVALUATIONS = 100;
-constexpr TI NUM_SAVE_TRAJECTORIES = 10;
-using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;
-struct LOOP_CHECKPOINT_PARAMETERS: rlt::rl::loop::steps::checkpoint::Parameters<T, TI>{
-    static constexpr TI CHECKPOINT_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_CHECKPOINTS;
-    static constexpr TI CHECKPOINT_INTERVAL = CHECKPOINT_INTERVAL_TEMP == 0 ? 1 : CHECKPOINT_INTERVAL_TEMP;
-};
-using LOOP_CHECKPOINT_CONFIG = rlt::rl::loop::steps::checkpoint::Config<LOOP_EXTRACK_CONFIG, LOOP_CHECKPOINT_PARAMETERS>;
-struct LOOP_EVALUATION_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
-    static constexpr TI EVALUATION_INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_EVALUATIONS;
-    static constexpr TI EVALUATION_INTERVAL = EVALUATION_INTERVAL_TEMP == 0 ? 1 : EVALUATION_INTERVAL_TEMP;
-    static constexpr TI NUM_EVALUATION_EPISODES = 100;
-    static constexpr TI N_EVALUATIONS = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
-};
-using LOOP_EVALUATION_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CHECKPOINT_CONFIG, LOOP_EVALUATION_PARAMETERS>;
-struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectories::Parameters<T, TI, LOOP_CHECKPOINT_CONFIG>{
-    static constexpr TI INTERVAL_TEMP = LOOP_CORE_CONFIG::CORE_PARAMETERS::STEP_LIMIT / NUM_SAVE_TRAJECTORIES;
-    static constexpr TI INTERVAL = INTERVAL_TEMP == 0 ? 1 : INTERVAL_TEMP;
-    static constexpr TI NUM_EPISODES = 10;
-};
-using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_EVALUATION_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
-using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_SAVE_TRAJECTORIES_CONFIG>;
-using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 #if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 std::string algorithm = "sac";
 #elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
 std::string algorithm = "td3";
+#elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
+std::string algorithm = "ppo";
 #else
 #error "RLtools Zoo: Algorithm not defined"
 #endif

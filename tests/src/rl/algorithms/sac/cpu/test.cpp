@@ -16,7 +16,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC, FULL_TRAINING){
     std::chrono::time_point<std::chrono::high_resolution_clock> start_time = std::chrono::high_resolution_clock::now();
     while(!rlt::step(device, ts)){
         if(ts.step % 1000 == 0){
-            rlt::rl::utils::evaluation::Result<typename decltype(ts)::RESULT_SPEC> result;
+            rlt::rl::utils::evaluation::Result<typename decltype(ts)::CONFIG::EVALUATION_RESULT_SPEC> result;
             evaluate(device, ts.env_eval, ts.ui, get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
             evaluation_returns.push_back(result.returns_mean);
             std::sort(evaluation_returns.begin(), evaluation_returns.end());

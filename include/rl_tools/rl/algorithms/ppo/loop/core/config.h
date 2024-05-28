@@ -18,7 +18,7 @@ namespace rl_tools{
 
         struct ParametersTag{};
         template<typename T, typename TI, typename ENVIRONMENT>
-        struct Parameters{
+        struct DefaultParameters{
             using TAG = ParametersTag;
             using PPO_PARAMETERS = rl::algorithms::ppo::DefaultParameters<T, TI>;
             static constexpr TI STEP_LIMIT = 100;
@@ -61,7 +61,7 @@ namespace rl_tools{
         };
 
         struct ConfigTag{};
-        template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = Parameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsMLP>
+        template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsMLP>
         struct Config: rl::loop::Config{
             using TAG = ConfigTag;
             using T = T_T;

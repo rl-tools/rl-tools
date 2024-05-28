@@ -9,6 +9,11 @@ if(RL_TOOLS_ENABLE_ZLIB)
     target_link_libraries(rl_zoo_td3_pendulum_v1 PRIVATE RLtools::RLtools ZLIB::ZLIB)
     target_compile_definitions(rl_zoo_td3_pendulum_v1 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
     target_compile_definitions(rl_zoo_td3_pendulum_v1 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
+    # PPO Pendulum-v1
+    add_executable(rl_zoo_ppo_pendulum_v1 zoo.cpp)
+    target_link_libraries(rl_zoo_ppo_pendulum_v1 PRIVATE RLtools::RLtools ZLIB::ZLIB)
+    target_compile_definitions(rl_zoo_ppo_pendulum_v1 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
+    target_compile_definitions(rl_zoo_ppo_pendulum_v1 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 endif()
 
 
@@ -29,4 +34,6 @@ target_link_libraries(
         RLtools::RLtools
         CLI11::CLI11
 )
+target_compile_definitions(rl_zoo_enjoy PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
+target_compile_definitions(rl_zoo_enjoy PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 endif()

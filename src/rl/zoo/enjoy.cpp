@@ -4,8 +4,12 @@
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 
 #include "td3/pendulum-v1.h"
+#include "sac/pendulum-v1.h"
+#include "ppo/pendulum-v1.h"
 
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
+#include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
+#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
@@ -25,7 +29,7 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using T = float;
 using TI = typename DEVICE::index_t;
 
-using LOOP_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CONFIG;
+#include "config.h"
 
 namespace fs = std::filesystem;
 

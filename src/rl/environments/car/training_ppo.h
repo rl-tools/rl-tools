@@ -48,7 +48,7 @@ using ENVIRONMENT = rlt::rl::environments::CarTrack<ENV_SPEC>;
 using ENVIRONMENT_EVALUATION = ENVIRONMENT;
 using UI = rlt::ui_server::client::UIBuffered<ENVIRONMENT>;
 
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::Parameters<T, TI, ENVIRONMENT>{
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<T, TI>{
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.001;
         static constexpr TI N_EPOCHS = 2;
