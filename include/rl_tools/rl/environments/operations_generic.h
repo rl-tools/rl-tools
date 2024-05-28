@@ -22,6 +22,10 @@ namespace rl_tools{
     void set_state(DEVICE&, ENV&, rl::environments::DummyUI, STATE&, ACTION&){};
     template <typename DEVICE, typename ENV, typename ACTION>
     void set_action(DEVICE&, ENV&, rl::environments::DummyUI, ACTION&){};
+    template <typename DEVICE, typename ENV>
+    auto get_ui(DEVICE&, ENV&){return "";}
+    template <typename DEVICE, typename ENV, typename STATE>
+    auto serialize_json(DEVICE&, ENV&, STATE&){return "{}";};
     template <typename DEVICE>
     void free(DEVICE&, rl::environments::Environment&){};
 }

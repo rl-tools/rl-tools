@@ -24,7 +24,6 @@ namespace rl_tools::rl::algorithms{
             static constexpr T ADAPTIVE_LEARNING_RATE_DECAY = (T)1/(T)1.5;
             static constexpr T ADAPTIVE_LEARNING_RATE_MIN = 1e-6;
             static constexpr T ADAPTIVE_LEARNING_RATE_MAX = 1e-2;
-            static constexpr bool NORMALIZE_OBSERVATIONS = false;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 0;
             static constexpr TI N_EPOCHS = 10;

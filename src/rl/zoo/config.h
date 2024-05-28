@@ -13,6 +13,8 @@ using LOOP_CORE_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP
 #elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::ppo::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::ppo::AntV4<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 #else
 #error "RLtools Zoo PPO: Environment not defined"
 #endif

@@ -55,7 +55,7 @@ namespace rl_tools{
                 std::string episode_json = "[";
                 for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
                     std::string step_json = "{";
-                    step_json += "\"state\":" + serialize_json(device, env, data.states[episode_i][step_i]) + ",";
+                    step_json += "\"state\":" + std::string(serialize_json(device, env, data.states[episode_i][step_i])) + ",";
                     std::string action_json = "\"action\":[";
                     for(TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
                         action_json += std::to_string(data.actions[episode_i][step_i][action_i]) + ",";
@@ -119,13 +119,15 @@ namespace rl_tools{
                 if(!ts.save_trajectories_ui_written){
                     ts.save_trajectories_ui_written = true;
                     std::string ui = get_ui(device, ts.env_eval);
-                    std::string us_jsm = ui + "\nexport { render };";
-                    std::filesystem::create_directories(ts.extrack_seed_path);
-                    std::ofstream uif(ts.extrack_seed_path / "ui.js");
-                    uif << ui;
-                    std::ofstream ui_jsmf(ts.extrack_seed_path / "ui.esm.js");
-                    ui_jsmf << us_jsm;
-                    std::cout << "UI written to: " << ts.extrack_seed_path / "ui.js" << std::endl;
+                    if(!ui.empty()){
+                        std::string us_jsm = ui + "\nexport { render };";
+                        std::filesystem::create_directories(ts.extrack_seed_path);
+                        std::ofstream uif(ts.extrack_seed_path / "ui.js");
+                        uif << ui;
+                        std::ofstream ui_jsmf(ts.extrack_seed_path / "ui.esm.js");
+                        ui_jsmf << us_jsm;
+                        std::cout << "UI written to: " << ts.extrack_seed_path / "ui.js" << std::endl;
+                    }
                 }
                 evaluate(device, ts.env_eval, ts.ui, get_actor(ts), ts.save_trajectories_result, *ts.save_trajectories_buffer, ts.actor_deterministic_evaluation_buffers, ts.rng_save_trajectories, false);
 

@@ -62,6 +62,7 @@ namespace rl_tools::rl::environments::mujoco{
         static constexpr TI OBSERVATION_DIM = SPEC::STATE_DIM_Q - 2 + SPEC::STATE_DIM_Q_DOT;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = SPEC::ACTION_DIM;
+        static constexpr TI EPISODE_STEP_LIMIT = 1000;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

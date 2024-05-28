@@ -10,6 +10,9 @@
 #include "sac/pendulum-v1.h"
 #include "td3/pendulum-v1.h"
 #include "ppo/pendulum-v1.h"
+#ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
+#include "ppo/ant-v4.h"
+#endif
 
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
@@ -38,6 +41,8 @@ std::string algorithm = "ppo";
 #endif
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 std::string environment = "pendulum-v1";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
+std::string environment = "ant-v4";
 #else
 #error "RLtools Zoo: Environment not defined"
 #endif
@@ -79,12 +84,10 @@ int main(int argc, char** argv){
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
         rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
-        std::cout << "Checkpoint Interval: " << LOOP_CHECKPOINT_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
-        std::cout << "Evaluation Interval: " << LOOP_EVALUATION_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
+        std::cout << "Checkpoint Interval: " << LOOP_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;
+        std::cout << "Evaluation Interval: " << LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL << std::endl;
+        std::cout << "Save Trajectories Interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
         while(!rlt::step(device, ts)){
-            if(ts.step == 5000){
-                std::cout << "steppin yourself > callbacks 'n' hooks: " << ts.step << std::endl;
-            }
         }
         std::filesystem::create_directories(ts.extrack_seed_path);
         std::ofstream return_file(ts.extrack_seed_path / "return.json");
