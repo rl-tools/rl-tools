@@ -1,3 +1,4 @@
+name: Zoo
 on:
 #  workflow_dispatch:
   workflow_dispatch:

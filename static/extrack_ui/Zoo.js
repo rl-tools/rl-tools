@@ -81,14 +81,17 @@ export class Zoo{
 
 
             for(const population in all_data){
-                const aggregated_data =Object.entries(all_data[population]).map(([experiment, experiment_data]) => {
-                   return {
-                       label: experiment,
-                       data: aggregate(all_data[population][experiment])
-                   }
+                let population_actual;
+                const aggregated_data = Object.entries(all_data[population]).map(([experiment, experiment_data]) => {
+                    population_actual = experiment_data[0].config["population"]
+                    return {
+                        label: experiment,
+                        data: aggregate(all_data[population][experiment])
+                    }
                 })
-                const header = document.createElement("h2")
-                header.innerText = `${population}`
+                const header = document.createElement("div")
+                header.style.fontSize = "1.5em"
+                header.innerHTML = `Algorithm: <b>${population_actual.algorithm}</b>, Environment: <b>${population_actual.environment}</b>`
                 this.container.appendChild(header)
                 const chart = make_chart(aggregated_data)
                 this.container.appendChild(chart)
