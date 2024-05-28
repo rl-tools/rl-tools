@@ -6,21 +6,29 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 
-#include "td3/pendulum-v1.h"
+#if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
+#ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1
 #include "sac/pendulum-v1.h"
+#else
+#error "RLtools Zoo: Environment not defined"
+#endif
+#elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
+#ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1
+#include "td3/pendulum-v1.h"
+#else
+#error "RLtools Zoo: Environment not defined"
+#endif
+#else
+#error "RLtools Zoo: Algorithm not defined"
+#endif
 
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
-#include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
+#include <rl_tools/rl/loop/steps/checkpoint/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/save_trajectories/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
-
-#ifdef RL_TOOLS_ENABLE_CLI11
-#include <CLI/CLI.hpp>
-#endif
-
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
@@ -30,7 +38,13 @@ using TI = typename DEVICE::index_t;
 // These options should be coherent ------------------------------------------------------
 //using LOOP_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CONFIG;
 //std::string algorithm = "td3";
+#if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+#elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::td3::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+#else
+#error "RLtools Zoo: Algorithm not defined"
+#endif
 
 constexpr TI NUM_CHECKPOINTS = 10;
 constexpr TI NUM_EVALUATIONS = 100;
@@ -56,8 +70,18 @@ struct LOOP_SAVE_TRAJECTORIES_PARAMETERS: rlt::rl::loop::steps::save_trajectorie
 using LOOP_SAVE_TRAJECTORIES_CONFIG = rlt::rl::loop::steps::save_trajectories::Config<LOOP_EVALUATION_CONFIG, LOOP_SAVE_TRAJECTORIES_PARAMETERS>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_SAVE_TRAJECTORIES_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+#if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 std::string algorithm = "sac";
+#elif defined(RL_TOOLS_RL_ZOO_ALGORITHM_TD3)
+std::string algorithm = "td3";
+#else
+#error "RLtools Zoo: Algorithm not defined"
+#endif
+#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 std::string environment = "pendulum-v1";
+#else
+#error "RLtools Zoo: Environment not defined"
+#endif
 // ---------------------------------------------------------------------------------------
 
 int main(int argc, char** argv){
@@ -65,7 +89,15 @@ int main(int argc, char** argv){
     DEVICE device;
 
     std::string extrack_experiment = "";
-    for(TI seed = 0; seed < 100; seed++){
+    TI num_seeds = 10;
+    if(argc <= 1){
+        std::cerr << "Defaulting to running " << num_seeds << " seeds." << std::endl;
+    }
+    else{
+        num_seeds = std::stoi(argv[1]);
+        std::cerr << "Running " << num_seeds << " seeds." << std::endl;
+    }
+    for(TI seed = 0; seed < num_seeds; seed++){
         LOOP_STATE ts;
 //#ifdef RL_TOOLS_ENABLE_CLI11
 //    CLI::App app{"rl_zoo"};
@@ -85,7 +117,7 @@ int main(int argc, char** argv){
         rlt::malloc(device, ts);
         rlt::init(device, ts, seed);
         extrack_experiment = ts.extrack_experiment;
-#ifdef RL_TOOLS_ENABLE_HDF5
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
         rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif
         std::cout << "Checkpoint Interval: " << LOOP_CHECKPOINT_CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL << std::endl;

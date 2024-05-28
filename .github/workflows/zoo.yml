@@ -1,11 +1,21 @@
 on:
 #  workflow_dispatch:
+  workflow_dispatch:
+    inputs:
+      num_seeds:
+        description: 'Number of seeds'
+        default: '10'
   push:
     branches: [ "master" ]
 jobs:
   zoo:
     runs-on: ubuntu-latest
+    env:
+      NUM_SEEDS: 10
     steps:
+      - name: Set number of seeds from inputs
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "NUM_SEEDS=${{ github.event.inputs.num_seeds }}" >> $GITHUB_ENV
       - uses: actions/checkout@v3
       - name: Generate a token
         id: generate-token
@@ -60,11 +70,15 @@ jobs:
           -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
 
       - name: Build
-        run: cmake --build build --target rl_zoo
+        run: cmake --build build --target rl_zoo_sac_pendulum_v1 rl_zoo_td3_pendulum_v1
 
-      - name: Run Zoo
+      - name: Run Zoo (SAC Pendulum-v1)
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo
+        run: ./build/src/rl/zoo/rl_zoo_sac_pendulum_v1 $NUM_SEEDS
+
+      - name: Run Zoo (TD3 Pendulum-v1)
+        working-directory: ${{ github.workspace }}
+        run: ./build/src/rl/zoo/rl_zoo_td3_pendulum_v1 $NUM_SEEDS
 
       - name: Generate Index
         working-directory: ${{ github.workspace }}/tools
