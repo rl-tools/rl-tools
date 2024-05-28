@@ -1,13 +1,12 @@
 name: Zoo
 on:
-#  workflow_dispatch:
   workflow_dispatch:
     inputs:
       num_seeds:
         description: 'Number of seeds'
         default: '10'
-  push:
-    branches: [ "master" ]
+#  push:
+#    branches: [ "master" ]
 jobs:
   zoo:
     runs-on: ubuntu-latest
