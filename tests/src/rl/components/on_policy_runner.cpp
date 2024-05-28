@@ -1,7 +1,7 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/pendulum/pendulum.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
-#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_cpu.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>

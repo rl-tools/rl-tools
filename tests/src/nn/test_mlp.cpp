@@ -3,6 +3,7 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/operations_cpu.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/utils/generic/memcpy.h>

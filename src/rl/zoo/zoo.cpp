@@ -3,6 +3,7 @@
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 
@@ -47,7 +48,7 @@ int main(int argc, char** argv){
     DEVICE device;
 
     std::string extrack_experiment = "";
-    TI num_seeds = 10;
+    TI num_seeds = 1;
     if(argc <= 1){
         std::cerr << "Defaulting to running " << num_seeds << " seeds." << std::endl;
     }

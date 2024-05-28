@@ -1,7 +1,7 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/operations_cpu.h>
-#include <rl_tools/nn_models/operations_cpu.h>
+#include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;

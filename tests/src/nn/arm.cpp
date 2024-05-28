@@ -8,7 +8,6 @@
 #include <rl_tools/containers/persist_code.h>
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
-#include <rl_tools/nn_models/mlp/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;

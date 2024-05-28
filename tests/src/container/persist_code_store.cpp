@@ -6,7 +6,7 @@
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
-#include <rl_tools/nn_models/mlp/operations_cpu.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/mlp/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
