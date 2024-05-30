@@ -15,7 +15,7 @@ If you have e.g. OpenBLAS installed you can link to it and activate it using the
 ```
 mkdir build
 cd build
-g++ -I include/ src/rl/environments/pendulum/td3/cpu/standalone.cpp -lopenblas -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -std=c++17 -O3 -o pendulum_td3
+g++ -I ../include/ ../src/rl/environments/pendulum/td3/cpu/standalone.cpp -lopenblas -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -std=c++17 -O3 -o pendulum_td3
 ./pendulum_td3
 ```
 
