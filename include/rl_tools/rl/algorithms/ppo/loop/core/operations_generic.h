@@ -66,8 +66,23 @@ namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
     bool step(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
+        using TI = typename DEVICE::index_t;
         set_step(device, device.logger, ts.step);
         bool finished = false;
+
+        if(T_CONFIG::NORMALIZE_OBSERVATIONS && ts.step == 0){
+            for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
+                rlt::collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
+                rlt::update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.observations);
+            }
+            std::cout << "Observation means: " << std::endl;
+            rlt::print(device, ts.observation_normalizer.mean);
+            std::cout << "Observation std: " << std::endl;
+            rlt::print(device, ts.observation_normalizer.std);
+            rlt::init(device, ts.on_policy_runner, ts.envs, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
+            rlt::set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            rlt::set_statistics(device, ts.ppo.critic.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+        }
         collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
         update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.all_observations);
 //        set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
