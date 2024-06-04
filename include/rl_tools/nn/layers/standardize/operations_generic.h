@@ -135,19 +135,19 @@ namespace rl_tools{
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::layers::standardize::LayerForward<SOURCE_SPEC>& source, nn::layers::standardize::LayerForward<TARGET_SPEC>& target){
-        nn::layers::standardize::check_compatibility<SOURCE_SPEC, TARGET_SPEC>;
+        static_assert(nn::layers::standardize::check_compatibility<SOURCE_SPEC, TARGET_SPEC>);
         copy(source_device, target_device, source.mean, target.mean);
         copy(source_device, target_device, source.precision, target.precision);
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::standardize::LayerGradient<SOURCE_SPEC>& source, nn::layers::standardize::LayerGradient<TARGET_SPEC>& target){
-        nn::layers::standardize::check_compatibility<SOURCE_SPEC, TARGET_SPEC>;
+        static_assert(nn::layers::standardize::check_compatibility<SOURCE_SPEC, TARGET_SPEC>);
         copy(source_device, target_device, static_cast<const nn::layers::standardize::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::standardize::LayerForward<TARGET_SPEC>&>(target));
         copy(source_device, target_device, source.output, target.output);
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::standardize::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::standardize::LayerForward<SPEC_2>& l2) {
-        nn::layers::standardize::check_compatibility<SPEC_1, SPEC_2>;
+        static_assert(nn::layers::standardize::check_compatibility<SPEC_1, SPEC_2>);
         using T = typename SPEC_1::T;
         T acc = 0;
         acc += abs_diff(device, l1.mean, l2.mean);
