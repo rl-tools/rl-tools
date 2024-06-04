@@ -59,7 +59,7 @@ function render(ctx, state, action) {
     ctx.stroke();
 
     // Draw torque arc
-    const torqueMagnitude = -action[0];
+    const torqueMagnitude = -Math.max(-1, Math.min(action[0], 1));
     const arrowRadius = canvasWidth * 0.08;
     const magnitudeRadians = (Math.PI * 2 / 3 * torqueMagnitude);
     const startAngle = Math.PI / 2 + (torqueMagnitude > 0 ? 0 : magnitudeRadians);
@@ -84,12 +84,12 @@ function render(ctx, state, action) {
     ctx.beginPath();
     ctx.moveTo(arrowX, arrowY);
     ctx.lineTo(
-            arrowX - headlen * Math.cos(arrowAngle + arrowHeadAngularOffset/2 - angleOffset + rotationAngle),
-            arrowY - headlen * Math.sin(arrowAngle + arrowHeadAngularOffset/2 - angleOffset + rotationAngle)
+        arrowX - headlen * Math.cos(arrowAngle + arrowHeadAngularOffset/2 - angleOffset + rotationAngle),
+        arrowY - headlen * Math.sin(arrowAngle + arrowHeadAngularOffset/2 - angleOffset + rotationAngle)
     );
     ctx.lineTo(
-            arrowX - headlen * Math.cos(arrowAngle + arrowHeadAngularOffset/2 + angleOffset + rotationAngle),
-            arrowY - headlen * Math.sin(arrowAngle + arrowHeadAngularOffset/2 + angleOffset + rotationAngle)
+        arrowX - headlen * Math.cos(arrowAngle + arrowHeadAngularOffset/2 + angleOffset + rotationAngle),
+        arrowY - headlen * Math.sin(arrowAngle + arrowHeadAngularOffset/2 + angleOffset + rotationAngle)
     );
     ctx.lineTo(arrowX, arrowY);
     ctx.fillStyle = 'black';
