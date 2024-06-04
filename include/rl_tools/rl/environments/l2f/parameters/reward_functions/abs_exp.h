@@ -35,15 +35,15 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
 
         T orientation_cost = 1 - state.orientation[0] * state.orientation[0]; //math::abs(device.math, 2 * math::acos(device.math, quaternion_w));
 //        T orientation_cost = math::abs(device.math, 2 * math::acos(device.math, quaternion_w));
-        T position_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.position);
-        T linear_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.linear_velocity);
-        T angular_vel_cost = utils::vector_operations::norm<DEVICE, T, 3>(state.angular_velocity);
+        T position_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, 3>(state.position);
+        T linear_vel_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, 3>(state.linear_velocity);
+        T angular_vel_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, 3>(state.angular_velocity);
         T linear_acc[3];
         T angular_acc[3];
-        utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
-        T linear_acc_cost = utils::vector_operations::norm<DEVICE, T, 3>(linear_acc) / env.parameters.integration.dt;
-        utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
-        T angular_acc_cost = utils::vector_operations::norm<DEVICE, T, 3>(angular_acc) / env.parameters.integration.dt;
+        rl_tools::utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
+        T linear_acc_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, 3>(linear_acc) / env.parameters.integration.dt;
+        rl_tools::utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
+        T angular_acc_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, 3>(angular_acc) / env.parameters.integration.dt;
 
         T action_diff[ACTION_DIM];
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, utils::vector_operations::mean<DEVICE, T, ACTION_DIM>(action), action_diff);
@@ -51,7 +51,7 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
             action_diff[i] = get(action, 0, i) - params.action_baseline;
         }
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, params.action_baseline, action_diff);
-        T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
+        T action_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         T weighted_abs_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.linear_acceleration * linear_acc_cost + params.angular_acceleration * angular_acc_cost + params.action * action_cost;
         T r = math::exp(device.math, -params.scale_inner*weighted_abs_cost);
         constexpr TI cadence = 9991;

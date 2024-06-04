@@ -9,7 +9,7 @@
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::zoo::ppo{
+namespace rl_tools::rl::zoo::ppo::ant_v4{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
     struct AntV4{

@@ -38,6 +38,7 @@
 #include "sac/pendulum-v1.h"
 #include "sac/acrobot-swingup-v0.h"
 #include "td3/pendulum-v1.h"
+#include "td3/l2f.h"
 #include "ppo/pendulum-v1.h"
 #include "ppo/bottleneck-v0.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
@@ -80,6 +81,8 @@ std::string environment = "acrobot-swingup-v0";
 std::string environment = "bottleneck-v0";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
 std::string environment = "ant-v4";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
+std::string environment = "l2f";
 #else
 #error "RLtools Zoo: Environment not defined"
 #endif

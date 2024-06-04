@@ -312,6 +312,14 @@ namespace rl_tools{
             }
         }
     }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters){
+        return "{}";
+    }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::Multirotor<SPEC>::State& state){
+        return "{}";
+    }
 #endif
 }
 

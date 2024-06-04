@@ -42,9 +42,9 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
         T angular_vel_cost = state.angular_velocity[0] * state.angular_velocity[0] + state.angular_velocity[1] * state.angular_velocity[1] + state.angular_velocity[2] * state.angular_velocity[2];
         T linear_acc[3];
         T angular_acc[3];
-        utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
+        rl_tools::utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
         T linear_acc_cost = (linear_acc[0] * linear_acc[0] + linear_acc[1] * linear_acc[1] + linear_acc[2] * linear_acc[2]) / (env.parameters.integration.dt * env.parameters.integration.dt);
-        utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
+        rl_tools::utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
         T angular_acc_cost = (angular_acc[0] * angular_acc[0] + angular_acc[1] * angular_acc[1] + angular_acc[2] * angular_acc[2]) / (env.parameters.integration.dt * env.parameters.integration.dt);
 
         T action_diff[ACTION_DIM];
@@ -53,7 +53,7 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
             action_diff[i] = get(action, 0, i) - params.action_baseline;
         }
 //        utils::vector_operations::sub<DEVICE, T, ACTION_DIM>(action, params.action_baseline, action_diff);
-        T action_cost = utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
+        T action_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         T weighted_sq_cost = params.position * position_cost + params.orientation * orientation_cost + params.linear_velocity * linear_vel_cost + params.angular_velocity * angular_vel_cost + params.linear_acceleration * linear_acc_cost + params.angular_acceleration * angular_acc_cost + params.action * action_cost;
         T sq_exp = math::exp(device.math, -params.scale_inner*weighted_sq_cost);
         T r = sq_exp * params.scale + params.additive_constant;

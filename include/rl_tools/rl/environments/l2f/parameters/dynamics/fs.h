@@ -3,7 +3,7 @@
 
 namespace rl_tools::rl::environments::multirotor::parameters::dynamics{
     namespace fs{
-        template<typename SPEC, typename = utils::typing::enable_if_t<SPEC::N == 4>> // This is a quadrotor
+        template<typename SPEC, typename = rl_tools::utils::typing::enable_if_t<SPEC::N == 4>> // This is a quadrotor
         constexpr typename ParametersBase<SPEC>::Dynamics base = {
             // Rotor positions
 //                array([[ 0.20895 , -0.240666,  0.      ],

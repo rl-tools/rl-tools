@@ -4,7 +4,7 @@
 
 namespace rl_tools::rl::environments::multirotor::parameters::dynamics{
     namespace x500{
-        template<typename SPEC, typename = utils::typing::enable_if_t<SPEC::N == 4>> // This is a quadrotor
+        template<typename SPEC, typename = rl_tools::utils::typing::enable_if_t<SPEC::N == 4>> // This is a quadrotor
         constexpr typename ParametersBase<SPEC>::Dynamics sim = {
             // Rotor positions
             {

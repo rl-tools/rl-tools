@@ -11,13 +11,13 @@ namespace rl_tools::rl::environments::multirotor{
         q_dot[1] =  q[0]*omega[0] + q[2]*omega[2] - q[3]*omega[1];
         q_dot[2] =  q[0]*omega[1] + q[3]*omega[0] - q[1]*omega[2];
         q_dot[3] =  q[0]*omega[2] + q[1]*omega[1] - q[2]*omega[0];
-        utils::vector_operations::scalar_multiply<DEVICE, T, 4>(q_dot, 0.5);
+        rl_tools::utils::vector_operations::scalar_multiply<DEVICE, T, 4>(q_dot, 0.5);
     }
 
 
     template <typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void rotate_vector_by_quaternion(const T q[4], const T v[3], T v_out[3]) {
-        using namespace utils::vector_operations;
+        using namespace rl_tools::utils::vector_operations;
 //    v_out[0] = q[0]*(q[0]*v[0] + q[2]*v[2] - q[3]*v[1]) + q[2]*(q[1]*v[1] + q[0]*v[2] - q[2]*v[0]) - q[3]*(q[0]*v[1] + q[3]*v[0] - q[1]*v[2]) - q[1]*(-q[1]*v[0] - q[2]*v[1] - q[3]*v[2]);
 //    v_out[1] = q[0]*(q[0]*v[1] + q[3]*v[0] - q[1]*v[2]) + q[3]*(q[0]*v[0] + q[2]*v[2] - q[3]*v[1]) - q[1]*(q[1]*v[1] + q[0]*v[2] - q[2]*v[0]) - q[2]*(-q[1]*v[0] - q[2]*v[1] - q[3]*v[2]);
 //    v_out[2] = q[0]*(q[1]*v[1] + q[0]*v[2] - q[2]*v[0]) + q[1]*(q[0]*v[1] + q[3]*v[0] - q[1]*v[2]) - q[2]*(q[0]*v[0] + q[2]*v[2] - q[3]*v[1]) - q[3]*(-q[1]*v[0] - q[2]*v[1] - q[3]*v[2]);

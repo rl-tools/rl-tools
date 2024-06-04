@@ -1,15 +1,10 @@
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
-#include <rl_tools/rl/loop/steps/extrack/config.h>
-#include <rl_tools/rl/loop/steps/checkpoint/config.h>
-#include <rl_tools/rl/loop/steps/evaluation/config.h>
-#include <rl_tools/rl/loop/steps/save_trajectories/config.h>
-#include <rl_tools/rl/loop/steps/timing/config.h>
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::zoo::ppo{
+namespace rl_tools::rl::zoo::ppo::pendulum_v1{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
     struct PendulumV1{

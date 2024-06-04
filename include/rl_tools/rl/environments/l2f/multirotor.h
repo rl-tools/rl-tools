@@ -388,6 +388,7 @@ namespace rl_tools::rl::environments{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using PARAMETERS = typename SPEC::PARAMETERS;
+        using Parameters = PARAMETERS;
         using REWARD_FUNCTION = typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION;
 //        static constexpr TI STATE_DIM = 13;
         static constexpr TI ACTION_DIM = 4;
@@ -428,10 +429,9 @@ namespace rl_tools::rl::environments{
 //        ) : 0;
         static constexpr TI OBSERVATION_DIM = Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
-        static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = !utils::typing::is_same_v<typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED, multirotor::observation::NONE<TI>>;
+        static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = !rl_tools::utils::typing::is_same_v<typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED, multirotor::observation::NONE<TI>>;
         using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
         typename SPEC::PARAMETERS parameters;
-        typename SPEC::PARAMETERS::Dynamics current_dynamics;
     };
 }
 #include "parameters/registry.h"

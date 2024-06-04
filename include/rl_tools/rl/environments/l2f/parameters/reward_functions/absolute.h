@@ -33,7 +33,7 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
         };
     };
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT typename rl::environments::multirotor::parameters::reward_functions::Absolute<T>::Components reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::Absolute<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT typename rl::environments::multirotor::parameters::reward_functions::Absolute<T>::Components reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::multirotor::parameters::reward_functions::Absolute<T>& reward_params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         typename rl::environments::multirotor::parameters::reward_functions::Absolute<T>::Components components;
@@ -53,14 +53,14 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
         components.angular_vel_cost += math::abs(device.math, state.angular_velocity[2]);
         T linear_acc[3];
         T angular_acc[3];
-        utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
+        rl_tools::utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
         components.linear_acc_cost = 0;
         components.linear_acc_cost += math::abs(device.math, linear_acc[0]);
         components.linear_acc_cost += math::abs(device.math, linear_acc[1]);
         components.linear_acc_cost += math::abs(device.math, linear_acc[2]);
         components.linear_acc_cost /= env.parameters.integration.dt;
 
-        utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
+        rl_tools::utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
         components.angular_acc_cost = 0;
         components.angular_acc_cost += math::abs(device.math, angular_acc[0]);
         components.angular_acc_cost += math::abs(device.math, angular_acc[1]);
@@ -73,23 +73,24 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
             T action_diff = math::abs(device.math, action_value - env.parameters.dynamics.hovering_throttle_relative);
             components.action_cost += action_diff;
         }
-        components.weighted_cost = params.position * components.position_cost + params.orientation * components.orientation_cost + params.linear_velocity * components.linear_vel_cost + params.angular_velocity * components.angular_vel_cost + params.linear_acceleration * components.linear_acc_cost + params.angular_acceleration * components.angular_acc_cost + params.action * components.action_cost;
-        bool terminated_flag = terminated(device, env, next_state, rng);
-        components.scaled_weighted_cost = params.scale * components.weighted_cost;
+        components.weighted_cost = reward_params.position * components.position_cost + reward_params.orientation * components.orientation_cost + reward_params.linear_velocity * components.linear_vel_cost + reward_params.angular_velocity * components.angular_vel_cost + reward_params.linear_acceleration * components.linear_acc_cost + reward_params.angular_acceleration * components.angular_acc_cost + reward_params.action * components.action_cost;
+        bool terminated_flag = terminated(device, env, parameters, next_state, rng);
+        components.scaled_weighted_cost = reward_params.scale * components.weighted_cost;
 
         if(terminated_flag){
-            components.reward = params.termination_penalty;
+            components.reward = reward_params.termination_penalty;
         }
         else{
-            components.reward = -components.scaled_weighted_cost + params.constant;
-            components.reward = (components.reward > 0 || !params.non_negative) ? components.reward : 0;
+            components.reward = -components.scaled_weighted_cost + reward_params.constant;
+            components.reward = (components.reward > 0 || !reward_params.non_negative) ? components.reward : 0;
         }
 
         return components;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::Absolute<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
         constexpr typename SPEC::TI cadence = 1;
+        auto& params = parameters.mdp.reward;
         auto components = reward_components(device, env, params, state, action, next_state, rng);
         add_scalar(device, device.logger, "reward/orientation_cost", components.orientation_cost, cadence);
         add_scalar(device, device.logger, "reward/position_cost",    components.position_cost, cadence);
@@ -122,9 +123,9 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
         add_scalar(device, device.logger, "reward/reward",               components.reward, cadence);
         add_scalar(device, device.logger, "reward/reward_zero",          components.reward == 0, cadence);
     }
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::Absolute<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
-        auto components = reward_components(device, env, params, state, action, next_state, rng);
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
+        auto components = reward_components(device, env, parameters, parameters.mdp.reward, state, action, next_state, rng);
         return components.reward;
     }
     template<typename DEVICE, typename T>
