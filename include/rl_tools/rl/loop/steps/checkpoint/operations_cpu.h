@@ -52,14 +52,14 @@ namespace rl_tools{
             std::cerr << "Checkpointing at step: " << ts.step << " to: " << checkpoint_path << std::endl;
             auto& actor = get_actor(ts);
             using ACTOR_TYPE = typename CONFIG::NN::ACTOR_TYPE;
-            using ACTOR_FORWARD_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<rlt::nn::layer_capability::Forward>;
+            using ACTOR_FORWARD_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<nn::layer_capability::Forward>;
 //            using ACTOR_FORWARD_TYPE = ACTOR_TYPE;
             ACTOR_FORWARD_TYPE actor_forward;
-            rlt::malloc(device, actor_forward);
+            malloc(device, actor_forward);
 #if defined(RL_TOOLS_ENABLE_HDF5) and !defined(RL_TOOLS_DISABLE_HDF5)
             try{
                 auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
-                rlt::copy(device, device, actor, actor_forward);
+                copy(device, device, actor, actor_forward);
                 save(device, actor_forward, actor_file.createGroup("actor"));
             }
             catch(HighFive::Exception& e){
@@ -67,25 +67,25 @@ namespace rl_tools{
             }
 #endif
             typename ACTOR_TYPE::template Buffer<1> actor_buffer;
-            rlt::malloc(device, actor_buffer);
-            rlt::copy(device, device, actor, actor_forward);
+            malloc(device, actor_buffer);
+            copy(device, device, actor, actor_forward);
             std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h";
-            auto actor_weights = rlt::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
+            auto actor_weights = save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
             std::ofstream actor_output_file(checkpoint_code_path);
             actor_output_file << actor_weights;
             {
-                rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::INPUT_DIM>> input;
-                rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ACTOR_TYPE::OUTPUT_DIM>> output;
+                MatrixStatic<matrix::Specification<T, TI, 1, ACTOR_TYPE::INPUT_DIM>> input;
+                MatrixStatic<matrix::Specification<T, TI, 1, ACTOR_TYPE::OUTPUT_DIM>> output;
                 auto rng_copy = ts.rng;
-                rlt::randn(device, input, rng_copy);
-                rlt::evaluate(device, actor, input, output, actor_buffer, rng_copy);
-                actor_output_file << "\n" << rlt::save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
-                actor_output_file << "\n" << rlt::save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
-                rlt::free(device, input);
-                rlt::free(device, output);
+                randn(device, input, rng_copy);
+                evaluate(device, actor, input, output, actor_buffer, rng_copy);
+                actor_output_file << "\n" << save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
+                actor_output_file << "\n" << save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
+                free(device, input);
+                free(device, output);
             }
-            rlt::free(device, actor_buffer);
-            rlt::free(device, actor_forward);
+            free(device, actor_buffer);
+            free(device, actor_forward);
 
             actor_output_file << "\n" << "namespace rl_tools::checkpoint::meta{";
             actor_output_file << "\n" << "   " << "char name[] = \"" << step_folder.string() << "\";";

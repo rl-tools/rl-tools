@@ -35,9 +35,9 @@ namespace rl_tools{
         using STATE = rl::loop::steps::extrack::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
         if(ts.extrack_experiment_path.empty()){
-            rlt::utils::assert_exit(device, !ts.extrack_base_path.empty(), "Extrack base path (-e,--extrack) must be set if the Extrack experiment path (--ee,--extrack-experiment) is not set.");
+            utils::assert_exit(device, !ts.extrack_base_path.empty(), "Extrack base path (-e,--extrack) must be set if the Extrack experiment path (--ee,--extrack-experiment) is not set.");
             if(ts.extrack_experiment.empty()){
-                ts.extrack_experiment = rlt::get_timestamp_string(device, ts);
+                ts.extrack_experiment = get_timestamp_string(device, ts);
             }
             ts.extrack_experiment_path = ts.extrack_base_path / ts.extrack_experiment;
         }

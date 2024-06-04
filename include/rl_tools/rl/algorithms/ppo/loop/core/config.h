@@ -42,7 +42,7 @@ namespace rl_tools{
         struct ConfigApproximatorsSequential{
             template <typename CAPABILITY>
             struct Actor{
-                using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
+                using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 256, nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
                 using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
                 using IF = nn_models::sequential::Interface<CAPABILITY>;
                 using ACTOR_MODULE = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
@@ -52,7 +52,7 @@ namespace rl_tools{
             };
             template <typename CAPABILITY>
             struct Critic{
-                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
+                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 256, nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
                 using IF = nn_models::sequential::Interface<CAPABILITY>;
                 using ACTOR_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
@@ -61,11 +61,11 @@ namespace rl_tools{
                 using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
             };
 
-            using ACTOR_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
-            using CRITIC_OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
-            using ACTOR_OPTIMIZER = rlt::nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
-            using CRITIC_OPTIMIZER = rlt::nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
-            using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMETERS::BATCH_SIZE>;
+            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+            using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
+            using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
+            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::BATCH_SIZE>;
             using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
             using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
         };
