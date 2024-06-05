@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_NN_MODELS_MLP_OPERATIONS_GENERIC_H
 
-#include "../../nn_models/mlp/network.h"
+#include "network.h"
 #include "../../nn/operations_generic.h"
 #include "../../nn/parameters/operations_generic.h"
 

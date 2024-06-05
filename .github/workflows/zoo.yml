@@ -15,14 +15,22 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NUM_SEEDS: 10
-      MUJOCO: false
+      MUJOCO: true
+      MUJOCO_OPTION: "-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON"
     steps:
       - name: Set number of seeds from input
         if: github.event_name == 'workflow_dispatch'
         run: echo "NUM_SEEDS=${{ github.event.inputs.num_seeds }}" >> $GITHUB_ENV
       - name: Set MuJoCo from input
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.mujoco == 'true'
-        run: echo "MUJOCO_OPTION=-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON" >> $GITHUB_ENV
+        run: |
+          echo "MUJOCO=true" >> $GITHUB_ENV
+          echo "MUJOCO_OPTION=-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON" >> $GITHUB_ENV
+      - name: Set MuJoCo from input
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.mujoco == 'false'
+        run: |
+          echo "MUJOCO=false" >> $GITHUB_ENV
+          echo "MUJOCO_OPTION=-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=OFF" >> $GITHUB_ENV
       - name: List Environment Variables
         run: env
       - uses: actions/checkout@v3

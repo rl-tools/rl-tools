@@ -1,23 +1,3 @@
-//#include <rl_tools/operations/cpu_mux.h>
-//#include <rl_tools/nn/operations_cpu_mux.h>
-//
-//#ifdef LOAD_TRACK_FROM_FILE
-//#include <rl_tools/rl/environments/car/operations_cpu.h>
-//#else
-//#include <rl_tools/rl/environments/car/operations_generic.h>
-//#endif
-//#include <rl_tools/rl/environments/car/operations_json.h>
-//#include <rl_tools/nn_models/sequential/operations_generic.h>
-//#include <rl_tools/nn_models/mlp_normalized_unconditional_stddev/operations_generic.h>
-//
-//#include <rl_tools/ui_server/client/operations_cpu.h>
-//
-//#include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
-//#include <rl_tools/rl/loop/steps/evaluation/config.h>
-//#include <rl_tools/rl/loop/steps/timing/config.h>
-//#include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
-//#include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
-//#include <rl_tools/rl/loop/steps/timing/operations_generic.h>
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
@@ -27,8 +7,9 @@
 #include <rl_tools/ui_server/client/operations_cpu.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 
@@ -67,7 +48,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT/(ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS) + 1;
     static constexpr TI EPISODE_STEP_LIMIT = 1000;
 };
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
 template <typename NEXT>
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
     static constexpr TI EVALUATION_INTERVAL = 10;

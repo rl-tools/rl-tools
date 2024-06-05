@@ -1,7 +1,8 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/layers/standardize/operations_generic.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/nn_models/mlp/operations_generic.h>
 
 #include "td3/pendulum-v1.h"
 #include "sac/pendulum-v1.h"
@@ -16,6 +17,10 @@
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>
+
+#include <rl_tools/nn/layers/standardize/persist.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
 
 #include <CLI/CLI.hpp>
 
