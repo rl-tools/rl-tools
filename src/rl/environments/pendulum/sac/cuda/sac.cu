@@ -41,7 +41,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI ACTOR_BATCH_SIZE = 100;
         static constexpr TI CRITIC_BATCH_SIZE = 100;
     };
-    static constexpr TI STEP_LIMIT = 10000;
+    static constexpr TI STEP_LIMIT = 20000;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
@@ -73,7 +73,7 @@ int main(){
     rlt::init(device);
     rlt::malloc(device, ts);
     rlt::malloc(device_init, ts_init);
-    rlt::init(device_init, ts_init, 0);
+    rlt::init(device_init, ts_init, 1);
     rlt::copy(device_init, device, ts_init, ts);
 //    rlt::copy(device_init, device, ts_init.off_policy_runner, ts.off_policy_runner);
 
@@ -123,7 +123,10 @@ int main(){
         if(step % 1000 == 0){
             rlt::copy(device, device_init, ts.actor_critic.actor, ts_init.actor_critic.actor);
 #ifdef _MSC_VER
-            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.observations_mean, ts_init.observations_std, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+            using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
+            rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
+            rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, result, ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
+//            auto result = rlt::evaluate(device_init, env_eval, ui, ts_init.actor_critic.actor, rlt::rl::utils::evaluation::Specification<EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>(), ts_init.actor_deterministic_evaluation_buffers, rng_eval, false);
 #else
             using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, typename LOOP_STATE::CONFIG::ENVIRONMENT_EVALUATION, EVAL_PARAMETERS::NUM_EVALUATION_EPISODES, CORE_PARAMETERS::EPISODE_STEP_LIMIT>;
             rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
