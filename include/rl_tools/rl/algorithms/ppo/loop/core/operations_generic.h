@@ -4,6 +4,7 @@
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_OPERATIONS_GENERIC_H
 
 #include "../../../../../nn/optimizers/adam/instance/operations_generic.h"
+#include "../../../../../nn/layers/standardize/operations_generic.h"
 #include "../../../../../nn_models/mlp_unconditional_stddev/operations_generic.h"
 #include "../../../../../nn_models/sequential/operations_generic.h"
 #include "../../../../../nn/optimizers/adam/operations_generic.h"
