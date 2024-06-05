@@ -5,9 +5,11 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
-#include <rl_tools/nn/layers/standardize/persist.h>
-//#include <rl_tools/nn/layers/standardize/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
+
+#ifdef RL_TOOLS_ENABLE_HDF5
+#include <rl_tools/nn/layers/standardize/persist.h>
+#endif
 
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
