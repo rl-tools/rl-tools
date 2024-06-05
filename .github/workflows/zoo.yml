@@ -23,6 +23,8 @@ jobs:
       - name: Set MuJoCo from input
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.mujoco == 'true'
         run: echo "MUJOCO_OPTION=-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON" >> $GITHUB_ENV
+      - name: List Environment Variables
+        run: env
       - uses: actions/checkout@v3
       - name: Generate a token
         id: generate-token

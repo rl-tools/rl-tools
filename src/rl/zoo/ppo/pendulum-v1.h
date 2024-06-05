@@ -29,6 +29,6 @@ namespace rl_tools::rl::zoo::ppo{
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 1024;
             static constexpr TI BATCH_SIZE = 256;
         };
-        using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsMLP>;
+        using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
     };
 }

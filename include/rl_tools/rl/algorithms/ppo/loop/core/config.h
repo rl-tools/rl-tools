@@ -74,30 +74,8 @@ namespace rl_tools{
             using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
         };
 
-        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
-        struct ConfigApproximatorsMLP{
-            template <typename CAPABILITY>
-            struct Actor{
-                using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
-                using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
-                using IF = nn_models::sequential::Interface<CAPABILITY>;
-                using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
-            };
-            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
-            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
-            using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
-            using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
-
-            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::BATCH_SIZE>;
-
-            using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
-            using ACTOR_TYPE_INFERENCE = typename Actor<nn::layer_capability::Forward>::MODEL;
-            using CRITIC_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
-            using CRITIC_TYPE = nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, CRITIC_SPEC>;
-        };
-
         struct ConfigTag{};
-        template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsMLP>
+        template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential>
         struct Config: rl::loop::Config{
             using TAG = ConfigTag;
             using T = T_T;
@@ -110,7 +88,6 @@ namespace rl_tools{
             static constexpr TI ENVIRONMENT_STEPS_PER_LOOP_STEP = CORE_PARAMETERS::N_ENVIRONMENTS * CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV;
 
             using NN = APPROXIMATOR_CONFIG<T, TI, ENVIRONMENT, CORE_PARAMETERS>;
-//        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 
 
             static constexpr T OBSERVATION_NORMALIZATION_WARMUP_STEPS = CORE_PARAMETERS::NORMALIZE_OBSERVATIONS ? 1 : 0;
