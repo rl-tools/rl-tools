@@ -74,22 +74,24 @@ namespace rl_tools{
         set_step(device, device.logger, ts.step);
         bool finished = false;
 
-//        if(T_CONFIG::NORMALIZE_OBSERVATIONS && ts.step == 0){
-//            for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-//                collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
-//                update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.observations);
-//            }
-//            std::cout << "Observation means: " << std::endl;
-//            print(device, ts.observation_normalizer.mean);
-//            std::cout << "Observation std: " << std::endl;
-//            print(device, ts.observation_normalizer.std);
-//            init(device, ts.on_policy_runner, ts.envs, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
-//            set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
-//            set_statistics(device, ts.ppo.critic.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
-//        }
+        if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && ts.step == 0){
+            for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
+                collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
+                update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.observations);
+            }
+            std::cout << "Observation means: " << std::endl;
+            print(device, ts.observation_normalizer.mean);
+            std::cout << "Observation std: " << std::endl;
+            print(device, ts.observation_normalizer.std);
+            init(device, ts.on_policy_runner, ts.envs, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
+            set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            set_statistics(device, ts.ppo.critic.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+        }
         collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
-        update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.all_observations);
-//        set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+        if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
+            update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.all_observations);
+            set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+        }
         evaluate(device, ts.ppo.critic, ts.on_policy_runner_dataset.all_observations, ts.on_policy_runner_dataset.all_values, ts.critic_buffers_gae, ts.rng);
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);

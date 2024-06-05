@@ -35,6 +35,10 @@ namespace rl_tools{
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
             static constexpr TI BATCH_SIZE = ON_POLICY_RUNNER_STEPS_PER_ENV * N_ENVIRONMENTS;
 
+
+            static constexpr bool NORMALIZE_OBSERVATIONS = false;
+            static constexpr bool NORMALIZE_OBSERVATIONS_CONTINUOUSLY = false;
+
             using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
         };
 
@@ -42,7 +46,7 @@ namespace rl_tools{
         struct ConfigApproximatorsSequential{
             template <typename CAPABILITY>
             struct Actor{
-                using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 256, nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
+                using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
                 using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
                 using IF = nn_models::sequential::Interface<CAPABILITY>;
                 using ACTOR_MODULE = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
@@ -52,7 +56,7 @@ namespace rl_tools{
             };
             template <typename CAPABILITY>
             struct Critic{
-                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, 3, 256, nn::activation_functions::ActivationFunction::RELU, nn::activation_functions::IDENTITY>;
+                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
                 using IF = nn_models::sequential::Interface<CAPABILITY>;
                 using ACTOR_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
@@ -109,7 +113,7 @@ namespace rl_tools{
 //        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 
 
-            static constexpr T OBSERVATION_NORMALIZATION_WARMUP_STEPS = CORE_PARAMETERS::PPO_PARAMETERS::NORMALIZE_OBSERVATIONS ? 1 : 0;
+            static constexpr T OBSERVATION_NORMALIZATION_WARMUP_STEPS = CORE_PARAMETERS::NORMALIZE_OBSERVATIONS ? 1 : 0;
             using PPO_SPEC = rl::algorithms::ppo::Specification<T, TI, ENVIRONMENT, typename NN::ACTOR_TYPE, typename NN::CRITIC_TYPE, typename CORE_PARAMETERS::PPO_PARAMETERS>;
             using PPO_TYPE = rl::algorithms::PPO<PPO_SPEC>;
             using PPO_BUFFERS_TYPE = rl::algorithms::ppo::Buffers<PPO_SPEC>;
