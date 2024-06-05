@@ -50,3 +50,8 @@
   - Renaming OpenBLAS to BLAS should be mostly sufficient
 - Remove the experiment option scaffolding from `rl_environments_pendulum_ppo_training`
 - Enable -Werror on Windows
+- Implement more generic binary operations on `nn_model`s
+  - Instead of hard-coding the `update_target_network` for mlp and sequential in both TD3 and SAC, implement a generic operation that applies a function between layers
+- Change `nn_models::xxx::NeuralNetwork` to `nn_models::xxx::Model`
+- Change ``nn::layer_capability`` to ``nn::capability``
+- Make `nn_models::mlp_unconditional_stddev` a layer instead

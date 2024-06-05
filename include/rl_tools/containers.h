@@ -3,6 +3,8 @@
 #pragma once
 #define RL_TOOLS_CONTAINERS_H
 
+#include "utils/generic/typing.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace matrix{

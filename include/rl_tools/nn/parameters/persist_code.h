@@ -26,6 +26,11 @@ namespace rl_tools {
     }
 
     template <typename DEVICE>
+    std::string get_type_string_tag(const DEVICE&, const nn::parameters::categories::Constant){
+        return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::categories::Constant";
+    }
+
+    template <typename DEVICE>
     std::string get_type_string_tag(const DEVICE&, const nn::parameters::groups::Normal){
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::groups::Normal";
     }
@@ -41,7 +46,7 @@ namespace rl_tools {
     }
 
     template<typename DEVICE, typename CONTAINER>
-    persist::Code save_split(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
+    persist::Code save_code_split(DEVICE& device, nn::parameters::Plain::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -50,7 +55,7 @@ namespace rl_tools {
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
         ss << ind << "namespace " << name << " {\n";
-        auto container = save_split(device, parameter.parameters, "parameters_memory", const_declaration, indent+1);
+        auto container = save_code_split(device, parameter.parameters, "parameters_memory", const_declaration, indent+1);
         ss_header << container.header;
         ss_header << "#include <rl_tools/nn/parameters/parameters.h>\n";
         ss << container.body;
@@ -67,7 +72,7 @@ namespace rl_tools {
     }
 
     template<typename DEVICE, typename CONTAINER>
-    persist::Code save_split(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
+    persist::Code save_code_split(DEVICE& device, nn::parameters::Gradient::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -76,11 +81,11 @@ namespace rl_tools {
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
         ss_header << "#include <rl_tools/utils/generic/typing.h>\n";
-        auto plain = save_split(device, (nn::parameters::Plain::instance<CONTAINER>&) parameter, name, const_declaration, indent, true);
+        auto plain = save_code_split(device, (nn::parameters::Plain::instance<CONTAINER>&) parameter, name, const_declaration, indent, true);
         ss_header << plain.header;
         ss << plain.body;
         ss << ind << "namespace " << name << " {\n";
-        auto gradient = save_split(device, parameter.gradient, "gradient_memory", const_declaration, indent+1);
+        auto gradient = save_code_split(device, parameter.gradient, "gradient_memory", const_declaration, indent+1);
         ss_header << gradient.header;
         ss << gradient.body;
         if(!output_memory_only){

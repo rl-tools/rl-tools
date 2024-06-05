@@ -64,7 +64,7 @@ namespace rl_tools::nn::layers::standardize {
         using STATISTICS_CONTAINER_SPEC = matrix::Specification<T, TI, 1, INPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
         using STATISTICS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<STATISTICS_CONTAINER_SPEC>;
         using STATISTICS_PARAMETER_SPEC = nn::parameters::Plain::spec<STATISTICS_CONTAINER_TYPE, nn::parameters::groups::Normal, nn::parameters::categories::Constant>; // Constant from the view of a forward or backward pass
-        typename SPEC::PARAMETER_TYPE::template instance<STATISTICS_PARAMETER_SPEC> mean, precision;
+        typename nn::parameters::Plain::template instance<STATISTICS_PARAMETER_SPEC> mean, precision; // precision = 1/std
         template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Buffer = standardize::Buffer;
     };

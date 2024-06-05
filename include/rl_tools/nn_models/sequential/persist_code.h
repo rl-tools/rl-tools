@@ -21,7 +21,7 @@ namespace rl_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
-        auto layer_output = save_split(device, model.content, "layer_" + std::to_string(layer_i), const_declaration, indent+1);
+        auto layer_output = save_code_split(device, model.content, "layer_" + std::to_string(layer_i), const_declaration, indent+1);
         ss_header << layer_output.header;
         ss_header << "#include <rl_tools/nn_models/sequential/model.h>\n";
         if(layer_i == 0){
@@ -52,9 +52,9 @@ namespace rl_tools{
             ss << ind << ";\n";
             ss << ind << "    " << "}\n";
             ss << ind << "    " << "using MODEL = model_definition::MODEL;\n";
-            ss << ind << "    " << (const_declaration ? "const " : "") << "MODEL model = {";
+            ss << ind << "    " << (const_declaration ? "const " : "") << "MODEL module = {";
             for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
-                ss << "layer_" << layer_i << "::layer";
+                ss << "layer_" << layer_i << "::module";
                 if(layer_i < num_layers(model)-1){
                     ss << ", {";
                 }

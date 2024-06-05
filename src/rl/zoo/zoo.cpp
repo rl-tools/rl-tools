@@ -8,7 +8,12 @@
 #include <rl_tools/nn/layers/standardize/persist.h>
 //#include <rl_tools/nn/layers/standardize/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
+
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
+#include <rl_tools/nn/layers/dense/persist_code.h>
+#include <rl_tools/nn/layers/standardize/persist_code.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/persist_code.h>
+#include <rl_tools/nn_models/sequential//persist_code.h>
 
 #include "sac/pendulum-v1.h"
 #include "td3/pendulum-v1.h"

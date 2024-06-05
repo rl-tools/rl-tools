@@ -14,7 +14,7 @@ namespace rl_tools{
         return "rl_tools::nn::parameters::Adam";
     }
     template<typename DEVICE, typename CONTAINER>
-    persist::Code save_split(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
+    persist::Code save_code_split(DEVICE& device, nn::parameters::Adam::instance<CONTAINER>& parameter, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool output_memory_only=false){
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
         for(TI i=0; i < indent; i++){
@@ -22,15 +22,15 @@ namespace rl_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
-        auto plain = save_split(device, (nn::parameters::Gradient::instance<CONTAINER>&) parameter, name, const_declaration, indent, true);
+        auto plain = save_code_split(device, (nn::parameters::Gradient::instance<CONTAINER>&) parameter, name, const_declaration, indent, true);
         ss_header << plain.header;
         ss_header << "#include <rl_tools/nn/optimizers/adam/adam.h>\n";
         ss << plain.body;
         ss << ind << "namespace " << name << " {\n";
-        auto gradient_first_order_moment = save_split(device, parameter.gradient_first_order_moment, "gradient_first_order_moment_memory", const_declaration, indent+1);
+        auto gradient_first_order_moment = save_code_split(device, parameter.gradient_first_order_moment, "gradient_first_order_moment_memory", const_declaration, indent+1);
         ss_header << gradient_first_order_moment.header;
         ss << gradient_first_order_moment.body;
-        auto gradient_second_order_moment = save_split(device, parameter.gradient_second_order_moment, "gradient_second_order_moment_memory", const_declaration, indent+1);
+        auto gradient_second_order_moment = save_code_split(device, parameter.gradient_second_order_moment, "gradient_second_order_moment_memory", const_declaration, indent+1);
         ss_header << gradient_second_order_moment.header;
         ss << gradient_second_order_moment.body;
         if(!output_memory_only){
