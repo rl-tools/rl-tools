@@ -5,17 +5,24 @@ on:
       num_seeds:
         description: 'Number of seeds'
         default: '10'
-#  push:
-#    branches: [ "master" ]
+      mujoco:
+        description: 'Enable MuJoCo "true"/"false"'
+        default: 'true'
+  push:
+    branches: [ "master" ]
 jobs:
   zoo:
     runs-on: ubuntu-latest
     env:
       NUM_SEEDS: 10
+      MUJOCO: false
     steps:
-      - name: Set number of seeds from inputs
+      - name: Set number of seeds from input
         if: github.event_name == 'workflow_dispatch'
         run: echo "NUM_SEEDS=${{ github.event.inputs.num_seeds }}" >> $GITHUB_ENV
+      - name: Set MuJoCo from input
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.mujoco == 'true'
+        run: echo "MUJOCO_OPTION=-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON" >> $GITHUB_ENV
       - uses: actions/checkout@v3
       - name: Generate a token
         id: generate-token
@@ -31,6 +38,10 @@ jobs:
         run: |
           gh api octocat
           gh repo view rl-tools/zoo-blob --json name
+      - name: Clone MuJoCo
+        if: ${{ env.MUJOCO == 'true' }}
+        run: |
+          git submodule update --init --recursive external/mujoco
 
       - name: Setup Git
         run: |
@@ -68,21 +79,26 @@ jobs:
           -DRL_TOOLS_ENABLE_TARGETS=ON
           -DRL_TOOLS_ENABLE_ZLIB=ON
           -DRL_TOOLS_BACKEND_ENABLE_MKL=ON
+          $MUJOCO_OPTION
 
       - name: Build
-        run: cmake --build build --target rl_zoo_sac_pendulum_v1 rl_zoo_td3_pendulum_v1 rl_zoo_ppo_pendulum_v1
+        run: cmake --build build --target rl_zoo_sac_pendulum_v1 rl_zoo_td3_pendulum_v1 rl_zoo_ppo_pendulum_v1 rl_zoo_ppo_ant_v4
 
-      - name: Run Zoo (SAC Pendulum-v1)
-        working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_sac_pendulum_v1 $NUM_SEEDS
+#      - name: Run Zoo (SAC Pendulum-v1)
+#        working-directory: ${{ github.workspace }}
+#        run: ./build/src/rl/zoo/rl_zoo_sac_pendulum_v1 $NUM_SEEDS
+#
+#      - name: Run Zoo (TD3 Pendulum-v1)
+#        working-directory: ${{ github.workspace }}
+#        run: ./build/src/rl/zoo/rl_zoo_td3_pendulum_v1 $NUM_SEEDS
+#
+#      - name: Run Zoo (PPO Pendulum-v1)
+#        working-directory: ${{ github.workspace }}
+#        run: ./build/src/rl/zoo/rl_zoo_ppo_pendulum_v1 $NUM_SEEDS
 
-      - name: Run Zoo (TD3 Pendulum-v1)
+      - name: Run Zoo (PPO Ant-v4)
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_td3_pendulum_v1 $NUM_SEEDS
-
-      - name: Run Zoo (PPO Pendulum-v1)
-        working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_ppo_pendulum_v1 $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_ppo_ant_v4 $NUM_SEEDS
 
       - name: Pull Zoo Blob Again
         working-directory: ${{ github.workspace }}/experiments
