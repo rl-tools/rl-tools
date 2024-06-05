@@ -115,6 +115,23 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
 
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
+    {
+        auto& first_layer = model.content;
+        for(TI input_i=0; input_i < MODEL::INPUT_DIM; input_i++){
+            rlt::set(first_layer.mean.parameters, 0, input_i, input_i);
+            rlt::set(first_layer.precision.parameters, 0, input_i, input_i*2);
+        }
+    }
+
+    {
+        auto& last_layer = rlt::get_layer<rlt::num_layers(decltype(model)())-1>(device, model);
+        for(TI output_i=0; output_i < MODEL::OUTPUT_DIM; output_i++){
+            rlt::set(last_layer.log_std.parameters, 0, output_i, output_i);
+            rlt::set(last_layer.log_std.gradient, 0, output_i, output_i*2);
+            rlt::set(last_layer.log_std.gradient_first_order_moment, 0, output_i, output_i*3);
+            rlt::set(last_layer.log_std.gradient_second_order_moment, 0, output_i, output_i*4);
+        }
+    }
 
     rlt::evaluate(device, model, input, output, buffer, rng);
 

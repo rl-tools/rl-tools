@@ -87,6 +87,17 @@ namespace rl_tools{
             return get_layer<LAYER_I - 1>(device, model.next_module);
         }
     }
+    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
+    constexpr auto& get_layer(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        static_assert(LAYER_I >= 0);
+        static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
+        if constexpr(LAYER_I == 0){
+            return model.content;
+        }
+        else{
+            return get_layer<LAYER_I - 1>(device, model.next_module);
+        }
+    }
     template <typename SPEC>
     constexpr auto& output(nn_models::sequential::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){

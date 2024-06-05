@@ -34,6 +34,9 @@ namespace rl_tools{
         auto output_layer = save_code_split(device, network.output_layer, "output_layer", const_declaration, indent+1);
         ss_header << output_layer.header;
         ss << output_layer.body;
+        auto log_std = save_code_split(device, network.log_std, "log_std", const_declaration, indent+1);
+        ss_header << log_std.header;
+        ss << log_std.body;
         ss << ind << "    using SPEC = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::Specification<";
         ss << containers::persist::get_type_string<T>() << ", ";
         ss << containers::persist::get_type_string<TI>() << ", ";
@@ -42,9 +45,9 @@ namespace rl_tools{
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
         ss << ind << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag, true, RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
         ss << ind << "    template <typename CAPABILITY>" << "\n";
-        ss << ind << "    using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CAPABILITY, SPEC>; \n";
+        ss << ind << "    using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY, SPEC>; \n";
         ss << ind << "    using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
-        ss << ind << "    using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CAPABILITY, SPEC>; \n";
+        ss << ind << "    using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY, SPEC>; \n";
         ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = {";
         ss << "input_layer::module, ";
         ss << "{";
@@ -56,7 +59,7 @@ namespace rl_tools{
         }
         ss << "}, ";
         ss << "output_layer::module";
-        ss << "};\n";
+        ss << ", log_std::parameters};\n";
 
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};

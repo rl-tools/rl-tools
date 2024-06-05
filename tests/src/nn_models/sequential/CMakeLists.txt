@@ -30,6 +30,18 @@ else()
 message(WARNING "test_nn_models_sequential_persist_code_compile is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code.h")
 endif()
 
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_2.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_2 persist_code_compile_model_2.cpp)
+        target_link_libraries(test_nn_models_sequential_persist_code_compile_model_2
+                PRIVATE
+                rl_tools
+                rl_tools_test
+        )
+        gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2)
+else()
+        message(WARNING "test_nn_models_sequential_persist_code_compile is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_2.h")
+endif()
+
 add_executable(
         test_nn_models_sequential_d_input_benchmark
         d_input_benchmark.cpp
