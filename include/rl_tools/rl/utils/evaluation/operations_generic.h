@@ -122,8 +122,10 @@ namespace rl_tools{
                 auto action = row(device, actions_buffer, env_i);
                 T dt = step(device, env, state, action, next_state, rng);
                 set_state(device, env, ui, state);
-                set_action(device, env, ui, action);
-                render(device, env, ui);
+                if(!terminated[env_i]){
+                    set_action(device, env, ui, action);
+                    render(device, env, ui);
+                }
                 T r = reward(device, env, state, action, next_state, rng);
                 rl::utils::evaluation::set_reward(data, env_i, step_i, r);
                 bool terminated_flag = rl_tools::terminated(device, env, next_state, rng);
