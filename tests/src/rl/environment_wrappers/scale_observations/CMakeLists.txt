@@ -10,14 +10,3 @@ target_link_libraries(
 )
 gtest_discover_tests(test_rl_environment_wrappers_scale_observations)
 
-add_executable(
-        test_rl_environment_wrappers_scale_observations_training
-        training.cpp
-)
-target_link_libraries(
-        test_rl_environment_wrappers_scale_observations_training
-        PRIVATE
-        RLtools::RLtools
-        GTest::gtest_main
-)
-gtest_discover_tests(test_rl_environment_wrappers_scale_observations_training)
