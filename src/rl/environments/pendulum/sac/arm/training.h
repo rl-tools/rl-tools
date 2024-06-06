@@ -1,4 +1,4 @@
-#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
+//#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
 #include <rl_tools/operations/arm.h>
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
 #include <rl_tools/logging/operations_arduino.h>
@@ -52,7 +52,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
 };
 template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename T_CONTAINER_TYPE_TAG>
 struct APPROXIMATOR_CONFIG: rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP<T, TI, ENVIRONMENT, PARAMETERS, T_CONTAINER_TYPE_TAG>{
-    using ACTOR_CONTAINER_TYPE_TAG = rlt::MatrixStaticTag;
+    using ACTOR_CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
     using CRITIC_CONTAINER_TYPE_TAG = rlt::MatrixStaticTag;
     using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, rlt::nn::activation_functions::TANH, ACTOR_CONTAINER_TYPE_TAG>;
     using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
