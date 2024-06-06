@@ -106,7 +106,7 @@ T lifetime_return(){
 #else
     static constexpr TI N_SEEDS_ACTUAL = N_SEEDS;
 #endif
-    for(TI seed = 0; seed < N_SEEDS; seed++){
+    for(TI seed = 0; seed < N_SEEDS_ACTUAL; seed++){
         rlt::malloc(device);
         rlt::init(device);
         rlt::malloc(device, ts);
