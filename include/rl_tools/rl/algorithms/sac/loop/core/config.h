@@ -134,12 +134,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             static constexpr T EXPLORATION_NOISE = 0.1;
         };
 
-        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<
-                T,
-                TI,
-                ENVIRONMENT,
-                OFF_POLICY_RUNNER_PARAMETERS
-        >;
+        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS, CONTAINER_TYPE_TAG>;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         template <typename CONFIG>
         using State = State<CONFIG>;
