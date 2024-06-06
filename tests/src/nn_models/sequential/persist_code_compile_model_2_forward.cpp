@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 
-#include "../../../data/nn_models_sequential_persist_code_model_2.h"
+#include "../../../data/nn_models_sequential_persist_code_model_2_forward.h"
 
 #include <rl_tools/nn/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
@@ -17,7 +17,7 @@ using T = float;
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 
-TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_2){
+TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_2_FORWARD){
     DEVICE device;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, rl_tools_export::model::MODEL::OUTPUT_DIM>> output;
     rl_tools_export::model::MODEL::Buffer<1> buffer;
@@ -46,8 +46,6 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_2){
             ASSERT_EQ(mean, input_i);
             T precision = rlt::get(first_layer.precision.parameters, 0, input_i);
             ASSERT_EQ(precision, input_i*2);
-            T output_value = rlt::get(first_layer.output, 0, input_i);
-            ASSERT_EQ(output_value, input_i*3);
         }
     }
 
@@ -56,12 +54,6 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_2){
         for(TI output_i=0; output_i < rl_tools_export::model::MODEL::OUTPUT_DIM; output_i++){
             T p = rlt::get(last_layer.log_std.parameters, 0, output_i);
             ASSERT_EQ(p, output_i);
-            T g = rlt::get(last_layer.log_std.gradient, 0, output_i);
-            ASSERT_EQ(g, output_i*2);
-            T gfm = rlt::get(last_layer.log_std.gradient_first_order_moment, 0, output_i);
-            ASSERT_EQ(gfm, output_i*3);
-            T gsm = rlt::get(last_layer.log_std.gradient_second_order_moment, 0, output_i);
-            ASSERT_EQ(gsm, output_i*4);
         }
     }
 }

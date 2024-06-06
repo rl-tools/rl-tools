@@ -40,7 +40,7 @@ namespace rl_tools {
             ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::standardize::Layer<CAPABILITY, SPEC>;" << "\n";
             std::string initializer_list;
             if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
-                initializer_list = "{weights::parameters, biases::parameters}";
+                initializer_list = "{mean::parameters, precision::parameters}";
             }
             else{
                 if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Backward){

@@ -39,7 +39,55 @@ if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_mod
         )
         gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2)
 else()
-        message(WARNING "test_nn_models_sequential_persist_code_compile is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_2.h")
+        message(WARNING "test_nn_models_sequential_persist_code_compile_model_2 is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_2.h")
+endif()
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_2_forward.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_2_forward persist_code_compile_model_2_forward.cpp)
+        target_link_libraries(test_nn_models_sequential_persist_code_compile_model_2_forward
+                PRIVATE
+                rl_tools
+                rl_tools_test
+        )
+        gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2_forward)
+else()
+        message(WARNING "test_nn_models_sequential_persist_code_compile_model_2_forward is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_2_forward.h")
+endif()
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_2_backward.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_2_backward persist_code_compile_model_2_backward.cpp)
+        target_link_libraries(test_nn_models_sequential_persist_code_compile_model_2_backward
+                PRIVATE
+                rl_tools
+                rl_tools_test
+        )
+        gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_2_backward)
+else()
+        message(WARNING "test_nn_models_sequential_persist_code_compile_model_2_backward is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_2_backward.h")
+endif()
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_mlp.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_mlp persist_code_compile_model_mlp.cpp)
+        target_link_libraries(test_nn_models_sequential_persist_code_compile_model_mlp
+                PRIVATE
+                rl_tools
+                rl_tools_test
+        )
+        gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_mlp)
+else()
+        message(WARNING "test_nn_models_sequential_persist_code_compile_model_mlp is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_mlp.h")
+endif()
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_mlp_forward.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_mlp_forward persist_code_compile_model_mlp_forward.cpp)
+        target_link_libraries(test_nn_models_sequential_persist_code_compile_model_mlp_forward
+                PRIVATE
+                rl_tools
+                rl_tools_test
+        )
+        gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_mlp_forward)
+else()
+        message(WARNING "test_nn_models_sequential_persist_code_compile_model_mlp_forward is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_mlp_forward.h")
 endif()
 
 add_executable(

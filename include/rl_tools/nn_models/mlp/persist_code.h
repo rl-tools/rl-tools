@@ -8,10 +8,11 @@
 #include <string>
 #include <sstream>
 #include "../../persist/code.h"
+#include "network.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    persist::Code save_code_split(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0) {
+    persist::Code save_code_split(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         std::stringstream indent_ss;
@@ -41,24 +42,50 @@ namespace rl_tools{
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::HIDDEN_ACTIVATION_FUNCTION>() << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
         ss << ind << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag, true, RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
+        ss << ind << "    template <typename CAPABILITY>" << "\n";
+        ss << ind << "    using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CAPABILITY, SPEC>; \n";
         ss << ind << "    using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
         ss << ind << "    using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CAPABILITY, SPEC>; \n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = {";
-        ss << "input_layer::module, ";
-        ss << "{";
+        std::stringstream ss_initializer_list;
+        ss_initializer_list << "{input_layer::module, ";
+        ss_initializer_list << "{";
         for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
             if(hidden_layer_i > 0){
-                ss << ", ";
+                ss_initializer_list << ", ";
             }
-            ss << "hidden_layer_" << hidden_layer_i << "::module";
+            ss_initializer_list << "hidden_layer_" << hidden_layer_i << "::module";
         }
-        ss << "}, ";
-        ss << "output_layer::module";
-        ss << "};\n";
-
+        ss_initializer_list << "}, ";
+        ss_initializer_list << "output_layer::module}";
+        std::string initializer_list;
+        if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
+            initializer_list = "{" + ss_initializer_list.str() + "}";
+        }
+        else{
+            if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Backward){
+                initializer_list = "{{" + ss_initializer_list.str() + "}}";
+            }
+            else{
+                if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Gradient){
+                    initializer_list = "{{{" + ss_initializer_list.str() + "}}}";
+                }
+                else{
+                    utils::assert_exit(device, false, "Unknown capability");
+                }
+            }
+        }
+        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << initializer_list << ";\n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }
+//    template<typename DEVICE, typename SPEC>
+//    persist::Code save_code_split(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0){
+//        return save_code_split(device, static_cast<nn_models::mlp::NeuralNetworkForward<SPEC>&>(network), name, const_declaration, indent);
+//    }
+//    template<typename DEVICE, typename SPEC>
+//    persist::Code save_code_split(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& network, std::string name, bool const_declaration=false, typename DEVICE::index_t indent = 0){
+//        return save_code_split(device, static_cast<nn_models::mlp::NeuralNetworkBackward<SPEC>&>(network), name, const_declaration, indent);
+//    }
     template<typename DEVICE, typename SPEC>
     std::string save_code(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& network, std::string name, bool const_declaration = true, typename DEVICE::index_t indent = 0) {
         auto code = save_code_split(device, network, name, const_declaration, indent);
