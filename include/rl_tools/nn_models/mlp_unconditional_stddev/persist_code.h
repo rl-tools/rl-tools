@@ -48,19 +48,36 @@ namespace rl_tools{
         ss << ind << "    using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY, SPEC>; \n";
         ss << ind << "    using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";
         ss << ind << "    using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp_unconditional_stddev::NeuralNetwork<CAPABILITY, SPEC>; \n";
-        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = {";
-        ss << "input_layer::module, ";
-        ss << "{";
+        std::stringstream ss_initializer_list;
+        ss_initializer_list << "{{input_layer::module, ";
+        ss_initializer_list << "{";
         for(TI hidden_layer_i = 0; hidden_layer_i < SPEC::NUM_HIDDEN_LAYERS; hidden_layer_i++){
             if(hidden_layer_i > 0){
-                ss << ", ";
+                ss_initializer_list << ", ";
             }
-            ss << "hidden_layer_" << hidden_layer_i << "::module";
+            ss_initializer_list << "hidden_layer_" << hidden_layer_i << "::module";
         }
-        ss << "}, ";
-        ss << "output_layer::module";
-        ss << ", log_std::parameters};\n";
-
+        ss_initializer_list << "}, ";
+        ss_initializer_list << "output_layer::module}";
+        ss_initializer_list << ", log_std::parameters}";
+        std::string initializer_list;
+        if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
+            initializer_list = "{" + ss_initializer_list.str() + "}";
+        }
+        else{
+            if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Backward){
+                initializer_list = "{{" + ss_initializer_list.str() + "}}";
+            }
+            else{
+                if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Gradient){
+                    initializer_list = "{{{" + ss_initializer_list.str() + "}}}";
+                }
+                else{
+                    utils::assert_exit(device, false, "Unknown capability");
+                }
+            }
+        }
+        ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << initializer_list << ";\n";
         ss << ind << "}\n";
         return {ss_header.str(), ss.str()};
     }

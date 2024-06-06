@@ -39,7 +39,22 @@ namespace rl_tools {
             ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << ";" << "\n";
             ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::standardize::Layer<CAPABILITY, SPEC>;" << "\n";
             std::string initializer_list;
-            initializer_list = "{mean::parameters, precision::parameters}";
+            if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
+                initializer_list = "{weights::parameters, biases::parameters}";
+            }
+            else{
+                if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Backward){
+                    initializer_list = "{{mean::parameters, precision::parameters}}";
+                }
+                else{
+                    if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Gradient){
+                        initializer_list = "{{{mean::parameters, precision::parameters}}, output::container}";
+                    }
+                    else{
+                        utils::assert_exit(device, false, "Unknown capability");
+                    }
+                }
+            }
             ss << ind << "    " << (const_declaration ? "const " : "") << "TYPE module = " << initializer_list << ";\n";
             ss << ind << "}\n";
 
