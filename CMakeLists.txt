@@ -111,7 +111,7 @@ target_compile_options(rl_tools_core_definitions INTERFACE
         -Wno-unused-but-set-variable
         -Wno-unused-lambda-capture
     >
-    $<$<CXX_COMPILER_ID:MSVC>:
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<COMPILE_LANGUAGE:CUDA>>>:
         /wd4100   # 'identifier' : unreferenced formal parameter
         /wd4101   # 'identifier' : unreferenced local variable
         /wd4189   # 'identifier' : local variable is initialized but not referenced

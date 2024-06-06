@@ -1,5 +1,8 @@
 ### Packaging Release using conan
 ```
+git submodule update --init --recursive -- external/mujoco external/glfw external/json external/tensorboard external/highfive external/cli11 redistributable
+```
+```
 conan profile detect --force
 ```
 Inside the root of the RLtools repo:
