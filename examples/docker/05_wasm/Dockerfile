@@ -1,4 +1,4 @@
-FROM emscripten/emsdk:3.1.38
+FROM emscripten/emsdk:3.1.61
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update
 RUN mkdir build
