@@ -6,7 +6,6 @@
 //#define RL_TOOLS_BACKEND_DISABLE_BLAS
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
-#include <rl_tools/nn/layers/concat_constant/operations_generic.h>
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
@@ -209,7 +208,7 @@ void test_correctness(){
     }
 
 }
-TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS){
+TEST(RL_TOOLS_NN_LAYERS_DENSE, CORRECTNESS_BACKWARD_PARAMS_BLAS){
     using T = float;
 //using DEVICE = rlt::devices::DefaultCPU;
     using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
@@ -218,7 +217,7 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS){
     test_correctness<DEVICE, DEVICE, config::CONFIG<T, TI>>();
 }
 
-TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS_CPU){
+TEST(RL_TOOLS_NN_LAYERS_DENSE, CORRECTNESS_BACKWARD_PARAMS_BLAS_CPU){
     using T = double;
 //using DEVICE = rlt::devices::DefaultCPU;
     using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
@@ -228,7 +227,7 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_BLAS_CPU){
     test_correctness<DEVICE, SEQUENTIAL_DEVICE, config::CONFIG<T, TI>>();
 }
 
-TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
+TEST(RL_TOOLS_NN_LAYERS_DENSE, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
     using T = double;
 //using DEVICE = rlt::devices::DefaultCPU;
     using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
@@ -238,7 +237,7 @@ TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
     test_correctness<SEQUENTIAL_DEVICE, DEVICE, config::CONFIG<T, TI>>();
 }
 
-//TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, BENCHMARK){
+//TEST(RL_TOOLS_NN_LAYERS_DENSE, BENCHMARK){
 template <typename DEVICE, typename CONFIG>
 void test_benchmark(){
     typename CONFIG::MODEL model;
@@ -320,7 +319,7 @@ void test_benchmark(){
 }
 
 #ifndef RL_TOOLS_TESTS_CODE_COVERAGE
-TEST(RL_TOOLS_NN_LAYERS_CONCAT_CONSTANT, BENCHMARK){
+TEST(RL_TOOLS_NN_LAYERS_DENSE, BENCHMARK){
     using T = double;
     using DEVICE = rlt::devices::DEVICE_FACTORY<rlt::devices::DefaultCPUSpecification>;
     using TI = typename DEVICE::index_t;
