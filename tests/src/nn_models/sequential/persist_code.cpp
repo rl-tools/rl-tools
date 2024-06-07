@@ -18,6 +18,10 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
+#include <cstdlib>
+#include <optional>
+#include <string>
 
 using T = float;
 using DEVICE = rlt::devices::DefaultCPU;
