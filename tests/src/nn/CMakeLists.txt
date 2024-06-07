@@ -94,3 +94,13 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA)
 endif()
 
 
+add_executable(
+        test_nn_mode
+        mode.cpp
+)
+target_link_libraries(
+        test_nn_mode
+        rl_tools
+        rl_tools_test
+)
+gtest_discover_tests(test_nn_mode)
