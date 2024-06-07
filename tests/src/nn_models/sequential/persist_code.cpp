@@ -23,6 +23,15 @@ using T = float;
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 
+std::optional<std::string> get_env_var(const std::string& var) {
+    const char* value = std::getenv(var.c_str());
+    if (value) {
+        return std::string(value);
+    } else {
+        return std::nullopt;
+    }
+}
+
 namespace MODEL_1{
     using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::groups::Input>;
     using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
@@ -96,9 +105,10 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
 //        std::cout << "output: " << output << std::endl;
 //        std::filesystem::create_directories("data");
         std::ofstream file;
-        file.open("tests/data/nn_models_sequential_persist_code.h", std::ios::out | std::ios::trunc);
+        std::string output_path = "tests/data/nn_models_sequential_persist_code.h" + std::string((get_env_var("GITHUB_ACTIONS") ? ".disabled" : ""));
+        file.open(output_path, std::ios::out | std::ios::trunc);
         std::cout << "Working directory: " << std::filesystem::current_path() << std::endl;
-        std::cout << "Full file path: " << std::filesystem::absolute("data/nn_models_sequential_persist_code.h") << std::endl;
+        std::cout << "Full file path: " << std::filesystem::absolute(output_path) << std::endl;
         file << output;
         file.close();
     }
@@ -162,7 +172,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
 //        std::cout << "output: " << output << std::endl;
 //        std::filesystem::create_directories("data");
         std::ofstream file;
-        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_2.h";
+        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_2.h" + std::string((get_env_var("GITHUB_ACTIONS") ? ".disabled" : ""));
         file.open(output_file_path, std::ios::out | std::ios::trunc);
         std::cout << "Working directory: " << std::filesystem::current_path() << std::endl;
         std::cout << "Full file path: " << std::filesystem::absolute(output_file_path) << std::endl;
@@ -226,7 +236,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
 //        std::cout << "output: " << output << std::endl;
 //        std::filesystem::create_directories("data");
         std::ofstream file;
-        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_2_forward.h";
+        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_2_forward.h" + std::string((get_env_var("GITHUB_ACTIONS") ? ".disabled" : ""));
         file.open(output_file_path, std::ios::out | std::ios::trunc);
         std::cout << "Working directory: " << std::filesystem::current_path() << std::endl;
         std::cout << "Full file path: " << std::filesystem::absolute(output_file_path) << std::endl;
@@ -289,7 +299,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
 //        std::cout << "output: " << output << std::endl;
 //        std::filesystem::create_directories("data");
         std::ofstream file;
-        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_2_backward.h";
+        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_2_backward.h" + std::string((get_env_var("GITHUB_ACTIONS") ? ".disabled" : ""));
         file.open(output_file_path, std::ios::out | std::ios::trunc);
         std::cout << "Working directory: " << std::filesystem::current_path() << std::endl;
         std::cout << "Full file path: " << std::filesystem::absolute(output_file_path) << std::endl;
@@ -340,7 +350,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp){
 //        std::cout << "output: " << output << std::endl;
 //        std::filesystem::create_directories("data");
         std::ofstream file;
-        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_mlp.h";
+        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_mlp.h" + std::string((get_env_var("GITHUB_ACTIONS") ? ".disabled" : ""));
         file.open(output_file_path, std::ios::out | std::ios::trunc);
         std::cout << "Working directory: " << std::filesystem::current_path() << std::endl;
         std::cout << "Full file path: " << std::filesystem::absolute(output_file_path) << std::endl;
@@ -390,7 +400,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp_forward){
 //        std::cout << "output: " << output << std::endl;
 //        std::filesystem::create_directories("data");
         std::ofstream file;
-        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_mlp_forward.h";
+        std::string output_file_path = "tests/data/nn_models_sequential_persist_code_model_mlp_forward.h" + std::string((get_env_var("GITHUB_ACTIONS") ? ".disabled" : ""));
         file.open(output_file_path, std::ios::out | std::ios::trunc);
         std::cout << "Working directory: " << std::filesystem::current_path() << std::endl;
         std::cout << "Full file path: " << std::filesystem::absolute(output_file_path) << std::endl;
