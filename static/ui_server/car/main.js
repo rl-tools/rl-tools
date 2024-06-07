@@ -5,8 +5,8 @@ import {Client as ClientWASM} from './client_wasm.js';
 
 console.log("Car UI")
 
-// const forceWASM = false //true
-const forceWASM = true
+const forceWASM = false
+// const forceWASM = true
 
 const keyThrottleValue = 0.5
 const orientationGainSteering = 3

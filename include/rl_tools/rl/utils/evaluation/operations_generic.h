@@ -121,8 +121,8 @@ namespace rl_tools{
                 auto& state = states[env_i];
                 auto action = row(device, actions_buffer, env_i);
                 T dt = step(device, env, state, action, next_state, rng);
-                set_state(device, env, ui, state);
-                if(!terminated[env_i]){
+                if(env_i == 0 && !terminated[env_i]){ // only render the first environment
+                    set_state(device, env, ui, state);
                     set_action(device, env, ui, action);
                     render(device, env, ui);
                 }
@@ -130,6 +130,7 @@ namespace rl_tools{
                 rl::utils::evaluation::set_reward(data, env_i, step_i, r);
                 bool terminated_flag = rl_tools::terminated(device, env, next_state, rng);
                 terminated_flag = terminated_flag || terminated[env_i];
+                terminated[env_i] = terminated_flag;
                 rl::utils::evaluation::set_terminated(data, env_i, step_i, terminated_flag);
                 if(!terminated_flag){
                     results.returns[env_i] += r;
