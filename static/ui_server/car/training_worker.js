@@ -10,7 +10,7 @@ let current_episode = null;
 async function async_main(){
     const rlt = await createRLtoolsInterface()
     console.log("Initializing worker");
-    let training_state = rlt._proxy_create(0);
+    let training_state = rlt._proxy_create(1);
     console.log("Training state: ", training_state);
 
     let messages = []

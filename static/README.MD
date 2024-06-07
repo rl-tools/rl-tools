@@ -35,5 +35,5 @@ python3 -m http.server --directory rl.tools
 scp -r rl.tools/* server3.jonas.es:DockerContainer/rl_tools/static/
 ```
 ```
-cp -r * ~/phd/projects/rl_tools/rl-tools.github.io
+cp -rL * ~/phd/projects/rl_tools/rl-tools.github.io
 ```

@@ -38,11 +38,13 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
         static constexpr TI N_EPOCHS = 2;
         static constexpr T GAMMA = 0.995;
         static constexpr T LAMBDA = 0.975;
-        static constexpr bool ADAPTIVE_LEARNING_RATE = true;
+        static constexpr bool ADAPTIVE_LEARNING_RATE = false;
     };
     static constexpr TI BATCH_SIZE = 256;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
+    static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 512;
     static constexpr TI N_ENVIRONMENTS = 32;
     static constexpr TI TOTAL_STEP_LIMIT = 10000000;
@@ -52,7 +54,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
 template <typename NEXT>
 struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, NEXT>{
-    static constexpr TI EVALUATION_INTERVAL = 10;
+    static constexpr TI EVALUATION_INTERVAL = 5;
     static constexpr TI NUM_EVALUATION_EPISODES = 1;
     static constexpr TI N_EVALUATIONS = NEXT::CORE_PARAMETERS::STEP_LIMIT / EVALUATION_INTERVAL;
     static constexpr TI EPISODE_STEP_LIMIT = 1000;
