@@ -46,7 +46,9 @@ let main = async () => {
                 drawLabel.style.display = "block";
                 resetTrackButton.style.display = "block";
                 saveTrackButton.style.display = "block";
-                canvasContainer.style.display = "block";
+                if(canvasContainer){
+                    canvasContainer.style.display = "block";
+                }
                 track.resizeCanvas()
             },
             setStateCallback: (state)=>{
