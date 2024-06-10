@@ -380,6 +380,7 @@ namespace rl_tools{
         rlt::malloc(device, sample_and_squash);
         rlt::malloc(device, buffer);
         rlt::init_weights(device, sample_and_squash, rng);
+        rlt::copy(device, device, actor_critic.log_alpha.parameters, sample_and_squash.log_alpha.parameters);
         rlt::copy(device, device, action_noise, buffer.noise);
         rlt::forward(device, sample_and_squash, output(actor_critic.actor), buffer, rng);
 
@@ -415,7 +416,9 @@ namespace rl_tools{
         backward_full(device, sample_and_squash, output(actor_critic.actor), training_buffers.d_actor_output_squashing, training_buffers.d_squashing_input, buffer);
         d_action_d_action_distribution(device, actor_critic, training_buffers);
         T diff_backward = abs_diff(device, training_buffers.d_squashing_input, training_buffers.d_actor_output);
-        backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output, actor_buffers);
+        utils::assert_exit(device, diff_backward == 0, "diff_backward != 0");
+        backward(device, actor_critic.actor, batch.observations, training_buffers.d_squashing_input, actor_buffers);
+//        step(device, optimizer, sample_and_squash);
         step(device, optimizer, actor_critic.actor);
         // adapting alpha
         if constexpr(SPEC::PARAMETERS::ADAPTIVE_ALPHA){
