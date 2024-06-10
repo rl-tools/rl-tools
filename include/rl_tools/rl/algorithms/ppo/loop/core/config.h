@@ -59,10 +59,10 @@ namespace rl_tools{
                 using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
                 using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
                 using IF = nn_models::sequential::Interface<CAPABILITY>;
-                using ACTOR_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
+                using CRITIC_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
                 using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
-                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
+                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
             };
 
             using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;

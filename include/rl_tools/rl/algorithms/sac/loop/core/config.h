@@ -43,61 +43,95 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename CONTAINER_TYPE_TAG>
     struct ConfigApproximatorsSequential{
         template <typename CAPABILITY>
-        struct ACTOR{
-            static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
-            static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
-            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
-            using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
-            using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-            static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
-            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
-            using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
-
+        struct Actor{
+            using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
+            using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
             using IF = nn_models::sequential::Interface<CAPABILITY>;
-            using MODEL = typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>;
+            using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
+//            using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM>;
+//            using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
+//            using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
         };
-
         template <typename CAPABILITY>
-        struct CRITIC{
-            static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
-            static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
-
-            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
-            using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
-            using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, nn::activation_functions::ActivationFunction::IDENTITY, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>;
-            using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
-
+        struct Critic{
+            static constexpr TI INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM+ENVIRONMENT::ACTION_DIM;
+            using SPEC = nn_models::mlp::Specification<T, TI, INPUT_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
+            using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
             using IF = nn_models::sequential::Interface<CAPABILITY>;
-            using MODEL = typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>;
+            using MODEL = typename IF::template Module<TYPE::template NeuralNetwork>;
+//            using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, INPUT_DIM>;
+//            using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
+//            using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
         };
 
+        using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+        using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+        using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
+        using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
+        using CAPABILITY_ACTOR = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
+        using CAPABILITY_CRITIC = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
+        using ACTOR_TYPE = typename Actor<CAPABILITY_ACTOR>::MODEL;
+        using CRITIC_TYPE = typename Critic<CAPABILITY_CRITIC>::MODEL;
+        using CRITIC_TARGET_TYPE = typename Critic<nn::layer_capability::Forward>::MODEL;
         using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
-
         using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
 
-        using ACTOR_TYPE = typename ACTOR<nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>>::MODEL;
-        using CRITIC_TYPE = typename CRITIC<nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>>::MODEL;
-        using CRITIC_TARGET_TYPE = typename CRITIC<nn::layer_capability::Forward>::MODEL;
+//        template <typename CAPABILITY>
+//        struct ACTOR{
+//            static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
+//            static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
+//            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
+//            using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
+//            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
+//            using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
+//            static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
+//            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
+//            using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+//
+//            using IF = nn_models::sequential::Interface<CAPABILITY>;
+//            using MODEL = typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>;
+//        };
+//
+//        template <typename CAPABILITY>
+//        struct CRITIC{
+//            static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
+//            static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
+//
+//            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
+//            using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
+//            using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
+//            using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
+//            using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, nn::activation_functions::ActivationFunction::IDENTITY, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>;
+//            using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+//
+//            using IF = nn_models::sequential::Interface<CAPABILITY>;
+//            using MODEL = typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>;
+//        };
+//
+//        using OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+//
+//        using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
+//
+//        using ACTOR_TYPE = typename ACTOR<nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>>::MODEL;
+//        using CRITIC_TYPE = typename CRITIC<nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>>::MODEL;
+//        using CRITIC_TARGET_TYPE = typename CRITIC<nn::layer_capability::Forward>::MODEL;
     };
 
-    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename T_CONTAINER_TYPE_TAG>
-    struct ConfigApproximatorsMLP{
-        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-        using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, CONTAINER_TYPE_TAG>;
-        using CRITIC_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, CONTAINER_TYPE_TAG>;
-        using OPTIMIZER_SPEC = typename nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
-        using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
-
-        using ACTOR_CAPABILITY = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
-        using ACTOR_TYPE = nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_SPEC>;
-
-        using CRITIC_CAPABILITY = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
-        using CRITIC_TYPE = nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
-        using CRITIC_TARGET_TYPE = nn_models::mlp::NeuralNetwork<nn::layer_capability::Forward, CRITIC_SPEC>;
-    };
+//    template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename T_CONTAINER_TYPE_TAG>
+//    struct ConfigApproximatorsMLP{
+//        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+//        using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, CONTAINER_TYPE_TAG>;
+//        using CRITIC_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, CONTAINER_TYPE_TAG>;
+//        using OPTIMIZER_SPEC = typename nn::optimizers::adam::Specification<T, TI, typename PARAMETERS::OPTIMIZER_PARAMETERS>;
+//        using OPTIMIZER = nn::optimizers::Adam<OPTIMIZER_SPEC>;
+//
+//        using ACTOR_CAPABILITY = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
+//        using ACTOR_TYPE = nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_SPEC>;
+//
+//        using CRITIC_CAPABILITY = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
+//        using CRITIC_TYPE = nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
+//        using CRITIC_TARGET_TYPE = nn_models::mlp::NeuralNetwork<nn::layer_capability::Forward, CRITIC_SPEC>;
+//    };
 
     template<typename T_T, typename T_TI, typename T_RNG, typename T_ENVIRONMENT, typename T_PARAMETERS = DefaultParameters<T_T, T_TI, T_ENVIRONMENT>, template<typename, typename, typename, typename, typename> class APPROXIMATOR_CONFIG=ConfigApproximatorsSequential, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Config{
