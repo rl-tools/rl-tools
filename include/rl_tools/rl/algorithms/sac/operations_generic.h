@@ -5,6 +5,7 @@
 
 #include "sac.h"
 
+#include "../../../nn/layers/sample_and_squash/operations_generic.h"
 #include "../../../rl/components/replay_buffer/replay_buffer.h"
 #include "../../../rl/components/off_policy_runner/off_policy_runner.h"
 #include "../../../nn/nn.h"
@@ -46,6 +47,8 @@ namespace rl_tools{
         malloc(device, actor_training_buffers.action_sample);
         malloc(device, actor_training_buffers.action_noise);
         malloc(device, actor_training_buffers.d_actor_output);
+        malloc(device, actor_training_buffers.d_actor_output_squashing);
+        malloc(device, actor_training_buffers.d_squashing_input);
         malloc(device, actor_training_buffers.d_actor_input);
     }
     template <typename DEVICE, typename SPEC>
@@ -61,6 +64,8 @@ namespace rl_tools{
         free(device, actor_training_buffers.action_sample);
         free(device, actor_training_buffers.action_noise);
         free(device, actor_training_buffers.d_actor_output);
+        free(device, actor_training_buffers.d_actor_output_squashing);
+        free(device, actor_training_buffers.d_squashing_input);
         free(device, actor_training_buffers.d_actor_input);
     }
 
@@ -118,8 +123,8 @@ namespace rl_tools{
         copy(device, device, actor_critic.critic_1, actor_critic.critic_target_1);
         copy(device, device, actor_critic.critic_2, actor_critic.critic_target_2);
     }
-    template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC, typename ALPHA_PARAMETER, typename TI_SAMPLE>
-    RL_TOOLS_FUNCTION_PLACEMENT void target_actions_per_sample(DEVICE& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, ALPHA_PARAMETER alpha, TI_SAMPLE batch_step_i){
+    template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER, typename TI_SAMPLE>
+    RL_TOOLS_FUNCTION_PLACEMENT void target_actions_per_sample(DEVICE& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER alpha, TI_SAMPLE batch_step_i){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
@@ -130,21 +135,21 @@ namespace rl_tools{
         );
         T reward = get(batch.rewards, 0, batch_step_i);
         bool terminated = get(batch.terminated, 0, batch_step_i);
-        T entropy_bonus = -alpha * get(training_buffers.next_action_log_probs, batch_step_i, 0);
+        T entropy_bonus = -alpha * get(next_action_log_probs, batch_step_i, 0);
         T min_next_state_action_value_entropy_bonus = min_next_state_action_value + entropy_bonus;
         T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value_entropy_bonus : 0;
         T current_target_action_value = reward + future_value;
         set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
     }
-    template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC, typename ALPHA_PARAMETER>
-    void target_actions(DEVICE& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, ALPHA_PARAMETER& log_alpha) {
+    template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER>
+    void target_actions(DEVICE& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER& log_alpha) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, get(log_alpha.parameters, 0, 0));
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-            target_actions_per_sample(device, batch, training_buffers, alpha, batch_step_i);
+            target_actions_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
         }
     }
     template <typename DEVICE, typename SPEC, typename ACTION_NOISE_SPEC>
@@ -198,12 +203,22 @@ namespace rl_tools{
         zero_gradient(device, critic);
 
         evaluate(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_distribution, actor_buffers, rng);
+        using SAS_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ACTION_DIM>;
+        using SAS_CAPABILITY = nn::layer_capability::Gradient<nn::parameters::Adam, BATCH_SIZE>;
+        nn::layers::sample_and_squash::Layer<SAS_CAPABILITY, SAS_LAYER_SPEC> sample_and_squash;
+        typename decltype(sample_and_squash)::template Buffer<BATCH_SIZE> buffer;
+        rlt::malloc(device, sample_and_squash);
+        rlt::malloc(device, buffer);
+        rlt::copy(device, device, action_noise, buffer.noise);
+        rlt::forward(device, sample_and_squash, training_buffers.next_actions_distribution, buffer, rng);
         sample_actions_critic(device, training_buffers, action_noise);
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
 
-        target_actions(device, batch, training_buffers, actor_critic.log_alpha);
+        auto next_action_log_probs = view_transpose(device, sample_and_squash.log_probabilities);
+        target_actions(device, batch, training_buffers, training_buffers.next_action_log_probs, actor_critic.log_alpha);
+        target_actions(device, batch, training_buffers, next_action_log_probs, actor_critic.log_alpha);
         forward(device, critic, batch.observations_and_actions, rng);
         nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
@@ -287,18 +302,16 @@ namespace rl_tools{
             T action = get(training_buffers.actions, batch_i, action_i); // tanh(action_sample)
             T d_mu = 0;
             T d_std = 0;
-            {
-                T d_input = 0; // note this d_input is already taking into account the mean of the batch (d_output is -1/BATCH_SIZE for the backward pass of the critics)
-                if(critic_1_value) {
-                    d_input = get(training_buffers.d_critic_1_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
-                }
-                else{
-                    d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
-                }
-                T d_tanh_pre_activation = d_input * (1-action*action);
-                d_mu = d_tanh_pre_activation;
-                d_std = d_tanh_pre_activation * get(training_buffers.action_noise, batch_i, action_i);
+            T d_input = 0; // note this d_input is already taking into account the mean of the batch (d_output is -1/BATCH_SIZE for the backward pass of the critics)
+            if(critic_1_value) {
+                d_input = get(training_buffers.d_critic_1_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
             }
+            else{
+                d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
+            }
+            T d_tanh_pre_activation = d_input * (1-action*action);
+            d_mu = d_tanh_pre_activation;
+            d_std = d_tanh_pre_activation * get(training_buffers.action_noise, batch_i, action_i);
             T log_std_pre_clamp = get(actions, batch_i, action_i + ACTION_DIM);
             T log_std_clamped = math::clamp(device.math, log_std_pre_clamp, (T)SPEC::PARAMETERS::ACTION_LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::ACTION_LOG_STD_UPPER_BOUND);
             T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_clamped);
@@ -360,7 +373,19 @@ namespace rl_tools{
         zero_gradient(device, actor_critic.actor);
         zero_gradient(device, actor_critic.log_alpha);
         forward(device, actor_critic.actor, batch.observations, rng);
+        using SAS_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ACTION_DIM>;
+        using SAS_CAPABILITY = nn::layer_capability::Gradient<nn::parameters::Adam, BATCH_SIZE>;
+        nn::layers::sample_and_squash::Layer<SAS_CAPABILITY, SAS_LAYER_SPEC> sample_and_squash;
+        typename decltype(sample_and_squash)::template Buffer<BATCH_SIZE> buffer;
+        rlt::malloc(device, sample_and_squash);
+        rlt::malloc(device, buffer);
+        rlt::init_weights(device, sample_and_squash, rng);
+        rlt::copy(device, device, action_noise, buffer.noise);
+        rlt::forward(device, sample_and_squash, output(actor_critic.actor), buffer, rng);
+
         sample_actions_actor(device, actor_critic, training_buffers, action_noise);
+        T diff_forward = abs_diff(device, training_buffers.actions, sample_and_squash.output);
+
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         forward(device, actor_critic.critic_1, training_buffers.state_action_value_input, rng);
         forward(device, actor_critic.critic_2, training_buffers.state_action_value_input, rng);
@@ -370,7 +395,26 @@ namespace rl_tools{
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers);
+        {
+            auto critic_1_output = output(actor_critic.critic_1);
+            auto critic_2_output = output(actor_critic.critic_2);
+            for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+                bool critic_1_value = get(critic_1_output, batch_i, 0) < get(critic_2_output, batch_i, 0);
+                for(TI action_i=0; action_i < ACTION_DIM; action_i++){
+                    T d_input = 0;
+                    if(critic_1_value) {
+                        d_input = get(training_buffers.d_critic_1_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
+                    }
+                    else{
+                        d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
+                    }
+                    set(training_buffers.d_actor_output_squashing, batch_i, action_i, d_input);
+                }
+            }
+        }
+        backward_full(device, sample_and_squash, output(actor_critic.actor), training_buffers.d_actor_output_squashing, training_buffers.d_squashing_input, buffer);
         d_action_d_action_distribution(device, actor_critic, training_buffers);
+        T diff_backward = abs_diff(device, training_buffers.d_squashing_input, training_buffers.d_actor_output);
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output, actor_buffers);
         step(device, optimizer, actor_critic.actor);
         // adapting alpha

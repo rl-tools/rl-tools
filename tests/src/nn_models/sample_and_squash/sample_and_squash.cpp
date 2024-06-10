@@ -62,6 +62,11 @@ int main(){
     rlt::evaluate(device, actor.content, input, intermediate_output, actor_buffer, rng2);
 
 
+    auto& sas_buffer = rlt::get_buffer<1>(device, actor_buffer_sequential);
+
+    rlt::print(device, sas_buffer.log_probabilities);
+
+
     T abs_diff = rlt::abs_diff(device, output, output_sequential);
 
     rlt::print(device, output);

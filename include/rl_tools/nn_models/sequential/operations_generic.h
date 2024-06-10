@@ -75,6 +75,21 @@ namespace rl_tools{
     constexpr typename SPEC::TI num_layers(nn_models::sequential::ModuleForward<SPEC>){
         return nn_models::sequential::num_layers<SPEC>();
     }
+    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
+    constexpr auto& get_buffer(DEVICE& device, nn_models::sequential::ContentBuffer<MODULE_SPEC>& buffer){
+        static_assert(LAYER_I >= 0);
+        static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
+        if constexpr(LAYER_I == 0){
+            return buffer.buffer;
+        }
+        else{
+            return get_buffer<LAYER_I - 1>(device, buffer.next_content_buffer);
+        }
+    }
+    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
+    constexpr auto& get_buffer(DEVICE& device, nn_models::sequential::ModuleBuffer<MODULE_SPEC>& buffer){
+        return get_buffer<LAYER_I>(device, buffer.content_buffer);
+    }
 
     template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
     constexpr auto& get_layer(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model){

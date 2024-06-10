@@ -14,16 +14,23 @@ namespace rl_tools::nn::layers::sample_and_squash {
     struct DefaultParameters{
         static constexpr T LOG_STD_LOWER_BOUND = -20;
         static constexpr T LOG_STD_UPPER_BOUND = 2;
+        static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
+        static constexpr T ALPHA = 1.0;
+        static constexpr T TARGET_ENTROPY = -1;
     };
-    struct Buffer{};
-    template<typename T_T, typename T_TI, T_TI T_DIM, typename T_PARAMETERS, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION=nn::activation_functions::ActivationFunction::TANH, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    template <typename SPEC>
+    struct Buffer{
+        using NOISE_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::DIM>;
+        using NOISE_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<NOISE_CONTAINER_SPEC>;
+        NOISE_CONTAINER_TYPE noise;
+    };
+    template<typename T_T, typename T_TI, T_TI T_DIM, typename T_PARAMETERS = DefaultParameters<T_T>, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
         static constexpr auto DIM = T_DIM;
-        using PARAMETERS = T_PARAMETERS;
-        static constexpr nn::activation_functions::ActivationFunction ACTIVATION_FUNCTION = T_ACTIVATION_FUNCTION;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        using PARAMETERS = T_PARAMETERS;
     };
     template <typename SPEC>
     struct LayerForward{
@@ -34,7 +41,7 @@ namespace rl_tools::nn::layers::sample_and_squash {
         static constexpr TI INPUT_DIM = 2*DIM; // mean and std
         static constexpr TI OUTPUT_DIM = DIM;
         template<TI BUFFER_BATCH_SIZE = SPEC::BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG>
-        using Buffer = sample_and_squash::Buffer;
+        using Buffer = sample_and_squash::Buffer<SPEC>;
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC> {
@@ -42,14 +49,19 @@ namespace rl_tools::nn::layers::sample_and_squash {
         // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
         using PRE_ACTIVATIONS_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::DIM>;
         using PRE_ACTIVATIONS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
-        PRE_ACTIVATIONS_CONTAINER_TYPE noise;
+        PRE_ACTIVATIONS_CONTAINER_TYPE pre_squashing, noise;
     };
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC> {
-        // This layer supports backpropagation wrt its input but including its weights (for this it stores the intermediate outputs in addition to the pre_activations because they determine the gradient wrt the weights of the following layer)
+        using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, SPEC::BATCH_SIZE>;
+        using LOG_PROBABILITIES_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<LOG_PROBABILITIES_CONTAINER_SPEC>;
+        LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;
         using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::DIM>;
         using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
         OUTPUT_CONTAINER_TYPE output;
+        using ALPHA_CONTAINER = typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, 1>>;
+        using ALPHA_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<ALPHA_CONTAINER, nn::parameters::categories::Biases, nn::parameters::groups::Normal>;
+        typename SPEC::PARAMETER_TYPE::template instance<ALPHA_PARAMETER_SPEC> log_alpha;
     };
     template<typename CAPABILITY, typename SPEC>
     using Layer =

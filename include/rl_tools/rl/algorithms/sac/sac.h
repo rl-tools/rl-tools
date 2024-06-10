@@ -77,6 +77,8 @@ namespace rl_tools::rl::algorithms::sac {
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, CRITIC_OBSERVATION_DIM + ACTION_DIM>> d_critic_1_input, d_critic_2_input;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_critic_action_input;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> action_sample, action_noise;
+        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_actor_output_squashing;
+        typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM * 2>> d_squashing_input;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM * 2>> d_actor_output;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTOR_INPUT_DIM>> d_actor_input;
 
