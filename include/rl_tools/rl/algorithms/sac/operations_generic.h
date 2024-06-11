@@ -202,7 +202,7 @@ namespace rl_tools{
 
         auto sample_and_squash_layer = get_last_layer(device, actor_critic.actor);
         auto sample_and_squash_buffer = get_last_buffer(device, actor_buffers);
-        rlt::copy(device, device, action_noise, sample_and_squash_buffer.noise);
+        copy(device, device, action_noise, sample_and_squash_buffer.noise);
         forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng);
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
@@ -247,7 +247,7 @@ namespace rl_tools{
         auto sample_and_squashing_buffer = get_last_buffer(device, actor_buffers);
 
         zero_gradient(device, actor_critic.actor);
-        rlt::copy(device, device, action_noise, sample_and_squashing_buffer.noise);
+        copy(device, device, action_noise, sample_and_squashing_buffer.noise);
         forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng);
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         forward(device, actor_critic.critic_1, training_buffers.state_action_value_input, critic_buffers, rng);

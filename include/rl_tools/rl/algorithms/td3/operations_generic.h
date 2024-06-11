@@ -167,7 +167,7 @@ namespace rl_tools{
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
 
         target_action_values(device, actor_critic, batch, training_buffers);
-        forward(device, critic, batch.observations_and_actions, rng);
+        forward(device, critic, batch.observations_and_actions, critic_buffers, rng);
         nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output);
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
         step(device, optimizer, critic);
@@ -200,10 +200,10 @@ namespace rl_tools{
         static_assert(SPEC::ACTOR_TYPE::OUTPUT_DIM == ACTION_DIM);
 
         zero_gradient(device, actor_critic.actor);
-        forward(device, actor_critic.actor, batch.observations, training_buffers.actions, rng);
+        forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng);
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         auto& critic = actor_critic.critic_1;
-        forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, rng);
+        forward(device, critic, training_buffers.state_action_value_input, training_buffers.state_action_value, critic_buffers, rng);
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward_input(device, critic, training_buffers.d_output, training_buffers.d_critic_input, critic_buffers);
         auto d_actor_output = view(device, training_buffers.d_critic_input, matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>{}, 0, SPEC::CRITIC_TYPE::INPUT_DIM - ACTION_DIM);

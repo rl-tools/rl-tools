@@ -49,7 +49,7 @@ namespace rl_tools{
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG>
-    void forward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng) {
+    void forward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer&, RNG& rng) {
         // Warning do not use the same buffer for input and output!
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
@@ -145,11 +145,6 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC>
-    void backward(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output) {
-        nn::layers::dense::Buffer buffer;
-        backward(device, layer, input, d_output, buffer);
-    }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename D_PRE_ACTIVATIONS_SPEC, typename D_INPUT_SPEC>
     void backward_input_additional(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activaitons, Matrix<D_INPUT_SPEC>& d_input) {
         // ATTENTION: this requires d_pre_activation as inputs and not d_output!!
@@ -182,20 +177,10 @@ namespace rl_tools{
         backward_pre_activations(device, layer, d_output, d_output);
         backward_input_additional(device, layer, d_output, d_input);
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward_input(devices::CPU_BLAS<DEV_SPEC>& device, const nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input) {
-        nn::layers::dense::Buffer buffer;
-        backward_input(device, layer, d_output, d_input, buffer);
-    }
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward_full(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer&) {
-        backward(device, layer, input, d_output);
+    void backward_full(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer& buffer) {
+        backward(device, layer, input, d_output, buffer);
         backward_input_additional(device, layer, d_output, d_input);
-    }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward_full(devices::CPU_BLAS<DEV_SPEC>& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input){
-        nn::layers::dense::Buffer buffer;
-        backward_full(device, layer, input, d_output, d_input, buffer);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

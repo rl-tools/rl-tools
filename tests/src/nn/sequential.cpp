@@ -146,20 +146,30 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
 
     DEVICE device;
     MLP mlp;
+    MLP::Buffer<BATCH_SIZE> mlp_buffer;
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
 
     LAYER_1::Layer<CAPABILITY_ADAM> layer_1;
     LAYER_2::Layer<CAPABILITY_ADAM> layer_2;
     LAYER_3::Layer<CAPABILITY_ADAM> layer_3;
+    decltype(layer_1)::Buffer<BATCH_SIZE> layer_1_buffer;
+    decltype(layer_2)::Buffer<BATCH_SIZE> layer_2_buffer;
+    decltype(layer_3)::Buffer<BATCH_SIZE> layer_3_buffer;
 
     SEQUENTIAL sequential;
+    SEQUENTIAL::Buffer<BATCH_SIZE> sequential_buffer;
 
     rlt::malloc(device, mlp);
+    rlt::malloc(device, mlp_buffer);
     rlt::malloc(device, layer_1);
+    rlt::malloc(device, layer_1_buffer);
     rlt::malloc(device, layer_2);
+    rlt::malloc(device, layer_2_buffer);
     rlt::malloc(device, layer_3);
+    rlt::malloc(device, layer_3_buffer);
 
     rlt::malloc(device, sequential);
+    rlt::malloc(device, sequential_buffer);
 
     rlt::init_weights(device, mlp, rng);
     rlt::copy(device, device, mlp.input_layer, layer_1);
@@ -187,20 +197,20 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_FORWARD){
     rlt::print(device, input);
 
     for(TI i = 0; i < 2; i++){
-        rlt::forward(device, mlp, input, output_mlp, rng);
+        rlt::forward(device, mlp, input, output_mlp, mlp_buffer, rng);
         rlt::print(device, output_mlp);
 
-        rlt::forward(device, layer_1, input, hidden_tick, rng);
-        rlt::forward(device, layer_2, hidden_tick, hidden_tock, rng);
-        rlt::forward(device, layer_3, hidden_tock, output_chain, rng);
+        rlt::forward(device, layer_1, input, hidden_tick, layer_1_buffer, rng);
+        rlt::forward(device, layer_2, hidden_tick, hidden_tock, layer_2_buffer, rng);
+        rlt::forward(device, layer_3, hidden_tock, output_chain, layer_3_buffer, rng);
         rlt::print(device, output_chain);
 
-        rlt::forward(device, sequential.content                        , input, hidden_tick, rng);
-        rlt::forward(device, sequential.next_module.content            , hidden_tick, hidden_tock, rng);
-        rlt::forward(device, sequential.next_module.next_module.content, hidden_tock, output_sequential, rng);
+        rlt::forward(device, sequential.content                        , input, hidden_tick, layer_1_buffer, rng);
+        rlt::forward(device, sequential.next_module.content            , hidden_tick, hidden_tock, layer_2_buffer, rng);
+        rlt::forward(device, sequential.next_module.next_module.content, hidden_tock, output_sequential, layer_3_buffer, rng);
         rlt::print(device, output_sequential);
 
-        rlt::forward(device, sequential, input, output_sequential, rng);
+        rlt::forward(device, sequential, input, output_sequential, sequential_buffer, rng);
         rlt::print(device, output_sequential);
 
         auto abs_diff_sequential = rlt::abs_diff(device, output_mlp, output_sequential);
@@ -258,6 +268,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     using IF = rlt::nn_models::sequential::Interface<CAPABILITY_ADAM>;
     using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 
+
     std::cout << "Max hidden dim: " << rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() << std::endl;
 
     DEVICE device;
@@ -268,10 +279,10 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     LAYER_3::Layer<CAPABILITY_ADAM> layer_3;
 
     SEQUENTIAL sequential;
-    typename SEQUENTIAL::Buffer<1> buffer;
+    typename SEQUENTIAL::Buffer<1> sequential_buffer;
 
     rlt::malloc(device, sequential);
-    rlt::malloc(device, buffer);
+    rlt::malloc(device, sequential_buffer);
     rlt::init_weights(device, sequential, rng);
 
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 5>> input;
@@ -284,9 +295,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_EVALUATE){
     rlt::randn(device, input, rng);
     rlt::print(device, input);
 
-    rlt::forward(device, sequential, input, output_sequential, rng);
+    rlt::forward(device, sequential, input, output_sequential, sequential_buffer, rng);
     rlt::print(device, output_sequential);
-    rlt::evaluate(device, sequential, input, output_sequential_evaluate, buffer, rng);
+    rlt::evaluate(device, sequential, input, output_sequential_evaluate, sequential_buffer, rng);
     rlt::print(device, output_sequential_evaluate);
 
     auto abs_diff = rlt::abs_diff(device, output_sequential_evaluate, output_sequential);
@@ -379,7 +390,7 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     rlt::randn(device, d_output, rng);
     rlt::print(device, input);
 
-    rlt::forward(device, mlp, input, output_mlp);
+    rlt::forward(device, mlp, input, mlp_buffers, output_mlp);
     rlt::zero_gradient(device, mlp);
     rlt::backward_full(device, mlp, input, d_output, d_input_mlp, mlp_buffers);
 
@@ -388,9 +399,9 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
     rlt::zero_gradient(device, layer_1);
     rlt::zero_gradient(device, layer_2);
     rlt::zero_gradient(device, layer_3);
-    rlt::forward(device, layer_1, input, hidden_tick, rng);
-    rlt::forward(device, layer_2, hidden_tick, hidden_tock, rng);
-    rlt::forward(device, layer_3, hidden_tock, output_chain, rng);
+    rlt::forward(device, layer_1, input, hidden_tick, layer_buffer, rng);
+    rlt::forward(device, layer_2, hidden_tick, hidden_tock, layer_buffer, rng);
+    rlt::forward(device, layer_3, hidden_tock, output_chain, layer_buffer, rng);
     rlt::backward_full(device, layer_3, hidden_tock, d_output, d_hidden_tick, layer_buffer);
     rlt::backward_full(device, layer_2, hidden_tick, d_hidden_tick, d_hidden_tock, layer_buffer);
     rlt::backward_full(device, layer_1, input, d_hidden_tock, d_input_chain, layer_buffer);
@@ -415,14 +426,14 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
         ASSERT_LT(abs_diff_grad_b_3, THRESHOLD);
     }
 
-    rlt::forward(device, sequential.content                        , input, hidden_tick);
-    rlt::forward(device, sequential.next_module.content            , hidden_tick, hidden_tock);
-    rlt::forward(device, sequential.next_module.next_module.content, hidden_tock, output_sequential);
+    rlt::forward(device, sequential.content                        , input, hidden_tick, layer_buffer, rng);
+    rlt::forward(device, sequential.next_module.content            , hidden_tick, hidden_tock, layer_buffer, rng);
+    rlt::forward(device, sequential.next_module.next_module.content, hidden_tock, output_sequential, layer_buffer, rng);
 
     rlt::set(sequential.content.weights.gradient, 0, 0, 10);
     rlt::set(sequential.next_module.content.weights.gradient, 0, 0, 10);
     rlt::set(sequential.next_module.next_module.content.weights.gradient, 0, 0, 10);
-    rlt::forward(device, sequential, input, output_sequential);
+    rlt::forward(device, sequential, input, output_sequential, buffer_sequential, rng);
     rlt::zero_gradient(device, sequential);
     rlt::backward_full(device, sequential, input, d_output, d_input_sequential, buffer_sequential);
 
