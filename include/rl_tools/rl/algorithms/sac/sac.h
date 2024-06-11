@@ -10,7 +10,6 @@ namespace rl_tools::rl::algorithms::sac {
     template<typename T, typename TI, TI ACTION_DIM=1>
     struct DefaultParameters {
         static constexpr T GAMMA = 0.99;
-        static constexpr T ALPHA = 0.5;
         static constexpr TI ACTOR_BATCH_SIZE = 32;
         static constexpr TI CRITIC_BATCH_SIZE = 32;
         static constexpr TI N_WARMUP_STEPS_CRITIC = 0;
@@ -21,10 +20,6 @@ namespace rl_tools::rl::algorithms::sac {
         static constexpr T ACTOR_POLYAK = 1.0 - 0.005;
         static constexpr T CRITIC_POLYAK = 1.0 - 0.005;
         static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
-        static constexpr T TARGET_ENTROPY = -((T)ACTION_DIM);
-        static constexpr bool ADAPTIVE_ALPHA = true;
-        static constexpr T ACTION_LOG_STD_LOWER_BOUND = -20;
-        static constexpr T ACTION_LOG_STD_UPPER_BOUND = 2;
     };
 
     template<

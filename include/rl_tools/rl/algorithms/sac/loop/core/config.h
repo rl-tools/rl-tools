@@ -35,6 +35,13 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         static constexpr bool SHARED_BATCH = true;
 
+        static constexpr T TARGET_ENTROPY = -((T)ENVIRONMENT::ACTION_DIM);
+        static constexpr T ALPHA = 0.5;
+        static constexpr bool ADAPTIVE_ALPHA = true;
+        static constexpr T LOG_STD_LOWER_BOUND = -20;
+        static constexpr T LOG_STD_UPPER_BOUND = 2;
+        static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
+
         using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
     };
 
@@ -48,14 +55,14 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             using ACTOR_TYPE = nn_models::mlp::BindSpecification<ACTOR_SPEC>;
             using IF = nn_models::sequential::Interface<CAPABILITY>;
             struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
-                static constexpr T LOG_STD_LOWER_BOUND = -20;
-                static constexpr T LOG_STD_UPPER_BOUND = 2;
-                static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
-                static constexpr bool ADAPTIVE_ALPHA = true;
-                static constexpr T ALPHA = 1.0;
-                static constexpr T TARGET_ENTROPY = -1;
+                static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
+                static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
+                static constexpr T LOG_PROBABILITY_EPSILON = PARAMETERS::LOG_PROBABILITY_EPSILON;
+                static constexpr bool ADAPTIVE_ALPHA = PARAMETERS::ADAPTIVE_ALPHA;
+                static constexpr T ALPHA = PARAMETERS::ALPHA;
+                static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
             };
-            using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM>;
+            using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
             using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_LAYER_SPEC>;
             using SAMPLE_AND_SQUASH_MODULE = typename IF::template Module<SAMPLE_AND_SQUASH_LAYER::template Layer>;
             using MODEL = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork, SAMPLE_AND_SQUASH_MODULE>;
