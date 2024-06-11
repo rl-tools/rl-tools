@@ -7,6 +7,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn{
     namespace mode{
         struct Default{};
+        struct Inference{};
     }
     template <typename MODE>
     struct Mode: MODE{};

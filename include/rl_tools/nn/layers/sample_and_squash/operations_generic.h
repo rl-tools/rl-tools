@@ -70,7 +70,9 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     void update(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
-        update(device, layer.log_alpha, optimizer);
+        if constexpr(SPEC::PARAMETERS::ADAPTIVE_ALPHA){
+            update(device, layer.log_alpha, optimizer);
+        }
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     void _reset_optimizer_state(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {
@@ -111,9 +113,16 @@ namespace rl_tools{
                 T std = math::exp(device.math, log_std_clipped);
                 T noise = get(buffer.noise, row_i, col_i);
 //                set(layer.noise, row_i, col_i, noise);
-                T sample = mean + noise * std;
+                T sample;
+                if constexpr(utils::typing::is_same_v<MODE, nn::mode::Inference>){
+                    sample = mean;
+                }
+                else{
+                    sample = mean + noise * std;
+                }
 //                set(layer.pre_squashing, row_i, col_i, sample);
                 T squashed = math::tanh(device.math, sample);
+
                 set(output, row_i, col_i, squashed);
 //                set(layer.output, row_i, col_i, squashed);
                 T one_minus_square_plus_eps = (1-squashed*squashed + SPEC::PARAMETERS::LOG_PROBABILITY_EPSILON);
@@ -143,7 +152,13 @@ namespace rl_tools{
                 T std = math::exp(device.math, log_std_clipped);
                 T noise = get(buffer.noise, row_i, col_i);
                 set(layer.noise, row_i, col_i, noise);
-                T sample = mean + noise * std;
+                T sample;
+                if constexpr(utils::typing::is_same_v<MODE, nn::mode::Inference>){
+                    sample = mean;
+                }
+                else{
+                    sample = mean + noise * std;
+                }
                 set(layer.pre_squashing, row_i, col_i, sample);
                 T squashed = math::tanh(device.math, sample);
 //                set(output, row_i, col_i, squashed);

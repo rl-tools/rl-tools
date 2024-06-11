@@ -94,15 +94,15 @@ namespace rl_tools{
                 for(TI forward_pass_i = 0; forward_pass_i < NUM_FORWARD_PASSES; forward_pass_i++){
                     auto observations_chunk = view(device, observations, matrix::ViewSpec<BATCH_SIZE, ENVIRONMENT::OBSERVATION_DIM>{}, forward_pass_i*BATCH_SIZE, 0);
                     auto actions_buffer_chunk = view(device, actions_buffer_full, matrix::ViewSpec<BATCH_SIZE, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>{}, forward_pass_i*BATCH_SIZE, 0);
-                    sample(device, policy_evaluation_buffers, rng);
-                    evaluate(device, policy, observations_chunk, actions_buffer_chunk, policy_evaluation_buffers, rng);
+//                    sample(device, policy_evaluation_buffers, rng);
+                    evaluate(device, policy, observations_chunk, actions_buffer_chunk, policy_evaluation_buffers, rng, nn::Mode<nn::mode::Inference>{});
                 }
             }
             if constexpr(SPEC::N_EPISODES % BATCH_SIZE != 0){
                 auto observations_chunk = view(device, observations, matrix::ViewSpec<SPEC::N_EPISODES % BATCH_SIZE, ENVIRONMENT::OBSERVATION_DIM>{}, NUM_FORWARD_PASSES*BATCH_SIZE, 0);
                 auto actions_buffer_chunk = view(device, actions_buffer_full, matrix::ViewSpec<SPEC::N_EPISODES % BATCH_SIZE, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>{}, NUM_FORWARD_PASSES*BATCH_SIZE, 0);
-                sample(device, policy_evaluation_buffers, rng);
-                evaluate(device, policy, observations_chunk, actions_buffer_chunk, policy_evaluation_buffers, rng);
+//                sample(device, policy_evaluation_buffers, rng);
+                evaluate(device, policy, observations_chunk, actions_buffer_chunk, policy_evaluation_buffers, rng, nn::Mode<nn::mode::Inference>{});
             }
             if constexpr(STOCHASTIC_POLICY){ // todo: This is a special case for SAC, will be uneccessary once (https://github.com/rl-tools/rl-tools/blob/72a59eabf4038502c3be86a4f772bd72526bdcc8/TODO.md?plain=1#L22) is implemented
                 for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {

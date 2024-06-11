@@ -169,33 +169,33 @@ namespace rl_tools{
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            evaluate(device, model.content, input, output, content_buffer.buffer, rng);
+            evaluate(device, model.content, input, output, content_buffer.buffer, rng, mode);
         }
         else{
             DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
             auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            evaluate(device, model.content, input, output_buffer_view, content_buffer.buffer, rng);
-            _evaluate<!TICK>(device, model.next_module, output_buffer_view, output, buffers, content_buffer.next_content_buffer, rng);
+            evaluate(device, model.content, input, output_buffer_view, content_buffer.buffer, rng, mode);
+            _evaluate<!TICK>(device, model.next_module, output_buffer_view, output, buffers, content_buffer.next_content_buffer, rng, mode);
         }
     }
     template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void evaluate(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        _evaluate<TICK>(device, model, input, output, buffers, buffers.content_buffer, rng);
+        _evaluate<TICK>(device, model, input, output, buffers, buffers.content_buffer, rng, mode);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void _forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        forward(device, module.content, input, buffers.buffer, rng);
+        forward(device, module.content, input, buffers.buffer, rng, mode);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            _forward(device, module.next_module, rl_tools::output(module.content), buffers.next_content_buffer, rng);
+            _forward(device, module.next_module, rl_tools::output(module.content), buffers.next_content_buffer, rng, mode);
         }
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        _forward(device, module, input, buffers.content_buffer, rng);
+        _forward(device, module, input, buffers.content_buffer, rng, mode);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, OUTPUT& output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        forward(device, module, input, buffers, rng);
+        forward(device, module, input, buffers, rng, mode);
         copy(device, device, rl_tools::output(module), output);
     }
     template <typename DEVICE, typename MODULE_SPEC>
