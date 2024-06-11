@@ -224,7 +224,6 @@ namespace rl_tools{
 
                 T mu = get(input, batch_i, action_i);
                 T action_sample = get(layer.pre_squashing, batch_i, action_i);
-                T eps = 1e-6;
                 T d_log_prob_d_mean = random::normal_distribution::d_log_prob_d_mean(device.random, mu, log_std_clamped, action_sample);
                 T d_log_prob_d_sample = random::normal_distribution::d_log_prob_d_sample(device.random, mu, log_std_clamped, action_sample);
                 // NOTE: The following needs to be divided by BATCH_SIZE (in contrast to the previous d_mu and d_std). d_mu and d_std are already taking into account the mean prior to the backward call of the critic. Thence the d_critic_X_input is already divided by BATCH_SIZE
@@ -238,7 +237,7 @@ namespace rl_tools{
                 set(d_input, batch_i, action_i, d_mu);
                 set(d_input, batch_i, action_i + ACTION_DIM, d_log_std);
 
-                T one_minus_action_square_plus_eps = (1-action*action + eps);
+                T one_minus_action_square_plus_eps = (1-action*action + SPEC::PARAMETERS::LOG_PROBABILITY_EPSILON);
                 T action_log_prob = random::normal_distribution::log_prob(device.random, mu, log_std_clamped, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
                 entropy += -action_log_prob;
             }
