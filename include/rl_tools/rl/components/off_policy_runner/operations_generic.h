@@ -150,6 +150,7 @@ namespace rl_tools{
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
 
         rl::components::off_policy_runner::prologue(device, runner, rng);
+        sample(device, policy_eval_buffers, rng);
         rl::components::off_policy_runner::interlude(device, runner, policy, policy_eval_buffers, rng);
         rl::components::off_policy_runner::epilogue(device, runner, policy, rng);
     }

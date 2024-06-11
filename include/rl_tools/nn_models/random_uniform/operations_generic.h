@@ -23,6 +23,10 @@ namespace rl_tools{
             }
         }
     }
+    template <typename DEVICE, typename RNG>
+    void sample(DEVICE& device, nn_models::random_uniform::Buffer& buffers, RNG& rng){
+
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

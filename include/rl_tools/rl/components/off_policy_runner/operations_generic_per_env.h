@@ -66,10 +66,10 @@ namespace rl_tools::rl::components::off_policy_runner{
             return view(device, runner.buffers.actions, matrix::ViewSpec<1, SPEC::ENVIRONMENT::ACTION_DIM>{}, env_i, 0);
         }
         else{
-            for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
-                T action_noisy = get(runner.buffers.actions, env_i, i) + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T) 0, runner.parameters.exploration_noise, rng);
-                set(runner.buffers.actions, env_i, i, math::clamp<T>(device.math, action_noisy, (T)-1, (T)1));
-            }
+//            for (TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
+//                T action_noisy = get(runner.buffers.actions, env_i, i) + random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T) 0, runner.parameters.exploration_noise, rng);
+//                set(runner.buffers.actions, env_i, i, math::clamp<T>(device.math, action_noisy, (T)-1, (T)1));
+//            }
             return view(device, runner.buffers.actions, matrix::ViewSpec<1, SPEC::ENVIRONMENT::ACTION_DIM>{}, env_i, 0);
 //            return row(device, runner.buffers.actions, env_i);
         }

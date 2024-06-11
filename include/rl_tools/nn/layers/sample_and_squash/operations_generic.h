@@ -232,6 +232,10 @@ namespace rl_tools{
         T d_log_alpha = alpha * d_alpha;
         set(layer.log_alpha.gradient, 0, 0, d_log_alpha/BATCH_SIZE);
     }
+    template<typename SPEC>
+    constexpr auto& output(nn::layers::sample_and_squash::LayerGradient<SPEC>& l){
+        return l.output;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

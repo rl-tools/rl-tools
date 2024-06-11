@@ -70,10 +70,27 @@ namespace rl_tools{
                 return 1;
             }
         }
+//        template <typename SPEC>
+//        constexpr typename SPEC::TI num_layers_buffer(){
+//            if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+//                return num_layers<typename SPEC::NEXT_MODULE::SPEC>() + 1;
+//            }
+//            else{
+//                return 1;
+//            }
+//        }
     }
     template <typename SPEC>
     constexpr typename SPEC::TI num_layers(nn_models::sequential::ModuleForward<SPEC>){
         return nn_models::sequential::num_layers<SPEC>();
+    }
+    template <typename SPEC>
+    constexpr typename SPEC::TI num_layers(nn_models::sequential::ContentBuffer<SPEC>){
+        return nn_models::sequential::num_layers<SPEC>();
+    }
+    template <typename SPEC>
+    constexpr typename SPEC::TI num_layers(const nn_models::sequential::ModuleBuffer<SPEC>& buffer){
+        return num_layers(buffer.content_buffer);
     }
     template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
     constexpr auto& get_buffer(DEVICE& device, nn_models::sequential::ContentBuffer<MODULE_SPEC>& buffer){
@@ -90,8 +107,18 @@ namespace rl_tools{
     constexpr auto& get_buffer(DEVICE& device, nn_models::sequential::ModuleBuffer<MODULE_SPEC>& buffer){
         return get_buffer<LAYER_I>(device, buffer.content_buffer);
     }
+    template <typename DEVICE, typename MODULE_SPEC> // non const
+    constexpr auto& get_last_buffer(DEVICE& device, nn_models::sequential::ModuleBuffer<MODULE_SPEC>& model){
+        using MODULE = nn_models::sequential::ModuleBuffer<MODULE_SPEC>;
+        return get_buffer<num_layers(MODULE())-1>(device, model);
+    }
+    template <typename DEVICE, typename MODULE_SPEC> // const
+    constexpr auto& get_last_buffer(DEVICE& device, const nn_models::sequential::ModuleBuffer<MODULE_SPEC>& model){
+        using MODULE = nn_models::sequential::ModuleBuffer<MODULE_SPEC>;
+        return get_buffer<num_layers(MODULE())-1>(device, model);
+    }
 
-    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
+    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC> // non-const
     constexpr auto& get_layer(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         static_assert(LAYER_I >= 0);
         static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
@@ -102,7 +129,7 @@ namespace rl_tools{
             return get_layer<LAYER_I - 1>(device, model.next_module);
         }
     }
-    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
+    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC> // const
     constexpr auto& get_layer(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         static_assert(LAYER_I >= 0);
         static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
@@ -112,6 +139,16 @@ namespace rl_tools{
         else{
             return get_layer<LAYER_I - 1>(device, model.next_module);
         }
+    }
+    template <typename DEVICE, typename MODULE_SPEC> // non-const
+    constexpr auto& get_last_layer(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        using MODULE = nn_models::sequential::ModuleForward<MODULE_SPEC>;
+        return get_layer<num_layers(MODULE())-1>(device, model);
+    }
+    template <typename DEVICE, typename MODULE_SPEC> // const
+    constexpr auto& get_last_layer(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        using MODULE = nn_models::sequential::ModuleForward<MODULE_SPEC>;
+        return get_layer<num_layers(MODULE())-1>(device, model);
     }
     template <typename SPEC>
     constexpr auto& output(nn_models::sequential::ModuleGradient<SPEC>& m){
@@ -145,16 +182,20 @@ namespace rl_tools{
     void evaluate(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         _evaluate<TICK>(device, model, input, output, buffers, buffers.content_buffer, rng);
     }
-    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename RNG, typename MODE = nn::mode::Default>
-    void forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        forward(device, module.content, input, rng);
+    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void _forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+        forward(device, module.content, input, buffers.buffer, rng);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            forward(device, module.next_module, module.content.output, rng);
+            _forward(device, module.next_module, rl_tools::output(module.content), buffers.next_content_buffer, rng);
         }
     }
-    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename RNG, typename MODE = nn::mode::Default>
-    void forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, OUTPUT& output, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        forward(device, module, input, rng);
+    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+        _forward(device, module, input, buffers.content_buffer, rng);
+    }
+    template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, OUTPUT& output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+        forward(device, module, input, buffers, rng);
         copy(device, device, rl_tools::output(module), output);
     }
     template <typename DEVICE, typename MODULE_SPEC>
@@ -232,7 +273,7 @@ namespace rl_tools{
         // This backward function is called on the final, complete module, the following are called for each submodule, hence the full backward only for the next module (to save the calc for d_input)
         if constexpr(!NEXT_IS_FINAL){
             auto current_d_input_buffer_view = view(device, buffers.tick, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            _backward_full<false>(device, model.next_module, model.content.output, d_output, current_d_input_buffer_view, buffers, buffers.content_buffer.next_content_buffer);
+            _backward_full<false>(device, model.next_module, output(model.content), d_output, current_d_input_buffer_view, buffers, buffers.content_buffer.next_content_buffer);
             backward(device, model.content, input, current_d_input_buffer_view, buffers.content_buffer.buffer);
         }
         else{
@@ -271,6 +312,19 @@ namespace rl_tools{
             current_module_nan = current_module_nan || is_nan(device, model.next_module);
         }
         return current_module_nan;
+    }
+
+    template <typename DEVICE, typename BUFFER_SPEC, typename RNG>
+    void sample(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffers, RNG& rng){
+        using BUFFER = nn_models::sequential::ContentBuffer<BUFFER_SPEC>;
+        sample(device, buffers.buffer, rng);
+        if constexpr(!utils::typing::is_same_v<typename BUFFER::NEXT_CONTENT_BUFFER, nn_models::sequential::OutputModule>){
+            sample(device, buffers.next_content_buffer, rng);
+        }
+    }
+    template <typename DEVICE, typename BUFFER_SPEC, typename RNG>
+    void sample(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng){
+        sample(device, buffers.content_buffer, rng);
     }
 
 }

@@ -1,10 +1,12 @@
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
+#include <rl_tools/nn_models/random_uniform/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #ifdef RL_TOOLS_ENABLE_HDF5
@@ -14,6 +16,8 @@
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
 #include <rl_tools/nn/layers/standardize/persist_code.h>
+#include <rl_tools/nn/layers/sample_and_squash/persist.h>
+#include <rl_tools/nn/layers/sample_and_squash/persist_code.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/persist_code.h>
 #include <rl_tools/nn_models/sequential//persist_code.h>
 
