@@ -48,7 +48,12 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
             using ACTOR_TYPE = nn_models::mlp::BindSpecification<ACTOR_SPEC>;
             using IF = nn_models::sequential::Interface<CAPABILITY>;
             struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
-
+                static constexpr T LOG_STD_LOWER_BOUND = -20;
+                static constexpr T LOG_STD_UPPER_BOUND = 2;
+                static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
+                static constexpr bool ADAPTIVE_ALPHA = true;
+                static constexpr T ALPHA = 1.0;
+                static constexpr T TARGET_ENTROPY = -1;
             };
             using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM>;
             using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_LAYER_SPEC>;
