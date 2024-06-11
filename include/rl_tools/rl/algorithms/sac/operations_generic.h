@@ -135,7 +135,6 @@ namespace rl_tools{
         T min_next_state_action_value_entropy_bonus = min_next_state_action_value + entropy_bonus;
         T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value_entropy_bonus : 0;
         T current_target_action_value = reward + future_value;
-        utils::assert_exit(device, !math::is_nan(device.math, current_target_action_value), "nan");
         set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
     }
     template <typename DEVICE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER>
@@ -203,7 +202,8 @@ namespace rl_tools{
         auto sample_and_squash_layer = get_last_layer(device, actor_critic.actor);
         auto sample_and_squash_buffer = get_last_buffer(device, actor_buffers);
         copy(device, device, action_noise, sample_and_squash_buffer.noise);
-        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng);
+        using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
+        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng, SAMPLE_AND_SQUASH_MODE{});
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
@@ -248,7 +248,8 @@ namespace rl_tools{
 
         zero_gradient(device, actor_critic.actor);
         copy(device, device, action_noise, sample_and_squashing_buffer.noise);
-        forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng);
+        using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
+        forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng, SAMPLE_AND_SQUASH_MODE{});
         copy(device, device, batch.observations_privileged, training_buffers.observations);
         forward(device, actor_critic.critic_1, training_buffers.state_action_value_input, critic_buffers, rng);
         forward(device, actor_critic.critic_2, training_buffers.state_action_value_input, critic_buffers, rng);

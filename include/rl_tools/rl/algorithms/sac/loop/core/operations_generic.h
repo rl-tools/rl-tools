@@ -103,13 +103,14 @@ namespace rl_tools{
         using CONFIG = T_CONFIG;
         set_step(device, device.logger, ts.step);
         bool finished = false;
+        using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::Sample<nn::mode::Default>>;
         if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng);
+            step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng, SAMPLE_AND_SQUASH_MODE{});
         }
         else{
             typename CONFIG::EXPLORATION_POLICY exploration_policy;
             typename CONFIG::EXPLORATION_POLICY::template Buffer<> exploration_policy_buffer;
-            step(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng);
+            step(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng, SAMPLE_AND_SQUASH_MODE{});
         }
         if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
             if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH){

@@ -89,7 +89,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC>& batch) {
+    void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC>& batch){
         free(device, batch.observations_actions_next_observations);
         batch.observations.                _data = nullptr;
         batch.observations_privileged.     _data = nullptr;
@@ -120,12 +120,12 @@ namespace rl_tools{
                 prologue_per_env(device, runner, rng, env_i);
             }
         }
-        template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>
-        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng){
+        template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG, typename MODE>
+        void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
             using TI = typename DEVICE::index_t;
             constexpr TI BATCH_SIZE = decltype(runner.buffers.actions)::ROWS;
             auto action_view = view(device, runner.buffers.actions, matrix::ViewSpec<BATCH_SIZE, POLICY::OUTPUT_DIM>{});
-            evaluate(device, policy, runner.buffers.observations, action_view, policy_eval_buffers, rng);
+            evaluate(device, policy, runner.buffers.observations, action_view, policy_eval_buffers, rng, mode);
         }
 
         template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
@@ -136,8 +136,8 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG>
-    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng){
+    template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG, typename MODE>
+    void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
 #endif
@@ -150,8 +150,7 @@ namespace rl_tools{
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
 
         rl::components::off_policy_runner::prologue(device, runner, rng);
-        sample(device, policy_eval_buffers, rng);
-        rl::components::off_policy_runner::interlude(device, runner, policy, policy_eval_buffers, rng);
+        rl::components::off_policy_runner::interlude(device, runner, policy, policy_eval_buffers, rng, mode);
         rl::components::off_policy_runner::epilogue(device, runner, policy, rng);
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>

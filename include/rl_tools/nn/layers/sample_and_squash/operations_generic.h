@@ -11,6 +11,24 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    namespace nn::layers::sample_and_squash{
+        template <typename MODE>
+        constexpr bool is_mode_external_noise(const MODE& mode){
+            return false;
+        }
+        template <typename BASE_MODE>
+        constexpr bool is_mode_external_noise(const mode::ExternalNoise<BASE_MODE> & mode){
+            return true;
+        }
+        template <typename MODE>
+        constexpr bool is_mode_sample(const MODE& mode){
+            return false;
+        }
+        template <typename BASE_MODE>
+        constexpr bool is_mode_sample(const mode::Sample<BASE_MODE> & mode){
+            return true;
+        }
+    }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer){ }
     template <typename DEVICE, typename SPEC>
@@ -111,10 +129,21 @@ namespace rl_tools{
                 T log_std = get(input, row_i, SPEC::DIM + col_i);
                 T log_std_clipped = math::clamp(device.math, log_std, (T)PARAMETERS::LOG_STD_LOWER_BOUND, (T)PARAMETERS::LOG_STD_UPPER_BOUND);
                 T std = math::exp(device.math, log_std_clipped);
-                T noise = get(buffer.noise, row_i, col_i);
+                T noise;
+                if constexpr(nn::layers::sample_and_squash::is_mode_external_noise(MODE())){
+                    noise = get(buffer.noise, row_i, col_i);
+                }
+                else{
+                    if constexpr(nn::layers::sample_and_squash::is_mode_sample(MODE())){
+                        noise = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
+                    }
+                    else{
+                        noise = 0;
+                    }
+                }
 //                set(layer.noise, row_i, col_i, noise);
                 T sample;
-                if constexpr(utils::typing::is_same_v<MODE, nn::mode::Inference>){
+                if constexpr(utils::typing::is_base_of_v<nn::mode::Inference, MODE>){
                     sample = mean;
                 }
                 else{
@@ -150,10 +179,21 @@ namespace rl_tools{
                 T log_std = get(input, row_i, SPEC::DIM + col_i);
                 T log_std_clipped = math::clamp(device.math, log_std, (T)PARAMETERS::LOG_STD_LOWER_BOUND, (T)PARAMETERS::LOG_STD_UPPER_BOUND);
                 T std = math::exp(device.math, log_std_clipped);
-                T noise = get(buffer.noise, row_i, col_i);
+                T noise;
+                if constexpr(nn::layers::sample_and_squash::is_mode_external_noise(MODE())){
+                    noise = get(buffer.noise, row_i, col_i);
+                }
+                else{
+                    if constexpr(nn::layers::sample_and_squash::is_mode_sample(MODE())){
+                        noise = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
+                    }
+                    else{
+                        noise = 0;
+                    }
+                }
                 set(layer.noise, row_i, col_i, noise);
                 T sample;
-                if constexpr(utils::typing::is_same_v<MODE, nn::mode::Inference>){
+                if constexpr(utils::typing::is_base_of_v<nn::mode::Inference, MODE>){
                     sample = mean;
                 }
                 else{

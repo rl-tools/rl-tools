@@ -81,6 +81,22 @@ namespace rl_tools::utils::typing {
     inline constexpr bool dependent_bool_value = value;
     template <typename... Args>
     inline constexpr bool dependent_false = dependent_bool_value<false, Args...>;
+
+    template <typename Base, typename Derived>
+    class IsSubclass {
+    private:
+        typedef char Yes[1];
+        typedef char No[2];
+
+        static Yes& test(Base*);
+        static No& test(...);
+
+    public:
+        enum { value = sizeof(test(static_cast<Derived*>(0))) == sizeof(Yes) };
+    };
+
+    template <typename Base, typename Derived>
+    constexpr bool is_base_of_v = IsSubclass<Base, Derived>::value;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
