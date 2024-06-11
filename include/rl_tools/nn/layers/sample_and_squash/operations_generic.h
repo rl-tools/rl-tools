@@ -245,7 +245,7 @@ namespace rl_tools{
             d_alpha += entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
         }
         T d_log_alpha = alpha * d_alpha;
-        set(layer.log_alpha.gradient, 0, 0, d_log_alpha/BATCH_SIZE);
+        increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/BATCH_SIZE);
     }
     template<typename SPEC>
     constexpr auto& output(nn::layers::sample_and_squash::LayerGradient<SPEC>& l){

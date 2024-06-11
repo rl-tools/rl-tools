@@ -204,15 +204,6 @@ namespace rl_tools{
         auto sample_and_squash_buffer = get_last_buffer(device, actor_buffers);
         rlt::copy(device, device, action_noise, sample_and_squash_buffer.noise);
         forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng);
-//        using SAS_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ACTION_DIM>;
-//        using SAS_CAPABILITY = nn::layer_capability::Gradient<nn::parameters::Adam, BATCH_SIZE>;
-//        nn::layers::sample_and_squash::Layer<SAS_CAPABILITY, SAS_LAYER_SPEC> sample_and_squash;
-//        typename decltype(sample_and_squash)::template Buffer<BATCH_SIZE> buffer;
-//        rlt::malloc(device, sample_and_squash);
-//        rlt::malloc(device, buffer);
-//        rlt::copy(device, device, action_noise, buffer.noise);
-//        rlt::forward(device, sample_and_squash, training_buffers.next_actions_distribution, buffer, rng);
-//        sample_actions_critic(device, training_buffers, action_noise);
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
@@ -253,11 +244,9 @@ namespace rl_tools{
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static_assert(SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM == ACTION_DIM);
 
-        auto sample_and_squashing_layer = get_last_layer(device, actor_critic.actor);
         auto sample_and_squashing_buffer = get_last_buffer(device, actor_buffers);
 
         zero_gradient(device, actor_critic.actor);
-        zero_gradient(device, sample_and_squashing_layer.log_alpha);
         rlt::copy(device, device, action_noise, sample_and_squashing_buffer.noise);
         forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng);
         copy(device, device, batch.observations_privileged, training_buffers.observations);
@@ -288,10 +277,6 @@ namespace rl_tools{
         }
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output_squashing, actor_buffers);
         step(device, optimizer, actor_critic.actor);
-        // adapting alpha
-//        if constexpr(SPEC::PARAMETERS::ADAPTIVE_ALPHA){
-//            step(device, actor_critic.alpha_optimizer, sample_and_squashing_layer.log_alpha);
-//        }
     }
 
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename RNG>
