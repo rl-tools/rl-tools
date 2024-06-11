@@ -88,8 +88,8 @@ void test_mlp_forward() {
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, typename DEVICE::index_t, BATCH_SIZE, SPEC::INPUT_DIM>> input;
     rlt::malloc(device, input);
     rlt::randn(device, input, rng);
-    rlt::forward(device, mlp_cpu, input, rng);
-    rlt::forward(device_arm, mlp_arm, input, rng);
+    rlt::forward(device, mlp_cpu, input, buffers, rng);
+    rlt::forward(device_arm, mlp_arm, input, buffers, rng);
     rlt::print(device, mlp_arm.output_layer.output);
 
     auto abs_diff_output = rlt::abs_diff(device, mlp_arm.output_layer.output, mlp_arm.output_layer.output);

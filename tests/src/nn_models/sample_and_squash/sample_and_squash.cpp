@@ -24,7 +24,7 @@ using MLP_SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, 2*OUTPUT_D
 using MLP_TYPE = rlt::nn_models::mlp::BindSpecification<MLP_SPEC>;
 
 using SAMPLE_AND_SQUASH_PARAMETERS = rlt::nn::layers::sample_and_squash::DefaultParameters<T>;
-using SAMPLE_AND_SQUASH_SPEC = rlt::nn::layers::sample_and_squash::Specification<T, TI, OUTPUT_DIM, SAMPLE_AND_SQUASH_PARAMETERS, rlt::nn::activation_functions::TANH, CONTAINER_TYPE_TAG>;
+using SAMPLE_AND_SQUASH_SPEC = rlt::nn::layers::sample_and_squash::Specification<T, TI, OUTPUT_DIM, SAMPLE_AND_SQUASH_PARAMETERS, CONTAINER_TYPE_TAG>;
 using SAMPLE_AND_SQUASH = rlt::nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_SPEC>;
 
 //using SAMPLE_AND_SQUASH_MODULE_SPEC = rlt::nn_models::sequential::Specification<SAMPLE_AND_SQUASH>;
@@ -63,8 +63,9 @@ int main(){
 
 
     auto& sas_buffer = rlt::get_buffer<1>(device, actor_buffer_sequential);
+    auto& sas_layer = rlt::get_layer<1>(device, actor);
 
-    rlt::print(device, sas_buffer.log_probabilities);
+    rlt::print(device, sas_layer.log_probabilities);
 
 
     T abs_diff = rlt::abs_diff(device, output, output_sequential);

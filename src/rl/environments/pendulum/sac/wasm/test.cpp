@@ -2,14 +2,15 @@
 #include "full_training.h"
 int main(){
     DEVICE device;
-    TrainingState<TrainingConfig> ts;
+    LOOP_STATE ts;
 
-    training_init(device, ts, 10);
+    rlt::malloc(device, ts);
+    rlt::init(device, ts, 10);
 
     bool finished = false;
     while(!finished){
-        finished = training_step(device, ts);
+        finished = rlt::step(device, ts);
     }
-    training_destroy(device, ts);
+    rlt::free(device, ts);
     return 0;
 }

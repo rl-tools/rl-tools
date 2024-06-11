@@ -136,7 +136,7 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG, typename MODE>
+    template<typename DEVICE, typename SPEC, typename POLICY, typename POLICY_BUFFERS, typename RNG, typename MODE = nn::mode::Default>
     void step(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY& policy, POLICY_BUFFERS& policy_eval_buffers, RNG &rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");

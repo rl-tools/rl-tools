@@ -118,7 +118,7 @@ namespace rl_tools{
     void forward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // compile time warning if used
-        forward(device, layer, input, buffer, buffer, rng);
+        forward(device, layer, input, buffer, rng);
         copy(device, device, layer.output, output);
     }
 
