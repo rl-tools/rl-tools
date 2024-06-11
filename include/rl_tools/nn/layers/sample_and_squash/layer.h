@@ -19,9 +19,17 @@ namespace rl_tools::nn::layers::sample_and_squash {
         static constexpr T ALPHA = 1.0;
         static constexpr T TARGET_ENTROPY = -1;
     };
-    template <typename SPEC>
+    template <typename T_TI, T_TI T_BATCH_SIZE, typename T_SPEC>
+    struct BufferSpecification {
+        using TI = T_TI;
+        static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+        using SPEC = T_SPEC;
+    };
+
+    template <typename BUFFER_SPEC>
     struct Buffer{
-        using NOISE_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::DIM>;
+        using SPEC = typename BUFFER_SPEC::SPEC;
+        using NOISE_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, BUFFER_SPEC::BATCH_SIZE, SPEC::DIM>;
         using NOISE_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<NOISE_CONTAINER_SPEC>;
         NOISE_CONTAINER_TYPE noise;
     };
@@ -42,7 +50,7 @@ namespace rl_tools::nn::layers::sample_and_squash {
         static constexpr TI INPUT_DIM = 2*DIM; // mean and std
         static constexpr TI OUTPUT_DIM = DIM;
         template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename SPEC::CONTAINER_TYPE_TAG>
-        using Buffer = sample_and_squash::Buffer<SPEC>;
+        using Buffer = sample_and_squash::Buffer<sample_and_squash::BufferSpecification<TI, BUFFER_BATCH_SIZE, SPEC>>;
     };
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC> {
