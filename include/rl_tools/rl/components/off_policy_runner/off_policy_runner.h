@@ -28,7 +28,6 @@ namespace rl_tools::rl::components::off_policy_runner {
         static constexpr bool ASYMMETRIC_OBSERVATIONS = false;
         static constexpr TI REPLAY_BUFFER_CAPACITY = 10000;
         static constexpr TI EPISODE_STEP_LIMIT = 1000;
-        static constexpr bool STOCHASTIC_POLICY = false;
         static constexpr bool COLLECT_EPISODE_STATS = false;
         static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
 
@@ -48,7 +47,6 @@ namespace rl_tools::rl::components::off_policy_runner {
         static_assert((PARAMETERS::ASYMMETRIC_OBSERVATIONS && ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED > 0) == PARAMETERS::ASYMMETRIC_OBSERVATIONS, "ASYMMETRIC_OBSERVATIONS requested but not available in the environment");
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : ENVIRONMENT::OBSERVATION_DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED_ACTUAL = PARAMETERS::ASYMMETRIC_OBSERVATIONS ? ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED : 0;
-        static constexpr bool ACTION_CLAMPING_TANH = PARAMETERS::STOCHASTIC_POLICY;
 
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
@@ -61,7 +59,7 @@ namespace rl_tools::rl::components::off_policy_runner {
 
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> observations;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> observations_privileged;
-        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM * (SPEC::PARAMETERS::STOCHASTIC_POLICY ? 2 : 1)>> actions;
+        typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>> actions;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>> next_observations;
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::PARAMETERS::N_ENVIRONMENTS, SPEC::OBSERVATION_DIM_PRIVILEGED>> next_observations_privileged;
     };

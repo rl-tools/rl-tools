@@ -6,8 +6,8 @@
 #include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
 
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/operations_cuda.h>
@@ -50,7 +50,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI EPISODE_STATS_BUFFER_SIZE = 0;
 };
 template <typename RNG>
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
 template <typename RNG>
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<RNG>>;
 template <typename RNG>

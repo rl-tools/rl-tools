@@ -39,18 +39,30 @@ namespace rl_tools{
             free(device, content_buffer.next_content_buffer);
         }
     }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ContentBuffer<SOURCE_BUFFER_SPEC>& source, nn_models::sequential::ContentBuffer<TARGET_BUFFER_SPEC>& target){
+        using namespace nn_models::sequential;
+        copy(source_device, target_device, source.buffer, target.buffer);
+        if constexpr(!utils::typing::is_same_v<typename TARGET_BUFFER_SPEC::NEXT_SPEC, OutputModule>){
+            copy(source_device, target_device, source.next_content_buffer, target.next_content_buffer);
+        }
+    }
     template <typename DEVICE, typename BUFFER_SPEC>
     void malloc(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
-        using namespace nn_models::sequential;
         malloc(device, buffers.tick);
         malloc(device, buffers.tock);
         malloc(device, buffers.content_buffer);
     }
     template <typename DEVICE, typename BUFFER_SPEC>
     void free(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
-        using namespace nn_models::sequential;
         free(device, buffers.tick);
         free(device, buffers.tock);
+    }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ModuleBuffer<SOURCE_BUFFER_SPEC>& source, nn_models::sequential::ModuleBuffer<TARGET_BUFFER_SPEC>& target){
+        copy(source_device, target_device, source.tick, target.tick);
+        copy(source_device, target_device, source.tock, target.tock);
+        copy(source_device, target_device, source.content_buffer, target.content_buffer);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename RNG>
     void init_weights(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& module, RNG& rng){

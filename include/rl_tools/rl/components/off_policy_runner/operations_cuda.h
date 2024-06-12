@@ -147,8 +147,7 @@ namespace rl_tools{
 #endif
         static_assert(POLICY::INPUT_DIM == HOST_SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
         static_assert(POLICY::INPUT_DIM == DEVICE_SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
-        static_assert(POLICY::OUTPUT_DIM == (HOST_SPEC::ENVIRONMENT::ACTION_DIM * (HOST_SPEC::PARAMETERS::STOCHASTIC_POLICY ? 2 : 1)), "The policy's output dimension must match the environment's action dimension.");
-        static_assert(POLICY::OUTPUT_DIM == (DEVICE_SPEC::ENVIRONMENT::ACTION_DIM * (DEVICE_SPEC::PARAMETERS::STOCHASTIC_POLICY ? 2 : 1)), "The policy's output dimension must match the environment's action dimension.");
+        static_assert(POLICY::OUTPUT_DIM == HOST_SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         // todo: increase efficiency by removing the double observation of each state
         using T = typename DEVICE_SPEC::T;
         using TI = typename DEVICE_SPEC::TI;
@@ -157,7 +156,6 @@ namespace rl_tools{
         rng = random::next(typename DEVICE::SPEC::RANDOM{}, rng);
         rl::components::off_policy_runner::prologue(device, runner_device, rng);
         rl::components::off_policy_runner::interlude(device, runner_host, policy_host, policy_eval_buffers_host, rng);
-//        evaluate(device, policy_host, runner_host.buffers.observations, runner_host.buffers.actions, policy_eval_buffers_host, rng);
         rng = random::next(typename DEVICE::SPEC::RANDOM{}, rng);
         rl::components::off_policy_runner::epilogue(device, runner_device, policy_host, rng);
     }

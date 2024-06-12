@@ -67,6 +67,10 @@ namespace rl_tools{
     void free(DEVICE& device, nn::layers::sample_and_squash::Buffer<SPEC>& buffer) {
         free(device, buffer.noise);
     }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn::layers::sample_and_squash::Buffer<SOURCE_SPEC>& source, nn::layers::sample_and_squash::Buffer<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.noise, target.noise);
+    }
     template <typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, RNG& rng){
         set(layer.log_alpha.parameters, 0, 0, math::log(typename DEVICE::SPEC::MATH{}, SPEC::PARAMETERS::ALPHA));
@@ -109,6 +113,7 @@ namespace rl_tools{
         copy(source_device, target_device, static_cast<const nn::layers::sample_and_squash::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::sample_and_squash::LayerBackward<TARGET_SPEC>&>(target));
         copy(source_device, target_device, source.log_probabilities, target.log_probabilities);
         copy(source_device, target_device, source.output, target.output);
+        copy(source_device, target_device, source.log_alpha, target.log_alpha);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     void sample(DEVICE& device, nn::layers::sample_and_squash::Buffer<SPEC>& buffer, RNG& rng) {
