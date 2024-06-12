@@ -234,10 +234,40 @@ namespace rl_tools{
         evaluate(device, critic, batch.observations_and_actions, training_buffers.action_value, critic_buffers, rng);
         return nn::loss_functions::mse::evaluate(device, training_buffers.action_value, training_buffers.target_action_value, 0.5);
     }
-    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename ACTION_NOISE_SPEC, typename RNG>
-    void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng) {
+    template <typename DEVICE, typename SPEC>
+    void min_value_d_output_per_sample(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, typename DEVICE::index_t batch_i) {
+        auto critic_1_output = output(actor_critic.critic_1);
+        auto critic_2_output = output(actor_critic.critic_2);
+        using TI = typename DEVICE::index_t;
+        using T = typename SPEC::T;
+        constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+
+        bool critic_1_value = get(critic_1_output, batch_i, 0) < get(critic_2_output, batch_i, 0);
+        for(TI action_i=0; action_i < ACTION_DIM; action_i++){
+            T d_input = 0;
+            if(critic_1_value) {
+                d_input = get(training_buffers.d_critic_1_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
+            }
+            else{
+                d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
+            }
+            set(training_buffers.d_actor_output_squashing, batch_i, action_i, d_input);
+        }
+    }
+    template <typename DEVICE, typename SPEC>
+    void min_value_d_output(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers) {
+        using BUFFERS = rl::algorithms::sac::ActorTrainingBuffers<SPEC>;
+        using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
+        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+            min_value_d_output_per_sample(device, actor_critic, training_buffers, batch_i);
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename ACTION_NOISE_SPEC, typename RNG>
+    void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::ACTOR_BATCH_SIZE);
         static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
         static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
@@ -259,23 +289,7 @@ namespace rl_tools{
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
         backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers);
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers);
-        {
-            auto critic_1_output = output(actor_critic.critic_1);
-            auto critic_2_output = output(actor_critic.critic_2);
-            for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-                bool critic_1_value = get(critic_1_output, batch_i, 0) < get(critic_2_output, batch_i, 0);
-                for(TI action_i=0; action_i < ACTION_DIM; action_i++){
-                    T d_input = 0;
-                    if(critic_1_value) {
-                        d_input = get(training_buffers.d_critic_1_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
-                    }
-                    else{
-                        d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
-                    }
-                    set(training_buffers.d_actor_output_squashing, batch_i, action_i, d_input);
-                }
-            }
-        }
+        min_value_d_output(device, actor_critic, training_buffers);
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output_squashing, actor_buffers);
         step(device, optimizer, actor_critic.actor);
     }

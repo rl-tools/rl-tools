@@ -120,7 +120,7 @@ namespace rl_tools{
         randn(device, buffer.noise, rng);
     }
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void evaluate_per_sample(const DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate_per_sample(const DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         using PARAMETERS = typename SPEC::PARAMETERS;
@@ -177,7 +177,7 @@ namespace rl_tools{
         evaluate(device, layer, input, output, buffer, rng, mode);
     }
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward_per_sample(const DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    RL_TOOLS_FUNCTION_PLACEMENT void forward_per_sample(const DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         // copy of the evaluate but with the log_probabilities commented in
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
@@ -237,7 +237,7 @@ namespace rl_tools{
 
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    typename SPEC::T backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, typename SPEC::T alpha, typename DEVICE::index_t batch_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, typename SPEC::T alpha, typename DEVICE::index_t batch_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::DIM;
