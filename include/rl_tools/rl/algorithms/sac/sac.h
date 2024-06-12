@@ -96,7 +96,6 @@ namespace rl_tools::rl::algorithms::sac {
         NEXT_STATE_ACTION_VALUE_VIEW<CRITIC_OBSERVATION_DIM> next_observations;
         NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM*2> next_actions_distribution;
         NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM> next_actions_mean;
-        NEXT_STATE_ACTION_VALUE_VIEW<ACTION_DIM> next_actions_log_std;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> action_value;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> target_action_value;
         typename CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> next_state_action_value_critic_1;

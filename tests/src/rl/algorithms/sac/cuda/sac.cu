@@ -17,6 +17,8 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER::rl_tools;
 
 #include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
 #include <rl_tools/nn/layers/dense/operations_cuda.h>
+#include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
+#include <rl_tools/nn/layers/sample_and_squash/operations_cuda.h>
 #include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn/operations_cpu_mkl.h>
 using DEV_SPEC_INIT = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, rlt::devices::logging::CPU_TENSORBOARD<>>;
@@ -217,9 +219,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
                 if(check_diff_now){
                     rlt::copy(device, device_init, critic_training_buffers, critic_training_buffers_init2);
 //                rlt::copy(device, device_init, critic_training_buffers.next_actions_mean, critic_training_buffers_init2.next_actions_mean);
-                    T next_action_log_std_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_actions_log_std, critic_training_buffers_init2.next_actions_log_std);
-                    std::cout << "step: " << step_i << " " << "next_action_log_std_diff: " << next_action_log_std_diff << std::endl;
-                    ASSERT_LT(next_action_log_std_diff, epsilon*epsilon_decay);
                     T next_actions_mean_diff = rlt::abs_diff(device_init, critic_training_buffers_init.next_actions_mean, critic_training_buffers_init2.next_actions_mean);
                     std::cout << "step: " << step_i << " " << "next_actions_mean_diff: " << next_actions_mean_diff << std::endl;
                     ASSERT_LT(next_actions_mean_diff, epsilon*epsilon_decay);
@@ -240,10 +239,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
                     ASSERT_LT(d_output_diff, epsilon*epsilon_decay);
 
                     rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                    T diff_gradient_first_layer = rlt::abs_diff(device_init, actor_critic_init.critic_1.input_layer.weights.gradient, actor_critic_init2.critic_1.input_layer.weights.gradient);
+                    T diff_gradient_first_layer = rlt::abs_diff(device_init, actor_critic_init.critic_1.content.input_layer.weights.gradient, actor_critic_init2.critic_1.content.input_layer.weights.gradient);
                     std::cout << "step: " << step_i << " " << "diff_gradient_first_layer: " << diff_gradient_first_layer << std::endl;
                     ASSERT_LT(diff_gradient_first_layer, epsilon*epsilon_decay);
-                    T diff_weights_first_layer = rlt::abs_diff(device_init, actor_critic_init.critic_1.input_layer.weights.parameters, actor_critic_init2.critic_1.input_layer.weights.parameters);
+                    T diff_weights_first_layer = rlt::abs_diff(device_init, actor_critic_init.critic_1.content.input_layer.weights.parameters, actor_critic_init2.critic_1.content.input_layer.weights.parameters);
                     std::cout << "step: " << step_i << " " << "diff_weights_first_layer: " << diff_weights_first_layer << std::endl;
                     ASSERT_LT(diff_weights_first_layer, epsilon*epsilon_decay);
                     DTYPE diff_after = rlt::abs_diff(device_init, actor_critic_init.critic_1, actor_critic_init2.critic_1);
@@ -263,7 +262,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
 //            auto start = std::chrono::high_resolution_clock::now();
             if(check_diff_now){
                 rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                T diff_before = rlt::abs_diff(device_init, actor_critic_init.actor, actor_critic_init2.actor);
+                T diff_before = rlt::abs_diff(device_init, actor_critic_init.actor.content, actor_critic_init2.actor.content);
                 std::cout << "step: " << step_i << " " << "actor diff before: " << diff_before << std::endl;
             }
             rng = rlt::random::next(DEVICE::SPEC::RANDOM(), rng);
@@ -276,13 +275,44 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
             if(check_diff_now){
                 rlt::copy(device, device_init, actor_training_buffers, actor_training_buffers_init2);
                 rlt::copy(device, device_init, actor_critic, actor_critic_init2);
-                T diff_output = rlt::abs_diff(device_init, actor_critic_init.actor.output_layer.output, actor_critic_init2.actor.output_layer.output);
+                auto last_layer_init = rlt::get_last_layer(actor_critic_init.actor);
+                auto last_layer_init2 = rlt::get_last_layer(actor_critic_init2.actor);
+                T diff_output = rlt::abs_diff(device_init, last_layer_init.output, last_layer_init2.output);
                 std::cout << "step: " << step_i << " " << "diff_output: " << diff_output << std::endl;
                 ASSERT_LT(diff_output, epsilon*epsilon_decay);
                 T diff_actions = rlt::abs_diff(device_init, actor_training_buffers_init.actions, actor_training_buffers_init2.actions);
                 std::cout << "step: " << step_i << " " << "diff_actions: " << diff_actions << std::endl;
                 ASSERT_LT(diff_actions, epsilon*epsilon_decay);
-                T diff_after = rlt::abs_diff(device_init, actor_critic_init.actor, actor_critic_init2.actor);
+                {
+                    T diff_d_critic_input_1 = rlt::abs_diff(device_init, actor_training_buffers_init.d_critic_1_input, actor_training_buffers_init2.d_critic_1_input);
+                    std::cout << "step: " << step_i << " " << "diff_d_critic_input_1: " << diff_d_critic_input_1 << std::endl;
+                    ASSERT_LT(diff_d_critic_input_1, epsilon*epsilon_decay);
+                }
+                {
+                    T diff_d_critic_input_2 = rlt::abs_diff(device_init, actor_training_buffers_init.d_critic_2_input, actor_training_buffers_init2.d_critic_2_input);
+                    std::cout << "step: " << step_i << " " << "diff_d_critic_input_2: " << diff_d_critic_input_2 << std::endl;
+                    ASSERT_LT(diff_d_critic_input_2, epsilon*epsilon_decay);
+                }
+                {
+                    T diff_critic_output = rlt::abs_diff(device_init, rlt::output(actor_critic_init.critic_1), rlt::output(actor_critic_init2.critic_1));
+                    std::cout << "step: " << step_i << " " << "diff_critic_output: " << diff_critic_output << std::endl;
+                    ASSERT_LT(diff_critic_output, epsilon*epsilon_decay);
+                }
+                {
+                    T diff_actor_d_actor_output_squashing = rlt::abs_diff(device_init, actor_training_buffers_init.d_actor_output_squashing, actor_training_buffers_init2.d_actor_output_squashing);
+                    std::cout << "step: " << step_i << " " << "diff_actor_d_actor_output_squashing: " << diff_actor_d_actor_output_squashing << std::endl;
+                    ASSERT_LT(diff_actor_d_actor_output_squashing, epsilon*epsilon_decay);
+                }
+                {
+
+                    T diff_gradient_first_layer = rlt::abs_diff(device_init, actor_critic_init.actor.content.input_layer.weights.gradient, actor_critic_init2.actor.content.input_layer.weights.gradient);
+                    std::cout << "step: " << step_i << " " << "diff_gradient_first_layer: " << diff_gradient_first_layer << std::endl;
+                    ASSERT_LT(diff_gradient_first_layer, epsilon*epsilon_decay);
+                    T diff_weights_first_layer = rlt::abs_diff(device_init, actor_critic_init.actor.content.input_layer.weights.parameters, actor_critic_init2.actor.content.input_layer.weights.parameters);
+                    std::cout << "step: " << step_i << " " << "diff_weights_first_layer: " << diff_weights_first_layer << std::endl;
+                    ASSERT_LT(diff_weights_first_layer, epsilon*epsilon_decay);
+                }
+                T diff_after = rlt::abs_diff(device_init, actor_critic_init.actor.content, actor_critic_init2.actor.content);
                 std::cout << "step: " << step_i << " " << "actor diff after: " << diff_after << std::endl;
                 ASSERT_LT(diff_after, 1e-10*epsilon_decay);
             }

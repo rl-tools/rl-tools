@@ -52,8 +52,12 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
 };
 template <typename RNG>
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
+
+struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI, LOOP_CORE_CONFIG<RNG>>{
+    static constexpr TI NUM_EVALUATION_EPISODES = 100;
+};
 template <typename RNG>
-using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<RNG>>;
+using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG<RNG>, LOOP_EVAL_PARAMETERS>;
 template <typename RNG>
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG<RNG>>;
 template <typename RNG>
@@ -90,6 +94,7 @@ int main(){
     rlt::check_status(device);
 
     TI step = 0;
+    ts.rng = rlt::random::next(device.random, ts.rng);
     bool finished = false;
     auto start_time = std::chrono::high_resolution_clock::now();
     while(!finished){

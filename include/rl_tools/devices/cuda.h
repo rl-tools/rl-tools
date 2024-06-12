@@ -118,6 +118,7 @@ namespace rl_tools {
         if (cudaStatus != cudaSuccess) {
             std::string error_string = cudaGetErrorString(cudaStatus);
             std::cerr << "cuda failed: " << error_string << std::endl;
+            std::exit(100);
         }
     }
     template <typename DEV_SPEC, typename TI>

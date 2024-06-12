@@ -155,7 +155,7 @@ namespace rl_tools{
         return acc;
     }
     template<typename SPEC>
-    constexpr auto& output(nn::layers::standardize::LayerGradient<SPEC>& l){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn::layers::standardize::LayerGradient<SPEC>& l){
         return l.output;
     }
 }

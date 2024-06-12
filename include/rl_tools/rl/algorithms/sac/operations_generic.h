@@ -75,7 +75,6 @@ namespace rl_tools{
         critic_training_buffers.next_observations             = view(device, critic_training_buffers.next_state_action_value_input_full, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::CRITIC_OBSERVATION_DIM>{}, 0, 0);
         critic_training_buffers.next_actions_distribution     = view(device, critic_training_buffers.next_state_action_value_input_full, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM*2>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM);
         critic_training_buffers.next_actions_mean             = view(device, critic_training_buffers.next_state_action_value_input_full, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM);
-        critic_training_buffers.next_actions_log_std          = view(device, critic_training_buffers.next_state_action_value_input_full, matrix::ViewSpec<BUFFERS::BATCH_SIZE, BUFFERS::ACTION_DIM>{}, 0, BUFFERS::CRITIC_OBSERVATION_DIM + BUFFERS::ACTION_DIM);
         malloc(device, critic_training_buffers.action_value);
         malloc(device, critic_training_buffers.target_action_value);
         malloc(device, critic_training_buffers.next_state_action_value_critic_1);
@@ -92,7 +91,6 @@ namespace rl_tools{
         critic_training_buffers.next_observations._data = nullptr;
         critic_training_buffers.next_actions_distribution._data = nullptr;
         critic_training_buffers.next_actions_mean._data = nullptr;
-        critic_training_buffers.next_actions_log_std._data = nullptr;
         free(device, critic_training_buffers.action_value);
         free(device, critic_training_buffers.target_action_value);
         free(device, critic_training_buffers.next_state_action_value_critic_1);
@@ -203,6 +201,8 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void min_value_d_output_per_sample(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, typename DEVICE::index_t batch_i) {
+//        auto critic_1_output = actor_critic.critic_1.content.output_layer.output; //output(actor_critic.critic_1);
+//        auto critic_2_output = actor_critic.critic_2.content.output_layer.output; //output(actor_critic.critic_2);
         auto critic_1_output = output(actor_critic.critic_1);
         auto critic_2_output = output(actor_critic.critic_2);
         using TI = typename DEVICE::index_t;
@@ -218,7 +218,7 @@ namespace rl_tools{
             else{
                 d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
             }
-            set(training_buffers.d_actor_output_squashing, batch_i, action_i, d_input);
+            set(training_buffers.d_actor_output_squashing, batch_i, action_i, (T)d_input);
         }
     }
     template <typename DEVICE, typename SPEC>
@@ -340,6 +340,7 @@ namespace rl_tools{
         copy(source_device, target_device, source.action_noise, target.action_noise);
         copy(source_device, target_device, source.d_actor_output, target.d_actor_output);
         copy(source_device, target_device, source.d_actor_input, target.d_actor_input);
+        copy(source_device, target_device, source.d_actor_output_squashing, target.d_actor_output_squashing);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, rl::algorithms::sac::CriticTrainingBuffers<SOURCE_SPEC>& source, rl::algorithms::sac::CriticTrainingBuffers<TARGET_SPEC>& target){

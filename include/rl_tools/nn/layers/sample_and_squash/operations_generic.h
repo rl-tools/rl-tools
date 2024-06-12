@@ -5,6 +5,7 @@
 #include "../../../nn/activation_functions.h"
 #include "../../../utils/generic/typing.h"
 #include "../../../containers.h"
+#include "../../../nn/mode.h"
 
 
 #include "layer.h"

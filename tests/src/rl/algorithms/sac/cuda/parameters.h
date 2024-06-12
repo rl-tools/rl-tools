@@ -2,6 +2,7 @@
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/nn_models/models.h>
 #include <rl_tools/rl/algorithms/sac/sac.h>
+#include <rl_tools/rl/algorithms/sac/loop/core/config.h>
 #include <rl_tools/rl/components/off_policy_runner/off_policy_runner.h>
 
 #include <rl_tools/utils/generic/typing.h>
@@ -16,29 +17,24 @@ struct parameters_pendulum_0{
 
     template <typename ENVIRONMENT>
     struct rl{
-        struct ACTOR_CRITIC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI>{
-            constexpr static TI CRITIC_BATCH_SIZE = 100;
-            constexpr static TI ACTOR_BATCH_SIZE = 100;
-            static constexpr TI N_WARMUP_STEPS_ACTOR = ACTOR_BATCH_SIZE;
-            static constexpr TI N_WARMUP_STEPS_CRITIC = CRITIC_BATCH_SIZE;
+        struct LOOP_PARAMS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
+            struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
+                constexpr static TI CRITIC_BATCH_SIZE = 100;
+                constexpr static TI ACTOR_BATCH_SIZE = 100;
+                static constexpr TI N_WARMUP_STEPS_ACTOR = ACTOR_BATCH_SIZE;
+                static constexpr TI N_WARMUP_STEPS_CRITIC = CRITIC_BATCH_SIZE;
+            };
+
         };
-        using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
-        using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
-
-        using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, TI>;
-        using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
-        using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, ACTOR_CRITIC_PARAMETERS::ACTOR_BATCH_SIZE>;
-        using ACTOR_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_SPEC>;
-
-//        using ACTOR_TARGET_NETWORK_SPEC = rlt::nn_models::mlp::ForwardSpecification<ACTOR_STRUCTURE_SPEC>;
-//        using ACTOR_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_TARGET_NETWORK_SPEC>;
-
-        using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, ACTOR_CRITIC_PARAMETERS::CRITIC_BATCH_SIZE>;
-        using CRITIC_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
-        using CRITIC_TARGET_NETWORK_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_SPEC>;
+        using CFG = rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential<T, TI, ENVIRONMENT, LOOP_PARAMS, rlt::MatrixDynamicTag>;
+        using OPTIMIZER = typename CFG::OPTIMIZER;
+        using ACTOR_NETWORK_TYPE = typename CFG::ACTOR_TYPE;
+        using CRITIC_NETWORK_TYPE = typename CFG::CRITIC_TYPE;
+        using CRITIC_TARGET_NETWORK_TYPE = typename CFG::CRITIC_TARGET_TYPE;
 
 
         using ALPHA_PARAMETER_TYPE = rlt::nn::parameters::Adam;
+        using ACTOR_CRITIC_PARAMETERS = typename LOOP_PARAMS::SAC_PARAMETERS;
         using ACTOR_CRITIC_SPEC = rlt::rl::algorithms::sac::Specification<T, TI, ENVIRONMENT, ACTOR_NETWORK_TYPE, CRITIC_NETWORK_TYPE, CRITIC_TARGET_NETWORK_TYPE, ALPHA_PARAMETER_TYPE, OPTIMIZER, OPTIMIZER, OPTIMIZER, ACTOR_CRITIC_PARAMETERS>;
         using ACTOR_CRITIC_TYPE = rlt::rl::algorithms::sac::ActorCritic<ACTOR_CRITIC_SPEC>;
 

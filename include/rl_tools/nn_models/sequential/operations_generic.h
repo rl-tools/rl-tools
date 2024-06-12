@@ -167,7 +167,7 @@ namespace rl_tools{
     }
 
     template <typename SPEC> // non-const
-    constexpr auto& output(nn_models::sequential::ModuleGradient<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn_models::sequential::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             return output(m.content);
         } else {
@@ -175,7 +175,7 @@ namespace rl_tools{
         }
     }
     template <typename SPEC> // const
-    constexpr auto& output(const nn_models::sequential::ModuleGradient<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(const nn_models::sequential::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             return output(m.content);
         } else {

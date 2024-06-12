@@ -298,7 +298,7 @@ namespace rl_tools {
         copy(source_device, target_device, source.tock, target.tock);
     }
     template<typename SPEC>
-    constexpr auto& output(nn_models::mlp::NeuralNetworkGradient<SPEC>& nn){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn_models::mlp::NeuralNetworkGradient<SPEC>& nn){
         return nn.output_layer.output;
     }
     template <typename DEVICE, typename BUFFER_SPEC, typename RNG>

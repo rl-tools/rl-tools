@@ -304,7 +304,7 @@ namespace rl_tools{
             is_nan(device, l.output);
     }
     template<typename SPEC>
-    constexpr auto& output(nn::layers::dense::LayerGradient<SPEC>& l){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn::layers::dense::LayerGradient<SPEC>& l){
         return l.output;
     }
 }
