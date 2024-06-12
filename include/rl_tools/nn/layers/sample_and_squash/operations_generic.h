@@ -120,6 +120,48 @@ namespace rl_tools{
         randn(device, buffer.noise, rng);
     }
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    typename SPEC::T evaluate_per_sample(const DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, typename DEVICE::index_t row_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+        using TI = typename DEVICE::index_t;
+        using T = typename SPEC::T;
+        using PARAMETERS = typename SPEC::PARAMETERS;
+        T log_prob = 0;
+        for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
+            T mean = get(input, row_i, col_i);
+            T log_std = get(input, row_i, SPEC::DIM + col_i);
+            T log_std_clipped = math::clamp(device.math, log_std, (T)PARAMETERS::LOG_STD_LOWER_BOUND, (T)PARAMETERS::LOG_STD_UPPER_BOUND);
+            T std = math::exp(device.math, log_std_clipped);
+            T noise;
+            if constexpr(nn::layers::sample_and_squash::is_mode_external_noise(MODE())){
+                noise = get(buffer.noise, row_i, col_i);
+            }
+            else{
+                if constexpr(nn::layers::sample_and_squash::is_mode_sample(MODE())){
+                    noise = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
+                }
+                else{
+                    noise = 0;
+                }
+            }
+//                set(layer.noise, row_i, col_i, noise);
+            T sample;
+            if constexpr(utils::typing::is_base_of_v<nn::mode::Inference, MODE>){
+                sample = mean;
+            }
+            else{
+                sample = mean + noise * std;
+            }
+//                set(layer.pre_squashing, row_i, col_i, sample);
+            T squashed = math::tanh(device.math, sample);
+
+            set(output, row_i, col_i, squashed);
+//                set(layer.output, row_i, col_i, squashed);
+            T one_minus_square_plus_eps = (1-squashed*squashed + SPEC::PARAMETERS::LOG_PROBABILITY_EPSILON);
+            log_prob += random::normal_distribution::log_prob(device.random, mean, log_std_clipped, sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_square_plus_eps);
+        }
+//            set(layer.log_probabilities, 0, row_i, log_prob);
+        return log_prob;
+    }
+    template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void evaluate(const DEVICE& device, const nn::layers::sample_and_squash::LayerForward<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         static_assert(INPUT_SPEC::COLS == 2*SPEC::DIM);
         static_assert(OUTPUT_SPEC::COLS == SPEC::DIM);
@@ -128,41 +170,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using PARAMETERS = typename SPEC::PARAMETERS;
         for(TI row_i = 0; row_i < INPUT_SPEC::ROWS; row_i++){
-            T log_prob = 0;
-            for(TI col_i = 0; col_i < SPEC::DIM; col_i++){
-                T mean = get(input, row_i, col_i);
-                T log_std = get(input, row_i, SPEC::DIM + col_i);
-                T log_std_clipped = math::clamp(device.math, log_std, (T)PARAMETERS::LOG_STD_LOWER_BOUND, (T)PARAMETERS::LOG_STD_UPPER_BOUND);
-                T std = math::exp(device.math, log_std_clipped);
-                T noise;
-                if constexpr(nn::layers::sample_and_squash::is_mode_external_noise(MODE())){
-                    noise = get(buffer.noise, row_i, col_i);
-                }
-                else{
-                    if constexpr(nn::layers::sample_and_squash::is_mode_sample(MODE())){
-                        noise = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
-                    }
-                    else{
-                        noise = 0;
-                    }
-                }
-//                set(layer.noise, row_i, col_i, noise);
-                T sample;
-                if constexpr(utils::typing::is_base_of_v<nn::mode::Inference, MODE>){
-                    sample = mean;
-                }
-                else{
-                    sample = mean + noise * std;
-                }
-//                set(layer.pre_squashing, row_i, col_i, sample);
-                T squashed = math::tanh(device.math, sample);
-
-                set(output, row_i, col_i, squashed);
-//                set(layer.output, row_i, col_i, squashed);
-                T one_minus_square_plus_eps = (1-squashed*squashed + SPEC::PARAMETERS::LOG_PROBABILITY_EPSILON);
-                log_prob += random::normal_distribution::log_prob(device.random, mean, log_std_clipped, sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_square_plus_eps);
-            }
-//            set(layer.log_probabilities, 0, row_i, log_prob);
+            evaluate_per_sample(device, layer, input, output, buffer, rng, row_i, mode);
         }
     }
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
@@ -173,7 +181,8 @@ namespace rl_tools{
     void forward(const DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         // copy of the evaluate but with the log_probabilities commented in
         static_assert(INPUT_SPEC::COLS == 2*SPEC::DIM);
-        static_assert(INPUT_SPEC::ROWS == decltype(layer.output)::SPEC::ROWS);
+//        static_assert(OUTPUT_SPEC::COLS == SPEC::DIM);
+//        static_assert(INPUT_SPEC::ROWS == OUTPUT_SPEC::ROWS);
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         using PARAMETERS = typename SPEC::PARAMETERS;
