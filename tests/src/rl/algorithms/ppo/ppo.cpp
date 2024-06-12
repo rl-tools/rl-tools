@@ -65,7 +65,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
             rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
         }
         for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
-            auto& last_layer = rlt::get_layer<rlt::num_layers(decltype(ppo.actor)())-1>(device, ppo.actor);
+            auto& last_layer = rlt::get_last_layer(ppo.actor);
             T action_log_std = rlt::get(last_layer.log_std.parameters, 0, action_i);
             std::stringstream topic;
             topic << "actor/action_std/" << action_i;

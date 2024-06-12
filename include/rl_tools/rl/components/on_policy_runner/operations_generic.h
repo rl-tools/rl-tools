@@ -107,7 +107,7 @@ namespace rl_tools{
             auto observations            = view(device, dataset.observations           , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
             rl::components::on_policy_runner::prologue(device, observations, runner, rng, step_i);
             evaluate(device, actor, observations, actions_mean, policy_eval_buffers, rng);
-            auto& last_layer = get_layer<num_layers(ACTOR())-1>(device, actor);
+            auto& last_layer = get_last_layer(actor);
             rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, last_layer.log_std.parameters, rng, step_i);
         }
         // final observation

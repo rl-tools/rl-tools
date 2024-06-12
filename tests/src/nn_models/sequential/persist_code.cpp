@@ -150,7 +150,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
     }
 
     {
-        auto& last_layer = rlt::get_layer<rlt::num_layers(decltype(model)())-1>(device, model);
+        auto& last_layer = rlt::get_last_layer(model);
         for(TI output_i=0; output_i < MODEL::OUTPUT_DIM; output_i++){
             rlt::set(last_layer.log_std.parameters, 0, output_i, output_i);
             rlt::set(last_layer.log_std.gradient, 0, output_i, output_i*2);
@@ -217,7 +217,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
     }
 
     {
-        auto& last_layer = rlt::get_layer<rlt::num_layers(decltype(model)())-1>(device, model);
+        auto& last_layer = rlt::get_last_layer(model);
         for(TI output_i=0; output_i < MODEL::OUTPUT_DIM; output_i++){
             rlt::set(last_layer.log_std.parameters, 0, output_i, output_i);
         }
@@ -280,7 +280,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
     }
 
     {
-        auto& last_layer = rlt::get_layer<rlt::num_layers(decltype(model)())-1>(device, model);
+        auto& last_layer = rlt::get_last_layer(model);
         for(TI output_i=0; output_i < MODEL::OUTPUT_DIM; output_i++){
             rlt::set(last_layer.log_std.parameters, 0, output_i, output_i);
         }

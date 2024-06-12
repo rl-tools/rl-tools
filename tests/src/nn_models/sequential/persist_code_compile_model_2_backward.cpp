@@ -50,7 +50,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE_COMPILE, MODEL_2_BACKWARD){
     }
 
     {
-        auto& last_layer = rlt::get_layer<rlt::num_layers(decltype(rl_tools_export::model::module)())-1>(device, rl_tools_export::model::module);
+        auto& last_layer = rlt::get_last_layer(rl_tools_export::model::module);
         for(TI output_i=0; output_i < rl_tools_export::model::MODEL::OUTPUT_DIM; output_i++){
             T p = rlt::get(last_layer.log_std.parameters, 0, output_i);
             ASSERT_EQ(p, output_i);

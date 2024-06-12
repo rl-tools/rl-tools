@@ -62,8 +62,8 @@ int main(){
     rlt::evaluate(device, actor.content, input, intermediate_output, actor_buffer, rng2);
 
 
-    auto& sas_buffer = rlt::get_buffer<1>(device, actor_buffer_sequential);
-    auto& sas_layer = rlt::get_layer<1>(device, actor);
+    auto& sas_buffer = rlt::get_buffer<1>(actor_buffer_sequential);
+    auto& sas_layer = rlt::get_layer<1>(actor);
 
     rlt::print(device, sas_layer.log_probabilities);
 
