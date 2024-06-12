@@ -11,6 +11,7 @@ target_link_libraries(
 gtest_discover_tests(test_nn_layers_standardize)
 
 
+if(RL_TOOLS_BACKEND_ENABLE_BLAS)
 add_executable(
         test_nn_layers_standardize_training
         training.cpp
@@ -22,4 +23,5 @@ target_link_libraries(
         GTest::gtest_main
 )
 gtest_discover_tests(test_nn_layers_standardize_training)
+endif()
 
