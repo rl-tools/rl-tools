@@ -199,8 +199,8 @@ namespace rl_tools{
         zero_gradient(device, critic);
 
 
-        auto sample_and_squash_layer = get_last_layer(device, actor_critic.actor);
-        auto sample_and_squash_buffer = get_last_buffer(device, actor_buffers);
+        auto sample_and_squash_layer = get_last_layer(actor_critic.actor);
+        auto sample_and_squash_buffer = get_last_buffer(actor_buffers);
         copy(device, device, action_noise, sample_and_squash_buffer.noise);
         using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
         forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng, SAMPLE_AND_SQUASH_MODE{});
@@ -208,7 +208,7 @@ namespace rl_tools{
         evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
         evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
 
-        auto last_layer = get_last_layer(device, actor_critic.actor);
+        auto last_layer = get_last_layer(actor_critic.actor);
         auto next_action_log_probs = view_transpose(device, last_layer.log_probabilities);
 //        target_actions(device, batch, training_buffers, training_buffers.next_action_log_probs, actor_critic.log_alpha);
         target_actions(device, batch, training_buffers, next_action_log_probs, sample_and_squash_layer.log_alpha);
@@ -244,7 +244,7 @@ namespace rl_tools{
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         static_assert(SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM == ACTION_DIM);
 
-        auto sample_and_squashing_buffer = get_last_buffer(device, actor_buffers);
+        auto sample_and_squashing_buffer = get_last_buffer(actor_buffers);
 
         zero_gradient(device, actor_critic.actor);
         copy(device, device, action_noise, sample_and_squashing_buffer.noise);

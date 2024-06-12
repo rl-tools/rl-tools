@@ -70,88 +70,100 @@ namespace rl_tools{
                 return 1;
             }
         }
-//        template <typename SPEC>
-//        constexpr typename SPEC::TI num_layers_buffer(){
-//            if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-//                return num_layers<typename SPEC::NEXT_MODULE::SPEC>() + 1;
-//            }
-//            else{
-//                return 1;
-//            }
-//        }
     }
     template <typename SPEC>
-    constexpr typename SPEC::TI num_layers(nn_models::sequential::ModuleForward<SPEC>){
+    constexpr typename SPEC::TI num_layers(const nn_models::sequential::ModuleForward<SPEC>&){
         return nn_models::sequential::num_layers<SPEC>();
     }
     template <typename SPEC>
-    constexpr typename SPEC::TI num_layers(nn_models::sequential::ContentBuffer<SPEC>){
+    constexpr typename SPEC::TI num_layers(const nn_models::sequential::ContentBuffer<SPEC>&){
         return nn_models::sequential::num_layers<SPEC>();
     }
     template <typename SPEC>
     constexpr typename SPEC::TI num_layers(const nn_models::sequential::ModuleBuffer<SPEC>& buffer){
         return num_layers(buffer.content_buffer);
     }
-    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
-    constexpr auto& get_buffer(DEVICE& device, nn_models::sequential::ContentBuffer<MODULE_SPEC>& buffer){
+
+    template<auto LAYER_I, typename MODULE_SPEC> // non-const
+    constexpr auto& get_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        static_assert(LAYER_I >= 0);
+        static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
+        if constexpr(LAYER_I == 0){
+            return model.content;
+        }
+        else{
+            return get_layer<LAYER_I - 1>(model.next_module);
+        }
+    }
+    template<auto LAYER_I, typename MODULE_SPEC> // const
+    constexpr auto& get_layer(const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        static_assert(LAYER_I >= 0);
+        static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
+        if constexpr(LAYER_I == 0){
+            return model.content;
+        }
+        else{
+            return get_layer<LAYER_I - 1>(model.next_module);
+        }
+    }
+    template <typename MODULE_SPEC> // non-const
+    constexpr auto& get_last_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        return get_layer<nn_models::sequential::num_layers<MODULE_SPEC>()-1>(model);
+    }
+    template <typename MODULE_SPEC> // const
+    constexpr auto& get_last_layer(const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        return get_layer<nn_models::sequential::num_layers<MODULE_SPEC>()-1>(model);
+    }
+
+    template<auto LAYER_I, typename MODULE_SPEC> // non-const
+    constexpr auto& get_buffer(nn_models::sequential::ContentBuffer<MODULE_SPEC>& buffer){
         static_assert(LAYER_I >= 0);
         static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
         if constexpr(LAYER_I == 0){
             return buffer.buffer;
         }
         else{
-            return get_buffer<LAYER_I - 1>(device, buffer.next_content_buffer);
+            return get_buffer<LAYER_I - 1>(buffer.next_content_buffer);
         }
     }
-    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC>
-    constexpr auto& get_buffer(DEVICE& device, nn_models::sequential::ModuleBuffer<MODULE_SPEC>& buffer){
-        return get_buffer<LAYER_I>(device, buffer.content_buffer);
+    template<auto LAYER_I, typename MODULE_SPEC> // const
+    constexpr auto& get_buffer(const nn_models::sequential::ContentBuffer<MODULE_SPEC>& buffer){
+        static_assert(LAYER_I >= 0);
+        static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
+        if constexpr(LAYER_I == 0){
+            return buffer.buffer;
+        }
+        else{
+            return get_buffer<LAYER_I - 1>(buffer.next_content_buffer);
+        }
     }
-    template <typename DEVICE, typename MODULE_SPEC> // non const
-    constexpr auto& get_last_buffer(DEVICE& device, nn_models::sequential::ModuleBuffer<MODULE_SPEC>& model){
-        using MODULE = nn_models::sequential::ModuleBuffer<MODULE_SPEC>;
-        return get_buffer<num_layers(MODULE())-1>(device, model);
+    template<auto LAYER_I, typename MODULE_SPEC> // non-const
+    constexpr auto& get_buffer(nn_models::sequential::ModuleBuffer<MODULE_SPEC>& buffer){
+        return get_buffer<LAYER_I>(buffer.content_buffer);
     }
-    template <typename DEVICE, typename MODULE_SPEC> // const
-    constexpr auto& get_last_buffer(DEVICE& device, const nn_models::sequential::ModuleBuffer<MODULE_SPEC>& model){
-        using MODULE = nn_models::sequential::ModuleBuffer<MODULE_SPEC>;
-        return get_buffer<num_layers(MODULE())-1>(device, model);
+    template<auto LAYER_I, typename MODULE_SPEC> // const
+    constexpr auto& get_buffer(const nn_models::sequential::ModuleBuffer<MODULE_SPEC>& buffer){
+        return get_buffer<LAYER_I>(buffer.content_buffer);
+    }
+    template <typename BUFFER_SPEC> // non-const
+    constexpr auto& get_last_buffer(nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffer){
+        return get_buffer<nn_models::sequential::num_layers<typename BUFFER_SPEC::SPEC>()-1>(buffer);
+    }
+    template <typename BUFFER_SPEC> // const
+    constexpr auto& get_last_buffer(const nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffer){
+        return get_buffer<nn_models::sequential::num_layers<typename BUFFER_SPEC::SPEC>()-1>(buffer);
     }
 
-    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC> // non-const
-    constexpr auto& get_layer(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
-        static_assert(LAYER_I >= 0);
-        static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
-        if constexpr(LAYER_I == 0){
-            return model.content;
-        }
-        else{
-            return get_layer<LAYER_I - 1>(device, model.next_module);
-        }
-    }
-    template<auto LAYER_I, typename DEVICE, typename MODULE_SPEC> // const
-    constexpr auto& get_layer(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
-        static_assert(LAYER_I >= 0);
-        static_assert(LAYER_I < nn_models::sequential::num_layers<MODULE_SPEC>());
-        if constexpr(LAYER_I == 0){
-            return model.content;
-        }
-        else{
-            return get_layer<LAYER_I - 1>(device, model.next_module);
-        }
-    }
-    template <typename DEVICE, typename MODULE_SPEC> // non-const
-    constexpr auto& get_last_layer(DEVICE& device, nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
-        using MODULE = nn_models::sequential::ModuleForward<MODULE_SPEC>;
-        return get_layer<num_layers(MODULE())-1>(device, model);
-    }
-    template <typename DEVICE, typename MODULE_SPEC> // const
-    constexpr auto& get_last_layer(DEVICE& device, const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
-        using MODULE = nn_models::sequential::ModuleForward<MODULE_SPEC>;
-        return get_layer<num_layers(MODULE())-1>(device, model);
-    }
-    template <typename SPEC>
+    template <typename SPEC> // non-const
     constexpr auto& output(nn_models::sequential::ModuleGradient<SPEC>& m){
+        if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            return output(m.content);
+        } else {
+            return output(m.next_module);
+        }
+    }
+    template <typename SPEC> // const
+    constexpr auto& output(const nn_models::sequential::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
             return output(m.content);
         } else {
