@@ -254,18 +254,18 @@ namespace rl_tools{
         constexpr TI BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            backward_full(device, model.content, input, d_output, d_input, content_buffer.buffer);
+            backward_full(device, model.content, input, d_output, d_input, content_buffer.buffer, mode);
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
             auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            _backward_full<!TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer);
-            backward_full(device, model.content, input, current_d_output_buffer_view, d_input, content_buffer.buffer);
+            _backward_full<!TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer, mode);
+            backward_full(device, model.content, input, current_d_output_buffer_view, d_input, content_buffer.buffer, mode);
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void backward_full(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
-        _backward_full(device, model, input, d_output, d_input, buffers, buffers.content_buffer);
+        _backward_full(device, model, input, d_output, d_input, buffers, buffers.content_buffer, mode);
     }
     template<bool TICK = true, typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename CONTENT_BUFFER_SPEC, typename MODE = nn::mode::Default>
     void _backward_input(DEVICE& device, nn_models::sequential::ModuleBackward<MODULE_SPEC>& model, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers, nn_models::sequential::ContentBuffer<CONTENT_BUFFER_SPEC>& content_buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
@@ -276,7 +276,7 @@ namespace rl_tools{
         constexpr TI BATCH_SIZE = D_OUTPUT_SPEC::ROWS;
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            backward_input(device, model.content, d_output, d_input, content_buffer.buffer);
+            backward_input(device, model.content, d_output, d_input, content_buffer.buffer, mode);
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
@@ -287,7 +287,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void backward_input(DEVICE& device, nn_models::sequential::ModuleBackward<MODULE_SPEC>& model, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        _backward_input(device, model, d_output, d_input, buffers, buffers.content_buffer);
+        _backward_input(device, model, d_output, d_input, buffers, buffers.content_buffer, mode);
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void backward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC> buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
@@ -297,11 +297,11 @@ namespace rl_tools{
         // This backward function is called on the final, complete module, the following are called for each submodule, hence the full backward only for the next module (to save the calc for d_input)
         if constexpr(!NEXT_IS_FINAL){
             auto current_d_input_buffer_view = view(device, buffers.tick, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            _backward_full<false>(device, model.next_module, output(model.content), d_output, current_d_input_buffer_view, buffers, buffers.content_buffer.next_content_buffer);
-            backward(device, model.content, input, current_d_input_buffer_view, buffers.content_buffer.buffer);
+            _backward_full<false>(device, model.next_module, output(model.content), d_output, current_d_input_buffer_view, buffers, buffers.content_buffer.next_content_buffer, mode);
+            backward(device, model.content, input, current_d_input_buffer_view, buffers.content_buffer.buffer, mode);
         }
         else{
-            backward(device, model.content, input, d_output, buffers.content_buffer.buffer);
+            backward(device, model.content, input, d_output, buffers.content_buffer.buffer, mode);
         }
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
