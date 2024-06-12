@@ -201,8 +201,6 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void min_value_d_output_per_sample(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, typename DEVICE::index_t batch_i) {
-//        auto critic_1_output = actor_critic.critic_1.content.output_layer.output; //output(actor_critic.critic_1);
-//        auto critic_2_output = actor_critic.critic_2.content.output_layer.output; //output(actor_critic.critic_2);
         auto critic_1_output = output(actor_critic.critic_1);
         auto critic_2_output = output(actor_critic.critic_2);
         using TI = typename DEVICE::index_t;

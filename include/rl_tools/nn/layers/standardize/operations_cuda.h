@@ -48,8 +48,8 @@ namespace rl_tools{
             }
         }
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG>
-    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::standardize::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::standardize::Buffer& buffer, RNG& rng) {
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void evaluate(devices::CUDA<DEV_SPEC>& device, const nn::layers::standardize::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::standardize::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -65,14 +65,14 @@ namespace rl_tools{
         nn::layers::standardize::cuda::kernel::evaluate<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, input, output);
         check_status(device);
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG>
-    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng){
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerBackward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         nn::layers::standardize::Buffer buffer;
         evaluate(device, layer, input, output, buffer, rng);
     }
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG>
-    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, RNG& rng){
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, INPUT_SPEC, typename decltype(layer.output)::SPEC>);
         forward(device, layer, input, layer.output, rng);
     }
@@ -83,8 +83,8 @@ namespace rl_tools{
 //        copy(device, device, layer.output, output);
 //    }
 
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward_input(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::standardize::Buffer& buffer){
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = nn::mode::Default>
+    void backward_input(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerBackward<LAYER_SPEC>& layer, const Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::standardize::Buffer& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(nn::layers::standardize::check_input_output<LAYER_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
         static_assert(LAYER_SPEC::INPUT_DIM == LAYER_SPEC::OUTPUT_DIM);
@@ -106,15 +106,15 @@ namespace rl_tools{
         check_status(device);
     }
 
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC>
-    void backward(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn::layers::standardize::Buffer& buffer) {
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = nn::mode::Default>
+    void backward(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn::layers::standardize::Buffer& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         // this is a no-op as the standardize layer does not have trainable parameters
     }
 
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::standardize::Buffer& buffer) {
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = nn::mode::Default>
+    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::standardize::Buffer& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         // this is the same as the standardize layer does not have trainable parameters
-        backward_input(device, layer, d_output, d_input);
+        backward_input(device, layer, d_output, d_input, mode);
     }
     template<typename DEV_SPEC, typename SPEC>
     void zero_gradient(devices::CUDA<DEV_SPEC>& device, nn::layers::standardize::LayerGradient<SPEC>& layer) {

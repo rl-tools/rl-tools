@@ -68,7 +68,7 @@ namespace rl_tools{
             }
             {
 //                auto start = std::chrono::high_resolution_clock::now();
-                auto& last_layer = get_layer<num_layers(ACTOR())-1>(device, actor);
+                auto& last_layer = get_last_layer(actor);
                 rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, last_layer.log_std.parameters, rng, step_i);
 //                auto end = std::chrono::high_resolution_clock::now();
 //                epilogue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();

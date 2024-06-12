@@ -74,7 +74,7 @@ namespace rl_tools{
         // batch needs observations, original log-probs, advantages
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
-            auto& last_layer = get_layer<num_layers(decltype(ppo.actor)())-1>(device, ppo.actor);
+            auto& last_layer = get_last_layer(ppo.actor);
             copy(device, device, last_layer.log_std.parameters, ppo_buffers.rollout_log_std);
         }
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
@@ -128,12 +128,12 @@ namespace rl_tools{
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
                 copy(device, device_evaluation, batch_observations, hybrid_buffers.observations);
-                forward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.actions, rng);
+                forward(device_evaluation, ppo_evaluation.actor, hybrid_buffers.observations, hybrid_buffers.actions, actor_buffers, rng);
                 copy(device_evaluation, device, hybrid_buffers.actions, ppo_buffers.current_batch_actions);
 //                auto abs_diff = abs_diff(device, batch_actions, buffer.actions);
 
-                auto& last_layer = get_layer<num_layers(decltype(ppo.actor)())-1>(device, ppo.actor);
-                auto& last_layer_eval = get_layer<num_layers(decltype(ppo_evaluation.actor)())-1>(device, ppo_evaluation.actor);
+                auto& last_layer = get_last_layer(ppo.actor);
+                auto& last_layer_eval = get_last_layer(ppo_evaluation.actor);
                 copy(device_evaluation, device, last_layer_eval.log_std.parameters, last_layer.log_std.parameters);
                 copy(device_evaluation, device, last_layer_eval.log_std.gradient, last_layer.log_std.gradient);
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
@@ -142,7 +142,7 @@ namespace rl_tools{
 
                         T current_action = get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
                         T rollout_action = get(batch_actions, batch_step_i, action_i);
-                        auto& last_layer = get_layer<num_layers(decltype(ppo.actor)())-1>(device, ppo.actor);
+                        auto& last_layer = get_last_layer(ppo.actor);
                         T current_action_log_std = get(last_layer.log_std.parameters, 0, action_i);
                         T current_action_std = math::exp(device.math, current_action_log_std);
                         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
@@ -166,7 +166,7 @@ namespace rl_tools{
                         // todo: think about possible implementation detail: clipping entropy bonus as well (because it changes the distribution)
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
-                            auto& last_layer = get_layer<num_layers(decltype(ppo.actor)())-1>(device, ppo.actor);
+                            auto& last_layer = get_last_layer(ppo.actor);
                             increment(last_layer.log_std.gradient, 0, action_i, d_entropy_loss_d_current_action_log_std);
 //                          derivation: d_current_action_log_prob_d_action_log_std
 //                          d_current_action_log_prob_d_action_std =  (-action_diff_by_action_std) * (-action_diff_by_action_std)      / action_std - 1 / action_std)
@@ -202,7 +202,7 @@ namespace rl_tools{
                         multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T current_d_action_log_prob_d_action_log_std = get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
-                            auto& last_layer = get_layer<num_layers(decltype(ppo.actor)())-1>(device, ppo.actor);
+                            auto& last_layer = get_last_layer(ppo.actor);
                             increment(last_layer.log_std.gradient, 0, action_i, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
                         }
                     }
@@ -224,7 +224,7 @@ namespace rl_tools{
                 copy(device, device_evaluation, batch_target_values, hybrid_buffers.target_values);
 //                forward_backward_mse(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.target_values, critic_buffers);
                 {
-                    forward(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, rng);
+                    forward(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, critic_buffers, rng);
                     nn::loss_functions::mse::gradient(device_evaluation, output(ppo_evaluation.critic), hybrid_buffers.target_values, hybrid_buffers.d_critic_output);
                     backward(device_evaluation, ppo_evaluation.critic, hybrid_buffers.observations, hybrid_buffers.d_critic_output, critic_buffers);
                 }

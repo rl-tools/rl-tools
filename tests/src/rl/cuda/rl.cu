@@ -336,13 +336,13 @@ TEST_F(RL_TOOLS_RL_CUDA, TRAIN_CRITIC_STEP_BY_STEP) {
 
 //        forward_backward_mse(device_cpu, critic_cpu, batch_cpu.observations_and_actions, critic_training_buffers_cpu.target_action_value, critic_buffers_cpu);
         {
-            rlt::forward(device_cpu, critic_cpu, batch_cpu.observations_and_actions, rng_cpu);
+            rlt::forward(device_cpu, critic_cpu, batch_cpu.observations_and_actions, critic_buffers_cpu, rng_cpu);
             rlt::nn::loss_functions::mse::gradient(device_cpu, output(critic_cpu), critic_training_buffers_cpu.target_action_value, d_critic_output_cpu);
             rlt::backward(device_cpu, critic_cpu, batch_cpu.observations_and_actions, d_critic_output_cpu, critic_buffers_cpu);
         }
 //        forward_backward_mse(device_gpu, critic_gpu, batch_gpu.observations_and_actions, critic_training_buffers_gpu.target_action_value, critic_buffers_gpu);
         {
-            rlt::forward(device_gpu, critic_gpu, batch_gpu.observations_and_actions, rng_gpu);
+            rlt::forward(device_gpu, critic_gpu, batch_gpu.observations_and_actions, critic_buffers_gpu, rng_gpu);
             rlt::nn::loss_functions::mse::gradient(device_gpu, output(critic_gpu), critic_training_buffers_gpu.target_action_value, d_critic_output_gpu);
             rlt::backward(device_gpu, critic_gpu, batch_gpu.observations_and_actions, d_critic_output_gpu, critic_buffers_gpu);
         }
