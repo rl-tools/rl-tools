@@ -10,16 +10,16 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #ifdef RL_TOOLS_ENABLE_HDF5
+#include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
 #endif
 
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
 #include <rl_tools/nn/layers/standardize/persist_code.h>
-#include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist_code.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/persist_code.h>
-#include <rl_tools/nn_models/sequential//persist_code.h>
+#include <rl_tools/nn_models/sequential/persist_code.h>
 
 #include "sac/pendulum-v1.h"
 #include "td3/pendulum-v1.h"
