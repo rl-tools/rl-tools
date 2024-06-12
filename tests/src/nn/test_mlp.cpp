@@ -75,7 +75,7 @@ protected:
         rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t>>> output_matrix;
         output_matrix._data = output;
         bool rng = false;
-        rlt::forward(device, network, input_matrix, rng);
+        rlt::forward(device, network, input_matrix, network_buffers, rng);
 //        rlt::forward(device, network, input);
         DTYPE d_loss_d_output[OUTPUT_DIM];
         rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<NN_DEVICE::index_t, 1>>> d_loss_d_output_matrix;
@@ -227,7 +227,7 @@ TEST_F(RL_TOOLS_NN_MLP_ADAM_UPDATE, AdamUpdate) {
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> output_matrix;
     output_matrix._data = output;
     bool rng = false;
-    rlt::forward(device, network, input_matrix, rng);
+    rlt::forward(device, network, input_matrix, network_buffers, rng);
     DTYPE d_loss_d_output[OUTPUT_DIM];
     rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t>>> d_loss_d_output_matrix;
     d_loss_d_output_matrix._data = d_loss_d_output;
@@ -326,7 +326,7 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatch) {
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
             output_matrix._data = output;
             bool rng = false;
-            rlt::forward(device, network, input_matrix, rng);
+            rlt::forward(device, network, input_matrix, network_buffers, rng);
             DTYPE d_loss_d_output[OUTPUT_DIM];
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix;
             d_loss_d_output_matrix._data = d_loss_d_output;
@@ -394,7 +394,7 @@ TEST_F(RL_TOOLS_NN_MLP_OVERFIT_BATCH, OverfitBatches) {
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
                 output_matrix._data = output;
                 bool rng = false;
-                rlt::forward(device, network, input_matrix, rng);
+                rlt::forward(device, network, input_matrix, network_buffers, rng);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
@@ -505,7 +505,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
                 output_matrix._data = output;
                 bool rng = false;
-                rlt::forward(device, network, input_matrix, rng);
+                rlt::forward(device, network, input_matrix, network_buffers, rng);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix;
                 d_loss_d_output_matrix._data = d_loss_d_output;
@@ -545,7 +545,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, TrainModel) {
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
             output_matrix._data = output;
             bool rng = false;
-            rlt::forward(device, network, input_matrix, rng);
+            rlt::forward(device, network, input_matrix, network_buffers, rng);
             val_loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
 #ifdef RL_TOOLS_TESTS_CODE_COVERAGE
             if (sample_i >= 10){
@@ -617,7 +617,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
                 input_matrix._data = input;
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
                 output_matrix._data = output;
-                rlt::forward(device, network, input_matrix, rng);
+                rlt::forward(device, network, input_matrix, network_buffers, rng);
 //                rlt::forward(device, network, input);
                 DTYPE d_loss_d_output[OUTPUT_DIM];
                 rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> d_loss_d_output_matrix;
@@ -657,7 +657,7 @@ TEST_F(RL_TOOLS_NN_MLP_TRAIN_MODEL, ModelInitTrain) {
             input_matrix._data = input;
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, NN_DEVICE::index_t, 1, OUTPUT_DIM>> output_matrix;
             output_matrix._data = output;
-            rlt::forward(device, network, input_matrix, rng);
+            rlt::forward(device, network, input_matrix, network_buffers, rng);
 //            rlt::forward(device, network, input);
             val_loss += rlt::nn::loss_functions::mse::evaluate(device, network.output_layer.output, output_matrix, DTYPE(1)/batch_size);
 #ifdef RL_TOOLS_TESTS_CODE_COVERAGE

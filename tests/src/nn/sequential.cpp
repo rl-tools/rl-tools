@@ -457,3 +457,58 @@ TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD){
         ASSERT_LT(abs_diff_grad_b_3, THRESHOLD);
     }
 }
+
+TEST(RL_TOOLS_NN_MODELS_MLP_SEQUENTIAL, TEST_BACKWARD_2){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = float;
+    using TI = typename DEVICE::index_t;
+    constexpr TI BATCH_SIZE = 1;
+    constexpr T THRESHOLD = 1e-8;
+
+    using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 5, 10, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 10, 6, rlt::nn::activation_functions::ActivationFunction::RELU>;
+    using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 6, 2, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
+    using SEQUENTIAL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
+
+    std::cout << "Max hidden dim: " << rlt::nn_models::sequential::find_max_hiddend_dim<TI, typename SEQUENTIAL::SPEC>() << std::endl;
+
+    DEVICE device;
+    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 1);
+
+    LAYER_1::Layer<CAPABILITY_ADAM> layer_1;
+    LAYER_2::Layer<CAPABILITY_ADAM> layer_2;
+    LAYER_3::Layer<CAPABILITY_ADAM> layer_3;
+
+    decltype(layer_3)::Buffer<1> layer_buffer;
+
+    SEQUENTIAL sequential;
+    SEQUENTIAL::Buffer<1> buffer_sequential;
+
+    rlt::malloc(device, sequential);
+    rlt::malloc(device, buffer_sequential);
+
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 5>> input;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 5>> d_input_sequential;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> output_sequential;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, 2>> d_output;
+    rlt::malloc(device, input);
+    rlt::malloc(device, d_input_sequential);
+    rlt::malloc(device, output_sequential);
+    rlt::malloc(device, d_output);
+
+    rlt::randn(device, input, rng);
+    rlt::randn(device, d_output, rng);
+    rlt::print(device, input);
+
+    rlt::forward(device, sequential, input, output_sequential, buffer_sequential, rng);
+    rlt::zero_gradient(device, sequential);
+    rlt::backward_full(device, sequential, input, d_output, d_input_sequential, buffer_sequential);
+
+    rlt::print(device, d_input_sequential);
+}

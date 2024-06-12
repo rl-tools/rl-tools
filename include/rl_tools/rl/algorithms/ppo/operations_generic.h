@@ -160,7 +160,7 @@ namespace rl_tools{
 //                add_scalar(device, device.logger, "ppo/advantage/mean", advantage_mean);
 //                add_scalar(device, device.logger, "ppo/advantage/std", advantage_std);
 
-                forward(device, ppo.actor, batch_observations, ppo_buffers.current_batch_actions, rng);
+                forward(device, ppo.actor, batch_observations, ppo_buffers.current_batch_actions, actor_buffers, rng);
 //                auto abs_diff = abs_diff(device, batch_actions, dataset.actions);
 
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
@@ -258,7 +258,7 @@ namespace rl_tools{
                 backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, actor_buffers);
 //                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
                 {
-                    forward(device, ppo.critic, batch_observations, rng);
+                    forward(device, ppo.critic, batch_observations, critic_buffers, rng);
                     nn::loss_functions::mse::gradient(device, output(ppo.critic), batch_target_values, ppo_buffers.d_critic_output, 0.5);
                     backward(device, ppo.critic, batch_observations, ppo_buffers.d_critic_output, critic_buffers);
                 }

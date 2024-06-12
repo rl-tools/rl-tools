@@ -183,10 +183,10 @@ namespace rl_tools{
         _evaluate<TICK>(device, model, input, output, buffers, buffers.content_buffer, rng, mode);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void _forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        forward(device, module.content, input, buffers.buffer, rng, mode);
+    void _forward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& module, INPUT& input, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+        forward(device, module.content, input, buffer.buffer, rng, mode);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            _forward(device, module.next_module, rl_tools::output(module.content), buffers.next_content_buffer, rng, mode);
+            _forward(device, module.next_module, rl_tools::output(module.content), buffer.next_content_buffer, rng, mode);
         }
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
@@ -236,7 +236,7 @@ namespace rl_tools{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
             auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             _backward_full<!TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer);
-            backward_full(device, model.content, input, current_d_output_buffer, d_input, content_buffer.buffer);
+            backward_full(device, model.content, input, current_d_output_buffer_view, d_input, content_buffer.buffer);
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
@@ -326,7 +326,15 @@ namespace rl_tools{
     void sample(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng){
         sample(device, buffers.content_buffer, rng);
     }
-
+    template <typename DEVICE, typename SPEC>
+    void print(DEVICE& device, const nn_models::sequential::ModuleForward<SPEC>& model, typename DEVICE::index_t layer_i = 0){
+        using TI = typename DEVICE::index_t;
+        using LAYER_TYPE = decltype(model.content);
+        log(device, device.logger, "Layer ", layer_i, ": ", LAYER_TYPE::INPUT_DIM, " => ", LAYER_TYPE::OUTPUT_DIM);
+        if constexpr(!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            print(device, model.next_module, layer_i + 1);
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

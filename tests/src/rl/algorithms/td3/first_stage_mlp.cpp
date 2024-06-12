@@ -253,7 +253,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_FIRST_STAGE, TEST_CRITIC_BACKWARD) {
 
 //        rlt::forward_backward_mse(device, actor_critic.critic_1, input, target, critic_buffers, DTYPE(1)/32);
         {
-            rlt::forward(device, actor_critic.critic_1, input, rng);
+            rlt::forward(device, actor_critic.critic_1, input, critic_buffer, rng);
             rlt::nn::loss_functions::mse::gradient(device, actor_critic.critic_1.output_layer.output, target, d_output_critic, DTYPE(1)/32);
             rlt::backward_full(device, actor_critic.critic_1, input, d_output_critic, d_input_critic, critic_buffers);
         }

@@ -105,8 +105,8 @@ void test_correctness(){
         ASSERT_LT(abs_diff, CONFIG::THRESHOLD);
     }
 
-    rlt::forward(device, model, input, output, rng);
-    rlt::forward(sdevice, sequential_model, input, output_sequential, rng);
+    rlt::forward(device, model, input, output, buffer, rng);
+    rlt::forward(sdevice, sequential_model, input, output_sequential, sequential_buffer, rng);
 
     {
         auto abs_diff = rlt::abs_diff(device, output, output_sequential);
@@ -165,8 +165,8 @@ void test_correctness(){
     rlt::reset_optimizer_state(sdevice, sequential_optimizer, sequential_model);
     rlt::zero_gradient(device, model);
     rlt::zero_gradient(sdevice, sequential_model);
-    rlt::forward(device, model, input, output, rng);
-    rlt::forward(sdevice, sequential_model, input, output_sequential, rng);
+    rlt::forward(device, model, input, output, buffer, rng);
+    rlt::forward(sdevice, sequential_model, input, output_sequential, sequential_buffer, rng);
     rlt::backward_full(device, model, input, d_output, d_input, buffer);
     rlt::backward_full(sdevice, sequential_model, input, d_output, d_input_sequential, sequential_buffer);
 
@@ -241,6 +241,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, CORRECTNESS_BACKWARD_PARAMS_CPU_BLAS){
 template <typename DEVICE, typename CONFIG>
 void test_benchmark(){
     typename CONFIG::MODEL model;
+    typename CONFIG::MODEL::template Buffer<CONFIG::BATCH_SIZE> buffer;
     DEVICE device;
     typename CONFIG::SEQUENTIAL_MODEL sequential_model;
     typename CONFIG::SEQUENTIAL_MODEL::template Buffer<CONFIG::BATCH_SIZE> sequential_buffer;
@@ -270,7 +271,7 @@ void test_benchmark(){
     rlt::copy(device, device, model.hidden_layers[0], sequential_model.next_module.content);
     rlt::copy(device, device, model.output_layer, sequential_model.next_module.next_module.content);
 
-    rlt::forward(device, model, input, output, rng);
+    rlt::forward(device, model, input, output, buffer, rng);
     rlt::evaluate(device, sequential_model, input, output_sequential, sequential_buffer, rng);
 
     rlt::print(device, output);

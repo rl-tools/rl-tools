@@ -2,6 +2,7 @@
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
+#include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
@@ -50,9 +51,21 @@ namespace config{
                 static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
                 using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
                 using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
-
+                struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
+                    static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
+                    static constexpr T LOG_STD_UPPER_BOUND = PARAMETERS::LOG_STD_UPPER_BOUND;
+                    static constexpr T LOG_PROBABILITY_EPSILON = PARAMETERS::LOG_PROBABILITY_EPSILON;
+                    static constexpr bool ADAPTIVE_ALPHA = PARAMETERS::ADAPTIVE_ALPHA;
+                    static constexpr T ALPHA = PARAMETERS::ALPHA;
+                    static constexpr T TARGET_ENTROPY = PARAMETERS::TARGET_ENTROPY;
+                };
                 using IF = nn_models::sequential::Interface<CAPABILITY>;
-                using MODEL = typename IF::template Module<LAYER_0::template Layer, typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer>>>>;
+                using SAMPLE_AND_SQUASH_LAYER_SPEC = nn::layers::sample_and_squash::Specification<T, TI, ENVIRONMENT::ACTION_DIM, SAMPLE_AND_SQUASH_LAYER_PARAMETERS>;
+                using SAMPLE_AND_SQUASH_LAYER = nn::layers::sample_and_squash::BindSpecification<SAMPLE_AND_SQUASH_LAYER_SPEC>;
+//                using SAMPLE_AND_SQUASH_MODULE = typename IF::template Module<SAMPLE_AND_SQUASH_LAYER::template Layer>;
+
+//                using MODEL = typename IF::template Module<LAYER_0::template Layer, typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer, SAMPLE_AND_SQUASH_MODULE>>>>;
+                using MODEL = typename IF::template Module<LAYER_0::template Layer, typename IF::template Module<LAYER_1::template Layer, typename IF::template Module<LAYER_2::template Layer, typename IF::template Module<LAYER_3::template Layer, typename IF::template Module<SAMPLE_AND_SQUASH_LAYER::template Layer>>>>>;
             };
 
             template <typename CAPABILITY>
@@ -146,3 +159,25 @@ TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, DETRIMENT_TRAINING) {
     ASSERT_GT(return_10000x / return_10x, 3);
 #endif
 }
+
+//TEST(RL_TOOLS_NN_LAYERS_STANDARDIZE, DETRIMENT_TRAINING_DEBUG) {
+//    using LOOP_CONFIG = typename config::_LoopConfig<ENVIRONMENT>::LOOP_CONFIG;
+//    DEVICE device;
+//    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
+//    typename LOOP_CONFIG::template State<LOOP_CONFIG> ts;
+//    rlt::print(device, ts.actor_critic.actor);
+//
+//    constexpr TI INPUT_DIM = decltype(ts.actor_critic.actor)::INPUT_DIM;
+//    constexpr TI OUTPUT_DIM = decltype(ts.actor_critic.actor)::OUTPUT_DIM;
+//    auto& actor_buffer = ts.actor_buffers[0];
+//    constexpr TI BATCH_SIZE = rlt::utils::typing::remove_reference<decltype(actor_buffer)>::type::BATCH_SIZE;
+//    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
+//    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, BATCH_SIZE, OUTPUT_DIM>> output, d_output;
+//
+//    rlt::malloc(device, ts);
+//    rlt::init(device, ts, 0);
+//
+//    rlt::forward(device, ts.actor_critic.actor, input, output, actor_buffer, rng);
+//    rlt::backward(device, ts.actor_critic.actor, input, d_output, actor_buffer);
+//
+//}

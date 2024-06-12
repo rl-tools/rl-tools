@@ -1,7 +1,9 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/rl/environments/acrobot/operations_generic.h>
 #ifdef RL_TOOLS_ENABLE_GTK
@@ -34,7 +36,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI CRITIC_NUM_LAYERS = 3;
     static constexpr TI CRITIC_HIDDEN_DIM = 256;
 };
-using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;

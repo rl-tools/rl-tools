@@ -46,6 +46,7 @@ option(RL_TOOLS_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(RL_TOOLS_COMPILER_FLAGS "Additional compiler flags" OFF)
 option(RL_TOOLS_DISABLE_CPU_SPECIFIC_OPTIMIZATIONS "Disable CPU specific optimizations (e.g. for building portable Docker containers)" OFF)
 option(RL_TOOLS_DISABLE_ALIGNED_MEMORY_ALLOCATIONS "Memory allocations are 64 byte / 512 bit aligned by default. Disable the alignment of memory allocations" OFF)
+option(RL_TOOLS_DEBUG_COMPILER_OPTIONS "Options like -ftemplate-backtrace-limit=0" OFF)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release" AND RL_TOOLS_ENABLE_LTO)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
@@ -97,8 +98,8 @@ if(RL_TOOLS_WARNINGS_AS_ERRORS)
             -Wall -Wextra -Werror
             -Wno-error=unused-parameter
             -Wno-error=unused-variable
-            -Wno-error=unused-local-typedef
             -Wno-error=unused-but-set-variable
+            -Wno-error=unused-local-typedefs
             -Wno-error=unused-lambda-capture
         >
     )
@@ -107,7 +108,7 @@ target_compile_options(rl_tools_core_definitions INTERFACE
     $<$<AND:$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>,$<NOT:$<COMPILE_LANGUAGE:CUDA>>>:
         -Wno-unused-parameter
         -Wno-unused-variable
-        -Wno-unused-local-typedef
+        -Wno-unused-local-typedefs
         -Wno-unused-but-set-variable
         -Wno-unused-lambda-capture
     >
@@ -117,6 +118,14 @@ target_compile_options(rl_tools_core_definitions INTERFACE
         /wd4189   # 'identifier' : local variable is initialized but not referenced
     >
 )
+if(RL_TOOLS_DEBUG_COMPILER_OPTIONS)
+    target_compile_options(rl_tools_core_definitions INTERFACE
+            $<$<AND:$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>,$<NOT:$<COMPILE_LANGUAGE:CUDA>>>:
+            -ftemplate-backtrace-limit=0
+            >
+    )
+endif()
+
 
 
 target_link_libraries(rl_tools_core_definitions INTERFACE rl_tools_core)

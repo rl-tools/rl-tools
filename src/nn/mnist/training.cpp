@@ -103,7 +103,7 @@ int main(){
                 auto input = rlt::row(device, x_train, batch_i * BATCH_SIZE + sample_i);
                 auto output = rlt::row(device, y_train, batch_i * BATCH_SIZE + sample_i);
                 auto prediction = rlt::row(device, rlt::output(network), 0);
-                rlt::forward(device, network, input, rng);
+                rlt::forward(device, network, input, buffers, rng);
                 rlt::nn::loss_functions::categorical_cross_entropy::gradient(device, prediction, output, d_loss_d_output_matrix, T(1)/((T)BATCH_SIZE));
                 loss += rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, prediction, output, T(1)/((T)BATCH_SIZE));
 
@@ -130,7 +130,7 @@ int main(){
             auto input = rlt::row(device, x_val, sample_i);
             auto output = rlt::row(device, y_val, sample_i);
 
-            rlt::forward(device, network, input, rng);
+            rlt::forward(device, network, input, buffers, rng);
             val_loss += rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, rlt::output(network), output, T(1)/BATCH_SIZE);
             TI predicted_label = rlt::argmax_row(device, rlt::output(network));
             for(TI row_i = 0; row_i < 28; row_i++){
