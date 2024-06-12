@@ -9,7 +9,7 @@ namespace rl_tools::nn{
     // note: please use the same mode for affiliated forward and backward passes
     namespace mode{
         struct Default{};
-        struct Inference{};
+        struct Inference{}; // this is what is passed by rl::utils::evaluation
     }
     template <typename MODE>
     struct Mode: MODE{};
