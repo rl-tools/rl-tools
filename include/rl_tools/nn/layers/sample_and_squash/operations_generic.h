@@ -237,7 +237,7 @@ namespace rl_tools{
 
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
-    void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+    typename SPEC::T backward_full_per_sample(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>&, typename SPEC::T alpha, typename DEVICE::index_t batch_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::DIM;
@@ -262,47 +262,55 @@ namespace rl_tools{
         d/d_mu min(Q_1, Q_2) = d/d_action min(Q_1, Q_2) * d/d_mu action
         d/d_mu action = d/d_action_sample tanh(action_sample) * d/d_mu action_sample
 */
+        T d_alpha = 0;
+        T entropy = 0;
+        for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+            T action = get(layer.output, batch_i, action_i); // tanh(action_sample)
+            T d_mu = 0;
+            T d_std = 0;
+            T d_output_value = get(d_output, batch_i, action_i);
+            T d_tanh_pre_activation = d_output_value * (1-action*action);
+            d_mu = d_tanh_pre_activation;
+            d_std = d_tanh_pre_activation * get(layer.noise, batch_i, action_i);
+            T log_std_pre_clamp = get(input, batch_i, action_i + ACTION_DIM);
+            T log_std_clamped = math::clamp(device.math, log_std_pre_clamp, (T)SPEC::PARAMETERS::LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::LOG_STD_UPPER_BOUND);
+            T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_clamped);
+
+            T d_log_std_clamped = std * d_std;
+
+            T mu = get(input, batch_i, action_i);
+            T action_sample = get(layer.pre_squashing, batch_i, action_i);
+            T d_log_prob_d_mean = random::normal_distribution::d_log_prob_d_mean(device.random, mu, log_std_clamped, action_sample);
+            T d_log_prob_d_sample = random::normal_distribution::d_log_prob_d_sample(device.random, mu, log_std_clamped, action_sample);
+            // NOTE: The following needs to be divided by BATCH_SIZE (in contrast to the previous d_mu and d_std). d_mu and d_std are already taking into account the mean prior to the backward call of the critic. Thence the d_critic_X_input is already divided by BATCH_SIZE
+            d_mu += alpha/BATCH_SIZE * (d_log_prob_d_mean + d_log_prob_d_sample + 2*action);
+
+            T noise = get(layer.noise, batch_i, action_i);
+            T d_log_prob_d_log_std = random::normal_distribution::d_log_prob_d_log_std(device.random, mu, log_std_clamped, action_sample);
+            d_log_std_clamped += alpha/BATCH_SIZE * (d_log_prob_d_log_std + d_log_prob_d_sample * noise * std + 2*action * noise * std);
+            T d_log_std = log_std_pre_clamp < SPEC::PARAMETERS::LOG_STD_LOWER_BOUND || log_std_pre_clamp > SPEC::PARAMETERS::LOG_STD_UPPER_BOUND ? 0 : d_log_std_clamped;
+
+            set(d_input, batch_i, action_i, d_mu);
+            set(d_input, batch_i, action_i + ACTION_DIM, d_log_std);
+
+            T one_minus_action_square_plus_eps = (1-action*action + SPEC::PARAMETERS::LOG_PROBABILITY_EPSILON);
+            T action_log_prob = random::normal_distribution::log_prob(device.random, mu, log_std_clamped, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
+            entropy += -action_log_prob;
+        }
+        d_alpha += entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
+        return alpha*d_alpha; // d_log_alpha
+    }
+    template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
+    void backward_full(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn::layers::sample_and_squash::Buffer<BUFFER_SPEC>& buffer, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = INPUT_SPEC::ROWS;
         T log_alpha = get(layer.log_alpha.parameters, 0, 0);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, log_alpha);
-        T d_alpha = 0;
+        T d_log_alpha = 0;
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-            T entropy = 0;
-            for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-                T action = get(layer.output, batch_i, action_i); // tanh(action_sample)
-                T d_mu = 0;
-                T d_std = 0;
-                T d_output_value = get(d_output, batch_i, action_i);
-                T d_tanh_pre_activation = d_output_value * (1-action*action);
-                d_mu = d_tanh_pre_activation;
-                d_std = d_tanh_pre_activation * get(layer.noise, batch_i, action_i);
-                T log_std_pre_clamp = get(input, batch_i, action_i + ACTION_DIM);
-                T log_std_clamped = math::clamp(device.math, log_std_pre_clamp, (T)SPEC::PARAMETERS::LOG_STD_LOWER_BOUND, (T)SPEC::PARAMETERS::LOG_STD_UPPER_BOUND);
-                T std = math::exp(typename DEVICE::SPEC::MATH{}, log_std_clamped);
-
-                T d_log_std_clamped = std * d_std;
-
-                T mu = get(input, batch_i, action_i);
-                T action_sample = get(layer.pre_squashing, batch_i, action_i);
-                T d_log_prob_d_mean = random::normal_distribution::d_log_prob_d_mean(device.random, mu, log_std_clamped, action_sample);
-                T d_log_prob_d_sample = random::normal_distribution::d_log_prob_d_sample(device.random, mu, log_std_clamped, action_sample);
-                // NOTE: The following needs to be divided by BATCH_SIZE (in contrast to the previous d_mu and d_std). d_mu and d_std are already taking into account the mean prior to the backward call of the critic. Thence the d_critic_X_input is already divided by BATCH_SIZE
-                d_mu += alpha/BATCH_SIZE * (d_log_prob_d_mean + d_log_prob_d_sample + 2*action);
-
-                T noise = get(layer.noise, batch_i, action_i);
-                T d_log_prob_d_log_std = random::normal_distribution::d_log_prob_d_log_std(device.random, mu, log_std_clamped, action_sample);
-                d_log_std_clamped += alpha/BATCH_SIZE * (d_log_prob_d_log_std + d_log_prob_d_sample * noise * std + 2*action * noise * std);
-                T d_log_std = log_std_pre_clamp < SPEC::PARAMETERS::LOG_STD_LOWER_BOUND || log_std_pre_clamp > SPEC::PARAMETERS::LOG_STD_UPPER_BOUND ? 0 : d_log_std_clamped;
-
-                set(d_input, batch_i, action_i, d_mu);
-                set(d_input, batch_i, action_i + ACTION_DIM, d_log_std);
-
-                T one_minus_action_square_plus_eps = (1-action*action + SPEC::PARAMETERS::LOG_PROBABILITY_EPSILON);
-                T action_log_prob = random::normal_distribution::log_prob(device.random, mu, log_std_clamped, action_sample) - math::log(typename DEVICE::SPEC::MATH{}, one_minus_action_square_plus_eps);
-                entropy += -action_log_prob;
-            }
-            d_alpha += entropy - SPEC::PARAMETERS::TARGET_ENTROPY;
+            d_log_alpha += backward_full_per_sample(device, layer, input, d_output, d_input, buffer, alpha, batch_i, mode);
         }
-        T d_log_alpha = alpha * d_alpha;
         increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/BATCH_SIZE);
     }
     template<typename SPEC>
