@@ -1,3 +1,4 @@
+#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
