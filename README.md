@@ -115,18 +115,18 @@ docker run -p 8888:8888 rltools/documentation
 ```
 After running the Docker container, open the link that is displayed in the CLI (http://127.0.0.1:8888/...) in your browser and enjoy tinkering!
 
-| Chapter | Documentation                                                                                                                       | Interactive Notebook                                                                                                                                    |
-|---------|-------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 0       | [Overview                              ](https://docs.rl.tools/overview.html)                                                       | -                                                                                                                                                       |
-| 1       | [Containers                            ](https://docs.rl.tools/01-Containers.html)                                                  | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb)                  | 
-| 2       | [Multiple Dispatch                     ](https://docs.rl.tools/02-Multiple%20Dispatch.html)                                         | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=02-Multiple%20Dispatch.ipynb)         | 
-| 3       | [Deep Learning                         ](https://docs.rl.tools/03-Deep%20Learning.html)                                             | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=03-Deep%20Learning.ipynb)             | 
-| 4       | [CPU Acceleration                      ](https://docs.rl.tools/04-CPU%20Acceleration.html)                                          | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=04-CPU%20Acceleration.ipynb)          | 
-| 5       | [MNIST Classification                  ](https://docs.rl.tools/05-MNIST%20Classification.html)                                      | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=05-MNIST%20Classification.ipynb)      | 
-| 6       | [Deep Reinforcement Learning           ](https://docs.rl.tools/06-Deep%20Reinforcement%20Lear)                                      | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=06-Deep%20Reinforcement%20Learning.ipynb) | 
-| 7       | [The Loop Interface                    ](https://docs.rl.tools/07-The%20Loop%20Interface.html)                                      | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=07-The%20Loop%20Interface.ipynb) | 
-| 8       | [Custom Environment                    ](https://docs.rl.tools/08-Custom%20Environment.html)                                        | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=08-Custom%20Environment.ipynb) | 
-| 9       | [TinyRL: A Python Interface for RLtools](https://docs.rl.tools/09-TinyRL.html) | [![Run Example on Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/documentation/blob/master/docs/09-TinyRL.ipynb) | 
+| Chapter | Documentation                                                                                 | Interactive Notebook                                                                                                                                                                                                                                                                               |
+|---------|-----------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0       | [Overview                              ](https://docs.rl.tools/overview.html)                 | -                                                                                                                                                                                                                                                                                                  |
+| 1       | [Containers                            ](https://docs.rl.tools/01-Containers.html)            | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=01-Containers.ipynb)                                                                                                                                                             | 
+| 2       | [Multiple Dispatch                     ](https://docs.rl.tools/02-Multiple%20Dispatch.html)   | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=02-Multiple%20Dispatch.ipynb)                                                                                                                                                    | 
+| 3       | [Deep Learning                         ](https://docs.rl.tools/03-Deep%20Learning.html)       | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=03-Deep%20Learning.ipynb)                                                                                                                                                        | 
+| 4       | [CPU Acceleration                      ](https://docs.rl.tools/04-CPU%20Acceleration.html)    | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=04-CPU%20Acceleration.ipynb)                                                                                                                                                     | 
+| 5       | [MNIST Classification                  ](https://docs.rl.tools/05-MNIST%20Classification.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=05-MNIST%20Classification.ipynb)                                                                                                                                                 | 
+| 6       | [Deep Reinforcement Learning           ](https://docs.rl.tools/06-Deep%20Reinforcement%20Lear) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=06-Deep%20Reinforcement%20Learning.ipynb)                                                                                                                                        | 
+| 7       | [The Loop Interface                    ](https://docs.rl.tools/07-The%20Loop%20Interface.html) | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=07-The%20Loop%20Interface.ipynb)                                                                                                                                                 | 
+| 8       | [Custom Environment                    ](https://docs.rl.tools/08-Custom%20Environment.html)  | [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/rl-tools/documentation/binder?labpath=08-Custom%20Environment.ipynb)                                                                                                                                                   | 
+| 9       | [Python Interface                      ](https://docs.rl.tools/09-Python%20Interface.html)                | [![Run Example on Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/documentation/blob/master/docs/09-Python%20Interface.ipynb) | 
 
 
 [//]: # (## Content)
@@ -188,20 +188,22 @@ For maximum performance and malleability for research and development we recomme
 
 #### [Windows instructions & examples](examples/windows/README.MD)
 
-### Python Bindings: <span style="color:#7DB9B6">TinyRL</span>
+### Python Interface
 
-We provide experimental Python bindings available as `tinyrl`. Note that the Python bindings are still work in progress and using Python Gym environments slows down the trianing significantly compared to native <span style="color:#7DB9B6">RLtools</span> environments.
+We provide Python bindings that available as `rltools` through PyPI (the pip package index). Note that using Python Gym environments can slow down the trianing significantly compared to native <span style="color:#7DB9B6">RLtools</span> environments.
 ```
-pip install tinyrl gymnasium
+pip install rltools gymnasium
 ```
 Usage:
 ```
-from tinyrl import SAC
+from rltools import SAC
 import gymnasium as gym
+from gymnasium.experimental.wrappers import RescaleActionV0
 
 seed = 0xf00d
 def env_factory():
     env = gym.make("Pendulum-v1")
+    env = RescaleActionV0(env, -1, 1)
     env.reset(seed=seed)
     return env
 
@@ -212,7 +214,7 @@ finished = False
 while not finished:
     finished = state.step()
 ```
-Note that the Python interface is currently only tested on Linux and macOS. 
+You can find more details in the [Python Interface documentation](https://docs.rl.tools/09-Python%20Interface.html) and from the repository [rl-tools/python-interface](https://github.com/rl-tools/python-interface).
 
 ## Embedded Platforms
 ### Inference & Training
