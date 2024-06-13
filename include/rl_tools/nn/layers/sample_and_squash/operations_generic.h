@@ -73,7 +73,10 @@ namespace rl_tools{
         copy(source_device, target_device, source.noise, target.noise);
     }
     template <typename DEVICE, typename SPEC, typename RNG>
+    void init_weights(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC>& layer, RNG& rng){ }
+    template <typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, RNG& rng){
+        init_weights(device, static_cast<nn::layers::sample_and_squash::LayerForward<SPEC>&>(layer), rng);
         set(layer.log_alpha.parameters, 0, 0, math::log(typename DEVICE::SPEC::MATH{}, SPEC::PARAMETERS::ALPHA));
     }
     template <typename DEVICE, typename SPEC>

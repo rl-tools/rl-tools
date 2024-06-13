@@ -90,6 +90,42 @@ else()
         message(WARNING "test_nn_models_sequential_persist_code_compile_model_mlp_forward is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_mlp_forward.h")
 endif()
 
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sample_and_squash_forward.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_sample_and_squash_forward persist_code_compile_model_sample_and_squash_forward.cpp)
+        target_link_libraries(test_nn_models_sequential_persist_code_compile_model_sample_and_squash_forward
+                PRIVATE
+                rl_tools
+                rl_tools_test
+        )
+        gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_sample_and_squash_forward)
+else()
+        message(WARNING "test_nn_models_sequential_persist_code_compile_model_sample_and_squash_forward is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sample_and_squash_forward.h")
+endif()
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sample_and_squash_backward.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_sample_and_squash_backward persist_code_compile_model_sample_and_squash_backward.cpp)
+        target_link_libraries(test_nn_models_sequential_persist_code_compile_model_sample_and_squash_backward
+                PRIVATE
+                rl_tools
+                rl_tools_test
+        )
+        gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_sample_and_squash_backward)
+else()
+        message(WARNING "test_nn_models_sequential_persist_code_compile_model_sample_and_squash_backward is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sample_and_squash_backward.h")
+endif()
+
+if(EXISTS ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sample_and_squash_gradient.h)
+        add_executable(test_nn_models_sequential_persist_code_compile_model_sample_and_squash_gradient persist_code_compile_model_sample_and_squash_gradient.cpp)
+        target_link_libraries(test_nn_models_sequential_persist_code_compile_model_sample_and_squash_gradient
+                PRIVATE
+                rl_tools
+                rl_tools_test
+        )
+        gtest_discover_tests(test_nn_models_sequential_persist_code_compile_model_sample_and_squash_gradient)
+else()
+        message(WARNING "test_nn_models_sequential_persist_code_compile_model_sample_and_squash_gradient is disabled because the file ${PROJECT_SOURCE_DIR}/tests/data/nn_models_sequential_persist_code_model_sample_and_squash_gradient.h")
+endif()
+
 add_executable(
         test_nn_models_sequential_d_input_benchmark
         d_input_benchmark.cpp

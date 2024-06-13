@@ -23,7 +23,7 @@ namespace rl_tools {
             using TI = typename DEVICE::index_t;
             std::stringstream ss, ss_header;
             ss_header << input.header;
-            ss_header << "#include <rl_tools/nn/layers/dense/layer.h>\n";
+            ss_header << "#include <rl_tools/nn/layers/sample_and_squash/layer.h>\n";
             ss << input.body;
             ss << ind << "namespace " << name << " {\n";
             ss << ind << "    using SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Specification<"
@@ -37,15 +37,15 @@ namespace rl_tools {
             ss << ind << "    " << "using TYPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::sample_and_squash::Layer<CAPABILITY, SPEC>;" << "\n";
             std::string initializer_list;
             if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Forward){
-                initializer_list = "{weights::parameters, biases::parameters}";
+                initializer_list = "{}";
             }
             else{
                 if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Backward){
-                    initializer_list = "{{weights::parameters, biases::parameters}, pre_activations::container}";
+                    initializer_list = "{{}, pre_squashing::container, noise::container}";
                 }
                 else{
                     if constexpr(SPEC::CAPABILITY::TAG == nn::LayerCapability::Gradient){
-                        initializer_list = "{{{weights::parameters, biases::parameters}, pre_activations::container}, output::container}";
+                        initializer_list = "{{{}, pre_squashing::container, noise::container}, log_probabilities::container, output::container, log_alpha::parameters}";
                     }
                     else{
                         utils::assert_exit(device, false, "Unknown capability");
@@ -61,7 +61,12 @@ namespace rl_tools {
     }
     template<typename DEVICE, typename SPEC>
     persist::Code save_code_split(DEVICE& device, nn::layers::sample_and_squash::LayerForward<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool finish=true){
-        return {"", ""};
+        if(finish){
+            return nn::layers::sample_and_squash::persist_code::finish(device, layer, name, {"", ""}, const_declaration, indent);
+        }
+        else{
+            return {"", ""};
+        }
     }
     template<typename DEVICE, typename SPEC>
     persist::Code save_code_split(DEVICE& device, nn::layers::sample_and_squash::LayerBackward<SPEC> &layer, std::string name, bool const_declaration=false, typename DEVICE::index_t indent=0, bool finish=true){
