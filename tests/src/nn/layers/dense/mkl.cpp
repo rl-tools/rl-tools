@@ -49,7 +49,7 @@ void test(){
     }
 }
 
-TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
+TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION_MKL) {
     using TI = typename DEVICE_MKL::index_t;
     test<float, TI, 5, 5, 1>();
     test<float, TI, 5, 5, 2>();
