@@ -12,6 +12,7 @@ const T STATE_TOLERANCE = 1e-13;
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
     using DEVICE = rlt::devices::DefaultCPU;
+    using TI = typename DEVICE::index_t;
     typedef rlt::rl::environments::acrobot::Specification<T, DEVICE::index_t, rlt::rl::environments::acrobot::DefaultParameters<T>> ACROBOT_SPEC;
     typedef rlt::rl::environments::Acrobot<ACROBOT_SPEC> ENVIRONMENT;
     std::string DATA_FILE_NAME = "rl_environments_acrobot_test_data.h5";
@@ -22,7 +23,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{}, 0);
     HighFive::File file(DATA_FILE_PATH, HighFive::File::ReadOnly);
     auto episodes_group = file.getGroup("episodes");
-    for(int episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){
+    for(TI episode_i = 0; episode_i < episodes_group.getNumberObjects(); episode_i++){
         auto episode_group = episodes_group.getGroup(std::to_string(episode_i));
         std::vector<std::vector<T>> states;
         std::vector<std::vector<T>> actions;
@@ -40,11 +41,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
         std::cout << "episode i: " << episode_i << std::endl;
         ENVIRONMENT env;
         ENVIRONMENT::State state;
-        state.theta_0 = states[0][0];
-        state.theta_1 = states[0][1];
-        state.theta_0_dot = states[0][2];
-        state.theta_1_dot = states[0][3];
-        for(int step_i = 0; step_i < states.size(); step_i++){
+        state.theta_1 = states[0][0];
+        state.theta_2 = states[0][1];
+        state.theta_1_dot = states[0][2];
+        state.theta_2_dot = states[0][3];
+        for(TI step_i = 0; step_i < states.size(); step_i++){
             std::cout << "step i: " << step_i << std::endl;
             ENVIRONMENT::State next_state;
             rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
@@ -53,28 +54,28 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
             rlt::step(device, env, state, action, next_state, rng);
             T r = rlt::reward(device, env, state, action, next_state, rng);
             T abs_diff = 0;
-            abs_diff += abs(states[step_i][0] - state.theta_0);
-            abs_diff += abs(states[step_i][1] - state.theta_1);
-            abs_diff += abs(states[step_i][2] - state.theta_0_dot);
-            abs_diff += abs(states[step_i][3] - state.theta_1_dot);
-            abs_diff += abs(next_states[step_i][0] - next_state.theta_0);
-            abs_diff += abs(next_states[step_i][1] - next_state.theta_1);
-            abs_diff += abs(next_states[step_i][2] - next_state.theta_0_dot);
-            abs_diff += abs(next_states[step_i][3] - next_state.theta_1_dot);
+            abs_diff += abs(states[step_i][0] - state.theta_1);
+            abs_diff += abs(states[step_i][1] - state.theta_2);
+            abs_diff += abs(states[step_i][2] - state.theta_1_dot);
+            abs_diff += abs(states[step_i][3] - state.theta_2_dot);
+            abs_diff += abs(next_states[step_i][0] - next_state.theta_1);
+            abs_diff += abs(next_states[step_i][1] - next_state.theta_2);
+            abs_diff += abs(next_states[step_i][2] - next_state.theta_1_dot);
+            abs_diff += abs(next_states[step_i][3] - next_state.theta_2_dot);
             std::cout << "abs_diff: " << abs_diff << std::endl;
             if(abs_diff > STATE_TOLERANCE){
                 std::cout << "problem" << std::endl;
             }
 
-            EXPECT_NEAR(     states[step_i][0], state.theta_0, STATE_TOLERANCE);
-            EXPECT_NEAR(     states[step_i][1], state.theta_1, STATE_TOLERANCE);
-            EXPECT_NEAR(     states[step_i][2], state.theta_0_dot, STATE_TOLERANCE);
-            EXPECT_NEAR(     states[step_i][3], state.theta_1_dot, STATE_TOLERANCE);
-            EXPECT_NEAR(    rewards[step_i]   , r, STATE_TOLERANCE);
-            EXPECT_NEAR(next_states[step_i][0], next_state.theta_0, STATE_TOLERANCE);
-            EXPECT_NEAR(next_states[step_i][1], next_state.theta_1, STATE_TOLERANCE);
-            EXPECT_NEAR(next_states[step_i][2], next_state.theta_0_dot, STATE_TOLERANCE);
-            EXPECT_NEAR(next_states[step_i][3], next_state.theta_1_dot, STATE_TOLERANCE);
+            ASSERT_NEAR(     states[step_i][0], state.theta_1, STATE_TOLERANCE);
+            ASSERT_NEAR(     states[step_i][1], state.theta_2, STATE_TOLERANCE);
+            ASSERT_NEAR(     states[step_i][2], state.theta_1_dot, STATE_TOLERANCE);
+            ASSERT_NEAR(     states[step_i][3], state.theta_2_dot, STATE_TOLERANCE);
+            ASSERT_NEAR(    rewards[step_i]   , r, STATE_TOLERANCE);
+            ASSERT_NEAR(next_states[step_i][0], next_state.theta_1, STATE_TOLERANCE);
+            ASSERT_NEAR(next_states[step_i][1], next_state.theta_2, STATE_TOLERANCE);
+            ASSERT_NEAR(next_states[step_i][2], next_state.theta_1_dot, STATE_TOLERANCE);
+            ASSERT_NEAR(next_states[step_i][3], next_state.theta_2_dot, STATE_TOLERANCE);
 
             state = next_state;
         }

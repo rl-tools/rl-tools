@@ -1,4 +1,4 @@
-if(RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_ENABLE_GTK)
+if(RL_TOOLS_ENABLE_HDF5)
 add_executable(test_rl_environments_acrobot_comparison comparison.cpp)
 
 target_link_libraries(test_rl_environments_acrobot_comparison

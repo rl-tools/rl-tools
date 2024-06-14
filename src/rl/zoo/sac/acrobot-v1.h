@@ -11,7 +11,7 @@ namespace rlt = rl_tools;
 
 namespace rl_tools::rl::zoo::sac{
     template <typename DEVICE, typename T, typename TI, typename RNG>
-    struct PendulumV1{
+    struct AcrobotSwingupV0{
         using ENVIRONMENT_SPEC = rlt::rl::environments::acrobot::Specification<T, TI, rlt::rl::environments::acrobot::DefaultParameters<T>>;
         using ENVIRONMENT = rlt::rl::environments::AcrobotSwingup<ENVIRONMENT_SPEC>;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{

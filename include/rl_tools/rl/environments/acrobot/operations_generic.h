@@ -27,29 +27,29 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state, RNG& rng){
-        state.theta_0     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
         state.theta_1     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
-        state.theta_0_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
+        state.theta_2     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
         state.theta_1_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
+        state.theta_2_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -0.1, 0.1, rng);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, typename rl::environments::AcrobotSwingup<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
-//        state.theta_0     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
 //        state.theta_1     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
-//        state.theta_0_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_1, SPEC::PARAMETERS::MAX_VEL_1, rng);
-//        state.theta_1_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_2, SPEC::PARAMETERS::MAX_VEL_2, rng);
-        state.theta_0 = math::PI<T>;
-        state.theta_1 = 0;
-        state.theta_0_dot = 0;
+//        state.theta_2     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
+//        state.theta_1_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_1, SPEC::PARAMETERS::MAX_VEL_1, rng);
+//        state.theta_2_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_2, SPEC::PARAMETERS::MAX_VEL_2, rng);
+        state.theta_1 = math::PI<T>;
+        state.theta_2 = 0;
         state.theta_1_dot = 0;
+        state.theta_2_dot = 0;
     }
     template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state){
-        state.theta_0     = 0;
         state.theta_1     = 0;
-        state.theta_0_dot = 0;
+        state.theta_2     = 0;
         state.theta_1_dot = 0;
+        state.theta_2_dot = 0;
     }
     namespace rl::environments::acrobot{
         template <typename T, typename PARAMS>
@@ -125,10 +125,12 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using PARAMS = typename SPEC::PARAMETERS;
 
-        T state_flat[4] = {state.theta_0, state.theta_1, state.theta_0_dot, state.theta_1_dot};
+        T state_flat[4] = {state.theta_1, state.theta_2, state.theta_1_dot, state.theta_2_dot};
         T next_state_flat[4];
         T action_clamped = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
+//        action_clamped = 0;
         T action_scaled = (action_clamped + 1.0) / 2.0 * (PARAMS::MAX_TORQUE - (PARAMS::MIN_TORQUE)) + (PARAMS::MIN_TORQUE);
+        action_scaled = 0;
         rl::environments::acrobot::rk4(state_flat, action_scaled, next_state_flat, PARAMS::DT, PARAMS{});
 
         next_state_flat[0] = angle_normalize(device.math, next_state_flat[0]);
@@ -136,10 +138,10 @@ namespace rl_tools{
         next_state_flat[2] = math::clamp(    device.math, next_state_flat[2], -PARAMS::MAX_VEL_1, PARAMS::MAX_VEL_1);
         next_state_flat[3] = math::clamp(    device.math, next_state_flat[3], -PARAMS::MAX_VEL_2, PARAMS::MAX_VEL_2);
 
-        next_state.theta_0 = next_state_flat[0];
-        next_state.theta_1 = next_state_flat[1];
-        next_state.theta_0_dot = next_state_flat[2];
-        next_state.theta_1_dot = next_state_flat[3];
+        next_state.theta_1 = next_state_flat[0];
+        next_state.theta_2 = next_state_flat[1];
+        next_state.theta_1_dot = next_state_flat[2];
+        next_state.theta_2_dot = next_state_flat[3];
 
         return SPEC::PARAMETERS::DT;
     }
@@ -150,16 +152,16 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Acrobot<SPEC>::State& next_state, RNG& rng){
         using T = typename SPEC::T;
-//        return (-cos(state.theta_0) * SPEC::PARAMETERS::LINK_LENGTH_1 - cos(state.theta_1 + state.theta_0) * SPEC::PARAMETERS::LINK_LENGTH_2) * 0.01;
+//        return (-cos(state.theta_1) * SPEC::PARAMETERS::LINK_LENGTH_1 - cos(state.theta_2 + state.theta_1) * SPEC::PARAMETERS::LINK_LENGTH_2) * 0.01;
         typename DEVICE::SPEC::MATH dm;
-        T a_angle_cost = rl::environments::acrobot::angle_normalize(dm, next_state.theta_0 - math::PI<T>);
+        T a_angle_cost = rl::environments::acrobot::angle_normalize(dm, next_state.theta_1 - math::PI<T>);
         a_angle_cost *= a_angle_cost;
-        T b_angle_cost = rl::environments::acrobot::angle_normalize(dm, next_state.theta_1);
+        T b_angle_cost = rl::environments::acrobot::angle_normalize(dm, next_state.theta_2);
         b_angle_cost *= b_angle_cost;
 
-        T a_vel_cost = next_state.theta_0_dot;
+        T a_vel_cost = next_state.theta_1_dot;
         a_vel_cost *= a_vel_cost;
-        T b_vel_cost = next_state.theta_1_dot;
+        T b_vel_cost = next_state.theta_2_dot;
         b_vel_cost *= b_vel_cost;
         T torque_cost = get(action, 0, 0);
         torque_cost *= torque_cost;
@@ -172,12 +174,12 @@ namespace rl_tools{
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 6);
         typedef typename SPEC::T T;
-        set(observation, 0, 0, math::cos(device.math, state.theta_0));
-        set(observation, 0, 1, math::sin(device.math, state.theta_0));
-        set(observation, 0, 2, math::cos(device.math, state.theta_1));
-        set(observation, 0, 3, math::sin(device.math, state.theta_1));
-        set(observation, 0, 4, state.theta_0_dot);
-        set(observation, 0, 5, state.theta_1_dot);
+        set(observation, 0, 0, math::cos(device.math, state.theta_1));
+        set(observation, 0, 1, math::sin(device.math, state.theta_1));
+        set(observation, 0, 2, math::cos(device.math, state.theta_2));
+        set(observation, 0, 3, math::sin(device.math, state.theta_2));
+        set(observation, 0, 4, state.theta_1_dot);
+        set(observation, 0, 5, state.theta_2_dot);
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
@@ -197,11 +199,11 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State state, RNG& rng){
-        return (-cos(state.theta_0) - cos(state.theta_1 + state.theta_0)) > 1.0;
+        return (-cos(state.theta_1) - cos(state.theta_2 + state.theta_1)) > 1.0;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State state, RNG& rng){
-        return false; //math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_1 || math::abs(typename DEVICE::SPEC::MATH{}, state.theta_0_dot) > SPEC::PARAMETERS::MAX_VEL_2;
+        return false; //math::abs(typename DEVICE::SPEC::MATH{}, state.theta_1_dot) > SPEC::PARAMETERS::MAX_VEL_1 || math::abs(typename DEVICE::SPEC::MATH{}, state.theta_1_dot) > SPEC::PARAMETERS::MAX_VEL_2;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

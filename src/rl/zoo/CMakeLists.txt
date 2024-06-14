@@ -4,6 +4,11 @@ if(RL_TOOLS_ENABLE_ZLIB)
     target_link_libraries(rl_zoo_sac_pendulum_v1 PRIVATE RLtools::RLtools ZLIB::ZLIB)
     target_compile_definitions(rl_zoo_sac_pendulum_v1 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
     target_compile_definitions(rl_zoo_sac_pendulum_v1 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
+    # SAC AcrobotSwingup-v0
+    add_executable(rl_zoo_sac_acrobot_swingup_v0 zoo.cpp)
+    target_link_libraries(rl_zoo_sac_acrobot_swingup_v0 PRIVATE RLtools::RLtools ZLIB::ZLIB)
+    target_compile_definitions(rl_zoo_sac_acrobot_swingup_v0 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
+    target_compile_definitions(rl_zoo_sac_acrobot_swingup_v0 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
     # TD3 Pendulum-v1
     add_executable(rl_zoo_td3_pendulum_v1 zoo.cpp)
     target_link_libraries(rl_zoo_td3_pendulum_v1 PRIVATE RLtools::RLtools ZLIB::ZLIB)

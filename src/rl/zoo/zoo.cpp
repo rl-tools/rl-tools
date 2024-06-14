@@ -23,7 +23,14 @@
 #include <rl_tools/nn_models/mlp_unconditional_stddev/persist_code.h>
 #include <rl_tools/nn_models/sequential/persist_code.h>
 
+#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
+#include <rl_tools/rl/environments/acrobot/operations_cpu.h>
+#ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
+#include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
+#endif
+
 #include "sac/pendulum-v1.h"
+#include "sac/acrobot-v1.h"
 #include "td3/pendulum-v1.h"
 #include "ppo/pendulum-v1.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
@@ -59,6 +66,8 @@ std::string algorithm = "ppo";
 #endif
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 std::string environment = "pendulum-v1";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
+std::string environment = "acrobot-swingup-v0";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
 std::string environment = "ant-v4";
 #else

@@ -1,6 +1,8 @@
 #if defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_PENDULUM_V1)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::PendulumV1<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::AcrobotSwingupV0<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 #else
 #error "RLtools Zoo SAC: Environment not defined"
 #endif

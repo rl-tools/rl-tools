@@ -27,8 +27,8 @@ namespace rl_tools::rl::environments::acrobot {
     };
     template <typename T>
     struct EasyParameters: DefaultParameters<T> {
-        static constexpr T min_torque = -10;
-        static constexpr T max_torque = +10;
+        static constexpr T min_torque = -1;
+        static constexpr T max_torque = +1;
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
     struct Specification{
@@ -40,10 +40,10 @@ namespace rl_tools::rl::environments::acrobot {
     template <typename T, typename TI>
     struct State{
         static constexpr TI DIM = 4;
-        T theta_0;
         T theta_1;
-        T theta_0_dot;
+        T theta_2;
         T theta_1_dot;
+        T theta_2_dot;
     };
 
 }
