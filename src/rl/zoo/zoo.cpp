@@ -1,4 +1,4 @@
-#define RL_TOOLS_NAMESPACE_WRAPPER
+#define RL_TOOLS_NAMESPACE_WRAPPER zoo
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
