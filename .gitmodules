@@ -28,6 +28,9 @@
 [submodule "embedded_platforms/teensy"]
 	path = embedded_platforms/teensy
 	url = https://github.com/rl-tools/teensy.git
+[submodule "embedded_platforms/esp32"]
+	path = embedded_platforms/esp32
+	url = https://github.com/rl-tools/esp32.git
 
 # Dependencies
 [submodule "external/cli11"]
