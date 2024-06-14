@@ -25,7 +25,6 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <optional>
 #include <string>
 
-using T = double;
 using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 
@@ -38,7 +37,23 @@ std::optional<std::string> get_env_var(const std::string& var) {
     }
 }
 
+namespace MODEL_BENCHMARK{
+    using T_BENCHMARK = float;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T_BENCHMARK, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::groups::Input>;
+    using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T_BENCHMARK, TI, 64, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::groups::Normal>;
+    using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T_BENCHMARK, TI, 64, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::groups::Output>;
+    using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
+
+    constexpr TI BATCH_SIZE = 1;
+
+    using IF = rlt::nn_models::sequential::Interface<rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>>;
+    using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
+}
+
 namespace MODEL_1{
+    using T = double;
     using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::groups::Input>;
     using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
     using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::groups::Normal>;
@@ -52,6 +67,7 @@ namespace MODEL_1{
     using MODEL = IF::Module<LAYER_1::Layer, IF::Module<LAYER_2::Layer, IF::Module<LAYER_3::Layer>>>;
 }
 namespace MODEL_2{
+    using T = double;
     constexpr TI BATCH_SIZE = 1;
     using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
@@ -64,6 +80,7 @@ namespace MODEL_2{
 }
 
 namespace MODEL_MLP{
+    using T = double;
     constexpr TI BATCH_SIZE = 1;
     using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp::BindSpecification<ACTOR_SPEC>;
@@ -73,6 +90,7 @@ namespace MODEL_MLP{
 }
 
 namespace MODEL_SAMPLE_AND_SQUASH{
+    using T = double;
     constexpr TI BATCH_SIZE = 1;
     using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, 13, 8, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
@@ -86,6 +104,7 @@ namespace MODEL_SAMPLE_AND_SQUASH{
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
     using MODEL = MODEL_1::MODEL;
+    using T = typename MODEL::T;
 
     DEVICE device;
     MODEL model;
@@ -135,8 +154,61 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_and_load) {
     std::cout << "max hidden dim " << MODEL::Buffer<1>::SPEC::MAX_HIDDEN_DIM << std::endl;
 }
 
+TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, save_model_benchmark) {
+    using MODEL = MODEL_BENCHMARK::MODEL;
+    using T = typename MODEL::T;
+
+    DEVICE device;
+    MODEL model;
+    MODEL::Buffer<1> buffer;
+
+    auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM(), 0);
+
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, MODEL::INPUT_DIM>> input;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, MODEL::OUTPUT_DIM>> output;
+
+    rlt::malloc(device, input);
+    rlt::malloc(device, output);
+    rlt::malloc(device, model);
+    rlt::malloc(device, buffer);
+
+    rlt::init_weights(device, model, rng);
+    rlt::randn(device, input, rng);
+
+    rlt::evaluate(device, model, input, output, buffer, rng);
+
+    rlt::print(device, output);
+
+
+
+    {
+        auto model_code = rlt::save_code_split(device, model, "model", true, 1);
+        auto input_code = rlt::save_code_split(device, input, "input", true, 1);
+        auto output_code = rlt::save_code_split(device, output, "output", true, 1);
+        auto header = model_code.header + "\n" + input_code.header + "\n" + output_code.header;
+        auto body = model_code.body + "\n" + input_code.body + "\n" + output_code.body;
+
+        auto wrapped = rlt::embed_in_namespace(device, {header, body}, "rl_tools_export", 0);
+
+        auto output = wrapped.header + "\n" + wrapped.body;
+//        std::cout << "output: " << output << std::endl;
+//        std::filesystem::create_directories("data");
+        std::ofstream file;
+        std::string output_path = "tests/data/nn_models_sequential_persist_code_benchmark.h" + std::string((get_env_var("GITHUB_ACTIONS") ? ".disabled" : ""));
+        file.open(output_path, std::ios::out | std::ios::trunc);
+        std::cout << "Working directory: " << std::filesystem::current_path() << std::endl;
+        std::cout << "Full file path: " << std::filesystem::absolute(output_path) << std::endl;
+        file << output;
+        file.close();
+    }
+
+    std::cout << "output dim " << MODEL::OUTPUT_DIM << std::endl;
+    std::cout << "max hidden dim " << MODEL::Buffer<1>::SPEC::MAX_HIDDEN_DIM << std::endl;
+}
+
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
     using MODEL = MODEL_2::MODEL;
+    using T = typename MODEL::T;
 
     DEVICE device;
     MODEL model;
@@ -204,6 +276,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2) {
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
     using MODEL = MODEL_2::MODEL;
+    using T = typename MODEL::T;
 
     DEVICE device;
     using CAPABILITY_FORWARD = rlt::nn::layer_capability::Forward;
@@ -267,6 +340,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_forward) {
 }
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
     using MODEL = MODEL_2::MODEL;
+    using T = typename MODEL::T;
 
     DEVICE device;
     using CAPABILITY_BACKWARD = rlt::nn::layer_capability::Backward<1>;
@@ -331,6 +405,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_2_gradient) {
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp){
     using MODEL = MODEL_MLP::MODEL;
+    using T = typename MODEL::T;
 
     DEVICE device;
 //    using CAPABILITY_BACKWARD = rlt::nn::layer_capability::Backward<1>;
@@ -382,6 +457,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp){
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp_forward){
     using MODEL = MODEL_MLP::MODEL;
+    using T = typename MODEL::T;
 
     DEVICE device;
     using CAPABILITY_FORWARD = rlt::nn::layer_capability::Forward;
@@ -432,6 +508,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_mlp_forward){
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward){
     using MODEL = MODEL_SAMPLE_AND_SQUASH::MODEL;
+    using T = typename MODEL::T;
 
     DEVICE device;
     using CAPABILITY_FORWARD = rlt::nn::layer_capability::Forward;
@@ -482,6 +559,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_forward
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backward){
     using MODEL = MODEL_SAMPLE_AND_SQUASH::MODEL;
+    using T = typename MODEL::T;
 
     DEVICE device;
     using CAPABILITY = rlt::nn::layer_capability::Backward<3>;
@@ -532,6 +610,7 @@ TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_backwar
 
 TEST(RL_TOOLS_NN_MODELS_SEQUENTIAL_PERSIST_CODE, model_sample_and_squash_gradient){
     using MODEL = MODEL_SAMPLE_AND_SQUASH::MODEL;
+    using T = typename MODEL::T;
 
     DEVICE device;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, 3>;
