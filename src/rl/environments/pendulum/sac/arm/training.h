@@ -1,3 +1,4 @@
+
 //#define RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS
 //#include <rl_tools/operations/arm.h>
 //#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
@@ -14,9 +15,24 @@
 //#include <rl_tools/nn_models/sequential/operations_generic.h>
 //#include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
-#include <rl_tools/operations/cpu.h>
+#ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
+#include <rl_tools/operations/arm.h>
+#include <rl_tools/logging/operations_arduino.h>
+#else
+#define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
+#include <rl_tools/version.h>
+#include <rl_tools/rl_tools.h>
+#include <rl_tools/operations/arm/group_1.h>
+#include <rl_tools/operations/cpu/group_1.h>
+#include <rl_tools/operations/arm/group_2.h>
+#include <rl_tools/operations/cpu/group_2.h>
+#include <rl_tools/operations/arm/group_3.h>
+#include <rl_tools/operations/cpu/group_3.h>
+#endif
+
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
-#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/layers/dense/operations_arm/opt.h>
+#include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
@@ -47,12 +63,11 @@ namespace rlt = rl_tools;
 
 #ifdef RL_TOOLS_DEPLOYMENT_ARDUINO
 using LOGGING = rlt::devices::logging::ARDUINO;
+using DEVICE = rlt::devices::arm::OPT<rlt::devices::arm::Specification<rlt::devices::math::ARM, rlt::devices::random::ARM, LOGGING>>;
 #else
-using LOGGING = rlt::devices::logging::CPU;
+using DEVICE = rlt::devices::DefaultCPU;
 #endif
 
-using DEVICE = rlt::devices::DefaultCPU;
-//using DEVICE = rlt::devices::arm::OPT<rlt::devices::arm::Specification<rlt::devices::math::ARM, rlt::devices::random::ARM, LOGGING>>;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -71,20 +86,10 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     static constexpr TI CRITIC_NUM_LAYERS = 3;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
 };
-//template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename T_CONTAINER_TYPE_TAG>
-//struct APPROXIMATOR_CONFIG: rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential<T, TI, ENVIRONMENT, PARAMETERS, T_CONTAINER_TYPE_TAG>{
-//    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION, rlt::nn::activation_functions::TANH, ACTOR_CONTAINER_TYPE_TAG>;
-//    using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::ACTOR_BATCH_SIZE>;
-//    using ACTOR_TYPE = rlt::nn_models::mlp::NeuralNetwork<ACTOR_CAPABILITY, ACTOR_SPEC>;
-//    using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, CRITIC_CONTAINER_TYPE_TAG>;
-//    using CRITIC_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMETERS::SAC_PARAMETERS::CRITIC_BATCH_SIZE>;
-//    using CRITIC_TYPE = rlt::nn_models::mlp::NeuralNetwork<CRITIC_CAPABILITY, CRITIC_SPEC>;
-//    using CRITIC_TARGET_TYPE = rlt::nn_models::mlp::NeuralNetwork<rlt::nn::layer_capability::Forward, CRITIC_SPEC>;
-//};
 template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS, typename CONTAINER_TYPE_TAG>
 struct APPROXIMATOR_CONFIG{
-//    using ACTOR_CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
-    using ACTOR_CONTAINER_TYPE_TAG = rlt::MatrixStaticTag;
+    using ACTOR_CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
+//    using ACTOR_CONTAINER_TYPE_TAG = rlt::MatrixStaticTag;
     using CRITIC_CONTAINER_TYPE_TAG = rlt::MatrixStaticTag;
     template <typename CAPABILITY>
     struct Actor{

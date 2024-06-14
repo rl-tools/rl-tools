@@ -3,10 +3,6 @@
 #pragma once
 #define RL_TOOLS_LOGGING_OPERATIONS_CPU_H
 
-
-
-#include <iostream>
-
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE>
