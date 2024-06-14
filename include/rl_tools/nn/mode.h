@@ -14,4 +14,5 @@ namespace rl_tools::nn{
     template <typename MODE>
     struct Mode: MODE{};
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

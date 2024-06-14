@@ -45,5 +45,6 @@ namespace rl_tools::rl::environments::car{
         return j;
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

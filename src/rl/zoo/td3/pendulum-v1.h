@@ -6,9 +6,10 @@
 #include <rl_tools/rl/loop/steps/evaluation/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
 
-namespace rlt = rl_tools;
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::td3{
+    namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
     struct PendulumV1{
         using ENVIRONMENT_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
@@ -23,3 +24,4 @@ namespace rl_tools::rl::zoo::td3{
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsSequential>;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END

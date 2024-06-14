@@ -99,5 +99,6 @@ function render(ctx, state, action) {
         return ui;
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

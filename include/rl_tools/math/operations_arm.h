@@ -79,7 +79,7 @@ namespace rl_tools::math {
     }
     template<typename T>
     T nan(const devices::math::ARM&){
-        return std::numeric_limits<T>::quiet_NaN();
+        return 0;
     }
     template<typename T>
     T fast_tanh(const devices::math::ARM& dev, T x) {

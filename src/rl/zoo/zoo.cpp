@@ -1,3 +1,5 @@
+#define RL_TOOLS_NAMESPACE_WRAPPER
+
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/operations_cpu_mux.h>
@@ -36,6 +38,8 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/save_trajectories/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
+
+namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));

@@ -6,7 +6,7 @@
 #include "../../../containers.h"
 #include "../../../nn/parameters/operations_generic.h"
 
-#include "../../../nn/layers/dense/layer.h"
+#include "layer.h"
 #include "../../../nn/mode.h"
 #ifndef RL_TOOLS_FUNCTION_PLACEMENT
 #define RL_TOOLS_FUNCTION_PLACEMENT

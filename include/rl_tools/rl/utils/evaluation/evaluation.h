@@ -53,4 +53,5 @@ namespace rl_tools::rl::utils::evaluation{
         T episode_length_std;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -2,7 +2,7 @@
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_MODELS_RANDOM_UNIFORM_MODEL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_NN_MODELS_RANDOM_UNIFORM_MODEL_H
-RL_TOOLS_NAMESPACE_WRAPPER_START
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::random_uniform{
     enum class Range{
@@ -20,6 +20,7 @@ namespace rl_tools::nn_models::random_uniform{
     struct Buffer{};
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models{
     template <typename T_SPEC>
     struct RandomUniform{

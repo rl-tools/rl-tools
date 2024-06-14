@@ -24,6 +24,7 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         bool save_trajectories_ui_written = false;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 
 

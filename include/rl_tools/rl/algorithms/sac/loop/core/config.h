@@ -131,6 +131,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using State = State<CONFIG>;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif
 

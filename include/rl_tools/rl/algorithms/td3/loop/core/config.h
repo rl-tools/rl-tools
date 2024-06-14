@@ -144,6 +144,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
         using State = State<CONFIG>;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif
 

@@ -19,6 +19,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         typename CONFIG::UI ui;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
 
 

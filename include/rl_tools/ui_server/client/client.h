@@ -3,8 +3,8 @@
 #pragma once
 #define RL_TOOLS_UI_SERVER_CLIENT_CLIENT_H
 #include <queue>
-RL_TOOLS_NAMESPACE_WRAPPER_START
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::ui_server::client{
 
     template<typename T_ENVIRONMENT>

@@ -9,6 +9,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::loop{
     struct Config{};
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "steps/steps.h"
 
 #endif
