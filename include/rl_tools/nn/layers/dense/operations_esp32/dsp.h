@@ -5,13 +5,14 @@
 
 #include "../../../../devices/esp32.h"
 #include "../../../../nn/layers/dense/layer.h"
+#include "../../../../nn/mode.h"
 
 #include "esp_dsp.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG>
-    void evaluate(devices::esp32::DSP<DEV_SPEC>& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, RNG& rng) {
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void evaluate(devices::esp32::DSP<DEV_SPEC>& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer&, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         // For performance reasons: restricted to dense row-major matrices (row-pitch is allowed)
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         static_assert(INPUT_SPEC::ROWS == 1); // only supporting batch size of 1 for now
@@ -19,7 +20,7 @@ namespace rl_tools{
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
         static_assert(decltype(layer.weights.parameters)::COL_PITCH == 1);
         static_assert(decltype(layer.biases.parameters)::COL_PITCH == 1);
-        static_assert(DEV_SPEC::HARDWARE == devices::esp32::Hardware::ORIG || DEV_SPEC::HARDWARE == devices::esp32::Hardware::C3);
+        static_assert(DEV_SPEC::HARDWARE == devices::esp32::Hardware::ORIG || DEV_SPEC::HARDWARE == devices::esp32::Hardware::C3 || DEV_SPEC::HARDWARE == devices::esp32::Hardware::S3);
 
         using DEVICE = devices::esp32::DSP<DEV_SPEC>;
         using T = typename LAYER_SPEC::T;

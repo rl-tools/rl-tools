@@ -12,7 +12,8 @@ namespace rl_tools::devices{
         enum class Hardware{
             DEFAULT,
             ORIG,
-            C3
+            C3,
+            S3
         };
         template <typename T_MATH, typename T_RANDOM, typename T_LOGGING, Hardware T_HARDWARE>
         struct Specification{
