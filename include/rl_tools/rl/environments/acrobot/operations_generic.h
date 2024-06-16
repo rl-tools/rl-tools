@@ -130,7 +130,6 @@ namespace rl_tools{
         T action_clamped = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
 //        action_clamped = 0;
         T action_scaled = (action_clamped + 1.0) / 2.0 * (PARAMS::MAX_TORQUE - (PARAMS::MIN_TORQUE)) + (PARAMS::MIN_TORQUE);
-        action_scaled = 0;
         rl::environments::acrobot::rk4(state_flat, action_scaled, next_state_flat, PARAMS::DT, PARAMS{});
 
         next_state_flat[0] = angle_normalize(device.math, next_state_flat[0]);

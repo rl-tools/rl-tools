@@ -1,16 +1,18 @@
 import gymnasium as gym
 from gymnasium.envs.classic_control.acrobot import AcrobotEnv, rk4, wrap, bound
-from stable_baselines3 import TD3, PPO
 import numpy as np
 import h5py
 import time
+import argparse
+
+np.random.seed(0)
 
 
 env = gym.make('Acrobot-v1')
 
 class AcrobotContinuousEnv(AcrobotEnv):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(1,))
     
     def step(self, action):
@@ -41,51 +43,73 @@ class AcrobotContinuousEnv(AcrobotEnv):
 
 
 if __name__ == "__main__":
-    env = AcrobotContinuousEnv()#render_mode="human")
 
-    with h5py.File("tests/data/rl_environments_acrobot_test_data.h5", "w") as f:
-        episodes_group = f.create_group("episodes")
-        for episode_i in range(10):
-            group = episodes_group.create_group(f"{episode_i}")
-            actions = np.clip(np.random.randn(100, 1), -1, 1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=str, default=None, help="Output file (default: rl_environments_acrobot_test_data.h5)")
+    parser.add_argument("--render", action="store_true")
+    args = parser.parse_args()
 
-            observations = []
-            states = []
-            next_observations = []
-            next_states = []
-            rewards = []
-            terminateds = []
-            truncateds = []
-            infos = []
-            observations.append(env.reset(seed=episode_i)[0])
+    env = AcrobotContinuousEnv(render_mode="human") if args.render else AcrobotContinuousEnv()
+
+    episodes = []
+    for episode_i in range(10):
+        actions = np.clip(np.random.randn(100, 1), -1, 1)
+
+        observations = []
+        states = []
+        next_observations = []
+        next_states = []
+        rewards = []
+        terminateds = []
+        truncateds = []
+        infos = []
+        observations.append(env.reset(seed=episode_i)[0])
+        states.append(env.state.copy())
+        for action in actions:
+            observation, reward, terminated, truncated, info = env.step(action)
+            print(observation)
+            observations.append(observation)
+            next_observations.append(observation)
+            next_states.append(env.state.copy())
             states.append(env.state.copy())
-            for action in actions:
-                observation, reward, terminated, truncated, info = env.step(action)
-                observations.append(observation)
-                next_observations.append(observation)
-                next_states.append(env.state.copy())
-                states.append(env.state.copy())
-                rewards.append(reward)
-                terminateds.append(terminated)
-                truncateds.append(truncated)
-                infos.append(info)
+            rewards.append(reward)
+            terminateds.append(terminated)
+            truncateds.append(truncated)
+            infos.append(info)
 
-            observations = np.array(observations[:-1])
-            states = np.array(states[:-1])
-            next_observations = np.array(next_observations)
-            next_states = np.array(next_states)
-            rewards = np.array(rewards)
-            terminateds = np.array(terminateds)
-            truncateds = np.array(truncateds)
+        observations = np.array(observations[:-1])
+        states = np.array(states[:-1])
+        next_observations = np.array(next_observations)
+        next_states = np.array(next_states)
+        rewards = np.array(rewards)
+        terminateds = np.array(terminateds)
+        truncateds = np.array(truncateds)
 
-            group.create_dataset("observations", data=observations)
-            group.create_dataset("states", data=states)
-            group.create_dataset("next_observations", data=next_observations)
-            group.create_dataset("next_states", data=next_states)
-            group.create_dataset("rewards", data=rewards)
-            group.create_dataset("terminated", data=terminateds)
-            group.create_dataset("truncated", data=truncateds)
-            group.create_dataset("actions", data=actions)
+        episodes.append({
+            "observations": observations,
+            "states": states,
+            "next_observations": next_observations,
+            "next_states": next_states,
+            "rewards": rewards,
+            "terminated": terminateds,
+            "truncated": truncateds,
+            "actions": actions
+        })
+
+
+    if args.output is not None:
+        with h5py.File(args.output, "w") as f:
+            episodes_group = f.create_group("episodes")
+            for episode_i, episode in enumerate(episodes):
+                group = episodes_group.create_group(f"{episode_i}")
+                group.create_dataset("observations", data=episode["observations"])
+                group.create_dataset("states", data=episode["states"])
+                group.create_dataset("next_observations", data=episode["next_observations"])
+                group.create_dataset("next_states", data=episode["next_states"])
+                group.create_dataset("rewards", data=episode["rewards"])
+                group.create_dataset("terminated", data=episode["terminated"])
+                group.create_dataset("truncated", data=episode["truncated"])
+                group.create_dataset("actions", data=episode["actions"])
         
 
 # if __name__ == "__main__":

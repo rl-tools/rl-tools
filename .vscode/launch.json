@@ -32,7 +32,18 @@
             "request": "launch",
             "program": "tests/src/rl/environments/acrobot/generate_test_data.py",
             "console": "integratedTerminal",
-            "justMyCode": false
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "args": ["--output", "./tests/data/rl_environments_acrobot_test_data.h5"]
+        },
+        {
+            "name": "src.rl.environments.acrobot.generate_test_data (no output)",
+            "type": "python",
+            "request": "launch",
+            "program": "tests/src/rl/environments/acrobot/generate_test_data.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
         }
     ]
 }
