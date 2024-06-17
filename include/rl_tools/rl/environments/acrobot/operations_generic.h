@@ -150,9 +150,11 @@ namespace rl_tools{
 //        return (-cos(state.theta_1) * SPEC::PARAMETERS::LINK_LENGTH_1 - cos(state.theta_2 + state.theta_1) * SPEC::PARAMETERS::LINK_LENGTH_2) * 0.01;
         typename DEVICE::SPEC::MATH dm;
         T a_angle_cost = rl::environments::acrobot::angle_normalize(dm, next_state.theta_1 - math::PI<T>);
-        a_angle_cost *= a_angle_cost;
+//        a_angle_cost *= a_angle_cost;
+        a_angle_cost = math::abs(device.math, a_angle_cost);
         T b_angle_cost = rl::environments::acrobot::angle_normalize(dm, next_state.theta_2);
-        b_angle_cost *= b_angle_cost;
+//        b_angle_cost *= b_angle_cost;
+        b_angle_cost = math::abs(device.math, b_angle_cost);
 
         T a_vel_cost = next_state.theta_1_dot;
         a_vel_cost *= a_vel_cost;

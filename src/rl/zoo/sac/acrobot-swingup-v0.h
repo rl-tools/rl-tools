@@ -38,6 +38,7 @@ namespace rl_tools::rl::zoo::sac{
             static constexpr TI CRITIC_HIDDEN_DIM = 256;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr T ALPHA = 1;
+            static constexpr T TARGET_ENTROPY = -2;
             static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT_PARAMETERS::DT;
             static constexpr TI N_WARMUP_STEPS = 50000;
             struct INITIALIZER_SPEC: nn::layers::dense::KaimingUniformSpecification<T, TI>{
