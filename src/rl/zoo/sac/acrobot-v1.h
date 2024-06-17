@@ -36,7 +36,6 @@ namespace rl_tools::rl::zoo::sac{
             static constexpr TI CRITIC_HIDDEN_DIM = 128;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr T ALPHA = 1;
-            static constexpr T TARGET_ENTROPY = -3;
             static constexpr TI EPISODE_STEP_LIMIT = 10 / ENVIRONMENT_PARAMETERS::DT;
             static constexpr TI N_WARMUP_STEPS = 50000;
         };
