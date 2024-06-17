@@ -30,6 +30,7 @@ namespace rl_tools::nn::layers::dense {
         using T = T_T;
         using TI = T_TI;
         static constexpr bool INIT_LEGACY = true;
+        static constexpr T SCALE = 1;
     };
     template<typename SPEC>
     struct KaimingUniform {

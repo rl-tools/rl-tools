@@ -59,7 +59,7 @@ namespace rl_tools{
             gain = math::sqrt(device.math, (T)2.0 / (1 + negative_slope * negative_slope));
         }
         else{
-            gain = math::sqrt(device.math, (T)2.0);
+            gain = math::sqrt(device.math, (T)2.0) * INITIALIZER_SPEC::SCALE;
         }
         T fan = SPEC::INPUT_DIM;
         T std = gain / math::sqrt(device.math, fan);

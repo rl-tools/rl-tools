@@ -43,10 +43,13 @@ namespace rl_tools::rl::zoo::sac{
             static constexpr TI N_WARMUP_STEPS = 50000;
             struct INITIALIZER_SPEC: nn::layers::dense::KaimingUniformSpecification<T, TI>{
                 static constexpr bool INIT_LEGACY = false;
+                static constexpr T SCALE = 1;
             };
             using INITIALIZER = nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>;
             struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr T ALPHA = 2e-3;
+                static constexpr bool ENABLE_BIAS_LR_FACTOR = true;
+                static constexpr T BIAS_LR_FACTOR = 10;
             };
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
