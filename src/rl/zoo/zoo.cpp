@@ -30,7 +30,7 @@
 #endif
 
 #include "sac/pendulum-v1.h"
-#include "sac/acrobot-v1.h"
+#include "sac/acrobot-swingup-v0.h"
 #include "td3/pendulum-v1.h"
 #include "ppo/pendulum-v1.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
