@@ -60,8 +60,9 @@ namespace rl_tools::ui_server{
 
         State& state;
         TYPE type;
+        bool verbose_;
     public:
-        explicit websocket_session(tcp::socket socket, State& state, TYPE type) : ws_(std::move(socket)), state(state), type(type) {}
+        explicit websocket_session(tcp::socket socket, State& state, TYPE type, bool verbose) : ws_(std::move(socket)), state(state), type(type), verbose_(verbose) {}
 
         template<class Body>
         void run(http::request<Body>&& req) {
@@ -144,7 +145,16 @@ namespace rl_tools::ui_server{
 
             auto message_string = beast::buffers_to_string(buffer_.data());
             buffer_.consume(buffer_.size());
-            auto message = nlohmann::json::parse(message_string);
+            nlohmann::json message;
+            try{
+                message = nlohmann::json::parse(message_string);
+            }
+            catch(nlohmann::json::parse_error& e){
+                std::cerr << "Error parsing message: " << e.what() << std::endl;
+                std::cerr << "Malformed message: " << message_string << std::endl;
+                do_read();
+                return;
+            }
 
             state.mutex.lock();
             if(type == TYPE::UI){
@@ -163,7 +173,9 @@ namespace rl_tools::ui_server{
             }
             state.mutex.unlock();
 
-
+            if(verbose_){
+                std::cout << "Message: " << message.dump() << std::endl;
+            }
             if(message["channel"] == "startTraining"){
                 std::cout << "startTraining message received" << std::endl;
             }
@@ -196,7 +208,7 @@ namespace rl_tools::ui_server{
     class http_connection: public std::enable_shared_from_this<http_connection>
     {
     public:
-        http_connection(tcp::socket socket, State& state, std::string static_path): static_path(static_path), state(state), socket_(std::move(socket)){ }
+        http_connection(tcp::socket socket, State& state, std::string static_path, bool verbose): static_path(static_path), state(state), socket_(std::move(socket)), verbose_(verbose){ }
         void start(){
             read_request();
             check_deadline();
@@ -209,6 +221,7 @@ namespace rl_tools::ui_server{
         beast::flat_buffer buffer_{8192};
         http::request<http::dynamic_body> request_;
         http::response<http::dynamic_body> response_;
+        bool verbose_;
         net::steady_timer deadline_{socket_.get_executor(), std::chrono::seconds(60)};
         void read_request(){
             auto self = shared_from_this();
@@ -338,7 +351,7 @@ namespace rl_tools::ui_server{
         void maybe_upgrade(websocket_session::TYPE type) {
             if (beast::websocket::is_upgrade(request_)) {
                 // Construct the WebSocket session and run it
-                auto ws_session = std::make_shared<websocket_session>(std::move(socket_), state, type);
+                auto ws_session = std::make_shared<websocket_session>(std::move(socket_), state, type, verbose_);
                 ws_session->run(std::move(request_));
             }
         }
@@ -371,11 +384,11 @@ namespace rl_tools::ui_server{
         }
     };
 
-    void http_server(tcp::acceptor& acceptor, tcp::socket& socket, State& state, std::string& static_path){
-        acceptor.async_accept(socket, [&](beast::error_code ec){
+    void http_server(tcp::acceptor& acceptor, tcp::socket& socket, State& state, std::string& static_path, bool verbose){
+        acceptor.async_accept(socket, [&, verbose](beast::error_code ec){
             if(!ec)
-                std::make_shared<http_connection>(std::move(socket), state, static_path)->start();
-            http_server(acceptor, socket, state, static_path);
+                std::make_shared<http_connection>(std::move(socket), state, static_path, verbose)->start();
+            http_server(acceptor, socket, state, static_path, verbose);
         });
     }
 
@@ -396,7 +409,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE>
-    void init(DEVICE& device, ui_server::UIServer& ui_server, std::string address, unsigned short port, std::string static_path, std::string scenario){
+    void init(DEVICE& device, ui_server::UIServer& ui_server, std::string address, unsigned short port, std::string static_path, std::string scenario, bool verbose){
         namespace beast = boost::beast;
         namespace http = beast::http;
         namespace net = boost::asio;
@@ -408,7 +421,7 @@ namespace rl_tools{
         ui_server.ioc = new net::io_context{1};
         ui_server.acceptor = new tcp::acceptor{*ui_server.ioc, {ui_server.address, ui_server.port}};
         ui_server.socket = new tcp::socket{*ui_server.ioc};
-        ui_server::http_server(*ui_server.acceptor, *ui_server.socket, ui_server.state, ui_server.static_path);
+        ui_server::http_server(*ui_server.acceptor, *ui_server.socket, ui_server.state, ui_server.static_path, verbose);
         std::cout << "Web interface coming up at: http://" << address << ":" << port << std::endl;
         ui_server.thread = std::thread([&](){
 

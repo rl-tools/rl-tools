@@ -11,7 +11,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    std::string serialize_json(DEVICE&, rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state){
+    std::string json(DEVICE&, rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state){
         std::string json = "{";
         json += "\"theta1\":" + std::to_string(state.theta_1) + ",";
         json += "\"theta2\":" + std::to_string(state.theta_2) + ",";
@@ -21,8 +21,12 @@ namespace rl_tools{
         return json;
     }
     template <typename DEVICE, typename SPEC>
-    std::string serialize_json(DEVICE& device, rl::environments::AcrobotSwingup<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state){
-        return serialize_json(device, static_cast<rl::environments::Acrobot<SPEC>&>(env), state);
+    std::string json(DEVICE& device, rl::environments::AcrobotSwingup<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::State& state){
+        return json(device, static_cast<rl::environments::Acrobot<SPEC>&>(env), state);
+    }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, const typename rl::environments::acrobot::Parameters<SPEC>& parameters){
+        return "{}";
     }
 
     template <typename DEVICE, typename SPEC>

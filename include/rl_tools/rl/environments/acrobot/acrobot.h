@@ -30,6 +30,8 @@ namespace rl_tools::rl::environments::acrobot {
         static constexpr T min_torque = -1;
         static constexpr T max_torque = +1;
     };
+    template <typename T>
+    struct Parameters{};
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
     struct Specification{
         using T = T_T;
@@ -51,6 +53,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments{
+
     template <typename T_SPEC>
     struct Acrobot: Environment{
         using SPEC = T_SPEC;
@@ -61,6 +64,7 @@ namespace rl_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM = 6;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = 1;
+        acrobot::Parameters<T> parameters;
     };
     template <typename T_SPEC>
     struct AcrobotSwingup: Acrobot<T_SPEC>{};

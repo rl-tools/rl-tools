@@ -1,0 +1,102 @@
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .canvas-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #canvas {
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+    <script>
+        class Client{
+            constructor(){
+                this.setParametersCallback = null;
+                const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+                this.ws = new WebSocket( protocol + '://' + window.location.host + "/ui");
+
+                this.ws.onopen = event=>{
+                    console.log('Connection opened:', event);
+                };
+
+                this.ws.addEventListener("message", (event)=>{
+                    const message = JSON.parse(event.data);
+                    // console.log('Message:', message);
+                    this.onMessage(message);
+                })
+
+                this.ws.onerror = (error) => {
+                    console.error('WebSocket Error:', error);
+                };
+
+                this.ws.onclose = (event) => {
+                    if (event.wasClean) {
+                        console.log('Connection closed cleanly, code=', event.code, 'reason=', event.reason);
+                    } else {
+                        console.error('Connection died');
+                    }
+                };
+            }
+            setEnvironmentCallbacks({setParametersCallback, setStateCallback, setActionCallback}){
+                this.setParametersCallback = setParametersCallback;
+                this.setStateCallback = setStateCallback;
+                this.setActionCallback = setActionCallback;
+            }
+
+
+            onMessage(message){
+                let {channel, data} = message
+                if(channel === "setParameters"){
+                    if(this.setParametersCallback){
+                        this.setParametersCallback(data)
+                    }
+                }
+                else{
+                    if(channel === "setState"){
+                        if(this.setStateCallback){
+                            this.setStateCallback(data)
+                        }
+                    }
+                    else{
+                        if(channel === "setAction"){
+                            if(this.setActionCallback){
+                                this.setActionCallback(data)
+                            }
+                        }
+                    }
+                }
+            }
+            sendMessage(channel, data){
+                this.ws.send(JSON.stringify({channel, data}));
+            }
+        }
+        const client = new Client();
+        client.setEnvironmentCallbacks({
+            setParametersCallback: (parameters)=>{
+                console.log('Parameters:', parameters);
+            },
+            setStateCallback: (state)=>{
+                console.log('State:', state);
+            },
+            setActionCallback: (action)=>{
+                console.log('Action:', action);
+            }
+        });
+    </script>
+</head>
+<body>
+<div class="canvas-container">
+    <canvas id="canvas" width="500" height="500"></canvas>
+</div>
+</body>
+</html>

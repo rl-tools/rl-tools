@@ -16,7 +16,8 @@ int main(int argc, char* argv[]) {
 
     CLI::App app;
     uint16_t port = 8000;
-    std::string ip = "127.0.0.1", static_path_stub = "static/ui_server", simulator = "car", scenario = "default";
+    std::string ip = "127.0.0.1", static_path_stub = "static/ui_server", simulator = "2d", scenario = "default";
+    bool verbose = false;
 #if defined(RL_TOOLS_RELEASE_WINDOWS)
     static_path_stub = "../share/rl_tools/static/ui_server";
 #elif defined(RL_TOOLS_RELEASE_MACOS)
@@ -29,6 +30,7 @@ int main(int argc, char* argv[]) {
     app.add_option("--static", static_path_stub, "path to the static directory");
     app.add_option("--simulator", simulator, "simulator [multirotor, car]");
     app.add_option("--scenario", scenario, "scenario [default, ...]");
+    app.add_flag("-v,--verbose", verbose, "Verbose output");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -39,7 +41,7 @@ int main(int argc, char* argv[]) {
 
     rlt::ui_server::UIServer server;
 
-    rlt::init(device, server, ip, port, static_path, scenario);
+    rlt::init(device, server, ip, port, static_path, scenario, verbose);
 
     while(server.running){
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
