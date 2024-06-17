@@ -48,13 +48,16 @@ namespace rl_tools {
             ss_header << input.header;
             ss_header << "#include <rl_tools/nn/layers/dense/layer.h>\n";
             ss << input.body;
+            std::string T_string = containers::persist::get_type_string<typename SPEC::T>();
+            std::string TI_string = containers::persist::get_type_string<typename SPEC::TI>();
             ss << ind << "namespace " << name << " {\n";
             ss << ind << "    using SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::Specification<"
-               << containers::persist::get_type_string<typename SPEC::T>() << ", "
-               << containers::persist::get_type_string<typename SPEC::TI>() << ", "
+               << T_string << ", "
+               << TI_string << ", "
                << SPEC::INPUT_DIM << ", "
                << SPEC::OUTPUT_DIM << ", "
                << nn::layers::dense::persist::get_activation_function_string<SPEC::ACTIVATION_FUNCTION>() << ", "
+               << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << T_string << ", " << TI_string << ">, "
                << get_type_string_tag(device, typename SPEC::PARAMETER_GROUP{}) << ", "
                << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag" << ", "
                << "true, "

@@ -34,14 +34,19 @@ namespace rl_tools{
         }
         auto output_layer = save_code_split(device, network.output_layer, "output_layer", const_declaration, indent+1);
         ss_header << output_layer.header;
+        std::string T_string = containers::persist::get_type_string<T>();
+        std::string TI_string = containers::persist::get_type_string<TI>();
         ss << output_layer.body;
         ss << ind << "    using SPEC = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::Specification<";
-        ss << containers::persist::get_type_string<T>() << ", ";
-        ss << containers::persist::get_type_string<TI>() << ", ";
+        ss << T_string << ", ";
+        ss << TI_string << ", ";
         ss << SPEC::INPUT_DIM << ", " << SPEC::OUTPUT_DIM << ", " << SPEC::NUM_LAYERS << ", " << SPEC::HIDDEN_DIM << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::HIDDEN_ACTIVATION_FUNCTION>() << ", ";
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
-        ss << ind << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag, true, RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
+        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << T_string << ", " << TI_string << ">, ";
+        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::MatrixDynamicTag,";
+        ss << "true, ";
+        ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::matrix::layouts::RowMajorAlignment<" << containers::persist::get_type_string<TI>() << ", 1>>; \n";
         ss << ind << "    template <typename CAPABILITY>" << "\n";
         ss << ind << "    using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::NeuralNetwork<CAPABILITY, SPEC>; \n";
         ss << ind << "    using CAPABILITY = " << to_string(typename SPEC::CAPABILITY{}) << "; \n";

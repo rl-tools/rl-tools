@@ -53,16 +53,25 @@ namespace rl_tools{
     void init_kaiming(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-//        T negative_slope = math::sqrt(device.math, (T)5);
-//        T gain = math::sqrt(device.math, (T)2.0 / (1 + negative_slope * negative_slope)) * 3;
-        T gain = math::sqrt(device.math, (T)2.0);
+        T gain;
+        if constexpr(SPEC::INITIALIZER::INIT_LEGACY){
+            T negative_slope = math::sqrt(device.math, (T)5);
+            gain = math::sqrt(device.math, (T)2.0 / (1 + negative_slope * negative_slope));
+        }
+        else{
+            gain = math::sqrt(device.math, (T)2.0);
+        }
         T fan = SPEC::INPUT_DIM;
         T std = gain / math::sqrt(device.math, fan);
         T weight_bound = math::sqrt(device.math, (T)3.0) * std;
         T bias_bound = 1/math::sqrt(device.math, (T)SPEC::INPUT_DIM);
         for(TI i = 0; i < SPEC::OUTPUT_DIM; i++) {
-//            set(layer.biases.parameters, 0, i, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng));
-            set(layer.biases.parameters, 0, i, 0);
+            if constexpr(SPEC::INITIALIZER::INIT_LEGACY) {
+                set(layer.biases.parameters, 0, i, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng));
+            }
+            else{
+                set(layer.biases.parameters, 0, i, 0);
+            }
             for(TI j = 0; j < SPEC::INPUT_DIM; j++) {
                 set(layer.weights.parameters, i, j, random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -weight_bound, weight_bound, rng));
             }

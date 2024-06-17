@@ -42,6 +42,8 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         static constexpr T LOG_STD_UPPER_BOUND = 2;
         static constexpr T LOG_PROBABILITY_EPSILON = 1e-6;
 
+        using INITIALIZER = nn::layers::dense::DefaultInitializer<T, TI>;
+
         using OPTIMIZER_PARAMETERS = nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>;
     };
 

@@ -20,7 +20,7 @@ constexpr auto ACTIVATION_FUNCTION = rlt::nn::activation_functions::TANH;
 constexpr TI BATCH_SIZE = 16;
 using CONTAINER_TYPE_TAG = rlt::MatrixDynamicTag;
 
-using MLP_SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, 2*OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, CONTAINER_TYPE_TAG>;
+using MLP_SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, 2*OUTPUT_DIM, NUM_LAYERS, HIDDEN_DIM, ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, CONTAINER_TYPE_TAG>;
 using MLP_TYPE = rlt::nn_models::mlp::BindSpecification<MLP_SPEC>;
 
 using SAMPLE_AND_SQUASH_PARAMETERS = rlt::nn::layers::sample_and_squash::DefaultParameters<T>;

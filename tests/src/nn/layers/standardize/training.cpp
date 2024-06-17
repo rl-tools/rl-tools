@@ -46,12 +46,12 @@ namespace config{
                 static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
                 using LAYER_0_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, CONTAINER_TYPE_TAG>;
                 using LAYER_0 = nn::layers::standardize::BindSpecification<LAYER_0_SPEC>;
-                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
+                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
                 using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-                using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
+                using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
                 using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
                 static constexpr TI ACTOR_OUTPUT_DIM = ENVIRONMENT::ACTION_DIM * 2; // to express mean and log_std for each action
-                using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
+                using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, ACTOR_OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>; // note the output activation should be identity because we want to sample from a gaussian and then squash afterwards (taking into account the squashing in the distribution)
                 using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
                 struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
                     static constexpr T LOG_STD_LOWER_BOUND = PARAMETERS::LOG_STD_LOWER_BOUND;
@@ -75,11 +75,11 @@ namespace config{
                 static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
                 static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
 
-                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
+                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
                 using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-                using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
+                using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
                 using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-                using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, nn::activation_functions::ActivationFunction::IDENTITY, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>;
+                using LAYER_3_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, 1, nn::activation_functions::ActivationFunction::IDENTITY, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Output, CONTAINER_TYPE_TAG>;
                 using LAYER_3 = nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
                 using IF = nn_models::sequential::Interface<CAPABILITY>;

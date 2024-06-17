@@ -39,8 +39,8 @@ struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, DEV
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, CONTAINER_TYPE_TAG>;
-using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY, CONTAINER_TYPE_TAG_CRITIC>;
+using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<T, TI>, CONTAINER_TYPE_TAG>;
+using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY,  rlt::nn::layers::dense::DefaultInitializer<T, TI>,CONTAINER_TYPE_TAG_CRITIC>;
 
 
 using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;

@@ -93,7 +93,7 @@ struct APPROXIMATOR_CONFIG{
     using CRITIC_CONTAINER_TYPE_TAG = rlt::MatrixStaticTag;
     template <typename CAPABILITY>
     struct Actor{
-        using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  rlt::nn::activation_functions::IDENTITY, ACTOR_CONTAINER_TYPE_TAG>;
+        using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  rlt::nn::activation_functions::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, ACTOR_CONTAINER_TYPE_TAG>;
         using ACTOR_TYPE = rlt::nn_models::mlp::BindSpecification<ACTOR_SPEC>;
         using IF = rlt::nn_models::sequential::Interface<CAPABILITY>;
         struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
@@ -112,7 +112,7 @@ struct APPROXIMATOR_CONFIG{
     template <typename CAPABILITY>
     struct Critic{
         static constexpr TI INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM+ENVIRONMENT::ACTION_DIM;
-        using SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, CRITIC_CONTAINER_TYPE_TAG>;
+        using SPEC = rlt::nn_models::mlp::Specification<T, TI, INPUT_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, CRITIC_CONTAINER_TYPE_TAG>;
         using TYPE = rlt::nn_models::mlp::BindSpecification<SPEC>;
         using IF = rlt::nn_models::sequential::Interface<CAPABILITY>;
         using MODEL = typename IF::template Module<TYPE::template NeuralNetwork>;

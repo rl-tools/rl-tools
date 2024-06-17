@@ -39,11 +39,12 @@ std::optional<std::string> get_env_var(const std::string& var) {
 
 namespace MODEL_BENCHMARK{
     using T_BENCHMARK = float;
-    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T_BENCHMARK, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::groups::Input>;
+    using LAYER_PARAMETERS = rlt::nn::layers::dense::DefaultInitializer<T_BENCHMARK, TI>;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T_BENCHMARK, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Input>;
     using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T_BENCHMARK, TI, 64, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::groups::Normal>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T_BENCHMARK, TI, 64, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Normal>;
     using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T_BENCHMARK, TI, 64, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::groups::Output>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T_BENCHMARK, TI, 64, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
     constexpr TI BATCH_SIZE = 1;
@@ -54,11 +55,12 @@ namespace MODEL_BENCHMARK{
 
 namespace MODEL_1{
     using T = double;
-    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::groups::Input>;
+    using LAYER_PARAMETERS = rlt::nn::layers::dense::DefaultInitializer<T, TI>;
+    using LAYER_1_SPEC = rlt::nn::layers::dense::Specification<T, TI, 13, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Input>;
     using LAYER_1 = rlt::nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
-    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::groups::Normal>;
+    using LAYER_2_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 64, rlt::nn::activation_functions::ActivationFunction::RELU, LAYER_PARAMETERS, rlt::nn::parameters::groups::Normal>;
     using LAYER_2 = rlt::nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
-    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::parameters::groups::Output>;
+    using LAYER_3_SPEC = rlt::nn::layers::dense::Specification<T, TI, 64, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY, LAYER_PARAMETERS, rlt::nn::parameters::groups::Output>;
     using LAYER_3 = rlt::nn::layers::dense::BindSpecification<LAYER_3_SPEC>;
 
     constexpr TI BATCH_SIZE = 1;

@@ -60,3 +60,4 @@
   - Make sure that `sgemm`/`dgemm` is not called
 - Make the `Tests (minimal)` suite work again on the Windows Github actions (it works on my (windows) PC @tm)
 - Investigate the "zero-sized array" error under MSVC for `rl_environments_pendulum_sac_arm_test` and `rl_environments_pendulum_sac_arm_test_benchmark`
+- Properly export `nn::layers::dense::DefaultParameters` in the `persist_code` operations

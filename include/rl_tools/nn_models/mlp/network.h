@@ -12,7 +12,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp {
-    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    template <typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, T_TI T_NUM_LAYERS, T_TI T_HIDDEN_DIM, nn::activation_functions::ActivationFunction T_HIDDEN_ACTIVATION_FUNCTION, nn::activation_functions::ActivationFunction T_OUTPUT_ACTIVATION_FUNCTION, typename T_LAYER_INITIALIZER=nn::layers::dense::DefaultInitializer<T_T, T_TI>, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
@@ -28,9 +28,12 @@ namespace rl_tools::nn_models::mlp {
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
-        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, nn::parameters::groups::Input , CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, OUTPUT_ACTIVATION_FUNCTION, nn::parameters::groups::Output, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+
+        using LAYER_INITIALIZER = T_LAYER_INITIALIZER;
+
+        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Input , CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, OUTPUT_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Output, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
