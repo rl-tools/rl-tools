@@ -27,6 +27,8 @@ namespace rl_tools::ui_server::client{
         bool error;
         bool interrupt;
         bool verbose;
+        std::string address = "";
+        TI port = 0;
         TI sync_interval = 1000;
         std::thread thread;
         std::queue<std::string> message_queue;

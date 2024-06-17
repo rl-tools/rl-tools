@@ -15,8 +15,8 @@ namespace rl_tools{
         template <typename ENVIRONMENT>
         void connect(ui_server::client::UIWebSocket<ENVIRONMENT>& ui){
             ui.conn_info.context = ui.context;
-            ui.conn_info.address = "localhost";
-            ui.conn_info.port = 8000;
+            ui.conn_info.address = ui.address.c_str();
+            ui.conn_info.port = ui.port;
             ui.conn_info.path = "/backend";
             ui.conn_info.host = lws_canonical_hostname(ui.context);
             ui.conn_info.origin = "origin";
@@ -109,6 +109,12 @@ namespace rl_tools{
         ui.verbose = verbose;
         ui.connected = false;
         ui.interrupt = false;
+        if(ui.address.empty()){
+            ui.address = "localhost";
+        }
+        if(ui.port == 0){
+            ui.port = 13337; // default is 13337 so it does not clash with other services at e.g. 8000 or 8888
+        }
         memset(&ui.ctx_info, 0, sizeof(ui.ctx_info));
         memset(&ui.conn_info, 0, sizeof(ui.conn_info));
 
@@ -132,7 +138,7 @@ namespace rl_tools{
                             ui.message_queue.pop();
                         }
                     }
-                    log(device, device.logger, "Waiting for UI connection...");
+                    log(device, device.logger, "Waiting for connection to the ui_server at " + ui.address + ":" + std::to_string(ui.port) + " ...");
                     ui_server::client::websocket::connect(ui);
                     was_not_connected = true;
                 }

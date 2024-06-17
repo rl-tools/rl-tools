@@ -23,6 +23,8 @@ int main(){
     auto rng = rlt::random::default_engine(device.random, 0);
     ENVIRONMENT env;
     ENV_UI ui;
+    ui.address = "127.0.0.1";
+    ui.port = 13337;
     rlt::init(device, env, ui);
     typename ENVIRONMENT::State state, next_state;
     rlt::sample_initial_state(device, env, state, rng);
