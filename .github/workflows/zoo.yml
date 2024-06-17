@@ -34,20 +34,6 @@ jobs:
       - name: List Environment Variables
         run: env
       - uses: actions/checkout@v3
-      - name: Generate a token
-        id: generate-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.ZOO_BLOB_APP_ID }}
-          private-key: ${{ secrets.ZOO_BLOB_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: "rl-tools,zoo-blob,zoo.rl.tools"
-      - name: Use the token
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: |
-          gh api octocat
-          gh repo view rl-tools/zoo-blob --json name
       - name: Clone MuJoCo
         if: ${{ env.MUJOCO == 'true' }}
         run: |
@@ -55,9 +41,7 @@ jobs:
 
       - name: Setup Git
         run: |
-          git config --global user.name 'RLtools Bot'
-          git config --global user.email 'jonas.eschmann@gmail.com'
-          git clone https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob.git experiments
+          git clone https://github.com/rl-tools/zoo-blob.git experiments
 
       - name: Intel Apt repository
         timeout-minutes: 1
@@ -120,12 +104,30 @@ jobs:
         working-directory: ${{ github.workspace }}/experiments
         run: |
           git pull
-
       - name: Generate Index
         working-directory: ${{ github.workspace }}/tools
         run: | 
-          ./index_experiments.sh
           ./index_experiments_static.sh
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.ZOO_BLOB_APP_ID }}
+          private-key: ${{ secrets.ZOO_BLOB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: "rl-tools,zoo-blob,zoo.rl.tools"
+      - name: Use the token
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          gh api octocat
+          gh repo view rl-tools/zoo-blob --json name
+      - name: Set up git with token
+        working-directory: ${{ github.workspace }}/experiments
+        run: |
+          git config --global user.name 'RLtools Bot'
+          git config --global user.email 'jonas.eschmann@gmail.com'
+          git remote set-url origin https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com/rl-tools/zoo-blob.git
       - name: Commit Results
         working-directory: ${{ github.workspace }}/experiments
         run: |
