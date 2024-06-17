@@ -35,14 +35,14 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, typename rl::environments::AcrobotSwingup<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
-//        state.theta_1     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
-//        state.theta_2     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
-//        state.theta_1_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_1, SPEC::PARAMETERS::MAX_VEL_1, rng);
-//        state.theta_2_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_2, SPEC::PARAMETERS::MAX_VEL_2, rng);
-        state.theta_1 = math::PI<T>;
-        state.theta_2 = 0;
-        state.theta_1_dot = 0;
-        state.theta_2_dot = 0;
+        state.theta_1     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
+        state.theta_2     = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
+        state.theta_1_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_1, SPEC::PARAMETERS::MAX_VEL_1, rng);
+        state.theta_2_dot = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -SPEC::PARAMETERS::MAX_VEL_2, SPEC::PARAMETERS::MAX_VEL_2, rng);
+//        state.theta_1 = math::PI<T>;
+//        state.theta_2 = 0;
+//        state.theta_1_dot = 0;
+//        state.theta_2_dot = 0;
     }
     template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::State& state){

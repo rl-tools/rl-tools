@@ -10,7 +10,9 @@ using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using T = float;
 
-using ENVIRONMENT_PARAMETERS = rlt::rl::environments::acrobot::DefaultParameters<T>;
+struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::acrobot::DefaultParameters<T>{
+    static constexpr T DT = 0.018;
+};
 using ENVIRONMENT_SPEC = rlt::rl::environments::acrobot::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
 using ENVIRONMENT = rlt::rl::environments::AcrobotSwingup<ENVIRONMENT_SPEC>;
 
@@ -22,11 +24,21 @@ int main(){
     ENVIRONMENT env;
     ENV_UI ui;
     rlt::init(device, env, ui);
-    typename ENVIRONMENT::State state;
+    typename ENVIRONMENT::State state, next_state;
     rlt::sample_initial_state(device, env, state, rng);
+    state.theta_1_dot = 0;
+    state.theta_2_dot = 0;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+//    rlt::randn(device, action, rng);
+    rlt::set_all(device, action, 1);
+    rlt::clamp(device, action, -1, 1);
     while(true){
-        rlt::set_state(device, env, ui, state);
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        T dt = rlt::step(device, env, state, action, next_state, rng);
+        rlt::set_state(device, env, ui, state, action);
+        std::this_thread::sleep_for(std::chrono::duration<T>(dt));
+        state = next_state;
+        state.theta_1_dot *= 0.99;
+        state.theta_2_dot *= 0.99;
     }
     return 0;
 }

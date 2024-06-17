@@ -118,14 +118,17 @@ namespace rl_tools{
             if(ts.step % PARAMETERS::INTERVAL == 0){
                 if(!ts.save_trajectories_ui_written){
                     ts.save_trajectories_ui_written = true;
-                    std::string ui = get_ui(device, ts.env_eval);
-                    if(!ui.empty()){
-                        std::string us_jsm = ui + "\nexport { render };";
+                    std::string ui_body = get_ui(device, ts.env_eval);
+                    if(!ui_body.empty()){
+                        std::string ui = "function render(ctx, state, action) {\n";
+                        ui += ui_body;
+                        ui += "\n}\n";
+                        std::string ui_jsm = ui + "export { render };";
                         std::filesystem::create_directories(ts.extrack_seed_path);
                         std::ofstream uif(ts.extrack_seed_path / "ui.js");
                         uif << ui;
                         std::ofstream ui_jsmf(ts.extrack_seed_path / "ui.esm.js");
-                        ui_jsmf << us_jsm;
+                        ui_jsmf << ui_jsm;
                         std::cout << "UI written to: " << ts.extrack_seed_path / "ui.js" << std::endl;
                     }
                 }

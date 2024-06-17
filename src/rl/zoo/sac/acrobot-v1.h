@@ -7,9 +7,10 @@
 #include <rl_tools/rl/loop/steps/save_trajectories/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
 
-namespace rlt = rl_tools;
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::zoo::sac{
+    namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
     struct AcrobotSwingupV0{
         using ENVIRONMENT_SPEC = rlt::rl::environments::acrobot::Specification<T, TI, rlt::rl::environments::acrobot::DefaultParameters<T>>;
@@ -29,3 +30,4 @@ namespace rl_tools::rl::zoo::sac{
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END

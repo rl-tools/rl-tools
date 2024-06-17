@@ -21,8 +21,8 @@ namespace rl_tools{
 
     template <typename DEVICE, typename SPEC>
     std::string get_ui(DEVICE& device, rl::environments::Pendulum<SPEC>& env){
+        // just the body of `function render(ctx, state, action) {` (so that it can be easily processed by `new Function("ctx", "state", "action", body)`
         std::string ui = R"RL_TOOLS_LITERAL(
-function render(ctx, state, action) {
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
     const centerX = ctx.canvas.width / 2;
@@ -94,7 +94,6 @@ function render(ctx, state, action) {
     ctx.lineTo(arrowX, arrowY);
     ctx.fillStyle = 'black';
     ctx.fill();
-}
         )RL_TOOLS_LITERAL";
         return ui;
     }

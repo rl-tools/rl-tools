@@ -32,7 +32,6 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     std::string get_ui(DEVICE& device, rl::environments::Acrobot<SPEC>& env){
         std::string ui = R"RL_TOOLS_LITERAL(
-function render(ctx, state, action) {
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
     const centerX = ctx.canvas.width / 2;
@@ -45,9 +44,8 @@ function render(ctx, state, action) {
     const pivotRadius = canvasWidth * 0.01;
 
     // First pendulum (base to joint)
-    const adjustedTheta1 = state.theta1 - Math.PI;
-    const pendulumX1 = centerX + pendulumLength1 * Math.sin(adjustedTheta1);
-    const pendulumY1 = centerY + pendulumLength1 * Math.cos(adjustedTheta1);
+    const pendulumX1 = centerX + pendulumLength1 * Math.sin(state.theta1);
+    const pendulumY1 = centerY + pendulumLength1 * Math.cos(state.theta1);
 
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
@@ -63,9 +61,8 @@ function render(ctx, state, action) {
     ctx.stroke();
 
     // Second pendulum (joint to end)
-    const adjustedTheta2 = adjustedTheta1 + state.theta2;
-    const pendulumX2 = pendulumX1 + pendulumLength2 * Math.sin(adjustedTheta2);
-    const pendulumY2 = pendulumY1 + pendulumLength2 * Math.cos(adjustedTheta2);
+    const pendulumX2 = pendulumX1 + pendulumLength2 * Math.sin(state.theta1 + state.theta2);
+    const pendulumY2 = pendulumY1 + pendulumLength2 * Math.cos(state.theta1 + state.theta2);
 
     ctx.beginPath();
     ctx.moveTo(pendulumX1, pendulumY1);
@@ -90,8 +87,8 @@ function render(ctx, state, action) {
     const torqueMagnitude = -action[0];
     const arrowRadius = canvasWidth * 0.08;
     const magnitudeRadians = (Math.PI * 2 / 3 * torqueMagnitude);
-    const startAngle = Math.PI / 2 + (torqueMagnitude > 0 ? 0 : magnitudeRadians);
-    const endAngle = Math.PI / 2 + (torqueMagnitude < 0 ? 0 : magnitudeRadians);
+    const startAngle =-Math.PI/2 + (torqueMagnitude > 0 ? 0 : magnitudeRadians) - state.theta1;
+    const endAngle = -Math.PI/2 + (torqueMagnitude < 0 ? 0 : magnitudeRadians) - state.theta1;
 
     ctx.beginPath();
     ctx.arc(pendulumX1, pendulumY1, arrowRadius, startAngle, endAngle);
@@ -122,7 +119,6 @@ function render(ctx, state, action) {
     ctx.lineTo(arrowX, arrowY);
     ctx.fillStyle = 'black';
     ctx.fill();
-}
         )RL_TOOLS_LITERAL";
         return ui;
     }
