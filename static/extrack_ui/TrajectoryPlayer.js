@@ -131,7 +131,7 @@ export class TrajectoryPlayer{
         skip_button.addEventListener('click', skipEpisode);
 
 
-        setInterval(step, 50);
+        setInterval(step, 20);
     }
 
 }

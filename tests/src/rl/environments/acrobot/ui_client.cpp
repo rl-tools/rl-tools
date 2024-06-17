@@ -32,7 +32,7 @@ int main(){
     state.theta_2_dot = 0;
     rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
 //    rlt::randn(device, action, rng);
-    rlt::set_all(device, action, 1);
+    rlt::set_all(device, action, -1);
     rlt::clamp(device, action, -1, 1);
     while(true){
         T dt = rlt::step(device, env, state, action, next_state, rng);

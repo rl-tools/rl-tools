@@ -55,7 +55,7 @@ namespace rl_tools{
                 std::string episode_json = "[";
                 for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
                     std::string step_json = "{";
-                    step_json += "\"state\":" + std::string(serialize_json(device, env, data.states[episode_i][step_i])) + ",";
+                    step_json += "\"state\":" + std::string(json(device, env, data.states[episode_i][step_i])) + ",";
                     std::string action_json = "\"action\":[";
                     for(TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
                         action_json += std::to_string(data.actions[episode_i][step_i][action_i]) + ",";

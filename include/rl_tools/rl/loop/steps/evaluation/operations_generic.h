@@ -50,6 +50,8 @@ namespace rl_tools{
                 log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean);
                 add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
+                add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);
+                add_scalar(device, device.logger, "evaluation/episode_length/std", result.episode_length_std);
             }
         }
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
