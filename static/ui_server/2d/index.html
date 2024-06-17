@@ -4,7 +4,6 @@
         body {
             margin: 0;
             padding: 0;
-            overflow: hidden;
         }
 
         .canvas-container {
@@ -20,8 +19,9 @@
     </style>
     <script>
         class Client{
-            constructor(){
+            constructor(restart_callback){
                 this.setParametersCallback = null;
+                this.restart_callback = restart_callback
                 const protocol = window.location.protocol === "https:" ? "wss" : "ws";
                 this.ws = new WebSocket( protocol + '://' + window.location.host + "/ui");
 
@@ -45,12 +45,20 @@
                     } else {
                         console.error('Connection died');
                     }
+                    this.restart()
                 };
             }
-            setEnvironmentCallbacks({setParametersCallback, setStateCallback, setActionCallback}){
+            restart(){
+                console.log("retrying connection in 500ms")
+                setTimeout(()=>{
+                    this.restart_callback()
+                }, 500)
+            }
+            setEnvironmentCallbacks({setParametersCallback, setStateCallback, setActionCallback, setUICallback}){
                 this.setParametersCallback = setParametersCallback;
                 this.setStateCallback = setStateCallback;
                 this.setActionCallback = setActionCallback;
+                this.setUICallback = setUICallback
             }
 
 
@@ -73,6 +81,16 @@
                                 this.setActionCallback(data)
                             }
                         }
+                        else{
+                            if(channel === "setUI"){
+                                if(this.setUICallback){
+                                    this.setUICallback(data)
+                                }
+                            }
+                            else{
+                                console.error('Unknown channel:', channel)
+                            }
+                        }
                     }
                 }
             }
@@ -80,23 +98,42 @@
                 this.ws.send(JSON.stringify({channel, data}));
             }
         }
-        const client = new Client();
-        client.setEnvironmentCallbacks({
-            setParametersCallback: (parameters)=>{
-                console.log('Parameters:', parameters);
-            },
-            setStateCallback: (state)=>{
-                console.log('State:', state);
-            },
-            setActionCallback: (action)=>{
-                console.log('Action:', action);
+
+
+        window.addEventListener('load', ()=>{
+            const info_container = document.getElementById('info');
+            info_container.textContent = '0';
+
+            const environmentCallbacks = {
+                setParametersCallback: (parameters)=>{
+                    console.log('Parameters:', parameters);
+                },
+                setStateCallback: (state)=>{
+                    console.log('State:', state);
+                    info_container.textContent = (parseInt(info_container.textContent) + 1).toString()
+                },
+                setActionCallback: (action)=>{
+                    console.log('Action:', action);
+                },
+                setUICallback: (ui)=>{
+                    console.log('UI:', ui);
+                }
             }
-        });
+
+            let client = null;
+            function createClient(){
+                client = new Client(createClient)
+                client.setEnvironmentCallbacks(environmentCallbacks);
+            }
+            createClient()
+        })
+
     </script>
 </head>
 <body>
 <div class="canvas-container">
     <canvas id="canvas" width="500" height="500"></canvas>
 </div>
+<div id="info"></div>
 </body>
 </html>

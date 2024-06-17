@@ -5,6 +5,7 @@
 #include <queue>
 #ifdef RL_TOOLS_ENABLE_LIBWEBSOCKETS
 #include <libwebsockets.h>
+#include <thread>
 #endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -21,9 +22,15 @@ namespace rl_tools::ui_server::client{
 #ifdef RL_TOOLS_ENABLE_LIBWEBSOCKETS
     template<typename T_ENVIRONMENT>
     struct UIWebSocket: UIJSON<T_ENVIRONMENT>{
+        using TI = typename T_ENVIRONMENT::TI;
         bool connected;
-        bool interrupted;
-        bool message_sent;
+        bool error;
+        bool interrupt;
+        bool verbose;
+        TI sync_interval = 1000;
+        std::thread thread;
+        std::queue<std::string> message_queue;
+        std::mutex message_queue_mutex;
         struct lws_context_creation_info ctx_info;
         struct lws_client_connect_info conn_info;
         struct lws_context *context;

@@ -13,25 +13,77 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace ui_server::client::websocket{
         template <typename ENVIRONMENT>
+        void connect(ui_server::client::UIWebSocket<ENVIRONMENT>& ui){
+            ui.conn_info.context = ui.context;
+            ui.conn_info.address = "localhost";
+            ui.conn_info.port = 8000;
+            ui.conn_info.path = "/backend";
+            ui.conn_info.host = lws_canonical_hostname(ui.context);
+            ui.conn_info.origin = "origin";
+            ui.conn_info.protocol = "ui_server";
+            ui.conn_info.ssl_connection = 0;
+            ui.conn_info.userdata = &ui;
+
+            lws_set_log_level(LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_INFO | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_EXT | LLL_CLIENT | LLL_LATENCY, NULL);
+
+            ui.wsi = lws_client_connect_via_info(&ui.conn_info);
+        }
+        template <typename ENVIRONMENT>
         static int callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len) {
             using UI = ui_server::client::UIWebSocket<ENVIRONMENT>;
             UI *ui = (UI*) user;
             switch (reason) {
                 case LWS_CALLBACK_CLIENT_ESTABLISHED:
                     lwsl_user("Client connected\n");
-                    ui->connected = 1;
+                    ui->connected = true;
+                    lws_callback_on_writable(ui->wsi);
                     break;
                 case LWS_CALLBACK_CLIENT_WRITEABLE:
-                    ui->message_sent = true;
+                    {
+                        std::string message;
+                        bool messages_left = false;
+                        bool found_message = false;
+                        {
+                            std::lock_guard guard(ui->message_queue_mutex);
+                            if(!ui->message_queue.empty()){
+                                found_message = true;
+                                message = ui->message_queue.front();
+                                ui->message_queue.pop();
+                            }
+                            if(!ui->message_queue.empty()){
+                                messages_left = true;
+                            }
+                        }
+                        size_t buf_size = LWS_PRE + message.size() + 1; // +1 for null terminator
+                        std::vector<unsigned char> buf(buf_size); // Use a vector for dynamic allocation
+                        std::memcpy(buf.data() + LWS_PRE, message.c_str(), message.size() + 1);
+                        lws_write(ui->wsi, buf.data() + LWS_PRE, message.size(), LWS_WRITE_TEXT);
+                        if(ui->verbose){
+                            std::cout << std::string("Message \"") + message + "\" sent." << std::endl;
+                        }
+                        if(messages_left){
+                            lws_callback_on_writable(ui->wsi);
+                        }
+                    }
                     break;
                 case LWS_CALLBACK_CLIENT_RECEIVE:
                     lwsl_user("Received: %s\n", (char *)in);
                     break;
+                case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+                    std::cerr << "Client connection error: " << (char *)in << std::endl;
+                    ui->connected = false;
+                    ui->error = true;
+                    lws_cancel_service(ui->context);
+                    break;
                 case LWS_CALLBACK_CLIENT_CLOSED:
                     lwsl_user("Client closed\n");
+                    ui->connected = false;
+                    lws_cancel_service(ui->context);
                     break;
                 default:
-                    std::cout << "Unhandled callback: " << reason << std::endl;
+                    if(ui && ui->verbose){
+                        std::cout << "Unhandled callback: " << reason << std::endl;
+                    }
                     break;
             }
             return 0;
@@ -41,26 +93,22 @@ namespace rl_tools{
 
         template <typename DEVICE, typename ENVIRONMENT>
         void send_message(DEVICE& device, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, std::string message){
-            utils::assert_exit(device, ui.connected, "Cannot send message: UI not connected");
-            ui.message_sent = false;
-            size_t buf_size = LWS_PRE + message.size() + 1; // +1 for null terminator
-            std::vector<unsigned char> buf(buf_size); // Use a vector for dynamic allocation
-            std::memcpy(buf.data() + LWS_PRE, message.c_str(), message.size() + 1);
-            lws_write(ui.wsi, buf.data() + LWS_PRE, message.size(), LWS_WRITE_TEXT);
-            lws_callback_on_writable(ui.wsi);
-            while(!ui.message_sent){
-                lws_service(ui.context, 250);
+            {
+                std::lock_guard guard(ui.message_queue_mutex);
+                ui.message_queue.push(message);
             }
-            log(device, device.logger, std::string("Message \"") + message + "\" sent.");
+            lws_cancel_service(ui.context);
         }
     }
 
     template <typename DEVICE, typename ENVIRONMENT>
-    void init(DEVICE& device, ENVIRONMENT& env, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, std::string name_space = "default"){
+    void init(DEVICE& device, ENVIRONMENT& env, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, std::string name_space = "default", bool verbose = false){
+        // note the &env needs to be alive until free is called
         using UI = ui_server::client::UIWebSocket<ENVIRONMENT>;
         ui.ns = name_space;
+        ui.verbose = verbose;
         ui.connected = false;
-        ui.interrupted = false;
+        ui.interrupt = false;
         memset(&ui.ctx_info, 0, sizeof(ui.ctx_info));
         memset(&ui.conn_info, 0, sizeof(ui.conn_info));
 
@@ -70,28 +118,64 @@ namespace rl_tools{
         ui.context = lws_create_context(&ui.ctx_info);
         utils::assert_exit(device, ui.context, "lws_create_context failed");
 
-        ui.conn_info.context = ui.context;
-        ui.conn_info.address = "localhost";
-        ui.conn_info.port = 8000;
-        ui.conn_info.path = "/backend";
-        ui.conn_info.host = lws_canonical_hostname(ui.context);
-        ui.conn_info.origin = "origin";
-        ui.conn_info.protocol = "ui_server";
-        ui.conn_info.ssl_connection = 0;
-        ui.conn_info.userdata = &ui;
+        ui.thread = std::thread([&device, &env, &ui](){
+            std::chrono::steady_clock::time_point last_sync_time;
+            bool last_sync_time_set = false;
+            while (!ui.interrupt) {
+                bool was_not_connected = false;
+                if(!ui.connected){
+                    ui.error = false;
+                    log(device, device.logger, "Not connected, wiping message buffer");
+                    {
+                        std::lock_guard guard(ui.message_queue_mutex);
+                        while(!ui.message_queue.empty()){
+                            ui.message_queue.pop();
+                        }
+                    }
+                    log(device, device.logger, "Waiting for UI connection...");
+                    ui_server::client::websocket::connect(ui);
+                    was_not_connected = true;
+                }
+                while (!ui.connected && !ui.error && !ui.interrupt) {
+                    lws_service(ui.context, 250);
+                }
+                if(ui.error || ui.interrupt){
+                    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                    continue;
+                }
+                if(was_not_connected){
+                    log(device, device.logger, "UI connected.");
+                }
+                auto now = std::chrono::steady_clock::now();
+                if(was_not_connected || !last_sync_time_set || (now- last_sync_time) > std::chrono::milliseconds(ui.sync_interval)){
+                    last_sync_time_set = true;
+                    last_sync_time = now;
+                    ui_server::client::websocket::send_message(device, ui, parameters_message(device, env, ui));
+                    std::string render_function = get_ui(device, env);
+                    if(!render_function.empty()){
+                        ui_server::client::websocket::send_message(device, ui, set_ui_message(device, env, ui, render_function));
+                    }
+                }
+                lws_service(ui.context, 50);
+                bool messages_left = false;
+                {
+                    std::lock_guard guard(ui.message_queue_mutex);
+                    messages_left = !ui.message_queue.empty();
+                }
+                if(messages_left){
+                    lws_callback_on_writable(ui.wsi);
+                }
+            }
+        });
 
-        lws_set_log_level(LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_INFO | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_EXT | LLL_CLIENT | LLL_LATENCY, NULL);
 
-        ui.wsi = lws_client_connect_via_info(&ui.conn_info);
-        utils::assert_exit(device, ui.wsi, "lws_client_connect_via_info failed");
-
-        log(device, device.logger, "Waiting for UI connection...");
-        while (!ui.connected) {
-            lws_service(ui.context, 250);
-        }
-        log(device, device.logger, "UI connected.");
-
-        ui_server::client::websocket::send_message(device, ui, parameters_message(device, env, ui, name_space));
+    }
+    template <typename DEVICE, typename ENVIRONMENT>
+    void free(DEVICE& device, ENVIRONMENT& env, ui_server::client::UIWebSocket<ENVIRONMENT>& ui){
+        ui.interrupt = true;
+        lws_cancel_service(ui.context);
+        ui.thread.join();
+        lws_context_destroy(ui.context);
     }
     template <typename DEVICE, typename ENVIRONMENT>
     void set_state(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
