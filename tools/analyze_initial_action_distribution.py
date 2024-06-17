@@ -3,10 +3,27 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from pathlib import Path
+
+experiments_path = "experiments"
+
+# experiments = list(os.walk(experiments_path))
 
 
-run = "experiments/2024-06-17_17-02-34/8c56263_zoo_algorithm_environment/sac_acrobot-swingup-v0/0000"
+path = Path(experiments_path)
+latest_trajectories = sorted(path.rglob(f'*zoo*/*/*/steps/*/trajectories.json.gz'))
+latest_runs = np.unique([trajectories.parent.parent.parent for trajectories in latest_trajectories])
 
+
+N = 5
+run_selection = latest_runs[-N:][::-1]
+print(f"Last runs:")
+[print(f"  {i}: {run}") for i, run in enumerate(run_selection)]
+input_string = input(f"Select run (0-{N-1})[0]: ")
+run_index = int(input_string) if input_string else 0
+
+run = run_selection[run_index]
+print(f"Selected run: {run}")
 steps = sorted(os.listdir(os.path.join(run, "steps")))
 
 # create subplots

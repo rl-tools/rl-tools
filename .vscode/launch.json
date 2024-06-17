@@ -44,6 +44,16 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
+            "args": ["--render"]
+        },
+        {
+            "name": "analyze_initial_action_distribution",
+            "type": "python",
+            "request": "launch",
+            "program": "tools/analyze_initial_action_distribution.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
         }
     ]
 }

@@ -25,7 +25,7 @@ namespace rl_tools{
         return json(device, static_cast<rl::environments::Acrobot<SPEC>&>(env), state);
     }
     template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE& device, const typename rl::environments::acrobot::Parameters<SPEC>& parameters){
+    std::string json(DEVICE& device, const rl::environments::Acrobot<SPEC>, const typename rl::environments::acrobot::Parameters<SPEC>& parameters){
         return "{}";
     }
 

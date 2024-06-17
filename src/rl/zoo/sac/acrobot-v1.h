@@ -15,6 +15,8 @@ namespace rl_tools::rl::zoo::sac{
     struct AcrobotSwingupV0{
         struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::acrobot::EasyParameters<T>{
             static constexpr T DT = 0.02;
+            static constexpr T MIN_TORQUE = -5;
+            static constexpr T MAX_TORQUE = +5;
         };
         using ENVIRONMENT_SPEC = rlt::rl::environments::acrobot::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
         using ENVIRONMENT = rlt::rl::environments::AcrobotSwingup<ENVIRONMENT_SPEC>;
@@ -38,6 +40,9 @@ namespace rl_tools::rl::zoo::sac{
             static constexpr T ALPHA = 1;
             static constexpr TI EPISODE_STEP_LIMIT = 10 / ENVIRONMENT_PARAMETERS::DT;
             static constexpr TI N_WARMUP_STEPS = 50000;
+            struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
+                static constexpr T ALPHA = 2e-3;
+            };
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
     };

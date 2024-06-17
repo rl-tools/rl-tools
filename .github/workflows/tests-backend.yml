@@ -3,6 +3,7 @@
 name: Tests (Backend)
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "master" ]
   pull_request:

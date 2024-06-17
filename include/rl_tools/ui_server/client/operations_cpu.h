@@ -42,7 +42,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename ENVIRONMENT>
     std::string parameters_message(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UIJSON<ENVIRONMENT>& ui){
-        std::string parameters_json = json(dev, env.parameters);
+        std::string parameters_json = json(dev, env, env.parameters);
         std::string parameters_message = "{";
         parameters_message += "\"namespace\": \"" + ui.ns + "\", ";
         parameters_message += "\"channel\": \"setParameters\", ";
@@ -69,7 +69,7 @@ namespace rl_tools{
         message += "\"namespace\": \"" + ui.ns + "\", ";
         message += "\"channel\": \"setState\", ";
         std::string data = "{";
-        data += "\"state\": " + json(dev, env, state);
+        data += "\"state\": " + std::string(json(dev, env, state));
         data += "}";
         message += "\"data\": " + data;
         message += "}";

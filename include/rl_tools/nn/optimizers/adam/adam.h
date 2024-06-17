@@ -30,9 +30,11 @@ namespace rl_tools::nn::optimizers{
             static constexpr T BETA_2 = 0.999;
             static constexpr T EPSILON = 1e-7;
             static constexpr T EPSILON_SQRT = 1e-7;
+            static constexpr bool ENABLE_WEIGHT_DECAY = false;
             static constexpr T WEIGHT_DECAY = 0;
             static constexpr T WEIGHT_DECAY_INPUT = 0;
             static constexpr T WEIGHT_DECAY_OUTPUT = 0;
+            static constexpr bool ENABLE_BIAS_LR_FACTOR = false;
             static constexpr T BIAS_LR_FACTOR = 1;
         };
         template <typename T>
@@ -40,13 +42,13 @@ namespace rl_tools::nn::optimizers{
             static constexpr T EPSILON = 1e-8;
             static constexpr T EPSILON_SQRT = 1e-8;
         };
-        template <typename T_T, typename T_TI, typename T_DEFAULT_PARAMETERS=DEFAULT_PARAMETERS_TENSORFLOW<T_T>, bool T_ENABLE_WEIGHT_DECAY = false, bool T_ENABLE_BIAS_LR_FACTOR = false>
+        template <typename T_T, typename T_TI, typename T_DEFAULT_PARAMETERS=DEFAULT_PARAMETERS_TENSORFLOW<T_T>>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             using DEFAULT_PARAMETERS = T_DEFAULT_PARAMETERS;
-            static constexpr bool ENABLE_WEIGHT_DECAY = T_ENABLE_WEIGHT_DECAY;
-            static constexpr bool ENABLE_BIAS_LR_FACTOR = T_ENABLE_BIAS_LR_FACTOR;
+            static constexpr bool ENABLE_WEIGHT_DECAY = DEFAULT_PARAMETERS::ENABLE_WEIGHT_DECAY;
+            static constexpr bool ENABLE_BIAS_LR_FACTOR = DEFAULT_PARAMETERS::ENABLE_BIAS_LR_FACTOR;
         };
     }
     template<typename T_SPEC>
