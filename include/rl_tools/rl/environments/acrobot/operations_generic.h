@@ -162,7 +162,7 @@ namespace rl_tools{
         torque_cost *= torque_cost;
 
 //        return math::exp(dm, -a_angle_cost) + math::exp(dm, -b_angle_cost) + SPEC::PARAMETERS::VEL_PENALTY * math::exp(dm, -a_vel_cost) + SPEC::PARAMETERS::VEL_PENALTY*math::exp(dm, -b_vel_cost) + 0.3 * math::exp(dm, -torque_cost);
-        return (-a_angle_cost -b_angle_cost); ///1000;
+        return (-a_angle_cost -b_angle_cost)/100;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
