@@ -32,14 +32,18 @@ namespace rl_tools::rl::zoo::sac{
             static constexpr TI STEP_LIMIT = 4000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
-            static constexpr TI ACTOR_HIDDEN_DIM = 128;
+            static constexpr TI ACTOR_HIDDEN_DIM = 256;
             static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI CRITIC_NUM_LAYERS = 3;
-            static constexpr TI CRITIC_HIDDEN_DIM = 128;
+            static constexpr TI CRITIC_HIDDEN_DIM = 256;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr T ALPHA = 1;
-            static constexpr TI EPISODE_STEP_LIMIT = 10 / ENVIRONMENT_PARAMETERS::DT;
+            static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT_PARAMETERS::DT;
             static constexpr TI N_WARMUP_STEPS = 50000;
+            struct INITIALIZER_SPEC: nn::layers::dense::KaimingUniformSpecification<T, TI>{
+                static constexpr bool INIT_LEGACY = false;
+            };
+            using INITIALIZER = nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>;
             struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr T ALPHA = 2e-3;
             };
