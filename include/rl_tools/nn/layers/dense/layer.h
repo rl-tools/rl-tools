@@ -24,10 +24,18 @@ namespace rl_tools::nn::layers::dense {
     }
     template <typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
     constexpr bool check_input_output = check_input_output_f<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>();
-    template<typename T_T, typename T_TI>
-    struct DefaultInitializer {
+
+    template <typename T_T, typename T_TI>
+    struct KaimingUniformSpecification{
+        using T = T_T;
+        using TI = T_TI;
         static constexpr bool INIT_LEGACY = true;
     };
+    template<typename SPEC>
+    struct KaimingUniform {
+    };
+    template<typename T_T, typename T_TI>
+    using DefaultInitializer = KaimingUniform<KaimingUniformSpecification<T_T, T_TI>>;
 
     template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, typename T_INITIALIZER = DefaultInitializer<T_T, T_TI>, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification {

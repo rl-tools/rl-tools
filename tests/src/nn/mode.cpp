@@ -24,7 +24,7 @@ TEST(RL_TOOLS_NN_MODE, LAYER) {
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{});
     rlt::malloc(device, layer);
     rlt::malloc(device, buffer);
-    rlt::init_kaiming(device, layer, rng);
+    rlt::init_weights(device, layer, rng);
     rlt::randn(device, input, rng);
     rlt::evaluate(device, layer, input, output, buffer, rng, rlt::nn::Mode<rlt::nn::mode::Default>{});
 }

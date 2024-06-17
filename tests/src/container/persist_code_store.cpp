@@ -56,7 +56,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_DENSE_LAYER){
     using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     rlt::nn::layers::dense::Layer<CAPABILITY_ADAM, LAYER_SPEC> layer;
     rlt::malloc(device, layer);
-    rlt::init_kaiming(device, layer, rng);
+    rlt::init_weights(device, layer, rng);
     rlt::zero_gradient(device, layer);
     rlt::reset_forward_state(device, layer);
     rlt::reset_optimizer_state(device, optimizer, layer);

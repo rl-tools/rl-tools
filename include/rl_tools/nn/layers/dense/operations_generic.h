@@ -49,12 +49,12 @@ namespace rl_tools{
     template<typename DEVICE>
     void free(DEVICE& device, nn::layers::dense::Buffer& buffer) { } // no-op
 
-    template<typename DEVICE, typename SPEC, typename RNG>
-    void init_kaiming(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {
+    template<typename DEVICE, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
+    void init_weights(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, const nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>& initializer, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         T gain;
-        if constexpr(SPEC::INITIALIZER::INIT_LEGACY){
+        if constexpr(INITIALIZER_SPEC::INIT_LEGACY){
             T negative_slope = math::sqrt(device.math, (T)5);
             gain = math::sqrt(device.math, (T)2.0 / (1 + negative_slope * negative_slope));
         }
@@ -66,7 +66,7 @@ namespace rl_tools{
         T weight_bound = math::sqrt(device.math, (T)3.0) * std;
         T bias_bound = 1/math::sqrt(device.math, (T)SPEC::INPUT_DIM);
         for(TI i = 0; i < SPEC::OUTPUT_DIM; i++) {
-            if constexpr(SPEC::INITIALIZER::INIT_LEGACY) {
+            if constexpr(INITIALIZER_SPEC::INIT_LEGACY) {
                 set(layer.biases.parameters, 0, i, (T)random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -bias_bound, bias_bound, rng));
             }
             else{
@@ -79,7 +79,7 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     void init_weights(DEVICE& device, nn::layers::dense::LayerForward<SPEC>& layer, RNG& rng) {
-        init_kaiming(device, layer, rng);
+        init_weights(device, layer, typename SPEC::INITIALIZER{}, rng);
     }
 
 #ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD

@@ -72,9 +72,9 @@ TEST(RL_TOOLS_NN_MLP_CONVERSIONS, CONVERSIONS) {
     rlt::malloc(device2, layer222);
 
     auto rng = rlt::random::default_engine(Device2::SPEC::RANDOM());
-    rlt::init_kaiming(device2, layer2, rng);
-    rlt::init_kaiming(device2, layer22, rng);
-    rlt::init_kaiming(device2, layer222, rng);
+    rlt::init_weights(device2, layer2, rng);
+    rlt::init_weights(device2, layer22, rng);
+    rlt::init_weights(device2, layer222, rng);
 
     ASSERT_GT(rlt::abs_diff(device2, layer2, layer22), 0);
 

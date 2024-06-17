@@ -29,7 +29,7 @@ TEST(RL_TOOLS_NN_LAYERS_DENSE, COPY_REGRESSION) {
     decltype(layer)::template Buffer<1> buffer;
     rlt::malloc(device, layer);
     rlt::malloc(device, buffer);
-    rlt::init_kaiming(device, layer, rng);
+    rlt::init_weights(device, layer, rng);
     constexpr TI BATCH_SIZE = 1;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> output;
