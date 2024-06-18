@@ -22,18 +22,18 @@
 
         import { Explorer } from "./Explorer.js";
         const explorer = new Explorer(experiments_base_path, idx, {"verbose": true})
-        const explorerContainer = document.getElementById('explorerContainer');
+        const explorerContainer = document.getElementById('explorer-container');
         explorerContainer.appendChild(explorer.getContainer());
 
         import { Zoo } from "./Zoo.js";
         const zoo = new Zoo(experiments_base_path, idx, {"verbose": true})
-        const zooContainer = document.getElementById('zooContainer');
+        const zooContainer = document.getElementById('zoo-container');
         zooContainer.appendChild(zoo.getContainer());
 
 
         function populate_latest_run(run){
             const trajectory_player = new TrajectoryPlayer(run.ui_jsm);
-            const trajectory_player_container = document.getElementById('trajectoryPlayerContainer')
+            const trajectory_player_container = document.getElementById('extrack-trajectory-player-container')
             trajectory_player_container.appendChild(trajectory_player.getCanvas());
             trajectory_player_container.style.display = "block";
             const step = Object.keys(run.steps).sort().reverse()[0]
@@ -83,15 +83,13 @@
             <b>Checkpoint</b>: <span id="latest-run-checkpoint"></span>
         </div>
         <div id="latest-run-description-loading">Loading...</div>
-        <div id="trajectoryPlayerContainer"></div>
+        <div id="extrack-trajectory-player-container"></div>
     </div>
     <h1>Run Explorer</h1>
-    <div id="explorerContainer"></div>
+    <div id="explorer-container"></div>
     <h1>Learning Curves</h1>
     <div class="zoo-container-container">
-        <div class="zoo-container">
-            <div id="zooContainer" class="zoo-module"></div>
-        </div>
+        <div id="zoo-container" class="zoo-container-container-element"></div>
     </div>
 </body>
 </html>

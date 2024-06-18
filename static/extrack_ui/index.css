@@ -5,6 +5,9 @@
 .explorer-trajectory-player-container{
     height: 500px;
 }
+.-trajectory-player-container{
+    height: 500px;
+}
 
 #latest-run-description{
     display: none;
@@ -15,9 +18,6 @@
     align-items: center;
     width: 100%;
 }
-.latest-run-container-element{
-
-}
 
 .zoo-container-container{
     display: flex;
@@ -26,12 +26,9 @@
     width: 100%;
 }
 .zoo-container{
+}
+.zoo-container-container-element{
     max-width: 900px;
     width: 100%;
-}
-.zoo-module{
-    width: 100%;
     text-align: center;
-}
-.zoo-module{
 }
