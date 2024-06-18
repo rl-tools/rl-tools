@@ -98,9 +98,9 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ./build/src/rl/zoo/rl_zoo_ppo_pendulum_v1 $NUM_SEEDS
 
-      - name: Build Acrobot
+      - name: Run Zoo (SAC AcrobotSwingup-v0)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.acrobot == 'true'
-        run: ./build/src/rl/zoo/rl_zoo_ppo_acrobot_swingup_v0 $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_sac_acrobot_swingup_v0 $NUM_SEEDS
 
       - name: Run Zoo (PPO Ant-v4)
         if: ${{ env.MUJOCO == 'true' }}
