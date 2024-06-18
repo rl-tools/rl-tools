@@ -11,7 +11,7 @@ namespace rl_tools{
     void init(DEVICE& device, rl::loop::steps::timing::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::timing::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
-        ts.start_time = std::chrono::high_resolution_clock::now();
+        ts.start_time = std::chrono::steady_clock::now();
         ts.last_steps_per_second_time = ts.start_time;
         ts.last_steps_per_second_step = ts.step;
     }
