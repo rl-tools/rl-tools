@@ -65,6 +65,7 @@ export class TrajectoryPlayer{
         this.controls_container.appendChild(skip_button);
 
 
+        const dt = trajectoryData[0][0].dt;
         const step = () => {
             const size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
             this.canvas.width = size;
@@ -80,7 +81,7 @@ export class TrajectoryPlayer{
             if (currentEpisode < trajectoryData.length) {
                 const episode = trajectoryData[currentEpisode];
                 if (currentStep < episode.length) {
-                    const { state, action, reward, terminated } = episode[currentStep];
+                    const { state, action, reward, terminated, dt } = episode[currentStep];
                     render(ctx, state, action);
                     currentEpisodeLength++;
                     currentEpisodeReturn += reward;
@@ -95,7 +96,6 @@ export class TrajectoryPlayer{
                     currentEpisodeLength = 0;
                     currentEpisodeReturn = 0;
                 }
-
             }
         }
 
@@ -131,7 +131,7 @@ export class TrajectoryPlayer{
         skip_button.addEventListener('click', skipEpisode);
 
 
-        setInterval(step, 20);
+        setInterval(step, dt * 1000);
     }
 
 }

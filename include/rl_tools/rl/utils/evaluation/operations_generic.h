@@ -33,6 +33,12 @@ namespace rl_tools{
             }
         }
         template<typename TI, typename SPEC>
+        void set_dt(rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, typename SPEC::T dt){ }
+        template<typename TI, typename SPEC>
+        void set_dt(rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, typename SPEC::T dt){
+            data.dt[episode_i][step_i] = dt;
+        }
+        template<typename TI, typename SPEC>
         void set_reward(rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, typename SPEC::T reward){}
         template<typename TI, typename SPEC>
         void set_reward(rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, typename SPEC::T reward){
@@ -128,6 +134,7 @@ namespace rl_tools{
                     set_action(device, env, ui, action);
                     render(device, env, ui);
                 }
+                rl::utils::evaluation::set_dt(data, env_i, step_i, dt);
                 T r = reward(device, env, state, action, next_state, rng);
                 rl::utils::evaluation::set_reward(data, env_i, step_i, r);
                 bool terminated_flag = rl_tools::terminated(device, env, next_state, rng);

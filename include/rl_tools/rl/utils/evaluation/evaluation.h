@@ -34,6 +34,7 @@ namespace rl_tools::rl::utils::evaluation{
         T rewards[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
         typename ENVIRONMENT::State states[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
         T actions[SPEC::N_EPISODES][SPEC::STEP_LIMIT][ENVIRONMENT::ACTION_DIM];
+        T dt[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
     };
     template <typename T_SPEC>
     struct NoData{};
