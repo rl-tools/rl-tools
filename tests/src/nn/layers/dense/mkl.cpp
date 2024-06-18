@@ -28,7 +28,7 @@ void test(){
     typename decltype(layer)::template Buffer<BATCH_SIZE> layer_buffer;
     rlt::malloc(device_generic, layer);
     rlt::malloc(device_generic, layer_buffer);
-    rlt::init_kaiming(device_generic, layer, rng);
+    rlt::init_weights(device_generic, layer, rng);
 //    constexpr TI BATCH_SIZE = 1;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, INPUT_DIM>> input;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, BATCH_SIZE, OUTPUT_DIM>> output_generic, output_mkl;

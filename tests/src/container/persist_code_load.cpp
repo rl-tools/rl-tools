@@ -41,7 +41,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER){
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     rlt::nn::layers::dense::LayerForward<rlt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, rlt::nn::activation_functions::ActivationFunction::RELU>> layer;
     rlt::malloc(device, layer);
-    rlt::init_kaiming(device, layer, rng);
+    rlt::init_weights(device, layer, rng);
     rlt::increment(layer.weights.parameters, 2, 1, 10);
     auto abs_diff = rlt::abs_diff(device, layer, layer_1::layer);
     ASSERT_FLOAT_EQ(10, abs_diff);
@@ -57,7 +57,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_LOAD, TEST_DENSE_LAYER_ADAM){
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     rlt::nn::layers::dense::LayerGradient<rlt::nn::layers::dense::Specification<DTYPE, typename DEVICE::index_t, 3, 3, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::parameters::Adam>> layer;
     rlt::malloc(device, layer);
-    rlt::init_kaiming(device, layer, rng);
+    rlt::init_weights(device, layer, rng);
     rlt::zero_gradient(device, layer);
     rlt::reset_forward_state(device, layer);
     rlt::reset_optimizer_state(device, optimizer, layer);
