@@ -113,8 +113,8 @@ export class Explorer{
         this.container.appendChild(this.loading_text);
         // const experiment_index_path = `${experiments_base_path}/index.txt`
         // this.loading_text.innerHTML = `Loading Experiment Index: ${experiment_index_path}`
-        index.refresh().then(idx => {
-            this.experiments = idx.run_hierarchy;
+        index.refresh().then(() => {
+            this.experiments = index.run_hierarchy;
             this.loading_text.style.display = "none";
             const experiment_list = document.createElement('ul');
             experiment_list.classList.add("experiment-list");

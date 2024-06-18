@@ -30,7 +30,6 @@ class Run{
                 this.steps[step_id] = new Step(this, step_id, step_node)
             }
         }
-
     }
 
     async refresh(){
@@ -39,9 +38,26 @@ class Run{
     }
 
 }
+
+export function group_by(array, keys){
+    const groups = {}
+    for(const item of array){
+        const master_key = keys.map(key => item.config[key]).join("_")
+        if(!(master_key in groups)){
+            groups[master_key] = {
+                keys: Object.fromEntries(keys.map(key => [key, item[key]])),
+                items: []
+            }
+        }
+        groups[master_key].items.push(item)
+    }
+    return groups
+}
 export class Index{
     constructor(fs){
         this.fs = fs;
+        this.run_list = null // this is always sorted lexicographically
+        this.run_hierarchy = null
     }
     async refresh(){
         const tree = await this.fs.loadTree()
@@ -87,9 +103,7 @@ export class Index{
             }
             current[run.config["seed"]] = run
         }
-        return {
-            "run_list": run_list,
-            "run_hierarchy": run_hierarchy
-        };
+        this.run_list = run_list
+        this.run_hierarchy = run_hierarchy
     }
 }

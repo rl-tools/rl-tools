@@ -4,7 +4,7 @@ export class StaticFileSystem{
         this.index_path = `${base_path}index_static.txt`
     }
     async loadTree(){
-        this.tree = fetch(this.index_path)
+        this.tree = await fetch(this.index_path)
             .then(response => {
                 if(!response.ok){
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -17,7 +17,8 @@ export class StaticFileSystem{
         return this.tree
     }
     async refresh(node){
-        return node.path.split("/").reduce((acc, val) => acc.children[val], this.tree)
+        await this.loadTree()
+        return node.path.split("/").reduce((acc, val) => val.length > 0 ? acc.children[val]:acc, this.tree)
     }
     normalize(path){
         // this should remove all relative path components like test/../hello.txt => test/hello.txt
@@ -59,7 +60,6 @@ export class StaticFileSystem{
     parsePath(tree, path){
         const normalized = this.normalize(path)
         this.addNode(tree, normalized, "", normalized)
-        console.log(normalized)
     }
     parse(index){
         const tree = {

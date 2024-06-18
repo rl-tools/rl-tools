@@ -5,3 +5,33 @@
 .explorer-trajectory-player-container{
     height: 500px;
 }
+
+#latest-run-description{
+    display: none;
+}
+#latest-run-container{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+.latest-run-container-element{
+
+}
+
+.zoo-container-container{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+.zoo-container{
+    max-width: 900px;
+    width: 100%;
+}
+.zoo-module{
+    width: 100%;
+    text-align: center;
+}
+.zoo-module{
+}

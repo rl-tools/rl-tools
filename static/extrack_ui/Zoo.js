@@ -1,19 +1,6 @@
 import {make_chart} from "./ZooLearningCurves.js"
+import {group_by} from "./Index.js"
 
-function group_by(array, keys){
-    const groups = {}
-    for(const item of array){
-        const master_key = keys.map(key => item.config[key]).join("_")
-        if(!(master_key in groups)){
-            groups[master_key] = {
-                keys: Object.fromEntries(keys.map(key => [key, item[key]])),
-                items: []
-            }
-        }
-        groups[master_key].items.push(item)
-    }
-    return groups
-}
 
 
 function aggregate(evaluation_data){
@@ -54,7 +41,7 @@ export class Zoo{
     constructor(fs, index){
         this.container = document.createElement("div")
         this.container.classList.add("zoo-container")
-        index.refresh().then(async (index) => {
+        index.refresh().then(async () => {
             const run_list_full = index.run_list
             console.log(`Found: ${run_list_full.length} runs`)
             const run_list_zoo = run_list_full.filter((run) => run.config["name"] === "zoo")
