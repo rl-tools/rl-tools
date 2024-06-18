@@ -15,8 +15,8 @@ namespace rl_tools::rl::zoo::sac{
     struct AcrobotSwingupV0{
         struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::acrobot::EasyParameters<T>{
             static constexpr T DT = 0.02;
-            static constexpr T MIN_TORQUE = -10;
-            static constexpr T MAX_TORQUE = +10;
+            static constexpr T MIN_TORQUE = -5;
+            static constexpr T MAX_TORQUE = +5;
         };
         using ENVIRONMENT_SPEC = rlt::rl::environments::acrobot::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
         using ENVIRONMENT = rlt::rl::environments::AcrobotSwingup<ENVIRONMENT_SPEC>;
@@ -29,7 +29,7 @@ namespace rl_tools::rl::zoo::sac{
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
                 static constexpr T GAMMA = 0.9975;
             };
-            static constexpr TI STEP_LIMIT = 300000;
+            static constexpr TI STEP_LIMIT = 1000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
             static constexpr TI ACTOR_HIDDEN_DIM = 256;

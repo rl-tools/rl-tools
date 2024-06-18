@@ -52,7 +52,7 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
-constexpr TI BASE_SEED = 1;
+constexpr TI BASE_SEED = 0;
 
 #include "config.h"
 
