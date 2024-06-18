@@ -27,7 +27,7 @@ namespace rl_tools::rl::zoo::sac{
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
-                static constexpr T GAMMA = 0.995;
+                static constexpr T GAMMA = 0.9975;
             };
             static constexpr TI STEP_LIMIT = 1000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
@@ -47,7 +47,7 @@ namespace rl_tools::rl::zoo::sac{
             };
             using INITIALIZER = nn::layers::dense::KaimingUniform<INITIALIZER_SPEC>;
             struct OPTIMIZER_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-                static constexpr T ALPHA = 2e-3;
+                static constexpr T ALPHA = 1e-3;
                 static constexpr bool ENABLE_BIAS_LR_FACTOR = true;
                 static constexpr T BIAS_LR_FACTOR = 10;
                 static constexpr bool ENABLE_WEIGHT_DECAY = false;

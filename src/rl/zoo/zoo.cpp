@@ -52,6 +52,7 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
+constexpr TI BASE_SEED = 1;
 
 #include "config.h"
 
@@ -88,7 +89,7 @@ int main(int argc, char** argv){
         num_seeds = std::stoi(argv[1]);
         std::cerr << "Running " << num_seeds << " seeds." << std::endl;
     }
-    for(TI seed = 0; seed < num_seeds; seed++){
+    for(TI seed = BASE_SEED; seed < BASE_SEED+num_seeds; seed++){
         LOOP_STATE ts;
 //#ifdef RL_TOOLS_ENABLE_CLI11
 //    CLI::App app{"rl_zoo"};
