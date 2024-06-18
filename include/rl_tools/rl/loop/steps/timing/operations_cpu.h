@@ -10,8 +10,10 @@ namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
     void init(DEVICE& device, rl::loop::steps::timing::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::timing::State<T_CONFIG>;
-        ts.start_time = std::chrono::high_resolution_clock::now();
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
+        ts.start_time = std::chrono::high_resolution_clock::now();
+        ts.last_steps_per_second_time = ts.start_time;
+        ts.last_steps_per_second_step = ts.step;
     }
 
     template <typename DEVICE, typename T_CONFIG>
@@ -22,11 +24,20 @@ namespace rl_tools{
 
     template <typename DEVICE, typename CONFIG>
     bool step(DEVICE& device, rl::loop::steps::timing::State<CONFIG>& ts){
+        using T = typename CONFIG::T;
         using TI = typename CONFIG::TI;
         using STATE = rl::loop::steps::timing::State<CONFIG>;
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
+        auto now = std::chrono::steady_clock::now();
+        if(now - ts.last_steps_per_second_time > std::chrono::seconds(10)){
+            TI steps = ts.step - ts.last_steps_per_second_step;
+            T steps_per_second = (T)steps / std::chrono::duration_cast<std::chrono::microseconds>(now - ts.last_steps_per_second_time).count() * 1000000;
+            log(device, device.logger, "Steps per second: ", steps_per_second);
+            add_scalar(device, device.logger, "steps_per_second", steps_per_second);
+            ts.last_steps_per_second_time = now;
+            ts.last_steps_per_second_step = ts.step;
+        }
         if(finished){
-            auto now = std::chrono::high_resolution_clock::now();
             log(device, device.logger, "Time: ", std::chrono::duration_cast<std::chrono::milliseconds>(now - ts.start_time).count()/1000.0, "s");
         }
         return finished;

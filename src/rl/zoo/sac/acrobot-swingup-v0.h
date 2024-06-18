@@ -24,12 +24,12 @@ namespace rl_tools::rl::zoo::sac{
             struct SAC_PARAMETERS: rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;
                 static constexpr TI CRITIC_BATCH_SIZE = 256;
-                static constexpr TI CRITIC_TRAINING_INTERVAL = 10;
-                static constexpr TI ACTOR_TRAINING_INTERVAL = 20;
-                static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 20;
+                static constexpr TI CRITIC_TRAINING_INTERVAL = 1;
+                static constexpr TI ACTOR_TRAINING_INTERVAL = 2;
+                static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 2;
                 static constexpr T GAMMA = 0.995;
             };
-            static constexpr TI STEP_LIMIT = 4000000;
+            static constexpr TI STEP_LIMIT = 1000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
             static constexpr TI ACTOR_HIDDEN_DIM = 256;
@@ -50,7 +50,15 @@ namespace rl_tools::rl::zoo::sac{
                 static constexpr T ALPHA = 2e-3;
                 static constexpr bool ENABLE_BIAS_LR_FACTOR = true;
                 static constexpr T BIAS_LR_FACTOR = 10;
+                static constexpr bool ENABLE_WEIGHT_DECAY = false;
+                static constexpr T WEIGHT_DECAY = 0;
+                static constexpr T WEIGHT_DECAY_INPUT = 0;
+                static constexpr T WEIGHT_DECAY_OUTPUT = 0;
             };
+        };
+        template <typename BASE>
+        struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{
+//            static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT_PARAMETERS::DT;
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsSequential>;
     };

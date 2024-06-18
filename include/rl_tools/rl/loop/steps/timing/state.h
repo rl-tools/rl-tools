@@ -12,7 +12,9 @@ namespace rl_tools::rl::loop::steps::timing{
     struct State: T_NEXT {
         using CONFIG = T_CONFIG;
         using NEXT = T_NEXT;
-        std::chrono::high_resolution_clock::time_point start_time;
+        using TI = typename CONFIG::TI;
+        std::chrono::steady_clock::time_point start_time, last_steps_per_second_time;
+        TI last_steps_per_second_step;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

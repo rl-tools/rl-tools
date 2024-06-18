@@ -19,8 +19,8 @@ namespace rl_tools::rl::environments::acrobot {
         static constexpr T LINK_MOI = 1.0;  //: moments of inertia for both links
         static constexpr T MAX_VEL_1 = 4 * math::PI<T>;
         static constexpr T MAX_VEL_2 = 9 * math::PI<T>;
-        static constexpr T MIN_TORQUE = -1;
-        static constexpr T MAX_TORQUE = +1;
+        static constexpr T MIN_TORQUE = -5;
+        static constexpr T MAX_TORQUE = +5;
         static constexpr T TORQUE_NOISE_MAX = 0.0;
         static constexpr T SCREEN_DIM = 500;
         static constexpr T VEL_PENALTY = 0.2;
