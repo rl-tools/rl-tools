@@ -44,6 +44,9 @@ export class ShowRun{
         const latest_run_checkpoint = document.createElement("span")
         latest_run_checkpoint.innerText = parseInt(step).toString()
         description.appendChild(document.createElement("br"))
+        const checkpoint_label = document.createElement("b")
+        checkpoint_label.innerText = "Checkpoint: "
+        description.appendChild(checkpoint_label)
         description.appendChild(latest_run_checkpoint)
 
         container.appendChild(description)
