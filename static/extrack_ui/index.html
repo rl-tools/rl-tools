@@ -8,11 +8,10 @@
     <script type="module">
         const experiments_base_path = "../../experiments/"
 
-
         import { DynamicFileSystem } from "./DynamicFileSystem.js";
         import { StaticFileSystem } from "./StaticFileSystem.js";
-        import {Index, group_by} from "./Index.js";
-        import {TrajectoryPlayer} from "./TrajectoryPlayer.js";
+        import { Index, group_by } from "./Index.js";
+        import { ShowRun } from "./ShowRun.js";
 
         window.group_by = group_by // make available in the developer console
         const fs = new StaticFileSystem(experiments_base_path)
@@ -31,37 +30,12 @@
         zooContainer.appendChild(zoo.getContainer());
 
 
-        function populate_latest_run(run){
-            const trajectory_player = new TrajectoryPlayer(run.ui_jsm);
-            const trajectory_player_container = document.getElementById('extrack-trajectory-player-container')
-            trajectory_player_container.appendChild(trajectory_player.getCanvas());
-            trajectory_player_container.style.display = "block";
-            const step = Object.keys(run.steps).sort().reverse()[0]
-            trajectory_player.playTrajectories(run.steps[step].trajectories_compressed);
-
-            const latest_run_experiment = document.getElementById('latest-run-experiment')
-            latest_run_experiment.innerText = run.config.experiment
-            const latest_run_commit_hash = document.getElementById('latest-run-commit-hash')
-            latest_run_commit_hash.innerText = run.config.commit
-            const latest_run_name = document.getElementById('latest-run-name')
-            latest_run_name.innerText = run.config.name
-            const latest_run_config = document.getElementById('latest-run-config')
-            latest_run_config.innerText = JSON.stringify(run.config.population)
-            const latest_run_seed = document.getElementById('latest-run-seed')
-            latest_run_seed.innerText = run.config.seed
-            const latest_run_checkpoint = document.getElementById('latest-run-checkpoint')
-            latest_run_checkpoint.innerText = parseInt(step).toString()
-
-            const latest_run_description = document.getElementById('latest-run-description')
-            const latest_run_description_loading = document.getElementById('latest-run-description-loading')
-            latest_run_description.style.display = "block"
-            latest_run_description_loading.style.display = "none"
-        }
         idx_promise.then(() => {
             const runs_with_ui = idx.run_list.filter(run => run.ui_jsm)
             const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
             const run = runs_with_steps[0]
-            populate_latest_run(run)
+            const latest_run_container = document.getElementById('latest-run-container')
+            const show_rung = new ShowRun(latest_run_container, run)
         })
 
     </script>
@@ -69,21 +43,7 @@
 <body>
     <h1>Latest Run</h1>
     <div id="latest-run-container">
-        <div id="latest-run-description" class="latest-run-container-element">
-            <b>Experiment</b>: <span id="latest-run-experiment"></span>
-            </br>
-            <b>Commit Hash</b>: <span id="latest-run-commit-hash"></span>
-            </br>
-            <b>Name</b>: <span id="latest-run-name"></span>
-            </br>
-            <b>Config</b>: <span id="latest-run-config"></span>
-            </br>
-            <b>Seed</b>: <span id="latest-run-seed"></span>
-            </br>
-            <b>Checkpoint</b>: <span id="latest-run-checkpoint"></span>
-        </div>
-        <div id="latest-run-description-loading">Loading...</div>
-        <div id="extrack-trajectory-player-container"></div>
+        Loading...
     </div>
     <h1>Run Explorer</h1>
     <div id="explorer-container"></div>
