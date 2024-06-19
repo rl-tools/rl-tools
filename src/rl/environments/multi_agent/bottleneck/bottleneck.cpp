@@ -1,5 +1,5 @@
 #include <rl_tools/operations/cpu.h>
-#include <rl_tools/rl/environments/multi_agent/bottleneck/bottleneck.h>
+#include <rl_tools/rl/environments/multi_agent/bottleneck/operations_generic.h>
 
 
 int main(){
