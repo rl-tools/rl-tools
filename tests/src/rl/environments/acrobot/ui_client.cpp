@@ -27,7 +27,9 @@ int main(){
     ui.port = 13337;
     rlt::init(device, env, ui);
     typename ENVIRONMENT::State state, next_state;
-    rlt::sample_initial_state(device, env, state, rng);
+    ENVIRONMENT::Parameters parameters;
+    rlt::sample_initial_parameters(device, env, parameters, rng);
+    rlt::sample_initial_state(device, env, parameters, state, rng);
     state.theta_1_dot = 0;
     state.theta_2_dot = 0;
     rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
@@ -35,8 +37,8 @@ int main(){
     rlt::set_all(device, action, -1);
     rlt::clamp(device, action, -1, 1);
     while(true){
-        T dt = rlt::step(device, env, state, action, next_state, rng);
-        rlt::set_state(device, env, ui, state, action);
+        T dt = rlt::step(device, env, parameters, state, action, next_state, rng);
+        rlt::set_state(device, env, parameters, ui, state, action);
         std::this_thread::sleep_for(std::chrono::duration<T>(dt));
         state = next_state;
         state.theta_1_dot *= 0.99;

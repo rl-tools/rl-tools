@@ -103,16 +103,16 @@ State* create(int seed){
 }
 
 float step(State* state){
-    T sleep = state->ts.env_eval.parameters.dt / 10;
+    T sleep = state->ts.env_eval_parameters.dt / 10;
     if(state->mode_interactive){
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> diff = now-state->previous_interactive_step;
-        if(diff.count() > state->ts.env_eval.parameters.dt){
-            rlt::set_state(state->device, state->ts.env_eval, state->ts.ui, state->interactive_state, state->interactive_action);
-            rlt::step(state->device, state->ts.env_eval, state->interactive_state, state->interactive_action, state->interactive_next_state, state->ts.rng_eval);
-            bool terminated = rlt::terminated(state->device, state->ts.env_eval, state->interactive_next_state, state->ts.rng_eval);
+        if(diff.count() > state->ts.env_eval_parameters.dt){
+            rlt::set_state(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->ts.ui, state->interactive_state, state->interactive_action);
+            rlt::step(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->interactive_state, state->interactive_action, state->interactive_next_state, state->ts.rng_eval);
+            bool terminated = rlt::terminated(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->interactive_next_state, state->ts.rng_eval);
             if(terminated){
-                rlt::sample_initial_state(state->device, state->ts.env_eval, state->interactive_state, state->ts.rng_eval);
+                rlt::sample_initial_state(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->interactive_state, state->ts.rng_eval);
             }
             else{
                 state->interactive_state = state->interactive_next_state;
@@ -134,17 +134,18 @@ float step(State* state, const char* message_string) {
     if (message["channel"] == "setTrack") {
         for (TI row_i = 0; row_i < ENVIRONMENT::SPEC::HEIGHT; row_i++) {
             for (TI col_i = 0; col_i < ENVIRONMENT::SPEC::WIDTH; col_i++) {
-                for (auto &env: state->ts.envs) {
-                    env.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+                for (TI env_i = 0; env_i < LOOP_CORE_PARAMETERS::N_ENVIRONMENTS; env_i++) {
+                    auto& parameters = get(state->ts.on_policy_runner.env_parameters, 0, env_i);
+                    parameters.track[row_i][col_i] = message["data"][row_i][col_i];
                 }
-                state->ts.env_eval.parameters.track[row_i][col_i] = message["data"][row_i][col_i];
+                state->ts.env_eval_parameters.track[row_i][col_i] = message["data"][row_i][col_i];
             }
         }
-        rlt::init(state->device, state->ts.on_policy_runner, state->ts.envs, state->ts.rng);
+        rlt::init(state->device, state->ts.on_policy_runner, state->ts.envs, state->ts.env_parameters, state->ts.rng);
     } else {
         if (message["channel"] == "setAction") {
             if(!state->mode_interactive){
-                rlt::sample_initial_state(state->device, state->ts.env_eval, state->interactive_state, state->ts.rng_eval);
+                rlt::sample_initial_state(state->device, state->ts.env_eval, state->ts.env_eval_parameters, state->interactive_state, state->ts.rng_eval);
             }
             rlt::set(state->interactive_action, 0, 0, message["data"][0]);
             rlt::set(state->interactive_action, 0, 1, message["data"][1]);

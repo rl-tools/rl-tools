@@ -63,19 +63,3 @@ gtest_discover_tests(test_rl_environments_mujoco_ant_ppo_test)
 endif()
 
 
-if(RL_TOOLS_ENABLE_HDF5 AND NOT WIN32)
-add_executable(
-        test_rl_environments_mujoco_ant_throughput
-        throughput.cpp
-)
-target_link_libraries(
-        test_rl_environments_mujoco_ant_throughput
-        PRIVATE
-        rl_tools
-        GTest::gtest_main
-        HighFive
-        mujoco
-)
-gtest_discover_tests(test_rl_environments_mujoco_ant_throughput)
-endif()
-

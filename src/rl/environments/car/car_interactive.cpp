@@ -63,12 +63,12 @@ int main(int argc, char** argv) {
                 state->ts.ui.buffer.pop();
                 forwarder->send_message(message);
                 if(state->mode_training){
-                    std::this_thread::sleep_for(std::chrono::duration<T>(state->ts.env_eval.parameters.dt/playbackSpeed));
+                    std::this_thread::sleep_for(std::chrono::duration<T>(state->ts.env_eval_parameters.dt/playbackSpeed));
                 }
             }
         }
         if(sleep > 0){
-            std::this_thread::sleep_for(std::chrono::duration<T>(state->ts.env_eval.parameters.dt / 100));
+            std::this_thread::sleep_for(std::chrono::duration<T>(state->ts.env_eval_parameters.dt / 100));
         }
     }
     return 0;

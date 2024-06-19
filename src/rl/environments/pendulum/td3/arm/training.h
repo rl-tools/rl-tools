@@ -92,6 +92,7 @@ constexpr int N_WARMUP_STEPS = ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SI
 static_assert(ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
 
 ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS];
+ENVIRONMENT::Parameters env_parameters[decltype(off_policy_runner)::N_ENVIRONMENTS];
 
 rlt::rl::components::off_policy_runner::Batch<rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>> critic_batch;
 rlt::rl::algorithms::td3::CriticTrainingBuffers<ActorCriticType::SPEC> critic_training_buffers;
@@ -136,7 +137,7 @@ void train(){
 
 
     rlt::init(device, actor_critic, rng);
-    rlt::init(device, off_policy_runner, envs);
+    rlt::init(device, off_policy_runner, envs, env_parameters);
     rlt::set_all(device, observations_mean, 0);
     rlt::set_all(device, observations_std, 1);
 

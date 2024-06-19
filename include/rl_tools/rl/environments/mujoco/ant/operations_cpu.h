@@ -47,7 +47,11 @@ namespace rl_tools{
         mj_deleteModel(env.model);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    static void sample_initial_state(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::ant::State<SPEC>& state, RNG& rng){
+    static void sample_initial_parameters(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, RNG& rng){ }
+    template<typename DEVICE, typename SPEC>
+    static void initial_parameters(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters){ }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    static void sample_initial_state(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, typename rl::environments::mujoco::ant::State<SPEC>& state, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         mj_resetData(env.model, env.data);
@@ -60,7 +64,7 @@ namespace rl_tools{
         mj_forward(env.model, env.data);
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::ant::State<SPEC>& state){
+    static void initial_state(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, typename rl::environments::mujoco::ant::State<SPEC>& state){
         using TI = typename DEVICE::index_t;
         mj_resetData(env.model, env.data);
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q; state_i++){
@@ -72,7 +76,7 @@ namespace rl_tools{
         mj_forward(env.model, env.data);
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    typename SPEC::T step(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::mujoco::ant::State<SPEC>& next_state, RNG& rng) {
+    typename SPEC::T step(DEVICE& device, rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const rl::environments::mujoco::ant::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, rl::environments::mujoco::ant::State<SPEC>& next_state, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using ENVIRONMENT = rl::environments::mujoco::Ant<SPEC>;
@@ -115,12 +119,12 @@ namespace rl_tools{
         return SPEC::PARAMETERS::DT * SPEC::PARAMETERS::FRAME_SKIP;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    static typename SPEC::T reward(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::mujoco::ant::State<SPEC>& next_state, RNG& rng){
+    static typename SPEC::T reward(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const rl::environments::mujoco::ant::State<SPEC>& state, const Matrix<ACTION_SPEC>& action, const rl::environments::mujoco::ant::State<SPEC>& next_state, RNG& rng){
         return env.last_reward;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    static void observe(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    static void observe(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const rl::environments::mujoco::ant::State<SPEC>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q - 2; state_i++){
@@ -131,11 +135,11 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    static void observe_privileged(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const rl::environments::mujoco::ant::State<SPEC>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    static void observe_privileged(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const rl::environments::mujoco::ant::State<SPEC>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         observe(device, env, state, observation, rng);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    static bool terminated(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::ant::State<SPEC> state, RNG& rng){
+    static bool terminated(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const typename rl::environments::mujoco::ant::State<SPEC> state, RNG& rng){
         return env.last_terminated;
     }
 }

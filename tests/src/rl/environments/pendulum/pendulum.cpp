@@ -41,6 +41,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
         std::cout << "episode i: " << episode_i << std::endl;
         ENVIRONMENT env;
         ENVIRONMENT::State state;
+        ENVIRONMENT::Parameters parameters;
+        rlt::initial_parameters(device, env, parameters);
         state.theta = states[0][0];
         state.theta_dot = states[0][1];
         for(TI step_i = 0; step_i < states.size(); step_i++){
@@ -49,8 +51,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_TEST, COMPARISON) {
             rlt::MatrixDynamic<rlt::matrix::Specification<DTYPE, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
             rlt::malloc(device, action);
             rlt::assign(device, actions[step_i].data(), action);
-            rlt::step(device, env, state, action, next_state, rng);
-            DTYPE r = rlt::reward(device, env, state, action, next_state, rng);
+            rlt::step(device, env, parameters, state, action, next_state, rng);
+            DTYPE r = rlt::reward(device, env, parameters, state, action, next_state, rng);
             EXPECT_NEAR(     states[step_i][0], state.theta, STATE_TOLERANCE);
             EXPECT_NEAR(     states[step_i][1], state.theta_dot, STATE_TOLERANCE);
             EXPECT_NEAR(    rewards[step_i]   , r, STATE_TOLERANCE);

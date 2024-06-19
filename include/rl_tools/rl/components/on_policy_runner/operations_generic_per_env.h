@@ -11,16 +11,18 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::OBSERVATION_DIM);
         auto& env = get(runner.environments, 0, env_i);
         auto& state = get(runner.states, 0, env_i);
+        auto& parameters = get(runner.env_parameters, 0, env_i);
         if(get(runner.truncated, 0, env_i)){
             add_scalar(device, device.logger, "episode/length", get(runner.episode_step, 0, env_i));
             add_scalar(device, device.logger, "episode/return", get(runner.episode_return, 0, env_i));
             set(runner.truncated, 0, env_i, false);
             set(runner.episode_step, 0, env_i, 0);
             set(runner.episode_return, 0, env_i, 0);
-            sample_initial_state(device, env, state, rng);
+            sample_initial_parameters(device, env, parameters, rng);
+            sample_initial_state(device, env, parameters, state, rng);
         }
         auto observation = view(device, observations, matrix::ViewSpec<1, SPEC::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
-        observe(device, env, state, observation, rng);
+        observe(device, env, parameters, state, observation, rng);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
     void epilogue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename DEVICE::index_t pos, typename DEVICE::index_t env_i){
@@ -44,12 +46,13 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         set(dataset.action_log_probs, pos, 0, action_log_prob);
         auto& env = get(runner.environments, 0, env_i);
         auto& state = get(runner.states, 0, env_i);
+        auto& parameters = get(runner.env_parameters, 0, env_i);
         typename SPEC::ENVIRONMENT::State next_state;
         auto action = row(device, actions, env_i);
-        step(device, env, state, action, next_state, rng);
-        bool terminated_flag = terminated(device, env, next_state, rng);
+        step(device, env, parameters, state, action, next_state, rng);
+        bool terminated_flag = terminated(device, env, parameters, next_state, rng);
         set(dataset.terminated, pos, 0, terminated_flag);
-        T reward_value = reward(device, env, state, action, next_state, rng);
+        T reward_value = reward(device, env, parameters, state, action, next_state, rng);
         increment(runner.episode_return, 0, env_i, reward_value);
         set(dataset.rewards, pos, 0, reward_value);
         increment(runner.episode_step, 0, env_i, 1);

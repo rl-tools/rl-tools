@@ -25,6 +25,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;
+    ENVIRONMENT::Parameters parameters;
     rlt::malloc(dev, env);
 
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
@@ -33,10 +34,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, MAIN){
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     rlt::malloc(dev, action);
     rlt::set_all(dev, action, 1);
-    rlt::sample_initial_state(dev, env, state, rng);
+    rlt::sample_initial_parameters(dev, env, parameters, rng);
+    rlt::sample_initial_state(dev, env, parameters, state, rng);
     auto start = std::chrono::high_resolution_clock::now();
     for(int i = 0; i < 1; i++){
-        rlt::step(dev, env, state, action, next_state, rng);
+        rlt::step(dev, env, parameters, state, action, next_state, rng);
     }
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -49,6 +51,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;
+    ENVIRONMENT::Parameters env_parameters;
     rlt::malloc(dev, env);
 
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
@@ -66,19 +69,20 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
     std::vector<T> rewards;
     std::vector<bool> terminated;
     for(TI episode_i = 0; episode_i < 5; episode_i++){
-        rlt::sample_initial_state(dev, env, state, rng);
+        rlt::sample_initial_parameters(dev, env, env_parameters, rng);
+        rlt::sample_initial_state(dev, env, env_parameters, state, rng);
         for(TI step_i = 0; step_i < 1000; step_i++){
             rlt::randn(dev, action, rng);
             rlt::clamp(dev, action, -1, 1);
-            rlt::step(dev, env, state, action, next_state_temp, rng);
+            rlt::step(dev, env, env_parameters, state, action, next_state_temp, rng);
             {
                 auto q_temp = rlt::wrap<DEVICE, T, ENVIRONMENT::SPEC::STATE_DIM_Q>(dev, (T*)state.q);
                 auto q_dot_temp = rlt::wrap<DEVICE, T, ENVIRONMENT::SPEC::STATE_DIM_Q_DOT>(dev, (T*)state.q_dot);
                 states_q.push_back(rlt::std_vector(dev, q_temp)[0]);
                 states_q_dot.push_back(rlt::std_vector(dev, q_dot_temp)[0]);
                 actions.push_back(rlt::std_vector(dev, action)[0]);
-                rewards.push_back(rlt::reward(dev, env, state, action, next_state_temp, rng));
-                terminated.push_back(rlt::terminated(dev, env, state, rng));
+                rewards.push_back(rlt::reward(dev, env, env_parameters, state, action, next_state_temp, rng));
+                terminated.push_back(rlt::terminated(dev, env, env_parameters, state, rng));
             }
             {
                 auto q_temp = rlt::wrap<DEVICE, T, ENVIRONMENT::SPEC::STATE_DIM_Q>(dev, (T*)next_state_temp.q);
@@ -95,7 +99,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, STATE_COMPLETENESS){
         }
     }
     state = initial_state;
-    rlt::step(dev, env, state, initial_action, next_state_2, rng);
+    rlt::step(dev, env, env_parameters, state, initial_action, next_state_2, rng);
 
     T acc = 0;
     for(TI state_i=0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q; state_i++){
@@ -112,6 +116,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;
+    ENVIRONMENT::Parameters env_parameters;
     rlt::malloc(dev, env);
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
@@ -150,7 +155,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
     for(TI step_i = 0; step_i < observations.size(); step_i++){
         std::cout << "step_i: " << step_i << std::endl;
         if(load_state){
-            rlt::sample_initial_state(dev, env, state, rng);
+            rlt::sample_initial_parameters(dev, env, env_parameters, rng);
+            rlt::sample_initial_state(dev, env, env_parameters, state, rng);
             for(TI state_i = 0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q; state_i++){
                 state.q[state_i] = states[step_i][state_i];
                 env.data->qpos[state_i] = states[step_i][state_i];
@@ -168,7 +174,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
             set(action, 0, action_i, actions[step_i][action_i]);
         }
         mj_forward(env.model, env.data);
-        rlt::step(dev, env, state, action, next_state, rng);
+        rlt::step(dev, env, env_parameters, state, action, next_state, rng);
         for(TI state_i = 0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q; state_i++){
             T abs_diff = rlt::math::abs(typename DEVICE::SPEC::MATH(), next_state.q[state_i] - next_states[step_i][state_i]);
             if(abs_diff > 0){
@@ -183,7 +189,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
         for(TI state_i = 0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q_DOT; state_i++){
             ASSERT_NEAR(next_state.q_dot[state_i], next_states[step_i][state_i + ENVIRONMENT::SPEC::STATE_DIM_Q], 1e-9);
         }
-        T reward = rlt::reward(dev, env, state, action, next_state, rng);
+        T reward = rlt::reward(dev, env, env_parameters, state, action, next_state, rng);
         T reward_abs_diff = rlt::math::abs(typename DEVICE::SPEC::MATH(), reward - rewards[step_i]);
         if(reward_abs_diff > 1e-2){
             ASSERT_NEAR(reward, rewards[step_i], 1e-5);
@@ -194,7 +200,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
         for(TI state_i = 0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q_DOT; state_i++){
             termination_check_state.q_dot[state_i] = next_states[step_i][state_i + ENVIRONMENT::SPEC::STATE_DIM_Q];
         }
-        bool terminated_flag = rlt::terminated(dev, env, termination_check_state, rng);
+        bool terminated_flag = rlt::terminated(dev, env, env_parameters, termination_check_state, rng);
         assert(terminated_flag == (terminated_flags[step_i] == 1));
         bool truncated_flag = (episode_i == 999);
         assert(truncated_flag == (truncated_flags[step_i] == 1));

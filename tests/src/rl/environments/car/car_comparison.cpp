@@ -17,16 +17,18 @@ TEST(RL_ENVIRONMENTS_CAR, COMPARISON){
     ENVIRONMENT env;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
 
+    ENVIRONMENT::Parameters parameters;
     ENVIRONMENT::State state, next_state;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> a;
     rlt::malloc(device, a);
 
     {
-        rlt::initial_state(device, env, state);
+        rlt::initial_parameters(device, env, parameters);
+        rlt::initial_state(device, env, parameters, state);
         set(a, 0, 0, 0.11);
         set(a, 0, 1, -30.0/180.0*rlt::math::PI<T>);
         for(TI step_i=0; step_i < 100; step_i++){
-            rlt::step(device, env, state, a, next_state, rng);
+            rlt::step(device, env, parameters, state, a, next_state, rng);
             state = next_state;
             std::cout << "step: " << step_i << " x: " << state.x << ", y: " << state.y << ", mu: " << state.mu << ", vx: " << state.vx << ", vy: " << state.vy << ", omega: " << state.omega << "\n";
         }
@@ -41,12 +43,13 @@ TEST(RL_ENVIRONMENTS_CAR, COMPARISON){
     }
 
     {
-        rlt::initial_state(device, env, state);
+        rlt::initial_parameters(device, env, parameters);
+        rlt::initial_state(device, env, parameters, state);
         state.mu = 90/180.0*rlt::math::PI<T>;
         set(a, 0, 0, 0.11);
         set(a, 0, 1, -30.0/180.0*rlt::math::PI<T>);
         for(TI step_i=0; step_i < 100; step_i++){
-            rlt::step(device, env, state, a, next_state, rng);
+            rlt::step(device, env, parameters, state, a, next_state, rng);
             state = next_state;
             std::cout << "step: " << step_i << " x: " << state.x << ", y: " << state.y << ", mu: " << state.mu << ", vx: " << state.vx << ", vy: " << state.vy << ", omega: " << state.omega << "\n";
         }

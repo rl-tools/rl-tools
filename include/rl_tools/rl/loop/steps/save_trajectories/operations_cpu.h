@@ -33,8 +33,8 @@ namespace rl_tools{
     void init(DEVICE& device, rl::loop::steps::save_trajectories::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using STATE = rl::loop::steps::save_trajectories::State<T_CONFIG>;
         init(device, static_cast<typename STATE::NEXT&>(ts), seed);
-        init(device, ts.env_save_trajectories);
-        init(device, ts.env_save_trajectories, ts.ui);
+        init(device, ts.env_save_trajectories, ts.env_save_trajectories_parameters);
+        init(device, ts.env_save_trajectories, ts.env_save_trajectories_parameters, ts.ui);
         ts.rng_save_trajectories = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
         ts.save_trajectories_ui_written = false;
     }
@@ -48,14 +48,14 @@ namespace rl_tools{
 
     namespace rl::loop::steps::save_trajectories{
         template <typename DEVICE, typename ENVIRONMENT, typename SPEC>
-        std::string to_string(DEVICE& device, ENVIRONMENT& env, rl::utils::evaluation::Data<SPEC> data){
+        std::string to_string(DEVICE& device, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, rl::utils::evaluation::Data<SPEC> data){
             using TI = typename DEVICE::index_t;
             std::string trajectories_json = "[";
             for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
                 std::string episode_json = "[";
                 for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
                     std::string step_json = "{";
-                    step_json += "\"state\":" + std::string(json(device, env, data.states[episode_i][step_i])) + ",";
+                    step_json += "\"state\":" + std::string(json(device, env, parameters, data.states[episode_i][step_i])) + ",";
                     std::string action_json = "\"action\":[";
                     for(TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
                         action_json += std::to_string(data.actions[episode_i][step_i][action_i]) + ",";
@@ -137,7 +137,7 @@ namespace rl_tools{
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 
-                std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, *ts.save_trajectories_buffer);
+                std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, ts.env_eval_parameters, *ts.save_trajectories_buffer);
 #ifndef RL_TOOLS_ENABLE_ZLIB
                 std::string file_extension = "json";
                 std::string trajectories_output = trajectories_json;

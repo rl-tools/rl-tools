@@ -173,12 +173,13 @@ void run(){
         rlt::malloc(device, off_policy_runner);
 
         ENVIRONMENT envs[decltype(off_policy_runner)::N_ENVIRONMENTS], evaluation_env;
+        ENVIRONMENT::Parameters env_parameters[decltype(off_policy_runner)::N_ENVIRONMENTS], evaluation_env_parameters;
         for (auto& env : envs) {
             rlt::malloc(device, env);
         }
         rlt::malloc(device, evaluation_env);
 
-        rlt::init(device, off_policy_runner, envs);
+        rlt::init(device, off_policy_runner, envs, env_parameters);
 
         using CRITIC_BATCH_SPEC = rlt::rl::components::off_policy_runner::BatchSpecification<decltype(off_policy_runner)::SPEC, parameters_rl::ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE>;
         rlt::rl::components::off_policy_runner::Batch<CRITIC_BATCH_SPEC> critic_batches[2];

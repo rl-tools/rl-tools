@@ -16,6 +16,7 @@ namespace rl_tools::rl::loop::steps::evaluation{
         rl::utils::evaluation::Result<typename CONFIG::EVALUATION_RESULT_SPEC> evaluation_results[CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS];
         typename CONFIG::RNG rng_eval;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION env_eval;
+        typename NEXT::CONFIG::ENVIRONMENT_EVALUATION::Parameters env_eval_parameters;
         typename CONFIG::UI ui;
     };
 }

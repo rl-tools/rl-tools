@@ -46,7 +46,7 @@ namespace rl_tools::rl::environments{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using State = pendulum::State<T, TI>;
-        using PARAMETERS = typename SPEC::PARAMETERS;
+        using Parameters = typename SPEC::PARAMETERS;
         static constexpr TI OBSERVATION_DIM = 3;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
         static constexpr TI ACTION_DIM = 1;

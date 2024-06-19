@@ -37,14 +37,15 @@ namespace rl_tools{
     void init(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
+        using TI = typename DEVICE::index_t;
 
         ts.rng = random::default_engine(typename DEVICE::SPEC::RANDOM(), seed);
 
-        for(auto& env: ts.envs){
-            rl_tools::init(device, env);
+        for(TI env_i=0; env_i < CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
+            rl_tools::init(device, ts.envs[env_i], ts.env_parameters[env_i]);
         }
 
-        init(device, ts.on_policy_runner, ts.envs, ts.rng);
+        init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.rng);
         init(device, ts.observation_normalizer);
         init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng);
 
@@ -84,7 +85,7 @@ namespace rl_tools{
             print(device, ts.observation_normalizer.mean);
             std::cout << "Observation std: " << std::endl;
             print(device, ts.observation_normalizer.std);
-            init(device, ts.on_policy_runner, ts.envs, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
+            init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
             set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
             set_statistics(device, ts.ppo.critic.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
         }

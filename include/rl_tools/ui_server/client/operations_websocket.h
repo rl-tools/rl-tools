@@ -102,7 +102,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename ENVIRONMENT>
-    void init(DEVICE& device, ENVIRONMENT& env, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, std::string name_space = "default", bool verbose = false){
+    void init(DEVICE& device, ENVIRONMENT& env, typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, std::string name_space = "default", bool verbose = false){
         // note the &env needs to be alive until free is called
         using UI = ui_server::client::UIWebSocket<ENVIRONMENT>;
         ui.ns = name_space;
@@ -124,7 +124,7 @@ namespace rl_tools{
         ui.context = lws_create_context(&ui.ctx_info);
         utils::assert_exit(device, ui.context, "lws_create_context failed");
 
-        ui.thread = std::thread([&device, &env, &ui](){
+        ui.thread = std::thread([&device, &env, &parameters, &ui](){
             std::chrono::steady_clock::time_point last_sync_time;
             bool last_sync_time_set = false;
             while (!ui.interrupt) {
@@ -156,7 +156,7 @@ namespace rl_tools{
                 if(was_not_connected || !last_sync_time_set || (now- last_sync_time) > std::chrono::milliseconds(ui.sync_interval)){
                     last_sync_time_set = true;
                     last_sync_time = now;
-                    ui_server::client::websocket::send_message(device, ui, parameters_message(device, env, ui));
+                    ui_server::client::websocket::send_message(device, ui, parameters_message(device, env, parameters, ui));
                     std::string render_function = get_ui(device, env);
                     if(!render_function.empty()){
                         ui_server::client::websocket::send_message(device, ui, set_ui_message(device, env, ui, render_function));
@@ -184,19 +184,19 @@ namespace rl_tools{
         lws_context_destroy(ui.context);
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    void set_state(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
+    void set_state(DEVICE& dev, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
         ui_server::client::websocket::send_message(dev, ui, set_state_message(dev, env, ui, state));
     }
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
-    void set_state(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
-        ui_server::client::websocket::send_message(dev, ui, set_state_action_message(dev, env, ui, state, action));
+    void set_state(DEVICE& dev, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
+        ui_server::client::websocket::send_message(dev, ui, set_state_action_message(dev, env, parameters, ui, state, action));
     }
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
-    void set_action(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, const Matrix<ACTION_SPEC>& action){
+    void set_action(DEVICE& dev, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, const Matrix<ACTION_SPEC>& action){
         ui_server::client::websocket::send_message(dev, ui, set_action_message(dev, env, ui, action));
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    void render(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UIWebSocket<ENVIRONMENT>& ui){
+    void render(DEVICE& dev, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIWebSocket<ENVIRONMENT>& ui){
 //        std::this_thread::sleep_for(std::chrono::duration<decltype(env.parameters.dt)>((env.parameters.dt)));
     }
 }

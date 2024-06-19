@@ -41,6 +41,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
         std::cout << "episode i: " << episode_i << std::endl;
         ENVIRONMENT env;
         ENVIRONMENT::State state;
+        ENVIRONMENT::Parameters parameters;
+        rlt::initial_parameters(device, env, parameters);
         state.theta_1 = states[0][0];
         state.theta_2 = states[0][1];
         state.theta_1_dot = states[0][2];
@@ -51,8 +53,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_ACROBOT_TEST, COMPARISON) {
             rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::ACTION_DIM>> action;
             rlt::malloc(device, action);
             rlt::assign(device, actions[step_i].data(), action);
-            rlt::step(device, env, state, action, next_state, rng);
-            T r = rlt::reward(device, env, state, action, next_state, rng);
+            rlt::step(device, env, parameters, state, action, next_state, rng);
+            T r = rlt::reward(device, env, parameters, state, action, next_state, rng);
             T abs_diff = 0;
             abs_diff += abs(states[step_i][0] - state.theta_1);
             abs_diff += abs(states[step_i][1] - state.theta_2);

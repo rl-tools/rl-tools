@@ -52,6 +52,7 @@ namespace rl_tools::rl::environments::mujoco{
         static_assert(rl_tools::utils::typing::is_same_v<T, mjtNum>);
         using TI = typename SPEC::TI;
         using State = ant::State<SPEC>;
+        using Parameters = ant::DefaultParameters<T, TI>;
         mjModel* model;
         mjData* data;
         T init_q[SPEC::STATE_DIM_Q];

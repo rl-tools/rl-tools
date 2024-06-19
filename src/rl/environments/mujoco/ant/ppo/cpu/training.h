@@ -150,6 +150,7 @@ void run(){
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
         rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
         penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
+        penv::ENVIRONMENT::Parameters env_parameters[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
         rlt::rl::environments::DummyUI ui;
         TI next_checkpoint_id = 0;
@@ -165,8 +166,8 @@ void run(){
         rlt::malloc(device, critic_buffers);
         rlt::malloc(device, critic_buffers_gae);
         rlt::malloc(device, observation_normalizer);
-        for(auto& env : envs){
-            rlt::malloc(device, env);
+        for(TI env_i = 0; env_i < prl::N_ENVIRONMENTS; env_i++){
+            rlt::malloc(device, envs[env_i]);
         }
         rlt::malloc(device, evaluation_env);
 
@@ -174,7 +175,7 @@ void run(){
 //        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
 
         rlt::init(device);
-        rlt::init(device, on_policy_runner, envs, rng);
+        rlt::init(device, on_policy_runner, envs, env_parameters, rng);
         rlt::init(device, observation_normalizer);
         rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         rlt::init(device, device.logger);
@@ -188,7 +189,7 @@ void run(){
             rlt::print(device, observation_normalizer.mean);
             std::cout << "Observation std: " << std::endl;
             rlt::print(device, observation_normalizer.std);
-            rlt::init(device, on_policy_runner, envs, rng); // reinitializing the on_policy_runner to reset the episode counters
+            rlt::init(device, on_policy_runner, envs, env_parameters, rng); // reinitializing the on_policy_runner to reset the episode counters
             rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
             rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
         }

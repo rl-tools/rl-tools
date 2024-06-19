@@ -35,15 +35,17 @@ namespace rl_tools{
     void init(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
         using CONFIG = T_CONFIG;
         using T = typename CONFIG::T;
+        using TI = typename DEVICE::index_t;
+
 
         ts.rng = random::default_engine(typename DEVICE::SPEC::RANDOM{}, seed);
 
         init(device, ts.actor_critic, ts.rng);
 
-        for(auto& env: ts.envs){
-            rl_tools::init(device, env);
+        for(TI env_i = 0; env_i < CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i ++){
+            rl_tools::init(device, ts.envs[env_i], ts.env_parameters[env_i]);
         }
-        init(device, ts.off_policy_runner, ts.envs);
+        init(device, ts.off_policy_runner, ts.envs, ts.env_parameters);
 
         ts.step = 0;
     }

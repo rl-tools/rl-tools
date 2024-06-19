@@ -52,7 +52,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     rlt::malloc(device, critic_buffers_all);
 
     penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
-    rlt::init(device, on_policy_runner, envs, rng);
+    penv::ENVIRONMENT::Parameters env_parameters[prl::N_ENVIRONMENTS];
+    rlt::init(device, on_policy_runner, envs, env_parameters, rng);
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
     rlt::construct(device, device.logger);
     auto training_start = std::chrono::high_resolution_clock::now();

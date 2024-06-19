@@ -21,20 +21,24 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    static void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env, bool ui = false){
+    static void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env, typename rl::environments::CarTrack<SPEC>::Parameters& parameters, bool ui = false){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static_assert(decltype(rl::environments::car::tracks::default_track<TI>)::HEIGHT == SPEC::HEIGHT);
         static_assert(decltype(rl::environments::car::tracks::default_track<TI>)::WIDTH == SPEC::WIDTH);
         for(TI row_i=0; row_i < SPEC::HEIGHT; row_i++){
             for(TI col_i=0; col_i < SPEC::WIDTH; col_i++){
-                env.parameters.track[row_i][col_i] = rl::environments::car::tracks::default_track<TI>.track[row_i][col_i];
+                parameters.track[row_i][col_i] = rl::environments::car::tracks::default_track<TI>.track[row_i][col_i];
             }
         }
         env.initialized = true;
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::State& state){
+    static void initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters){ }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, RNG& rng){ }
+    template<typename DEVICE, typename SPEC>
+    static void initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state){
         state.x = 0;
         state.y = 0;
         state.mu = 0;
@@ -43,7 +47,7 @@ namespace rl_tools{
         state.omega = 0;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         initial_state(device, env, state);
         constexpr T dist = 0.2;
@@ -52,7 +56,7 @@ namespace rl_tools{
         state.mu = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State& s, const Matrix<ACTION_SPEC>& action, typename rl::environments::Car<SPEC>::State& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& s, const Matrix<ACTION_SPEC>& action, typename rl::environments::Car<SPEC>::State& next_state, RNG& rng) {
         using ENVIRONMENT = rl::environments::Car<SPEC>;
         static_assert(ACTION_SPEC::ROWS == 1);
         static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
@@ -62,7 +66,7 @@ namespace rl_tools{
         T throttle_break = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
         T delta = math::clamp(device.math, get(action, 0, 1), (T)-1, (T)1);
         
-        auto& p = env.parameters;
+        auto& p = parameters;
         
         T alpha_f = math::atan2(device.math, (s.vy + p.lf * s.omega), s.vx) - delta;
         T alpha_r = math::atan2(device.math, (s.vy - p.lr * s.omega), s.vx);
@@ -83,7 +87,7 @@ namespace rl_tools{
         return p.dt;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::car;
         typedef typename SPEC::T T;
         T angle_norm = angle_normalize(device.math, state.mu);
@@ -91,14 +95,14 @@ namespace rl_tools{
         return math::exp(device.math, -5*cost);
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::car;
         typedef typename SPEC::T T;
         return state.vx;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Car<SPEC>;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == ENVIRONMENT::OBSERVATION_DIM);
@@ -111,7 +115,7 @@ namespace rl_tools{
         set(observation, 0, 5, state.omega);
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::CarTrack<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
 #ifdef RL_TOOLS_DEBUG
         utils::assert_exit(device, env.initialized, "Environment not initialized");
 #endif
@@ -121,7 +125,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         auto observation_base = view(device, observation, matrix::ViewSpec<1, rl::environments::Car<SPEC>::OBSERVATION_DIM>{});
-        observe(device, (rl::environments::Car<SPEC>&)env, (typename rl::environments::Car<SPEC>::State&)state, observation_base, rng);
+        observe(device, (rl::environments::Car<SPEC>&)env, parameters, (typename rl::environments::Car<SPEC>::State&)state, observation_base, rng);
         constexpr TI N_DIRECTIONS = 3;
         constexpr TI NUM_STEPS = 50;
         constexpr T step_size = SPEC::TRACK_SCALE / 2;
@@ -136,7 +140,7 @@ namespace rl_tools{
             for(TI step_i = 0; step_i < NUM_STEPS; step_i++){
                 T x_coord = (+state.x + direction_x * step_i + SPEC::TRACK_SCALE * SPEC::WIDTH  / 2.0) / ((T)SPEC::TRACK_SCALE);
                 T y_coord = (-state.y - direction_y * step_i + SPEC::TRACK_SCALE * SPEC::HEIGHT / 2.0) / ((T)SPEC::TRACK_SCALE);
-                if(!env.parameters.track[(TI)y_coord][(TI)x_coord]){
+                if(!parameters.track[(TI)y_coord][(TI)x_coord]){
                     distance = step_i * step_size;
                     break;
                 }
@@ -145,12 +149,12 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::State state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State state, RNG& rng){
         using T = typename SPEC::T;
         return state.x > 1.0 || state.x < -1.0 || state.y > 1.0 || state.y < -1.0;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::CarTrack<SPEC>::State state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State state, RNG& rng){
 #ifdef RL_TOOLS_DEBUG
         utils::assert_exit(device, env.initialized, "Environment not initialized");
 #endif
@@ -159,21 +163,21 @@ namespace rl_tools{
         T x_coord = (state.x + SPEC::TRACK_SCALE * SPEC::WIDTH / 2.0) / ((T)SPEC::TRACK_SCALE);
         T y_coord = (-state.y + SPEC::TRACK_SCALE * SPEC::HEIGHT / 2.0) / ((T)SPEC::TRACK_SCALE);
         if(x_coord > 0 && x_coord < SPEC::WIDTH && y_coord > 0 && y_coord < SPEC::HEIGHT){
-            return !env.parameters.track[(TI)y_coord][(TI)x_coord];
+            return !parameters.track[(TI)y_coord][(TI)x_coord];
         }
         else{
             return true;
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
-        initial_state(device, env, state);
+        initial_state(device, env, parameters, state);
         do{
             state.x = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::BOUND_X_LOWER, SPEC::BOUND_X_UPPER, rng);
             state.y = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), SPEC::BOUND_Y_LOWER, SPEC::BOUND_Y_UPPER, rng);
             state.mu = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
-        } while(terminated(device, env, state, rng));
+        } while(terminated(device, env, parameters, state, rng));
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

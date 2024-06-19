@@ -60,13 +60,14 @@ namespace rl_tools{
         free(device, runner.truncated);
     }
     template <typename DEVICE, typename SPEC, typename RNG>
-    void init(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, typename SPEC::ENVIRONMENT environments[SPEC::N_ENVIRONMENTS], RNG& rng){
+    void init(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, typename SPEC::ENVIRONMENT environments[SPEC::N_ENVIRONMENTS], typename SPEC::ENVIRONMENT::Parameters parameters[SPEC::N_ENVIRONMENTS], RNG& rng){
         using TI = typename SPEC::TI;
         set_all(device, runner.episode_step, 0);
         set_all(device, runner.episode_return, 0);
         set_all(device, runner.truncated, true);
         for(TI env_i=0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             set(runner.environments, 0, env_i, environments[env_i]);
+            set(runner.env_parameters, 0, env_i, parameters[env_i]);
         }
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         runner.initialized = true;
@@ -114,9 +115,10 @@ namespace rl_tools{
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             auto& env = get(runner.environments, 0, env_i);
             auto& state = get(runner.states, 0, env_i);
+            auto& parameters = get(runner.env_parameters, 0, env_i);
             TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
             auto observation = row(device, dataset.all_observations, row_i);
-            observe(device, env, state, observation, rng);
+            observe(device, env, parameters, state, observation, rng);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }

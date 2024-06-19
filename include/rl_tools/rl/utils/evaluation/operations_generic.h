@@ -75,12 +75,12 @@ namespace rl_tools{
         for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++){
             auto& env = envs[env_i];
             malloc(device, env);
-            init(device, env);
             results.returns[env_i] = 0;
             results.episode_length[env_i] = 0;
             terminated[env_i] = false;
             auto& state = states[env_i];
             auto& current_parameters = parameters[env_i];
+            init(device, env, current_parameters);
             if(deterministic) {
                 rl_tools::initial_parameters(device, env, current_parameters);
                 rl_tools::initial_state(device, env, current_parameters, state);
@@ -136,9 +136,9 @@ namespace rl_tools{
                 auto action = row(device, actions_buffer, env_i);
                 T dt = step(device, env, env_parameters, state, action, next_state, rng);
                 if(env_i == 0 && !terminated[env_i]){ // only render the first environment
-                    set_state(device, env, ui, env_parameters, state);
-                    set_action(device, env, ui, env_parameters, action);
-                    render(device, env, ui, env_parameters);
+                    set_state(device, env, env_parameters, ui, state);
+                    set_action(device, env,  env_parameters, ui, action);
+                    render(device, env, env_parameters, ui);
                 }
                 rl::utils::evaluation::set_dt(data, env_i, step_i, dt);
                 T r = reward(device, env, env_parameters, state, action, next_state, rng);

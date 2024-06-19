@@ -32,6 +32,7 @@ using TI = typename DEVICE::index_t;
 typedef rlt::rl::environments::pendulum::Specification<T, DEVICE::index_t, rlt::rl::environments::pendulum::DefaultParameters<T>> PENDULUM_SPEC;
 typedef rlt::rl::environments::Pendulum<PENDULUM_SPEC> ENVIRONMENT;
 ENVIRONMENT envs[1];
+ENVIRONMENT::Parameters env_parameters[1];
 ENVIRONMENT& env = envs[0];
 
 template <typename T>
@@ -109,7 +110,7 @@ int main() {
 
 
 
-    rlt::init(device, off_policy_runner, envs);
+    rlt::init(device, off_policy_runner, envs, env_parameters);
 
     for(int step_i = 0; step_i < 15000; step_i++){
         rlt::step(device, off_policy_runner, actor_critic.actor, actor_buffers_eval, rng);

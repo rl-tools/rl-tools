@@ -104,11 +104,12 @@ namespace rl_tools{
         free(device, batch.truncated);
     }
     template<typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT envs[SPEC::PARAMETERS::N_ENVIRONMENTS]) {
+    void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT envs[SPEC::PARAMETERS::N_ENVIRONMENTS], typename SPEC::ENVIRONMENT::Parameters parameters[SPEC::PARAMETERS::N_ENVIRONMENTS]) {
         set_all(device, runner.truncated, true);
         for (typename DEVICE::index_t env_i = 0; env_i < SPEC::PARAMETERS::N_ENVIRONMENTS; env_i++){
             init(device, runner.replay_buffers[env_i]);
             runner.envs[env_i] = envs[env_i];
+            set(runner.env_parameters, 0, env_i, parameters[env_i]);
         }
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         runner.initialized = true;

@@ -20,6 +20,7 @@ namespace rl_tools::rl::loop::steps::save_trajectories{
         DATA_TYPE<typename CONFIG::SAVE_TRAJECTORIES_SPEC>* save_trajectories_buffer = nullptr;
         typename CONFIG::RNG rng_save_trajectories;
         typename NEXT::CONFIG::ENVIRONMENT_EVALUATION env_save_trajectories;
+        typename NEXT::CONFIG::ENVIRONMENT_EVALUATION::Parameters env_save_trajectories_parameters;
         typename CONFIG::UI ui_save_trajectories;
         bool save_trajectories_ui_written = false;
     };

@@ -59,6 +59,7 @@ int main(int argc, char** argv) {
     CLI11_PARSE(app, argc, argv);
     DEVICE dev;
     ENVIRONMENT env;
+    ENVIRONMENT::Parameters env_parameters;
     UI ui;
     parameters_rl::ACTOR_TYPE actor;
     parameters_rl::ACTOR_TYPE::Buffer<1> actor_buffer;
@@ -127,15 +128,16 @@ int main(int argc, char** argv) {
             }
         }
 
-        rlt::sample_initial_state(dev, env, state, rng);
+        rlt::sample_initial_parameters(dev, env, env_parameters, rng);
+        rlt::sample_initial_state(dev, env, env_parameters, state, rng);
         T reward_acc = 0;
         for(TI step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
-            rlt::observe(dev, env, state, observation, rng);
+            rlt::observe(dev, env, env_parameters, state, observation, rng);
             rlt::evaluate(dev, actor, observation, action, actor_buffer, rng);
-            T dt = rlt::step(dev, env, state, action, next_state, rng);
-            bool terminated_flag = rlt::terminated(dev, env, next_state, rng);
-            reward_acc += rlt::reward(dev, env, state, action, next_state, rng);
+            T dt = rlt::step(dev, env, env_parameters, state, action, next_state, rng);
+            bool terminated_flag = rlt::terminated(dev, env, env_parameters, next_state, rng);
+            reward_acc += rlt::reward(dev, env, env_parameters, state, action, next_state, rng);
             rlt::set_state(dev, ui, state);
             state = next_state;
             auto end = std::chrono::high_resolution_clock::now();

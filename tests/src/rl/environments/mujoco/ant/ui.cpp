@@ -24,6 +24,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
     using namespace TEST_DEFINITIONS;
     DEVICE dev;
     ENVIRONMENT env;
+    ENVIRONMENT::Parameters env_parameters;
     UI ui;
 
     rlt::malloc(dev, env);
@@ -35,13 +36,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
     rlt::malloc(dev, action);
     rlt::set_all(dev, action, 1);
-    rlt::sample_initial_state(dev, env, state, rng);
+    rlt::sample_initial_parameters(dev, env, env_parameters, rng);
+    rlt::sample_initial_state(dev, env, env_parameters, state, rng);
     auto start = std::chrono::high_resolution_clock::now();
     for(int i = 0; i < 100; i++) {
         for (TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
             set(action, 0, action_i, rlt::random::uniform_real_distribution(DEVICE::SPEC::RANDOM(), -0.5, 0.5, rng));
         }
-        T dt = rlt::step(dev, env, state, action, next_state, rng);
+        T dt = rlt::step(dev, env, env_parameters, state, action, next_state, rng);
         std::this_thread::sleep_for(std::chrono::milliseconds((int)(dt*1000)));
         rlt::set_state(dev, ui, state);
         state = next_state;
