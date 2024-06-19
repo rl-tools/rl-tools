@@ -14,14 +14,14 @@ namespace rl_tools{
     void init(DEVICE&, rl::environments::Environment&){};
     template <typename DEVICE, typename ENV>
     void init(DEVICE&, ENV&, rl::environments::DummyUI){};
-    template <typename DEVICE, typename ENV>
-    void render(DEVICE&, ENV&, rl::environments::DummyUI){};
-    template <typename DEVICE, typename ENV, typename STATE>
-    void set_state(DEVICE&, ENV&, rl::environments::DummyUI, STATE&){};
-    template <typename DEVICE, typename ENV, typename STATE, typename ACTION>
-    void set_state(DEVICE&, ENV&, rl::environments::DummyUI, STATE&, ACTION&){};
-    template <typename DEVICE, typename ENV, typename ACTION>
-    void set_action(DEVICE&, ENV&, rl::environments::DummyUI, ACTION&){};
+    template <typename DEVICE, typename ENV, typename PARAMS>
+    void render(DEVICE&, ENV&, rl::environments::DummyUI, PARAMS&){};
+    template <typename DEVICE, typename ENV, typename PARAMS, typename STATE>
+    void set_state(DEVICE&, ENV&, rl::environments::DummyUI, PARAMS&, STATE&){};
+    template <typename DEVICE, typename ENV, typename PARAMS, typename STATE, typename ACTION>
+    void set_state(DEVICE&, ENV&, rl::environments::DummyUI, PARAMS&, STATE&, ACTION&){};
+    template <typename DEVICE, typename ENV, typename PARAMS, typename ACTION>
+    void set_action(DEVICE&, ENV&, rl::environments::DummyUI, PARAMS&, ACTION&){};
     template <typename DEVICE, typename ENV>
     auto get_ui(DEVICE&, ENV&){return "";}
 //    template <typename DEVICE, typename ENV, typename STATE>

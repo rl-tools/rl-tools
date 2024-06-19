@@ -121,7 +121,7 @@ namespace rl_tools{
                     ts.save_trajectories_ui_written = true;
                     std::string ui_body = get_ui(device, ts.env_eval);
                     if(!ui_body.empty()){
-                        std::string ui = "function render(ctx, state, action) {\n";
+                        std::string ui = "function render(ctx, parameters, state, action) {\n";
                         ui += ui_body;
                         ui += "\n}\n";
                         std::string ui_jsm = ui + "export { render };";

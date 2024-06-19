@@ -37,6 +37,7 @@ namespace rl_tools{
     void malloc(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         malloc(device, runner.buffers);
         malloc(device, runner.states);
+        malloc(device, runner.env_parameters);
         malloc(device, runner.episode_return);
         malloc(device, runner.episode_step);
         malloc(device, runner.truncated);
@@ -80,6 +81,7 @@ namespace rl_tools{
     void free(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner) {
         free(device, runner.buffers);
         free(device, runner.states);
+        free(device, runner.env_parameters);
         free(device, runner.episode_return);
         free(device, runner.episode_step);
         free(device, runner.truncated);

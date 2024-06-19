@@ -14,6 +14,7 @@ namespace rl_tools::rl::components::off_policy_runner{
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
         auto& env = runner.envs[env_i];
         auto& state = get(runner.states, 0, env_i);
+        auto& parameters = get(runner.env_parameters, 0, env_i);
         static_assert(!SPEC::PARAMETERS::COLLECT_EPISODE_STATS || SPEC::PARAMETERS::EPISODE_STATS_BUFFER_SIZE > 1);
         if (get(runner.truncated, 0, env_i)){
             if constexpr(SPEC::PARAMETERS::COLLECT_EPISODE_STATS){
@@ -32,15 +33,16 @@ namespace rl_tools::rl::components::off_policy_runner{
                 }
                 episode_stats.next_episode_i = next_episode_i;
             }
-            sample_initial_state(device, env, state, rng);
+            sample_initial_parameters(device, env, parameters, rng);
+            sample_initial_state(device, env, parameters, state, rng);
             set(runner.episode_step, 0, env_i, 0);
             set(runner.episode_return, 0, env_i, 0);
         }
         auto observation            = view<DEVICE, typename decltype(runner.buffers.observations           )::SPEC, 1, ENVIRONMENT::OBSERVATION_DIM           >(device, runner.buffers.observations           , env_i, 0);
         auto observation_privileged = view<DEVICE, typename decltype(runner.buffers.observations_privileged)::SPEC, 1, SPEC::OBSERVATION_DIM_PRIVILEGED>(device, runner.buffers.observations_privileged, env_i, 0);
-        observe(device, env, state, observation, rng);
+        observe(device, env, parameters, state, observation, rng);
         if constexpr(SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS){
-            observe_privileged(device, env, state, observation_privileged, rng);
+            observe_privileged(device, env, parameters, state, observation_privileged, rng);
         }
     }
     template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
@@ -55,20 +57,21 @@ namespace rl_tools::rl::components::off_policy_runner{
 //        auto action_raw = view<DEVICE, typename decltype(runner.buffers.actions)::SPEC, 1, ENVIRONMENT::ACTION_DIM>(device, runner.buffers.actions, env_i, 0);
         auto& env = runner.envs[env_i];
         auto& state = get(runner.states, 0, env_i);
+        auto& parameters = get(runner.env_parameters, 0, env_i);
         typename ENVIRONMENT::State next_state;
 
         auto action = row(device, runner.buffers.actions, env_i);
 
-        step(device, env, state, action, next_state, rng);
+        step(device, env, parameters, state, action, next_state, rng);
 
-        T reward_value = reward(device, env, state, action, next_state, rng);
+        T reward_value = reward(device, env, parameters, state, action, next_state, rng);
 
-        observe(device, env, next_state, next_observation, rng);
+        observe(device, env, parameters, next_state, next_observation, rng);
         if constexpr(SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS) {
-            observe_privileged(device, env, next_state, next_observation_privileged, rng);
+            observe_privileged(device, env, parameters, next_state, next_observation_privileged, rng);
         }
 
-        bool terminated_flag = terminated(device, env, next_state, rng);
+        bool terminated_flag = terminated(device, env, parameters, next_state, rng);
         increment(runner.episode_step, 0, env_i, 1);
         increment(runner.episode_return, 0, env_i, reward_value);
         auto episode_step_i = get(runner.episode_step, 0, env_i);

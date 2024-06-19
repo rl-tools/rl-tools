@@ -30,6 +30,7 @@ namespace rl_tools::rl::utils::evaluation{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        typename ENVIRONMENT::Parameters parameters[SPEC::N_EPISODES];
         bool terminated[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
         T rewards[SPEC::N_EPISODES][SPEC::STEP_LIMIT];
         typename ENVIRONMENT::State states[SPEC::N_EPISODES][SPEC::STEP_LIMIT];

@@ -6,6 +6,17 @@
 #include "../../operations_generic.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    namespace rl::environments::multi_agent::bottleneck {
+        template <typename DEVICE, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT T f_mod_python(const DEVICE& dev, T a, T b){
+            return a - b * math::floor(dev, a / b);
+        }
+
+        template <typename DEVICE, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT T angle_normalize(const DEVICE& dev, T x){
+            return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
+        }
+    }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
@@ -58,9 +69,32 @@ namespace rl_tools{
         static_assert(ACTION_SPEC::ROWS == ENV::PARAMETERS::N_AGENTS);
         static_assert(ACTION_SPEC::COLS == ENV::ACTION_DIM);
         using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
         using PARAMS = typename SPEC::PARAMETERS;
-        T u_normalised = math::clamp(device.math, get(action, 0, 0), (T)-1, (T)1);
         return SPEC::PARAMETERS::DT;
+
+        for(TI agent_i=0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++){
+            auto& agent_state = state.agent_states[agent_i];
+            auto& agent_next_state = next_state.agent_states[agent_i];
+            T force = math::clamp(device.math, get(action, agent_i, 0), (T)-1, (T)1);
+            T u = PARAMS::AGENT_MAX_ACCELERATION * force;
+            T dt = PARAMS::DT;
+            T dx = agent_state.velocity[0] * dt;
+            T dy = agent_state.velocity[1] * dt;
+            T dtheta = agent_state.angular_velocity * dt;
+            T new_x = agent_state.position[0] + dx;
+            T new_y = agent_state.position[1] + dy;
+            T new_theta = rl::environments::multi_agent::bottleneck::angle_normalize(device, agent_state.orientation + dtheta);
+            T new_vx = agent_state.velocity[0] + u * math::cos(device.math, new_theta) * dt;
+            T new_vy = agent_state.velocity[1] + u * math::sin(device.math, new_theta) * dt;
+            T new_omega = agent_state.angular_velocity + u * dt;
+            agent_next_state.position[0] = new_x;
+            agent_next_state.position[1] = new_y;
+            agent_next_state.orientation = new_theta;
+            agent_next_state.velocity[0] = new_vx;
+            agent_next_state.velocity[1] = new_vy;
+            agent_next_state.angular_velocity = new_omega;
+        }
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename REWARD_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void reward(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, Matrix<REWARD_SPEC>& reward, RNG& rng){

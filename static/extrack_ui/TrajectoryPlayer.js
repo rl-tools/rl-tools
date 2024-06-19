@@ -82,7 +82,7 @@ export class TrajectoryPlayer{
                 const episode = trajectoryData[currentEpisode];
                 if (currentStep < episode.length) {
                     const { state, action, reward, terminated, dt } = episode[currentStep];
-                    render(ctx, state, action);
+                    render(ctx, parameters, state, action);
                     currentEpisodeLength++;
                     currentEpisodeReturn += reward;
                     currentStep++;
