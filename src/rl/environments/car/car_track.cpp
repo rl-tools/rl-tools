@@ -106,6 +106,7 @@ int main(){
 #endif
     DEVICE device;
     ENVIRONMENT env;
+    ENVIRONMENT::Parameters env_parameters;
     UI ui;
     ENVIRONMENT::State state;
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
@@ -115,20 +116,21 @@ int main(){
     rlt::malloc(device, observation);
     rlt::set_all(device, action, 0);
     rlt::set(action, 0, 1, 20.0/180.0*rlt::math::PI<T>);
-    rlt::initial_state(device, env, state);
-    rlt::init(device, env);
+    rlt::init(device, env, env_parameters);
     rlt::init(device, env, ui);
+    rlt::initial_parameters(device, env, env_parameters);
+    rlt::initial_state(device, env, env_parameters, state);
     std::cout << "BOUND_X_LOWER: " << ENVIRONMENT::SPEC::BOUND_X_LOWER << std::endl;
     TI counter = 0;
     while(true){
         counter++;
         if(counter % 1 == 0){
-            rlt::sample_initial_state(device, env, state, rng);
+            rlt::sample_initial_state(device, env, env_parameters, state, rng);
         }
-        rlt::set_state(device, env, ui, state);
-        rlt::set_action(device, env, ui, action);
-        rlt::render(device, env, ui);
-        rlt::observe(device, env, state, observation, rng);
+        rlt::set_state(device, env, env_parameters, ui, state);
+        rlt::set_action(device, env, env_parameters, ui, action);
+        rlt::render(device, env, env_parameters, ui);
+        rlt::observe(device, env, env_parameters, state, observation, rng);
         std::cout << "lidar: " << get(observation, 0, 6) << ", " << get(observation, 0, 7) << ", " << get(observation, 0, 8) << std::endl;
     }
     return 0;

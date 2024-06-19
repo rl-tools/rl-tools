@@ -31,7 +31,7 @@ namespace rl_tools::rl::environments::car{
         using TI = typename SPEC::TI;
         std::chrono::time_point<std::chrono::high_resolution_clock> last_render_time;
         typename SPEC::ENVIRONMENT::State state;
-        typename SPEC::ENVIRONMENT::PARAMETERS parameters;
+        typename SPEC::ENVIRONMENT::Parameters parameters;
         MatrixDynamic<matrix::Specification<T, TI, 1, SPEC::ENVIRONMENT::ACTION_DIM>> action;
         GtkWidget *window;
         GtkWidget *canvas;
@@ -141,7 +141,7 @@ namespace rl_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
     void render(DEVICE& device, const rl::environments::Car<ENV_SPEC>& env, const typename rl::environments::Car<ENV_SPEC>::Parameters& parameters, rl::environments::car::UI<SPEC>& ui){
         auto now = std::chrono::high_resolution_clock::now();
-        auto interval = (typename DEVICE::index_t)(1000.0 * env.parameters.dt / SPEC::PLAYBACK_SPEED);
+        auto interval = (typename DEVICE::index_t)(1000.0 * parameters.dt / SPEC::PLAYBACK_SPEED);
         auto next_render_time = ui.last_render_time + std::chrono::milliseconds(interval);
         if(now < next_render_time){
             auto diff = next_render_time - now;
@@ -161,7 +161,7 @@ namespace rl_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
     void init(DEVICE& device, const rl::environments::Car<ENV_SPEC>& env, typename rl::environments::Car<ENV_SPEC>::Parameters& parameters, rl::environments::car::UI<SPEC>& ui){
         malloc(device, ui.action);
-        ui.parameters = env.parameters;
+        ui.parameters = parameters;
         gtk_init(nullptr, nullptr);
         ui.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
         gtk_window_set_default_size(GTK_WINDOW(ui.window), 1000, 1000);
@@ -170,7 +170,7 @@ namespace rl_tools{
         gtk_container_add(GTK_CONTAINER(ui.window), ui.canvas);
         g_signal_connect(G_OBJECT(ui.canvas), "draw", G_CALLBACK(rl::environments::car::ui::draw_callback<SPEC>), &ui);
         gtk_widget_show_all(ui.window);
-        render(device, env, ui);
+        render(device, env, parameters, ui);
         ui.last_render_time = std::chrono::high_resolution_clock::now();
     }
     template <typename DEVICE, typename ENV_SPEC, typename SPEC, typename T, typename TI>

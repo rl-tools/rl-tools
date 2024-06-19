@@ -76,7 +76,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename ENVIRONMENT>
-    void init(DEVICE& dev, ENVIRONMENT& env, rl::environments::mujoco::ant::UI<ENVIRONMENT>& ui){
+    void init(DEVICE& dev, ENVIRONMENT& env, typename ENVIRONMENT::Parameters& parameters, rl::environments::mujoco::ant::UI<ENVIRONMENT>& ui){
         using UI = rl::environments::mujoco::ant::UI<ENVIRONMENT>;
         ui.env = &env;
         if (!glfwInit()) {
@@ -104,7 +104,7 @@ namespace rl_tools{
         glfwSetScrollCallback(ui.window, rl::environments::mujoco::ant::ui::callbacks::scroll<UI>);
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    void set_state(DEVICE& dev, rl::environments::mujoco::ant::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
+    void set_state(DEVICE& dev, ENVIRONMENT& environment, typename ENVIRONMENT::Parameters& parameters, rl::environments::mujoco::ant::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
         using TI = typename DEVICE::index_t;
         for(TI state_i = 0; state_i < ENVIRONMENT::SPEC::STATE_DIM_Q; state_i++){
             ui.env->data->qpos[state_i] = state.q[state_i];

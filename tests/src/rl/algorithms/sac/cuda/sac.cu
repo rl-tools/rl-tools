@@ -83,6 +83,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
     auto rng_init = rlt::random::default_engine(DEVICE_INIT::SPEC::RANDOM());
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
     p::env::ENVIRONMENT envs[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
+    p::env::ENVIRONMENT::Parameters env_parameters[decltype(off_policy_runner_init)::N_ENVIRONMENTS];
     rlt::rl::environments::DummyUI ui;
 
 
@@ -141,7 +142,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_SAC_CUDA, TEST_FULL_TRAINING) {
 //        auto parameters = p::env::parameters;
 //        envs[i].parameters = parameters;
 //    }
-    rlt::init(device_init, off_policy_runner_init, envs);
+    rlt::init(device_init, off_policy_runner_init, envs, env_parameters);
     rlt::copy(device_init, device, off_policy_runner_init, off_policy_runner);
     cudaMemcpy(off_policy_runner_pointer, &off_policy_runner, sizeof(rlp::OFF_POLICY_RUNNER_TYPE), cudaMemcpyHostToDevice);
     rlt::check_status(device);

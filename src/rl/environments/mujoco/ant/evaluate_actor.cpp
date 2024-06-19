@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
             T dt = rlt::step(dev, env, env_parameters, state, action, next_state, rng);
             bool terminated_flag = rlt::terminated(dev, env, env_parameters, next_state, rng);
             reward_acc += rlt::reward(dev, env, env_parameters, state, action, next_state, rng);
-            rlt::set_state(dev, ui, state);
+            rlt::set_state(dev, env, env_parameters, ui, state);
             state = next_state;
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> diff = end-start;
@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
                 for(TI timeout_step_i = 0; timeout_step_i < startup_timeout; timeout_step_i++){
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                     if(timeout_step_i % 100 == 0){
-                        rlt::set_state(dev, ui, state);
+                        rlt::set_state(dev, env, env_parameters, ui, state);
                     }
                 }
             }

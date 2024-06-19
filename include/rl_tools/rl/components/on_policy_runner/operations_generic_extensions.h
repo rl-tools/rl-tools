@@ -83,10 +83,11 @@ namespace rl_tools{
         // final observation
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             auto& env = get(runner.environments, 0, env_i);
+            auto& env_parameters = get(runner.env_parameters, 0, env_i);
             auto& state = get(runner.states, 0, env_i);
             TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
             auto observation = row(device, dataset.all_observations, row_i);
-            observe(device, env, state, observation, rng);
+            observe(device, env, env_parameters, state, observation, rng);
 //            auto observation = row(device, dataset.all_observations_normalized, row_i);
 //            normalize(device, observations_mean, observations_std, observation, observation_normalized);
         }

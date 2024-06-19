@@ -45,7 +45,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
         }
         T dt = rlt::step(dev, env, env_parameters, state, action, next_state, rng);
         std::this_thread::sleep_for(std::chrono::milliseconds((int)(dt*1000)));
-        rlt::set_state(dev, ui, state);
+        rlt::set_state(dev, env, env_parameters, ui, state);
         state = next_state;
     }
 

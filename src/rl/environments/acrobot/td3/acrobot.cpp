@@ -6,9 +6,6 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/rl/environments/acrobot/operations_generic.h>
-#ifdef RL_TOOLS_ENABLE_GTK
-#include <rl_tools/rl/environments/acrobot/ui.h>
-#endif
 
 #include <rl_tools/rl/algorithms/td3/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/evaluation/config.h>

@@ -68,6 +68,7 @@ int main(int argc, char** argv){
 
     DEVICE device;
     ENVIRONMENT env;
+    ENVIRONMENT::Parameters env_parameters;
     ENVIRONMENT::State state, next_state;
     UI ui;
     auto rng = rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}, 0);
@@ -82,11 +83,12 @@ int main(int argc, char** argv){
     T color = 0;
     bool forward = true;
 
-    rlt::init(device, env);
+    rlt::init(device, env, env_parameters);
     rlt::init(device, env, ui);
 //    rlt::initial_state(device, env, state);
     T steering = 0, throttle = 0;
-    rlt::sample_initial_state(device, env, state, rng);
+    rlt::sample_initial_parameters(device, env, env_parameters, rng);
+    rlt::sample_initial_state(device, env, env_parameters, state, rng);
     while(true){
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) return 0;
@@ -115,16 +117,16 @@ int main(int argc, char** argv){
 //        std::cout << "throttle " << throttle << " steering " << steering << std::endl;
         set(action, 0, 0, throttle);
         set(action, 0, 1, steering);
-        rlt::step(device, env, state, action, next_state, rng);
+        rlt::step(device, env, env_parameters, state, action, next_state, rng);
         state = next_state;
-        rlt::set_action(device, env, ui, action);
-        rlt::set_state(device, env, ui, state);
-        rlt::render(device, env, ui);
+        rlt::set_action(device, env, env_parameters, ui, action);
+        rlt::set_state(device, env, env_parameters, ui, state);
+        rlt::render(device, env, env_parameters, ui);
 
-        rlt::observe(device, env, state, observation, rng);
-        if(rlt::terminated(device, env, state, rng)){
+        rlt::observe(device, env, env_parameters, state, observation, rng);
+        if(rlt::terminated(device, env, env_parameters, state, rng)){
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            rlt::sample_initial_state(device, env, state, rng);
+            rlt::sample_initial_state(device, env, env_parameters, state, rng);
         }
 
     }
