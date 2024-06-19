@@ -2,6 +2,9 @@
 .run-container{
     margin-left: 30px;
 }
+.trajectory-player-canvas-container{
+    height: 500px;
+}
 
 #latest-run-container{
     display: flex;
