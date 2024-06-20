@@ -19,12 +19,12 @@ class Spoiler{
         this.spoiler.addEventListener('toggle', () => {
             if(this.spoiler.open){
                 if(on_open){
-                    on_open();
+                    on_open(this);
                 }
             }
             else{
                 if(on_close){
-                    on_close();
+                    on_close(this);
                 }
             }
         })
@@ -96,12 +96,12 @@ export class ExplorerRun{
         this.container.classList.add("run-container");
         parent.setContent(this.container);
 
-        this.steps_spoiler = new Spoiler(this.container, "Steps", false);
-        for(const step of Object.keys(run.steps).sort()) {
-            // const step_spoiler = new Spoiler(this.steps_spoiler, this.steps[step_id], );
-            new ExplorerStep(this.steps_spoiler, experiments_base_path, run, run.steps[step], options);
-        }
-
+        this.steps_spoiler = new Spoiler(this.container, "Steps", false, (spoiler) => {
+            for(const step of Object.keys(run.steps).sort()) {
+                // const step_spoiler = new Spoiler(this.steps_spoiler, this.steps[step_id], );
+                new ExplorerStep(spoiler, experiments_base_path, run, run.steps[step], options);
+            }
+        });
     }
 }
 
@@ -120,17 +120,18 @@ export class Explorer{
             experiment_list.classList.add("experiment-list");
             this.container.appendChild(experiment_list);
             for (const experiment of Object.keys(this.experiments).sort().reverse()){
-                const experiment_spoiler = new Spoiler(experiment_list, experiment, false);
-                for (const population of Object.keys(this.experiments[experiment]).sort()) {
-                    const population_spoiler = new Spoiler(experiment_spoiler, population, false);
-                    for (const config of Object.keys(this.experiments[experiment][population]).sort()) {
-                        const config_spoiler = new Spoiler(population_spoiler, config, false);
-                        for (const seed of Object.keys(this.experiments[experiment][population][config]).sort()) {
-                            const seed_spoiler = new Spoiler(config_spoiler, seed, true);
-                            new ExplorerRun(seed_spoiler, experiments_base_path, this.experiments[experiment][population][config][seed], options);
+                new Spoiler(experiment_list, experiment, false, (experiment_spoiler) => {
+                    for (const population of Object.keys(this.experiments[experiment]).sort()) {
+                        const population_spoiler = new Spoiler(experiment_spoiler, population, false);
+                        for (const config of Object.keys(this.experiments[experiment][population]).sort()) {
+                            const config_spoiler = new Spoiler(population_spoiler, config, false);
+                            for (const seed of Object.keys(this.experiments[experiment][population][config]).sort()) {
+                                const seed_spoiler = new Spoiler(config_spoiler, seed, true);
+                                new ExplorerRun(seed_spoiler, experiments_base_path, this.experiments[experiment][population][config][seed], options);
+                            }
                         }
                     }
-                }
+                });
             }
         })
     }
