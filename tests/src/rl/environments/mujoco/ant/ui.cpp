@@ -28,7 +28,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, UI){
     UI ui;
 
     rlt::malloc(dev, env);
-    rlt::init(dev, env, ui);
+    rlt::init(dev, env, env_parameters, ui);
 
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
 
