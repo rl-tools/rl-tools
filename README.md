@@ -36,7 +36,7 @@
 <img src="https://github.com/rl-tools/media/blob/master/racing_car.gif" alt="animated" height='200'/>
 </div>
 <div align="center">
-    Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> TD3
+    Trained on a 2020 MacBook Pro (M1) using <span style="color:#7DB9B6">RLtools</span> SAC and TD3 (respectively)
 </div>
 </br>
 
