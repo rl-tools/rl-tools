@@ -57,6 +57,9 @@
 [submodule "external/libattopng"]
 	path = external/libattopng
 	url = https://github.com/rl-tools/libattopng.git
+[submodule "external/libwebsockets"]
+	path = external/libwebsockets
+	url = https://github.com/warmcat/libwebsockets.git
 
 # Test dependencies
 [submodule "tests/lib/matplotlib"]

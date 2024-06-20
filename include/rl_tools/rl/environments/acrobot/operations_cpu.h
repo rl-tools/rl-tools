@@ -11,6 +11,10 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE&, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters){
+        return "{}";
+    }
+    template <typename DEVICE, typename SPEC>
     std::string json(DEVICE&, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters, const typename rl::environments::Acrobot<SPEC>::State& state){
         std::string json = "{";
         json += "\"theta1\":" + std::to_string(state.theta_1) + ",";

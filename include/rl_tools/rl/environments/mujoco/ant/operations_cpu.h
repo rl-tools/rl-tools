@@ -46,6 +46,14 @@ namespace rl_tools{
         mj_deleteData(env.data);
         mj_deleteModel(env.model);
     }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE&, rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters){
+        return "{}";
+    }
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE&, rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, typename rl::environments::mujoco::Ant<SPEC>::State& state){
+        return "{}";
+    }
     template<typename DEVICE, typename SPEC, typename RNG>
     static void sample_initial_parameters(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, RNG& rng){ }
     template<typename DEVICE, typename SPEC>

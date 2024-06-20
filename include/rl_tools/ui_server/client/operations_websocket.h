@@ -7,6 +7,7 @@
 
 #include <thread>
 #include <chrono>
+#include <cstring>
 
 #include "operations_cpu.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START

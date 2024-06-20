@@ -38,7 +38,7 @@ namespace rl_tools::rl::environments::car{
         return j.dump();
     }
     template <typename DEVICE, typename SPEC, typename T, typename TI>
-    std::string json(const DEVICE& device, const rl::environments::Car<SPEC>, const rl::environments::car::State<T, TI>& state){
+    std::string json(const DEVICE& device, const rl::environments::Car<SPEC>, const typename rl::environments::Car<SPEC>::Parameters& parameters, const rl::environments::car::State<T, TI>& state){
         nlohmann::json j;
         j["x"] = state.x;
         j["y"] = state.y;

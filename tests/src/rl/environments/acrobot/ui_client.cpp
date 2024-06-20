@@ -22,10 +22,11 @@ int main(){
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
     ENVIRONMENT env;
+    ENVIRONMENT::Parameters env_parameters;
     ENV_UI ui;
     ui.address = "127.0.0.1";
     ui.port = 13337;
-    rlt::init(device, env, ui);
+    rlt::init(device, env, env_parameters, ui);
     typename ENVIRONMENT::State state, next_state;
     ENVIRONMENT::Parameters parameters;
     rlt::sample_initial_parameters(device, env, parameters, rng);

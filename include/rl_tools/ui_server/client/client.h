@@ -6,6 +6,7 @@
 #ifdef RL_TOOLS_ENABLE_LIBWEBSOCKETS
 #include <libwebsockets.h>
 #include <thread>
+#include <mutex>
 #endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

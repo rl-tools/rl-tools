@@ -24,10 +24,6 @@ namespace rl_tools{
     void set_action(DEVICE&, ENV&, PARAMS&, rl::environments::DummyUI, ACTION&){};
     template <typename DEVICE, typename ENV>
     auto get_ui(DEVICE&, ENV&){return "";}
-    template <typename DEVICE, typename ENV, typename PARAMS>
-    auto json(DEVICE&, ENV&, PARAMS&){return "{}";};
-    template <typename DEVICE, typename ENV, typename PARAMS, typename STATE>
-    auto json(DEVICE&, ENV&, PARAMS&, STATE&){return "{}";};
     template <typename DEVICE>
     void free(DEVICE&, rl::environments::Environment&){};
 }
