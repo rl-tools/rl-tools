@@ -42,7 +42,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
-    void render(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui){
+    void render(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, const typename rl::environments::Pendulum<ENV_SPEC>::Parameters& parameters, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui){
         auto now = std::chrono::high_resolution_clock::now();
         auto interval = (typename DEVICE::index_t)(1000.0 * ENV_SPEC::PARAMETERS::dt / SPEC::PLAYBACK_SPEED);
         auto next_render_time = ui.last_render_time + std::chrono::milliseconds(interval);
@@ -92,7 +92,7 @@ namespace rl_tools{
         ui.last_render_time = now;
     }
     template <typename DEVICE, typename ENV_SPEC, typename SPEC>
-    void init(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui){
+    void init(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, const typename rl::environments::Pendulum<ENV_SPEC>::Parameters& parameters, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui){
         ui.canvas = xc::canvas().initialize()
             .width(300)
             .height(300)
@@ -105,11 +105,11 @@ namespace rl_tools{
         ui.last_render_time = std::chrono::high_resolution_clock::now();
     }
     template <typename DEVICE, typename ENV_SPEC, typename SPEC, typename T, typename TI>
-    void set_state(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui, const rl::environments::pendulum::State<T, TI>& state){
+    void set_state(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, const typename rl::environments::Pendulum<ENV_SPEC>::Parameters& parameters, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui, const rl::environments::pendulum::State<T, TI>& state){
         ui.state = state;
     }
     template <typename DEVICE, typename ENV_SPEC, typename SPEC, typename ACTION_SPEC>
-    void set_action(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui, const Matrix<ACTION_SPEC>& action){
+    void set_action(DEVICE& device, const rl::environments::Pendulum<ENV_SPEC>& env, const typename rl::environments::Pendulum<ENV_SPEC>::Parameters& parameters, rl::environments::pendulum::ui::xeus::UI<SPEC>& ui, const Matrix<ACTION_SPEC>& action){
         static_assert(ACTION_SPEC::ROWS == 1 && ACTION_SPEC::COLS == 1);
         ui.action = get(action, 0, 0);
     }
