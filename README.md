@@ -32,7 +32,7 @@
 
 
 <div align="center">
-<img src="https://github.com/rl-tools/media/blob/master/pendulum_v1_inference.gif" alt="animated" height='200'/>
+<img src="https://github.com/rl-tools/media/blob/master/acrobot-swing-up-sac.gif" alt="animated" height='200'/>
 <img src="https://github.com/rl-tools/media/blob/master/racing_car.gif" alt="animated" height='200'/>
 </div>
 <div align="center">
