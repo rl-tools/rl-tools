@@ -42,11 +42,16 @@
             const runs_with_ui = idx.run_list.filter(run => run.ui_jsm)
             const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
             const runs_zoo = runs_with_steps.filter(run => run.config.name === "zoo")
-            const runs_no_acrobot = runs_zoo.filter(run => run.config.population.environment !== "acrobot-swingup-v0")
-            const runs_by_population = group_by(runs_no_acrobot, ["population_values"])
+            const runs_by_population = group_by(runs_zoo, ["population_values"])
+            const populations = Object.keys(runs_by_population)
+            const populations_sorted = populations.sort((a, b) => {
+                const example_run_a = runs_by_population[a].items[0]
+                const example_run_b = runs_by_population[b].items[0]
+                return example_run_a.config.population.environment === "acrobot-swingup-v0" ? -1 : 1
+            })
             const container = document.getElementById('latest-zoo-runs-container')
             container.innerHTML = ""
-            for(const population_values in runs_by_population){
+            for(const population_values of populations_sorted){
                 const group_runs = runs_by_population[population_values].items
                 const title = document.createElement('h2')
                 const example_run = group_runs[0]
