@@ -50,12 +50,14 @@ namespace rl_tools{
         template <typename DEVICE, typename ENVIRONMENT, typename SPEC>
         std::string to_string(DEVICE& device, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, rl::utils::evaluation::Data<SPEC> data){
             using TI = typename DEVICE::index_t;
-            std::string trajectories_json = "[";
+            std::string episodes_json = "[";
             for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
-                std::string episode_json = "[";
+                std::string episode_json = "{";
+                episode_json += "\"parameters\": " + std::string(json(device, env, data.parameters[episode_i])) + ",";
+                std::string trajectory_json = "[";
                 for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++){
                     std::string step_json = "{";
-                    step_json += "\"state\":" + std::string(json(device, env, parameters, data.states[episode_i][step_i])) + ",";
+                    step_json += "\"state\":" + std::string(json(device, env, data.parameters[episode_i], data.states[episode_i][step_i])) + ",";
                     std::string action_json = "\"action\":[";
                     for(TI action_i = 0; action_i < ENVIRONMENT::ACTION_DIM; action_i++){
                         action_json += std::to_string(data.actions[episode_i][step_i][action_i]) + ",";
@@ -67,15 +69,16 @@ namespace rl_tools{
                     step_json += "\"reward\":" + std::to_string(data.rewards[episode_i][step_i]) + ",";
                     step_json += "\"terminated\":" + std::to_string(data.terminated[episode_i][step_i]);
                     step_json += "}";
-                    episode_json += step_json + ",";
+                    trajectory_json += step_json + ",";
                 }
-                episode_json.pop_back();
-                episode_json += "]";
-                trajectories_json += episode_json + ",";
+                trajectory_json.pop_back();
+                trajectory_json += "]";
+                episode_json += "\"trajectory\":" + trajectory_json + "}";
+                episodes_json += episode_json + ",";
             }
-            trajectories_json.pop_back();
-            trajectories_json += "]";
-            return trajectories_json;
+            episodes_json.pop_back();
+            episodes_json += "]";
+            return episodes_json;
         }
 
 #ifdef RL_TOOLS_ENABLE_ZLIB

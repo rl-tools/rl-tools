@@ -65,7 +65,7 @@ export class TrajectoryPlayer{
         this.controls_container.appendChild(skip_button);
 
 
-        const dt = trajectoryData[0][0].dt;
+        const dt = trajectoryData[0].trajectory[0].dt;
         const step = () => {
             const size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
             this.canvas.width = size;
@@ -79,9 +79,9 @@ export class TrajectoryPlayer{
             }
             episode_info.innerHTML += `Episode: ${currentEpisode+1}/${trajectoryData.length}, Step: ${currentStep}, Return: ${currentEpisodeReturn.toFixed(2)}`;
             if (currentEpisode < trajectoryData.length) {
-                const episode = trajectoryData[currentEpisode];
-                if (currentStep < episode.length) {
-                    const { state, action, reward, terminated, dt } = episode[currentStep];
+                const { parameters, trajectory } = trajectoryData[currentEpisode];
+                if (currentStep < trajectory.length) {
+                    const { state, action, reward, terminated, dt } = trajectory[currentStep];
                     render(ctx, parameters, state, action);
                     currentEpisodeLength++;
                     currentEpisodeReturn += reward;
