@@ -13,6 +13,16 @@
     width: 100%;
 }
 
+#latest-zoo-runs-container{
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.latest-zoo-runs-container-element{
+    margin: 10px;
+}
+
 .zoo-container-container{
     display: flex;
     flex-direction: column;

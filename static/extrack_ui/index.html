@@ -35,7 +35,30 @@
             const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
             const run = runs_with_steps[0]
             const latest_run_container = document.getElementById('latest-run-container')
-            const show_rung = new ShowRun(latest_run_container, run)
+            const show_run = new ShowRun(latest_run_container, run)
+        })
+
+        idx_promise.then(() => {
+            const runs_with_ui = idx.run_list.filter(run => run.ui_jsm)
+            const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
+            const runs_zoo = runs_with_steps.filter(run => run.config.name === "zoo")
+            const runs_no_acrobot = runs_zoo.filter(run => run.config.population.environment !== "acrobot-swingup-v0")
+            const runs_by_population = group_by(runs_no_acrobot, ["population_values"])
+            const container = document.getElementById('latest-zoo-runs-container')
+            container.innerHTML = ""
+            for(const population_values in runs_by_population){
+                const group_runs = runs_by_population[population_values].items
+                const title = document.createElement('h2')
+                const example_run = group_runs[0]
+                title.innerHTML = `<b>Algorithm</b>: ${example_run.config.population.algorithm} </br> Environment: ${example_run.config.population.environment}`
+                const this_container = document.createElement('div')
+                this_container.classList.add('latest-zoo-runs-container-element')
+                this_container.appendChild(title)
+                const run_container = document.createElement('div')
+                const show_run = new ShowRun(run_container, example_run)
+                this_container.appendChild(run_container)
+                container.appendChild(this_container)
+            }
         })
 
     </script>
@@ -43,6 +66,10 @@
 <body>
     <h1>Latest Run</h1>
     <div id="latest-run-container">
+        Loading...
+    </div>
+    <h1>Latest Zoo Runs</h1>
+    <div id="latest-zoo-runs-container">
         Loading...
     </div>
     <h1>Run Explorer</h1>
