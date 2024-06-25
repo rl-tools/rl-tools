@@ -40,7 +40,8 @@ namespace rl_tools{
             agent_state += "\"position\": [" + std::to_string(state.agent_states[agent_i].position[0]) + "," + std::to_string(state.agent_states[agent_i].position[1]) + "],";
             agent_state += "\"orientation\": " + std::to_string(state.agent_states[agent_i].orientation) + ",";
             agent_state += "\"velocity\": [" + std::to_string(state.agent_states[agent_i].velocity[0]) + "," + std::to_string(state.agent_states[agent_i].velocity[1]) + "],";
-            agent_state += "\"angular_velocity\": " + std::to_string(state.agent_states[agent_i].angular_velocity);
+            agent_state += "\"angular_velocity\": " + std::to_string(state.agent_states[agent_i].angular_velocity) + ", ";
+            agent_state += "\"dead\": " + std::to_string(state.agent_states[agent_i].dead);
             agent_state += "}";
             agent_states += agent_state;
             if(agent_i < parameters.N_AGENTS - 1){
@@ -63,6 +64,7 @@ namespace rl_tools{
     const canvasHeight = ctx.canvas.height;
     const scaleX = canvasWidth / parameters.ARENA_WIDTH;
     const scaleY = canvasHeight / parameters.ARENA_HEIGHT;
+    console.assert(scaleX == scaleY);
     // Draw the bottleneck barrier
     const barrierX = (parameters.ARENA_WIDTH / 2 - parameters.BARRIER_WIDTH / 2) * scaleX;
     const barrierWidth = parameters.BARRIER_WIDTH * scaleX;
@@ -84,9 +86,9 @@ namespace rl_tools{
         // Draw agent body
         ctx.beginPath();
         ctx.arc(posX, posY, agentRadius, 0, 2 * Math.PI);
-        ctx.fillStyle = 'blue';
+        ctx.fillStyle = agent.dead ? 'grey' : 'blue';
         ctx.fill();
-        ctx.stroke();
+//        ctx.stroke();
 
         // Draw agent orientation
         const endX = posX + agentRadius * Math.cos(orientation);

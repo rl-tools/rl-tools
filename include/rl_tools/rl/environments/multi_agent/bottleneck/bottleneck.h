@@ -18,7 +18,7 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         static constexpr T LIDAR_RANGE = 3;
         static constexpr T DT = 0.05;
         static constexpr T ARENA_WIDTH = 20; // x: left to right, y: top to bottom (display coordinate system)
-        static constexpr T ARENA_HEIGHT = 10;
+        static constexpr T ARENA_HEIGHT = 20;
         static constexpr T AGENT_DIAMETER = 1.5;
         static constexpr T AGENT_MAX_SPEED = 2;
         static constexpr T AGENT_MAX_ACCELERATION = 2;

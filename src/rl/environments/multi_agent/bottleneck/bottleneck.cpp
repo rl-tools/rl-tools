@@ -35,8 +35,9 @@ int main(){
     rlt::set_all(device, action, 1);
     rlt::clamp(device, action, -1, 1);
     while(true){
-        T dt = rlt::step(device, env, parameters, state, action, next_state, rng);
         rlt::set_state(device, env, parameters, ui, state, action);
+        std::this_thread::sleep_for(std::chrono::duration<T>(0.001));
+        T dt = rlt::step(device, env, parameters, state, action, next_state, rng);
         std::this_thread::sleep_for(std::chrono::duration<T>(dt));
         state = next_state;
     }

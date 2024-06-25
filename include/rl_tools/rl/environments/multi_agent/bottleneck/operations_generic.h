@@ -17,6 +17,35 @@ namespace rl_tools{
             return f_mod_python(dev, (x + math::PI<T>), (2 * math::PI<T>)) - math::PI<T>;
         }
     }
+    namespace rl::environments::multi_agent::bottleneck{
+        template<typename DEVICE, typename SPEC, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool check_collision_between_agents(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::bottleneck::AgentState<T, TI> agent_state_a, const typename rl::environments::multi_agent::bottleneck::AgentState<T, TI> agent_state_b){
+            T dx = agent_state_a.position[0] - agent_state_b.position[0];
+            T dy = agent_state_a.position[1] - agent_state_b.position[1];
+            T d = math::sqrt(device.math, dx * dx + dy * dy);
+            if(d < SPEC::PARAMETERS::AGENT_DIAMETER){
+                return true;
+            }
+            return false;
+        }
+        template<typename DEVICE, typename SPEC, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool check_collision_with_arena_wall(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::bottleneck::AgentState<T, TI> agent_state){
+            return agent_state.position[0] < SPEC::PARAMETERS::AGENT_DIAMETER/2 || agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH/2 - SPEC::PARAMETERS::AGENT_DIAMETER/2 || agent_state.position[1] < SPEC::PARAMETERS::AGENT_DIAMETER/2 || agent_state.position[1] > SPEC::PARAMETERS::ARENA_HEIGHT - SPEC::PARAMETERS::AGENT_DIAMETER/2;
+        }
+        template<typename DEVICE, typename SPEC, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool check_collision_with_center_wall(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::bottleneck::AgentState<T, TI> agent_state){
+            // Check if agent is within the horizontal bounds of the center wall considering the agent diameter
+            if (agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH / 2 - SPEC::PARAMETERS::BARRIER_WIDTH / 2 - SPEC::PARAMETERS::AGENT_DIAMETER / 2 &&
+                agent_state.position[0] < SPEC::PARAMETERS::ARENA_WIDTH / 2 + SPEC::PARAMETERS::BARRIER_WIDTH / 2 + SPEC::PARAMETERS::AGENT_DIAMETER / 2) {
+                // Check if agent is within the vertical bounds of the center wall excluding the bottleneck considering the agent diameter
+                if (agent_state.position[1] < SPEC::PARAMETERS::BOTTLENECK_POSITION - SPEC::PARAMETERS::BOTTLENECK_WIDTH / 2 - SPEC::PARAMETERS::AGENT_DIAMETER / 2 ||
+                    agent_state.position[1] > SPEC::PARAMETERS::BOTTLENECK_POSITION + SPEC::PARAMETERS::BOTTLENECK_WIDTH / 2 + SPEC::PARAMETERS::AGENT_DIAMETER / 2) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, RNG& rng){ }
     template<typename DEVICE, typename SPEC, typename RNG>
@@ -27,30 +56,43 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         static_assert(SPEC::PARAMETERS::ARENA_WIDTH/2 - SPEC::PARAMETERS::AGENT_DIAMETER > SPEC::PARAMETERS::AGENT_DIAMETER, "Arena not wide enough for a single agent");
         static_assert((SPEC::PARAMETERS::ARENA_WIDTH/2 - 2*SPEC::PARAMETERS::AGENT_DIAMETER) * (SPEC::PARAMETERS::ARENA_HEIGHT - 2*SPEC::PARAMETERS::AGENT_DIAMETER) > SPEC::PARAMETERS::N_AGENTS * SPEC::PARAMETERS::AGENT_DIAMETER * SPEC::PARAMETERS::AGENT_DIAMETER/4 * 9, "Arena area not large enough for the number of agents");
-        for(TI agent_i = 0; agent_i < SPEC::PARAMETERS::N_AGENTS; agent_i++){
-            auto& agent_state = state.agent_states[agent_i];
-            bool illegal = false;
-            agent_state.dead = false;
-            do{
-                agent_state.position[0] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_WIDTH / 2 - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
-                agent_state.position[1] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_HEIGHT - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
-                agent_state.orientation = random::uniform_real_distribution(device.random, -math::PI<T>, math::PI<T>, rng);
-                agent_state.velocity[0] = 0;
-                agent_state.velocity[1] = 0;
-                agent_state.angular_velocity = 0;
-                illegal = false;
-                for(TI agent_j = 0; agent_j < agent_i; agent_j++){
-                    auto& agent_state_j = state.agent_states[agent_j];
-                    T dx = agent_state.position[0] - agent_state_j.position[0];
-                    T dy = agent_state.position[1] - agent_state_j.position[1];
-                    T d = math::sqrt(device.math, dx * dx + dy * dy);
-                    if(d < SPEC::PARAMETERS::AGENT_DIAMETER){
-                        illegal = true;
-                        break;
+        MatrixStatic<matrix::Specification<bool, TI, 1, SPEC::PARAMETERS::N_AGENTS>> terminated_values;
+        bool successfull = false;
+        while(!successfull){
+            successfull = true;
+            for(TI agent_i = 0; agent_i < SPEC::PARAMETERS::N_AGENTS; agent_i++){
+                auto& agent_state = state.agent_states[agent_i];
+                bool illegal = true;
+                agent_state.dead = false;
+                for(TI try_i = 0; try_i < 100; try_i++){
+                    agent_state.position[0] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_WIDTH / 2 - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
+                    agent_state.position[1] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_HEIGHT - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
+                    agent_state.orientation = random::uniform_real_distribution(device.random, -math::PI<T>, math::PI<T>, rng);
+                    agent_state.velocity[0] = 0;
+                    agent_state.velocity[1] = 0;
+                    agent_state.angular_velocity = 0;
+                    if(rl::environments::multi_agent::bottleneck::check_collision_with_arena_wall(device, env, parameters, agent_state)){
+                        continue;
                     }
+                    if(rl::environments::multi_agent::bottleneck::check_collision_with_center_wall(device, env, parameters, agent_state)){
+                        continue;
+                    }
+                    for(TI other_agent_i = 0; other_agent_i < agent_i; other_agent_i++){
+                        if(rl::environments::multi_agent::bottleneck::check_collision_between_agents(device, env, parameters, agent_state, state.agent_states[other_agent_i])){
+                            break;
+                        }
+                    }
+                    illegal = false;
+                };
+                if(illegal){
+                    successfull = false;
+                    break;
                 }
-            }while(illegal);
-        }
+            }
+            if(!successfull){
+                log(device, device.logger, "Failed to initialize agents, retrying...");
+            }
+        };
     }
     template<typename DEVICE, typename SPEC>
     static void initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state){
@@ -82,26 +124,44 @@ namespace rl_tools{
         for(TI agent_i=0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++){
             auto& agent_state = state.agent_states[agent_i];
             auto& agent_next_state = next_state.agent_states[agent_i];
-            T acceleration_normalized = math::clamp(device.math, get(action, agent_i, 0), (T)-1, (T)1);
-            T angular_acceleration_normalized = math::clamp(device.math, get(action, agent_i, 1), (T)-1, (T)1);
-            T acceleration = PARAMS::AGENT_MAX_ACCELERATION * acceleration_normalized;
-            T angular_acceleration = PARAMS::AGENT_MAX_ANGULAR_ACCELERATION * angular_acceleration_normalized;
-            T dt = PARAMS::DT;
-            T dx = agent_state.velocity[0] * dt;
-            T dy = agent_state.velocity[1] * dt;
-            T dtheta = agent_state.angular_velocity * dt;
-            T new_x = agent_state.position[0] + dx;
-            T new_y = agent_state.position[1] + dy;
-            T new_theta = rl::environments::multi_agent::bottleneck::angle_normalize(device, agent_state.orientation + dtheta);
-            T new_vx = agent_state.velocity[0] + acceleration * math::cos(device.math, new_theta) * dt;
-            T new_vy = agent_state.velocity[1] + acceleration * math::sin(device.math, new_theta) * dt;
-            T new_omega = agent_state.angular_velocity + angular_acceleration * dt;
-            agent_next_state.position[0] = new_x;
-            agent_next_state.position[1] = new_y;
-            agent_next_state.orientation = new_theta;
-            agent_next_state.velocity[0] = new_vx;
-            agent_next_state.velocity[1] = new_vy;
-            agent_next_state.angular_velocity = new_omega;
+            if(!agent_state.dead){
+                T acceleration_normalized = math::clamp(device.math, get(action, agent_i, 0), (T)-1, (T)1);
+                T angular_acceleration_normalized = math::clamp(device.math, get(action, agent_i, 1), (T)-1, (T)1);
+                T acceleration = PARAMS::AGENT_MAX_ACCELERATION * acceleration_normalized;
+                T angular_acceleration = PARAMS::AGENT_MAX_ANGULAR_ACCELERATION * angular_acceleration_normalized;
+                T dt = PARAMS::DT;
+                T dx = agent_state.velocity[0] * dt;
+                T dy = agent_state.velocity[1] * dt;
+                T dtheta = agent_state.angular_velocity * dt;
+                T new_x = agent_state.position[0] + dx;
+                T new_y = agent_state.position[1] + dy;
+                T new_theta = rl::environments::multi_agent::bottleneck::angle_normalize(device, agent_state.orientation + dtheta);
+                T new_vx = agent_state.velocity[0] + acceleration * math::cos(device.math, new_theta) * dt;
+                T new_vy = agent_state.velocity[1] + acceleration * math::sin(device.math, new_theta) * dt;
+                T new_omega = agent_state.angular_velocity + angular_acceleration * dt;
+                agent_next_state.position[0] = new_x;
+                agent_next_state.position[1] = new_y;
+                agent_next_state.orientation = new_theta;
+                agent_next_state.velocity[0] = new_vx;
+                agent_next_state.velocity[1] = new_vy;
+                agent_next_state.angular_velocity = new_omega;
+            }
+        }
+        for(TI agent_i=0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++){
+            auto& agent_next_state = next_state.agent_states[agent_i];
+            if(rl::environments::multi_agent::bottleneck::check_collision_with_arena_wall(device, env, parameters, agent_next_state)){
+                agent_next_state.dead = true;
+            }
+            if(rl::environments::multi_agent::bottleneck::check_collision_with_center_wall(device, env, parameters, agent_next_state)){
+                agent_next_state.dead = true;
+            }
+            for(TI other_agent_i = agent_i+1; other_agent_i < SPEC::PARAMETERS::N_AGENTS; other_agent_i++){
+                auto& other_agent_next_state = next_state.agent_states[other_agent_i];
+                if(rl::environments::multi_agent::bottleneck::check_collision_between_agents(device, env, parameters, agent_next_state, other_agent_next_state)){
+                    agent_next_state.dead = true;
+                    other_agent_next_state.dead = true;
+                }
+            }
         }
 
         return SPEC::PARAMETERS::DT;
@@ -165,8 +225,20 @@ namespace rl_tools{
         static_assert(TERMINATED_SPEC::ROWS == 1);
         static_assert(TERMINATED_SPEC::COLS == SPEC::PARAMETERS::N_AGENTS);
         static_assert(utils::typing::is_same_v<typename TERMINATED_SPEC::T, bool>);
+        set_all(device, terminated, false);
         for(TI agent_i = 0; agent_i < SPEC::PARAMETERS::N_AGENTS; agent_i++){
-            set(terminated, 0, agent_i, false);
+            if(rl::environments::multi_agent::bottleneck::check_collision_with_arena_wall(device, env, parameters, state, agent_i)){
+                set(terminated, 0, agent_i, true);
+            }
+            if(rl::environments::multi_agent::bottleneck::check_collision_with_center_wall(device, env, parameters, state, agent_i)){
+                set(terminated, 0, agent_i, true);
+            }
+            for(TI other_agent_i = agent_i+1; other_agent_i < SPEC::PARAMETERS::N_AGENTS; other_agent_i++){
+                if(rl::environments::multi_agent::bottleneck::check_collision_between_agents(device, env, parameters, state, agent_i, other_agent_i)){
+                    set(terminated, 0, agent_i, true);
+                    set(terminated, 0, other_agent_i, true);
+                }
+            }
         }
     }
 }
