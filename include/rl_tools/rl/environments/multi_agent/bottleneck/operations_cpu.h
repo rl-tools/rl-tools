@@ -98,21 +98,23 @@ namespace rl_tools{
         const orientation = agent.orientation;
 
         // Draw lidar
-        for (let lidar_i = 0; lidar_i < agent.lidar.length; lidar_i++) {
-            const lidar = agent.lidar[lidar_i];
-            if (lidar.intersects) {
-                ctx.beginPath();
-                ctx.moveTo(posX, posY);
-                const lidarEndX = lidar.point[0] * scaleX;
-                const lidarEndY = lidar.point[1] * scaleY;
-                ctx.lineTo(lidarEndX, lidarEndY);
-                ctx.strokeStyle = 'orange';
-                ctx.lineWidth = 1/25*scaleX;
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.arc(lidarEndX, lidarEndY, 3, 0, 2 * Math.PI);
-                ctx.fillStyle = 'orange';
-                ctx.fill();
+        if(!agent.dead){
+            for (let lidar_i = 0; lidar_i < agent.lidar.length; lidar_i++) {
+                const lidar = agent.lidar[lidar_i];
+                if (lidar.intersects) {
+                    ctx.beginPath();
+                    ctx.moveTo(posX, posY);
+                    const lidarEndX = lidar.point[0] * scaleX;
+                    const lidarEndY = lidar.point[1] * scaleY;
+                    ctx.lineTo(lidarEndX, lidarEndY);
+                    ctx.strokeStyle = 'orange';
+                    ctx.lineWidth = 1/25*scaleX;
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(lidarEndX, lidarEndY, 3, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'orange';
+                    ctx.fill();
+                }
             }
         }
 

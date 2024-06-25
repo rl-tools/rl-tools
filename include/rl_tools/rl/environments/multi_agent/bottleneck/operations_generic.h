@@ -162,12 +162,14 @@ namespace rl_tools{
                     if(rl::environments::multi_agent::bottleneck::check_collision_with_center_wall(device, env, parameters, agent_state)){
                         continue;
                     }
+                    bool agent_collision = false;
                     for(TI other_agent_i = 0; other_agent_i < agent_i; other_agent_i++){
                         if(rl::environments::multi_agent::bottleneck::check_collision_between_agents(device, env, parameters, agent_state, state.agent_states[other_agent_i])){
+                            agent_collision = true;
                             break;
                         }
                     }
-                    illegal = false;
+                    illegal = agent_collision;
                 };
                 if(illegal){
                     successfull = false;
