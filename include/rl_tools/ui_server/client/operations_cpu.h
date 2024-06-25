@@ -78,13 +78,20 @@ namespace rl_tools{
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
     std::string action_data(DEVICE& dev, ENVIRONMENT& env, ui_server::client::UIJSON<ENVIRONMENT>& ui, const Matrix<ACTION_SPEC>& action){
         static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
-        static_assert(ACTION_SPEC::ROWS == 1);
+//        static_assert(ACTION_SPEC::ROWS == 1);
         using T = typename ACTION_SPEC::T;
         using TI = typename DEVICE::index_t;
         std::string action_data = "[";
-        for(TI i = 0; i < ENVIRONMENT::ACTION_DIM; i++){
-            action_data += std::to_string(get(action, 0, i));
-            if(i < ENVIRONMENT::ACTION_DIM - 1){
+        for(TI row_i = 0; row_i < ACTION_SPEC::ROWS; row_i++){
+            action_data += "[";
+            for(TI action_i = 0; action_i < ACTION_SPEC::COLS; action_i++){
+                action_data += std::to_string(get(action, row_i, action_i));
+                if(action_i < ACTION_SPEC::COLS - 1){
+                    action_data += ", ";
+                }
+            }
+            action_data += "]";
+            if(row_i < ACTION_SPEC::ROWS - 1){
                 action_data += ", ";
             }
         }
@@ -94,7 +101,7 @@ namespace rl_tools{
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
     std::string set_state_action_message(DEVICE& dev, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, ui_server::client::UIJSON<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
         static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
-        static_assert(ACTION_SPEC::ROWS == 1);
+//        static_assert(ACTION_SPEC::ROWS == 1);
         using T = typename ACTION_SPEC::T;
         using TI = typename DEVICE::index_t;
         std::string message = set_state_message(dev, env, parameters, ui, state);

@@ -9,7 +9,7 @@ namespace rl_tools{
     namespace rl::environments::multi_agent::bottleneck {
         template <typename DEVICE, typename T>
         RL_TOOLS_FUNCTION_PLACEMENT T f_mod_python(const DEVICE& dev, T a, T b){
-            return a - b * math::floor(dev, a / b);
+            return a - b * math::floor(dev.math, a / b);
         }
 
         template <typename DEVICE, typename T>
@@ -18,7 +18,11 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, RNG& rng){ }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters){ }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(SPEC::PARAMETERS::ARENA_WIDTH/2 - SPEC::PARAMETERS::AGENT_DIAMETER > SPEC::PARAMETERS::AGENT_DIAMETER, "Arena not wide enough for a single agent");
@@ -26,6 +30,7 @@ namespace rl_tools{
         for(TI agent_i = 0; agent_i < SPEC::PARAMETERS::N_AGENTS; agent_i++){
             auto& agent_state = state.agent_states[agent_i];
             bool illegal = false;
+            agent_state.dead = false;
             do{
                 agent_state.position[0] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_WIDTH / 2 - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
                 agent_state.position[1] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_HEIGHT - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
@@ -48,7 +53,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state){
+    static void initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state){
         static_assert(SPEC::PARAMETERS::ARENA_WIDTH/2 - SPEC::PARAMETERS::AGENT_DIAMETER > SPEC::PARAMETERS::AGENT_DIAMETER, "Arena not wide enough for a single agent");
         static_assert((SPEC::PARAMETERS::ARENA_HEIGHT - SPEC::PARAMETERS::AGENT_DIAMETER) > SPEC::PARAMETERS::N_AGENTS * SPEC::PARAMETERS::AGENT_DIAMETER, "Arena not tall enough for initializing the agents on a line");
         using T = typename SPEC::T;
@@ -61,23 +66,26 @@ namespace rl_tools{
             agent_state.velocity[0] = 0;
             agent_state.velocity[1] = 0;
             agent_state.angular_velocity = 0;
+            agent_state.dead = false;
         }
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, RNG& rng) {
         using ENV = rl::environments::multi_agent::Bottleneck<SPEC>;
         static_assert(ACTION_SPEC::ROWS == ENV::PARAMETERS::N_AGENTS);
         static_assert(ACTION_SPEC::COLS == ENV::ACTION_DIM);
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using PARAMS = typename SPEC::PARAMETERS;
-        return SPEC::PARAMETERS::DT;
+
 
         for(TI agent_i=0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++){
             auto& agent_state = state.agent_states[agent_i];
             auto& agent_next_state = next_state.agent_states[agent_i];
-            T force = math::clamp(device.math, get(action, agent_i, 0), (T)-1, (T)1);
-            T u = PARAMS::AGENT_MAX_ACCELERATION * force;
+            T acceleration_normalized = math::clamp(device.math, get(action, agent_i, 0), (T)-1, (T)1);
+            T angular_acceleration_normalized = math::clamp(device.math, get(action, agent_i, 1), (T)-1, (T)1);
+            T acceleration = PARAMS::AGENT_MAX_ACCELERATION * acceleration_normalized;
+            T angular_acceleration = PARAMS::AGENT_MAX_ANGULAR_ACCELERATION * angular_acceleration_normalized;
             T dt = PARAMS::DT;
             T dx = agent_state.velocity[0] * dt;
             T dy = agent_state.velocity[1] * dt;
@@ -85,9 +93,9 @@ namespace rl_tools{
             T new_x = agent_state.position[0] + dx;
             T new_y = agent_state.position[1] + dy;
             T new_theta = rl::environments::multi_agent::bottleneck::angle_normalize(device, agent_state.orientation + dtheta);
-            T new_vx = agent_state.velocity[0] + u * math::cos(device.math, new_theta) * dt;
-            T new_vy = agent_state.velocity[1] + u * math::sin(device.math, new_theta) * dt;
-            T new_omega = agent_state.angular_velocity + u * dt;
+            T new_vx = agent_state.velocity[0] + acceleration * math::cos(device.math, new_theta) * dt;
+            T new_vy = agent_state.velocity[1] + acceleration * math::sin(device.math, new_theta) * dt;
+            T new_omega = agent_state.angular_velocity + angular_acceleration * dt;
             agent_next_state.position[0] = new_x;
             agent_next_state.position[1] = new_y;
             agent_next_state.orientation = new_theta;
@@ -95,9 +103,11 @@ namespace rl_tools{
             agent_next_state.velocity[1] = new_vy;
             agent_next_state.angular_velocity = new_omega;
         }
+
+        return SPEC::PARAMETERS::DT;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename REWARD_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void reward(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, Matrix<REWARD_SPEC>& reward, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void reward(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, Matrix<REWARD_SPEC>& reward, RNG& rng){
         using ENV = rl::environments::multi_agent::Bottleneck<SPEC>;
         static_assert(ACTION_SPEC::ROWS == ENV::PARAMETERS::N_AGENTS);
         static_assert(ACTION_SPEC::COLS == ENV::ACTION_DIM);
@@ -111,7 +121,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename OBS_PARAMETERS, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using OBS = rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>;
         static_assert(OBS_SPEC::ROWS == SPEC::PARAMETERS::N_AGENTS);
         static_assert(OBS_SPEC::COLS == OBS::DIM);
@@ -131,7 +141,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename OBS_PARAMETERS, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, rl::environments::multi_agent::bottleneck::ObservationPrivileged<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, rl::environments::multi_agent::bottleneck::ObservationPrivileged<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using OBS = rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == OBS::DIM);
@@ -149,7 +159,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename TERMINATED_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void terminated(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State state, Matrix<TERMINATED_SPEC>& terminated, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void terminated(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State state, Matrix<TERMINATED_SPEC>& terminated, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(TERMINATED_SPEC::ROWS == 1);

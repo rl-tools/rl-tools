@@ -19,7 +19,7 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         static constexpr T DT = 0.05;
         static constexpr T ARENA_WIDTH = 20; // x: left to right, y: top to bottom (display coordinate system)
         static constexpr T ARENA_HEIGHT = 10;
-        static constexpr T AGENT_DIAMETER = 0.1;
+        static constexpr T AGENT_DIAMETER = 1.5;
         static constexpr T AGENT_MAX_SPEED = 2;
         static constexpr T AGENT_MAX_ACCELERATION = 2;
         static constexpr T AGENT_MAX_ANGULAR_VELOCITY = 2;
@@ -57,6 +57,7 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         T orientation;
         T velocity[2];
         T angular_velocity;
+        bool dead;
     };
 
     template <typename SPEC>
@@ -76,11 +77,11 @@ namespace rl_tools::rl::environments::multi_agent{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using State = multi_agent::bottleneck::State<SPEC>;
+        using Parameters = typename SPEC::PARAMETERS;
         using PARAMETERS = typename SPEC::PARAMETERS;
         using OBSERVATION = typename SPEC::OBSERVATION;
         using OBSERVATION_PRIVILEGED = typename SPEC::OBSERVATION_PRIVILEGED;
-        PARAMETERS parameters;
-        static constexpr TI N_AGENTS = PARAMETERS::N_AGENTS;
+        static constexpr TI N_AGENTS = Parameters::N_AGENTS;
         static constexpr TI OBSERVATION_DIM = OBSERVATION::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_PRIVILEGED::DIM;
         static constexpr TI ACTION_DIM = 3; // x and y acceleration
