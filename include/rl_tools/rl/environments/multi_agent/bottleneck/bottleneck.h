@@ -13,7 +13,7 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         using T = T_T;
         using TI = T_TI;
         static constexpr TI N_AGENTS = 2;
-        static constexpr TI LIDAR_RESOLUTION = 3;
+        static constexpr TI LIDAR_RESOLUTION = 5;
         static constexpr T LIDAR_FOV = math::PI<T> * 20/180; // in radians (0 to PI)
         static constexpr T LIDAR_RANGE = 3;
         static constexpr T DT = 0.05;
@@ -51,12 +51,20 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         using PARAMETERS = T_PARAMETERS;
     };
 
+    template <typename T>
+    struct Intersection {
+        bool intersects = false;
+        T point[2];
+        T distance;
+    };
+
     template <typename T, typename TI>
     struct AgentState {
         T position[2];
         T orientation;
         T velocity[2];
         T angular_velocity;
+        Intersection<T> lidar[DefaultParameters<T, TI>::LIDAR_RESOLUTION];
         bool dead;
     };
 

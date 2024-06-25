@@ -42,6 +42,20 @@ namespace rl_tools{
             agent_state += "\"velocity\": [" + std::to_string(state.agent_states[agent_i].velocity[0]) + "," + std::to_string(state.agent_states[agent_i].velocity[1]) + "],";
             agent_state += "\"angular_velocity\": " + std::to_string(state.agent_states[agent_i].angular_velocity) + ", ";
             agent_state += "\"dead\": " + std::to_string(state.agent_states[agent_i].dead);
+            std::string lidar = "[";
+            for(TI i = 0; i < SPEC::PARAMETERS::LIDAR_RESOLUTION; i++){
+                std::string ray = "{";
+                ray += "\"distance\": " + std::to_string(state.agent_states[agent_i].lidar[i].distance) + ",";
+                ray += "\"point\": [" + std::to_string(state.agent_states[agent_i].lidar[i].point[0]) + "," + std::to_string(state.agent_states[agent_i].lidar[i].point[1]) + "], ";
+                ray += "\"intersects\": " + std::to_string(state.agent_states[agent_i].lidar[i].intersects);
+                ray += "}";
+                lidar += ray;
+                if(i < SPEC::PARAMETERS::LIDAR_RESOLUTION - 1){
+                    lidar += ",";
+                }
+            }
+            lidar += "]";
+            agent_state += ", \"lidar\": " + lidar;
             agent_state += "}";
             agent_states += agent_state;
             if(agent_i < parameters.N_AGENTS - 1){
@@ -88,7 +102,6 @@ namespace rl_tools{
         ctx.arc(posX, posY, agentRadius, 0, 2 * Math.PI);
         ctx.fillStyle = agent.dead ? 'grey' : 'blue';
         ctx.fill();
-//        ctx.stroke();
 
         // Draw agent orientation
         const endX = posX + agentRadius * Math.cos(orientation);
@@ -140,7 +153,7 @@ namespace rl_tools{
         ctx.stroke();
 
         // Draw arrowhead for angular acceleration
-        const arrowHeadAngle = endAngle - direction* arrowAngle * 0.05 - Math.PI / 2;
+        const arrowHeadAngle = endAngle - direction * arrowAngle * 0.05 - Math.PI / 2;
         const arrowHeadX = posX + arrowRadius * Math.cos(endAngle);
         const arrowHeadY = posY + arrowRadius * Math.sin(endAngle);
 
@@ -158,6 +171,25 @@ namespace rl_tools{
         ctx.strokeStyle = 'green';
         ctx.lineWidth = 2;
         ctx.stroke();
+
+        // Draw lidar
+        for (let lidar_i = 0; lidar_i < agent.lidar.length; lidar_i++) {
+            const lidar = agent.lidar[lidar_i];
+            if (lidar.intersects) {
+                ctx.beginPath();
+                ctx.moveTo(posX, posY);
+                const lidarEndX = lidar.point[0] * scaleX;
+                const lidarEndY = lidar.point[1] * scaleY;
+                ctx.lineTo(lidarEndX, lidarEndY);
+                ctx.strokeStyle = 'orange';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(lidarEndX, lidarEndY, 3, 0, 2 * Math.PI);
+                ctx.fillStyle = 'orange';
+                ctx.fill();
+            }
+        }
     }
         )RL_TOOLS_LITERAL";
         return ui;

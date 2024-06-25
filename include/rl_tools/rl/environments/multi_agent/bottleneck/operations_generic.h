@@ -45,6 +45,91 @@ namespace rl_tools{
             }
             return false;
         }
+
+        template <typename T>
+        struct Ray {
+            T origin[2];
+            T direction[2];
+        };
+
+        template<typename DEVICE, typename SPEC, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT Intersection<T> intersects(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::bottleneck::AgentState<T, TI>& agent_state, Ray<T> ray) {
+            Intersection<T> result;
+            result.intersects = false;
+
+            T dx = ray.origin[0] - agent_state.position[0];
+            T dy = ray.origin[1] - agent_state.position[1];
+            T radius = SPEC::PARAMETERS::AGENT_DIAMETER / 2;
+
+            T a = ray.direction[0] * ray.direction[0] + ray.direction[1] * ray.direction[1];
+            T b = 2 * (ray.direction[0] * dx + ray.direction[1] * dy);
+            T c = dx * dx + dy * dy - radius * radius;
+
+            T discriminant = b * b - 4 * a * c;
+            if (discriminant < 0) {
+                return result; // No intersection
+            } else {
+                T t1 = (-b - math::sqrt(device.math, discriminant)) / (2 * a);
+                T t2 = (-b + math::sqrt(device.math, discriminant)) / (2 * a);
+                if (t1 >= 0) {
+                    result.intersects = true;
+                    result.point[0] = ray.origin[0] + t1 * ray.direction[0];
+                    result.point[1] = ray.origin[1] + t1 * ray.direction[1];
+                    result.distance = t1;
+                    return result; // Intersection at t1
+                }
+                if (t2 >= 0) {
+                    result.intersects = true;
+                    result.point[0] = ray.origin[0] + t2 * ray.direction[0];
+                    result.point[1] = ray.origin[1] + t2 * ray.direction[1];
+                    result.distance = t2;
+                    return result; // Intersection at t2
+                }
+            }
+            return result; // No intersection
+        }
+
+        template <typename T>
+        struct AxisAlignedRectangle {
+            T min[2];
+            T max[2];
+        };
+
+        template<typename DEVICE, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT Intersection<T> intersects(DEVICE& device, AxisAlignedRectangle<T> rectangle, Ray<T> ray) {
+            Intersection<T> result;
+            result.intersects = false;
+
+            T tmin = (rectangle.min[0] - ray.origin[0]) / ray.direction[0];
+            T tmax = (rectangle.max[0] - ray.origin[0]) / ray.direction[0];
+
+            if (tmin > tmax) std::swap(tmin, tmax);
+
+            T tymin = (rectangle.min[1] - ray.origin[1]) / ray.direction[1];
+            T tymax = (rectangle.max[1] - ray.origin[1]) / ray.direction[1];
+
+            if (tymin > tymax) std::swap(tymin, tymax);
+
+            if ((tmin > tymax) || (tymin > tmax))
+                return result;
+
+            if (tymin > tmin)
+                tmin = tymin;
+
+            if (tymax < tmax)
+                tmax = tymax;
+
+            if (tmin < 0 && tmax < 0)
+                return result;
+
+            T t = (tmin < 0) ? tmax : tmin;
+
+            result.intersects = true;
+            result.point[0] = ray.origin[0] + t * ray.direction[0];
+            result.point[1] = ray.origin[1] + t * ray.direction[1];
+            result.distance = t;
+            return result;
+        }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, RNG& rng){ }
@@ -111,6 +196,79 @@ namespace rl_tools{
             agent_state.dead = false;
         }
     }
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void update_lidar(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state) {
+        using ENV = rl::environments::multi_agent::Bottleneck<SPEC>;
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        using PARAMS = typename SPEC::PARAMETERS;
+        using TI = typename DEVICE::index_t;
+        // Lidar
+        for(TI agent_i=0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++) {
+            auto &agent_next_state = state.agent_states[agent_i];
+            if (!agent_next_state.dead) {
+                for (TI lidar_i = 0; lidar_i < SPEC::PARAMETERS::LIDAR_RESOLUTION; lidar_i++) {
+                    T angle = agent_next_state.orientation + (lidar_i - ((T)SPEC::PARAMETERS::LIDAR_RESOLUTION - 1) / (T)2) * SPEC::PARAMETERS::LIDAR_FOV / ((T)SPEC::PARAMETERS::LIDAR_RESOLUTION - 1);
+                    T dx = math::cos(device.math, angle);
+                    T dy = math::sin(device.math, angle);
+                    T max_range = SPEC::PARAMETERS::LIDAR_RANGE;
+                    T min_range = 0;
+                    T range = max_range;
+                    rl::environments::multi_agent::bottleneck::Ray<T> ray;
+                    ray.origin[0] = agent_next_state.position[0];
+                    ray.origin[1] = agent_next_state.position[1];
+                    ray.direction[0] = dx;
+                    ray.direction[1] = dy;
+                    rl::environments::multi_agent::bottleneck::Intersection<T> min_intersection;
+                    min_intersection.intersects = false;
+                    for (TI other_agent_i = 0; other_agent_i < SPEC::PARAMETERS::N_AGENTS; other_agent_i++) {
+                        if(agent_i != other_agent_i){
+                            auto &other_agent_next_state = state.agent_states[other_agent_i];
+                            auto intersection = rl::environments::multi_agent::bottleneck::intersects(device, env, parameters, other_agent_next_state, ray);
+                            if(intersection.intersects && intersection.distance >= 0){
+                                if(!min_intersection.intersects || min_intersection.distance > intersection.distance){
+                                    min_intersection = intersection;
+                                }
+                            }
+                        }
+                    }
+                    rl::environments::multi_agent::bottleneck::AxisAlignedRectangle<T> center_wall_upper, center_wall_lower, arena;
+                    center_wall_upper.min[0] = SPEC::PARAMETERS::ARENA_WIDTH / 2 - SPEC::PARAMETERS::BARRIER_WIDTH / 2;
+                    center_wall_upper.max[0] = SPEC::PARAMETERS::ARENA_WIDTH / 2 + SPEC::PARAMETERS::BARRIER_WIDTH / 2;
+                    center_wall_upper.min[1] = 0;
+                    center_wall_upper.max[1] = SPEC::PARAMETERS::BOTTLENECK_POSITION - SPEC::PARAMETERS::BOTTLENECK_WIDTH / 2;
+
+                    center_wall_lower = center_wall_upper;
+                    center_wall_lower.min[1] = SPEC::PARAMETERS::BOTTLENECK_POSITION + SPEC::PARAMETERS::BOTTLENECK_WIDTH / 2;
+                    center_wall_lower.max[1] = SPEC::PARAMETERS::ARENA_HEIGHT;
+                    auto intersection_upper = rl::environments::multi_agent::bottleneck::intersects(device, center_wall_upper, ray);
+                    auto intersection_lower = rl::environments::multi_agent::bottleneck::intersects(device, center_wall_lower, ray);
+                    if(intersection_upper.intersects && intersection_upper.distance >= 0){
+                        if(!min_intersection.intersects || min_intersection.distance > intersection_upper.distance){
+                            min_intersection = intersection_upper;
+                        }
+                    }
+                    if(intersection_lower.intersects && intersection_lower.distance >= 0){
+                        if(!min_intersection.intersects || min_intersection.distance > intersection_lower.distance){
+                            min_intersection = intersection_lower;
+                        }
+                    }
+
+                    arena.min[0] = 0;
+                    arena.max[0] = SPEC::PARAMETERS::ARENA_WIDTH;
+                    arena.min[1] = 0;
+                    arena.max[1] = SPEC::PARAMETERS::ARENA_HEIGHT;
+                    auto intersection_arena = rl::environments::multi_agent::bottleneck::intersects(device, arena, ray);
+                    if(intersection_arena.intersects && intersection_arena.distance >= 0){
+                        if(!min_intersection.intersects || min_intersection.distance > intersection_arena.distance){
+                            min_intersection = intersection_arena;
+                        }
+                    }
+                    agent_next_state.lidar[lidar_i] = min_intersection;
+                }
+            }
+        }
+    }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, RNG& rng) {
         using ENV = rl::environments::multi_agent::Bottleneck<SPEC>;
@@ -171,6 +329,9 @@ namespace rl_tools{
                 }
             }
         }
+
+        update_lidar(device, env, parameters, next_state);
+
 
         return SPEC::PARAMETERS::DT;
     }

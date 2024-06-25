@@ -10,7 +10,7 @@ using TI = typename DEVICE::index_t;
 using T = float;
 
 struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::multi_agent::bottleneck::DefaultParameters<T, TI>{
-//    static constexpr T DT = 0.018;
+    static constexpr T DT = 0.001;
 };
 using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
 using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
@@ -35,12 +35,16 @@ int main(){
 //    rlt::randn(device, action, rng);
     rlt::set_all(device, action, 1);
     rlt::clamp(device, action, -1, 1);
+    TI step = 0;
     while(true){
+        if(step > 50){
+            rlt::set_all(device, action, 0);
+        }
         rlt::set_state(device, env, parameters, ui, state, action);
-        std::this_thread::sleep_for(std::chrono::duration<T>(0.001));
         T dt = rlt::step(device, env, parameters, state, action, next_state, rng);
         std::this_thread::sleep_for(std::chrono::duration<T>(dt));
         state = next_state;
+        step++;
     }
     return 0;
 }
