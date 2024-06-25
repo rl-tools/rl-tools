@@ -145,21 +145,29 @@ namespace rl_tools{
                 agent_next_state.velocity[0] = new_vx;
                 agent_next_state.velocity[1] = new_vy;
                 agent_next_state.angular_velocity = new_omega;
+                agent_next_state.dead = false;
+            }
+            else{
+                agent_next_state = agent_state;
             }
         }
         for(TI agent_i=0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++){
             auto& agent_next_state = next_state.agent_states[agent_i];
-            if(rl::environments::multi_agent::bottleneck::check_collision_with_arena_wall(device, env, parameters, agent_next_state)){
-                agent_next_state.dead = true;
-            }
-            if(rl::environments::multi_agent::bottleneck::check_collision_with_center_wall(device, env, parameters, agent_next_state)){
-                agent_next_state.dead = true;
-            }
-            for(TI other_agent_i = agent_i+1; other_agent_i < SPEC::PARAMETERS::N_AGENTS; other_agent_i++){
-                auto& other_agent_next_state = next_state.agent_states[other_agent_i];
-                if(rl::environments::multi_agent::bottleneck::check_collision_between_agents(device, env, parameters, agent_next_state, other_agent_next_state)){
+            if(!agent_next_state.dead){
+                if(rl::environments::multi_agent::bottleneck::check_collision_with_arena_wall(device, env, parameters, agent_next_state)){
                     agent_next_state.dead = true;
-                    other_agent_next_state.dead = true;
+                }
+                if(rl::environments::multi_agent::bottleneck::check_collision_with_center_wall(device, env, parameters, agent_next_state)){
+                    agent_next_state.dead = true;
+                }
+                for(TI other_agent_i = 0; other_agent_i < SPEC::PARAMETERS::N_AGENTS; other_agent_i++){
+                    if(other_agent_i != agent_i){
+                        auto& other_agent_next_state = next_state.agent_states[other_agent_i];
+                        if(rl::environments::multi_agent::bottleneck::check_collision_between_agents(device, env, parameters, agent_next_state, other_agent_next_state)){
+                            agent_next_state.dead = true;
+                            other_agent_next_state.dead = true;
+                        }
+                    }
                 }
             }
         }
@@ -225,20 +233,8 @@ namespace rl_tools{
         static_assert(TERMINATED_SPEC::ROWS == 1);
         static_assert(TERMINATED_SPEC::COLS == SPEC::PARAMETERS::N_AGENTS);
         static_assert(utils::typing::is_same_v<typename TERMINATED_SPEC::T, bool>);
-        set_all(device, terminated, false);
         for(TI agent_i = 0; agent_i < SPEC::PARAMETERS::N_AGENTS; agent_i++){
-            if(rl::environments::multi_agent::bottleneck::check_collision_with_arena_wall(device, env, parameters, state, agent_i)){
-                set(terminated, 0, agent_i, true);
-            }
-            if(rl::environments::multi_agent::bottleneck::check_collision_with_center_wall(device, env, parameters, state, agent_i)){
-                set(terminated, 0, agent_i, true);
-            }
-            for(TI other_agent_i = agent_i+1; other_agent_i < SPEC::PARAMETERS::N_AGENTS; other_agent_i++){
-                if(rl::environments::multi_agent::bottleneck::check_collision_between_agents(device, env, parameters, state, agent_i, other_agent_i)){
-                    set(terminated, 0, agent_i, true);
-                    set(terminated, 0, other_agent_i, true);
-                }
-            }
+            set(terminated, 0, agent_i, state.agent_states[agent_i].dead);
         }
     }
 }

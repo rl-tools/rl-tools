@@ -25,7 +25,9 @@ namespace rl_tools{
             ui.conn_info.ssl_connection = 0;
             ui.conn_info.userdata = &ui;
 
-            lws_set_log_level(LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_INFO | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_EXT | LLL_CLIENT | LLL_LATENCY, NULL);
+            if(ui.verbose){
+                lws_set_log_level(LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_INFO | LLL_DEBUG | LLL_PARSER | LLL_HEADER | LLL_EXT | LLL_CLIENT | LLL_LATENCY, NULL);
+            }
 
             ui.wsi = lws_client_connect_via_info(&ui.conn_info);
         }
