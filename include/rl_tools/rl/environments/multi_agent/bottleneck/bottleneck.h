@@ -92,7 +92,7 @@ namespace rl_tools::rl::environments::multi_agent{
         static constexpr TI N_AGENTS = Parameters::N_AGENTS;
         static constexpr TI OBSERVATION_DIM = OBSERVATION::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_PRIVILEGED::DIM;
-        static constexpr TI ACTION_DIM = 3; // x and y acceleration
+        static constexpr TI ACTION_DIM = 2; // linear and angular acceleration
         static constexpr TI EPISODE_STEP_LIMIT = 200;
     };
 }

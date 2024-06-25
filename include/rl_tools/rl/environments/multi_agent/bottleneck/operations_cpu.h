@@ -97,6 +97,25 @@ namespace rl_tools{
         const posY = agent.position[1] * scaleY;
         const orientation = agent.orientation;
 
+        // Draw lidar
+        for (let lidar_i = 0; lidar_i < agent.lidar.length; lidar_i++) {
+            const lidar = agent.lidar[lidar_i];
+            if (lidar.intersects) {
+                ctx.beginPath();
+                ctx.moveTo(posX, posY);
+                const lidarEndX = lidar.point[0] * scaleX;
+                const lidarEndY = lidar.point[1] * scaleY;
+                ctx.lineTo(lidarEndX, lidarEndY);
+                ctx.strokeStyle = 'orange';
+                ctx.lineWidth = 1/25*scaleX;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(lidarEndX, lidarEndY, 3, 0, 2 * Math.PI);
+                ctx.fillStyle = 'orange';
+                ctx.fill();
+            }
+        }
+
         // Draw agent body
         ctx.beginPath();
         ctx.arc(posX, posY, agentRadius, 0, 2 * Math.PI);
@@ -110,7 +129,7 @@ namespace rl_tools{
         ctx.moveTo(posX, posY);
         ctx.lineTo(endX, endY);
         ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2/25*scaleX;
         ctx.stroke();
 
         // Draw actions (acceleration vectors)
@@ -124,17 +143,18 @@ namespace rl_tools{
         ctx.moveTo(posX, posY);
         ctx.lineTo(posX + accelX, posY + accelY);
         ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2/25*scaleX;
         ctx.stroke();
 
         // Draw arrowhead for linear acceleration
         const angle = Math.atan2(accelY, accelX);
-        const headlen = 10;
+        const headlen = 0.7 * Math.min(0.5, Math.abs(agent_action[0])) * scaleX;
         ctx.beginPath();
         ctx.moveTo(posX + accelX, posY + accelY);
         ctx.lineTo(posX + accelX - headlen * Math.cos(angle - Math.PI / 6), posY + accelY - headlen * Math.sin(angle - Math.PI / 6));
         ctx.moveTo(posX + accelX, posY + accelY);
         ctx.lineTo(posX + accelX - headlen * Math.cos(angle + Math.PI / 6), posY + accelY - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.lineWidth = 2/25*scaleX;
         ctx.stroke();
 
         // Draw circular arrow for angular acceleration
@@ -149,7 +169,7 @@ namespace rl_tools{
         ctx.beginPath();
         ctx.arc(posX, posY, arrowRadius, startAngle, endAngle, angularAccel < 0);
         ctx.strokeStyle = 'green';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2/25*scaleX;
         ctx.stroke();
 
         // Draw arrowhead for angular acceleration
@@ -169,27 +189,8 @@ namespace rl_tools{
             arrowHeadY + direction * arrowHeadSize * Math.sin(arrowHeadAngle + Math.PI / 6)
         );
         ctx.strokeStyle = 'green';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2/25*scaleX;
         ctx.stroke();
-
-        // Draw lidar
-        for (let lidar_i = 0; lidar_i < agent.lidar.length; lidar_i++) {
-            const lidar = agent.lidar[lidar_i];
-            if (lidar.intersects) {
-                ctx.beginPath();
-                ctx.moveTo(posX, posY);
-                const lidarEndX = lidar.point[0] * scaleX;
-                const lidarEndY = lidar.point[1] * scaleY;
-                ctx.lineTo(lidarEndX, lidarEndY);
-                ctx.strokeStyle = 'orange';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.arc(lidarEndX, lidarEndY, 3, 0, 2 * Math.PI);
-                ctx.fillStyle = 'orange';
-                ctx.fill();
-            }
-        }
     }
         )RL_TOOLS_LITERAL";
         return ui;
