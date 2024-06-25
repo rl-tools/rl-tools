@@ -38,9 +38,11 @@ int main(){
     rlt::clamp(device, action, -1, 1);
     TI step = 0;
     while(true){
-        if(step > 50){
-            rlt::set_all(device, action, 0);
-        }
+        rlt::randn(device, action, rng);
+        rlt::clamp(device, action, -1, 1);
+//        if(step > 50){
+//            rlt::set_all(device, action, 0);
+//        }
         rlt::set_state(device, env, parameters, ui, state, action);
         T dt = rlt::step(device, env, parameters, state, action, next_state, rng);
         std::this_thread::sleep_for(std::chrono::duration<T>(dt));

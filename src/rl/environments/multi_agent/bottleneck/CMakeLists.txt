@@ -1,2 +1,5 @@
+
+if(RL_TOOLS_ENABLE_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK)
 add_executable(rl_environments_multi_agent_bottleneck bottleneck.cpp)
 target_link_libraries(rl_environments_multi_agent_bottleneck RLtools::RLtools)
+endif()
