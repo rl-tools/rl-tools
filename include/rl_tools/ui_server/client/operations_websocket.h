@@ -96,6 +96,7 @@ namespace rl_tools{
 
         template <typename DEVICE, typename ENVIRONMENT>
         void send_message(DEVICE& device, ui_server::client::UIWebSocket<ENVIRONMENT>& ui, std::string message){
+            utils::assert_exit(device, message.length() > 0, "Message is empty");
             {
                 std::lock_guard guard(ui.message_queue_mutex);
                 ui.message_queue.push(message);

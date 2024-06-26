@@ -145,6 +145,10 @@ namespace rl_tools::ui_server{
 
             auto message_string = beast::buffers_to_string(buffer_.data());
             buffer_.consume(buffer_.size());
+            if(message_string.empty()){
+                do_read();
+                return;
+            }
             nlohmann::json message;
             try{
                 message = nlohmann::json::parse(message_string);
