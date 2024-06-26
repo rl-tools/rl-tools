@@ -34,7 +34,7 @@ namespace rl_tools::rl::environments::pendulum {
     };
     template <typename TI>
     struct ObservationRaw{
-        static constexpr TI DIM = 2;
+        static constexpr TI DIM = 3;
     };
 
     template <typename T, typename TI>

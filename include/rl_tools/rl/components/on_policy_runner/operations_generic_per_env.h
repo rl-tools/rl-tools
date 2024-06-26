@@ -23,10 +23,10 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
             sample_initial_parameters(device, env, parameters, rng);
             sample_initial_state(device, env, parameters, state, rng);
         }
-        auto observation = view(device, observations, matrix::ViewSpec<1, SPEC::ENVIRONMENT::Observation::DIM>(), env_i, 0);
+        auto observation = row(device, observations, env_i);
         observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::Observation{}, observation, rng);
         if(SPEC::ASYMMETRIC_OBSERVATIONS){
-            auto observation_privileged = view(device, observations_privileged, matrix::ViewSpec<1, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>(), env_i, SPEC::ENVIRONMENT::Observation::DIM);
+            auto observation_privileged = row(device, observations_privileged, env_i);
             observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, observation_privileged, rng);
         }
     }

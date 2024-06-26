@@ -81,7 +81,7 @@ namespace rl_tools{
             using TI = typename SPEC::TI;
             for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-                per_env::prologue(device, observations_privileged, observations,runner, rng, env_i);
+                per_env::prologue(device, observations_privileged, observations, runner, rng, env_i);
             }
         }
         template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
