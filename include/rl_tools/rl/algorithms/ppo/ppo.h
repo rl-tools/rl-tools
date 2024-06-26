@@ -50,8 +50,8 @@ namespace rl_tools::rl::algorithms{
             using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
 
 //            static_assert(ACTOR_TYPE::BATCH_SIZE == CRITIC_TYPE::BATCH_SIZE);
-            static_assert(ACTOR_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
-            static_assert(CRITIC_TYPE::INPUT_DIM == ENVIRONMENT::OBSERVATION_DIM);
+            static_assert(ACTOR_TYPE::INPUT_DIM == ENVIRONMENT::Observation::DIM);
+            static_assert(CRITIC_TYPE::INPUT_DIM == ENVIRONMENT::Observation::DIM);
             static_assert(ACTOR_TYPE::OUTPUT_DIM == ENVIRONMENT::ACTION_DIM);
             static_assert(CRITIC_TYPE::OUTPUT_DIM == 1);
         };
@@ -62,7 +62,7 @@ namespace rl_tools::rl::algorithms{
             using TI = typename SPEC::TI;
             static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
             static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
-            static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+            static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::Observation::DIM;
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> current_batch_actions;
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> d_critic_output;
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;

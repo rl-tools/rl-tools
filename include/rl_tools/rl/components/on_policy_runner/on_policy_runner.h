@@ -6,13 +6,14 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     namespace on_policy_runner{
-        template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+        template <typename T_T, typename T_TI, typename T_ENVIRONMENT, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0, T_TI T_N_AGENTS_PER_ENV = 1, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             using ENVIRONMENT = T_ENVIRONMENT;
             static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
             static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
+            static constexpr TI N_AGENTS_PER_ENV = T_N_AGENTS_PER_ENV; // 1 for single agent, >1 for multi-agent
             using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         };
 
@@ -34,7 +35,7 @@ namespace rl_tools::rl::components{
             static constexpr TI STEPS_PER_ENV = T_SPEC::STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = T_SPEC::STEPS_TOTAL;
             // structure: OBSERVATION - ACTION - ACTION_LOG_P - REWARD - TERMINATED - TRUNCATED - VALUE - ADVANTAGE - TARGEt_VALUE
-            static constexpr TI DATA_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM * 2 + SPEC::ENVIRONMENT::ACTION_DIM * 2 + 7;
+            static constexpr TI DATA_DIM = SPEC::ENVIRONMENT::Observation::DIM * 2 + SPEC::ENVIRONMENT::ACTION_DIM * 2 + 7;
 
             // mem
             // todo: evaluate transposing this / storing in column major order for better memory access in the single dimensional columns
@@ -44,8 +45,8 @@ namespace rl_tools::rl::components{
             template<TI VIEW_DIM, bool ALL = false>
             using DATA_VIEW = typename decltype(data)::template VIEW<STEPS_TOTAL + (ALL ? SPEC::N_ENVIRONMENTS : 0), VIEW_DIM>;
 
-            DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM, true> all_observations;
-            DATA_VIEW<SPEC::ENVIRONMENT::OBSERVATION_DIM> observations;
+            DATA_VIEW<SPEC::ENVIRONMENT::Observation::DIM, true> all_observations;
+            DATA_VIEW<SPEC::ENVIRONMENT::Observation::DIM> observations;
             DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions_mean;
             DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions;
             DATA_VIEW<1> action_log_probs;
