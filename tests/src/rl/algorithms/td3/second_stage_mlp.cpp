@@ -50,8 +50,8 @@ struct TD3ParametersCopyTraining: public rlt::rl::algorithms::td3::DefaultParame
     constexpr static typename AC_DEVICE::index_t ACTOR_BATCH_SIZE = 100;
 };
 
-using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
-using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+using ACTOR_NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+using CRITIC_NETWORK_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 
 using NN_DEVICE = rlt::devices::DefaultCPU;
 using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t, rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<T>>;
@@ -114,19 +114,19 @@ using OFF_POLICY_RUNNER_SPEC = rlt::rl::components::off_policy_runner::Specifica
 using OFF_POLICY_RUNNER_TYPE = rlt::rl::components::OffPolicyRunner<OFF_POLICY_RUNNER_SPEC>;
 using DEVICE = rlt::devices::DefaultCPU;
 typedef OFF_POLICY_RUNNER_TYPE::REPLAY_BUFFER_TYPE ReplayBufferTypeCopyTraining;
-constexpr TI BATCH_DIM = ENVIRONMENT::OBSERVATION_DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
+constexpr TI BATCH_DIM = ENVIRONMENT::Observation::DIM * 2 + ENVIRONMENT::ACTION_DIM + 2;
 template <typename DEVICE>
 void load(DEVICE& device, ReplayBufferTypeCopyTraining& rb, std::vector<std::vector<T>> batch){
     for(TI i = 0; i < batch.size(); i++){
-//        rlt::utils::memcpy(&rb.     rlt::get(observations, i, 0), &batch[i][0], ENVIRONMENT::OBSERVATION_DIM);
-        rlt::assign(device, &batch[i][0], rb.observations, i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
-//        rlt::utils::memcpy(&rb.          rlt::get(actions, i, 0), &batch[i][ENVIRONMENT::OBSERVATION_DIM], ENVIRONMENT::ACTION_DIM);
-        rlt::assign(device, &batch[i][ENVIRONMENT::OBSERVATION_DIM], rb.actions, i, 0, 1, ENVIRONMENT::ACTION_DIM);
-//        rlt::utils::memcpy(&rlt::get(rb.next_observations, i, 0), &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], ENVIRONMENT::OBSERVATION_DIM);
-        rlt::assign(device, &batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM], rb.next_observations, i, 0, 1, ENVIRONMENT::OBSERVATION_DIM);
-        rlt::set(rb.rewards, i, 0, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM]);
-        rlt::set(rb.terminated, i, 0, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 1] == 1);
-        rlt::set(rb.truncated, i, 0, batch[i][ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::OBSERVATION_DIM + 2] == 1);
+//        rlt::utils::memcpy(&rb.     rlt::get(observations, i, 0), &batch[i][0], ENVIRONMENT::Observation::DIM);
+        rlt::assign(device, &batch[i][0], rb.observations, i, 0, 1, ENVIRONMENT::Observation::DIM);
+//        rlt::utils::memcpy(&rb.          rlt::get(actions, i, 0), &batch[i][ENVIRONMENT::Observation::DIM], ENVIRONMENT::ACTION_DIM);
+        rlt::assign(device, &batch[i][ENVIRONMENT::Observation::DIM], rb.actions, i, 0, 1, ENVIRONMENT::ACTION_DIM);
+//        rlt::utils::memcpy(&rlt::get(rb.next_observations, i, 0), &batch[i][ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM], ENVIRONMENT::Observation::DIM);
+        rlt::assign(device, &batch[i][ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM], rb.next_observations, i, 0, 1, ENVIRONMENT::Observation::DIM);
+        rlt::set(rb.rewards, i, 0, batch[i][ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::Observation::DIM]);
+        rlt::set(rb.terminated, i, 0, batch[i][ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::Observation::DIM + 1] == 1);
+        rlt::set(rb.truncated, i, 0, batch[i][ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM + ENVIRONMENT::Observation::DIM + 2] == 1);
     }
     rb.position = batch.size();
 }
@@ -327,11 +327,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //            if(false){//(step_i % 100 == 0){
 //                T diff = 0;
 //                for(TI batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
-//                    T input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-//                    rlt::utils::memcpy(input, &rlt::get(replay_buffer.observations, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
-//                    rlt::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &rlt::get(replay_buffer.actions, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
-//                    using input_layout = rlt::matrix::layouts::RowMajorAlignment<DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, 1>;
-//                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, layout>> input_matrix = {input};
+//                    T input[ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
+//                    rlt::utils::memcpy(input, &rlt::get(replay_buffer.observations, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM);
+//                    rlt::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM], &rlt::get(replay_buffer.actions, batch_sample_i, 0), ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
+//                    using input_layout = rlt::matrix::layouts::RowMajorAlignment<DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, 1>;
+//                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM, layout>> input_matrix = {input};
 //                    T current_value;
 //                    using current_value_layout = rlt::matrix::layouts::RowMajorAlignment<DEVICE::index_t, 1, 1, 1>;
 //                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1, current_value_layout>> current_value_matrix = {&current_value};
@@ -378,7 +378,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                for(TI batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE; batch_sample_i++){
 //                    T current_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
 //                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> current_action_matrix = {current_action};
-//                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM>> observation_matrix = {&replay_buffer.observations.data[batch_sample_i]};
+//                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM>> observation_matrix = {&replay_buffer.observations.data[batch_sample_i]};
 //                    rlt::evaluate(device, actor_critic.actor, observation_matrix, current_action_matrix);
 //                    T desired_action[ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
 //                    rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> desired_action_matrix = {desired_action};
@@ -483,10 +483,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
 //                    if(true){//(step_i % 100 == 0){
 //                        T diff = 0;
 //                        for(TI batch_sample_i = 0; batch_sample_i < ActorCriticType::SPEC::PARAMETERS::CRITIC_BATCH_SIZE; batch_sample_i++){
-//                            T input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
-//                            rlt::utils::memcpy(input, &replay_buffer.observations.data[batch_sample_i*ENVIRONMENT::OBSERVATION_DIM], ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM);
-//                            rlt::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM], &replay_buffer.actions.data[batch_sample_i*ENVIRONMENT::ACTION_DIM], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
-//                            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::OBSERVATION_DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> input_matrix = {input};
+//                            T input[ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM];
+//                            rlt::utils::memcpy(input, &replay_buffer.observations.data[batch_sample_i*ENVIRONMENT::Observation::DIM], ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM);
+//                            rlt::utils::memcpy(&input[ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM], &replay_buffer.actions.data[batch_sample_i*ENVIRONMENT::ACTION_DIM], ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM);
+//                            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, ActorCriticType::SPEC::ENVIRONMENT::Observation::DIM + ActorCriticType::SPEC::ENVIRONMENT::ACTION_DIM>> input_matrix = {input};
 //                            T current_value;
 //                            rlt::MatrixDynamic<rlt::matrix::Specification<T, DEVICE::index_t, 1, 1>> current_value_matrix = {&current_value};
 //                            rlt::evaluate(device, actor_critic.critic_target_1, input_matrix, current_value_matrix);

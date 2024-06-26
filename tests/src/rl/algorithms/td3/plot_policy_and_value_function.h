@@ -28,12 +28,12 @@ void plot_policy_and_value_function(ACTOR& a, CRITIC& c, std::string dir, int st
             yticks[theta_i] = theta;
             xticks[theta_dot_i] = theta_dot;
             typename ENVIRONMENT::State state = {theta, theta_dot};
-            T critic_input[ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM];
+            T critic_input[ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM];
             rlt::observe(env, state, critic_input);
             T max_value = -std::numeric_limits<T>::infinity();
             T max_value_action = 0;
             for(T action=-1; action<=1; action+=0.1){
-                critic_input[ENVIRONMENT::OBSERVATION_DIM] = action;
+                critic_input[ENVIRONMENT::Observation::DIM] = action;
                 T value = rlt::evaluate(c, critic_input);
                 if(value > max_value){
                     max_value = value;

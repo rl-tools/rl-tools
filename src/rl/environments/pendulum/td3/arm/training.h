@@ -39,8 +39,8 @@ struct TD3PendulumParameters: rlt::rl::algorithms::td3::DefaultParameters<T, DEV
 
 using TD3_PARAMETERS = TD3PendulumParameters;
 
-using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<T, TI>, CONTAINER_TYPE_TAG>;
-using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY,  rlt::nn::layers::dense::DefaultInitializer<T, TI>,CONTAINER_TYPE_TAG_CRITIC>;
+using ACTOR_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH, rlt::nn::layers::dense::DefaultInitializer<T, TI>, CONTAINER_TYPE_TAG>;
+using CRITIC_SPEC = rlt::nn_models::mlp::Specification<T, DEVICE::index_t, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY,  rlt::nn::layers::dense::DefaultInitializer<T, TI>,CONTAINER_TYPE_TAG_CRITIC>;
 
 
 using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<T, typename DEVICE::index_t>;
@@ -103,8 +103,8 @@ rlt::rl::algorithms::td3::ActorTrainingBuffers<ActorCriticType::SPEC> actor_trai
 ACTOR_NETWORK_TYPE::Buffer<ActorCriticType::SPEC::PARAMETERS::ACTOR_BATCH_SIZE, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers;
 ACTOR_NETWORK_TYPE::Buffer<OFF_POLICY_RUNNER_SPEC::PARAMETERS::N_ENVIRONMENTS, CONTAINER_TYPE_TAG_TRAINING_BUFFERS> actor_buffers_eval;
 
-typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_mean;
-typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::OBSERVATION_DIM>> observations_std;
+typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::Observation::DIM>> observations_mean;
+typename CONTAINER_TYPE_TAG::template type<rlt::matrix::Specification<T, DEVICE::index_t, 1, ENVIRONMENT::Observation::DIM>> observations_std;
 
 
 void train(){

@@ -105,7 +105,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Car<SPEC>;
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == ENVIRONMENT::OBSERVATION_DIM);
+        static_assert(OBS_SPEC::COLS == ENVIRONMENT::Observation::DIM);
         typedef typename SPEC::T T;
         set(observation, 0, 0, state.x);
         set(observation, 0, 1, state.y);
@@ -121,11 +121,11 @@ namespace rl_tools{
 #endif
         using ENVIRONMENT = rl::environments::CarTrack<SPEC>;
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == ENVIRONMENT::OBSERVATION_DIM);
+        static_assert(OBS_SPEC::COLS == ENVIRONMENT::Observation::DIM);
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        auto observation_base = view(device, observation, matrix::ViewSpec<1, rl::environments::Car<SPEC>::OBSERVATION_DIM>{});
-        observe(device, (rl::environments::Car<SPEC>&)env, parameters, (typename rl::environments::Car<SPEC>::State&)state, observation_base, rng);
+        auto observation_base = view(device, observation, matrix::ViewSpec<1, ENVIRONMENT::Observation::DIM>{});
+        observe(device, (ENVIRONMENT&)env, parameters, (typename ENVIRONMENT::State&)state, observation_base, rng);
         constexpr TI N_DIRECTIONS = 3;
         constexpr TI NUM_STEPS = 50;
         constexpr T step_size = SPEC::TRACK_SCALE / 2;

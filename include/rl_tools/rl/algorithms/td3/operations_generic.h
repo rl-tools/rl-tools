@@ -136,7 +136,7 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::td3::CriticTrainingBuffers<SPEC>;
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
-        constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::OBSERVATION_DIM;
+        constexpr auto OBSERVATION_DIM = SPEC::ENVIRONMENT::Observation::DIM;
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
         for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
             T min_next_state_action_value = math::min(device.math,

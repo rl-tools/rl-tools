@@ -23,8 +23,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_SCALE_OBSERVATIONS, IDENTITY_SCALING){
     WRAPPED_ENVIRONMENT::Parameters wrapped_parameters;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{});
     auto wrapped_rng = rng;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, WRAPPED_ENVIRONMENT::OBSERVATION_DIM>> wrapped_observation;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, WRAPPED_ENVIRONMENT::Observation::DIM>> wrapped_observation;
     rlt::initial_parameters(device, env, parameters);
     rlt::initial_state(device, env, parameters, state);
     rlt::initial_state(device, wrapped_env, parameters, wrapped_state);
@@ -48,8 +48,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_SCALE_OBSERVATIONS, ACTUAL_SCALING){
     WRAPPED_ENVIRONMENT::State wrapped_state;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM{});
     auto wrapped_rng = rng;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, WRAPPED_ENVIRONMENT::OBSERVATION_DIM>> wrapped_observation;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, WRAPPED_ENVIRONMENT::Observation::DIM>> wrapped_observation;
     rlt::initial_state(device, env, parameters, state);
     rlt::initial_state(device, wrapped_env, parameters, wrapped_state);
     rlt::observe(device, env, parameters, state, observation, rng);

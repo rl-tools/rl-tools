@@ -53,7 +53,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
     struct ConfigApproximatorsSequential{
         template <typename CAPABILITY>
         struct Actor{
-            using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER, CONTAINER_TYPE_TAG>;
+            using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM, 2*ENVIRONMENT::ACTION_DIM, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER, CONTAINER_TYPE_TAG>;
             using ACTOR_TYPE = nn_models::mlp::BindSpecification<ACTOR_SPEC>;
             using IF = nn_models::sequential::Interface<CAPABILITY>;
             struct SAMPLE_AND_SQUASH_LAYER_PARAMETERS{
@@ -71,7 +71,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         };
         template <typename CAPABILITY>
         struct Critic{
-            static constexpr TI INPUT_DIM = ENVIRONMENT::OBSERVATION_DIM+ENVIRONMENT::ACTION_DIM;
+            static constexpr TI INPUT_DIM = ENVIRONMENT::Observation::DIM+ENVIRONMENT::ACTION_DIM;
             using SPEC = nn_models::mlp::Specification<T, TI, INPUT_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER, CONTAINER_TYPE_TAG>;
             using TYPE = nn_models::mlp::BindSpecification<SPEC>;
             using IF = nn_models::sequential::Interface<CAPABILITY>;
@@ -107,7 +107,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         using NN = APPROXIMATOR_CONFIG<T, TI, T_ENVIRONMENT, CORE_PARAMETERS, CONTAINER_TYPE_TAG>;
 //        using NN = ConfigApproximatorsMLP<T, TI, T_ENVIRONMENT, T_PARAMETERS>;
 
-        using EXPLORATION_POLICY_SPEC = nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+        using EXPLORATION_POLICY_SPEC = nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
         using EXPLORATION_POLICY = nn_models::RandomUniform<EXPLORATION_POLICY_SPEC>;
 
         using ALPHA_PARAMETER_TYPE = nn::parameters::Adam;

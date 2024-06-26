@@ -64,10 +64,10 @@ int main(int argc, char** argv) {
     parameters_rl::ACTOR_TYPE actor;
     parameters_rl::ACTOR_TYPE::Buffer<1> actor_buffer;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::OBSERVATION_DIM>> observation;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
     typename ENVIRONMENT::State state, next_state;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
-    rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
+    rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, ENVIRONMENT::Observation::DIM>> observation_normalizer;
 
     rlt::malloc(dev, env);
     rlt::malloc(dev, actor);

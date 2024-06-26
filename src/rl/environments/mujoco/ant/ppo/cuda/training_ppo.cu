@@ -182,7 +182,7 @@ int main(int argc, char** argv){
         // -------------- added for cuda training ----------------
         ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE on_policy_runner_collection_eval_buffer_gpu, on_policy_runner_collection_eval_buffer_cpu;
         PPO_TRAINING_HYBRID_BUFFER_TYPE ppo_training_hybrid_buffer_cpu, ppo_training_hybrid_buffer_gpu;
-        rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::OBSERVATION_DIM>> gae_all_observations;
+        rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::Observation::DIM>> gae_all_observations;
         rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, 1>> gae_all_values;
         // -------------------------------------------------------
         // -------------- replaced for cuda training ----------------
@@ -192,7 +192,7 @@ int main(int argc, char** argv){
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
-        rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
+        rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::Observation::DIM>> observation_normalizer;
         penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT::Parameters env_parameters[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
@@ -322,7 +322,7 @@ int main(int argc, char** argv){
                     rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
                     rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
                     rlt::copy(device, device_gpu, ppo, ppo_gpu);
-                    for(TI state_i = 0; state_i < penv::ENVIRONMENT::OBSERVATION_DIM; state_i++){
+                    for(TI state_i = 0; state_i < penv::ENVIRONMENT::Observation::DIM; state_i++){
 //                        rlt::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));
 //                        rlt::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
                     }

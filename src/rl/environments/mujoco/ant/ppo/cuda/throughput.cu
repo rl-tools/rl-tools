@@ -49,7 +49,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA){
     constexpr TI NUM_STEPS_PER_ENVIRONMENT = 64;
     constexpr TI NUM_ENVIRONMENTS = 64;
     constexpr TI NUM_THREADS = 16;
-    using ACTOR_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, envp::ENVIRONMENT::OBSERVATION_DIM, envp::ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR_STRUCTURE_SPEC = rlt::nn_models::mlp::StructureSpecification<T, TI, envp::ENVIRONMENT::Observation::DIM, envp::ENVIRONMENT::ACTION_DIM, 3, 256, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::IDENTITY>;
     using ACTOR_SPEC = rlt::nn_models::mlp::AdamSpecification<ACTOR_STRUCTURE_SPEC>;
     using ACTOR_TYPE = rlt::nn_models::mlp_unconditional_stddev::NeuralNetworkAdam<ACTOR_SPEC>;
 
@@ -61,7 +61,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA){
     ACTOR_TYPE actor_cpu, actor_gpu;
     ACTOR_TYPE::Buffers<NUM_ENVIRONMENTS> actor_buffers;
     rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::ACTION_DIM>> actions, actions_gpu;
-    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::OBSERVATION_DIM>> observations, observations_gpu;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, NUM_ENVIRONMENTS, envp::ENVIRONMENT::Observation::DIM>> observations, observations_gpu;
     auto proto_rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 10);
     decltype(proto_rng) rngs[NUM_THREADS];
 
@@ -82,7 +82,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA){
 
     for(TI env_i = 0; env_i < NUM_ENVIRONMENTS; env_i++){
         rlt::sample_initial_state(device, envs[env_i], states[env_i], proto_rng);
-        auto observation = rlt::view(device, observations, rlt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
+        auto observation = rlt::view(device, observations, rlt::matrix::ViewSpec<1, envp::ENVIRONMENT::Observation::DIM>(), env_i, 0);
         rlt::observe(device,envs[env_i], states[env_i], observation);
     }
 
@@ -101,7 +101,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, THROUGHPUT_MULTI_CORE_SPAWNING_CUDA){
                         auto& state = states[env_i];
                         auto& next_state = next_states[env_i];
                         auto action = rlt::view(device, actions, rlt::matrix::ViewSpec<1, envp::ENVIRONMENT::ACTION_DIM>(), env_i, 0);
-                        auto observation = rlt::view(device, observations, rlt::matrix::ViewSpec<1, envp::ENVIRONMENT::OBSERVATION_DIM>(), env_i, 0);
+                        auto observation = rlt::view(device, observations, rlt::matrix::ViewSpec<1, envp::ENVIRONMENT::Observation::DIM>(), env_i, 0);
                         rlt::step(device, env, state, action, next_state);
                         if(step_i % 1000 == 0 || rlt::terminated(device, env, next_state, rng)) {
                             rlt::sample_initial_state(device, env, state, rng);

@@ -87,11 +87,9 @@ namespace rl_tools::rl::environments::multi_agent{
         using State = multi_agent::bottleneck::State<SPEC>;
         using Parameters = typename SPEC::PARAMETERS;
         using PARAMETERS = typename SPEC::PARAMETERS;
-        using OBSERVATION = typename SPEC::OBSERVATION;
-        using OBSERVATION_PRIVILEGED = typename SPEC::OBSERVATION_PRIVILEGED;
+        using Observation = typename SPEC::OBSERVATION;
+        using ObservationPrivileged = typename SPEC::OBSERVATION_PRIVILEGED;
         static constexpr TI N_AGENTS = Parameters::N_AGENTS;
-        static constexpr TI OBSERVATION_DIM = OBSERVATION::DIM;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_PRIVILEGED::DIM;
         static constexpr TI ACTION_DIM = 2; // linear and angular acceleration
         static constexpr TI EPISODE_STEP_LIMIT = 200;
     };

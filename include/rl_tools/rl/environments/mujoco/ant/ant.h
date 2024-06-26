@@ -60,8 +60,10 @@ namespace rl_tools::rl::environments::mujoco{
         TI torso_id;
         T last_reward;
         bool last_terminated;
-        static constexpr TI OBSERVATION_DIM = SPEC::STATE_DIM_Q - 2 + SPEC::STATE_DIM_Q_DOT;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
+        struct Observation{
+            static constexpr TI DIM = SPEC::STATE_DIM_Q - 2 + SPEC::STATE_DIM_Q_DOT;
+        };
+        using ObservationPrivileged = Observation;
         static constexpr TI ACTION_DIM = SPEC::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = 1000;
     };

@@ -68,8 +68,8 @@ public:
         static constexpr typename NN_DEVICE::index_t ACTOR_BATCH_SIZE = BATCH_SIZE;
         static constexpr typename NN_DEVICE::index_t CRITIC_BATCH_SIZE = BATCH_SIZE;
     };
-    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
-    using CRITIC_SPEC = rlt::nn_models::mlp::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+    using ACTOR_SPEC = rlt::nn_models::mlp::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::TANH>;
+    using CRITIC_SPEC = rlt::nn_models::mlp::Specification<DTYPE, NN_DEVICE::index_t, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, 1, 3, 64, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
     using OPTIMIZER_SPEC = typename rlt::nn::optimizers::adam::Specification<DTYPE, NN_DEVICE::index_t>;
     using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
     using ACTOR_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, TD3_PARAMETERS::ACTOR_BATCH_SIZE>;

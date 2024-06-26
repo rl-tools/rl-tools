@@ -148,7 +148,7 @@ void run(){
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
-        rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::OBSERVATION_DIM>> observation_normalizer;
+        rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::Observation::DIM>> observation_normalizer;
         penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT::Parameters env_parameters[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
@@ -258,7 +258,7 @@ void run(){
                 rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
                 rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
                 rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
-                for(TI state_i = 0; state_i < penv::ENVIRONMENT::OBSERVATION_DIM; state_i++){
+                for(TI state_i = 0; state_i < penv::ENVIRONMENT::Observation::DIM; state_i++){
                     rlt::add_scalar(device, device.logger, std::string("observation_normalizer/mean_") + std::to_string(state_i), get(observation_normalizer.mean, 0, state_i));
                     rlt::add_scalar(device, device.logger, std::string("observation_normalizer/std") + std::to_string(state_i), get(observation_normalizer.std, 0, state_i));
                 }

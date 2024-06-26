@@ -44,9 +44,9 @@ namespace config{
             struct ACTOR{
                 static constexpr TI HIDDEN_DIM = PARAMETERS::ACTOR_HIDDEN_DIM;
                 static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::ACTOR_ACTIVATION_FUNCTION;
-                using LAYER_0_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, CONTAINER_TYPE_TAG>;
+                using LAYER_0_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::Observation::DIM, CONTAINER_TYPE_TAG>;
                 using LAYER_0 = nn::layers::standardize::BindSpecification<LAYER_0_SPEC>;
-                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
+                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::Observation::DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
                 using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
                 using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
                 using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
@@ -75,7 +75,7 @@ namespace config{
                 static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
                 static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
 
-                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::OBSERVATION_DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
+                using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Input, CONTAINER_TYPE_TAG>;
                 using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
                 using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION, typename PARAMETERS::INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG>;
                 using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;

@@ -145,8 +145,8 @@ namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner_host.initialized, "OffPolicyRunner not initialized");
 #endif
-        static_assert(POLICY::INPUT_DIM == HOST_SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
-        static_assert(POLICY::INPUT_DIM == DEVICE_SPEC::ENVIRONMENT::OBSERVATION_DIM, "The policy's input dimension must match the environment's observation dimension.");
+        static_assert(POLICY::INPUT_DIM == HOST_SPEC::ENVIRONMENT::Observation::DIM, "The policy's input dimension must match the environment's observation dimension.");
+        static_assert(POLICY::INPUT_DIM == DEVICE_SPEC::ENVIRONMENT::Observation::DIM, "The policy's input dimension must match the environment's observation dimension.");
         static_assert(POLICY::OUTPUT_DIM == HOST_SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         // todo: increase efficiency by removing the double observation of each state
         using T = typename DEVICE_SPEC::T;

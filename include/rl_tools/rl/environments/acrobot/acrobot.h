@@ -61,8 +61,10 @@ namespace rl_tools::rl::environments{
         using TI = typename SPEC::TI;
         using State = acrobot::State<T, TI>;
         using Parameters = typename SPEC::PARAMETERS;
-        static constexpr TI OBSERVATION_DIM = 6;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
+        struct Observation{
+            static constexpr TI DIM = 6;
+        };
+        using ObservationPrivileged = Observation;
         static constexpr TI ACTION_DIM = 1;
         acrobot::Parameters<T> parameters;
     };

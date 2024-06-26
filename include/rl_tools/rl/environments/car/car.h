@@ -82,8 +82,10 @@ namespace rl_tools::rl::environments{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using State = car::State<T, TI>;
-        static constexpr TI OBSERVATION_DIM = 6;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
+        struct Observation{
+            static constexpr TI DIM = 6;
+        };
+        using ObservationPrivileged = Observation;
         static constexpr TI ACTION_DIM = 2;
         using Parameters = typename SPEC::PARAMETERS;
     };

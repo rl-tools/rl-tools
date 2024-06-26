@@ -41,7 +41,7 @@ namespace rl_tools::rl::utils::validation{
         using ENVIRONMENT = typename SPEC::SPEC::ENVIRONMENT;
         TI step = 0;
         EpisodeBuffer<typename SPEC::SPEC, SPEC::MAX_EPISODE_LENGTH> episode_buffer[SPEC::N_EPISODES];
-        MatrixDynamic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::OBSERVATION_DIM>> observation_buffer;
+        MatrixDynamic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM>> observation_buffer;
         MatrixDynamic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>> action_buffer;
         TI episode_length[SPEC::N_EPISODES];
         bool terminated[SPEC::N_EPISODES];
