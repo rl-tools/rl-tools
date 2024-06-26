@@ -4,6 +4,8 @@
 #define RL_TOOLS_RL_ALGORITHMS_PPO_PPO_H
 
 #include "../../../rl/components/running_normalizer/running_normalizer.h"
+#include "../../../utils/generic/typing.h"
+
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::algorithms{
@@ -48,7 +50,7 @@ namespace rl_tools::rl::algorithms{
             static constexpr TI BATCH_SIZE = ACTOR_TYPE::BATCH_SIZE;
             using PARAMETERS = T_PARAMETERS;
             using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-            static constexpr bool ASYMMETRIC_OBSERVATIONS = !utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
 
 //            static_assert(ACTOR_TYPE::BATCH_SIZE == CRITIC_TYPE::BATCH_SIZE);
             static_assert(ACTOR_TYPE::INPUT_DIM == ENVIRONMENT::Observation::DIM);

@@ -3,6 +3,8 @@
 #pragma once
 #define RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_ON_POLICY_RUNNER_H
 
+#include "../../../utils/generic/typing.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     namespace on_policy_runner{
@@ -13,7 +15,7 @@ namespace rl_tools::rl::components{
             using ENVIRONMENT = T_ENVIRONMENT;
             static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
             static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
-            static constexpr bool ASYMMETRIC_OBSERVATIONS = !utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
             static constexpr TI N_AGENTS_PER_ENV = T_N_AGENTS_PER_ENV; // 1 for single agent, >1 for multi-agent
             using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         };

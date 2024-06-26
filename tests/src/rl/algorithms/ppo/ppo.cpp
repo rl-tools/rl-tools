@@ -82,7 +82,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations, on_policy_runner_dataset.all_values, critic_buffers_all, rng);
+            evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations_privileged, on_policy_runner_dataset.all_values, critic_buffers_all, rng);
             rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_SPEC::PARAMETERS{});
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;

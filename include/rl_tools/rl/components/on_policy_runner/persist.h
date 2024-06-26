@@ -11,7 +11,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void save(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, HighFive::Group group){
         save(device, dataset.data, group, "data");
-        save(device, dataset.all_observations, group, "all_observations");
+        save(device, dataset.all_observations_privileged, group, "all_observations");
         save(device, dataset.observations, group, "observations");
         save(device, dataset.actions, group, "actions");
         save(device, dataset.action_log_probs, group, "action_log_probs");
@@ -26,7 +26,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void load(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset, HighFive::Group group){
         load(device, dataset.data, group, "data");
-        load(device, dataset.all_observations, group, "all_observations");
+        load(device, dataset.all_observations_privileged, group, "all_observations");
         load(device, dataset.observations, group, "observations");
         load(device, dataset.actions, group, "actions");
         load(device, dataset.action_log_probs, group, "action_log_probs");

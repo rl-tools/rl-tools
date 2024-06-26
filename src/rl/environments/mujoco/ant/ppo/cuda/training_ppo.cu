@@ -340,7 +340,7 @@ int main(int argc, char** argv){
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                copy(device, device_gpu, on_policy_runner_dataset.all_observations, gae_all_observations);
+                copy(device, device_gpu, on_policy_runner_dataset.all_observations_privileged, gae_all_observations);
                 evaluate(device_gpu, ppo_gpu.critic, gae_all_observations, gae_all_values, critic_buffers_gae, rng);
                 copy(device_gpu, device, gae_all_values, on_policy_runner_dataset.all_values);
                 // ----------------------------------------------------------
