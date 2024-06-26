@@ -15,6 +15,7 @@ struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::multi_agent::bottleneck::D
 };
 using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
 using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
+using OBSERVATION = ENVIRONMENT::OBSERVATION;
 
 using ENV_UI = rlt::ui_server::client::UIWebSocket<ENVIRONMENT>;
 
@@ -33,6 +34,7 @@ int main(){
     rlt::sample_initial_parameters(device, env, parameters, rng);
     rlt::sample_initial_state(device, env, parameters, state, rng);
     rlt::MatrixStatic<rlt::matrix::Specification<T, TI, ENVIRONMENT_PARAMETERS::N_AGENTS, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, ENVIRONMENT_PARAMETERS::N_AGENTS, ENVIRONMENT::OBSERVATION_DIM>> observation;
 //    rlt::randn(device, action, rng);
     rlt::set_all(device, action, 1);
     rlt::clamp(device, action, -1, 1);
@@ -44,6 +46,7 @@ int main(){
 //            rlt::set_all(device, action, 0);
 //        }
         rlt::set_state(device, env, parameters, ui, state, action);
+        rlt::observe(device, env, parameters, state, OBSERVATION{}, observation, rng);
         T dt = rlt::step(device, env, parameters, state, action, next_state, rng);
         std::this_thread::sleep_for(std::chrono::duration<T>(dt));
         state = next_state;

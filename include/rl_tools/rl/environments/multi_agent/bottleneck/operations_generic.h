@@ -337,22 +337,27 @@ namespace rl_tools{
 
         return SPEC::PARAMETERS::DT;
     }
-    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename REWARD_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void reward(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, Matrix<REWARD_SPEC>& reward, RNG& rng){
+    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T reward(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, RNG& rng){
         using ENV = rl::environments::multi_agent::Bottleneck<SPEC>;
         static_assert(ACTION_SPEC::ROWS == ENV::PARAMETERS::N_AGENTS);
         static_assert(ACTION_SPEC::COLS == ENV::ACTION_DIM);
-        static_assert(REWARD_SPEC::ROWS == 1);
-        static_assert(REWARD_SPEC::COLS == ENV::PARAMETERS::N_AGENTS);
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        T acc = 0;
         for(TI agent_i = 0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++){
-            set(reward, 0, agent_i, 1);
+            auto& agent_state = state.agent_states[agent_i];
+            acc += agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH/2 ? 1.0 : 0.0;
         }
+        return acc;
     }
+//    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename REWARD_SPEC, typename RNG>
+//    RL_TOOLS_FUNCTION_PLACEMENT void reward(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, Matrix<REWARD_SPEC>& reward, RNG& rng){
+//        set_all(device, reward, acc);
+//    }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename OBS_PARAMETERS, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using OBS = rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>;
         static_assert(OBS_SPEC::ROWS == SPEC::PARAMETERS::N_AGENTS);
         static_assert(OBS_SPEC::COLS == OBS::DIM);
@@ -367,12 +372,12 @@ namespace rl_tools{
             set(observation, agent_i, 4, agent_state.velocity[1]);
             set(observation, agent_i, 5, agent_state.angular_velocity);
             for(TI lidar_i = 0; lidar_i < SPEC::PARAMETERS::LIDAR_RESOLUTION; lidar_i++){
-                set(observation, agent_i, 6 + lidar_i, 0); //tbi
+                set(observation, agent_i, 6 + lidar_i, agent_state.lidar[lidar_i].distance);
             }
         }
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename OBS_PARAMETERS, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, rl::environments::multi_agent::bottleneck::ObservationPrivileged<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const rl::environments::multi_agent::bottleneck::ObservationPrivileged<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using OBS = rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == OBS::DIM);
