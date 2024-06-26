@@ -28,8 +28,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_SCALE_OBSERVATIONS, IDENTITY_SCALING){
     rlt::initial_parameters(device, env, parameters);
     rlt::initial_state(device, env, parameters, state);
     rlt::initial_state(device, wrapped_env, parameters, wrapped_state);
-    rlt::observe(device, env, parameters, state, observation, rng);
-    rlt::observe(device, wrapped_env, wrapped_parameters, wrapped_state, wrapped_observation, wrapped_rng);
+    rlt::observe(device, env, parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
+    rlt::observe(device, wrapped_env, wrapped_parameters, wrapped_state, typename WRAPPED_ENVIRONMENT::Observation{}, wrapped_observation, wrapped_rng);
     T diff = rlt::abs_diff(device, observation, wrapped_observation);
     ASSERT_LT(diff, 1e-10);
 }
@@ -52,8 +52,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENT_WRAPPERS_SCALE_OBSERVATIONS, ACTUAL_SCALING){
     rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, WRAPPED_ENVIRONMENT::Observation::DIM>> wrapped_observation;
     rlt::initial_state(device, env, parameters, state);
     rlt::initial_state(device, wrapped_env, parameters, wrapped_state);
-    rlt::observe(device, env, parameters, state, observation, rng);
-    rlt::observe(device, wrapped_env, parameters, wrapped_state, wrapped_observation, wrapped_rng);
+    rlt::observe(device, env, parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
+    rlt::observe(device, wrapped_env, parameters, wrapped_state, typename WRAPPED_ENVIRONMENT::Observation{}, wrapped_observation, wrapped_rng);
     rlt::multiply_all(device, wrapped_observation, 1/SCALE_BY_10_OBSERVATIONS_WRAPPER_SPEC::SCALE);
     T diff = rlt::abs_diff(device, observation, wrapped_observation);
     ASSERT_LT(diff, 1e-10);

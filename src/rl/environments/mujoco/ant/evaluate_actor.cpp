@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
         T reward_acc = 0;
         for(TI step_i = 0; step_i < MAX_EPISODE_LENGTH; step_i++){
             auto start = std::chrono::high_resolution_clock::now();
-            rlt::observe(dev, env, env_parameters, state, observation, rng);
+            rlt::observe(dev, env, env_parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
             rlt::evaluate(dev, actor, observation, action, actor_buffer, rng);
             T dt = rlt::step(dev, env, env_parameters, state, action, next_state, rng);
             bool terminated_flag = rlt::terminated(dev, env, env_parameters, next_state, rng);

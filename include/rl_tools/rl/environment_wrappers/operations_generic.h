@@ -44,15 +44,10 @@ namespace rl_tools{
         return reward(device, env.env, parameters, state, action, next_state, rng);
     }
 
-    template<typename DEVICE, typename ENVIRONMENT, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, const typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters, const typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    template<typename DEVICE, typename ENVIRONMENT, typename OBS_TYPE, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, const typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters, const typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::State& state, OBS_TYPE& obs_type, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
-        observe(device, env.env, parameters, state, observation, rng);
-    }
-    template<typename DEVICE, typename ENVIRONMENT, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, const typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters, const typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-        static_assert(OBS_SPEC::ROWS == 1);
-        observe_privileged(device, env.env, parameters, state, observation, rng);
+        observe(device, env.env, parameters, state, obs_type, observation, rng);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters, const typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::State state, RNG& rng){

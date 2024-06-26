@@ -3,7 +3,7 @@ name: Tests
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [ "*" ]
 jobs:
   build:
     runs-on: ubuntu-20.04

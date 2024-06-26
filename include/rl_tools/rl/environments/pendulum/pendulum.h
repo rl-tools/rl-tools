@@ -28,7 +28,7 @@ namespace rl_tools::rl::environments::pendulum {
         using PARAMETERS = T_PARAMETERS;
     };
 
-    template <typename T, typename TI>
+    template <typename TI>
     struct Observation {
         static constexpr TI DIM = 3;
     };
@@ -52,8 +52,8 @@ namespace rl_tools::rl::environments{
         using TI = typename SPEC::TI;
         using State = pendulum::State<T, TI>;
         using Parameters = typename SPEC::PARAMETERS;
-        using Observation = pendulum::Observation<T, TI>;
-        using ObservationPrivileged = pendulum::Observation<T, TI>;
+        using Observation = pendulum::Observation<TI>;
+        using ObservationPrivileged = Observation;
         static constexpr TI N_AGENTS = 1; // single agent
         static constexpr TI ACTION_DIM = 1;
         static constexpr TI EPISODE_STEP_LIMIT = 200;

@@ -44,6 +44,10 @@ namespace rl_tools::rl::environments::mujoco{
             T q[SPEC::STATE_DIM_Q];
             T q_dot[SPEC::STATE_DIM_Q_DOT];
         };
+        template <typename SPEC>
+        struct Observation{
+            static constexpr typename SPEC::TI DIM = SPEC::STATE_DIM_Q - 2 + SPEC::STATE_DIM_Q_DOT;
+        };
     }
     template <typename T_SPEC>
     struct Ant: Environment{
@@ -60,9 +64,7 @@ namespace rl_tools::rl::environments::mujoco{
         TI torso_id;
         T last_reward;
         bool last_terminated;
-        struct Observation{
-            static constexpr TI DIM = SPEC::STATE_DIM_Q - 2 + SPEC::STATE_DIM_Q_DOT;
-        };
+        using Observation = ant::Observation<SPEC>;
         using ObservationPrivileged = Observation;
         static constexpr TI ACTION_DIM = SPEC::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = 1000;

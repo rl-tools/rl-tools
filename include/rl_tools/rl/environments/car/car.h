@@ -70,6 +70,14 @@ namespace rl_tools::rl::environments::car {
         T vy;
         T omega;
     };
+    template <typename TI>
+    struct ObservationCar{
+        static constexpr TI DIM = 6;
+    };
+    template <typename TI>
+    struct ObservationCarTrack{
+        static constexpr TI DIM = 6 + 3;
+    };
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
@@ -82,9 +90,7 @@ namespace rl_tools::rl::environments{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using State = car::State<T, TI>;
-        struct Observation{
-            static constexpr TI DIM = 6;
-        };
+        using Observation = car::ObservationCar<TI>;
         using ObservationPrivileged = Observation;
         static constexpr TI ACTION_DIM = 2;
         using Parameters = typename SPEC::PARAMETERS;
@@ -93,8 +99,8 @@ namespace rl_tools::rl::environments{
     template <typename T_SPEC>
     struct CarTrack: Car<T_SPEC>{
         using TI = typename T_SPEC::TI;
-        static constexpr TI OBSERVATION_DIM = Car<T_SPEC>::OBSERVATION_DIM + 3;
-        static constexpr TI OBSERVATION_DIM_PRIVILEGED = OBSERVATION_DIM;
+        using Observation = car::ObservationCarTrack<TI>;
+        using ObservationPrivileged = Observation;
         bool initialized = false;
     };
 }

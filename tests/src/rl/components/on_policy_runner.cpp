@@ -82,7 +82,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER, TEST){
             {
                 rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
                 rlt::malloc(device, observation);
-                rlt::observe(device, get(runner.environments, 0, env_i), parameters[env_i], states[env_i], observation, rng);
+                rlt::observe(device, get(runner.environments, 0, env_i), parameters[env_i], states[env_i], typename ENVIRONMENT::Observation{}, observation, rng);
                 auto observation_runner = rlt::view<DEVICE, decltype(dataset.observations)::SPEC, 1, ENVIRONMENT::Observation::DIM>(device, dataset.observations, pos, 0);
                 auto abs_diff = rlt::abs_diff(device, observation, observation_runner);
                 if(!get(dataset.truncated, pos, 0)){

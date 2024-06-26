@@ -118,7 +118,7 @@ namespace rl_tools{
             auto& parameters = get(runner.env_parameters, 0, env_i);
             TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
             auto observation = row(device, dataset.all_observations, row_i);
-            observe(device, env, parameters, state, observation, rng);
+            observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::Observation{}, observation, rng);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }

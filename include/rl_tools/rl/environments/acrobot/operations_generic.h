@@ -171,8 +171,8 @@ namespace rl_tools{
         return (-a_angle_cost -b_angle_cost)/100*SPEC::PARAMETERS::DT/0.02;
     }
 
-    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters, const typename rl::environments::Acrobot<SPEC>::State& state, const rl::environments::acrobot::Observation<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 6);
         typedef typename SPEC::T T;
@@ -182,12 +182,6 @@ namespace rl_tools{
         set(observation, 0, 3, math::sin(device.math, state.theta_2));
         set(observation, 0, 4, state.theta_1_dot);
         set(observation, 0, 5, state.theta_2_dot);
-    }
-    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters, const typename rl::environments::Acrobot<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-        static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 6);
-        observe(device, env, state, observation, rng);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters, const typename rl::environments::Acrobot<SPEC>::State state, RNG& rng){

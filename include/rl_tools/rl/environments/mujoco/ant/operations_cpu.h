@@ -131,8 +131,8 @@ namespace rl_tools{
         return env.last_reward;
     }
 
-    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    static void observe(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const rl::environments::mujoco::ant::State<SPEC>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
+    static void observe(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const rl::environments::mujoco::ant::State<SPEC>& state, const rl::environments::mujoco::ant::Observation<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q - 2; state_i++){
@@ -141,10 +141,6 @@ namespace rl_tools{
         for(TI state_i = 0; state_i < SPEC::STATE_DIM_Q_DOT; state_i++){
             set(observation, 0, state_i + SPEC::STATE_DIM_Q - 2, state.q_dot[state_i]);
         }
-    }
-    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    static void observe_privileged(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const rl::environments::mujoco::ant::State<SPEC>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-        observe(device, env, state, observation, rng);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     static bool terminated(DEVICE& device, const rl::environments::mujoco::Ant<SPEC>& env, const typename rl::environments::mujoco::Ant<SPEC>::Parameters& parameters, const typename rl::environments::mujoco::ant::State<SPEC> state, RNG& rng){

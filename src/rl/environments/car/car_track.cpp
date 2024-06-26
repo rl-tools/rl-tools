@@ -130,7 +130,7 @@ int main(){
         rlt::set_state(device, env, env_parameters, ui, state);
         rlt::set_action(device, env, env_parameters, ui, action);
         rlt::render(device, env, env_parameters, ui);
-        rlt::observe(device, env, env_parameters, state, observation, rng);
+        rlt::observe(device, env, env_parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
         std::cout << "lidar: " << get(observation, 0, 6) << ", " << get(observation, 0, 7) << ", " << get(observation, 0, 8) << std::endl;
     }
     return 0;

@@ -123,7 +123,7 @@ int main(int argc, char** argv){
         rlt::set_state(device, env, env_parameters, ui, state);
         rlt::render(device, env, env_parameters, ui);
 
-        rlt::observe(device, env, env_parameters, state, observation, rng);
+        rlt::observe(device, env, env_parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
         if(rlt::terminated(device, env, env_parameters, state, rng)){
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             rlt::sample_initial_state(device, env, env_parameters, state, rng);

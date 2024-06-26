@@ -48,6 +48,11 @@ namespace rl_tools::rl::environments::acrobot {
         T theta_2_dot;
     };
 
+    template <typename TI>
+    struct Observation{
+        static constexpr TI DIM = 6;
+    };
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
@@ -61,9 +66,7 @@ namespace rl_tools::rl::environments{
         using TI = typename SPEC::TI;
         using State = acrobot::State<T, TI>;
         using Parameters = typename SPEC::PARAMETERS;
-        struct Observation{
-            static constexpr TI DIM = 6;
-        };
+        using Observation = acrobot::Observation<TI>;
         using ObservationPrivileged = Observation;
         static constexpr TI ACTION_DIM = 1;
         acrobot::Parameters<T> parameters;

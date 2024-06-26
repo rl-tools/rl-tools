@@ -87,7 +87,7 @@ namespace rl_tools{
             auto& state = get(runner.states, 0, env_i);
             TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
             auto observation = row(device, dataset.all_observations, row_i);
-            observe(device, env, env_parameters, state, observation, rng);
+            observe(device, env, env_parameters, state, typename SPEC::ENVIRONMENT::Observation{}, observation, rng);
 //            auto observation = row(device, dataset.all_observations_normalized, row_i);
 //            normalize(device, observations_mean, observations_std, observation, observation_normalized);
         }

@@ -97,7 +97,7 @@ namespace rl_tools{
                 auto& env_parameters = parameters[env_i];
                 rl::utils::evaluation::set_state(data, env_i, step_i, states[env_i]);
                 auto& env = envs[env_i];
-                observe(device, env, env_parameters, state, observation, rng);
+                observe(device, env, env_parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
             }
             constexpr TI BATCH_SIZE = POLICY_EVALUATION_BUFFERS::BATCH_SIZE;
             constexpr TI NUM_FORWARD_PASSES = SPEC::N_EPISODES / BATCH_SIZE;

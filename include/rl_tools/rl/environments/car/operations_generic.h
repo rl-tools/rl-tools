@@ -101,8 +101,8 @@ namespace rl_tools{
         return state.vx;
     }
 
-    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, const typename rl::environments::car::ObservationCar<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Car<SPEC>;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == ENVIRONMENT::Observation::DIM);
@@ -114,8 +114,8 @@ namespace rl_tools{
         set(observation, 0, 4, state.vy);
         set(observation, 0, 5, state.omega);
     }
-    template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State& state, const typename rl::environments::car::ObservationCarTrack<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
 #ifdef RL_TOOLS_DEBUG
         utils::assert_exit(device, env.initialized, "Environment not initialized");
 #endif
@@ -125,7 +125,7 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         auto observation_base = view(device, observation, matrix::ViewSpec<1, ENVIRONMENT::Observation::DIM>{});
-        observe(device, (ENVIRONMENT&)env, parameters, (typename ENVIRONMENT::State&)state, observation_base, rng);
+        observe(device, (ENVIRONMENT&)env, parameters, (typename ENVIRONMENT::State&)state, typename ENVIRONMENT::Observation{}, observation_base, rng);
         constexpr TI N_DIRECTIONS = 3;
         constexpr TI NUM_STEPS = 50;
         constexpr T step_size = SPEC::TRACK_SCALE / 2;
