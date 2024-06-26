@@ -87,8 +87,8 @@ namespace rl_tools{
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 3);
         typedef typename SPEC::T T;
-        set(observation, 0, 0, math::cos(device.math, state.theta));
-        set(observation, 0, 1, math::sin(device.math, state.theta));
+        set(observation, 0, 0, math::sin(device.math, state.theta));
+        set(observation, 0, 1, math::cos(device.math, state.theta));
         set(observation, 0, 2, state.theta_dot);
     }
 //    template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
