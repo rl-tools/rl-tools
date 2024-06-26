@@ -13,6 +13,7 @@ namespace rl_tools::rl::components{
             using ENVIRONMENT = T_ENVIRONMENT;
             static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
             static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = !utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
             static constexpr TI N_AGENTS_PER_ENV = T_N_AGENTS_PER_ENV; // 1 for single agent, >1 for multi-agent
             using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         };
@@ -23,6 +24,7 @@ namespace rl_tools::rl::components{
             using TI = typename SPEC::TI;
             using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
             static constexpr TI STEPS_PER_ENV = T_STEPS_PER_ENV;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::ASYMMETRIC_OBSERVATIONS;
             static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * SPEC::N_ENVIRONMENTS;
             static constexpr TI STEPS_TOTAL_ALL = (STEPS_PER_ENV+1) * SPEC::N_ENVIRONMENTS; // +1 for the final observation
         };
@@ -34,8 +36,8 @@ namespace rl_tools::rl::components{
             using TI = typename SPEC::TI;
             static constexpr TI STEPS_PER_ENV = T_SPEC::STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = T_SPEC::STEPS_TOTAL;
-            // structure: OBSERVATION - ACTION - ACTION_LOG_P - REWARD - TERMINATED - TRUNCATED - VALUE - ADVANTAGE - TARGEt_VALUE
-            static constexpr TI DATA_DIM = SPEC::ENVIRONMENT::Observation::DIM * 2 + SPEC::ENVIRONMENT::ACTION_DIM * 2 + 7;
+            // structure: OBSERVATION_PRIVILIGED_DIM + OBSERVATION_DIM + ACTIONS + ACTIONS_MEAN + ACTION_LOG_P + REWARD + TERMINATED + TRUNCATED + VALUE + ADVANTAGE + TARGET_VALUE
+            static constexpr TI DATA_DIM = (SPEC::ASYMMETRIC_OBSERVATIONS ? SPEC::ENVIRONMENT::ObservationPrivileged::DIM : 0) + SPEC::ENVIRONMENT::Observation::DIM + SPEC::ENVIRONMENT::ACTION_DIM * 2 + 7;
 
             // mem
             // todo: evaluate transposing this / storing in column major order for better memory access in the single dimensional columns
@@ -45,7 +47,7 @@ namespace rl_tools::rl::components{
             template<TI VIEW_DIM, bool ALL = false>
             using DATA_VIEW = typename decltype(data)::template VIEW<STEPS_TOTAL + (ALL ? SPEC::N_ENVIRONMENTS : 0), VIEW_DIM>;
 
-            DATA_VIEW<SPEC::ENVIRONMENT::Observation::DIM, true> all_observations;
+            DATA_VIEW<SPEC::ENVIRONMENT::ObservationPrivileged::DIM, true> all_observations_privileged;
             DATA_VIEW<SPEC::ENVIRONMENT::Observation::DIM> observations;
             DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions_mean;
             DATA_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions;

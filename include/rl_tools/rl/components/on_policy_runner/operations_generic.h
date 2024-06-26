@@ -14,7 +14,7 @@ namespace rl_tools{
         using DATA_SPEC = typename decltype(dataset.data)::SPEC;
         using TI = typename SPEC::SPEC::TI;
         TI pos = 0;
-        dataset.all_observations            = view<DEVICE, DATA_SPEC, decltype(dataset.all_observations           )::ROWS, decltype(dataset.all_observations           )::COLS>(device, dataset.data, 0, pos);
+        dataset.all_observations_privileged = view<DEVICE, DATA_SPEC, decltype(dataset.all_observations_privileged)::ROWS, decltype(dataset.all_observations_privileged)::COLS>(device, dataset.data, 0, pos); pos += (SPEC::ASYMMETRIC_OBSERVATIONS ? decltype(dataset.all_observations_privileged)::COLS : 0);
         dataset.observations                = view<DEVICE, DATA_SPEC, decltype(dataset.observations               )::ROWS, decltype(dataset.observations               )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.observations           )::COLS;
         dataset.actions_mean                = view<DEVICE, DATA_SPEC, decltype(dataset.actions_mean               )::ROWS, decltype(dataset.actions_mean               )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.actions_mean           )::COLS;
         dataset.actions                     = view<DEVICE, DATA_SPEC, decltype(dataset.actions                    )::ROWS, decltype(dataset.actions                    )::COLS>(device, dataset.data, 0, pos); pos += decltype(dataset.actions                )::COLS;
@@ -30,7 +30,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
         free(device, dataset.data);
-        dataset.all_observations           ._data = nullptr;
+        dataset.all_observations_privileged._data = nullptr;
         dataset.observations               ._data = nullptr;
         dataset.actions_mean               ._data = nullptr;
         dataset.actions                    ._data = nullptr;
@@ -74,14 +74,14 @@ namespace rl_tools{
 #endif
     }
     namespace rl::components::on_policy_runner{
-        template <typename DEVICE, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
-        void prologue(DEVICE& device, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t step_i){
+        template <typename DEVICE, typename OBSERVATIONS_PRIVILEGED_SPEC, typename OBSERVATIONS_SPEC, typename SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
+        void prologue(DEVICE& device, Matrix<OBSERVATIONS_PRIVILEGED_SPEC>& observations_privileged, Matrix<OBSERVATIONS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename DEVICE::index_t step_i){
             static_assert(OBSERVATIONS_SPEC::ROWS == SPEC::N_ENVIRONMENTS);
             static_assert(OBSERVATIONS_SPEC::COLS == SPEC::ENVIRONMENT::Observation::DIM);
             using TI = typename SPEC::TI;
             for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
                 TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-                per_env::prologue(device, observations,runner, rng, env_i);
+                per_env::prologue(device, observations_privileged, observations,runner, rng, env_i);
             }
         }
         template <typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG> // todo: make this not PPO but general policy with output distribution
@@ -103,10 +103,11 @@ namespace rl_tools{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            auto actions_mean            = view(device, dataset.actions_mean           , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()      , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto actions                 = view(device, dataset.actions                , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()      , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto observations            = view(device, dataset.observations           , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
-            rl::components::on_policy_runner::prologue(device, observations, runner, rng, step_i);
+            auto actions_mean            = view(device, dataset.actions_mean               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto actions                 = view(device, dataset.actions                    , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto observations_privileged = view(device, dataset.all_observations_privileged, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
+            auto observations            = view(device, dataset.observations               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>()          , step_i*SPEC::N_ENVIRONMENTS, 0);
+            rl::components::on_policy_runner::prologue(device, observations_privileged, observations, runner, rng, step_i);
             evaluate(device, actor, observations, actions_mean, policy_eval_buffers, rng);
             auto& last_layer = get_last_layer(actor);
             rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, last_layer.log_std.parameters, rng, step_i);
@@ -117,8 +118,8 @@ namespace rl_tools{
             auto& state = get(runner.states, 0, env_i);
             auto& parameters = get(runner.env_parameters, 0, env_i);
             TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
-            auto observation = row(device, dataset.all_observations, row_i);
-            observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::Observation{}, observation, rng);
+            auto observation = row(device, dataset.all_observations_privileged, row_i);
+            observe(device, env, parameters, state, typename DATASET_SPEC::SPEC::ENVIRONMENT::ObservationPrivileged{}, observation, rng);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }
