@@ -103,6 +103,7 @@ namespace rl_tools{
         static_assert(N_BATCHES > 0);
         constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
         constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::Observation::DIM;
+        constexpr TI OBSERVATION_PRIVILEGED_DIM = OPR_SPEC::ENVIRONMENT::ObservationPrivileged::DIM;
         // batch needs observations, original log-probs, advantages
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
@@ -116,6 +117,11 @@ namespace rl_tools{
                 {
                     auto target_row = row(device, dataset.observations, dataset_i);
                     auto source_row = row(device, dataset.observations, sample_index);
+                    swap(device, target_row, source_row);
+                }
+                if(PPO_SPEC::ASYMMETRIC_OBSERVATIONS){
+                    auto target_row = row(device, dataset.all_observations_privileged, dataset_i);
+                    auto source_row = row(device, dataset.all_observations_privileged, sample_index);
                     swap(device, target_row, source_row);
                 }
                 if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
@@ -138,12 +144,13 @@ namespace rl_tools{
                 zero_gradient(device, ppo.actor); // has to be reset before accumulating the action-log-std gradient
 
                 auto batch_offset = batch_i * BATCH_SIZE;
-                auto batch_observations     = view(device, dataset.observations    , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM>(), batch_offset, 0);
-                auto batch_actions_mean     = view(device, dataset.actions_mean    , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
-                auto batch_actions          = view(device, dataset.actions         , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM     >(), batch_offset, 0);
-                auto batch_action_log_probs = view(device, dataset.action_log_probs, matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
-                auto batch_advantages       = view(device, dataset.advantages      , matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
-                auto batch_target_values    = view(device, dataset.target_values   , matrix::ViewSpec<BATCH_SIZE, 1              >(), batch_offset, 0);
+                auto batch_observations            = view(device, dataset.observations               , matrix::ViewSpec<BATCH_SIZE, OBSERVATION_DIM           >(), batch_offset, 0);
+                auto batch_observations_privileged = view(device, dataset.all_observations_privileged, matrix::ViewSpec<BATCH_SIZE, OBSERVATION_PRIVILEGED_DIM>(), batch_offset, 0);
+                auto batch_actions_mean            = view(device, dataset.actions_mean               , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM                >(), batch_offset, 0);
+                auto batch_actions                 = view(device, dataset.actions                    , matrix::ViewSpec<BATCH_SIZE, ACTION_DIM                >(), batch_offset, 0);
+                auto batch_action_log_probs        = view(device, dataset.action_log_probs           , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
+                auto batch_advantages              = view(device, dataset.advantages                 , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
+                auto batch_target_values           = view(device, dataset.target_values              , matrix::ViewSpec<BATCH_SIZE, 1                         >(), batch_offset, 0);
 
                 T advantage_mean = 0;
                 T advantage_std = 0;
@@ -258,9 +265,9 @@ namespace rl_tools{
                 backward(device, ppo.actor, batch_observations, ppo_buffers.d_action_log_prob_d_action, actor_buffers);
 //                forward_backward_mse(device, ppo.critic, batch_observations, batch_target_values, critic_buffers);
                 {
-                    forward(device, ppo.critic, batch_observations, critic_buffers, rng);
+                    forward(device, ppo.critic, batch_observations_privileged, critic_buffers, rng);
                     nn::loss_functions::mse::gradient(device, output(ppo.critic), batch_target_values, ppo_buffers.d_critic_output, 0.5);
-                    backward(device, ppo.critic, batch_observations, ppo_buffers.d_critic_output, critic_buffers);
+                    backward(device, ppo.critic, batch_observations_privileged, ppo_buffers.d_critic_output, critic_buffers);
                 }
                 T critic_loss = nn::loss_functions::mse::evaluate(device, output(ppo.critic), batch_target_values);
                 add_scalar(device, device.logger, "ppo/critic_loss", critic_loss);

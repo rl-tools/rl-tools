@@ -85,7 +85,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::Pendulum<SPEC>::State& state, const typename rl::environments::pendulum::ObservationRaw<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == 3);
+        static_assert(OBS_SPEC::COLS == 2);
         typedef typename SPEC::T T;
         set(observation, 0, 0, state.theta);
         set(observation, 0, 1, state.theta_dot);
