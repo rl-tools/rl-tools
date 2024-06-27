@@ -35,6 +35,10 @@ namespace rl_tools::rl::zoo::ppo{
             static constexpr TI BATCH_SIZE = 256;
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential>;
+        template <typename BASE>
+        struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{
+//            static constexpr TI EPISODE_STEP_LIMIT = 20 / ENVIRONMENT_PARAMETERS::DT;
+        };
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

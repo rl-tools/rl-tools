@@ -26,7 +26,7 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_BOTTLENECK_V0)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::ppo::BottleneckV0<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
-struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::ppo::BottleneckV0<DEVICE, T, TI, RNG>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::ppo::AntV4<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
@@ -38,7 +38,7 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #error "RLtools Zoo: Algorithm not defined"
 #endif
 
-constexpr TI NUM_CHECKPOINTS = 10;
+constexpr TI NUM_CHECKPOINTS = 100;
 constexpr TI NUM_EVALUATIONS = 100;
 constexpr TI NUM_SAVE_TRAJECTORIES = 10;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;

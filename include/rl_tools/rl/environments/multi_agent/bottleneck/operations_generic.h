@@ -313,6 +313,9 @@ namespace rl_tools{
         using PARAMS = typename SPEC::PARAMETERS;
         constexpr TI N_AGENTS = ENV::PARAMETERS::N_AGENTS;
 
+#ifdef RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
+        utils::assert_exit(device, !is_nan(device, action), "Action is nan");
+#endif
 
         for(TI agent_i=0; agent_i < N_AGENTS; agent_i++){
             auto& agent_state = state.agent_states[agent_i];
@@ -331,7 +334,13 @@ namespace rl_tools{
                 T new_theta = rl::environments::multi_agent::bottleneck::angle_normalize(device, agent_state.orientation + dtheta);
                 T new_vx = agent_state.velocity[0] + acceleration * math::cos(device.math, new_theta) * dt;
                 T new_vy = agent_state.velocity[1] + acceleration * math::sin(device.math, new_theta) * dt;
+                T speed = math::sqrt(device.math, new_vx * new_vx + new_vy * new_vy + 1e-6);
+                if(speed > PARAMS::AGENT_MAX_SPEED){
+                    new_vx = new_vx / speed * PARAMS::AGENT_MAX_SPEED;
+                    new_vy = new_vy / speed * PARAMS::AGENT_MAX_SPEED;
+                }
                 T new_omega = agent_state.angular_velocity + angular_acceleration * dt;
+                new_omega = math::clamp(device.math, new_omega, -PARAMS::AGENT_MAX_ANGULAR_VELOCITY, PARAMS::AGENT_MAX_ANGULAR_VELOCITY);
                 agent_next_state.position[0] = new_x;
                 agent_next_state.position[1] = new_y;
                 agent_next_state.orientation = new_theta;
@@ -382,7 +391,11 @@ namespace rl_tools{
         for(TI agent_i = 0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++){
             auto& agent_state = state.agent_states[agent_i];
             acc += agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH/2 ? RIGHT_SIDE_REWARD : 0.0;
+            acc -= agent_state.angular_velocity * agent_state.angular_velocity * 0.001;
         }
+#ifdef RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
+        utils::assert_exit(device, !math::is_nan(device.math, acc), "reward is nan");
+#endif
         return acc;
     }
 //    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename REWARD_SPEC, typename RNG>
@@ -391,7 +404,7 @@ namespace rl_tools{
 //    }
 
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename OBS_PARAMETERS, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT  void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using OBS = rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == OBS::DIM);
@@ -410,9 +423,12 @@ namespace rl_tools{
                 set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 6 + lidar_i, agent_state.lidar[lidar_i].distance);
             }
         }
+#ifdef RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
+        utils::assert_exit(device, !is_nan(device, observation), "Observation is nan");
+#endif
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename OBS_PARAMETERS, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const rl::environments::multi_agent::bottleneck::ObservationPrivileged<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const rl::environments::multi_agent::bottleneck::ObservationPrivileged<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using OBS = rl::environments::multi_agent::bottleneck::ObservationPrivileged<OBS_PARAMETERS>;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == OBS::DIM);
@@ -428,6 +444,9 @@ namespace rl_tools{
             set(observation, 0, agent_offset + 4, agent_state.velocity[1]);
             set(observation, 0, agent_offset + 5, agent_state.angular_velocity);
         }
+#ifdef RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
+        utils::assert_exit(device, !is_nan(device, observation), "ObservationPrivileged is nan");
+#endif
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT bool terminated(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State state, RNG& rng){
