@@ -22,7 +22,7 @@ namespace rl_tools{
         RL_TOOLS_FUNCTION_PLACEMENT bool check_collision_between_agents(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::bottleneck::AgentState<T, TI> agent_state_a, const typename rl::environments::multi_agent::bottleneck::AgentState<T, TI> agent_state_b){
             T dx = agent_state_a.position[0] - agent_state_b.position[0];
             T dy = agent_state_a.position[1] - agent_state_b.position[1];
-            T d = math::sqrt(device.math, dx * dx + dy * dy);
+            T d = math::sqrt(device.math, dx * dx + dy * dy + 1e-6);
             if(d < SPEC::PARAMETERS::AGENT_DIAMETER){
                 return true;
             }
@@ -81,8 +81,8 @@ namespace rl_tools{
             if (discriminant < 0) {
                 return result; // No intersection
             } else {
-                T t1 = (-b - math::sqrt(device.math, discriminant)) / (2 * a);
-                T t2 = (-b + math::sqrt(device.math, discriminant)) / (2 * a);
+                T t1 = (-b - math::sqrt(device.math, discriminant + 1e-6)) / (2 * a);
+                T t2 = (-b + math::sqrt(device.math, discriminant + 1e-6)) / (2 * a);
                 if (t1 >= 0) {
                     result.intersects = true;
                     result.point[0] = ray.origin[0] + t1 * ray.direction[0];
