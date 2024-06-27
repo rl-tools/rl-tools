@@ -73,7 +73,7 @@ namespace rl_tools{
             T dy = ray.origin[1] - agent_state.position[1];
             T radius = SPEC::PARAMETERS::AGENT_DIAMETER / 2;
 
-            T a = ray.direction[0] * ray.direction[0] + ray.direction[1] * ray.direction[1];
+            T a = ray.direction[0] * ray.direction[0] + ray.direction[1] * ray.direction[1] + 1e-6;
             T b = 2 * (ray.direction[0] * dx + ray.direction[1] * dy);
             T c = dx * dx + dy * dy - radius * radius;
 
@@ -111,6 +111,24 @@ namespace rl_tools{
         RL_TOOLS_FUNCTION_PLACEMENT Intersection<T> intersects(DEVICE& device, AxisAlignedRectangle<T> rectangle, Ray<T> ray) {
             Intersection<T> result;
             result.intersects = false;
+
+            // disgusting hack to prevent divison by zero
+            if(ray.direction[0] < 1e-6 && ray.direction[0] > -1e-6){
+                if(ray.direction[0] > 0){
+                    ray.direction[0] = 1e-6;
+                }
+                else{
+                    ray.direction[0] = -1e-6;
+                }
+            }
+            if(ray.direction[1] < 1e-6 && ray.direction[1] > -1e-6){
+                if(ray.direction[1] > 0){
+                    ray.direction[1] = 1e-6;
+                }
+                else{
+                    ray.direction[1] = -1e-6;
+                }
+            }
 
             T tmin = (rectangle.min[0] - ray.origin[0]) / ray.direction[0];
             T tmax = (rectangle.max[0] - ray.origin[0]) / ray.direction[0];
