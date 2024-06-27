@@ -12,7 +12,7 @@ on:
         description: 'Enable Acrobot "true"/"false"'
         default: 'false'
   push:
-    branches: [ "*" ]
+    branches: [ "master" ]
 jobs:
   zoo:
     runs-on: ubuntu-latest
