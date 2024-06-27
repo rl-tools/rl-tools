@@ -4,13 +4,14 @@
         body {
             margin: 0;
             padding: 0;
-        }
-
-        .canvas-container {
-            margin-top: 20px;
             display: flex;
             justify-content: center;
             align-items: center;
+        }
+
+        .canvas-container {
+            width: min(90vh, 90vw);
+            height: min(90vh, 90vw);
         }
 
         #canvas {
@@ -103,7 +104,21 @@
         window.addEventListener('load', ()=>{
             const info_container = document.getElementById('info');
             info_container.textContent = '0';
+            const canvas_container = document.getElementById("canvas-container");
             const canvas = document.getElementById('canvas');
+            const ratio = window.devicePixelRatio || 1;
+
+            const onResize = () => {
+                const size = Math.min(canvas_container.clientWidth, canvas_container.clientHeight);
+                canvas.width = size * ratio;
+                canvas.height = size * ratio;
+
+                canvas.style.width = size + 'px';
+                canvas.style.height = size + 'px';
+            }
+            onResize();
+            window.addEventListener('resize', onResize);
+
             const ctx = canvas.getContext('2d');
 
             let render = null;
@@ -147,7 +162,7 @@
     </script>
 </head>
 <body>
-<div class="canvas-container">
+<div id="canvas-container" class="canvas-container">
     <canvas id="canvas" width="500" height="500"></canvas>
 </div>
 <div id="info" style="display: none"></div>
