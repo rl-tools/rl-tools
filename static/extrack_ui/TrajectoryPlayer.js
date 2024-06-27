@@ -64,10 +64,16 @@ export class TrajectoryPlayer{
         skip_button.innerHTML = "Next Episode";
         this.controls_container.appendChild(skip_button);
 
+        var ratio = window.devicePixelRatio || 1;
+
+
         const onResize = () => {
             const size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
-            this.canvas.width = size;
-            this.canvas.height = size;
+            this.canvas.width = size * ratio;
+            this.canvas.height = size * ratio;
+
+            this.canvas.style.width = size + 'px';
+            this.canvas.style.height = size + 'px';
         }
         onResize();
         window.addEventListener('resize', onResize);
