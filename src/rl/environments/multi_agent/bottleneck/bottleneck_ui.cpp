@@ -12,6 +12,7 @@ using T = float;
 struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::multi_agent::bottleneck::DefaultParameters<T, TI>{
     static constexpr T DT = 1/60.0;
     static constexpr TI N_AGENTS = 10;
+    static constexpr T BOTTLENECK_WIDTH = 5;
 };
 using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
 using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
@@ -33,8 +34,8 @@ int main(){
     ENVIRONMENT::Parameters parameters;
     rlt::sample_initial_parameters(device, env, parameters, rng);
     rlt::sample_initial_state(device, env, parameters, state, rng);
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, ENVIRONMENT_PARAMETERS::N_AGENTS, ENVIRONMENT::ACTION_DIM>> action;
-    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, ENVIRONMENT_PARAMETERS::N_AGENTS, ENVIRONMENT::Observation::DIM>> observation;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
 //    rlt::randn(device, action, rng);
     rlt::set_all(device, action, 1);
     rlt::clamp(device, action, -1, 1);

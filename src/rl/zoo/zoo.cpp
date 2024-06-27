@@ -25,6 +25,7 @@
 
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/rl/environments/acrobot/operations_cpu.h>
+#include <rl_tools/rl/environments/multi_agent/bottleneck/operations_cpu.h>
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include <rl_tools/rl/environments/mujoco/ant/operations_cpu.h>
 #endif
@@ -33,6 +34,7 @@
 #include "sac/acrobot-swingup-v0.h"
 #include "td3/pendulum-v1.h"
 #include "ppo/pendulum-v1.h"
+#include "ppo/bottleneck-v0.h"
 #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
 #include "ppo/ant-v4.h"
 #endif
@@ -69,6 +71,8 @@ std::string algorithm = "ppo";
 std::string environment = "pendulum-v1";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
 std::string environment = "acrobot-swingup-v0";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_BOTTLENECK_V0)
+std::string environment = "bottleneck-v0";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4)
 std::string environment = "ant-v4";
 #else

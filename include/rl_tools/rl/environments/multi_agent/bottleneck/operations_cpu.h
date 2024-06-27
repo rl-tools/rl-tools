@@ -137,7 +137,7 @@ namespace rl_tools{
         ctx.stroke();
 
         // Draw actions (acceleration vectors)
-        const agent_action = action[i];
+        const agent_action = [action[i*2 + 0], action[i*2 + 1]].map(action => Math.max(-1, Math.min(1, action)));
 
         // Linear acceleration in the direction of orientation
         const accelerationArrowColor = '#dc143c';
@@ -167,7 +167,7 @@ namespace rl_tools{
 
         // Draw circular arrow for angular acceleration
         if(!agent.dead){
-            const angularAccel = Math.max(-1, Math.min(1, agent_action[1])); // Negative sign to match the canvas coordinate system
+            const angularAccel = agent_action[1]; // Negative sign to match the canvas coordinate system
             const direction = Math.sign(angularAccel);
             const arrowRadius = agentRadius * 1.5;
             const arrowAngle = Math.PI / 3;
