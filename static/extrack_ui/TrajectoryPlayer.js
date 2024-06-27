@@ -8,9 +8,10 @@ async function fetchAndDecompressData(url) {
 }
 
 export class TrajectoryPlayer{
-    constructor(render_function_path, options) {
+    constructor(render_function_path, size, options) {
         // const experiments_stub = "../../experiments";
         // const modulePath = `${experiments_stub}/experiments/2024-05-25_14-28-34/32e6580_zoo_algorithm_environment/sac_pendulum-v1/0000/ui.esm.js`;
+        this.size = size
         this.options = options || {};
 
         this.render = import(render_function_path)
@@ -19,6 +20,7 @@ export class TrajectoryPlayer{
             })
         this.container = document.createElement('div');
         this.container.classList.add("trajectory-player-container")
+        this.container.style.alignItems = "center";
         this.canvas_container = document.createElement('div');
         this.canvas_container.classList.add("trajectory-player-canvas-container")
         this.canvas = document.createElement('canvas');
@@ -68,13 +70,21 @@ export class TrajectoryPlayer{
 
 
         const onResize = () => {
-            const size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
+            let size;
+            if(this.size){
+                size = this.size;
+            }
+            else{
+                size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
+            }
             this.canvas.width = size * ratio;
             this.canvas.height = size * ratio;
 
             this.canvas.style.width = size + 'px';
             this.canvas.style.height = size + 'px';
         }
+        const resizeListener = new ResizeObserver(onResize);
+        resizeListener.observe(this.canvas_container);
         onResize();
         window.addEventListener('resize', onResize);
 

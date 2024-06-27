@@ -1,6 +1,6 @@
 import {TrajectoryPlayer} from "./TrajectoryPlayer.js";
 export class ShowRun{
-    constructor(container, run){
+    constructor(container, run, size){
 
         container.innerHTML = ""
         const step = Object.keys(run.steps).filter(step => run.steps[step].trajectories_compressed).sort().reverse()[0]
@@ -52,8 +52,8 @@ export class ShowRun{
         container.appendChild(description)
 
         const trajectory_player_container = document.createElement("div")
-        trajectory_player_container.style.height = "500px";
-        const trajectory_player = new TrajectoryPlayer(run.ui_jsm);
+        // trajectory_player_container.style.height = "500px";
+        const trajectory_player = new TrajectoryPlayer(run.ui_jsm, size);
         trajectory_player_container.appendChild(trajectory_player.getCanvas());
         container.appendChild(trajectory_player_container)
         trajectory_player.playTrajectories(run.steps[step].trajectories_compressed);

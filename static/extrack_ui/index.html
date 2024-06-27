@@ -35,7 +35,7 @@
             const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
             const run = runs_with_steps[0]
             const latest_run_container = document.getElementById('latest-run-container')
-            const show_run = new ShowRun(latest_run_container, run)
+            const show_run = new ShowRun(latest_run_container, run, 500)
         })
 
         idx_promise.then(() => {
