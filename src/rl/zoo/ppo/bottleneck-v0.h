@@ -14,7 +14,7 @@ namespace rl_tools::rl::zoo::ppo{
     template <typename DEVICE, typename T, typename TI, typename RNG>
     struct BottleneckV0{
         struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::multi_agent::bottleneck::DefaultParameters<T, TI>{
-            static constexpr TI N_AGENTS = 1;
+            static constexpr TI N_AGENTS = 2;
             static constexpr TI LIDAR_RESOLUTION = 3;
             static constexpr T BOTTLENECK_WIDTH = 5;
             static constexpr TI EPISODE_STEP_LIMIT = 200;
