@@ -14,7 +14,7 @@ namespace rl_tools::rl::zoo::ppo{
     template <typename DEVICE, typename T, typename TI, typename RNG>
     struct BottleneckV0{
         struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::multi_agent::bottleneck::DefaultParameters<T, TI>{
-            static constexpr TI N_AGENTS = 10;
+            static constexpr TI N_AGENTS = 1;
             static constexpr T BOTTLENECK_WIDTH = 5;
         };
         using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
@@ -27,8 +27,8 @@ namespace rl_tools::rl::zoo::ppo{
             };
             static constexpr TI STEP_LIMIT = 1000; // 1024 * 4 * 74 ~ 300k steps
 
-            static constexpr TI ACTOR_HIDDEN_DIM = 256;
-            static constexpr TI CRITIC_HIDDEN_DIM = 256;
+            static constexpr TI ACTOR_HIDDEN_DIM = 64;
+            static constexpr TI CRITIC_HIDDEN_DIM = 64;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             static constexpr TI N_ENVIRONMENTS = 64;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
