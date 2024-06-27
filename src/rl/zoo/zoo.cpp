@@ -1,4 +1,4 @@
-#define RL_TOOLS_NAMESPACE_WRAPPER zoo
+//#define RL_TOOLS_NAMESPACE_WRAPPER zoo
 #define RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
 
 #include <rl_tools/operations/cpu_mux.h>

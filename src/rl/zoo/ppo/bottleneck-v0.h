@@ -14,7 +14,7 @@ namespace rl_tools::rl::zoo::ppo{
     template <typename DEVICE, typename T, typename TI, typename RNG>
     struct BottleneckV0{
         struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::multi_agent::bottleneck::DefaultParameters<T, TI>{
-            static constexpr TI N_AGENTS = 5;
+            static constexpr TI N_AGENTS = 1;
             static constexpr TI LIDAR_RESOLUTION = 3;
             static constexpr T BOTTLENECK_WIDTH = 5;
             static constexpr TI EPISODE_STEP_LIMIT = 200;
@@ -26,12 +26,12 @@ namespace rl_tools::rl::zoo::ppo{
         using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct PPO_PARAMETERS: rl::algorithms::ppo::DefaultParameters<T, TI>{
-                static constexpr T GAMMA = 0.98;
+                static constexpr T GAMMA = 0.99;
                 static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.01;
                 static constexpr TI N_EPOCHS = 2;
-                static constexpr bool ADAPTIVE_LEARNING_RATE = true;
+//                static constexpr bool ADAPTIVE_LEARNING_RATE = true;
             };
-            static constexpr TI STEP_LIMIT = 5000; // 1024 * 4 * 74 ~ 300k steps
+            static constexpr TI STEP_LIMIT = 500; // 1024 * 4 * 74 ~ 300k steps
 
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
