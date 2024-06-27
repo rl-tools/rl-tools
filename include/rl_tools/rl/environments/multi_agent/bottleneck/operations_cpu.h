@@ -79,6 +79,31 @@ namespace rl_tools{
     const scaleX = canvasWidth / parameters.ARENA_WIDTH;
     const scaleY = canvasHeight / parameters.ARENA_HEIGHT;
     console.assert(scaleX == scaleY);
+
+
+    // Draw large, gray arrow in the background
+    const arrowStartX = canvasWidth / 5;
+    const arrowEndX = 4 * canvasWidth / 5;
+    const arrowY = canvasHeight / 2;
+    const arrowThickness = canvasHeight / 10;
+    const arrowHeadLength = arrowThickness * 2.0;
+    const arrowHeadWidth = arrowThickness * 3;
+    const arrowColor = '#f3f3f3'
+    ctx.beginPath();
+    ctx.moveTo(arrowStartX, arrowY);
+    ctx.lineTo(arrowEndX - arrowHeadLength, arrowY);
+    ctx.strokeStyle = arrowColor;
+    ctx.lineWidth = arrowThickness;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(arrowEndX, arrowY);
+    ctx.lineTo(arrowEndX - arrowHeadLength, arrowY - arrowHeadWidth / 2);
+    ctx.lineTo(arrowEndX - arrowHeadLength, arrowY + arrowHeadWidth / 2);
+    ctx.closePath();
+    ctx.fillStyle = arrowColor;
+    ctx.fill();
+
+
     // Draw the bottleneck barrier
     const barrierX = (parameters.ARENA_WIDTH / 2 - parameters.BARRIER_WIDTH / 2) * scaleX;
     const barrierWidth = parameters.BARRIER_WIDTH * scaleX;
