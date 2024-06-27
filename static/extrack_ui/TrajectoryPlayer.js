@@ -64,12 +64,19 @@ export class TrajectoryPlayer{
         skip_button.innerHTML = "Next Episode";
         this.controls_container.appendChild(skip_button);
 
-
-        const dt = trajectoryData[0].trajectory[0].dt;
-        const step = () => {
+        const onResize = () => {
             const size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
             this.canvas.width = size;
             this.canvas.height = size;
+        }
+        onResize();
+        window.addEventListener('resize', onResize);
+
+        const dt = trajectoryData[0].trajectory[0].dt;
+        const step = () => {
+            // const size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
+            // this.canvas.width = size;
+            // this.canvas.height = size;
             const ctx = this.canvas.getContext('2d');
             if(this.options["verbose"]){
                 episode_info.innerHTML = `Path: ${path}</br>`;
