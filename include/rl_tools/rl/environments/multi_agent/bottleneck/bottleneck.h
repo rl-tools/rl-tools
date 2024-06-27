@@ -27,13 +27,15 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         static constexpr T BOTTLENECK_POSITION = 10; // y
         static constexpr T BOTTLENECK_WIDTH = 2;
         static constexpr T BARRIER_WIDTH = 0.5;
+        static constexpr TI EPISODE_STEP_LIMIT = 200;
+        static constexpr bool SPAWN_BOTH_SIDES = false;
     };
     template <typename T_PARAMETERS>
     struct Observation{
         using PARAMETERS = T_PARAMETERS;
         using T = typename PARAMETERS::T;
         using TI = typename PARAMETERS::TI;
-        static constexpr TI PER_AGENT_DIM = 6 + PARAMETERS::LIDAR_RESOLUTION;
+        static constexpr TI PER_AGENT_DIM = 7 + PARAMETERS::LIDAR_RESOLUTION;
         static constexpr TI DIM = PARAMETERS::N_AGENTS * PER_AGENT_DIM;
     };
     template <typename T_PARAMETERS>
@@ -41,7 +43,8 @@ namespace rl_tools::rl::environments::multi_agent::bottleneck {
         using PARAMETERS = T_PARAMETERS;
         using T = typename PARAMETERS::T;
         using TI = typename PARAMETERS::TI;
-        static constexpr TI DIM = PARAMETERS::N_AGENTS * 6;
+        static constexpr TI PER_AGENT_DIM = 7 + PARAMETERS::LIDAR_RESOLUTION;
+        static constexpr TI DIM = PARAMETERS::N_AGENTS * PER_AGENT_DIM;
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T, T_TI>, typename T_OBSERVATION = Observation<T_PARAMETERS>, typename T_OBSERVATION_PRIVILEGED = ObservationPrivileged<T_PARAMETERS>>
     struct Specification{
@@ -93,7 +96,7 @@ namespace rl_tools::rl::environments::multi_agent{
         static constexpr TI N_AGENTS = Parameters::N_AGENTS;
         static constexpr TI PER_AGENT_ACTION_DIM = 2; // linear and angular acceleration
         static constexpr TI ACTION_DIM = N_AGENTS * PER_AGENT_ACTION_DIM;
-        static constexpr TI EPISODE_STEP_LIMIT = 200;
+        static constexpr TI EPISODE_STEP_LIMIT = Parameters::EPISODE_STEP_LIMIT;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -33,7 +33,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     bool is_nan(DEVICE& device, const nn::parameters::Adam::instance<SPEC>& p){
         bool param_nan = is_nan(device, (nn::parameters::Gradient::instance<SPEC>&) p);
-        return param_nan | is_nan(device, p.gradient_first_order_moment) | is_nan(device, p.gradient_second_order_moment);
+        return param_nan || is_nan(device, p.gradient_first_order_moment) || is_nan(device, p.gradient_second_order_moment);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

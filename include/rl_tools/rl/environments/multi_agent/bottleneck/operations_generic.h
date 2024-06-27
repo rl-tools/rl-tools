@@ -195,7 +195,7 @@ namespace rl_tools{
                             auto &other_agent_next_state = state.agent_states[other_agent_i];
                             auto intersection = rl::environments::multi_agent::bottleneck::intersects(device, env, parameters, other_agent_next_state, ray);
                             if(intersection.intersects && intersection.distance >= 0){
-                                if(!min_intersection.intersects || min_intersection.distance > intersection.distance){
+                                if(!min_intersection.intersects || (intersection.intersects && min_intersection.distance > intersection.distance)){
                                     min_intersection = intersection;
                                 }
                             }
@@ -213,12 +213,12 @@ namespace rl_tools{
                     auto intersection_upper = rl::environments::multi_agent::bottleneck::intersects(device, center_wall_upper, ray);
                     auto intersection_lower = rl::environments::multi_agent::bottleneck::intersects(device, center_wall_lower, ray);
                     if(intersection_upper.intersects && intersection_upper.distance >= 0){
-                        if(!min_intersection.intersects || min_intersection.distance > intersection_upper.distance){
+                        if(!min_intersection.intersects || (intersection_upper.intersects && min_intersection.distance > intersection_upper.distance)){
                             min_intersection = intersection_upper;
                         }
                     }
                     if(intersection_lower.intersects && intersection_lower.distance >= 0){
-                        if(!min_intersection.intersects || min_intersection.distance > intersection_lower.distance){
+                        if(!min_intersection.intersects || (intersection_lower.intersects && min_intersection.distance > intersection_lower.distance)){
                             min_intersection = intersection_lower;
                         }
                     }
@@ -229,7 +229,7 @@ namespace rl_tools{
                     arena.max[1] = SPEC::PARAMETERS::ARENA_HEIGHT;
                     auto intersection_arena = rl::environments::multi_agent::bottleneck::intersects(device, arena, ray);
                     if(intersection_arena.intersects && intersection_arena.distance >= 0){
-                        if(!min_intersection.intersects || min_intersection.distance > intersection_arena.distance){
+                        if(!min_intersection.intersects || (intersection_arena.intersects && min_intersection.distance > intersection_arena.distance)){
                             min_intersection = intersection_arena;
                         }
                     }
@@ -253,7 +253,14 @@ namespace rl_tools{
                 bool illegal = true;
                 agent_state.dead = false;
                 for(TI try_i = 0; try_i < 100; try_i++){
-                    agent_state.position[0] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_WIDTH / 2 - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
+                    if(SPEC::PARAMETERS::SPAWN_BOTH_SIDES && random::uniform_real_distribution(device.random, (T)0, (T)1, rng) > 0.5){
+                        // spawn on the right
+                        agent_state.position[0] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::ARENA_WIDTH / 2 + SPEC::PARAMETERS::BOTTLENECK_WIDTH / 2 + SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_WIDTH - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
+                    }
+                    else{
+                        // spawn on the left
+                        agent_state.position[0] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_WIDTH / 2 - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
+                    }
                     agent_state.position[1] = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::AGENT_DIAMETER, SPEC::PARAMETERS::ARENA_HEIGHT - SPEC::PARAMETERS::AGENT_DIAMETER, rng);
                     agent_state.orientation = random::uniform_real_distribution(device.random, -math::PI<T>, math::PI<T>, rng);
                     agent_state.velocity[0] = 0;
@@ -390,13 +397,18 @@ namespace rl_tools{
         T acc = 0;
         for(TI agent_i = 0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++){
             auto& agent_state = state.agent_states[agent_i];
-            acc += agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH/2 ? RIGHT_SIDE_REWARD : 0.0;
-            acc -= agent_state.angular_velocity * agent_state.angular_velocity * 0.001;
+            if(agent_state.dead){
+                acc = -RIGHT_SIDE_REWARD/10;
+            }
+            else{
+                acc += agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH/2 ? RIGHT_SIDE_REWARD : -RIGHT_SIDE_REWARD/10;
+                acc -= agent_state.angular_velocity * agent_state.angular_velocity * 0.001;
+            }
         }
 #ifdef RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
         utils::assert_exit(device, !math::is_nan(device.math, acc), "reward is nan");
 #endif
-        return acc;
+        return acc * 10;
     }
 //    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename REWARD_SPEC, typename RNG>
 //    RL_TOOLS_FUNCTION_PLACEMENT void reward(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, Matrix<REWARD_SPEC>& reward, RNG& rng){
@@ -416,11 +428,12 @@ namespace rl_tools{
             set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 0, agent_state.position[0]);
             set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 1, agent_state.position[1]);
             set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 2, agent_state.orientation);
-            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 3, agent_state.velocity[0]);
-            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 4, agent_state.velocity[1]);
-            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 5, agent_state.angular_velocity);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 3, agent_state.dead ? 0 : agent_state.velocity[0]);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 4, agent_state.dead ? 0 : agent_state.velocity[1]);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 5, agent_state.dead ? 0 : agent_state.angular_velocity);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 6, agent_state.dead ? -1 : 1);
             for(TI lidar_i = 0; lidar_i < SPEC::PARAMETERS::LIDAR_RESOLUTION; lidar_i++){
-                set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 6 + lidar_i, agent_state.lidar[lidar_i].distance);
+                set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 7 + lidar_i, agent_state.dead ? 0 : agent_state.lidar[lidar_i].distance);
             }
         }
 #ifdef RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
@@ -429,20 +442,24 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC, typename OBS_SPEC, typename OBS_PARAMETERS, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void observe(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const rl::environments::multi_agent::bottleneck::ObservationPrivileged<OBS_PARAMETERS>&, Matrix<OBS_SPEC>& observation, RNG& rng){
-        using OBS = rl::environments::multi_agent::bottleneck::ObservationPrivileged<OBS_PARAMETERS>;
+        using OBS = rl::environments::multi_agent::bottleneck::Observation<OBS_PARAMETERS>;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == OBS::DIM);
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
+        constexpr TI PER_AGENT_OBS_DIM = OBS::PER_AGENT_DIM;
         for(TI agent_i = 0; agent_i < SPEC::PARAMETERS::N_AGENTS; agent_i++){
-            TI agent_offset = agent_i * 6;
             auto& agent_state = state.agent_states[agent_i];
-            set(observation, 0, agent_offset + 0, agent_state.position[0]);
-            set(observation, 0, agent_offset + 1, agent_state.position[1]);
-            set(observation, 0, agent_offset + 2, agent_state.orientation);
-            set(observation, 0, agent_offset + 3, agent_state.velocity[0]);
-            set(observation, 0, agent_offset + 4, agent_state.velocity[1]);
-            set(observation, 0, agent_offset + 5, agent_state.angular_velocity);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 0, agent_state.position[0]);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 1, agent_state.position[1]);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 2, agent_state.orientation);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 3, agent_state.dead ? 0 : agent_state.velocity[0]);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 4, agent_state.dead ? 0 : agent_state.velocity[1]);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 5, agent_state.dead ? 0 : agent_state.angular_velocity);
+            set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 6, agent_state.dead ? -1 : 1);
+            for(TI lidar_i = 0; lidar_i < SPEC::PARAMETERS::LIDAR_RESOLUTION; lidar_i++){
+                set(observation, 0, agent_i * PER_AGENT_OBS_DIM + 7 + lidar_i, agent_state.dead ? 0 : agent_state.lidar[lidar_i].distance);
+            }
         }
 #ifdef RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
         utils::assert_exit(device, !is_nan(device, observation), "ObservationPrivileged is nan");

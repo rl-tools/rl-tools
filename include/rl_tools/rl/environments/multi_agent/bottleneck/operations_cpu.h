@@ -126,6 +126,30 @@ namespace rl_tools{
         ctx.fillStyle = agent.dead ? 'grey' : primaryColor;
         ctx.fill();
 
+        // Draw the agent ID
+        const labelPosX = posX - agentRadius / 2 * Math.cos(orientation);
+        const labelPosY = posY - agentRadius / 2 * Math.sin(orientation);
+        ctx.save();
+        ctx.translate(labelPosX, labelPosY);
+        ctx.rotate(orientation + Math.PI / 2);
+        const agentID = i.toString();
+        const fontSize = 0.5 * agentRadius;
+        ctx.font = `${fontSize}px Arial`;
+        const textMetrics = ctx.measureText(agentID);
+        const textWidth = textMetrics.width;
+        const textHeight = fontSize;
+        const circleRadius = Math.max(textWidth, textHeight) * 0.6;
+        ctx.beginPath();
+        ctx.arc(0, 0, circleRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const textYOffset = fontSize * 0.1;
+        ctx.fillText(agentID, 0, textYOffset);
+        ctx.restore();
+
         // Draw agent orientation
         const endX = posX + agentRadius * Math.cos(orientation);
         const endY = posY + agentRadius * Math.sin(orientation);

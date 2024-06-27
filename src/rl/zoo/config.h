@@ -38,7 +38,7 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #error "RLtools Zoo: Algorithm not defined"
 #endif
 
-constexpr TI NUM_CHECKPOINTS = 100;
+constexpr TI NUM_CHECKPOINTS = 10;
 constexpr TI NUM_EVALUATIONS = 100;
 constexpr TI NUM_SAVE_TRAJECTORIES = 10;
 using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_CORE_CONFIG>;

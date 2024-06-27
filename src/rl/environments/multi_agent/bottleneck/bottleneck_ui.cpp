@@ -11,7 +11,7 @@ using T = float;
 
 struct ENVIRONMENT_PARAMETERS: rlt::rl::environments::multi_agent::bottleneck::DefaultParameters<T, TI>{
     static constexpr T DT = 1/60.0;
-    static constexpr TI N_AGENTS = 10;
+    static constexpr TI N_AGENTS = 11;
     static constexpr T BOTTLENECK_WIDTH = 5;
 };
 using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
