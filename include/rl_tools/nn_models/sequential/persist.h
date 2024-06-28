@@ -11,16 +11,16 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-        template<typename DEVICE, typename SPEC>
-        void save(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, HighFive::Group group, typename DEVICE::index_t layer_i = 0) {
-            if(layer_i == 0){
-                group = group.createGroup("layers");
-            }
-            save(device, model.content, group.createGroup(std::to_string(layer_i)));
-            if constexpr (!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-                save(device, model.next_module, group, layer_i + 1);
-            }
+    template<typename DEVICE, typename SPEC>
+    void save(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, HighFive::Group group, typename DEVICE::index_t layer_i = 0) {
+        if(layer_i == 0){
+            group = group.createGroup("layers");
         }
+        save(device, model.content, group.createGroup(std::to_string(layer_i)));
+        if constexpr (!utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+            save(device, model.next_module, group, layer_i + 1);
+        }
+    }
     template<typename DEVICE, typename SPEC>
     void load(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, HighFive::Group group, typename DEVICE::index_t layer_i = 0) {
         if(layer_i == 0){

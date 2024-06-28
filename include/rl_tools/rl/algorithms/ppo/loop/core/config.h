@@ -5,6 +5,7 @@
 
 #include "../../../../../nn_models/sequential/model.h"
 #include "../../../../../nn_models/mlp_unconditional_stddev/network.h"
+#include "../../../../../nn_models/multi_agent_wrapper/model.h"
 #include "../../../../../rl/algorithms/ppo/ppo.h"
 #include "../../../../../rl/components/on_policy_runner/on_policy_runner.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
@@ -53,6 +54,43 @@ namespace rl_tools{
                 using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::Observation::DIM>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
                 using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
+            };
+            template <typename CAPABILITY>
+            struct Critic{
+                using SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY>;
+                using TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<SPEC>;
+                using IF = nn_models::sequential::Interface<CAPABILITY>;
+                using CRITIC_MODULE = typename IF::template Module<TYPE::template NeuralNetwork>;
+                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM>;
+                using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
+                using MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, CRITIC_MODULE>;
+            };
+
+            using ACTOR_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+            using CRITIC_OPTIMIZER_SPEC = nn::optimizers::adam::Specification<T, TI>;
+            using ACTOR_OPTIMIZER = nn::optimizers::Adam<ACTOR_OPTIMIZER_SPEC>;
+            using CRITIC_OPTIMIZER = nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
+            using CAPABILITY_ADAM = nn::layer_capability::Gradient<nn::parameters::Adam, PARAMETERS::BATCH_SIZE>;
+            using ACTOR_TYPE = typename Actor<CAPABILITY_ADAM>::MODEL;
+            using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
+        };
+
+        template<typename T, typename TI, typename ENVIRONMENT, typename PARAMETERS>
+        struct ConfigApproximatorsSequentialMultiAgent{
+            template <typename CAPABILITY>
+            struct Actor{
+                static constexpr TI N_AGENTS = 1; //ENVIRONMENT::N_AGENTS;
+                static_assert(ENVIRONMENT::Observation::DIM % N_AGENTS == 0);
+                static_assert(ENVIRONMENT::ACTION_DIM % N_AGENTS == 0);
+                using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM/N_AGENTS, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
+                using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
+                using IF = nn_models::sequential::Interface<CAPABILITY>;
+                using ACTOR_MODULE = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
+                using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::Observation::DIM/N_AGENTS>;
+                using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
+                using INNER_MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
+                using WRAPPER_SPEC = nn_models::multi_agent_wrapper::Specification<T, TI, N_AGENTS, INNER_MODEL>;
+                using MODEL = nn_models::multi_agent_wrapper::Module<CAPABILITY, WRAPPER_SPEC>;
             };
             template <typename CAPABILITY>
             struct Critic{

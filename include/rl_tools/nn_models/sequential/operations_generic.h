@@ -35,7 +35,7 @@ namespace rl_tools{
     template <typename DEVICE, typename BUFFER_SPEC>
     void free(DEVICE& device, nn_models::sequential::ContentBuffer<BUFFER_SPEC>& content_buffer){
         using namespace nn_models::sequential;
-        free(device, content_buffer.content_buffer);
+        free(device, content_buffer.buffer);
         if constexpr(!utils::typing::is_same_v<typename BUFFER_SPEC::NEXT_SPEC, OutputModule>){
             free(device, content_buffer.next_content_buffer);
         }
@@ -58,6 +58,7 @@ namespace rl_tools{
     void free(DEVICE& device, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers){
         free(device, buffers.tick);
         free(device, buffers.tock);
+        free(device, buffers.content_buffer);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC>
     void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, nn_models::sequential::ModuleBuffer<SOURCE_BUFFER_SPEC>& source, nn_models::sequential::ModuleBuffer<TARGET_BUFFER_SPEC>& target){
