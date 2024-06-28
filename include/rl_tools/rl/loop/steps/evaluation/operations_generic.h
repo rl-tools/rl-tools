@@ -47,7 +47,7 @@ namespace rl_tools{
             if(ts.step % PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < PARAMETERS::N_EVALUATIONS){
                 auto& result = ts.evaluation_results[evaluation_index];
                 evaluate(device, ts.env_eval, ts.ui, get_actor(ts), result, ts.actor_deterministic_evaluation_buffers, ts.rng_eval, false);
-                log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean);
+                log(device, device.logger, "Step: ", ts.step, "/", CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
                 add_scalar(device, device.logger, "evaluation/return/mean", result.returns_mean);
                 add_scalar(device, device.logger, "evaluation/return/std", result.returns_std);
                 add_scalar(device, device.logger, "evaluation/episode_length/mean", result.episode_length_mean);

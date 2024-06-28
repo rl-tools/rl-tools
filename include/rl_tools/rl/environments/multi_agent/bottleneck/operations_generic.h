@@ -395,20 +395,25 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         constexpr T RIGHT_SIDE_REWARD = 0.01;
         T acc = 0;
+        T death_penalty = 0;
         for(TI agent_i = 0; agent_i < ENV::PARAMETERS::N_AGENTS; agent_i++){
-            auto& agent_state = state.agent_states[agent_i];
+            auto& agent_state = next_state.agent_states[agent_i];
+            T current_reward = 0;
             if(agent_state.dead){
-//                acc = -RIGHT_SIDE_REWARD/10;
+                if(!state.agent_states[agent_i].dead){
+                    death_penalty += -1; // one-time death penalty
+                }
             }
             else{
-                acc += agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH/2 ? RIGHT_SIDE_REWARD : 0;
-//                acc -= agent_state.angular_velocity * agent_state.angular_velocity * 0.001;
+                current_reward += agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH/2 ? RIGHT_SIDE_REWARD : 0;
+                current_reward -= agent_state.angular_velocity * agent_state.angular_velocity * 0.001;
             }
+            acc += math::max(device.math, (T)0, current_reward);
         }
 #ifdef RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN
         utils::assert_exit(device, !math::is_nan(device.math, acc), "reward is nan");
 #endif
-        return acc * 10;
+        return death_penalty + math::max(device.math, (T)0, acc * 10);
     }
 //    template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename REWARD_SPEC, typename RNG>
 //    RL_TOOLS_FUNCTION_PLACEMENT void reward(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::multi_agent::Bottleneck<SPEC>::State& next_state, Matrix<REWARD_SPEC>& reward, RNG& rng){
