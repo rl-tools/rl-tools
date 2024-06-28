@@ -26,6 +26,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     std::string get_ui(DEVICE& device, rl::environments::Pendulum<SPEC>& env){
         // just the body of `function render(ctx, state, action) {` (so that it can be easily processed by `new Function("ctx", "state", "action", body)`
+        // Please have a look at https://studio.rl.tools which helps you create render functions interactively
         std::string ui = R"RL_TOOLS_LITERAL(
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
