@@ -19,6 +19,14 @@ namespace rl_tools{
     void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c, const D d, const E e){ }
     template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F>
     void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c, const D d, const E e, const F f){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G>
+    void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
+    void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
+    void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i){ }
+    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
+    void log(DEVICE& device, devices::logging::ARM& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i, const J j){ }
     template <typename DEVICE>
     void set_step(DEVICE& device, devices::logging::ARM& logger, typename DEVICE::index_t step){ /* noop */ }
     template <typename DEVICE, typename ARG_1, typename ARG_2>

@@ -60,7 +60,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments{
 
     template <typename T_SPEC>
-    struct Acrobot: Environment{
+    struct Acrobot: Environment<typename T_SPEC::T, typename T_SPEC::TI> {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

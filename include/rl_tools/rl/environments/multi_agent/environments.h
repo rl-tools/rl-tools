@@ -6,7 +6,8 @@
 #include "../environments.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multi_agent{
-    struct Environment: rl_tools::rl::environments::Environment{
+    template <typename T, typename TI>
+    struct Environment: rl_tools::rl::environments::Environment<T, TI>{
 
     };
     struct DummyUI{};

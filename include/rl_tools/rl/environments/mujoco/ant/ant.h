@@ -50,7 +50,7 @@ namespace rl_tools::rl::environments::mujoco{
         };
     }
     template <typename T_SPEC>
-    struct Ant: Environment{
+    struct Ant: Environment<typename T_SPEC::T, typename T_SPEC::TI>{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         static_assert(rl_tools::utils::typing::is_same_v<T, mjtNum>);

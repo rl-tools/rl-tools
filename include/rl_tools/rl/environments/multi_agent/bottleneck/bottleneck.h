@@ -84,7 +84,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multi_agent{
     template <typename T_SPEC>
-    struct Bottleneck: Environment{
+    struct Bottleneck: Environment<typename T_SPEC::T, typename T_SPEC::TI>{
         using SPEC = T_SPEC;
         using PARAMETERS = typename SPEC::PARAMETERS;
         using T = typename SPEC::T;
