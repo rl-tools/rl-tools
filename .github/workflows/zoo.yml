@@ -114,7 +114,7 @@ jobs:
       - name: Generate Index
         working-directory: ${{ github.workspace }}/tools
         run: | 
-          ./index_experiments_static.sh
+          ./index_experiments_static.sh ../experiments
       - name: Generate a token
         id: generate-token
         uses: actions/create-github-app-token@v1
