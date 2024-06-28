@@ -16,8 +16,10 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
     struct Specification{
         using T = T_T;
         using TI = T_TI;
-        static constexpr T_TI N_AGENTS = T_N_AGENTS;
         using MODULE = T_MODULE;
+        static constexpr TI N_AGENTS = T_N_AGENTS;
+        static constexpr TI INPUT_DIM = MODULE::INPUT_DIM * N_AGENTS;
+        static constexpr TI OUTPUT_DIM = MODULE::OUTPUT_DIM * N_AGENTS;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
     template <typename T_CAPABILITY, typename T_SPEC>
@@ -31,6 +33,7 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+        using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
 
     template<typename T_BUFFER_SPEC>
@@ -41,6 +44,14 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
         static constexpr TI INNER_BATCH_SIZE = BATCH_SIZE * SPEC::N_AGENTS;
+
+        using INPUT_BUFFER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::INPUT_DIM>;
+        using INPUT_BUFFER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<INPUT_BUFFER_SPEC>;
+        using OUTPUT_BUFFER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM>;
+        using OUTPUT_BUFFER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_BUFFER_SPEC>;
+        INPUT_BUFFER_TYPE input_buffer;
+        OUTPUT_BUFFER_TYPE output_buffer;
+
         typename SPEC::MODULE::template Buffer<INNER_BATCH_SIZE> buffer;
     };
 
@@ -50,9 +61,8 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using MODULE = typename SPEC::MODULE;
-        static constexpr TI N_AGENTS = SPEC::N_AGENTS;
-        static constexpr TI INPUT_DIM = MODULE::INPUT_DIM * N_AGENTS;
-        static constexpr TI OUTPUT_DIM = MODULE::OUTPUT_DIM * N_AGENTS;
+        static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
+        static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
         MODULE content;
         template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Buffer = ModuleBuffer<ModuleBuffersSpecification<SPEC, BUFFER_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;

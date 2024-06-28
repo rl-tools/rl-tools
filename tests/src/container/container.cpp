@@ -473,3 +473,35 @@ TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_OPENBLAS) {
     ASSERT_TRUE(diff < 1e-6);
 }
 #endif
+
+TEST(RL_TOOLS_TEST_CONTAINER, RESHAPE) {
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = float;
+    using TI = DEVICE::index_t;
+    rlt::MatrixStatic<rlt::matrix::Specification<T, TI, 10, 6>> m;
+    using M = decltype(m);
+    DEVICE device;
+    auto rng = rlt::random::default_engine(device.random, 0);
+    rlt::randn(device, m, rng);
+
+    rlt::print(device, m);
+    std::cout << "Before: " << std::endl;
+    std::cout << "Shape: " << M::SPEC::ROWS << " x " << M::SPEC::COLS << std::endl;
+    std::cout << "Pitch: " << M::SPEC::ROW_PITCH << " x " << M::SPEC::COL_PITCH << std::endl;
+
+    auto reshaped = rlt::reshape<20, 3>(device, m);
+    using R = decltype(reshaped);
+    std::cout << "After: " << std::endl;
+    std::cout << "Shape: " << R::SPEC::ROWS << " x " << R::SPEC::COLS << std::endl;
+    std::cout << "Pitch: " << R::SPEC::ROW_PITCH << " x " << R::SPEC::COL_PITCH << std::endl;
+    rlt::print(device, reshaped);
+
+    for(TI row_i = 0; row_i < M::SPEC::ROWS; row_i++){
+        for(TI col_i = 0; col_i < M::SPEC::COLS; col_i++){
+            TI new_row = (row_i * M::SPEC::COLS + col_i) / R::SPEC::COLS;
+            TI new_col = (row_i * M::SPEC::COLS + col_i) % R::SPEC::COLS;
+            ASSERT_FLOAT_EQ(rlt::get(m, row_i, col_i), rlt::get(reshaped, new_row, new_col));
+        }
+    }
+
+}

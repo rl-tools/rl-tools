@@ -205,6 +205,17 @@ namespace rl_tools{
             return math::min(dev, a, c);
         }
     }
+    template<auto ROWS, auto COLS, typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT auto reshape(DEVICE& device, Matrix<SPEC>& target){
+        static_assert(SPEC::COL_PITCH == 1 || SPEC::ROW_PITCH == 1, "reshape: only contiguous matrices can be reshaped");
+        static_assert((SPEC::COL_PITCH == 1 && SPEC::ROW_PITCH == SPEC::COLS) || (SPEC::ROW_PITCH == 1 && SPEC::COL_PITCH == SPEC::ROWS), "reshape: only contiguous matrices can be reshaped");
+        static_assert(SPEC::ROWS * SPEC::COLS == ROWS * COLS, "reshape: new size must match old size");
+        using TI = typename SPEC::TI;
+        using Layout = matrix::layouts::Fixed<TI, SPEC::COL_PITCH == 1 ? COLS : 1, SPEC::COL_PITCH == 1 ? 1 : ROWS>;
+        Matrix<matrix::Specification<typename SPEC::T, typename SPEC::TI, ROWS, COLS, Layout>> out;
+        out._data = target._data;
+        return out;
+    }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto view_transpose(DEVICE& device, Matrix<SPEC>& target){
 //        static_assert(SPEC::ROWS == SPEC::COLS);

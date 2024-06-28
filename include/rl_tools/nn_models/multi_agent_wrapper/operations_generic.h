@@ -18,10 +18,14 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename BUFFER_SPEC>
     void malloc(DEVICE& device, nn_models::multi_agent_wrapper::ModuleBuffer<BUFFER_SPEC>& buffer){
+        malloc(device, buffer.input_buffer);
+        malloc(device, buffer.output_buffer);
         malloc(device, buffer.buffer);
     }
     template <typename DEVICE, typename BUFFER_SPEC>
     void free(DEVICE& device, nn_models::multi_agent_wrapper::ModuleBuffer<BUFFER_SPEC>& buffer){
+        free(device, buffer.input_buffer);
+        free(device, buffer.output_buffer);
         free(device, buffer.buffer);
     }
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_BUFFER_SPEC, typename TARGET_BUFFER_SPEC>
@@ -61,7 +65,9 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void evaluate(DEVICE& device, const nn_models::multi_agent_wrapper::ModuleForward<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::multi_agent_wrapper::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        evaluate(device, model.content, input, output, buffers.buffer, rng, mode);
+        copy(device, device, input, buffers.input_buffer);
+        evaluate(device, model.content, input, buffers.output_buffer, buffers.buffer, rng, mode);
+        copy(device, device, buffers.output_buffer, output);
     }
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn_models::multi_agent_wrapper::ModuleGradient<MODULE_SPEC>& module, INPUT& input, nn_models::multi_agent_wrapper::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
