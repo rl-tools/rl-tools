@@ -18,19 +18,19 @@ namespace rl_tools::rl::zoo::ppo{
             static constexpr TI LIDAR_RESOLUTION = 5;
             static constexpr T LIDAR_FOV = math::PI<T> * 90/180; // in radians (0 to PI)
             static constexpr T BOTTLENECK_WIDTH = 5;
-            static constexpr TI EPISODE_STEP_LIMIT = 300;
+            static constexpr TI EPISODE_STEP_LIMIT = 600;
             static constexpr bool SPAWN_BOTH_SIDES = false;
             static constexpr T AGENT_MAX_SPEED = 4;
             static constexpr T AGENT_MAX_ANGULAR_VELOCITY = 4;
             static constexpr T AGENT_MAX_ACCELERATION = 20;
             static constexpr T AGENT_MAX_ANGULAR_ACCELERATION = 20;
-            static constexpr T DT = 0.10;
+            static constexpr T DT = 0.05;
         };
         using ENVIRONMENT_SPEC = rlt::rl::environments::multi_agent::bottleneck::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
         using ENVIRONMENT = rlt::rl::environments::multi_agent::Bottleneck<ENVIRONMENT_SPEC>;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct PPO_PARAMETERS: rl::algorithms::ppo::DefaultParameters<T, TI>{
-                static constexpr T GAMMA = 0.99;
+                static constexpr T GAMMA = 0.995;
                 static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.0001;
                 static constexpr TI N_EPOCHS = 2;
 //                static constexpr bool ADAPTIVE_LEARNING_RATE = true;
@@ -45,7 +45,7 @@ namespace rl_tools::rl::zoo::ppo{
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             static constexpr TI N_ENVIRONMENTS = 128;
-            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 256;
+            static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 512;
             static constexpr TI BATCH_SIZE = 1024*2;
             struct OPTIMIZER_PARAMETERS: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
                 static constexpr T ALPHA = 0.1e-4;
