@@ -8,10 +8,6 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename T, typename TI>
-    void malloc(DEVICE&, rl::environments::Environment<T, TI>&){};
-    template <typename DEVICE, typename T, typename TI, typename PARAMS>
-    void init(DEVICE&, rl::environments::Environment<T, TI>&, PARAMS&){};
     template <typename DEVICE, typename ENV, typename PARAMS>
     void init(DEVICE&, ENV&, PARAMS&, rl::environments::DummyUI){};
     template <typename DEVICE, typename ENV, typename PARAMS>
@@ -24,8 +20,6 @@ namespace rl_tools{
     void set_action(DEVICE&, ENV&, PARAMS&, rl::environments::DummyUI, ACTION&){};
     template <typename DEVICE, typename ENV>
     auto get_ui(DEVICE&, ENV&){return "";}
-    template <typename DEVICE, typename T, typename TI>
-    void free(DEVICE&, rl::environments::Environment<T, TI>&){};
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

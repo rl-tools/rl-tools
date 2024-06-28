@@ -34,6 +34,12 @@ namespace rl_tools{
         env.initialized = true;
     }
     template<typename DEVICE, typename SPEC>
+    static void malloc(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
+    template<typename DEVICE, typename SPEC>
+    static void free(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
+    template<typename DEVICE, typename SPEC>
+    static void init(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters){ }
+    template<typename DEVICE, typename SPEC>
     static void initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters){ }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, RNG& rng){ }

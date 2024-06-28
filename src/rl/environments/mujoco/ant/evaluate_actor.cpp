@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
     rlt::malloc(dev, observation);
     rlt::malloc(dev, observation_normalizer);
 
-    rlt::init(dev, env, ui);
+    rlt::init(dev, env, env_parameters, ui);
     rlt::init(dev, observation_normalizer);
     DEVICE::index_t episode_i = 0;
     while(true){
