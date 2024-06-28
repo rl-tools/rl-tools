@@ -1,3 +1,3 @@
 set -e
-bash -c "cd tools && watch -n10 ./index_experiments_static.sh" &
+watch -n10 ./tools/index_experiments_static.sh experiments &
 python3 -m http.server $@
