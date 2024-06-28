@@ -78,16 +78,16 @@ namespace rl_tools{
     bool step(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         using CONFIG = T_CONFIG;
         using TI = typename DEVICE::index_t;
+        using OBS_SPEC = decltype(ts.on_policy_runner_dataset.observations);
+        constexpr TI N_AGENTS = T_CONFIG::ENVIRONMENT::N_AGENTS;
         set_step(device, device.logger, ts.step);
         bool finished = false;
 
+        auto per_agent_observations = reshape<OBS_SPEC::ROWS*N_AGENTS, OBS_SPEC::COLS/N_AGENTS>(device, ts.observations_dense);
         if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && ts.step == 0){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
                 collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
-                using OBS_SPEC = decltype(ts.on_policy_runner_dataset.observations);
-                constexpr TI N_AGENTS = T_CONFIG::ENVIRONMENT::N_AGENTS;
                 copy(device, device, ts.on_policy_runner_dataset.observations, ts.observations_dense);
-                auto per_agent_observations = reshape<OBS_SPEC::ROWS*N_AGENTS, OBS_SPEC::COLS/N_AGENTS>(device, ts.observations_dense);
                 update(device, ts.observation_normalizer, per_agent_observations);
                 update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
             }
@@ -96,17 +96,25 @@ namespace rl_tools{
             std::cout << "Observation std: " << std::endl;
             print(device, ts.observation_normalizer.std);
             init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
-            set_statistics(device, ts.ppo.actor.content.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            if constexpr(N_AGENTS == 1){
+                set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            }
+            else{
+                set_statistics(device, ts.ppo.actor.content.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            }
             set_statistics(device, ts.ppo.critic.content, ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }
         collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
         if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
-            using OBS_SPEC = decltype(ts.on_policy_runner_dataset.observations);
-            constexpr TI N_AGENTS = T_CONFIG::ENVIRONMENT::N_AGENTS;
             copy(device, device, ts.on_policy_runner_dataset.observations, ts.observations_dense);
-            auto per_agent_observations = reshape<OBS_SPEC::ROWS*N_AGENTS, OBS_SPEC::COLS/N_AGENTS>(device, ts.observations_dense);
             update(device, ts.observation_normalizer, per_agent_observations);
-            set_statistics(device, ts.ppo.actor.content.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            if constexpr(N_AGENTS == 1) {
+                set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            }
+            else{
+                set_statistics(device, ts.ppo.actor.content.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            }
+
             update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
             set_statistics(device, ts.ppo.critic.content, ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }
