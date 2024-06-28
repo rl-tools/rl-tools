@@ -70,7 +70,7 @@ namespace rl_tools::rl::algorithms{
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, 1>> d_critic_output;
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action;
             typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> d_action_log_prob_d_action_log_std;
-            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, ACTION_DIM>> rollout_log_std;
+            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, 1, ACTION_DIM/SPEC::ENVIRONMENT::N_AGENTS>> rollout_log_std;
         };
     }
 

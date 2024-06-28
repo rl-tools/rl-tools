@@ -35,15 +35,19 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         using SPEC = typename DATASET_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        static constexpr TI N_AGENTS = SPEC::ENVIRONMENT::N_AGENTS;
+        static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+
         T action_log_prob = 0;
         for(TI action_i = 0; action_i < SPEC::ENVIRONMENT::ACTION_DIM; action_i++) {
             T action_mean = get(actions_mean, env_i, action_i);
 //                    std::stringstream topic;
 //                    topic << "action/" << action_i;
 //                    add_scalar(device, device.logger, topic.str(), action_mu);
-            static_assert(SPEC::ENVIRONMENT::ACTION_DIM == ACTION_LOG_STD_SPEC::COLS);
+
+            static_assert(ACTION_DIM == ACTION_LOG_STD_SPEC::COLS * N_AGENTS);
             static_assert(ACTION_LOG_STD_SPEC::ROWS == 1);
-            T current_action_log_std = get(action_log_std, 0, action_i);
+            T current_action_log_std = get(action_log_std, 0, N_AGENTS == 1 ? action_i : action_i % N_AGENTS);
             T action_std = math::exp(device.math, current_action_log_std);
             T action_noisy = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), action_mean, action_std, rng);
             action_log_prob += random::normal_distribution::log_prob(device.random, action_mean, current_action_log_std, action_noisy);

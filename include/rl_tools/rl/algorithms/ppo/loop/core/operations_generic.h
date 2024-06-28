@@ -27,12 +27,31 @@ namespace rl_tools{
         malloc(device, ts.actor_buffers);
         malloc(device, ts.critic_buffers);
         malloc(device, ts.critic_buffers_gae);
+        malloc(device, ts.observations_dense);
         malloc(device, ts.observation_normalizer);
         malloc(device, ts.observation_privileged_normalizer);
         for(auto& env: ts.envs){
             malloc(device, env);
         }
 
+    }
+    template <typename DEVICE, typename T_CONFIG>
+    void free(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+        free(device, ts.ppo);
+        free(device, ts.ppo_buffers);
+        free(device, ts.on_policy_runner_dataset);
+        free(device, ts.on_policy_runner);
+        free(device, ts.actor_eval_buffers);
+        free(device, ts.actor_deterministic_evaluation_buffers);
+        free(device, ts.actor_buffers);
+        free(device, ts.critic_buffers);
+        free(device, ts.critic_buffers_gae);
+        free(device, ts.observations_dense);
+        free(device, ts.observation_normalizer);
+        free(device, ts.observation_privileged_normalizer);
+        for(auto& env: ts.envs){
+            free(device, env);
+        }
     }
     template <typename DEVICE, typename T_CONFIG>
     void init(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
@@ -54,23 +73,6 @@ namespace rl_tools{
         ts.step = 0;
     }
 
-    template <typename DEVICE, typename T_CONFIG>
-    void free(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
-        free(device, ts.ppo);
-        free(device, ts.ppo_buffers);
-        free(device, ts.on_policy_runner_dataset);
-        free(device, ts.on_policy_runner);
-        free(device, ts.actor_eval_buffers);
-        free(device, ts.actor_deterministic_evaluation_buffers);
-        free(device, ts.actor_buffers);
-        free(device, ts.critic_buffers);
-        free(device, ts.critic_buffers_gae);
-        free(device, ts.observation_normalizer);
-        free(device, ts.observation_privileged_normalizer);
-        for(auto& env: ts.envs){
-            free(device, env);
-        }
-    }
 
     template <typename DEVICE, typename T_CONFIG>
     bool step(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
@@ -82,7 +84,11 @@ namespace rl_tools{
         if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && ts.step == 0){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
                 collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
-                update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.observations);
+                using OBS_SPEC = decltype(ts.on_policy_runner_dataset.observations);
+                constexpr TI N_AGENTS = T_CONFIG::ENVIRONMENT::N_AGENTS;
+                copy(device, device, ts.on_policy_runner_dataset.observations, ts.observations_dense);
+                auto per_agent_observations = reshape<OBS_SPEC::ROWS*N_AGENTS, OBS_SPEC::COLS/N_AGENTS>(device, ts.observations_dense);
+                update(device, ts.observation_normalizer, per_agent_observations);
                 update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
             }
             std::cout << "Observation means: " << std::endl;
@@ -90,13 +96,17 @@ namespace rl_tools{
             std::cout << "Observation std: " << std::endl;
             print(device, ts.observation_normalizer.std);
             init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
-            set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            set_statistics(device, ts.ppo.actor.content.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
             set_statistics(device, ts.ppo.critic.content, ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }
         collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
         if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
-            update(device, ts.observation_normalizer, ts.on_policy_runner_dataset.observations);
-            set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
+            using OBS_SPEC = decltype(ts.on_policy_runner_dataset.observations);
+            constexpr TI N_AGENTS = T_CONFIG::ENVIRONMENT::N_AGENTS;
+            copy(device, device, ts.on_policy_runner_dataset.observations, ts.observations_dense);
+            auto per_agent_observations = reshape<OBS_SPEC::ROWS*N_AGENTS, OBS_SPEC::COLS/N_AGENTS>(device, ts.observations_dense);
+            update(device, ts.observation_normalizer, per_agent_observations);
+            set_statistics(device, ts.ppo.actor.content.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
             update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
             set_statistics(device, ts.ppo.critic.content, ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }

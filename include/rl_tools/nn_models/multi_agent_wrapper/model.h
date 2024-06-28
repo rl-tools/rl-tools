@@ -25,6 +25,7 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
     template <typename T_CAPABILITY, typename T_SPEC>
     struct CapabilitySpecification: T_SPEC, T_CAPABILITY{
         using CAPABILITY = T_CAPABILITY;
+
         using PARAMETER_TYPE = typename CAPABILITY::PARAMETER_TYPE;
     };
 
@@ -49,8 +50,8 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         using INPUT_BUFFER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<INPUT_BUFFER_SPEC>;
         using OUTPUT_BUFFER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::OUTPUT_DIM>;
         using OUTPUT_BUFFER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_BUFFER_SPEC>;
-        INPUT_BUFFER_TYPE input_buffer;
-        OUTPUT_BUFFER_TYPE output_buffer;
+        INPUT_BUFFER_TYPE input, d_input;
+        OUTPUT_BUFFER_TYPE output;
 
         typename SPEC::MODULE::template Buffer<INNER_BATCH_SIZE> buffer;
     };
@@ -75,7 +76,12 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
     template<typename T_SPEC>
     struct ModuleGradient: public ModuleBackward<T_SPEC>{
         using TI = typename T_SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_SPEC::CAPABILITY::BATCH_SIZE;
+        static constexpr TI BATCH_SIZE = T_SPEC::CAPABILITY::BATCH_SIZE/T_SPEC::N_AGENTS;
+    };
+
+    template <typename T_CAPABILITY, auto N_AGENTS>
+    struct UpgradeCapabilityBatchSize: T_CAPABILITY{
+        static constexpr auto BATCH_SIZE = T_CAPABILITY::BATCH_SIZE * N_AGENTS;
     };
 
     template<typename CAPABILITY, typename SPEC>
@@ -83,9 +89,9 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
             typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
                     ModuleForward<CapabilitySpecification<CAPABILITY, SPEC>>,
                     typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-                            ModuleBackward<CapabilitySpecification<CAPABILITY, SPEC>>,
+                            ModuleBackward<CapabilitySpecification<UpgradeCapabilityBatchSize<CAPABILITY, SPEC::N_AGENTS>, SPEC>>,
                             typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-                                    ModuleGradient<CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+                                    ModuleGradient<CapabilitySpecification<UpgradeCapabilityBatchSize<CAPABILITY, SPEC::N_AGENTS>, SPEC>>, void>>>;
 
     template<typename T_CAPABILITY, typename T_SPEC>
     struct Module: _Module<T_CAPABILITY, T_SPEC>{
