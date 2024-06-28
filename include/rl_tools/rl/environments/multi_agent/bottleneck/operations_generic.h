@@ -402,7 +402,7 @@ namespace rl_tools{
             }
             else{
                 acc += agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH/2 ? RIGHT_SIDE_REWARD : 0;
-                acc -= agent_state.angular_velocity * agent_state.angular_velocity * 0.001;
+//                acc -= agent_state.angular_velocity * agent_state.angular_velocity * 0.001;
             }
         }
 #ifdef RL_TOOLS_RL_ENVIRONMENTS_MULTI_AGENT_BOTTLENECK_CHECK_NAN

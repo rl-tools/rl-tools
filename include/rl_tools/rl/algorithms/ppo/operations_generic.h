@@ -105,6 +105,8 @@ namespace rl_tools{
         constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::Observation::DIM;
         constexpr TI OBSERVATION_PRIVILEGED_DIM = OPR_SPEC::ENVIRONMENT::ObservationPrivileged::DIM;
         constexpr TI N_AGENTS = PPO_SPEC::ENVIRONMENT::N_AGENTS;
+        static_assert(ACTION_DIM % N_AGENTS == 0);
+        constexpr TI PER_AGENT_ACTION_DIM = PPO_SPEC::ENVIRONMENT::ACTION_DIM/N_AGENTS;
         // batch needs observations, original log-probs, advantages
         T policy_kl_divergence = 0; // KL( current || old ) todo: make hyperparameter that swaps the order
         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE) {
@@ -178,7 +180,7 @@ namespace rl_tools{
                         T current_action = get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
                         T rollout_action = get(batch_actions, batch_step_i, action_i);
                         auto& last_layer = get_last_layer(ppo.actor);
-                        T current_action_log_std = get(last_layer.log_std.parameters, 0, N_AGENTS == 1 ? action_i : action_i % N_AGENTS);
+                        T current_action_log_std = get(last_layer.log_std.parameters, 0, action_i % PER_AGENT_ACTION_DIM);
                         T current_action_std = math::exp(device.math, current_action_log_std);
                         if(PPO_SPEC::PARAMETERS::ADAPTIVE_LEARNING_RATE){
                             T rollout_action_log_std = get(ppo_buffers.rollout_log_std, 0, action_i);
@@ -206,7 +208,7 @@ namespace rl_tools{
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
                             auto& last_layer = get_last_layer(ppo.actor);
-                            increment(last_layer.log_std.gradient, 0, N_AGENTS == 1 ? action_i : action_i % N_AGENTS, d_entropy_loss_d_current_action_log_std);
+                            increment(last_layer.log_std.gradient, 0, action_i % PER_AGENT_ACTION_DIM, d_entropy_loss_d_current_action_log_std);
 //                          derivation: d_current_action_log_prob_d_action_log_std
 //                          d_current_action_log_prob_d_action_std =  (-action_diff_by_action_std) * (-action_diff_by_action_std)      / action_std - 1 / action_std)
 //                          d_current_action_log_prob_d_action_std = ((-action_diff_by_action_std) * (-action_diff_by_action_std) - 1) / action_std)
@@ -250,7 +252,7 @@ namespace rl_tools{
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T current_d_action_log_prob_d_action_log_std = get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
                             auto& last_layer = get_last_layer(ppo.actor);
-                            increment(last_layer.log_std.gradient, 0, N_AGENTS == 1 ? action_i : action_i % N_AGENTS, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
+                            increment(last_layer.log_std.gradient, 0, action_i % PER_AGENT_ACTION_DIM, d_loss_d_action_log_prob * current_d_action_log_prob_d_action_log_std);
                         }
                     }
                 }

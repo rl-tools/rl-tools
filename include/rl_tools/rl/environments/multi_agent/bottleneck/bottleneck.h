@@ -86,11 +86,11 @@ namespace rl_tools::rl::environments::multi_agent{
     template <typename T_SPEC>
     struct Bottleneck: Environment{
         using SPEC = T_SPEC;
+        using PARAMETERS = typename SPEC::PARAMETERS;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using State = multi_agent::bottleneck::State<SPEC>;
         using Parameters = typename SPEC::PARAMETERS;
-        using PARAMETERS = typename SPEC::PARAMETERS;
         using Observation = typename SPEC::OBSERVATION;
         using ObservationPrivileged = typename SPEC::OBSERVATION_PRIVILEGED;
         static constexpr TI N_AGENTS = Parameters::N_AGENTS;

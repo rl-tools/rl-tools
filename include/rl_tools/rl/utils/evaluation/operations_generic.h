@@ -63,8 +63,10 @@ namespace rl_tools{
         results.episode_length_mean = 0;
         results.episode_length_std = 0;
 
-        MatrixStatic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> actions_buffer_full;
-        MatrixStatic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM>> observations;
+        MatrixDynamic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM * (STOCHASTIC_POLICY ? 2 : 1)>> actions_buffer_full;
+        MatrixDynamic<matrix::Specification<T, TI, SPEC::N_EPISODES, ENVIRONMENT::Observation::DIM>> observations;
+        malloc(device, actions_buffer_full);
+        malloc(device, observations);
         auto actions_buffer = view(device, actions_buffer_full, matrix::ViewSpec<SPEC::N_EPISODES, ENVIRONMENT::ACTION_DIM>{});
 
         ENVIRONMENT envs[SPEC::N_EPISODES];
@@ -170,6 +172,8 @@ namespace rl_tools{
         results.returns_std = math::sqrt(device.math, math::max(device.math, (T)0, results.returns_std/SPEC::N_EPISODES - results.returns_mean*results.returns_mean));
         results.episode_length_mean /= SPEC::N_EPISODES;
         results.episode_length_std = math::sqrt(device.math, math::max(device.math, (T)0, results.episode_length_std/SPEC::N_EPISODES - results.episode_length_mean*results.episode_length_mean));
+        free(device, actions_buffer_full);
+        free(device, observations);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename UI, typename POLICY, typename RNG, typename SPEC, typename POLICY_EVALUATION_BUFFERS>
     void evaluate(DEVICE& device, ENVIRONMENT& env, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
