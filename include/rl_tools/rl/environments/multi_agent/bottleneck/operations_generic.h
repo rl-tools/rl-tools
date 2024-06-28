@@ -407,6 +407,9 @@ namespace rl_tools{
             else{
                 current_reward += agent_state.position[0] > SPEC::PARAMETERS::ARENA_WIDTH/2 ? RIGHT_SIDE_REWARD : 0;
                 current_reward -= agent_state.angular_velocity * agent_state.angular_velocity * 0.001;
+                T force = get(action, 0, agent_i*2+0);
+                T torque = get(action, 0, agent_i*2+1);
+                current_reward -= force*force * 0.001 + torque*torque * 0.001;
             }
             acc += math::max(device.math, (T)0, current_reward);
         }

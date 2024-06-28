@@ -36,7 +36,7 @@ namespace rl_tools::rl::zoo::ppo{
                 static constexpr bool IGNORE_TERMINATION = true;
 //                static constexpr bool ADAPTIVE_LEARNING_RATE = true;
             };
-            static constexpr TI STEP_LIMIT = 1000; // 1024 * 4 * 74 ~ 300k steps
+            static constexpr TI STEP_LIMIT = 5000; // 1024 * 4 * 74 ~ 300k steps
 
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
