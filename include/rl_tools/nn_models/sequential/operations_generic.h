@@ -121,6 +121,14 @@ namespace rl_tools{
         }
     }
     template <typename MODULE_SPEC> // non-const
+    constexpr auto& get_first_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        return model.content;
+    }
+    template <typename MODULE_SPEC> // const
+    constexpr auto& get_first_layer(const nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
+        return model.content;
+    }
+    template <typename MODULE_SPEC> // non-const
     constexpr auto& get_last_layer(nn_models::sequential::ModuleForward<MODULE_SPEC>& model){
         return get_layer<nn_models::sequential::num_layers<MODULE_SPEC>()-1>(model);
     }

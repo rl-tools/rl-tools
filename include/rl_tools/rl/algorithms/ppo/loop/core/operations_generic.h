@@ -96,25 +96,14 @@ namespace rl_tools{
             std::cout << "Observation std: " << std::endl;
             print(device, ts.observation_normalizer.std);
             init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.rng); // reinitializing the on_policy_runner to reset the episode counters
-            if constexpr(N_AGENTS == 1){
-                set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
-            }
-            else{
-                set_statistics(device, ts.ppo.actor.content.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
-            }
+            set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
             set_statistics(device, ts.ppo.critic.content, ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }
         collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
         if(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
             copy(device, device, ts.on_policy_runner_dataset.observations, ts.observations_dense);
             update(device, ts.observation_normalizer, per_agent_observations);
-            if constexpr(N_AGENTS == 1) {
-                set_statistics(device, ts.ppo.actor.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
-            }
-            else{
-                set_statistics(device, ts.ppo.actor.content.content, ts.observation_normalizer.mean, ts.observation_normalizer.std);
-            }
-
+            set_statistics(device, get_first_layer(ts.ppo.actor), ts.observation_normalizer.mean, ts.observation_normalizer.std);
             update(device, ts.observation_privileged_normalizer, ts.on_policy_runner_dataset.all_observations_privileged);
             set_statistics(device, ts.ppo.critic.content, ts.observation_privileged_normalizer.mean, ts.observation_privileged_normalizer.std);
         }
