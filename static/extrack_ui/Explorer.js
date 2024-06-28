@@ -51,11 +51,12 @@ export class ExplorerStep{
 
         this.content = document.createElement('div');
 
-        if(this.run.ui_jsm && this.step.trajectories_compressed){
+        if(this.run.ui_jsm && (this.step.trajectories || this.step.trajectories_compressed)){
+            let trajectories_path = this.step.trajectories_compressed || this.step.trajectories
             if(options["verbose"]){
                 const url = new URL("./play_trajectories.html", window.location.href)
                 url.searchParams.append("experiments", experiments_base_path)
-                url.searchParams.append("trajectories", this.step.trajectories_compressed)
+                url.searchParams.append("trajectories", trajectories_path)
                 if(!run.ui_jsm){
                     throw `No ui_jsm found in ${this.run.config.path}"`
                 }
@@ -77,7 +78,7 @@ export class ExplorerStep{
                 const trajectory_player = new TrajectoryPlayer(run.ui_jsm);
                 this.trajectory_player_container.appendChild(trajectory_player.getCanvas());
                 this.trajectory_player_container.style.display = "block";
-                trajectory_player.playTrajectories(this.step.trajectories_compressed);
+                trajectory_player.playTrajectories(trajectories_path);
             })
         }
 

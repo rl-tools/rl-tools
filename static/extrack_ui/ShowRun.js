@@ -3,7 +3,7 @@ export class ShowRun{
     constructor(container, run, size){
 
         container.innerHTML = ""
-        const step = Object.keys(run.steps).filter(step => run.steps[step].trajectories_compressed).sort().reverse()[0]
+        const step = Object.keys(run.steps).filter(step => run.steps[step].trajectories || run.steps[step].trajectories_compressed).sort().reverse()[0]
 
         const description = document.createElement("div")
 
@@ -56,7 +56,12 @@ export class ShowRun{
         const trajectory_player = new TrajectoryPlayer(run.ui_jsm, size);
         trajectory_player_container.appendChild(trajectory_player.getCanvas());
         container.appendChild(trajectory_player_container)
-        trajectory_player.playTrajectories(run.steps[step].trajectories_compressed);
+        if(run.steps[step].trajectories_compressed){
+            trajectory_player.playTrajectories(run.steps[step].trajectories_compressed);
+        }
+        else{
+            trajectory_player.playTrajectories(run.steps[step].trajectories);
+        }
 
     }
 }

@@ -41,12 +41,15 @@ export class Zoo{
     constructor(fs, index){
         this.container = document.createElement("div")
         this.container.classList.add("zoo-container")
-        index.refresh().then(async () => {
+        this.success = index.refresh().then(async () => {
             const run_list_full = index.run_list
             console.log(`Found: ${run_list_full.length} runs`)
             const run_list_zoo = run_list_full.filter((run) => run.config["name"] === "zoo")
             console.log(`Found: ${run_list_zoo.length} zoo runs`)
             const run_list = run_list_zoo.filter((run) => run.return)
+            if(run_list.length === 0){
+                return false
+            }
             const run_list_grouped = group_by(run_list, ["population_values"])
             const run_list_grouped_truncated = Object.fromEntries(Object.entries(run_list_grouped).map(([population_values, population_runs]) => {
                 const population_experiments = group_by(population_runs.items, ["experiment", "commit"])
@@ -99,8 +102,7 @@ export class Zoo{
                 const chart = make_chart(aggregated_data)
                 this.container.appendChild(chart)
             }
-
-
+            return true
         })
     }
     getContainer(){

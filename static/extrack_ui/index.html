@@ -6,7 +6,14 @@
     <title>Trajectory Player</title>
     <link rel="stylesheet" href="index.css">
     <script type="module">
-        const experiments_base_path = "../../experiments/"
+        const url = window.location.href;
+        const urlObj = new URL(url);
+        const params = new URLSearchParams(urlObj.search);
+        let experiments_base_path = "../../experiments/"
+        if(params.has('experiments') === true){
+            experiments_base_path = params.get('experiments');
+        }
+        console.log("Using experiments_base_path: ", experiments_base_path)
 
         import { DynamicFileSystem } from "./DynamicFileSystem.js";
         import { StaticFileSystem } from "./StaticFileSystem.js";
@@ -28,11 +35,23 @@
         const zoo = new Zoo(experiments_base_path, idx, {"verbose": true})
         const zooContainer = document.getElementById('zoo-container');
         zooContainer.appendChild(zoo.getContainer());
+        zoo.success.then((success) => {
+            if(success){
+                const learning_curve_section = document.getElementById('learning-curve-section')
+                learning_curve_section.style.display = "block"
+            }
+        })
 
 
         idx_promise.then(() => {
             const runs_with_ui = idx.run_list.filter(run => run.ui_jsm)
-            const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
+            const runs_with_steps = runs_with_ui.filter((run) => {
+                if(run.steps && Object.keys(run.steps).length > 0){
+                    return Object.values(run.steps).some(step => step.trajectories || step.trajectories_compressed)
+                }
+                return false
+            })
+            // const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
             const run = runs_with_steps[0]
             const latest_run_container = document.getElementById('latest-run-container')
             const show_run = new ShowRun(latest_run_container, run, 500)
@@ -40,8 +59,18 @@
 
         idx_promise.then(() => {
             const runs_with_ui = idx.run_list.filter(run => run.ui_jsm)
-            const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
+            const runs_with_steps = runs_with_ui.filter((run) => {
+                if(run.steps && Object.keys(run.steps).length > 0){
+                    return Object.values(run.steps).some(step => step.trajectories || step.trajectories_compressed)
+                }
+                return false
+            })
             const runs_zoo = runs_with_steps.filter(run => run.config.name === "zoo")
+            if(runs_zoo.length === 0){
+                return
+            }
+            const latest_zoo_runs_section = document.getElementById('latest-zoo-runs-section')
+            latest_zoo_runs_section.style.display = "block"
             const runs_by_population = group_by(runs_zoo, ["population_values"])
             const populations = Object.keys(runs_by_population)
             const populations_sorted = populations.sort((a, b) => {
@@ -73,15 +102,19 @@
     <div id="latest-run-container">
         Loading...
     </div>
-    <h1>Latest Zoo Runs</h1>
-    <div id="latest-zoo-runs-container">
-        Loading...
+    <div id="latest-zoo-runs-section" style="display: none;">
+        <h1>Latest Zoo Runs</h1>
+        <div id="latest-zoo-runs-container">
+            Loading...
+        </div>
     </div>
     <h1>Run Explorer</h1>
     <div id="explorer-container"></div>
-    <h1>Learning Curves</h1>
-    <div class="zoo-container-container">
-        <div id="zoo-container" class="zoo-container-container-element"></div>
+    <div id="learning-curve-section" style="display: none">
+        <h1>Learning Curves</h1>
+        <div class="zoo-container-container">
+            <div id="zoo-container" class="zoo-container-container-element"></div>
+        </div>
     </div>
 </body>
 </html>

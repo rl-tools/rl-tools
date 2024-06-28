@@ -1,10 +1,18 @@
 import * as pako from 'https://cdn.jsdelivr.net/npm/pako@2.0.4/+esm';
 
+async function fetchData(url) {
+    const response = await fetch(url);
+    return await response.json();
+}
 async function fetchAndDecompressData(url) {
     const response = await fetch(url);
     const compressedData = await response.arrayBuffer();
     const decompressedData = pako.ungzip(new Uint8Array(compressedData), { to: 'string' });
     return JSON.parse(decompressedData);
+}
+
+function getFileExtension(path) {
+    return path.split('.').pop();
 }
 
 export class TrajectoryPlayer{
@@ -38,11 +46,14 @@ export class TrajectoryPlayer{
     }
     getCanvas(){
         return this.container;
+
     }
+
     async playTrajectories(path) {
         this.loading_text.innerHTML = `Loading Trajectory Data from ${path}`
         this.loading_text.style.display = "inline";
-        const trajectoryData = await fetchAndDecompressData(path);
+
+        const trajectoryData = getFileExtension(path) === "json" ? await fetchData(path) : await fetchAndDecompressData(path)
         this.loading_text.style.display = "none";
         this.canvas.style.display = "inline"
         let currentEpisode = 0;
