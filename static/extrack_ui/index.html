@@ -10,8 +10,12 @@
         const urlObj = new URL(url);
         const params = new URLSearchParams(urlObj.search);
         let experiments_base_path = "../../experiments/"
+        let latest_run_size = 500;
         if(params.has('experiments') === true){
             experiments_base_path = params.get('experiments');
+        }
+        if(params.has('latest-run-size') === true){
+            latest_run_size = parseInt(params.get('latest-run-size'));
         }
         console.log("Using experiments_base_path: ", experiments_base_path)
 
@@ -54,7 +58,7 @@
             // const runs_with_steps = runs_with_ui.filter(run => run.steps && Object.keys(run.steps).length > 0)
             const run = runs_with_steps[0]
             const latest_run_container = document.getElementById('latest-run-container')
-            const show_run = new ShowRun(latest_run_container, run, 500)
+            const show_run = new ShowRun(latest_run_container, run, latest_run_size)
         })
 
         idx_promise.then(() => {
