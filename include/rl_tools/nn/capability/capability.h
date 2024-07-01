@@ -35,6 +35,8 @@ namespace rl_tools::nn{
             static constexpr LayerCapability TAG = LayerCapability::Backward;
             using PARAMETER_TYPE = nn::parameters::Plain;
             static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
+            template <auto T_NEW_BATCH_SIZE>
+            using CHANGE_BATCH_SIZE = Backward<T_NEW_BATCH_SIZE>;
         };
         template <typename T_PARAMETER_TYPE, auto T_BATCH_SIZE>
         struct Gradient{
@@ -42,6 +44,8 @@ namespace rl_tools::nn{
             using PARAMETER_TYPE = T_PARAMETER_TYPE;
             static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
             static_assert(!utils::typing::is_same_v<T_PARAMETER_TYPE, nn::parameters::Plain>);
+            template <auto T_NEW_BATCH_SIZE>
+            using CHANGE_BATCH_SIZE = Gradient<T_PARAMETER_TYPE, T_NEW_BATCH_SIZE>;
         };
     }
 }

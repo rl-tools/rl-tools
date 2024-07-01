@@ -21,6 +21,15 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         using MODULE = T_MODULE<CAPABILITY>;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
     };
+    template <typename MODULE>
+    struct BindModule{
+        template <typename T_CAPABILITY>
+        using Module = MODULE;
+    };
+
+    template <typename T_T, typename T_TI, T_TI T_N_AGENTS, typename T_MODULE, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag>
+    using SpecificationFixedModule = Specification<T_T, T_TI, T_N_AGENTS, BindModule<T_MODULE>::template Module, T_CONTAINER_TYPE_TAG>;
+
     template <typename T_CAPABILITY, typename T_SPEC>
     struct CapabilitySpecification: T_SPEC, T_CAPABILITY{
         using CAPABILITY = T_CAPABILITY;
@@ -80,19 +89,17 @@ namespace rl_tools::nn_models::multi_agent_wrapper {
         static constexpr TI BATCH_SIZE = T_SPEC::CAPABILITY::BATCH_SIZE/T_SPEC::N_AGENTS;
     };
 
-    template <typename T_CAPABILITY, auto N_AGENTS>
-    struct UpgradeCapabilityBatchSize: T_CAPABILITY{
-        static constexpr auto BATCH_SIZE = T_CAPABILITY::BATCH_SIZE * N_AGENTS;
-    };
+    template <typename T_CAPABILITY, typename T_SPEC>
+    using UpgradeCapabilityBatchSize = typename T_CAPABILITY::template CHANGE_BATCH_SIZE<T_CAPABILITY::BATCH_SIZE*T_SPEC::N_AGENTS>;
 
     template<typename CAPABILITY, typename SPEC>
     using _Module =
             typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
                     ModuleForward<CapabilitySpecification<CAPABILITY, SPEC>>,
                     typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
-                            ModuleBackward<CapabilitySpecification<UpgradeCapabilityBatchSize<CAPABILITY, SPEC::N_AGENTS>, SPEC>>,
+                            ModuleBackward<CapabilitySpecification<UpgradeCapabilityBatchSize<CAPABILITY, SPEC>, SPEC>>,
                             typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
-                                    ModuleGradient<CapabilitySpecification<UpgradeCapabilityBatchSize<CAPABILITY, SPEC::N_AGENTS>, SPEC>>, void>>>;
+                                    ModuleGradient<CapabilitySpecification<UpgradeCapabilityBatchSize<CAPABILITY, SPEC>, SPEC>>, void>>>;
 
     template<typename T_CAPABILITY, typename T_SPEC>
     struct Module: _Module<T_CAPABILITY, T_SPEC>{
