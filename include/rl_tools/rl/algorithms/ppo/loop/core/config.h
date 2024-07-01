@@ -84,13 +84,13 @@ namespace rl_tools{
                 static_assert(ENVIRONMENT::ACTION_DIM % N_AGENTS == 0);
                 using ACTOR_SPEC = nn_models::mlp::Specification<T, TI, ENVIRONMENT::Observation::DIM/N_AGENTS, ENVIRONMENT::ACTION_DIM/N_AGENTS, PARAMETERS::ACTOR_NUM_LAYERS, PARAMETERS::ACTOR_HIDDEN_DIM, PARAMETERS::ACTOR_ACTIVATION_FUNCTION,  nn::activation_functions::IDENTITY>;
                 using ACTOR_TYPE = nn_models::mlp_unconditional_stddev::BindSpecification<ACTOR_SPEC>;
-                using INNER_CAPABILITY = nn_models::multi_agent_wrapper::UpgradeCapabilityBatchSize<CAPABILITY, N_AGENTS>;
-                using IF = nn_models::sequential::Interface<INNER_CAPABILITY>;
-                using ACTOR_MODULE = typename IF::template Module<ACTOR_TYPE::template NeuralNetwork>;
+//                using INNER_CAPABILITY = nn_models::multi_agent_wrapper::UpgradeCapabilityBatchSize<CAPABILITY, N_AGENTS>;
+//                using IF = nn_models::sequential::Interface<INNER_CAPABILITY>;
+                using ACTOR_MODULE = nn_models::sequential::Bind<ACTOR_TYPE::template NeuralNetwork>;
                 using STANDARDIZATION_LAYER_SPEC = nn::layers::standardize::Specification<T, TI, ENVIRONMENT::Observation::DIM/N_AGENTS>;
                 using STANDARDIZATION_LAYER = nn::layers::standardize::BindSpecification<STANDARDIZATION_LAYER_SPEC>;
-                using INNER_MODEL = typename IF::template Module<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE>;
-                using WRAPPER_SPEC = nn_models::multi_agent_wrapper::Specification<T, TI, N_AGENTS, INNER_MODEL>;
+                using INNER_MODEL = nn_models::sequential::Bind<STANDARDIZATION_LAYER::template Layer, ACTOR_MODULE::template Module>;
+                using WRAPPER_SPEC = nn_models::multi_agent_wrapper::Specification<T, TI, N_AGENTS, INNER_MODEL::template Module>;
                 using MODEL = nn_models::multi_agent_wrapper::Module<CAPABILITY, WRAPPER_SPEC>;
             };
             template <typename CAPABILITY>

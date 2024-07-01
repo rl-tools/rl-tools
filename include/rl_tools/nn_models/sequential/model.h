@@ -198,6 +198,14 @@ namespace rl_tools::nn_models::sequential{
         using Module = sequential::Module<T_CAPABILITY, T_CONTENT, T_NEXT_MODULE>;
     };
 
+    template <typename CAPABILITY>
+    using OutputModuleTemplate = OutputModule;
+    template <template <typename> typename CONTENT, template <typename> typename NEXT_MODULE = OutputModuleTemplate>
+    struct Bind{
+        template <typename CAPABILITY>
+        using Module = sequential::Module<CAPABILITY, CONTENT, NEXT_MODULE<CAPABILITY>>;
+    };
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
