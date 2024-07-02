@@ -1,0 +1,2 @@
+
+/opt/homebrew/opt/llvm/bin/clang++ -I../../../include -std=c++17 --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export=batch_size -Wl,--export=input_dim -Wl,--export=output_dim -Wl,--export=set_input -Wl,--export=evaluate -Wl,--export=get_output -o interface.wasm interface.cpp

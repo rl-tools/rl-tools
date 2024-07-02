@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Updated WASM Interface Test (Full Batch)</title>
+</head>
+<body>
+<h1>Updated WASM Interface Test (Full Batch)</h1>
+<pre id="output"></pre>
+
+<script>
+    async function loadAndRunWasm() {
+        const importObject = {
+            env: {
+                // Add any required environment functions here
+            }
+        };
+
+        try {
+            const response = await fetch('interface.wasm');
+            const bytes = await response.arrayBuffer();
+            const { instance } = await WebAssembly.instantiate(bytes, importObject);
+
+            const {
+                batch_size,
+                input_dim,
+                output_dim,
+                set_input,
+                get_output,
+                evaluate
+            } = instance.exports;
+
+            const batchSize = batch_size();
+            const inputDim = input_dim();
+            const outputDim = output_dim();
+
+            console.log(`Batch size: ${batchSize}`);
+            console.log(`Input dimension: ${inputDim}`);
+            console.log(`Output dimension: ${outputDim}`);
+
+            // Generate random input for the full batch
+            const input = Array.from({ length: batchSize }, () =>
+                Array.from({ length: inputDim }, () => Math.random() * 2 - 1)
+            );
+
+            // Set input values for the full batch
+            for (let b = 0; b < batchSize; b++) {
+                for (let i = 0; i < inputDim; i++) {
+                    set_input(b, i, input[b][i]);
+                }
+            }
+
+            // Evaluate
+            evaluate();
+
+            // Get output values for the full batch
+            const output = Array.from({ length: batchSize }, (_, b) =>
+                Array.from({ length: outputDim }, (_, i) => get_output(b, i))
+            );
+
+            console.log("Input:", input);
+            console.log("Output:", output);
+
+            // Display results
+            let displayText = `
+Batch size: ${batchSize}
+Input dimension: ${inputDim}
+Output dimension: ${outputDim}
+`;
+
+            for (let b = 0; b < batchSize; b++) {
+                displayText += `
+Batch ${b}:
+  Input: ${input[b].join(', ')}
+  Output: ${output[b].join(', ')}
+`;
+            }
+
+            document.getElementById('output').textContent = displayText;
+
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('output').textContent = `Error: ${error.message}`;
+        }
+    }
+
+    loadAndRunWasm();
+</script>
+</body>
+</html>
+
