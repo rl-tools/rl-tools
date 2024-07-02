@@ -118,10 +118,9 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
 
         struct OFF_POLICY_RUNNER_PARAMETERS{
             static constexpr TI N_ENVIRONMENTS = CORE_PARAMETERS::N_ENVIRONMENTS;
-            static constexpr bool ASYMMETRIC_OBSERVATIONS = false;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = !utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
             static constexpr TI REPLAY_BUFFER_CAPACITY = CORE_PARAMETERS::REPLAY_BUFFER_CAP;
             static constexpr TI EPISODE_STEP_LIMIT = CORE_PARAMETERS::EPISODE_STEP_LIMIT;
-            static constexpr bool STOCHASTIC_POLICY = true;
             static constexpr bool COLLECT_EPISODE_STATS = CORE_PARAMETERS::COLLECT_EPISODE_STATS;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = CORE_PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
             static constexpr T EXPLORATION_NOISE = 0.1;

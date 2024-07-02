@@ -545,7 +545,7 @@ namespace rl_tools{
             set(observation, 0, 1, state.orientation_integral);
             auto current_observation = view(device, observation, matrix::ViewSpec<1, OBSERVATION::CURRENT_DIM>{}, 0, 0);
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
-            observe(device, env, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
+            observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::Multirotor<SPEC>::State& state, rl::environments::multirotor::observation::Position<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
@@ -584,7 +584,7 @@ namespace rl_tools{
                 }
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
-            observe(device, env, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
+            observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::Multirotor<SPEC>::State& state, rl::environments::multirotor::observation::OrientationRotationMatrix<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
@@ -663,7 +663,7 @@ namespace rl_tools{
                 set(observation, 0, action_i, action_value);
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
-            observe(device, env, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
+            observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::Multirotor<SPEC>::State& state, rl::environments::multirotor::observation::ActionHistory<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
@@ -695,7 +695,7 @@ namespace rl_tools{
                 set(observation, 0, 3 + i, state.torque[i]);
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
-            observe(device, env, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
+            observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
     }
     template<typename DEVICE, typename SPEC, typename STATE, typename OBS_SPEC, typename RNG>
@@ -703,15 +703,15 @@ namespace rl_tools{
         using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
         static_assert(OBS_SPEC::COLS == ENVIRONMENT::OBSERVATION_DIM);
         static_assert(OBS_SPEC::ROWS == 1);
-        rl::environments::multirotor::observe(device, env, state, typename ENVIRONMENT::Observation{}, observation, rng);
+        rl::environments::multirotor::observe(device, env, parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
     }
-    template<typename DEVICE, typename SPEC, typename STATE, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const STATE& state, Matrix<OBS_SPEC>& observation, RNG& rng){
-        using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
-        static_assert(OBS_SPEC::COLS == ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED);
-        static_assert(OBS_SPEC::ROWS == 1);
-        rl::environments::multirotor::observe(device, env, state, typename ENVIRONMENT::ObservationPrivileged{}, observation, rng);
-    }
+//    template<typename DEVICE, typename SPEC, typename STATE, typename OBS_SPEC, typename RNG>
+//    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const STATE& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+//        using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
+//        static_assert(OBS_SPEC::COLS == ENVIRONMENT::OBSERVATION_DIM_PRIVILEGED);
+//        static_assert(OBS_SPEC::ROWS == 1);
+//        rl::environments::multirotor::observe(device, env, parameters, state, typename ENVIRONMENT::ObservationPrivileged{}, observation, rng);
+//    }
 //    template<typename DEVICE, typename T, typename TI, typename SPEC, typename OBS_SPEC, typename RNG>
 //    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::StateLatentEmpty<T, TI>& state, Matrix<OBS_SPEC>& observation, RNG& rng){
 //        static_assert(OBS_SPEC::COLS == 0);
@@ -729,7 +729,7 @@ namespace rl_tools{
 //        using MULTIROTOR = rl::environments::Multirotor<SPEC>;
 //        static_assert(OBS_SPEC::COLS == MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION + MULTIROTOR::OBSERVATION_DIM_PRIVILEGED_LATENT_STATE);
 //        auto base_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION>{}, 0, 0);
-//        observe(device, env, state, base_observation, rng, true);
+//        observe(device, env, parameters, state, base_observation, rng, true);
 //        auto latent_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::OBSERVATION_DIM_PRIVILEGED_LATENT_STATE>{}, 0, MULTIROTOR::OBSERVATION_DIM_BASE + MULTIROTOR::OBSERVATION_DIM_ORIENTATION);
 //        observe_privileged(device, env, (const LATENT_STATE&)state, latent_observation, rng);
 //    }

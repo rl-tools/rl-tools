@@ -64,7 +64,7 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
             static constexpr TI HIDDEN_DIM = PARAMETERS::CRITIC_HIDDEN_DIM;
             static constexpr auto ACTIVATION_FUNCTION = PARAMETERS::CRITIC_ACTIVATION_FUNCTION;
 
-            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::Observation::DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION>;
+            using LAYER_1_SPEC = nn::layers::dense::Specification<T, TI, ENVIRONMENT::ObservationPrivileged::DIM + ENVIRONMENT::ACTION_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION>;
             using LAYER_1 = nn::layers::dense::BindSpecification<LAYER_1_SPEC>;
             using LAYER_2_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, ACTIVATION_FUNCTION>;
             using LAYER_2 = nn::layers::dense::BindSpecification<LAYER_2_SPEC>;
@@ -124,21 +124,15 @@ namespace rl_tools::rl::algorithms::td3::loop::core{
 
         struct OFF_POLICY_RUNNER_PARAMETERS{
             static constexpr TI N_ENVIRONMENTS = CORE_PARAMETERS::N_ENVIRONMENTS;
-            static constexpr bool ASYMMETRIC_OBSERVATIONS = false;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = !utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
             static constexpr TI REPLAY_BUFFER_CAPACITY = CORE_PARAMETERS::REPLAY_BUFFER_CAP;
             static constexpr TI EPISODE_STEP_LIMIT = CORE_PARAMETERS::EPISODE_STEP_LIMIT;
-            static constexpr bool STOCHASTIC_POLICY = false;
             static constexpr bool COLLECT_EPISODE_STATS = CORE_PARAMETERS::COLLECT_EPISODE_STATS;
             static constexpr TI EPISODE_STATS_BUFFER_SIZE = CORE_PARAMETERS::EPISODE_STATS_BUFFER_SIZE;
             static constexpr T EXPLORATION_NOISE = CORE_PARAMETERS::EXPLORATION_NOISE;
         };
 
-        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<
-                T,
-                TI,
-                ENVIRONMENT,
-                OFF_POLICY_RUNNER_PARAMETERS
-        >;
+        using OFF_POLICY_RUNNER_SPEC = rl::components::off_policy_runner::Specification<T, TI, ENVIRONMENT, OFF_POLICY_RUNNER_PARAMETERS>;
         static_assert(ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::ACTOR_BATCH_SIZE == ACTOR_CRITIC_TYPE::SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         template <typename CONFIG>
         using State = State<CONFIG>;
