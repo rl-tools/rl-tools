@@ -15,6 +15,30 @@
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
+// for testing compile-time overheads
+#ifdef NLOHMANN
+#include <nlohmann/json.hpp>
+#endif
+#ifdef CJSON
+#include <cjson/cJSON.h>
+#endif
+#ifdef BOOST_JSON
+#include <boost/json.hpp>
+#endif
+#ifdef CLI11
+#include <CLI/CLI.hpp>
+#endif
+#ifdef CXXOPTS
+#include <cxxopts.hpp>
+#endif
+#ifdef BOOST_OPTS
+#include <boost/program_options.hpp>
+#endif
+#ifdef CARGS
+#include <cargs.h>
+#endif
+
+
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -41,6 +65,67 @@ using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
 
 int main(int argc, char** argv) {
+#ifdef NLOHMANN
+    nlohmann::json j = nlohmann::json::parse("{\"hello\": \"moin\"}");
+    std::cout << j["hello"] << std::endl;
+    std::string to;
+    j["hello"].get_to(to);
+    j["test"] = "yo";
+    std::cout << j.dump() << std::endl;
+#endif
+#ifdef CJSON
+    cJSON *root = cJSON_Parse("{\"hello\": \"moin\"}");
+    cJSON *hello = cJSON_GetObjectItem(root, "hello");
+    std::cout << hello->valuestring << std::endl;
+    cJSON_AddStringToObject(root, "test", "yo");
+    std::cout << cJSON_PrintUnformatted(root) << std::endl;
+    cJSON_Delete(root);
+#endif
+#ifdef BOOST_JSON
+    boost::json::value j = boost::json::parse("{\"hello\": \"moin\"}");
+    std::cout << j.at("hello").as_string() << std::endl;
+    boost::json::object o = j.as_object();
+    o["test"] = "yo";
+    std::cout << o << std::endl;
+#endif
+#ifdef CLI11
+    {
+        TI seed = 0;
+        std::string extrack_base_path = "extrack";
+        std::string extrack_experiment_path = "extrack-experiment";
+        CLI::App app{"rl_zoo"};
+        app.add_option("-s,--seed", seed, "seed");
+        app.add_option("-e,--extrack", extrack_base_path, "extrack");
+        app.add_option("--ee,--extrack-experiment", extrack_experiment_path, "extrack-experiment");
+        CLI11_PARSE(app, argc, argv);
+    };
+#endif
+#ifdef CXXOPTS
+    {
+        cxxopts::Options options("rl_zoo", "RL Zoo");
+        options.add_options()
+            ("s,seed", "seed", cxxopts::value<TI>()->default_value("0"))
+            ("e,extrack", "extrack", cxxopts::value<std::string>()->default_value("extrack"))
+            ("ee,extrack-experiment", "extrack-experiment", cxxopts::value<std::string>()->default_value("extrack-experiment"));
+        auto result = options.parse(argc, argv);
+    }
+#endif
+#ifdef BOOST_OPTS
+    {
+        TI seed = 0;
+        std::string extrack_base_path = "extrack";
+        std::string extrack_experiment_path = "extrack-experiment";
+        boost::program_options::options_description desc("Options");
+        desc.add_options()
+            ("seed,s", boost::program_options::value<TI>(&seed)->default_value(0), "seed")
+            ("extrack,e", boost::program_options::value<std::string>(&extrack_base_path)->default_value("extrack"), "extrack")
+            ("extrack-experiment,ee", boost::program_options::value<std::string>(&extrack_experiment_path)->default_value("extrack-experiment"), "extrack-experiment");
+        boost::program_options::variables_map vm;
+        boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
+        boost::program_options::notify(vm);
+    }
+#endif
+
     DEVICE device;
     TI seed = 0;
     if (argc > 1) {

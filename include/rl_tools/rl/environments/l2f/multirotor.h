@@ -354,7 +354,7 @@ namespace rl_tools::rl::environments::multirotor{
         T torque[3];
     };
 
-    template <typename T, typename TI>
+    template <typename T, typename TI, typename T_PARAMETERS, typename T_PARAMETER_VALUES>
     struct StaticParametersDefault{
 //        static constexpr bool ENFORCE_POSITIVE_QUATERNION = false;
 //        static constexpr bool RANDOMIZE_QUATERNION_SIGN = false;
@@ -368,14 +368,20 @@ namespace rl_tools::rl::environments::multirotor{
                                  observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI>>>>>>>>;
         using OBSERVATION_TYPE_PRIVILEGED = observation::NONE<TI>;
         static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
+        using PARAMETERS = T_PARAMETERS;
+        static constexpr auto PARAMETER_VALUES = T_PARAMETER_VALUES::VALUES;
     };
 
-    template <typename T_T, typename T_TI, typename T_PARAMETERS, typename T_STATIC_PARAMETERS>
+    template <typename T_T, typename T_TI, typename T_PARAMETERS>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
-        using PARAMETERS = T_PARAMETERS;
-        using STATIC_PARAMETERS = T_STATIC_PARAMETERS;
+        using STATIC_PARAMETERS = T_PARAMETERS;
+        using STATE_TYPE = typename STATIC_PARAMETERS::STATE_TYPE;
+        using OBSERVATION_TYPE = typename STATIC_PARAMETERS::OBSERVATION_TYPE;
+        using OBSERVATION_TYPE_PRIVILEGED = typename STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
+        using PARAMETERS = typename STATIC_PARAMETERS::PARAMETERS;
+        static constexpr auto PARAMETER_VALUES = STATIC_PARAMETERS::PARAMETER_VALUES;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
@@ -387,9 +393,9 @@ namespace rl_tools::rl::environments{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using PARAMETERS = typename SPEC::PARAMETERS;
-        using Parameters = PARAMETERS;
-        using REWARD_FUNCTION = typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION;
+//        using PARAMETERS = typename SPEC::PARAMETERS;
+        using Parameters = typename SPEC::PARAMETERS;
+//        using REWARD_FUNCTION = typename SPEC::PARAMETERS::MDP::REWARD_FUNCTION;
 //        static constexpr TI STATE_DIM = 13;
         static constexpr TI ACTION_DIM = 4;
 
@@ -397,9 +403,9 @@ namespace rl_tools::rl::environments{
 
 //        static constexpr multirotor::LatentStateType LATENT_STATE_TYPE = SPEC::STATIC_PARAMETERS::LATENT_STATE_TYPE;
 //        static constexpr multirotor::StateType STATE_TYPE = SPEC::STATIC_PARAMETERS::STATE_TYPE;
-        using State = typename SPEC::STATIC_PARAMETERS::STATE_TYPE;
-        using Observation = typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE;
-        using ObservationPrivileged = typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
+        using State = typename SPEC::STATE_TYPE;
+        using Observation = typename SPEC::OBSERVATION_TYPE;
+        using ObservationPrivileged = typename SPEC::OBSERVATION_TYPE_PRIVILEGED;
 
 //        using LatentState = utils::typing::conditional_t<
 //            LATENT_STATE_TYPE == multirotor::LatentStateType::Empty,
@@ -430,8 +436,8 @@ namespace rl_tools::rl::environments{
         static constexpr TI OBSERVATION_DIM = Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
         static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = !rl_tools::utils::typing::is_same_v<typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED, multirotor::observation::NONE<TI>>;
-        using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
-        typename SPEC::PARAMETERS parameters;
+//        using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
+//        typename SPEC::PARAMETERS parameters;
     };
 }
 #include "parameters/registry.h"

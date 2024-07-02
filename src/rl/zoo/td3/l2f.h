@@ -32,7 +32,7 @@ namespace rl_tools::rl::zoo::td3::l2f{
         using namespace rlt::rl::environments::multirotor;
         template<typename T, typename TI>
         struct ENVIRONMENT_BUILDER{
-            static constexpr auto reward_function = rl_tools::rl::environments::multirotor::parameters::reward_functions::reward_absolute<T>;
+            static constexpr auto reward_function = rl_tools::rl::environments::multirotor::parameters::reward_functions::squared<T>;
             using REWARD_FUNCTION_CONST = typename rl_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
             using REWARD_FUNCTION = typename rl_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
@@ -41,33 +41,38 @@ namespace rl_tools::rl::zoo::td3::l2f{
             using PARAMETERS_SPEC = rl_tools::rl::environments::multirotor::ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION, rl_tools::rl::environments::multirotor::parameters::dynamics::REGISTRY, MODEL>;
             using PARAMETERS_TYPE = rl_tools::rl::environments::multirotor::ParametersDisturbances<T, TI, rl_tools::rl::environments::multirotor::ParametersBase<PARAMETERS_SPEC>>;
 
-            static constexpr auto init_params = rl_tools::rl::environments::multirotor::parameters::init::orientation_biggest_angle<PARAMETERS_SPEC>;
+            static constexpr auto init_params = rl_tools::rl::environments::multirotor::parameters::init::init_90_deg<PARAMETERS_SPEC>;
 
             constexpr static auto MODEL_NAME = rl_tools::rl::environments::multirotor::parameters::dynamics::registry_name<PARAMETERS_SPEC>;
             constexpr static auto dynamics_parameters = rl_tools::rl::environments::multirotor::parameters::dynamics::registry<PARAMETERS_SPEC>; //rl_tools::rl::environments::multirotor::parameters::dynamics::x500::real<PARAMETERS_SPEC>;
             static constexpr PARAMETERS_TYPE parameters = {
-                    dynamics_parameters,
-                    {0.01}, // integration dt
                     {
-                            init_params,
-                            reward_function,
-                            {   // Observation noise
-                                    0.05, // position
-                                    0.001, // orientation
-                                    0.1, // linear_velocity
-                                    0.2, // angular_velocity
+                            dynamics_parameters,
+                            {0.01}, // integration dt
+                            { // MDP
+                                    init_params,
+                                    reward_function,
+                                    {   // Observation noise
+                                            0.05, // position
+                                            0.001, // orientation
+                                            0.1, // linear_velocity
+                                            0.2, // angular_velocity
+                                    },
+                                    {   // Action noise
+                                            0, // std of additive gaussian noise onto the normalized action (-1, 1)
+                                    },
+                                    rl_tools::rl::environments::multirotor::parameters::termination::fast_learning<PARAMETERS_SPEC>
                             },
-                            {   // Action noise
-                                    0, // std of additive gaussian noise onto the normalized action (-1, 1)
+                            { // domain  randomization
+                                    0, //thrust_coefficients
+                                    0 //torque_coefficients
                             },
-                            rl_tools::rl::environments::multirotor::parameters::termination::fast_learning<PARAMETERS_SPEC>
-                    },
-                    { // domain  randomization
-                        0 //thrust_coefficients
                     },
                     typename PARAMETERS_TYPE::Disturbances{
-                            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 1.0 * 9.81 / 20}, // random_force;
-                            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 1.0 * 9.81 / 1000} // random_torque;
+//                            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 1.0 * 9.81 / 20}, // random_force;
+//                            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 1.0 * 9.81 / 1000} // random_torque;
+                            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, // random_force;
+                            typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} // random_torque;
                     }
 
             };
@@ -97,9 +102,11 @@ namespace rl_tools::rl::zoo::td3::l2f{
                     >>
                 >>;
                 static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
+                using PARAMETERS = PARAMETERS_TYPE;
+                static constexpr auto PARAMETER_VALUES = parameters;
             };
 
-            using ENVIRONMENT_SPEC = rlt::rl::environments::multirotor::Specification<T, TI, PARAMETERS_TYPE, ENVIRONMENT_STATIC_PARAMETERS>;
+            using ENVIRONMENT_SPEC = rlt::rl::environments::multirotor::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
             using ENVIRONMENT = rlt::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
         };
     }
@@ -107,11 +114,30 @@ namespace rl_tools::rl::zoo::td3::l2f{
     struct LearningToFly{
         using ENVIRONMENT = typename builder::ENVIRONMENT_BUILDER<T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
-            static constexpr TI STEP_LIMIT = 300000;
+            struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
+                static constexpr TI ACTOR_BATCH_SIZE = 256;
+                static constexpr TI CRITIC_BATCH_SIZE = 256;
+                static constexpr TI TRAINING_INTERVAL = 10;
+                static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
+                static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
+                static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
+                static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2 * TRAINING_INTERVAL;
+                static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.9;
+                static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.3;
+                static constexpr T GAMMA = 0.99;
+                static constexpr bool IGNORE_TERMINATION = false;
+            };
+            static constexpr T EXPLORATION_NOISE = 0.3;
+            static constexpr TI STEP_LIMIT = 3000000;
+            static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
+            static constexpr auto ACTOR_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
             static constexpr TI CRITIC_NUM_LAYERS = 3;
             static constexpr TI CRITIC_HIDDEN_DIM = 64;
+            static constexpr auto CRITIC_ACTIVATION_FUNCTION = nn::activation_functions::ActivationFunction::FAST_TANH;
+            static constexpr TI EPISODE_STEP_LIMIT = 500;
+            static constexpr bool SHARED_BATCH = false;
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::td3::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::td3::loop::core::ConfigApproximatorsSequential>;
     };

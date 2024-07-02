@@ -88,39 +88,25 @@ std::string environment = "l2f";
 #endif
 // ---------------------------------------------------------------------------------------
 
-int main(int argc, char** argv){
+int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment_path, std::string config_path){
     using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
     DEVICE device;
-
-    std::string extrack_experiment = "";
-    TI num_seeds = 1;
-    if(argc <= 1){
-        std::cerr << "Defaulting to running " << num_seeds << " seeds." << std::endl;
-    }
-    else{
-        num_seeds = std::stoi(argv[1]);
-        std::cerr << "Running " << num_seeds << " seeds." << std::endl;
-    }
-    for(TI seed = BASE_SEED; seed < BASE_SEED+num_seeds; seed++){
+    rlt::utils::assert_exit(device, num_seeds > 0, "Number of seeds must be greater than 0.");
+    for(TI seed = initial_seed; seed < (TI)num_seeds; seed++){
         LOOP_STATE ts;
-//#ifdef RL_TOOLS_ENABLE_CLI11
-//    CLI::App app{"rl_zoo"};
-//    app.add_option("-s,--seed", seed, "seed");
-//    app.add_option("-e,--extrack", ts.extrack_base_path, "extrack");
-//    app.add_option("--ee,--extrack-experiment", ts.extrack_experiment_path, "extrack-experiment");
-//    CLI11_PARSE(app, argc, argv);
-//#endif
         ts.extrack_name = "zoo";
+        if(extrack_base_path != ""){
+            ts.extrack_base_path = extrack_base_path;
+        }
         ts.extrack_population_variates = "algorithm_environment";
         ts.extrack_population_values = algorithm + "_" + environment;
-        if(extrack_experiment != ""){
-            ts.extrack_experiment = extrack_experiment;
+        if(extrack_experiment_path != ""){
+            ts.extrack_experiment = extrack_experiment_path;
         }
         rlt::malloc(device);
         rlt::init(device);
         rlt::malloc(device, ts);
         rlt::init(device, ts, seed);
-        extrack_experiment = ts.extrack_experiment;
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
         rlt::init(device, device.logger, ts.extrack_seed_path);
 #endif

@@ -253,7 +253,7 @@ namespace rl_tools{
     void init(DEVICE&, rl::environments::Multirotor<SPEC>, typename rl::environments::Multirotor<SPEC>::Parameters& parameters){ }
     template<typename DEVICE, typename SPEC>
     static void initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters){
-        parameters.dynamics = env.parameters.dynamics;
+        parameters = SPEC::PARAMETER_VALUES;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, RNG& rng){
@@ -269,26 +269,26 @@ namespace rl_tools{
 //        T mass_factor = random::uniform_real_distribution(random_dev, (T)0.5, (T)1.5, rng);
 //        env.current_dynamics.mass *= mass_factor;
 //        printf("initial state: %f %f %f %f %f %f %f %f %f %f %f %f %f\n", state.state[0], state.state[1], state.state[2], state.state[3], state.state[4], state.state[5], state.state[6], state.state[7], state.state[8], state.state[9], state.state[10], state.state[11], state.state[12]);
-        parameters.dynamics = env.parameters.dynamics;
+        initial_parameters(device, env, parameters);
         {
-            T factor = random::normal_distribution::sample(device.random, (T)0, env.parameters.domain_randomization.rotor_thrust_coefficients, rng);
+            T factor = random::normal_distribution::sample(device.random, (T)0, parameters.domain_randomization.rotor_thrust_coefficients, rng);
             factor = factor < 0 ? 1/(1-factor) : 1+factor; // reciprocal scale
             for(TI order_i=0; order_i < 3; order_i++){
                 parameters.dynamics.rotor_thrust_coefficients[order_i] *= factor;
             }
         }
         {
-            T factor = random::normal_distribution::sample(device.random, (T)0, env.parameters.domain_randomization.rotor_torque_constant, rng);
+            T factor = random::normal_distribution::sample(device.random, (T)0, parameters.domain_randomization.rotor_torque_constant, rng);
             factor = factor < 0 ? 1/(1-factor) : 1+factor; // reciprocal scale
             parameters.dynamics.rotor_torque_constant *= factor;
         }
         // todo: make this more generic (e.g. if thrust vector of (individual) rotors and gravity vector are not aligned)
         // todo:
-//        if(env.parameters.mdp.reward.calculate_action_baseline){
+//        if(parameters.mdp.reward.calculate_action_baseline){
 //            utils::assert_exit(device, env.current_dynamics.rotor_thrust_coefficients[1] == 0, "linear thrust coefficient not handled yet");
 //            T hover_thrust = env.current_dynamics.mass * (-1) * env.current_dynamics.gravity[2];
-//            env.parameters.mdp.reward.action_baseline = math::sqrt(device.math, (hover_thrust / 4 - env.current_dynamics.rotor_thrust_coefficients[0]) / env.current_dynamics.rotor_thrust_coefficients[2]);
-////            env.parameters.mdp.reward.action_baseline *= 0.8;
+//            parameters.mdp.reward.action_baseline = math::sqrt(device.math, (hover_thrust / 4 - env.current_dynamics.rotor_thrust_coefficients[0]) / env.current_dynamics.rotor_thrust_coefficients[2]);
+////            parameters.mdp.reward.action_baseline *= 0.8;
 //        }
 
     }
@@ -330,8 +330,8 @@ namespace rl_tools{
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::multirotor::StateRotors<T, TI, NEXT_COMPONENT>& state){
         initial_state(device, env, parameters, static_cast<NEXT_COMPONENT&>(state));
         for(typename DEVICE::index_t i = 0; i < 4; i++){
-//            state.rpm[i] = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2 + env.parameters.dynamics.action_limit.min;
-            state.rpm[i] = env.parameters.dynamics.hovering_throttle_relative * (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) + env.parameters.dynamics.action_limit.min;
+//            state.rpm[i] = (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) / 2 + parameters.dynamics.action_limit.min;
+            state.rpm[i] = parameters.dynamics.hovering_throttle_relative * (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) + parameters.dynamics.action_limit.min;
         }
     }
     template<typename DEVICE, typename T, typename TI_H, TI_H HISTORY_LENGTH, typename SPEC, typename NEXT_COMPONENT>
@@ -341,7 +341,7 @@ namespace rl_tools{
         initial_state(device, env, parameters, static_cast<rl::environments::multirotor::StateRotors<T, TI, NEXT_COMPONENT>&>(state));
         for(TI step_i = 0; step_i < HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-                state.action_history[step_i][action_i] = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min) / (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) * 2 - 1;
+                state.action_history[step_i][action_i] = (state.rpm[action_i] - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
             }
         }
     }
@@ -410,10 +410,10 @@ namespace rl_tools{
         typename DEVICE::SPEC::RANDOM random_dev;
         using STATE = typename rl::environments::multirotor::StateBase<T, TI>;
         bool guidance;
-        guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < env.parameters.mdp.init.guidance;
+        guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < parameters.mdp.init.guidance;
         if(!guidance){
             for(TI i = 0; i < 3; i++){
-                state.position[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_position, env.parameters.mdp.init.max_position, rng);
+                state.position[i] = random::uniform_real_distribution(random_dev, -parameters.mdp.init.max_position, parameters.mdp.init.max_position, rng);
             }
         }
         else{
@@ -421,7 +421,7 @@ namespace rl_tools{
                 state.position[i] = 0;
             }
         }
-        if(env.parameters.mdp.init.max_angle > 0 && !guidance){
+        if(parameters.mdp.init.max_angle > 0 && !guidance){
             // https://web.archive.org/web/20181126051029/http://planning.cs.uiuc.edu/node198.html
             do{
                 T u[3];
@@ -432,7 +432,7 @@ namespace rl_tools{
                 state.orientation[1] = math::sqrt(math_dev, 1-u[0]) * math::cos(math_dev, 2*math::PI<T>*u[1]);
                 state.orientation[2] = math::sqrt(math_dev,   u[0]) * math::sin(math_dev, 2*math::PI<T>*u[2]);
                 state.orientation[3] = math::sqrt(math_dev,   u[0]) * math::cos(math_dev, 2*math::PI<T>*u[2]);
-            } while(math::abs(math_dev, 2*math::acos(math_dev, math::abs(math_dev, state.orientation[0]))) > env.parameters.mdp.init.max_angle);
+            } while(math::abs(math_dev, 2*math::acos(math_dev, math::abs(math_dev, state.orientation[0]))) > parameters.mdp.init.max_angle);
         }
         else{
             state.orientation[0] = 1;
@@ -442,10 +442,10 @@ namespace rl_tools{
         }
         if(!guidance) {
             for(TI i = 0; i < 3; i++){
-                state.linear_velocity[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_linear_velocity, env.parameters.mdp.init.max_linear_velocity, rng);
+                state.linear_velocity[i] = random::uniform_real_distribution(random_dev, -parameters.mdp.init.max_linear_velocity, parameters.mdp.init.max_linear_velocity, rng);
             }
             for(TI i = 0; i < 3; i++){
-                state.angular_velocity[i] = random::uniform_real_distribution(random_dev, -env.parameters.mdp.init.max_angular_velocity, env.parameters.mdp.init.max_angular_velocity, rng);
+                state.angular_velocity[i] = random::uniform_real_distribution(random_dev, -parameters.mdp.init.max_angular_velocity, parameters.mdp.init.max_angular_velocity, rng);
             }
         }
         else{
@@ -457,7 +457,7 @@ namespace rl_tools{
             }
         }
 
-        sample_initial_parameters(device, env, parameters, rng);
+//        sample_initial_parameters(device, env, parameters, rng);
     }
     template<typename DEVICE, typename T_S, typename TI_S, typename SPEC, typename NEXT_COMPONENT, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::multirotor::StatePoseErrorIntegral<T_S, TI_S, NEXT_COMPONENT>& state, RNG& rng){
@@ -469,17 +469,17 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::multirotor::StateRandomForce<T_S, TI_S, NEXT_COMPONENT>& state, RNG& rng){
         typename DEVICE::SPEC::RANDOM random_dev;
         using T = typename SPEC::T;
-//        bool guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < env.parameters.mdp.init.guidance;
+//        bool guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < parameters.mdp.init.guidance;
         sample_initial_state(device, env, parameters, static_cast<NEXT_COMPONENT&>(state), rng);
 //        if(!guidance){
         {
-            auto distribution = env.parameters.disturbances.random_force;
+            auto distribution = parameters.disturbances.random_force;
             state.force[0] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
             state.force[1] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
             state.force[2] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
         }
         {
-            auto distribution = env.parameters.disturbances.random_torque;
+            auto distribution = parameters.disturbances.random_torque;
             state.torque[0] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
             state.torque[1] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std, rng);
             state.torque[2] = random::normal_distribution::sample(random_dev, (T)distribution.mean, (T)distribution.std/100, rng);
@@ -499,15 +499,15 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::multirotor::StateRotors<T, TI, NEXT_COMPONENT>& state, RNG& rng){
         sample_initial_state(device, env, parameters, static_cast<NEXT_COMPONENT&>(state), rng);
         T min_rpm, max_rpm;
-        if(env.parameters.mdp.init.relative_rpm){
-            min_rpm = (env.parameters.mdp.init.min_rpm + 1)/2 * (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) + env.parameters.dynamics.action_limit.min;
-            max_rpm = (env.parameters.mdp.init.max_rpm + 1)/2 * (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) + env.parameters.dynamics.action_limit.min;
+        if(parameters.mdp.init.relative_rpm){
+            min_rpm = (parameters.mdp.init.min_rpm + 1)/2 * (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) + parameters.dynamics.action_limit.min;
+            max_rpm = (parameters.mdp.init.max_rpm + 1)/2 * (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) + parameters.dynamics.action_limit.min;
         }
         else{
-            min_rpm = env.parameters.mdp.init.min_rpm < 0 ? env.parameters.dynamics.action_limit.min : env.parameters.mdp.init.min_rpm;
-            max_rpm = env.parameters.mdp.init.max_rpm < 0 ? env.parameters.dynamics.action_limit.max : env.parameters.mdp.init.max_rpm;
-            if(max_rpm > env.parameters.dynamics.action_limit.max){
-                max_rpm = env.parameters.dynamics.action_limit.max;
+            min_rpm = parameters.mdp.init.min_rpm < 0 ? parameters.dynamics.action_limit.min : parameters.mdp.init.min_rpm;
+            max_rpm = parameters.mdp.init.max_rpm < 0 ? parameters.dynamics.action_limit.max : parameters.mdp.init.max_rpm;
+            if(max_rpm > parameters.dynamics.action_limit.max){
+                max_rpm = parameters.dynamics.action_limit.max;
             }
             if(min_rpm > max_rpm){
                 min_rpm = max_rpm;
@@ -524,7 +524,7 @@ namespace rl_tools{
         sample_initial_state(device, env, parameters, static_cast<typename rl::environments::multirotor::StateRotors<T_S, TI_S, NEXT_COMPONENT>&>(state), rng);
         for(TI step_i = 0; step_i < HISTORY_LENGTH; step_i++){
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-                state.action_history[step_i][action_i] = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min) / (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) * 2 - 1;
+                state.action_history[step_i][action_i] = (state.rpm[action_i] - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
             }
         }
     }
@@ -560,7 +560,7 @@ namespace rl_tools{
                     set(observation, 0, i, state.position[i]);
                 }
                 else{
-                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, env.parameters.mdp.observation_noise.position, rng);
+                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.position, rng);
                     set(observation, 0, i, state.position[i] + noise);
                 }
             }
@@ -579,7 +579,7 @@ namespace rl_tools{
                     set(observation, 0, i, state.orientation[i]);
                 }
                 else{
-                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, env.parameters.mdp.observation_noise.orientation, rng);
+                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.orientation, rng);
                     set(observation, 0, i, state.orientation[i] + noise);
                 }
             }
@@ -606,7 +606,7 @@ namespace rl_tools{
             if constexpr(!OBSERVATION_SPEC::PRIVILEGED || SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
                 for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
                     T noise;
-                    noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.observation_noise.orientation, rng);
+                    noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, parameters.mdp.observation_noise.orientation, rng);
                     increment(observation, 0, i, noise);
                 }
             }
@@ -625,7 +625,7 @@ namespace rl_tools{
                     set(observation, 0, i, state.linear_velocity[i]);
                 }
                 else{
-                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, env.parameters.mdp.observation_noise.linear_velocity, rng);
+                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.linear_velocity, rng);
                     set(observation, 0, i, state.linear_velocity[i] + noise);
                 }
             }
@@ -644,7 +644,7 @@ namespace rl_tools{
                     set(observation, 0, i, state.angular_velocity[i]);
                 }
                 else{
-                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, env.parameters.mdp.observation_noise.angular_velocity, rng);
+                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.angular_velocity, rng);
                     set(observation, 0, i, state.angular_velocity[i] + noise);
                 }
             }
@@ -659,7 +659,7 @@ namespace rl_tools{
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
             for(TI action_i = 0; action_i < OBSERVATION::CURRENT_DIM; action_i++){
-                T action_value = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min)/(env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) * 2 - 1;
+                T action_value = (state.rpm[action_i] - parameters.dynamics.action_limit.min)/(parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
                 set(observation, 0, action_i, action_value);
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
@@ -759,7 +759,7 @@ namespace rl_tools{
 //        observe_privileged(device, env, (const rl::environments::multirotor::StateBase<T_S, TI_S, LATENT_STATE>&) state, base_observation, rng);
 //        auto rpm_observation = view(device, observation, matrix::ViewSpec<1, MULTIROTOR::ACTION_DIM>{}, 0, MULTIROTOR::OBSERVATION_DIM_PRIVILEGED - MULTIROTOR::ACTION_DIM);
 //        for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-//            T action_value = (state.rpm[action_i] - env.parameters.dynamics.action_limit.min)/(env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) * 2 - 1;
+//            T action_value = (state.rpm[action_i] - parameters.dynamics.action_limit.min)/(parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) * 2 - 1;
 //            set(rpm_observation, 0, action_i, action_value);
 //        }
 //    }
@@ -785,7 +785,7 @@ namespace rl_tools{
         post_integration(device, env, parameters, static_cast<const NEXT_COMPONENT&>(state), action, static_cast<NEXT_COMPONENT&>(next_state), rng);
         using MULTIROTOR = rl::environments::Multirotor<SPEC>;
         for(typename DEVICE::index_t rpm_i = 0; rpm_i < MULTIROTOR::ACTION_DIM; rpm_i++){
-            next_state.rpm[rpm_i] = math::clamp(typename DEVICE::SPEC::MATH{}, next_state.rpm[rpm_i], env.parameters.dynamics.action_limit.min, env.parameters.dynamics.action_limit.max);
+            next_state.rpm[rpm_i] = math::clamp(typename DEVICE::SPEC::MATH{}, next_state.rpm[rpm_i], parameters.dynamics.action_limit.min, parameters.dynamics.action_limit.max);
         }
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T_S, typename TI_S, typename NEXT_COMPONENT, typename RNG>
@@ -833,15 +833,15 @@ namespace rl_tools{
         T action_scaled[ACTION_DIM];
 
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            T half_range = (env.parameters.dynamics.action_limit.max - env.parameters.dynamics.action_limit.min) / 2;
+            T half_range = (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) / 2;
             T action_noisy = get(action, 0, action_i);
-            action_noisy += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, env.parameters.mdp.action_noise.normalized_rpm, rng);
+            action_noisy += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, parameters.mdp.action_noise.normalized_rpm, rng);
             action_noisy = math::clamp(device.math, action_noisy, -(T)1, (T)1);
-            action_scaled[action_i] = action_noisy * half_range + env.parameters.dynamics.action_limit.min + half_range;
+            action_scaled[action_i] = action_noisy * half_range + parameters.dynamics.action_limit.min + half_range;
 //            state.rpm[action_i] = action_scaled[action_i];
         }
-        utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, env.parameters, state, action_scaled, env.parameters.integration.dt, next_state);
-//        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, env.parameters, state, action_scaled, env.parameters.integration.dt, next_state);
+        utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);
+//        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::multirotor::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);
 
         post_integration(device, env, parameters, state, action, next_state, rng);
 
@@ -849,28 +849,28 @@ namespace rl_tools{
 //        utils::assert_exit(device, !math::is_nan(device.math, next_state.orientation_integral), "oi nan");
 //        utils::assert_exit(device, !is_nan(device, action), "action nan");
 //        utils::assert_exit(device, !is_nan(device, next_state), "nan");
-        return env.parameters.integration.dt;
+        return parameters.integration.dt;
     }
 
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::Multirotor<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        if(env.parameters.mdp.termination.enabled){
+        if(parameters.mdp.termination.enabled){
             for(TI i = 0; i < 3; i++){
                 if(
-                    math::abs(device.math, state.position[i]) > env.parameters.mdp.termination.position_threshold ||
-                    math::abs(device.math, state.linear_velocity[i]) > env.parameters.mdp.termination.linear_velocity_threshold ||
-                    math::abs(device.math, state.angular_velocity[i]) > env.parameters.mdp.termination.angular_velocity_threshold
+                    math::abs(device.math, state.position[i]) > parameters.mdp.termination.position_threshold ||
+                    math::abs(device.math, state.linear_velocity[i]) > parameters.mdp.termination.linear_velocity_threshold ||
+                    math::abs(device.math, state.angular_velocity[i]) > parameters.mdp.termination.angular_velocity_threshold
                 ){
                     return true;
                 }
             }
         }
-//        if(state.position_integral > env.parameters.mdp.termination.position_integral_threshold){
+//        if(state.position_integral > parameters.mdp.termination.position_integral_threshold){
 //            return true;
 //        }
-//        if(state.orientation_integral > env.parameters.mdp.termination.orientation_integral_threshold){
+//        if(state.orientation_integral > parameters.mdp.termination.orientation_integral_threshold){
 //            return true;
 //        }
         return false;

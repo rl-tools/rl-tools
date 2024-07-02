@@ -4,7 +4,7 @@ This directory contains a minimal Pendulum swing-up example. It can be compiled 
 ```
 mkdir build
 cd build
-g++ -I ../include/ ../src/rl/environments/pendulum/td3/cpu/standalone.cpp -std=c++17 -O3 -o pendulum_td3
+g++ -I ../include/ ../src/rl/environments/pendulum/td3/cpu/standalone.cpp -std=c++17 -Ofast -o pendulum_td3
 ./pendulum_td3
 ```
 
@@ -15,7 +15,7 @@ If you have e.g. OpenBLAS installed you can link to it and activate it using the
 ```
 mkdir build
 cd build
-g++ -I ../include/ ../src/rl/environments/pendulum/td3/cpu/standalone.cpp -lopenblas -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -std=c++17 -O3 -o pendulum_td3
+g++ -I ../include/ ../src/rl/environments/pendulum/td3/cpu/standalone.cpp -lopenblas -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -std=c++17 -Ofast -o pendulum_td3
 ./pendulum_td3
 ```
 
@@ -23,7 +23,7 @@ This should provide a decent speedup, you can play with some compiler options to
 ```
 mkdir build
 cd build
-g++ -I ../include/ ../src/rl/environments/pendulum/td3/cpu/standalone.cpp -lopenblas -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -std=c++17 -O3 -mavx2 -march=native -ffast-math -o pendulum_td3
+g++ -I ../include/ ../src/rl/environments/pendulum/td3/cpu/standalone.cpp -lopenblas -DRL_TOOLS_BACKEND_ENABLE_OPENBLAS -std=c++17 -Ofast -mavx2 -march=native -ffast-math -o pendulum_td3
 sudo nice -n -20 ./pendulum_td3
 ```
 The latter gives the process the highest priority to produce more consistent results.
@@ -41,7 +41,7 @@ To show that RLtools can operate entirely dependency free (not even depending on
 ```
 mkdir build
 cd build
-g++ -I ../include/ ../src/rl/environments/pendulum/td3/cpu/bare.cpp -std=c++17 -O3 -DRL_TOOLS_TEST_BARE -DRL_TOOLS_CONTAINERS_USE_MALLOC -nodefaultlibs -lm -lc -o pendulum_td3
+g++ -I ../include/ ../src/rl/environments/pendulum/td3/cpu/bare.cpp -std=c++17 -Ofast -DRL_TOOLS_TEST_BARE -DRL_TOOLS_CONTAINERS_USE_MALLOC -nodefaultlibs -lm -lc -o pendulum_td3
 ldd pendulum_td3
 ./pendulum_td3 && echo $?
 ```

@@ -33,7 +33,7 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
         };
     };
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT typename rl::environments::multirotor::parameters::reward_functions::Squared<T>::Components reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::multirotor::parameters::reward_functions::Squared<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT typename rl::environments::multirotor::parameters::reward_functions::Squared<T>::Components reward_components(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const rl::environments::multirotor::parameters::reward_functions::Squared<T>& params, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action,  const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng){
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         typename rl::environments::multirotor::parameters::reward_functions::Squared<T>::Components components;
@@ -45,19 +45,19 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
         T linear_acc[3];
         T angular_acc[3];
         rl_tools::utils::vector_operations::sub<DEVICE, T, 3>(next_state.linear_velocity, state.linear_velocity, linear_acc);
-        components.linear_acc_cost = math::sqrt(device.math, linear_acc[0] * linear_acc[0] + linear_acc[1] * linear_acc[1] + linear_acc[2] * linear_acc[2]) / env.parameters.integration.dt;
+        components.linear_acc_cost = math::sqrt(device.math, linear_acc[0] * linear_acc[0] + linear_acc[1] * linear_acc[1] + linear_acc[2] * linear_acc[2]) / parameters.integration.dt;
         rl_tools::utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
-        components.angular_acc_cost = math::sqrt(device.math, angular_acc[0] * angular_acc[0] + angular_acc[1] * angular_acc[1] + angular_acc[2] * angular_acc[2]) / env.parameters.integration.dt;
+        components.angular_acc_cost = math::sqrt(device.math, angular_acc[0] * angular_acc[0] + angular_acc[1] * angular_acc[1] + angular_acc[2] * angular_acc[2]) / parameters.integration.dt;
 
         T action_diff[ACTION_DIM];
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T action_throttle_relative = (get(action, 0, action_i) + (T)1.0)/(T)2.0;
-            action_diff[action_i] = action_throttle_relative - env.parameters.dynamics.hovering_throttle_relative;
+            action_diff[action_i] = action_throttle_relative - parameters.dynamics.hovering_throttle_relative;
         }
         components.action_cost = rl_tools::utils::vector_operations::norm<DEVICE, T, ACTION_DIM>(action_diff);
         components.action_cost *= components.action_cost;
         components.weighted_cost = params.position * components.position_cost + params.orientation * components.orientation_cost + params.linear_velocity * components.linear_vel_cost + params.angular_velocity * components.angular_vel_cost + params.linear_acceleration * components.linear_acc_cost + params.angular_acceleration * components.angular_acc_cost + params.action * components.action_cost;
-        bool terminated_flag = terminated(device, env, next_state, rng);
+        bool terminated_flag = terminated(device, env, parameters, next_state, rng);
         components.scaled_weighted_cost = params.scale * components.weighted_cost;
 
         if(terminated_flag){

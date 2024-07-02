@@ -58,19 +58,19 @@ namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
         components.linear_acc_cost += math::abs(device.math, linear_acc[0]);
         components.linear_acc_cost += math::abs(device.math, linear_acc[1]);
         components.linear_acc_cost += math::abs(device.math, linear_acc[2]);
-        components.linear_acc_cost /= env.parameters.integration.dt;
+        components.linear_acc_cost /= parameters.integration.dt;
 
         rl_tools::utils::vector_operations::sub<DEVICE, T, 3>(next_state.angular_velocity, state.angular_velocity, angular_acc);
         components.angular_acc_cost = 0;
         components.angular_acc_cost += math::abs(device.math, angular_acc[0]);
         components.angular_acc_cost += math::abs(device.math, angular_acc[1]);
         components.angular_acc_cost += math::abs(device.math, angular_acc[2]);
-        components.angular_acc_cost /= env.parameters.integration.dt;
+        components.angular_acc_cost /= parameters.integration.dt;
 
         components.action_cost = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
             T action_value = (get(action, 0, action_i) + T(1))/2;
-            T action_diff = math::abs(device.math, action_value - env.parameters.dynamics.hovering_throttle_relative);
+            T action_diff = math::abs(device.math, action_value - parameters.dynamics.hovering_throttle_relative);
             components.action_cost += action_diff;
         }
         components.weighted_cost = reward_params.position * components.position_cost + reward_params.orientation * components.orientation_cost + reward_params.linear_velocity * components.linear_vel_cost + reward_params.angular_velocity * components.angular_vel_cost + reward_params.linear_acceleration * components.linear_acc_cost + reward_params.angular_acceleration * components.angular_acc_cost + reward_params.action * components.action_cost;

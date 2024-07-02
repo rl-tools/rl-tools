@@ -15,6 +15,7 @@ namespace rl_tools::rl::zoo::sac::pendulum_v1{
                 static constexpr TI CRITIC_BATCH_SIZE = 100;
             };
             static constexpr TI STEP_LIMIT = 20000;
+            static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
             static constexpr TI CRITIC_NUM_LAYERS = 3;
