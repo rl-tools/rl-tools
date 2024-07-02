@@ -3,6 +3,7 @@
 
 #include <rl_tools/utils/generic/typing.h>
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multirotor{
     template <typename T_T, typename T_TI, T_TI T_N, typename T_REWARD_FUNCTION, typename REGISTRY, REGISTRY T_MODEL>
     struct ParametersBaseSpecification{

@@ -1,9 +1,11 @@
+#include "../../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_INIT_DEFAULT_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_INIT_DEFAULT_H
+
 #include "../../multirotor.h"
 
-#define RL_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_POSITION (0.5)
-#define RL_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_LINEAR_VELOCITY (0.5)
-#define RL_TOOLS_RL_ENVIRONMENTS_MULTIROTOR_PARAMETERS_INIT_ANGULAR_VELOCITY (1)
-
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multirotor::parameters::init{
     template<typename SPEC>
     constexpr typename ParametersBase<SPEC>::MDP::Initialization init_90_deg = {
@@ -17,3 +19,5 @@ namespace rl_tools::rl::environments::multirotor::parameters::init{
             +1,  // max rpm
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
+#endif

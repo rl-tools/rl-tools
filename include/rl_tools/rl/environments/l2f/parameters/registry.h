@@ -1,4 +1,4 @@
-#include "dynamics/crazy_flie.h"
+#include "dynamics/crazyflie.h"
 #include "dynamics/mrs.h"
 #include "dynamics/race.h"
 #include "dynamics/x500_real.h"
@@ -30,20 +30,23 @@ namespace rl_tools::rl::environments::multirotor::parameters{
             }
         }();
 
-        template <typename SPEC>
+        template <auto THING>
+        struct Dependent{};
+
+        template <REGISTRY MODEL>
         constexpr auto registry_name = [](){
-            if constexpr (SPEC::MODEL == REGISTRY::crazyflie){
+            if constexpr (MODEL == REGISTRY::crazyflie){
                 return "crazyflie";
-            }else if constexpr (SPEC::MODEL == REGISTRY::mrs){
+            }else if constexpr (MODEL == REGISTRY::mrs){
                 return "mrs";
-            }else if constexpr (SPEC::MODEL == REGISTRY::x500_real){
+            }else if constexpr (MODEL == REGISTRY::x500_real){
                 return "x500_real";
-            }else if constexpr (SPEC::MODEL == REGISTRY::x500_sim){
+            }else if constexpr (MODEL == REGISTRY::x500_sim){
                 return "x500_sim";
-            }else if constexpr (SPEC::MODEL == REGISTRY::fs_base){
+            }else if constexpr (MODEL == REGISTRY::fs_base){
                 return "fs_base";
             }else{
-                static_assert(rl_tools::utils::typing::dependent_false<SPEC>, "Unknown model");
+                static_assert(rl_tools::utils::typing::dependent_false<Dependent<MODEL>>, "Unknown model");
             }
         }();
     }

@@ -1,7 +1,10 @@
-#ifndef LEARNING_TO_FLY_SIMULATOR_PARAMETERS_DYNAMICS_X500_REAL_H
-#define LEARNING_TO_FLY_SIMULATOR_PARAMETERS_DYNAMICS_X500_REAL_H
+#include "../../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_DYNAMICS_X500_REAL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_DYNAMICS_X500_REAL_H
 #include "../../multirotor.h"
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multirotor::parameters::dynamics{
     namespace x500{
         template<typename SPEC, typename = rl_tools::utils::typing::enable_if_t<SPEC::N == 4>> // This is a quadrotor
@@ -101,5 +104,6 @@ namespace rl_tools::rl::environments::multirotor::parameters::dynamics{
         };
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

@@ -1,7 +1,10 @@
-#ifndef LEARNING_TO_FLY_SIMULATOR_PARAMETERS_DYNAMICS_CRAZY_FLIE_H
-#define LEARNING_TO_FLY_SIMULATOR_PARAMETERS_DYNAMICS_CRAZY_FLIE_H
+#include "../../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_DYNAMICS_CRAZYFLIE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_DYNAMICS_CRAZYFLIE_H
 #include "../../multirotor.h"
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multirotor::parameters::dynamics{
     template<typename SPEC, typename = rl_tools::utils::typing::enable_if_t<SPEC::N == 4>> // Crazyflie is a quadrotor
     constexpr typename ParametersBase<SPEC>::Dynamics crazy_flie = {
@@ -101,5 +104,6 @@ namespace rl_tools::rl::environments::multirotor::parameters::dynamics{
             {0, 21702},
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif
