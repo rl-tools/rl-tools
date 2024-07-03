@@ -26,7 +26,8 @@ namespace rl_tools {
             CPU_TENSORBOARD,
             CUDA,
             ARM,
-            ESP32
+            ESP32,
+            WASM32
         };
         enum class Type {
             math,
@@ -46,6 +47,11 @@ namespace rl_tools::devices{
         struct Generic{
             static constexpr Type TYPE = Type::random;
             using MATH_DEVICE = T_MATH_DEVICE;
+        };
+    }
+    namespace math{
+        struct Generic{
+            static constexpr Type TYPE = Type::math;
         };
     }
 }

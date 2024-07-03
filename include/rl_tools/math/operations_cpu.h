@@ -106,9 +106,7 @@ namespace rl_tools::math {
     }
     template<typename T>
     T fast_tanh(const devices::math::CPU& dev, T x) {
-        x = clamp(dev, x, -(T)3.0, (T)3.0);
-        T x_squared = x * x;
-        return x * (27 + x_squared) / (27 + 9 * x_squared);
+        return fast_tanh(devices::math::Generic{}, x);
     }
     template<typename T>
     T atan2(const devices::math::CPU& dev, T a, T b) {

@@ -1,4 +1,4 @@
-#include <rl_tools/operations/dummy.h>
+#include <rl_tools/operations/wasm32.h>
 
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
@@ -7,9 +7,7 @@
 
 namespace rlt = rl_tools;
 
-#include <stdint.h>
-
-using DEVICE = rlt::devices::DefaultDummy;
+using DEVICE = rlt::devices::DefaultWASM32;
 using T = rlt::checkpoint::actor::MODEL::T;
 using TI = DEVICE::index_t;
 constexpr TI BATCH_SIZE = 1;
@@ -18,30 +16,31 @@ rlt::MatrixStatic<rlt::matrix::Specification<T, TI, BATCH_SIZE, rl_tools::checkp
 rlt::checkpoint::actor::MODEL::Buffer<BATCH_SIZE, rlt::MatrixStaticTag> buffer;
 
 extern "C" {
-    int32_t batch_size();
-    int32_t input_dim();
-    int32_t output_dim();
+    TI batch_size();
+    TI input_dim();
+    TI output_dim();
     void set_input(int32_t row, int32_t col, T value);
     T get_output(int32_t row, int32_t col);
     void evaluate();
 
     // example
-    int32_t get_example_batch_size();
+    int32_t example_batch_size();
     T get_example_input(int32_t row, int32_t col);
     T get_example_output(int32_t row, int32_t col);
+    T test();
 }
-int32_t batch_size(){
+TI batch_size(){
     return BATCH_SIZE;
 }
-int32_t input_dim(){
+TI input_dim(){
     return rl_tools::checkpoint::actor::MODEL::INPUT_DIM;
 }
-int32_t output_dim(){
+TI output_dim(){
     return rl_tools::checkpoint::actor::MODEL::OUTPUT_DIM;
 }
 
-int32_t get_example_batch_size(){
-    return rlt::checkpoint::example::input::CONTAINER_TYPE::COLS;
+int32_t example_batch_size(){
+    return rlt::checkpoint::example::input::CONTAINER_TYPE::ROWS;
 }
 T get_example_input(int32_t row, int32_t col){
     return rlt::get(rlt::checkpoint::example::input::container, row, col);
@@ -62,5 +61,13 @@ void evaluate(){
     DEVICE device;
     bool rng;
     rlt::evaluate(device, rlt::checkpoint::actor::module, input, output, buffer, rng);
+}
+
+
+T test(){
+    DEVICE device;
+    bool rng;
+    rlt::evaluate(device, rlt::checkpoint::actor::module, rlt::checkpoint::example::input::container, output, buffer, rng);
+    return rlt::abs_diff(device, rlt::checkpoint::example::output::container, output);
 }
 
