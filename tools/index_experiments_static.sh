@@ -8,6 +8,6 @@ if [ -z "$1" ]; then
 fi
 
 cd $1
-find . -type f -not -path '\./\.git/*' | grep -v index.txt\$ | grep -v index_files.txt\$ | grep -v index_directories.txt\$ | grep -v index_static.txt\$ | grep -v index_static.txt.tmp\$ | grep -v .gitignore\$ | sort > index_static.txt.tmp
+find . -type f -not -path '\.\/\.git*' | grep -v index.txt\$ | grep -v index_files.txt\$ | grep -v index_directories.txt\$ | grep -v index_static.txt\$ | grep -v index_static.txt.tmp\$ | grep -v .gitignore\$ | sort > index_static.txt.tmp
 mv index_static.txt.tmp index_static.txt
 echo "Wrote $(pwd)/index_static.txt"

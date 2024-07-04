@@ -11,15 +11,15 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
     constexpr Squared<T> squared = {
             false, // non-negative
             0.1, // scale
-            2, // constant
+            1, // constant
             0, // termination penalty
-            20, // position
+            10, // position
             2.5, // orientation
             0.005, // linear_velocity
             0, // angular_velocity
             0, // linear_acceleration
             0, // angular_acceleration
-            0.01, // action
+            0.1, // action
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

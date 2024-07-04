@@ -29,11 +29,11 @@ namespace rl_tools::rl::zoo::sac::l2f{
                 static constexpr TI ACTOR_TARGET_UPDATE_INTERVAL = 2 * TRAINING_INTERVAL;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_CLIP = 0.9;
                 static constexpr T TARGET_NEXT_ACTION_NOISE_STD = 0.3;
-                static constexpr T GAMMA = 0.995;
+                static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
             };
             static constexpr T EXPLORATION_NOISE = 0.3;
-            static constexpr TI STEP_LIMIT = 3000000;
+            static constexpr TI STEP_LIMIT = 1000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
