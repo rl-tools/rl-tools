@@ -13,11 +13,18 @@
 #include <rl_tools/nn_models/sequential/persist.h>
 #endif
 
+#ifdef RL_TOOLS_ENABLE_ZLIB
+#include <zlib.h>
+#include <cstring>
+#endif
+
 #include <rl_tools/containers/persist_code.h>
 #include <rl_tools/nn/parameters/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
 #include <rl_tools/nn_models/mlp/persist_code.h>
 #include <rl_tools/nn_models/sequential/persist_code.h>
+
+#include "../../../../utils/zlib/operations_cpu.h"
 
 #include <filesystem>
 #include <iostream>
@@ -69,21 +76,36 @@ namespace rl_tools{
             typename ACTOR_TYPE::template Buffer<1> actor_buffer;
             malloc(device, actor_buffer);
             copy(device, device, actor, actor_forward);
-            std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h";
             auto actor_weights = save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
-            std::ofstream actor_output_file(checkpoint_code_path);
-            actor_output_file << actor_weights;
+            std::stringstream output_ss;
+            output_ss << actor_weights;
             {
                 MatrixStatic<matrix::Specification<T, TI, 1, ACTOR_TYPE::INPUT_DIM>> input;
                 MatrixStatic<matrix::Specification<T, TI, 1, ACTOR_TYPE::OUTPUT_DIM>> output;
                 auto rng_copy = ts.rng;
                 randn(device, input, rng_copy);
                 evaluate(device, actor, input, output, actor_buffer, rng_copy);
-                actor_output_file << "\n" << save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
-                actor_output_file << "\n" << save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
+                output_ss << "\n" << save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
+                output_ss << "\n" << save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
                 free(device, input);
                 free(device, output);
             }
+#ifndef RL_TOOLS_ENABLE_ZLIB
+            std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h";
+            std::ofstream actor_output_file(checkpoint_code_path);
+            actor_output_file << output_ss.str();
+            actor_output_file.close();
+#else
+            std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h.gz";
+            std::vector<uint8_t> checkpoint_output;
+            if(!compress_zlib(output_ss.str(), checkpoint_output)){
+                std::cerr << "Error while compressing trajectories." << std::endl;
+                return true;
+            }
+            std::ofstream actor_output_file(checkpoint_code_path, std::ios::binary);
+            actor_output_file.write(reinterpret_cast<const char*>(checkpoint_output.data()), checkpoint_output.size());
+            actor_output_file.close();
+#endif
             free(device, actor_buffer);
             free(device, actor_forward);
 

@@ -1,9 +1,10 @@
 #include <rl_tools/operations/wasm32.h>
 
 #include <rl_tools/nn/layers/dense/operations_generic.h>
+#include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-#include "/Users/jonas/rl_tools/experiments/2024-07-02_17-00-10/4f39b6e_zoo_algorithm_environment/td3_l2f/0000/steps/000000003000000/checkpoint.h"
+#include "/Users/jonas/rl_tools/experiments/2024-07-04_14-48-37/aa78749_zoo_algorithm_environment/sac_pendulum-v1/0000/steps/000000000020000/checkpoint.h"
 
 namespace rlt = rl_tools;
 

@@ -7,9 +7,9 @@
 #include <rl_tools/math/operations_generic.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::multirotor::parameters::termination{
+namespace rl_tools::rl::environments::l2f::parameters::termination{
     template<typename SPEC>
-    constexpr typename rl_tools::rl::environments::multirotor::ParametersBase<SPEC>::MDP::Termination fast_learning = {
+    constexpr typename rl_tools::rl::environments::l2f::ParametersBase<SPEC>::MDP::Termination fast_learning = {
         true,           // enable
         0.6,            // position
         1000,         // linear velocity

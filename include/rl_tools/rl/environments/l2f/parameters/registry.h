@@ -12,7 +12,7 @@
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::multirotor::parameters{
+namespace rl_tools::rl::environments::l2f::parameters{
     namespace dynamics{
         enum class REGISTRY{
             crazyflie,

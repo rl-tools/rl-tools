@@ -15,10 +15,16 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::utils::evaluation{
         template<typename TI, typename SPEC>
-        void set_state(rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, const typename SPEC::ENVIRONMENT::State state){}
+        void set_state(rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, TI step_i, const typename SPEC::ENVIRONMENT::State& state){}
         template<typename TI, typename SPEC>
-        void set_state(rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, const typename SPEC::ENVIRONMENT::State state){
+        void set_state(rl::utils::evaluation::Data<SPEC>& data, TI episode_i, TI step_i, const typename SPEC::ENVIRONMENT::State& state){
             data.states[episode_i][step_i] = state;
+        }
+        template<typename TI, typename SPEC>
+        void set_parameters(rl::utils::evaluation::NoData<SPEC>& data, TI episode_i, const typename SPEC::ENVIRONMENT::Parameters& parameters){ }
+        template<typename TI, typename SPEC>
+        void set_parameters(rl::utils::evaluation::Data<SPEC>& data, TI episode_i, const typename SPEC::ENVIRONMENT::Parameters& parameters){
+            data.parameters[episode_i] = parameters;
         }
         template<typename TI, typename SPEC, typename ACTION_SPEC>
         void set_action(rl::utils::evaluation::NoData<SPEC>& data, TI step_i, const Matrix<ACTION_SPEC>& actions){}
@@ -91,6 +97,7 @@ namespace rl_tools{
                 sample_initial_parameters(device, env, current_parameters, rng);
                 sample_initial_state(device, env, current_parameters, state, rng);
             }
+            rl::utils::evaluation::set_parameters(data, env_i, current_parameters);
         }
         for(TI step_i = 0; step_i < SPEC::STEP_LIMIT; step_i++) {
             for(TI env_i = 0; env_i < SPEC::N_EPISODES; env_i++) {

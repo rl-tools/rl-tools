@@ -6,7 +6,7 @@
 #include <rl_tools/utils/generic/vector_operations.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::multirotor{
+namespace rl_tools::rl::environments::l2f{
     template <typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void quaternion_derivative(const T q[4], const T omega[3], T q_dot[4]) {
         // FLOPS: 3 (MAC) * 4 + 4 = 16

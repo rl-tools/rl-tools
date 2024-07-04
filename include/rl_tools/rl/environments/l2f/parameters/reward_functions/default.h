@@ -6,7 +6,7 @@
 #include "../../multirotor.h"
 #include "squared.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::multirotor::parameters::reward_functions{
+namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
     template<typename T>
     constexpr Squared<T> squared = {
             false, // non-negative

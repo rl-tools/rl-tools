@@ -36,7 +36,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     std::string get_ui(DEVICE& device, rl::environments::Acrobot<SPEC>& env){
         std::string ui = R"RL_TOOLS_LITERAL(
-export async function init(canvas, parameters, options){
+export async function init(canvas, options){
     // Simply saving the context for 2D environments
     return {
         ctx: canvas.getContext('2d')

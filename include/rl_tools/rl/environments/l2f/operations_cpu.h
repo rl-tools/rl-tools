@@ -8,216 +8,323 @@
 #include <string>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters){
-        return "{}";
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, rl::environments::l2f::ParametersBase<PARAM_SPEC>& parameters){
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        std::string json = "{";
+        json += "\"mass\": " + std::to_string(parameters.dynamics.mass) + ", ";
+        json += "\"rotors\": [";
+        for (TI i = 0; i < PARAM_SPEC::N; i++){
+            json += "{";
+            json += "\"thrust_curve\": {\"factor_1\": 1}, ";
+            json += "\"pose\": {";
+            json += "\"position\": [" + std::to_string(parameters.dynamics.rotor_positions[i][0]) + ", " + std::to_string(parameters.dynamics.rotor_positions[i][1]) + ", " + std::to_string(parameters.dynamics.rotor_positions[i][2]) + "], ";
+            T qw, qx, qy, qz;
+            {
+                // thrust direction to quaternion
+                T x = parameters.dynamics.rotor_thrust_directions[i][0];
+                T y = parameters.dynamics.rotor_thrust_directions[i][1];
+                T z = parameters.dynamics.rotor_thrust_directions[i][2];
+
+                T z_unit[3] = {0.0f, 0.0f, 1.0f};
+
+                T cross_x = z_unit[1] * z - z_unit[2] * y;
+                T cross_y = z_unit[2] * x - z_unit[0] * z;
+                T cross_z = z_unit[0] * y - z_unit[1] * x;
+
+                T dot = z_unit[0] * x + z_unit[1] * y + z_unit[2] * z;
+
+                T angle = math::acos(device.math, dot);
+
+                T cross_magnitude = math::sqrt(device.math, cross_x * cross_x + cross_y * cross_y + cross_z * cross_z);
+                if (cross_magnitude != 0) {
+                    cross_x /= cross_magnitude;
+                    cross_y /= cross_magnitude;
+                    cross_z /= cross_magnitude;
+                }
+
+                T half_angle = angle / 2.0f;
+                T sin_half_angle = sin(half_angle);
+
+                qw = cos(half_angle);
+                qx = cross_x * sin_half_angle;
+                qy = cross_y * sin_half_angle;
+                qz = cross_z * sin_half_angle;
+            }
+            json += "\"orientation\": [" + std::to_string(qw) + ", " + std::to_string(qx) + ", " + std::to_string(qy) + ", " + std::to_string(qz) + "]";
+            json += "}"; // closing pose
+            json += "}"; // closing rotor
+            if (i < PARAM_SPEC::N - 1){
+                json += ", ";
+            }
+        }
+        json += "],";
+        json += "\"imu\": {\"pose\": {\"position\": [0, 0, 0], \"orientation\": [1, 0, 0, 0]}}";
+        json += "}";
+        return json;
+    }
+    template <typename DEVICE, typename SPEC, typename STATE_T, typename STATE_TI>
+    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, rl::environments::l2f::StateBase<STATE_T, STATE_TI>& state){
+        std::string json = "{";
+        json += "\"position\": [" + std::to_string(state.position[0]) + ", " + std::to_string(state.position[1]) + ", " + std::to_string(state.position[2]) + "], ";
+        json += "\"orientation\": [" + std::to_string(state.orientation[0]) + ", " + std::to_string(state.orientation[1]) + ", " + std::to_string(state.orientation[2]) + ", " + std::to_string(state.orientation[3]) + "]";
+        json += "}";
+        return json;
     }
     template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::Multirotor<SPEC>::State& state){
-        return "{}";
+    std::string get_ui(DEVICE& device, rl::environments::Multirotor<SPEC>& env){
+        // just the body of `function render(ctx, state, action) {` (so that it can be easily processed by `new Function("ctx", "state", "action", body)`
+        std::string ui = R"RL_TOOLS_LITERAL(
+import * as THREE from "three"
+import {OrbitControls} from "three-orbitcontrols"
+
+
+function norm(a){
+    return Math.sqrt(a.map(x => x**2).reduce((a, c) => a + c, 0))
+}
+
+function Matrix4FromRotMatTranspose(rotMat){
+    const m = new THREE.Matrix4()
+    m.set(
+        rotMat[0][0], rotMat[1][0], rotMat[2][0], 0,
+        rotMat[0][1], rotMat[1][1], rotMat[2][1], 0,
+        rotMat[0][2], rotMat[1][2], rotMat[2][2], 0,
+        0, 0, 0, 1)
+    return m
+}
+
+function Matrix4FromRotMat(rotMat){
+    const m = new THREE.Matrix4()
+    m.set(
+        rotMat[0][0], rotMat[0][1], rotMat[0][2], 0,
+        rotMat[1][0], rotMat[1][1], rotMat[1][2], 0,
+        rotMat[2][0], rotMat[2][1], rotMat[2][2], 0,
+        0, 0, 0, 1)
+    return m
+}
+
+
+
+
+class State{
+    constructor(canvas, {devicePixelRatio}){
+        this.canvas = canvas
+        this.devicePixelRatio = devicePixelRatio
     }
-//    template <typename DEVICE, typename SPEC>
-//    std::string get_ui(DEVICE& device, rl::environments::Multirotor<SPEC>& env){
-//        // just the body of `function render(ctx, state, action) {` (so that it can be easily processed by `new Function("ctx", "state", "action", body)`
-//        std::string ui = R"RL_TOOLS_LITERAL(
-//export async function init(canvas, parameters, options){
-//    // Simply saving the context for 2D environments
-//    return {
-//        ctx: canvas.getContext('2d')
-//    }
-//}
-//export async function render(ui_state, parameters, state, action) {
-//    const ctx = ui_state.ctx
-//    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-//    const canvasWidth = ctx.canvas.width;
-//    const canvasHeight = ctx.canvas.height;
-//    const scaleX = canvasWidth / parameters.ARENA_WIDTH;
-//    const scaleY = canvasHeight / parameters.ARENA_HEIGHT;
-//    console.assert(scaleX == scaleY);
-//
-//
-//    // Draw large, gray arrow in the background
-//    const arrowStartX = canvasWidth / 5;
-//    const arrowEndX = 4 * canvasWidth / 5;
-//    const arrowY = canvasHeight / 2;
-//    const arrowThickness = canvasHeight / 10;
-//    const arrowHeadLength = arrowThickness * 2.0;
-//    const arrowHeadWidth = arrowThickness * 3;
-//    const arrowColor = '#f3f3f3'
-//    ctx.beginPath();
-//    ctx.moveTo(arrowStartX, arrowY);
-//    ctx.lineTo(arrowEndX - arrowHeadLength, arrowY);
-//    ctx.strokeStyle = arrowColor;
-//    ctx.lineWidth = arrowThickness;
-//    ctx.stroke();
-//    ctx.beginPath();
-//    ctx.moveTo(arrowEndX, arrowY);
-//    ctx.lineTo(arrowEndX - arrowHeadLength, arrowY - arrowHeadWidth / 2);
-//    ctx.lineTo(arrowEndX - arrowHeadLength, arrowY + arrowHeadWidth / 2);
-//    ctx.closePath();
-//    ctx.fillStyle = arrowColor;
-//    ctx.fill();
-//
-//
-//    // Draw the bottleneck barrier
-//    const barrierX = (parameters.ARENA_WIDTH / 2 - parameters.BARRIER_WIDTH / 2) * scaleX;
-//    const barrierWidth = parameters.BARRIER_WIDTH * scaleX;
-//    const bottleneckTopY = (parameters.BOTTLENECK_POSITION - parameters.BOTTLENECK_WIDTH / 2) * scaleY;
-//    const bottleneckBottomY = (parameters.BOTTLENECK_POSITION + parameters.BOTTLENECK_WIDTH / 2) * scaleY;
-//    ctx.fillStyle = 'gray';
-//    ctx.fillRect(barrierX, 0, barrierWidth, bottleneckTopY);
-//    ctx.fillRect(barrierX, bottleneckBottomY, barrierWidth, canvasHeight - bottleneckBottomY);
-//
-//    const agentRadius = parameters.AGENT_DIAMETER * scaleX / 2;
-//
-//    // Draw agents and their actions
-//    for (let i = 0; i < parameters.N_AGENTS; i++) {
-//        const agent = state.agent_states[i];
-//        const posX = agent.position[0] * scaleX;
-//        const posY = agent.position[1] * scaleY;
-//        const orientation = agent.orientation;
-//
-//        // Draw lidar
-//        if(!agent.dead){
-//            for (let lidar_i = 0; lidar_i < agent.lidar.length; lidar_i++) {
-//                const lidar = agent.lidar[lidar_i];
-//                if (lidar.intersects) {
-//                    ctx.beginPath();
-//                    ctx.moveTo(posX, posY);
-//                    const lidarEndX = lidar.point[0] * scaleX;
-//                    const lidarEndY = lidar.point[1] * scaleY;
-//                    ctx.lineTo(lidarEndX, lidarEndY);
-//                    ctx.strokeStyle = 'orange';
-//                    ctx.lineWidth = 1/25*scaleX;
-//                    ctx.stroke();
-//                    ctx.beginPath();
-//                    const intersectionDotRadius = 3/25*scaleX;
-//                    ctx.arc(lidarEndX, lidarEndY, intersectionDotRadius, 0, 2 * Math.PI);
-//                    ctx.fillStyle = 'orange';
-//                    ctx.fill();
-//                }
-//            }
-//        }
-//
-//        // Draw agent body
-//        ctx.beginPath();
-//        ctx.arc(posX, posY, agentRadius, 0, 2 * Math.PI);
-//        const primaryColor = '#7DB9B6';
-//        ctx.fillStyle = agent.dead ? 'grey' : primaryColor;
-//        ctx.fill();
-//
-//        // Draw the agent ID
-//        const labelPosX = posX - agentRadius / 2 * Math.cos(orientation);
-//        const labelPosY = posY - agentRadius / 2 * Math.sin(orientation);
-//        ctx.save();
-//        ctx.translate(labelPosX, labelPosY);
-//        ctx.rotate(orientation + Math.PI / 2);
-//        const agentID = i.toString();
-//        const fontSize = 0.5 * agentRadius;
-//        ctx.font = `${fontSize}px Arial`;
-//        const textMetrics = ctx.measureText(agentID);
-//        const textWidth = textMetrics.width;
-//        const textHeight = fontSize;
-//        const circleRadius = Math.max(textWidth, textHeight) * 0.70;
-//        ctx.beginPath();
-//        ctx.arc(0, 0, circleRadius, 0, 2 * Math.PI);
-//        ctx.fillStyle = 'white';
-//        ctx.fill();
-//        ctx.strokeStyle = 'black';
-//        ctx.lineWidth = 0.5/25*scaleX;
-//        ctx.stroke();
-//        ctx.fillStyle = 'black';
-//        ctx.textAlign = 'center';
-//        ctx.textBaseline = 'middle';
-//        const textYOffset = fontSize * 0.1;
-//        ctx.fillText(agentID, 0, textYOffset);
-//        ctx.restore();
-//
-//        // Draw agent orientation
-//        const endX = posX + agentRadius * Math.cos(orientation);
-//        const endY = posY + agentRadius * Math.sin(orientation);
-//        ctx.beginPath();
-//        ctx.moveTo(posX, posY);
-//        ctx.lineTo(endX, endY);
-//        ctx.strokeStyle = 'white';
-//        ctx.lineWidth = 2/25*scaleX;
-//        ctx.stroke();
-//
-//        // Draw actions (acceleration vectors)
-//        const agent_action = [action[i*2 + 0], action[i*2 + 1]].map(action => Math.max(-1, Math.min(1, action)));
-//
-//        // Linear acceleration in the direction of orientation
-//        const accelerationArrowColor = '#dc143c';
-//        if(!agent.dead){
-//            const accelMagnitude = agent_action[0]/2 * agentRadius;
-//            const accelX = accelMagnitude * Math.cos(orientation);
-//            const accelY = accelMagnitude * Math.sin(orientation);
-//            const offsetX = posX + agentRadius * 0.5 * Math.cos(orientation);
-//            const offsetY = posY + agentRadius * 0.5 * Math.sin(orientation);
-//            ctx.beginPath();
-//            ctx.moveTo(offsetX, offsetY);
-//            ctx.lineTo(offsetX + accelX, offsetY + accelY);
-//
-//            ctx.strokeStyle = accelerationArrowColor;
-//            ctx.lineWidth = 2/25*scaleX;
-//            ctx.stroke();
-//
-//            // Draw arrowhead for linear acceleration
-//            const angle = Math.atan2(accelY, accelX);
-//            const headlen = 0.5 * Math.min(0.5, Math.abs(agent_action[0])) * scaleX;
-//            ctx.beginPath();
-//            const prolong = 1.1
-//            ctx.moveTo(offsetX + accelX*prolong, offsetY + accelY*prolong);
-//            ctx.lineTo(offsetX + accelX*prolong - headlen * Math.cos(angle - Math.PI / 6), offsetY + accelY*prolong - headlen * Math.sin(angle - Math.PI / 6));
-//            ctx.moveTo(offsetX + accelX*prolong, offsetY + accelY*prolong);
-//            ctx.lineTo(offsetX + accelX*prolong - headlen * Math.cos(angle + Math.PI / 6), offsetY + accelY*prolong - headlen * Math.sin(angle + Math.PI / 6));
-//            ctx.lineWidth = 1/25*scaleX;
-//            ctx.stroke();
-//        }
-//
-//        // Draw circular arrow for angular acceleration
-//        if(!agent.dead){
-//            const angularAccel = agent_action[1]; // Negative sign to match the canvas coordinate system
-//            const direction = Math.sign(angularAccel);
-//            const arrowRadius = agentRadius * 1.5;
-//            const arrowAngle = Math.PI / 3;
-//            const startAngle = orientation;
-//            const endAngle = orientation + arrowAngle * angularAccel;
-//            const arrowHeadSize = 10 * Math.abs(angularAccel);
-//
-//            ctx.beginPath();
-//            ctx.arc(posX, posY, arrowRadius, startAngle, endAngle, angularAccel < 0);
-//            const torqueArrowColor = '#007bff'
-//            ctx.strokeStyle = torqueArrowColor;
-//            ctx.lineWidth = 2/25*scaleX;
-//            ctx.stroke();
-//
-//            // Draw arrowhead for angular acceleration
-//            const arrowHeadAngle = endAngle - direction * arrowAngle * 0.10 - Math.PI / 2;
-//            const arrowHeadX = posX + arrowRadius * Math.cos(endAngle);
-//            const arrowHeadY = posY + arrowRadius * Math.sin(endAngle);
-//
-//            ctx.beginPath();
-//            ctx.moveTo(arrowHeadX, arrowHeadY);
-//            ctx.lineTo(
-//                arrowHeadX + direction * arrowHeadSize * Math.cos(arrowHeadAngle - Math.PI / 6),
-//                arrowHeadY + direction * arrowHeadSize * Math.sin(arrowHeadAngle - Math.PI / 6)
-//            );
-//            ctx.moveTo(arrowHeadX, arrowHeadY);
-//            ctx.lineTo(
-//                arrowHeadX + direction * arrowHeadSize * Math.cos(arrowHeadAngle + Math.PI / 6),
-//                arrowHeadY + direction * arrowHeadSize * Math.sin(arrowHeadAngle + Math.PI / 6)
-//            );
-//            ctx.strokeStyle = torqueArrowColor;
-//            ctx.lineWidth = 2/25*scaleX;
-//            ctx.stroke();
-//        }
-//
-//    }
-//}
-//        )RL_TOOLS_LITERAL";
-//        return ui;
-//    }
+    async initialize(){
+        const width = this.canvas.width
+        const height = this.canvas.height
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera( 40, width / height, 0.1, 1000 );
+
+        const capture = false;
+
+        this.renderer = new THREE.WebGLRenderer( {canvas: this.canvas, antialias: true, alpha: true, preserveDrawingBuffer: capture} );
+        this.renderer.setPixelRatio(this.devicePixelRatio)
+        this.renderer.setClearColor(0xffffff, 0);
+
+        this.renderer.setSize(width/this.devicePixelRatio, height/this.devicePixelRatio);
+
+
+        // canvasContainer.appendChild(this.renderer.domElement );
+
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+
+        this.simulator = new THREE.Group()
+        this.simulator.rotation.set(-Math.PI/2, 0, 0)
+
+        this.scene.add(this.simulator)
+
+        var light = new THREE.AmbientLight( 0xffffff,0.5 ); // soft white light
+        this.scene.add(light);
+        var directionalLight = new THREE.DirectionalLight( 0xffffff, 0.4 )
+        directionalLight.position.set(-100, 100, 0)
+        directionalLight.target.position.set(0, 0, 0)
+        this.scene.add( directionalLight )
+        var directionalLight = new THREE.DirectionalLight( 0xffffff, 0.3 )
+        directionalLight.position.set(0, 100, 100)
+        directionalLight.target.position.set(0, 0, 0)
+        this.scene.add( directionalLight )
+        var directionalLight = new THREE.DirectionalLight( 0xffffff, 0.2 )
+        directionalLight.position.set(0, 100, -100)
+        directionalLight.target.position.set(0, 0, 0)
+        this.scene.add( directionalLight )
+
+        this.camera.position.set(3.3, 1.4, 0.00)
+        this.camera.quaternion.set(-0.14, 0.70, 0.14, 0.68)
+        this.controls.target.set(0.0, 0.0, 0.0)
+        this.controls.update()
+
+        this.camera_set = false
+    }
+
+}
+
+
+class Drone{
+  constructor(model, origin, envParams, displayIMUCoordinateSystem, displayActions){
+    // console.log(model)
+    this.origin = origin
+    this.model = model
+    this.envParams = envParams
+    this.droneFrame = new THREE.Group()
+    this.drone = new THREE.Group()
+    // this.drone.add((new CoordinateSystem()).get())
+    // this.drone.add((new CoordinateSystem(10 * this.scale, 0.1 * this.scale)).get())
+    this.scale = model.mass
+    const material = new THREE.MeshLambertMaterial({color: 0xAAAAAA})
+    const clockwise_rotor_material = new THREE.MeshLambertMaterial({color: 0x00FF00})
+    const counter_clockwise_rotor_material = new THREE.MeshLambertMaterial({color: 0xFF0000})
+
+    const coordinateSystemLength = Math.cbrt(this.scale)
+    const coordinateSystemThickness = 0.01 * coordinateSystemLength
+
+    const centerSize = Math.cbrt(this.scale) / 15
+    const centerForm = new THREE.BoxGeometry(centerSize, centerSize, centerSize*0.3)
+    const center = new THREE.Mesh( centerForm, material);
+    // this.drone.quaternion.set(Math.sqrt(0.5), Math.sqrt(0.5), 0,0) // ENUtoNED
+    this.imuGroup = new THREE.Group()
+    this.imuGroup.position.set(...model.imu.pose.position)
+    this.imuGroup.quaternion.set(model.imu.pose.orientation[3], model.imu.pose.orientation[0], model.imu.pose.orientation[1], model.imu.pose.orientation[2])
+    if (displayIMUCoordinateSystem) {
+      this.imuGroup.add((new CoordinateSystem([0, 0, 0], coordinateSystemLength, coordinateSystemThickness)).get())
+    }
+    this.drone.add(this.imuGroup)
+    this.drone.add(center)
+
+    this.rotors = []
+
+    const averageArmLength = model.rotors.map(rotor => norm(rotor.pose.position)).reduce((a, c) => a + c, 0) / model.rotors.length
+    for(const [rotorIndex, rotor] of model.rotors.entries()){
+      let rotorCageRadiusFactor = 1
+      let rotorCageThicknessFactor = 1
+      if (this.envParams != null){
+        const rotorParams = this.envParams.rotors[rotorIndex]
+        // console.log(this.envParams)
+        if (rotorParams.thrust_curve.factors[1].constructor == Object){
+          if (Array.isArray(rotorParams.thrust_curve.factors[1].parameters)){
+            const mean1 = rotorParams.thrust_curve.factors[1].parameters.reduce((a, c)=>a+c, 0) / rotorParams.thrust_curve.factors[1].parameters.length
+            rotorCageThicknessFactor = rotor.thrust_curve.factor_1/mean1
+          }
+          else{
+            if ("upper" in rotorParams.thrust_curve.factors[1]){
+              rotorCageThicknessFactor = rotor.thrust_curve.factor_1/((rotorParams.thrust_curve.factors[1].upper - rotorParams.thrust_curve.factors[1].lower)/2 + rotorParams.thrust_curve.factors[1].lower)
+            }
+          }
+        }
+        if (rotorParams.thrust_curve.factors[2].constructor == Object){
+          if (Array.isArray(rotorParams.thrust_curve.factors[2].parameters)){
+            const mean2 = rotorParams.thrust_curve.factors[2].parameters.reduce((a, c)=>a+c, 0) / rotorParams.thrust_curve.factors[2].parameters.length
+            rotorCageThicknessFactor = rotor.thrust_curve.factor_2/mean2
+          }
+          else{
+            if ("upper" in rotorParams.thrust_curve.factors[2]){
+              rotorCageThicknessFactor = rotor.thrust_curve.factor_2/((rotorParams.thrust_curve.factors[2].upper - rotorParams.thrust_curve.factors[2].lower)/2 + rotorParams.thrust_curve.factors[2].lower)
+            }
+          }
+        }
+      }
+      const rotorCageRadius =  averageArmLength/3 * Math.sqrt(rotorCageRadiusFactor)
+      const rotorCageThickness = averageArmLength/20 * Math.sqrt(rotorCageThicknessFactor)
+      const armGroup = new THREE.Group()
+      const length = norm(rotor.pose.position)
+      const armDiameter = averageArmLength/10
+      const armLength = length - rotorCageRadius
+      const armForm = new THREE.CylinderGeometry( armDiameter/2, armDiameter/2, armLength, 8 );
+      const rot = new THREE.Quaternion(); // Geometry extends in y -> transform y to relative pos
+      rot.setFromUnitVectors(new THREE.Vector3(...[0, 1, 0]), (new THREE.Vector3(...rotor.pose.position)).normalize());
+      armGroup.quaternion.set(rot.x, rot.y, rot.z, rot.w)
+
+      const arm = new THREE.Mesh(armForm, material)
+      arm.position.set(0, armLength/2, 0)
+      armGroup.add(arm)
+
+      const rotorGroup = new THREE.Group()
+      rotorGroup.position.set(...rotor.pose.position)
+      rotorGroup.quaternion.set(rotor.pose.orientation[3], rotor.pose.orientation[0], rotor.pose.orientation[1], rotor.pose.orientation[2])
+      // rotorGroup.add((new CoordinateSystem([0, 0, 0], 0.1, 0.01)).get())
+      const rotorCageForm = new THREE.TorusGeometry(rotorCageRadius, rotorCageThickness, 16, 32 );
+      const cageMaterial = (rotor.spin_orientation_clockwise ? clockwise_rotor_material : counter_clockwise_rotor_material)// new THREE.MeshLambertMaterial({color: 0xAAAAAA})
+      const rotorCage = new THREE.Mesh(rotorCageForm, cageMaterial)
+      rotorGroup.add(rotorCage)
+
+      const forceArrow = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,0 ), 0, 0x000000);
+      if(displayActions){
+        rotorGroup.add(forceArrow)
+      }
+
+      this.drone.add(rotorGroup)
+      this.drone.add(armGroup)
+      this.droneFrame.add(this.drone)
+      this.rotors.push({
+        forceArrow,
+        rotorCage
+      })
+    }
+
+  }
+  get(){
+    return this.droneFrame
+  }
+  setState(state){
+    const mat = Matrix4FromRotMat(state.pose.orientation)
+    this.droneFrame.quaternion.setFromRotationMatrix(mat)
+    this.droneFrame.position.set(state.pose.position[0] + this.origin[0], state.pose.position[1] + this.origin[1], state.pose.position[2] + this.origin[2])
+    const avg_rot_rate = state.rotor_states.reduce((a, c) => a + c["power"], 0)/state.rotor_states.length
+    state.rotor_states.map((rotorState, i) => {
+      const forceArrow = this.rotors[i].forceArrow
+      const rotorCage = this.rotors[i].rotorCage
+      const min_rpm = this.model.rotors[i].min_rpm
+      const max_rpm = this.model.rotors[i].max_rpm
+
+
+      const rot_rate = rotorState["power"]
+      const force_magnitude = (rot_rate - avg_rot_rate)/max_rpm * 10///1000
+      forceArrow.setDirection(new THREE.Vector3(0, 0, rot_rate)) //Math.sign(force_magnitude)))
+      forceArrow.setLength(Math.cbrt(this.this.scale)/10) //Math.abs(force_magnitude))
+    })
+  }
+
+}
+
+export async function init(canvas, options){
+    const state = new State(canvas, options)
+    await state.initialize()
+    return state
+}
+
+export async function episode_init(ui_state, parameters){
+    const camera_distance = (parameters.ui ? parameters.ui.camera_distance || 1 : 1)
+    const scale = parameters.mass/0.1 * camera_distance
+    if(!ui_state.camera_set){
+      ui_state.camera.position.set(3.3 * scale, 1.4 * scale, 0.00)
+      ui_state.camera_set = true
+    }
+    if(ui_state.drone){
+      ui_state.simulator.remove(ui_state.drone.get())
+    }
+    ui_state.drone = new Drone(parameters)
+    ui_state.simulator.add(ui_state.drone.get())
+}
+
+export async function render(ui_state, parameters, state, action) {
+    ui_state.drone.drone.position.set(...state.position)
+    ui_state.drone.drone.quaternion.copy(new THREE.Quaternion(state.orientation[1], state.orientation[2], state.orientation[3], state.orientation[0]).normalize())
+    const width = ui_state.canvas.width/ui_state.devicePixelRatio
+    const height = ui_state.canvas.height/ui_state.devicePixelRatio
+    ui_state.camera.aspect =  width / height
+    ui_state.camera.updateProjectionMatrix()
+    ui_state.renderer.setPixelRatio(ui_state.devicePixelRatio)
+    ui_state.renderer.setSize(width, height)
+
+    ui_state.controls.update()
+    ui_state.renderer.render(ui_state.scene, ui_state.camera);
+}
+
+        )RL_TOOLS_LITERAL";
+        return ui;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

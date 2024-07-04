@@ -16,7 +16,7 @@
 #include <nlohmann/json.hpp>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::multirotor {
+namespace rl_tools::rl::environments::l2f {
     namespace beast = boost::beast;
     namespace http = beast::http;
     namespace websocket = beast::websocket;
@@ -38,7 +38,7 @@ namespace rl_tools::rl::environments::multirotor {
         bool display_actions = true;
     };
     template <typename DEVICE, typename ENVIRONMENT>
-    nlohmann::json state_message(DEVICE& dev, rl::environments::multirotor::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
+    nlohmann::json state_message(DEVICE& dev, rl::environments::l2f::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
         nlohmann::json message;
         message["channel"] = "setDroneState";
         message["data"]["id"] = ui.id;
@@ -59,7 +59,7 @@ namespace rl_tools::rl::environments::multirotor {
         return message;
     }
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
-    nlohmann::json state_message(DEVICE& dev, rl::environments::multirotor::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
+    nlohmann::json state_message(DEVICE& dev, rl::environments::l2f::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
         auto message = state_message(dev, ui, state);
         message["data"]["data"]["rotor_states"] = std::vector<nlohmann::json>{
                 {{"power", get(action, 0, 0)}},
@@ -70,14 +70,14 @@ namespace rl_tools::rl::environments::multirotor {
         return message;
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    nlohmann::json remove_drone_message(DEVICE& dev, rl::environments::multirotor::UI<ENVIRONMENT>& ui){
+    nlohmann::json remove_drone_message(DEVICE& dev, rl::environments::l2f::UI<ENVIRONMENT>& ui){
         nlohmann::json message;
         message["channel"] = "removeDrone";
         message["data"]["id"] = ui.id;
         return message;
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    nlohmann::json model_message(DEVICE& dev, ENVIRONMENT& env, rl::environments::multirotor::UI<ENVIRONMENT>& ui){
+    nlohmann::json model_message(DEVICE& dev, ENVIRONMENT& env, rl::environments::l2f::UI<ENVIRONMENT>& ui){
         nlohmann::json message;
         message["namespace"] = ui.ns;
         message["channel"] = "addDrone";
@@ -124,8 +124,8 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename ENVIRONMENT>
-    void init(DEVICE& dev, ENVIRONMENT& env, rl::environments::multirotor::UI<ENVIRONMENT>& ui){
-        using namespace rl::environments::multirotor;
+    void init(DEVICE& dev, ENVIRONMENT& env, rl::environments::l2f::UI<ENVIRONMENT>& ui){
+        using namespace rl::environments::l2f;
         namespace beast = boost::beast;         // from <boost/beast.hpp>
         namespace http = beast::http;           // from <boost/beast/http.hpp>
         namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
@@ -152,8 +152,8 @@ namespace rl_tools{
         ui.ws.write(net::buffer(model_message(dev, env, ui).dump()));
     }
     template <typename DEVICE, typename ENVIRONMENT>
-    void set_state(DEVICE& dev, rl::environments::multirotor::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
-        using namespace rl::environments::multirotor;
+    void set_state(DEVICE& dev, rl::environments::l2f::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state){
+        using namespace rl::environments::l2f;
 
         if (ui.ws.is_open()) {
             ui.ws.write(net::buffer(state_message(dev, ui, state).dump()));
@@ -163,10 +163,10 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC>
-    void set_state(DEVICE& dev, rl::environments::multirotor::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
+    void set_state(DEVICE& dev, rl::environments::l2f::UI<ENVIRONMENT>& ui, const typename ENVIRONMENT::State& state, const Matrix<ACTION_SPEC>& action){
         static_assert(ACTION_SPEC::COLS == ENVIRONMENT::ACTION_DIM);
         static_assert(ACTION_SPEC::ROWS == 1);
-        using namespace rl::environments::multirotor;
+        using namespace rl::environments::l2f;
 
         if (ui.ws.is_open()) {
             ui.ws.write(net::buffer(state_message(dev, ui, state, action).dump()));

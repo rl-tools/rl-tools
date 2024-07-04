@@ -17,7 +17,7 @@ namespace rl_tools::rl::zoo::td3::l2f{
     namespace rlt = rl_tools;
     template <typename DEVICE, typename T, typename TI, typename RNG>
     struct LearningToFly{
-        using ENVIRONMENT = typename rl::environments::multirotor::parameters::DefaultParameters<T, TI>::ENVIRONMENT;
+        using ENVIRONMENT = typename rl::environments::l2f::parameters::DefaultParameters<T, TI>::ENVIRONMENT;
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::td3::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
             struct TD3_PARAMETERS: rlt::rl::algorithms::td3::DefaultParameters<T, TI>{
                 static constexpr TI ACTOR_BATCH_SIZE = 256;

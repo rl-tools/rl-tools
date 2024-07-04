@@ -6,7 +6,7 @@
 #include "../../multirotor.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::multirotor::parameters::init{
+namespace rl_tools::rl::environments::l2f::parameters::init{
     template<typename SPEC>
     constexpr typename ParametersBase<SPEC>::MDP::Initialization init_90_deg = {
             0.1, // guidance

@@ -11,24 +11,24 @@
 #include "termination/default.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::multirotor::parameters {
+namespace rl_tools::rl::environments::l2f::parameters {
     template<typename T, typename TI>
     struct DefaultParameters{
-        constexpr static auto MODEL = rl_tools::rl::environments::multirotor::parameters::dynamics::REGISTRY::crazyflie;
+        constexpr static auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
-        constexpr static auto MODEL_NAME = rl_tools::rl::environments::multirotor::parameters::dynamics::registry_name<MODEL>;
-        static constexpr auto reward_function = rl_tools::rl::environments::multirotor::parameters::reward_functions::squared<T>;
+        constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
+        static constexpr auto reward_function = rl_tools::rl::environments::l2f::parameters::reward_functions::squared<T>;
         using REWARD_FUNCTION_CONST = typename rl_tools::utils::typing::remove_cv_t<decltype(reward_function)>;
         using REWARD_FUNCTION = typename rl_tools::utils::typing::remove_cv<REWARD_FUNCTION_CONST>::type;
 
-        using PARAMETERS_SPEC = rl_tools::rl::environments::multirotor::ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION, rl_tools::rl::environments::multirotor::parameters::dynamics::REGISTRY, MODEL>;
-        using PARAMETERS_TYPE = rl_tools::rl::environments::multirotor::ParametersDisturbances<T, TI, rl_tools::rl::environments::multirotor::ParametersBase<PARAMETERS_SPEC>>;
+        using PARAMETERS_SPEC = rl_tools::rl::environments::l2f::ParametersBaseSpecification<T, TI, 4, REWARD_FUNCTION, rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY, MODEL>;
+        using PARAMETERS_TYPE = rl_tools::rl::environments::l2f::ParametersDisturbances<T, TI, rl_tools::rl::environments::l2f::ParametersBase<PARAMETERS_SPEC>>;
 
-        static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::multirotor::parameters::dynamics::registry<PARAMETERS_SPEC>;
+        static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Integration integration = {
             0.01 // integration dt
         };
-        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::multirotor::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+        static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = rl_tools::rl::environments::l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
             0.05, // position
             0.001, // orientation
@@ -38,7 +38,7 @@ namespace rl_tools::rl::environments::multirotor::parameters {
         static constexpr typename PARAMETERS_TYPE::MDP::ActionNoise action_noise = {
             0, // std of additive gaussian noise onto the normalized action (-1, 1)
         };
-        static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = rl_tools::rl::environments::multirotor::parameters::termination::fast_learning<PARAMETERS_SPEC>;
+        static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = rl_tools::rl::environments::l2f::parameters::termination::fast_learning<PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,
             reward_function,
@@ -90,7 +90,7 @@ namespace rl_tools::rl::environments::multirotor::parameters {
             static constexpr auto PARAMETER_VALUES = parameters;
         };
 
-        using ENVIRONMENT_SPEC = rl_tools::rl::environments::multirotor::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
+        using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
         using ENVIRONMENT = rl_tools::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
     };
 }

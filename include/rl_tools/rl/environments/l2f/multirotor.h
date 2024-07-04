@@ -6,7 +6,7 @@
 #include <rl_tools/utils/generic/typing.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::multirotor{
+namespace rl_tools::rl::environments::l2f{
     template <typename T_T, typename T_TI, T_TI T_N, typename T_REWARD_FUNCTION, typename REGISTRY, REGISTRY T_MODEL>
     struct ParametersBaseSpecification{
         using T = T_T;
@@ -438,7 +438,7 @@ namespace rl_tools::rl::environments{
 //        ) : 0;
         static constexpr TI OBSERVATION_DIM = Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
-        static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = !rl_tools::utils::typing::is_same_v<typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED, multirotor::observation::NONE<TI>>;
+        static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = !rl_tools::utils::typing::is_same_v<typename SPEC::STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED, l2f::observation::NONE<TI>>;
 //        using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
 //        typename SPEC::PARAMETERS parameters;
     };

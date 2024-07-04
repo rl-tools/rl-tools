@@ -112,8 +112,8 @@ export class TrajectoryPlayer{
                         this.canvas.classList.add("trajectory-player-canvas")
                         this.canvas_container.appendChild(this.canvas);
                         onResize()
-                        console.log("Init Environment UI with parameters: ", current_parameters)
-                        ui_state = await ui.init(this.canvas, current_parameters, {devicePixelRatio: window.devicePixelRatio})
+                        console.log("Init Environment UI")
+                        ui_state = await ui.init(this.canvas, {devicePixelRatio: window.devicePixelRatio})
                     }
                     else{
                         throw new Error('Init but parameters not set')
@@ -143,6 +143,9 @@ export class TrajectoryPlayer{
                         console.log("Stopping render loop: ", current_id)
                         delete render_loops_running[current_id];
                     }
+                    if(ui.episode_init){
+                        await ui.episode_init(ui_state, current_parameters)
+                    }
                     requestAnimationFrame(loop)
                 }
                 else{
@@ -164,6 +167,7 @@ export class TrajectoryPlayer{
             if (currentEpisode < trajectoryData.length) {
                 const { parameters, trajectory } = trajectoryData[currentEpisode];
                 current_parameters = parameters;
+                let skip = false;
                 if (currentStep < trajectory.length) {
                     const { state, action, reward, terminated, dt } = trajectory[currentStep];
                     current_state = state;
@@ -171,11 +175,16 @@ export class TrajectoryPlayer{
                     currentEpisodeLength++;
                     currentEpisodeReturn += reward;
                     if(currentStep === 0){
-                        ui_state = null
                         render()
                     }
                     currentStep++;
+                    if(terminated){
+                        skip = true
+                    }
                 } else {
+                    skip = true
+                }
+                if(skip){
                     currentStep = 0;
                     currentEpisode++;
                     if(currentEpisode >= trajectoryData.length){

@@ -5,7 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RLtools Experiment Tracking Dashboard</title>
     <link rel="stylesheet" href="index.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./lib/three.module.js",
+                "three-orbitcontrols": "./lib/OrbitControls.js"
+            }
+        }
+    </script>
     <script type="module">
+        function check_dependency(path){
+            fetch(path).then((response) => {
+                if(!response.ok){
+                    console.error(`Error: Could not load dependency: ${path}. Please run \`./download_dependencies.sh\` in the \`./static/extrack_ui\` directory`)
+                }
+            })
+        }
+        check_dependency("./lib/three.module.js")
         const url = window.location.href;
         const urlObj = new URL(url);
         const params = new URLSearchParams(urlObj.search);
@@ -61,6 +77,7 @@
             const show_run = new ShowRun(latest_run_container, run, latest_run_size)
         })
 
+        // Latest Zoo Runs
         idx_promise.then(() => {
             const runs_with_ui = idx.run_list.filter(run => run.ui_jsm)
             const runs_with_steps = runs_with_ui.filter((run) => {

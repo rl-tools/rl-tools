@@ -1,4 +1,3 @@
-
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_LOOP_STEPS_SAVE_TRAJECTORIES_OPERATIONS_CPU_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_RL_LOOP_STEPS_SAVE_TRAJECTORIES_OPERATIONS_CPU_H
@@ -11,14 +10,12 @@
 
 #include "../../../../rl/utils/evaluation/operations_generic.h"
 
+#include "../../../../utils/zlib/operations_cpu.h"
+
 #include "config.h"
 #include <string>
 #include <sstream>
 #include <fstream>
-#ifdef RL_TOOLS_ENABLE_ZLIB
-#include <zlib.h>
-#include <cstring>
-#endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -48,7 +45,7 @@ namespace rl_tools{
 
     namespace rl::loop::steps::save_trajectories{
         template <typename DEVICE, typename ENVIRONMENT, typename SPEC>
-        std::string to_string(DEVICE& device, ENVIRONMENT& env, const typename ENVIRONMENT::Parameters& parameters, rl::utils::evaluation::Data<SPEC> data){
+        std::string to_string(DEVICE& device, ENVIRONMENT& env, rl::utils::evaluation::Data<SPEC> data){
             using TI = typename DEVICE::index_t;
             std::string episodes_json = "[";
             for(TI episode_i = 0; episode_i < SPEC::N_EPISODES; episode_i++){
@@ -81,35 +78,6 @@ namespace rl_tools{
             return episodes_json;
         }
 
-#ifdef RL_TOOLS_ENABLE_ZLIB
-
-        bool compress(const std::string& input, std::vector<uint8_t>& compressed_output) {
-            z_stream zs;
-            memset(&zs, 0, sizeof(zs));
-
-            if (deflateInit2(&zs, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-                return false;
-            }
-            zs.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
-            zs.avail_in = input.size();
-            int ret;
-            std::vector<uint8_t> outbuffer(32768);
-            do {
-                zs.next_out = reinterpret_cast<Bytef*>(outbuffer.data());
-                zs.avail_out = outbuffer.size();
-                ret = deflate(&zs, Z_FINISH);
-                if (ret != Z_STREAM_ERROR) {
-                    size_t have = outbuffer.size() - zs.avail_out;
-                    compressed_output.insert(compressed_output.end(), outbuffer.begin(), outbuffer.begin() + have);
-                }
-            } while (zs.avail_out == 0);
-            deflateEnd(&zs);
-            if (ret != Z_STREAM_END) {
-                return false;
-            }
-            return true;
-        }
-#endif
     }
 
     template <typename DEVICE, typename CONFIG>
@@ -134,14 +102,14 @@ namespace rl_tools{
 
                 using PARAMS = typename CONFIG::SAVE_TRAJECTORIES_PARAMETERS;
 
-                std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, ts.env_eval_parameters, *ts.save_trajectories_buffer);
+                std::string trajectories_json = rl::loop::steps::save_trajectories::to_string(device, ts.env_eval, *ts.save_trajectories_buffer);
 #ifndef RL_TOOLS_ENABLE_ZLIB
                 std::string file_extension = "json";
                 std::string trajectories_output = trajectories_json;
 #else
                 std::string file_extension = "json.gz";
                 std::vector<uint8_t> trajectories_output;
-                if(!rl::loop::steps::save_trajectories::compress(trajectories_json, trajectories_output)){
+                if(!compress_zlib(trajectories_json, trajectories_output)){
                     std::cerr << "Error while compressing trajectories." << std::endl;
                     return true;
                 }

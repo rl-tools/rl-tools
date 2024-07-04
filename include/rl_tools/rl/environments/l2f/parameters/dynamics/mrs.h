@@ -6,7 +6,7 @@
 #include "../../multirotor.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::multirotor::parameters::dynamics{
+namespace rl_tools::rl::environments::l2f::parameters::dynamics{
     template<typename SPEC, typename = rl_tools::utils::typing::enable_if_t<SPEC::N == 4>> // This is a quadrotor
     constexpr typename ParametersBase<SPEC>::Dynamics mrs = {
             // Rotor positions
