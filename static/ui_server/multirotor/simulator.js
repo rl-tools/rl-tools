@@ -48,21 +48,9 @@ class Simulator {
         directionalLight.target.position.set(0, 0, 0)
         this.scene.add( directionalLight )
 
-        // camera.position.x = 0.25;
-        // camera.position.y = 0.15;
-        // camera.position.z = 0.15;
-
-        // let distance_factor = parameters["cameraDistanceToOrigin"]
-        // this.camera.position.x = -3.5 * distance_factor
-        // this.camera.position.y = 3.5 * distance_factor
-        // this.camera.position.z = 2.0 * distance_factor
-        this.camera.position.set(3.3424961656468484, 1.453688776171293, 0.0346538696637612)
-        this.camera.quaternion.set(-0.14114081713411006, 0.6991670882241017, 0.14385693099567115, 0.6859663518624317)
+        this.camera.position.set(3.3, 1.4, 0.03)
+        this.camera.quaternion.set(-0.14, 0.70, 0.14, 0.68)
         this.controls.target.set(0.0005264957437930768, 0.017380732981683286, 0.09835959876765327)
-        // this.camera.lookAt(0, 0, 0)
-        // this.camera.position.applyMatrix4(this.simulator.matrixWorld);
-        // this.camera.quaternion.copy(this.simulator.quaternion)
-        // this.camera.quaternion.set(-0.2642084649747099, -0.6665095797761348, -0.27488495215598063, 0.6406224552578156)
         this.controls.update()
 
         let animate = () =>{

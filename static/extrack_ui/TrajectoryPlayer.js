@@ -16,25 +16,18 @@ function getFileExtension(path) {
 }
 
 export class TrajectoryPlayer{
-    constructor(render_function_path, size, options) {
+    constructor(ui_path, size, options) {
         // const experiments_stub = "../../experiments";
         // const modulePath = `${experiments_stub}/experiments/2024-05-25_14-28-34/32e6580_zoo_algorithm_environment/sac_pendulum-v1/0000/ui.esm.js`;
         this.size = size
         this.options = options || {};
 
-        this.render = import(render_function_path)
-            .then(({ render }) => {
-                return render
-            })
+        this.ui = import(ui_path)
         this.container = document.createElement('div');
         this.container.classList.add("trajectory-player-container")
         this.container.style.alignItems = "center";
         this.canvas_container = document.createElement('div');
         this.canvas_container.classList.add("trajectory-player-canvas-container")
-        this.canvas = document.createElement('canvas');
-        this.canvas.classList.add("trajectory-player-canvas")
-        this.canvas.style.display = "none";
-        this.canvas_container.appendChild(this.canvas);
         this.container.appendChild(this.canvas_container);
         this.loading_text = document.createElement('p');
         this.loading_text.style.display = "none";
@@ -43,6 +36,8 @@ export class TrajectoryPlayer{
         this.controls_container.classList.add("trajectory-player-controls-container");
 
         this.container.appendChild(this.controls_container);
+
+        this.canvas = null
     }
     getCanvas(){
         return this.container;
@@ -55,13 +50,12 @@ export class TrajectoryPlayer{
 
         const trajectoryData = getFileExtension(path) === "json" ? await fetchData(path) : await fetchAndDecompressData(path)
         this.loading_text.style.display = "none";
-        this.canvas.style.display = "inline"
         let currentEpisode = 0;
         let currentStep = 0;
         let currentEpisodeLength = 0;
         let currentEpisodeReturn = 0;
 
-        const render = await this.render;
+        const ui = await this.ui;
 
         const episode_info = document.createElement('div');
         episode_info.classList.add("trajectory-player-episode-info");
@@ -81,18 +75,20 @@ export class TrajectoryPlayer{
 
 
         const onResize = () => {
-            let size;
-            if(this.size){
-                size = this.size;
-            }
-            else{
-                size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
-            }
-            this.canvas.width = size * ratio;
-            this.canvas.height = size * ratio;
+            if(this.canvas){
+                let size;
+                if(this.size){
+                    size = this.size;
+                }
+                else{
+                    size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
+                }
+                this.canvas.width = size * ratio;
+                this.canvas.height = size * ratio;
 
-            this.canvas.style.width = size + 'px';
-            this.canvas.style.height = size + 'px';
+                this.canvas.style.width = size + 'px';
+                this.canvas.style.height = size + 'px';
+            }
         }
         const resizeListener = new ResizeObserver(onResize);
         resizeListener.observe(this.canvas_container);
@@ -100,11 +96,64 @@ export class TrajectoryPlayer{
         window.addEventListener('resize', onResize);
 
         const dt = trajectoryData[0].trajectory[0].dt;
+        let current_parameters = null
+        let ui_state = null
+        let current_state = null
+        let current_action = null
+        let render_loop = {id: 0}
+        let render_loops_running = {}
+
+        const render = async () => {
+            if (ui.render && ui.init){
+                if(!ui_state){
+                    if(current_parameters){
+                        this.canvas_container.innerHTML = "";
+                        this.canvas = document.createElement('canvas');
+                        this.canvas.classList.add("trajectory-player-canvas")
+                        this.canvas_container.appendChild(this.canvas);
+                        onResize()
+                        console.log("Init Environment UI with parameters: ", current_parameters)
+                        ui_state = await ui.init(this.canvas, current_parameters, {devicePixelRatio: window.devicePixelRatio})
+                    }
+                    else{
+                        throw new Error('Init but parameters not set')
+                    }
+                }
+                if(ui_state){
+                    render_loop.id += 1;
+                    await new Promise((resolve) => {
+                        let interval_id = null
+                        interval_id = setInterval(() => {
+                            if(Object.keys(render_loops_running).length === 0){
+                                clearInterval(interval_id)
+                                resolve();
+                            }
+                        })
+                    })
+                    const current_id = render_loop.id;
+                    render_loops_running[current_id] = true;
+                    const loop = async () => {
+                        if(render_loop.id === current_id){
+                            if(current_parameters && current_state && current_action){
+                                await ui.render(ui_state, current_parameters, current_state, current_action)
+                                requestAnimationFrame(loop);
+                                return
+                            }
+                        }
+                        console.log("Stopping render loop: ", current_id)
+                        delete render_loops_running[current_id];
+                    }
+                    requestAnimationFrame(loop)
+                }
+                else{
+                    throw new Error('init function not successfull')
+                }
+            }
+        }
         const step = () => {
             // const size = Math.min(this.canvas_container.clientWidth, this.canvas_container.clientHeight);
             // this.canvas.width = size;
             // this.canvas.height = size;
-            const ctx = this.canvas.getContext('2d');
             if(this.options["verbose"]){
                 episode_info.innerHTML = `Path: ${path}</br>`;
             }
@@ -114,11 +163,17 @@ export class TrajectoryPlayer{
             episode_info.innerHTML += `Episode: ${currentEpisode+1}/${trajectoryData.length}, Step: ${currentStep}, Return: ${currentEpisodeReturn.toFixed(2)}`;
             if (currentEpisode < trajectoryData.length) {
                 const { parameters, trajectory } = trajectoryData[currentEpisode];
+                current_parameters = parameters;
                 if (currentStep < trajectory.length) {
                     const { state, action, reward, terminated, dt } = trajectory[currentStep];
-                    render(ctx, parameters, state, action);
+                    current_state = state;
+                    current_action = action;
                     currentEpisodeLength++;
                     currentEpisodeReturn += reward;
+                    if(currentStep === 0){
+                        ui_state = null
+                        render()
+                    }
                     currentStep++;
                 } else {
                     currentStep = 0;

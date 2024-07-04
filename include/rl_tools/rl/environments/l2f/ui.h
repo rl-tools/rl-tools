@@ -1,3 +1,8 @@
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_UI_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_UI_H
+
 #include "quaternion_helper.h"
 
 #include <boost/beast/core.hpp>
@@ -10,6 +15,7 @@
 
 #include <nlohmann/json.hpp>
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multirotor {
     namespace beast = boost::beast;
     namespace http = beast::http;
@@ -171,3 +177,4 @@ namespace rl_tools{
     }
 
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END

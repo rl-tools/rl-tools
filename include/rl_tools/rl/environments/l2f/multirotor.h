@@ -1,5 +1,7 @@
-#ifndef LEARNING_TO_FLY_IN_SECONDS_SIMULATOR_MULTIROTOR_H
-#define LEARNING_TO_FLY_IN_SECONDS_SIMULATOR_MULTIROTOR_H
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_MULTIROTOR_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_MULTIROTOR_H
 
 #include <rl_tools/utils/generic/typing.h>
 
@@ -441,6 +443,7 @@ namespace rl_tools::rl::environments{
 //        typename SPEC::PARAMETERS parameters;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "parameters/registry.h"
 
 #endif

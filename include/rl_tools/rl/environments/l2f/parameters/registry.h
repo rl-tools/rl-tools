@@ -1,9 +1,17 @@
+#include "../../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_REGISTRY_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_REGISTRY_H
+
 #include "dynamics/crazyflie.h"
 #include "dynamics/mrs.h"
 #include "dynamics/race.h"
 #include "dynamics/x500_real.h"
 #include "dynamics/x500_sim.h"
 #include "dynamics/fs.h"
+
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multirotor::parameters{
     namespace dynamics{
         enum class REGISTRY{
@@ -51,3 +59,5 @@ namespace rl_tools::rl::environments::multirotor::parameters{
         }();
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
+#endif

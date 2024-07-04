@@ -73,6 +73,14 @@ namespace rl_tools{
     std::string get_ui(DEVICE& device, rl::environments::multi_agent::Bottleneck<SPEC>& env){
         // just the body of `function render(ctx, state, action) {` (so that it can be easily processed by `new Function("ctx", "state", "action", body)`
         std::string ui = R"RL_TOOLS_LITERAL(
+export async function init(canvas, parameters, options){
+    // Simply saving the context for 2D environments
+    return {
+        ctx: canvas.getContext('2d')
+    }
+}
+export async function render(ui_state, parameters, state, action) {
+    const ctx = ui_state.ctx
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     const canvasWidth = ctx.canvas.width;
     const canvasHeight = ctx.canvas.height;
@@ -259,6 +267,7 @@ namespace rl_tools{
         }
 
     }
+}
         )RL_TOOLS_LITERAL";
         return ui;
     }

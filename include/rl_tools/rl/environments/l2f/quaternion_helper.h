@@ -1,8 +1,11 @@
-#ifndef LEARNING_TO_FLY_IN_SECONDS_SIMULATOR_QUATERNION_HELPER_H
-#define LEARNING_TO_FLY_IN_SECONDS_SIMULATOR_QUATERNION_HELPER_H
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_QUATERNION_HELPER_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_QUATERNION_HELPER_H
 
 #include <rl_tools/utils/generic/vector_operations.h>
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multirotor{
     template <typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void quaternion_derivative(const T q[4], const T omega[3], T q_dot[4]) {
@@ -46,6 +49,7 @@ namespace rl_tools::rl::environments::multirotor{
         R[2][2] = 1 - 2*q[1]*q[1] - 2*q[2]*q[2];
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 
 #endif

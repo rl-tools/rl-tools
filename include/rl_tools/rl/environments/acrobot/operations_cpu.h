@@ -11,10 +11,6 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    std::string json(DEVICE&, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters){
-        return "{}";
-    }
-    template <typename DEVICE, typename SPEC>
     std::string json(DEVICE&, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters, const typename rl::environments::Acrobot<SPEC>::State& state){
         std::string json = "{";
         json += "\"theta1\":" + std::to_string(state.theta_1) + ",";
@@ -28,24 +24,36 @@ namespace rl_tools{
     std::string json(DEVICE& device, const rl::environments::AcrobotSwingup<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters, const typename rl::environments::Acrobot<SPEC>::State& state){
         return json(device, static_cast<const rl::environments::Acrobot<SPEC>&>(env), parameters, state);
     }
-    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
-    std::string json(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::acrobot::Parameters<PARAM_SPEC>& parameters){
-        return "{}";
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, const typename rl::environments::Acrobot<SPEC>::Parameters& parameters){
+        using PARAMS = typename rl::environments::Acrobot<SPEC>::Parameters;
+        std::string json = "{\"PENDULUM_LENGTH_1\": " + std::to_string(PARAMS::LINK_LENGTH_1) + "," +
+                            "\"PENDULUM_LENGTH_2\": " + std::to_string(PARAMS::LINK_LENGTH_2) + "," +
+                            "\"BOB_RADIUS\": 0.10, \"PIVOT_RADIUS\": 0.05, \"ROD_WIDTH\": 0.04" + "}";
+        return json;
     }
 
     template <typename DEVICE, typename SPEC>
     std::string get_ui(DEVICE& device, rl::environments::Acrobot<SPEC>& env){
         std::string ui = R"RL_TOOLS_LITERAL(
+export async function init(canvas, parameters, options){
+    // Simply saving the context for 2D environments
+    return {
+        ctx: canvas.getContext('2d')
+    }
+}
+export async function render(ui_state, parameters, state, action) {
+    const ctx = ui_state.ctx
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
     const centerX = ctx.canvas.width / 2;
     const centerY = ctx.canvas.height / 2;
-    const canvasWidth = ctx.canvas.width;
+    const canvasWidth = ctx.canvas.width/5;
 
-    const pendulumLength1 = canvasWidth * 0.2;
-    const pendulumLength2 = canvasWidth * 0.2;
-    const bobRadius = canvasWidth * 0.02;
-    const pivotRadius = canvasWidth * 0.01;
+    const pendulumLength1 = canvasWidth * parameters.PENDULUM_LENGTH_1;
+    const pendulumLength2 = canvasWidth * parameters.PENDULUM_LENGTH_2;
+    const bobRadius = canvasWidth * parameters.BOB_RADIUS;
+    const pivotRadius = canvasWidth * parameters.PIVOT_RADIUS;
 
     // First pendulum (base to joint)
     const pendulumX1 = centerX + pendulumLength1 * Math.sin(state.theta1);
@@ -54,7 +62,7 @@ namespace rl_tools{
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(pendulumX1, pendulumY1);
-    ctx.lineWidth = canvasWidth * 0.008;
+    ctx.lineWidth = canvasWidth * parameters.ROD_WIDTH;
     ctx.strokeStyle = 'black';
     ctx.stroke();
 
@@ -71,10 +79,11 @@ namespace rl_tools{
     ctx.beginPath();
     ctx.moveTo(pendulumX1, pendulumY1);
     ctx.lineTo(pendulumX2, pendulumY2);
-    ctx.lineWidth = canvasWidth * 0.008;
+    ctx.lineWidth = canvasWidth * parameters.ROD_WIDTH;
     ctx.strokeStyle = 'black';
     ctx.stroke();
 
+    ctx.lineWidth = 0.04 * canvasWidth
     ctx.beginPath();
     ctx.arc(pendulumX1, pendulumY1, pivotRadius, 0, 2 * Math.PI);
     ctx.fillStyle = 'black';
@@ -89,7 +98,7 @@ namespace rl_tools{
 
     // Draw torque arc
     const torqueMagnitude = -action[0];
-    const arrowRadius = canvasWidth * 0.08;
+    const arrowRadius = canvasWidth * 0.4;
     const magnitudeRadians = (Math.PI * 2 / 3 * torqueMagnitude);
     const startAngle =-Math.PI/2 + (torqueMagnitude > 0 ? 0 : magnitudeRadians) - state.theta1;
     const endAngle = -Math.PI/2 + (torqueMagnitude < 0 ? 0 : magnitudeRadians) - state.theta1;
@@ -97,7 +106,7 @@ namespace rl_tools{
     ctx.beginPath();
     ctx.arc(pendulumX1, pendulumY1, arrowRadius, startAngle, endAngle);
     ctx.strokeStyle = 'black';
-    ctx.lineWidth = canvasWidth * 0.008;
+    ctx.lineWidth = canvasWidth * 0.04;
     ctx.stroke();
 
     // Draw arrowhead
@@ -106,7 +115,7 @@ namespace rl_tools{
     const arrowX = pendulumX1 + arrowRadius * Math.cos(arrowAngle + arrowHeadAngularOffset);
     const arrowY = pendulumY1 + arrowRadius * Math.sin(arrowAngle + arrowHeadAngularOffset);
 
-    const headlen = canvasWidth * 0.04 * Math.min(Math.abs(torqueMagnitude) * 2, 1);
+    const headlen = canvasWidth * 0.20 * Math.min(Math.abs(torqueMagnitude) * 2, 1);
     const angleOffset = Math.PI / 6;
     const rotationAngle = Math.PI / 2 + (torqueMagnitude > 0 ? 0 : Math.PI);
 
@@ -123,6 +132,7 @@ namespace rl_tools{
     ctx.lineTo(arrowX, arrowY);
     ctx.fillStyle = 'black';
     ctx.fill();
+}
         )RL_TOOLS_LITERAL";
         return ui;
     }

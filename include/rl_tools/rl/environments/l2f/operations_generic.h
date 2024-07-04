@@ -1,5 +1,7 @@
-#ifndef LEARNING_TO_FLY_IN_SECONDS_SIMULATOR_OPERATIONS_GENERIC_H
-#define LEARNING_TO_FLY_IN_SECONDS_SIMULATOR_OPERATIONS_GENERIC_H
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_OPERATIONS_GENERIC_H
 
 #include "multirotor.h"
 
@@ -14,6 +16,7 @@
 #define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     // State arithmetic for RK4 integration
     // scalar multiply
@@ -139,10 +142,12 @@ namespace rl_tools{
         add_accumulate(device, static_cast<const typename STATE::NEXT_COMPONENT&>(s), static_cast<const typename STATE::NEXT_COMPONENT&>(out), static_cast<typename STATE::NEXT_COMPONENT&>(out));
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #include <rl_tools/utils/generic/integrators.h>
 
 
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::multirotor {
     template<typename DEVICE, typename T, typename TI, typename PARAMETERS>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateBase<T, TI>& state, const T* action, StateBase<T, TI>& state_change) {
@@ -876,7 +881,9 @@ namespace rl_tools{
         return false;
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "parameters/reward_functions/reward_functions.h"
+RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const typename rl::environments::Multirotor<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Multirotor<SPEC>::State& next_state, RNG& rng) {
@@ -887,83 +894,7 @@ namespace rl_tools{
         rl::environments::multirotor::parameters::reward_functions::log_reward(device, env, parameters, state, action, next_state, rng);
     }
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
-//template<typename DEVICE, typename T, typename TI, typename SPEC, typename LATENT_STATE>
-//static void deserialize(DEVICE& device, typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>& state, Matrix<SPEC>& flat_state){
-//    using STATE = typename rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>;
-//    static_assert(SPEC::ROWS == 1);
-//    static_assert(SPEC::COLS == STATE::DIM);
-//    state.position[0] = get(flat_state, 0, 0);
-//    state.position[1] = get(flat_state, 0, 1);
-//    state.position[2] = get(flat_state, 0, 2);
-//    state.orientation[0] = get(flat_state, 0, 3);
-//    state.orientation[1] = get(flat_state, 0, 4);
-//    state.orientation[2] = get(flat_state, 0, 5);
-//    state.orientation[3] = get(flat_state, 0, 6);
-//    state.linear_velocity[0] = get(flat_state, 0, 7);
-//    state.linear_velocity[1] = get(flat_state, 0, 8);
-//    state.linear_velocity[2] = get(flat_state, 0, 9);
-//    state.angular_velocity[0] = get(flat_state, 0, 10);
-//    state.angular_velocity[1] = get(flat_state, 0, 11);
-//    state.angular_velocity[2] = get(flat_state, 0, 12);
-//}
-//template<typename DEVICE, typename T, typename TI, typename SPEC, typename LATENT_STATE>
-//static void serialize(DEVICE& device, typename rl::environments::multirotor::StateBaseRotors<T, TI, LATENT_STATE>& state, Matrix<SPEC>& flat_state){
-//    using STATE = typename rl::environments::multirotor::StateBaseRotors<T, TI, LATENT_STATE>;
-//    static_assert(SPEC::ROWS == 1);
-//    static_assert(SPEC::COLS == STATE::DIM);
-//    auto state_base_flat = view(device, flat_state, matrix::ViewSpec<1, 13>{}, 0, 0);
-//    serialize(device, (rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>&)state, state_base_flat);
-//    constexpr TI offset = rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>::DIM;
-//    set(flat_state, 0, offset + 0, state.rpm[0]);
-//    set(flat_state, 0, offset + 1, state.rpm[1]);
-//    set(flat_state, 0, offset + 2, state.rpm[2]);
-//    set(flat_state, 0, offset + 3, state.rpm[3]);
-//}
-//template<typename DEVICE, typename T, typename TI, typename SPEC, typename LATENT_STATE>
-//static void deserialize(DEVICE& device, typename rl::environments::multirotor::StateBaseRotors<T, TI, LATENT_STATE>& state, Matrix<SPEC>& flat_state){
-//    using STATE = typename rl::environments::multirotor::StateBaseRotors<T, TI, LATENT_STATE>;
-//    static_assert(SPEC::ROWS == 1);
-//    static_assert(SPEC::COLS == STATE::DIM);
-//    constexpr TI OFFSET = rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>::DIM;
-//    auto state_base_rotors_flat = view(device, flat_state, matrix::ViewSpec<1, OFFSET>{}, 0, 0);
-//    deserialize(device, (rl::environments::multirotor::StateBase<T, TI, LATENT_STATE>&)state, state_base_rotors_flat);
-//    state.rpm[0] = get(flat_state, 0, OFFSET + 0);
-//    state.rpm[1] = get(flat_state, 0, OFFSET + 1);
-//    state.rpm[2] = get(flat_state, 0, OFFSET + 2);
-//    state.rpm[3] = get(flat_state, 0, OFFSET + 3);
-//}
-//template<typename DEVICE, typename T_S, typename TI_S, TI_S HISTORY_LENGTH, typename SPEC, typename LATENT_STATE>
-//static void serialize(DEVICE& device, typename rl::environments::multirotor::StateBaseRotorsHistory<T_S, TI_S, HISTORY_LENGTH, LATENT_STATE>& state, Matrix<SPEC>& flat_state){
-//    using STATE = typename rl::environments::multirotor::StateBaseRotorsHistory<T_S, TI_S, HISTORY_LENGTH, LATENT_STATE>;
-//    using TI = typename DEVICE::index_t;
-//    static_assert(SPEC::ROWS == 1);
-//    static_assert(SPEC::COLS == STATE::DIM);
-//    constexpr TI OFFSET = rl::environments::multirotor::StateBaseRotors<T_S, TI_S, LATENT_STATE>::DIM;
-//    auto state_base_flat = view(device, flat_state, matrix::ViewSpec<1, OFFSET>{}, 0, 0);
-//    serialize(device, (rl::environments::multirotor::StateBaseRotors<T_S, TI_S, LATENT_STATE>&)state, state_base_flat);
-//    for(TI step_i = 0; step_i < HISTORY_LENGTH; ++step_i){
-//        set(flat_state, 0, OFFSET + step_i * 4 + 0, state.action_history[step_i][0]);
-//        set(flat_state, 0, OFFSET + step_i * 4 + 1, state.action_history[step_i][1]);
-//        set(flat_state, 0, OFFSET + step_i * 4 + 2, state.action_history[step_i][2]);
-//        set(flat_state, 0, OFFSET + step_i * 4 + 3, state.action_history[step_i][3]);
-//    }
-//}
-//template<typename DEVICE, typename T_S, typename TI_S, TI_S HISTORY_LENGTH, typename SPEC, typename LATENT_STATE>
-//static void deserialize(DEVICE& device, typename rl::environments::multirotor::StateBaseRotorsHistory<T_S, TI_S, HISTORY_LENGTH, LATENT_STATE>& state, Matrix<SPEC>& flat_state){
-//    using STATE = typename rl::environments::multirotor::StateBaseRotors<T_S, TI_S, LATENT_STATE>;
-//    using TI = typename DEVICE::index_t;
-//    static_assert(SPEC::ROWS == 1);
-//    static_assert(SPEC::COLS == STATE::DIM);
-//    auto state_base_flat = view(device, flat_state, matrix::ViewSpec<1, 13>{}, 0, 0);
-//    deserialize(device, (rl::environments::multirotor::StateBaseRotors<T_S, TI_S, LATENT_STATE>&)state, state_base_flat);
-//    constexpr TI offset = rl::environments::multirotor::StateBaseRotors<T_S, TI_S, LATENT_STATE>::DIM;
-//    for(TI step_i = 0; step_i < HISTORY_LENGTH; ++step_i){
-//        state.rpm_history[step_i][0] = get(flat_state, 0, offset + step_i * 4 + 0);
-//        state.rpm_history[step_i][1] = get(flat_state, 0, offset + step_i * 4 + 1);
-//        state.rpm_history[step_i][2] = get(flat_state, 0, offset + step_i * 4 + 2);
-//        state.rpm_history[step_i][3] = get(flat_state, 0, offset + step_i * 4 + 3);
-//    }
-//}
 
 #endif
