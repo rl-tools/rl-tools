@@ -10,16 +10,16 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
     template<typename T>
     constexpr Squared<T> squared = {
             false, // non-negative
-            1.0, // scale
-            20, // constant
+            0.1, // scale
+            2, // constant
             0, // termination penalty
             20, // position
             2.5, // orientation
-            0.5, // linear_velocity
+            0.005, // linear_velocity
             0, // angular_velocity
             0, // linear_acceleration
             0, // angular_acceleration
-            0.5, // action
+            0.01, // action
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

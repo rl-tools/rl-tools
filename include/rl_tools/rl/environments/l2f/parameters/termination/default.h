@@ -11,9 +11,9 @@ namespace rl_tools::rl::environments::l2f::parameters::termination{
     template<typename SPEC>
     constexpr typename rl_tools::rl::environments::l2f::ParametersBase<SPEC>::MDP::Termination fast_learning = {
         true,           // enable
-        0.6,            // position
-        1000,         // linear velocity
-        1000, // angular velocity
+        2,            // position
+        5,         // linear velocity
+        35, // angular velocity
         10000, // position integral
         50000, // orientation integral
     };

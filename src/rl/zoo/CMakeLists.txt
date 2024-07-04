@@ -24,6 +24,13 @@ RL_TOOLS_RL_ZOO_LINK_ZLIB_OR_NOT(rl_zoo_sac_acrobot_swingup_v0)
 RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_sac_acrobot_swingup_v0)
 target_compile_definitions(rl_zoo_sac_acrobot_swingup_v0 PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
 target_compile_definitions(rl_zoo_sac_acrobot_swingup_v0 PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_ACROBOT_SWINGUP_V0)
+# SAC Learning to Fly
+add_executable(rl_zoo_sac_l2f zoo_cli.cpp zoo.cpp)
+target_link_libraries(rl_zoo_sac_l2f PRIVATE RLtools::RLtools)
+RL_TOOLS_RL_ZOO_LINK_ZLIB_OR_NOT(rl_zoo_sac_l2f)
+RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_sac_l2f)
+target_compile_definitions(rl_zoo_sac_l2f PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
+target_compile_definitions(rl_zoo_sac_l2f PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
 # TD3 Pendulum-v1
 add_executable(rl_zoo_td3_pendulum_v1 zoo_cli.cpp zoo.cpp)
 target_link_libraries(rl_zoo_td3_pendulum_v1 PRIVATE RLtools::RLtools)

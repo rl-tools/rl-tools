@@ -14,6 +14,10 @@ struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op, this allows to ha
 using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::acrobot_swingup_v0::AcrobotSwingupV0<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
 template <typename BASE>
 using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::sac::acrobot_swingup_v0::AcrobotSwingupV0<DEVICE, T, TI, RNG>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::sac::l2f::LearningToFly<DEVICE, T, TI, RNG>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
 #else
 #error "RLtools Zoo SAC: Environment not defined"
 #endif

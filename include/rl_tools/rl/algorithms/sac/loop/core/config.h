@@ -71,7 +71,7 @@ namespace rl_tools::rl::algorithms::sac::loop::core{
         };
         template <typename CAPABILITY>
         struct Critic{
-            static constexpr TI INPUT_DIM = ENVIRONMENT::Observation::DIM+ENVIRONMENT::ACTION_DIM;
+            static constexpr TI INPUT_DIM = ENVIRONMENT::ObservationPrivileged::DIM+ENVIRONMENT::ACTION_DIM;
             using SPEC = nn_models::mlp::Specification<T, TI, INPUT_DIM, 1, PARAMETERS::CRITIC_NUM_LAYERS, PARAMETERS::CRITIC_HIDDEN_DIM, PARAMETERS::CRITIC_ACTIVATION_FUNCTION, nn::activation_functions::IDENTITY, typename PARAMETERS::INITIALIZER, CONTAINER_TYPE_TAG>;
             using TYPE = nn_models::mlp::BindSpecification<SPEC>;
             using IF = nn_models::sequential::Interface<CAPABILITY>;

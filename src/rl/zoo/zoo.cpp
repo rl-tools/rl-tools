@@ -37,6 +37,7 @@
 
 #include "sac/pendulum-v1.h"
 #include "sac/acrobot-swingup-v0.h"
+#include "sac/l2f.h"
 #include "td3/pendulum-v1.h"
 #include "td3/l2f.h"
 #include "ppo/pendulum-v1.h"
