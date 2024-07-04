@@ -37,6 +37,8 @@ jobs:
       - name: List Environment Variables
         run: env
       - uses: actions/checkout@v3
+      - name: Checkout Submodule CLI11
+        run: git submodule update --init --recursive external/cli11
       - name: Clone MuJoCo
         if: ${{ env.MUJOCO == 'true' }}
         run: |
@@ -88,24 +90,24 @@ jobs:
         run: cmake --build build --target rl_zoo_ppo_ant_v4
       - name: Run Zoo (SAC Pendulum-v1)
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_sac_pendulum_v1 $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_sac_pendulum_v1 -n $NUM_SEEDS
 
       - name: Run Zoo (TD3 Pendulum-v1)
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_td3_pendulum_v1 $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_td3_pendulum_v1 -n $NUM_SEEDS
 
       - name: Run Zoo (PPO Pendulum-v1)
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_ppo_pendulum_v1 $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_ppo_pendulum_v1 -n $NUM_SEEDS
 
       - name: Run Zoo (SAC AcrobotSwingup-v0)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.acrobot == 'true'
-        run: ./build/src/rl/zoo/rl_zoo_sac_acrobot_swingup_v0 $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_sac_acrobot_swingup_v0 -n $NUM_SEEDS
 
       - name: Run Zoo (PPO Ant-v4)
         if: ${{ env.MUJOCO == 'true' }}
         working-directory: ${{ github.workspace }}
-        run: ./build/src/rl/zoo/rl_zoo_ppo_ant_v4 $NUM_SEEDS
+        run: ./build/src/rl/zoo/rl_zoo_ppo_ant_v4 -n $NUM_SEEDS
 
       - name: Pull Zoo Blob Again
         working-directory: ${{ github.workspace }}/experiments

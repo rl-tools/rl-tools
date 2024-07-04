@@ -88,7 +88,7 @@ std::string environment = "l2f";
 #endif
 // ---------------------------------------------------------------------------------------
 
-int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment_path, std::string config_path){
+int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path){
     using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
     DEVICE device;
     rlt::utils::assert_exit(device, num_seeds > 0, "Number of seeds must be greater than 0.");
@@ -97,6 +97,9 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         ts.extrack_name = "zoo";
         if(extrack_base_path != ""){
             ts.extrack_base_path = extrack_base_path;
+        }
+        if(extrack_experiment != ""){
+            ts.extrack_experiment = extrack_experiment;
         }
         ts.extrack_population_variates = "algorithm_environment";
         ts.extrack_population_values = algorithm + "_" + environment;
