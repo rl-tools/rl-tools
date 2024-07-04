@@ -114,6 +114,9 @@ export class TrajectoryPlayer{
                         onResize()
                         console.log("Init Environment UI")
                         ui_state = await ui.init(this.canvas, {devicePixelRatio: window.devicePixelRatio})
+                        if(ui_state.cursor_grab){
+                            this.canvas.style.cursor = "grab"
+                        }
                     }
                     else{
                         throw new Error('Init but parameters not set')

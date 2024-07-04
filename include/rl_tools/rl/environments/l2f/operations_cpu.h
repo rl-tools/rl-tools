@@ -111,6 +111,7 @@ class State{
     constructor(canvas, {devicePixelRatio}){
         this.canvas = canvas
         this.devicePixelRatio = devicePixelRatio
+        this.cursor_grab = true // Instruct the embedding code to make the cursor a grab cursor
     }
     async initialize(){
         const width = this.canvas.width
