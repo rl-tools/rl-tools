@@ -2,12 +2,6 @@
 .run-container{
     margin-left: 30px;
 }
-.trajectory-player-canvas-container{
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 350px;
-}
 
 #latest-run-container{
     display: flex;
@@ -23,7 +17,20 @@
     justify-content: center;
 }
 .latest-zoo-runs-container-element{
+    flex: 0 0 auto;
     margin: 10px;
+    width: 400px;
+}
+.latest-zoo-runs-container-element > h2{
+    height: 3.0em;
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+.show-run-description {
+    height: 9em;
+    overflow-y: auto;
+    overflow-x: auto;
 }
 
 .zoo-container-container{

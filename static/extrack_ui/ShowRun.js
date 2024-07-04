@@ -6,6 +6,7 @@ export class ShowRun{
         const step = Object.keys(run.steps).filter(step => run.steps[step].trajectories || run.steps[step].trajectories_compressed).sort().reverse()[0]
 
         const description = document.createElement("div")
+        description.classList.add("show-run-description")
 
         const latest_run_experiment = document.createElement("span")
         latest_run_experiment.innerText = run.config.experiment
