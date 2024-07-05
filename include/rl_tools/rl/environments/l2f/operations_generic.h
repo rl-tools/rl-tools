@@ -533,7 +533,7 @@ namespace rl_tools{
             }
         }
     }
-    namespace rl::environments::l2f{
+    namespace rl::environments::l2f::observations{
         template<typename DEVICE, typename SPEC, typename STATE, typename OBSERVATION_TI, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const STATE& state, rl::environments::l2f::observation::LastComponent<OBSERVATION_TI>, Matrix<OBS_SPEC>& observation, RNG& rng){
             static_assert(OBS_SPEC::COLS == 0);
@@ -703,12 +703,12 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
     }
-    template<typename DEVICE, typename SPEC, typename STATE, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const STATE& state, Matrix<OBS_SPEC>& observation, RNG& rng){
+    template<typename DEVICE, typename SPEC, typename STATE, typename OBSERVATION, typename OBS_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, const STATE& state, const OBSERVATION& observation_type, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Multirotor<SPEC>;
-        static_assert(OBS_SPEC::COLS == ENVIRONMENT::OBSERVATION_DIM);
+        static_assert(OBS_SPEC::COLS == OBSERVATION::DIM);
         static_assert(OBS_SPEC::ROWS == 1);
-        rl::environments::l2f::observe(device, env, parameters, state, typename ENVIRONMENT::Observation{}, observation, rng);
+        rl::environments::l2f::observations::observe(device, env, parameters, state, observation_type, observation, rng);
     }
 //    template<typename DEVICE, typename SPEC, typename STATE, typename OBS_SPEC, typename RNG>
 //    RL_TOOLS_FUNCTION_PLACEMENT static void observe_privileged(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const STATE& state, Matrix<OBS_SPEC>& observation, RNG& rng){
