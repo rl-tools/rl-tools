@@ -288,6 +288,7 @@ if(RL_TOOLS_ENABLE_HDF5)
     if(RL_TOOLS_HDF5_HIGHFIVE_FROM_CONAN)
         find_package(HighFive REQUIRED)
     else()
+        set(HIGHFIVE_UNIT_TESTS OFF CACHE BOOL "Disable HighFive unit tests" FORCE)
         add_subdirectory(external/highfive)
     endif()
 
@@ -448,6 +449,15 @@ endfunction()
 
 function(RL_TOOLS_TAG_IS_CUDA TARGET)
     set_target_properties(${TARGET} PROPERTIES IS_CUDA YES)
+endfunction()
+
+FUNCTION(RL_TOOLS_WARNINGS_ARE_ERRORS TARGET)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(${TARGET} PRIVATE -Wall -Wextra -Wconversion -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-unused-but-set-parameter -Wno-unused-local-typedefs -Werror )
+    endif()
+    if(MSVC)
+        target_compile_options(${TARGET} PRIVATE "/W4")
+    endif()
 endfunction()
 
 

@@ -13,7 +13,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
     auto default_engine(const devices::random::CPU& dev, devices::random::CPU::index_t seed = 0){
-        return std::default_random_engine(seed+1);
+        return std::default_random_engine(static_cast<std::default_random_engine::result_type>(seed+1));
     };
 
     template<typename T, typename RNG>

@@ -184,14 +184,14 @@ void test_is_finite(){
     rlt::free(device, m);
 }
 
-TEST(RL_TOOLS_TEST_CONTAINER, IS_FINITE) {
+TEST(RL_TOOLS_TEST_CONTAINER, IS_FINITE){
     test_is_finite<10, 10, 10, 1>();
     test_is_finite<10, 10, 20, 2>();
     test_is_finite<15, 13, 100, 3>();
     test_is_finite<15, 13, 3, 100>();
 }
 
-TEST(RL_TOOLS_TEST_CONTAINER, WRAP) {
+TEST(RL_TOOLS_TEST_CONTAINER, WRAP){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -206,7 +206,7 @@ TEST(RL_TOOLS_TEST_CONTAINER, WRAP) {
     }
 }
 
-TEST(RL_TOOLS_TEST_CONTAINER, MIN_DETERMINISTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, MIN_DETERMINISTIC){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -219,7 +219,7 @@ TEST(RL_TOOLS_TEST_CONTAINER, MIN_DETERMINISTIC) {
     ASSERT_FLOAT_EQ(min, 1);
 }
 
-TEST(RL_TOOLS_TEST_CONTAINER, MAX_DETERMINISTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, MAX_DETERMINISTIC){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -252,7 +252,7 @@ void test_max_stochastic(){
         }
     }
 }
-TEST(RL_TOOLS_TEST_CONTAINER, MAX_STOCHASTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, MAX_STOCHASTIC){
     test_max_stochastic<10, 10>();
     test_max_stochastic<10, 1000>();
     test_max_stochastic<1, 1>();
@@ -260,7 +260,7 @@ TEST(RL_TOOLS_TEST_CONTAINER, MAX_STOCHASTIC) {
     test_max_stochastic<10, 1>();
 }
 
-TEST(RL_TOOLS_TEST_CONTAINER, ARGMAX_DETERMINISTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, ARGMAX_DETERMINISTIC){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -308,7 +308,7 @@ void test_argmax_stochastic(){
         }
     }
 }
-TEST(RL_TOOLS_TEST_CONTAINER, ARGMAX_STOCHASTIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, ARGMAX_STOCHASTIC){
     test_argmax_stochastic<10, 10>();
     test_argmax_stochastic<10, 1000>();
     test_argmax_stochastic<1, 1>();
@@ -317,7 +317,7 @@ TEST(RL_TOOLS_TEST_CONTAINER, ARGMAX_STOCHASTIC) {
 }
 
 
-TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_GENERIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_GENERIC){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = float;
     using TI = DEVICE::index_t;
@@ -353,7 +353,7 @@ TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_GENERIC) {
 #ifdef RL_TOOLS_BACKEND_ENABLE_MKL
 #define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 #include <rl_tools/operations/cpu_mkl.h>
-TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL) {
+TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL){
     using DEVICE = rlt::devices::DefaultCPU_MKL;
     using T = float;
     using TI = DEVICE::index_t;
@@ -419,7 +419,7 @@ void test_matrix_multiplication_mkl_generic(){
         ASSERT_TRUE(diff_per_element < 1e-10);
     }
 }
-TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL_GENERIC) {
+TEST(RL_TOOLS_TEST_CONTAINER, MATRIX_MULTIPLICATION_MKL_GENERIC){
     test_matrix_multiplication_mkl_generic<float, int, 1, 1, 1>();
     test_matrix_multiplication_mkl_generic<float, int, 5, 2, 2>();
     test_matrix_multiplication_mkl_generic<float, int, 5, 10, 10>();

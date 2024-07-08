@@ -8,7 +8,7 @@
 #include "../../nn/optimizers/sgd/sgd.h"
 #include "../../nn/optimizers/adam/adam.h"
 #include "../../utils/generic/typing.h"
-#include "../../containers.h"
+#include "../../containers/matrix/matrix.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::mlp {

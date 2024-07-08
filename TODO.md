@@ -61,6 +61,8 @@
 - Make the `Tests (minimal)` suite work again on the Windows Github actions (it works on my (windows) PC @tm)
 - Investigate the "zero-sized array" error under MSVC for `rl_environments_pendulum_sac_arm_test` and `rl_environments_pendulum_sac_arm_test_benchmark`
 - Properly export `nn::layers::dense::DefaultParameters` in the `persist_code` operations
+- Remove the memcopy in `containers/tensor/persist.h`
+- Check all examples with `-fsanitize=address`
 
 # Features
 - Look into implementing TQC, DroQ and CrossQ

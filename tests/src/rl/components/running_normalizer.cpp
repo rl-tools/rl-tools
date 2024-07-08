@@ -1,5 +1,5 @@
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/containers/persist.h>
+#include <rl_tools/containers/matrix/persist.h>
 #include <rl_tools/rl/components/running_normalizer/operations_generic.h>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <gtest/gtest.h>

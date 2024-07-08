@@ -4,7 +4,7 @@
 #define RL_TOOLS_NN_LAYERS_DENSE_LAYER_H
 #include "../../../nn/activation_functions.h"
 #include "../../../utils/generic/typing.h"
-#include "../../../containers.h"
+#include "../../../containers/matrix/matrix.h"
 
 //#include "../../../nn/nn.h"
 #include "../../../nn/capability/capability.h"

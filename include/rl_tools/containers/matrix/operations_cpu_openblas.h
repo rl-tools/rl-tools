@@ -1,10 +1,10 @@
-#include "../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_CONTAINERS_OPERATIONS_CPU_OPENBLAS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#include "../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_CONTAINERS_MATRIX_OPERATIONS_CPU_OPENBLAS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_CONTAINERS_OPERATIONS_CPU_OPENBLAS_H
+#define RL_TOOLS_CONTAINERS_MATRIX_OPERATIONS_CPU_OPENBLAS_H
 
 #include "operations_cpu_blas.h"
-#include "../containers.h"
+#include "matrix.h"
 #include "../devices/cpu_openblas.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

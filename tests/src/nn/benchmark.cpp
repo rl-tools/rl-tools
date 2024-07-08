@@ -173,7 +173,7 @@ TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, BENCHMARK_BATCH) {
 
 #ifdef RL_TOOLS_BACKEND_ENABLE_MKL
 #include <rl_tools/devices/cpu_mkl.h>
-#include <rl_tools/containers/operations_cpu_mkl.h>
+#include <rl_tools/containers/matrix/operations_cpu_mkl.h>
 TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL) {
     using T = DTYPE;
     int m, n, k;
@@ -227,7 +227,7 @@ TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL) {
 }
 
 #include <rl_tools/nn/operations_cpu_mkl.h>
-#include <rl_tools/containers/operations_generic.h>
+#include <rl_tools/containers/matrix/operations_generic.h>
 #include <rl_tools/utils/generic/typing.h>
 
 TEST_F(RL_TOOLS_NN_DENSE_BENCHMARK, MKL_LAYER) {

@@ -5,7 +5,7 @@
 #include <rl_tools/operations/cpu/group_3.h>
 #include <rl_tools/operations/arm/group_3.h>
 
-#include <rl_tools/containers/persist_code.h>
+#include <rl_tools/containers/matrix/persist_code.h>
 #include <rl_tools/nn/layers/dense/operations_arm/opt.h>
 #include <rl_tools/nn/layers/dense/operations_cpu.h>
 #include <rl_tools/nn_models/mlp/operations_generic.h>

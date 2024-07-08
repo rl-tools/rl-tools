@@ -4,7 +4,7 @@
 #define RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_PERSIST_H
 
 #include <highfive/H5Group.hpp>
-#include "../../../containers/persist.h"
+#include "../../../containers/matrix/persist.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

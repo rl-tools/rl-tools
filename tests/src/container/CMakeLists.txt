@@ -11,17 +11,6 @@ target_link_libraries(
 )
 gtest_discover_tests(test_container)
 
-add_executable(tensor_test
-        tensor.cpp
-)
-target_link_libraries(
-        tensor_test
-        PRIVATE
-        RLtools::Core
-        GTest::gtest_main
-)
-gtest_discover_tests(tensor_test)
-
 if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     add_subdirectory(cuda)
 endif()
@@ -37,3 +26,41 @@ target_link_libraries(
         rl_tools_test
 )
 gtest_discover_tests(test_container_persist_code_store)
+
+add_executable(tensor_test
+        tensor.cpp
+)
+target_link_libraries(
+        tensor_test
+        PRIVATE
+        RLtools::Core
+        GTest::gtest_main
+)
+gtest_discover_tests(tensor_test)
+
+if(RL_TOOLS_ENABLE_HDF5)
+add_executable(tensor_persist_test
+        tensor_persist.cpp
+)
+target_link_libraries(
+        tensor_persist_test
+        PRIVATE
+        RLtools::Minimal
+        RLtools::Test
+        GTest::gtest_main
+)
+gtest_discover_tests(tensor_persist_test)
+endif()
+
+add_executable(tensor_sum_test
+        tensor_sum.cpp
+)
+target_link_libraries(
+        tensor_sum_test
+        PRIVATE
+        RLtools::Core
+)
+
+
+add_executable(test_container_matmul matmul.cpp)
+target_link_libraries(test_container_matmul RLtools::Core)
