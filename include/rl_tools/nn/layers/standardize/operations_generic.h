@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_NN_LAYERS_STANDARDIZE_OPERATIONS_GENERIC_H
 #include "../../../utils/generic/typing.h"
-#include "../../../containers.h"
+#include "../../../containers/matrix/matrix.h"
 
 #include "../../../nn/nn.h"
 #include "../../../nn/mode.h"

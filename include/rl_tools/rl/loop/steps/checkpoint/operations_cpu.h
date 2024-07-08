@@ -6,7 +6,7 @@
 #include "config.h"
 
 #ifdef RL_TOOLS_ENABLE_HDF5
-#include <rl_tools/containers/persist.h>
+#include <rl_tools/containers/matrix/persist.h>
 #include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
@@ -18,7 +18,7 @@
 #include <cstring>
 #endif
 
-#include <rl_tools/containers/persist_code.h>
+#include <rl_tools/containers/matrix/persist_code.h>
 #include <rl_tools/nn/parameters/persist_code.h>
 #include <rl_tools/nn/layers/dense/persist_code.h>
 #include <rl_tools/nn_models/mlp/persist_code.h>
