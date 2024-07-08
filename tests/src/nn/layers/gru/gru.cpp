@@ -100,7 +100,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
 
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient, BATCH_SIZE>;
     rlt::nn::layers::gru::LayerBackwardGradient<GRU_SPEC> gru;
-    decltype(gru)::Buffers buffers;
+    decltype(gru)::BufferBackward buffers;
     rlt::malloc(device, gru);
     rlt::malloc(device, buffers);
 

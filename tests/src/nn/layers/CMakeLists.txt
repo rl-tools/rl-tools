@@ -11,5 +11,5 @@ target_link_libraries(
 gtest_discover_tests(test_nn_layers_dense)
 
 add_subdirectory(dense)
-#add_subdirectory(gru)
+add_subdirectory(gru)
 add_subdirectory(standardize)
