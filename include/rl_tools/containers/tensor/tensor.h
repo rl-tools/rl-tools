@@ -168,7 +168,7 @@ namespace rl_tools{
             static constexpr auto SIZE = T_SIZE;
         };
         template <typename A, typename B>
-        bool constexpr _same_dimensions_shape(){
+        bool constexpr same_dimensions_shape(){
             static_assert(length(A{}) == length(B{}));
             if constexpr(length(A{}) == 0){
                 return true;
@@ -176,12 +176,12 @@ namespace rl_tools{
             else{
                 using NEXT_A = PopFront<A>;
                 using NEXT_B = PopFront<B>;
-                return (A::VALUE == B::VALUE) && _same_dimensions_shape<NEXT_A, NEXT_B>();
+                return (A::VALUE == B::VALUE) && same_dimensions_shape<NEXT_A, NEXT_B>();
             }
         }
         template <typename SPEC_A, typename SPEC_B>
         bool constexpr same_dimensions(){
-            return _same_dimensions_shape<typename SPEC_A::SHAPE, typename SPEC_B::SHAPE>();
+            return same_dimensions_shape<typename SPEC_A::SHAPE, typename SPEC_B::SHAPE>();
         }
 
 

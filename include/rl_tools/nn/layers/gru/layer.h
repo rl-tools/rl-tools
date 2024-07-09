@@ -8,16 +8,14 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru{
-    template<typename T_T, typename T_TI, T_TI T_SEQUENCE_LENGTH, T_TI T_INPUT_DIM, T_TI T_HIDDEN_DIM, typename T_PARAMETER_TYPE, T_TI T_BATCH_SIZE=1, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = TensorDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    template<typename T_T, typename T_TI, T_TI T_SEQUENCE_LENGTH, T_TI T_INPUT_DIM, T_TI T_HIDDEN_DIM, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = TensorDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
         static constexpr T_TI SEQUENCE_LENGTH = T_SEQUENCE_LENGTH;
         static constexpr T_TI INPUT_DIM = T_INPUT_DIM;
         static constexpr T_TI HIDDEN_DIM = T_HIDDEN_DIM;
-        using PARAMETER_TYPE = T_PARAMETER_TYPE;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
-        static constexpr auto BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
@@ -54,6 +52,7 @@ namespace rl_tools::nn::layers::gru{
         static constexpr TI BATCH_SIZE = SPEC::BATCH_SIZE;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI HIDDEN_DIM = SPEC::HIDDEN_DIM;
+        static constexpr TI OUTPUT_DIM = SPEC::HIDDEN_DIM;
         using INPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
         using OUTPUT_SHAPE = tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
         using WEIGHTS_INPUT_CONTAINER_SHAPE = tensor::Shape<TI, 3*HIDDEN_DIM, INPUT_DIM>;
@@ -91,12 +90,12 @@ namespace rl_tools::nn::layers::gru{
         using INITIAL_HIDDEN_STATE_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<INITIAL_HIDDEN_STATE_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<INITIAL_HIDDEN_STATE_PARAMETER_SPEC> initial_hidden_state;
 
-        using BufferEvaluation = buffers::Evaluation<SPEC>;
+        using Buffer = buffers::Evaluation<SPEC>;
     };
 
     namespace buffers{
         template <typename T_SPEC>
-        struct Backward{
+        struct Backward: Evaluation<T_SPEC>{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -141,7 +140,7 @@ namespace rl_tools::nn::layers::gru{
     };
     template<typename T_SPEC>
     struct LayerGradient: LayerBackward<T_SPEC>{
-        using BufferBackward = buffers::Backward<T_SPEC>;
+        using Buffer = buffers::Backward<T_SPEC>;
     };
 
     template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>

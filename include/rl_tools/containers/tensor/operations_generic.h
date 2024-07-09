@@ -21,6 +21,24 @@ namespace rl_tools{
         delete[] data(tensor);
     }
 
+    template <typename SHAPE, typename DEVICE, typename SPEC>
+    auto view_memory(DEVICE& device, const Tensor<SPEC>& tensor){
+        static_assert(product<SHAPE> <= SPEC::SIZE);
+        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, typename SPEC::STRIDE, false, true>;
+        using VIEW_TYPE = Tensor<VIEW_SPEC>;
+        const VIEW_TYPE view{data(tensor)};
+        return view;
+    }
+
+    template <typename SHAPE, typename DEVICE, typename SPEC>
+    auto view_memory(DEVICE& device, Tensor<SPEC>& tensor){
+        static_assert(product<SHAPE> <= SPEC::SIZE);
+        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, typename SPEC::STRIDE, false, true>;
+        using VIEW_TYPE = Tensor<VIEW_SPEC>;
+        VIEW_TYPE view{data(tensor)};
+        return view;
+    }
+
     template <typename DEVICE, typename SPEC, auto DIM=0, auto SIZE=0>
     auto view_range(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM, SIZE>){
         static_assert(SIZE > 0);
@@ -569,7 +587,7 @@ namespace rl_tools{
         using EXPECTED_OUTPUT_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
-        static_assert(tensor::_same_dimensions_shape<typename OUTPUT_SPEC::SHAPE, EXPECTED_OUTPUT_SHAPE>());
+        static_assert(tensor::same_dimensions_shape<typename OUTPUT_SPEC::SHAPE, EXPECTED_OUTPUT_SHAPE>());
         if constexpr(length(typename SPEC::SHAPE{}) == 2){
             for(TI row_i=0; row_i < get<0>(typename SPEC::SHAPE{}); ++row_i){
                 auto input_row = view(device, input, row_i);

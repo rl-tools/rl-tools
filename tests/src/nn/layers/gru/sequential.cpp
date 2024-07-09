@@ -22,6 +22,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, SEQUENTIAL_V2){
     using T = double;
     using TI = DEVICE::index_t;
     DEVICE device;
+    auto rng = rlt::random::default_engine(device.random, 0);
     constexpr T EPSILON = 1e-6;
     constexpr TI SEQUENCE_LENGTH = 50;
     constexpr TI BATCH_SIZE = 128;
@@ -49,18 +50,18 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, SEQUENTIAL_V2){
     using GRU_HIDDEN_BIAS_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_HIDDEN_BIAS_SHAPE>> grad_b_hr, grad_b_hz, grad_b_hn;
 
-    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient, BATCH_SIZE>;
-    using GRU_LAYER = rlt::nn::layers::gru::LayerBackwardGradient<GRU_SPEC>;
+    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient>;
+    using GRU_LAYER = rlt::nn::layers::gru::BindSpecification<GRU_SPEC>;
     using namespace rlt::nn_models::sequential_v2;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-    using MODEL = Module<CAPABILITY, GRU_LAYER>;
+    using MODEL = Module<CAPABILITY, GRU_LAYER::Layer>;
     MODEL sequential;
-    MODEL::Buffer<> buffers;
+    MODEL::Buffer<BATCH_SIZE> buffers;
 
     rlt::malloc(device, sequential);
     rlt::malloc(device, buffers);
 
-    auto gru = rlt::get_layer(device, sequential, rlt::Constant<0>{});
+    auto gru = rlt::get_layer<0>(sequential);
 
 
     rlt::malloc(device, input);
@@ -142,7 +143,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, SEQUENTIAL_V2){
 //                ASSERT_LT(abs_diff, 1e-15);
 //            }
             {
-                rlt::evaluate(device, sequential, input, gru_output_evaluate, buffers);
+                rlt::evaluate(device, sequential, input, gru_output_evaluate, buffers, rng);
                 rlt::print(device, gru_output_evaluate);
                 T abs_diff = rlt::absolute_difference(device, gru_output, gru_output_evaluate) / (decltype(gru_output)::SPEC::SIZE);
                 ASSERT_LT(abs_diff, 1e-15);

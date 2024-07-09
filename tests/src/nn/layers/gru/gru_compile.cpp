@@ -27,14 +27,15 @@ int main(){
     using GRU_OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE, rlt::tensor::RowMajorStride<GRU_OUTPUT_SHAPE>, true>> dloss_dgru_output;
 
-    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient, BATCH_SIZE, rlt::nn::parameters::groups::Normal, rlt::TensorStaticTag>;
-    rlt::nn::layers::gru::LayerBackwardGradient<GRU_SPEC> gru;
-    decltype(gru)::BufferBackward buffers;
+    using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorStaticTag>;
+    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+    rlt::nn::layers::gru::Layer<CAPABILITY, GRU_SPEC> gru;
+    decltype(gru)::Buffer buffers;
 //    rlt::malloc(device, gru);
     rlt::init(device, buffers);
     rlt::randn(device, input, rng);
 
-    rlt::forward(device, gru, input);
+    rlt::forward(device, gru, input, rng);
 //    rlt::print(device, gru.output);
     rlt::zero_gradient(device, gru);
 

@@ -413,8 +413,8 @@ TEST(RL_TOOLS_TENSOR_TEST, COMPARE_DIMS) {
         using SHAPE3 = rlt::tensor::Shape<TI, 10, 31, 41>;
         static_assert(rlt::length(rlt::tensor::PopFront<rlt::tensor::PopFront<rlt::tensor::PopFront<SHAPE1>>>{}) == 0);
         static_assert(rlt::utils::typing::is_same_v<SHAPE1::NEXT_ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT::NEXT_ELEMENT, rlt::tensor::FinalElement>);
-        static_assert(rlt::tensor::_same_dimensions_shape<SHAPE1, SHAPE2>());
-        static_assert(!rlt::tensor::_same_dimensions_shape<SHAPE1, SHAPE3>());
+        static_assert(rlt::tensor::same_dimensions_shape<SHAPE1, SHAPE2>());
+        static_assert(!rlt::tensor::same_dimensions_shape<SHAPE1, SHAPE3>());
     }
 }
 TEST(RL_TOOLS_TENSOR_TEST, SET_ALL) {

@@ -11,6 +11,7 @@ namespace rl_tools::nn_models::sequential_v2{
     struct OutputModule{
         struct CONTENT{
             static constexpr auto INPUT_DIM = 0;
+            using INPUT_SHAPE = tensor::Shape<decltype(0), 0>;
             static constexpr auto BATCH_SIZE = 0;
         };
         template <typename>
@@ -44,7 +45,8 @@ namespace rl_tools::nn_models::sequential_v2{
     }
     template <typename TI, typename SPEC>
     constexpr auto find_max_hiddend_dim(TI current_max = 0){
-        current_max = current_max > SPEC::CONTENT::OUTPUT_DIM ? current_max : SPEC::CONTENT::OUTPUT_DIM;
+        constexpr TI CONTENT_OUTPUT_DIM = product(typename SPEC::CONTENT::OUTPUT_SHAPE{});
+        current_max = current_max > CONTENT_OUTPUT_DIM ? current_max : CONTENT_OUTPUT_DIM;
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
             return 0;
         } else {
@@ -89,7 +91,8 @@ namespace rl_tools::nn_models::sequential_v2{
         static constexpr TI INPUT_DIM = CONTENT::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = find_output_dim<Specification<T_CONTENT, T_NEXT_MODULE>>();
         static constexpr TI MAX_HIDDEN_DIM = find_max_hiddend_dim<typename CONTENT::TI, Specification<T_CONTENT, T_NEXT_MODULE>>();
-        static_assert(utils::typing::is_same_v<NEXT_MODULE, OutputModule> || CONTENT::OUTPUT_DIM == NEXT_MODULE::CONTENT::INPUT_DIM);
+        static constexpr bool NEXT_IS_OUTPUT = utils::typing::is_same_v<NEXT_MODULE, OutputModule>;
+        static_assert(NEXT_IS_OUTPUT || tensor::same_dimensions_shape<typename CONTENT::OUTPUT_SHAPE, utils::typing::conditional_t<NEXT_IS_OUTPUT, typename CONTENT::OUTPUT_SHAPE, typename NEXT_MODULE::CONTENT::INPUT_SHAPE>>());
     };
 
     template <typename T_CAPABILITY, typename T_SPEC>
@@ -106,7 +109,7 @@ namespace rl_tools::nn_models::sequential_v2{
         using CONTENT = typename SPEC::CONTENT;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-        using CONTENT_BUFFER = typename CONTENT::template Buffer<BATCH_SIZE, CONTAINER_TYPE_TAG>;
+        using CONTENT_BUFFER = typename CONTENT::Buffer;
         static constexpr bool IS_FINAL = utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>;
         using NEXT_MODULE = utils::typing::conditional_t<!IS_FINAL, typename SPEC::NEXT_MODULE, ModuleForward<SPEC>>;
         using NEXT_SPEC = utils::typing::conditional_t<
@@ -144,8 +147,11 @@ namespace rl_tools::nn_models::sequential_v2{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::MAX_HIDDEN_DIM, typename BUFFER_SPEC::MEMORY_LAYOUT>;
-        using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
+        using TICK_TOCK_CONTAINER_SHAPE = tensor::Shape<TI, SPEC::MAX_HIDDEN_DIM>;
+        using TICK_TOCK_CONTAINER_SPEC = tensor::Specification<T, TI, TICK_TOCK_CONTAINER_SHAPE, tensor::RowMajorStride<TICK_TOCK_CONTAINER_SHAPE>>;
+        using TICK_TOCK_CONTAINER_TYPE = Tensor<TICK_TOCK_CONTAINER_SPEC>;
+//        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, SPEC::MAX_HIDDEN_DIM, typename BUFFER_SPEC::MEMORY_LAYOUT>;
+//        using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
         using CONTENT_BUFFER = ContentBuffer<typename BUFFER_SPEC::CONTENT_BUFFER_SPEC>;
