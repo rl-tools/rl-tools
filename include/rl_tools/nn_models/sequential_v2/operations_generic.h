@@ -114,11 +114,8 @@ namespace rl_tools{
             reset_forward_state(device, module.next_module);
         }
     }
-    template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
-    void backward_full(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
-//        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, INPUT_SPEC, D_OUTPUT_SPEC>);
-//        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
-//        static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
+    template<bool TICK, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC>
+    void _backward_full(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
@@ -126,14 +123,17 @@ namespace rl_tools{
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
-            backward_full<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(model.content.output)::SPEC, D_OUTPUT_SPEC, typename DOUBLE_BUFFER_TYPE::SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer, buffers);
+            _backward_full<!TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer, buffers);
             backward(device, model.content, input, current_d_output_buffer, d_input);
         }
     }
-    template<typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, bool TICK = true>
-    void backward_input(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
-//        static_assert(nn_models::sequential_v2::check_input_output<MODULE_SPEC, D_INPUT_SPEC, D_OUTPUT_SPEC>);
-//        static_assert(nn_models::sequential_v2::buffer_compatible<BUFFER_SPEC, MODULE_SPEC>);
+    template<typename DEVICE, typename MODULE_SPEC, typename INPUT, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC>
+    void backward_full(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
+        _backward_full<true>(device, model, input, d_output, d_input, buffers);
+    }
+
+    template<bool TICK, typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC>
+    void _backward_input(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
         using DOUBLE_BUFFER_TYPE = decltype(buffers.tick);
 
         if constexpr(utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
@@ -141,14 +141,18 @@ namespace rl_tools{
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
-            backward_input<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, D_OUTPUT_SPEC, typename DOUBLE_BUFFER_TYPE::SPEC, BUFFER_SPEC, !TICK>(device, model.next_module, d_output, current_d_output_buffer, buffers);
+            _backward_input<!TICK>(device, model.next_module, d_output, current_d_output_buffer, buffers);
             backward_input(device, model.content, current_d_output_buffer, d_input);
         }
     }
-    template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC>
-    void backward(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<D_OUTPUT_SPEC>& d_output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
+    template<typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC>
+    void _backward_input(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, D_OUTPUT& d_output, D_INPUT& d_input, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
+        _backward_input<true>(device, model, d_output, d_input, buffers);
+    }
+    template<typename DEVICE, typename MODULE_SPEC, typename INPUT, typename D_OUTPUT, typename BUFFER_SPEC>
+    void backward(DEVICE& device, nn_models::sequential_v2::Module<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC> buffers) {
         static_assert(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>);
-        backward_full<DEVICE, typename MODULE_SPEC::NEXT_MODULE::SPEC, typename decltype(model.content.output)::SPEC, D_OUTPUT_SPEC, typename decltype(buffers.tick)::SPEC, BUFFER_SPEC, false>(device, model.next_module, model.content.output, d_output, buffers.tick, buffers);
+        _backward_full<false>(device, model.next_module, model.content.output, d_output, buffers.tick, buffers);
         backward_param(device, model.content, input, buffers.tick);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
