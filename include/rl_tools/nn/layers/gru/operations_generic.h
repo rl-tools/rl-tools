@@ -79,6 +79,17 @@ namespace rl_tools{
         }
     }
 
+    namespace nn::layers::gru{
+        template <typename DEVICE, typename SPEC, typename utils::typing::enable_if<length(typename SPEC::SHAPE{}) == 3, int>::type = 0>
+        auto multi_step_intermediates(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i){
+            return view(device, tensor, step_i);
+        }
+        template <typename DEVICE, typename SPEC, typename utils::typing::enable_if<length(typename SPEC::SHAPE{}) == 2, int>::type = 0>
+        auto multi_step_intermediates(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i){
+            return tensor;
+        }
+    }
+
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC>
     void evaluate(DEVICE& device, nn::layers::gru::Layer<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output){
         using T = typename LAYER_SPEC::T;
@@ -99,20 +110,8 @@ namespace rl_tools{
 
         for(TI step_i=0; step_i < SEQUENCE_LENGTH; ++step_i){
             auto input_step = view(device, input, step_i);
-            auto post_activation_step = [&]() constexpr{
-                if constexpr(MULTI_STEP_INTERMEDIATES){
-                    return view(device, post_activation, step_i);
-                } else {
-                    return post_activation;
-                }
-            }();
-            auto n_pre_pre_activation_step = [&]() constexpr{
-                if constexpr(MULTI_STEP_INTERMEDIATES){
-                    return view(device, n_pre_pre_activation, step_i);
-                } else {
-                    return n_pre_pre_activation;
-                }
-            }();
+            auto post_activation_step = nn::layers::gru::multi_step_intermediates(device, post_activation, step_i);
+            auto n_pre_pre_activation_step = nn::layers::gru::multi_step_intermediates(device, n_pre_pre_activation, step_i);
             auto output_step = view(device, output, step_i);
 
             auto rz_post_activation = view_range(device, post_activation_step, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, 2*LAYER_SPEC::HIDDEN_DIM>{});
