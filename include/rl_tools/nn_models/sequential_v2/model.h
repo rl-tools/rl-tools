@@ -34,7 +34,7 @@ namespace rl_tools::nn_models::sequential_v2{
     template <typename SPEC>
     constexpr auto find_output_shape(){
         if constexpr(utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
-            return SPEC::CONTENT::OUTPUT_SHAPE;
+            return typename SPEC::CONTENT::OUTPUT_SHAPE{};
         } else {
             return find_output_shape<typename SPEC::NEXT_MODULE>();
         }
@@ -84,8 +84,8 @@ namespace rl_tools::nn_models::sequential_v2{
         using T = typename CONTENT::T;
         using TI = typename CONTENT::TI;
         using CONTAINER_TYPE_TAG = typename CONTENT::CONTAINER_TYPE_TAG;
-        static constexpr TI INPUT_SHAPE = CONTENT::INPUT_SHAPE;
-        static constexpr TI OUTPUT_SHAPE = find_output_shape<Specification<T_CONTENT, T_NEXT_MODULE>>();
+        using INPUT_SHAPE = typename CONTENT::INPUT_SHAPE;
+        using OUTPUT_SHAPE = decltype(find_output_shape<Specification<T_CONTENT, T_NEXT_MODULE>>());
         static constexpr TI MAX_HIDDEN_SIZE = find_max_hiddend_size<typename CONTENT::TI, Specification<T_CONTENT, T_NEXT_MODULE>>();
 //        static_assert(utils::typing::is_same_v<NEXT_MODULE, OutputModule> || CONTENT::OUTPUT_DIM == NEXT_MODULE::CONTENT::INPUT_DIM);
     };
@@ -123,8 +123,8 @@ namespace rl_tools::nn_models::sequential_v2{
 
         NEXT_MODULE next_module;
 
-        static constexpr auto INPUT_SHAPE = SPEC::INPUT_SHAPE;
-        static constexpr auto OUTPUT_SHAPE = SPEC::OUTPUT_SHAPE;
+        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
+        using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
         template <bool STATIC=false>
         using Buffer = ModuleBuffer<ModuleBufferSpecification<SPEC, STATIC>>;
