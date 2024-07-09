@@ -52,7 +52,8 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, SEQUENTIAL_V2){
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient, BATCH_SIZE>;
     using GRU_LAYER = rlt::nn::layers::gru::LayerBackwardGradient<GRU_SPEC>;
     using namespace rlt::nn_models::sequential_v2;
-    using MODEL = Module<Specification<GRU_LAYER>>;
+    using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
+    using MODEL = Module<CAPABILITY, GRU_LAYER>;
     MODEL sequential;
     MODEL::Buffer<> buffers;
 

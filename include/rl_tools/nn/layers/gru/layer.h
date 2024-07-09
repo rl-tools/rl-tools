@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_LAYERS_GRU_LAYER_H
 #include "../../../nn/activation_functions.h"
 #include "../../../nn/parameters/parameters.h"
+#include "../../../nn/capability/capability.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru{
@@ -23,6 +24,10 @@ namespace rl_tools::nn::layers::gru{
         // Summary
 //        static constexpr auto NUM_WEIGHTS = HIDDEN_DIM * INPUT_DIM + HIDDEN_DIM; // todo
     };
+    template <typename T_CAPABILITY, typename T_SPEC>
+    struct CapabilitySpecification: T_CAPABILITY, T_SPEC{
+        using CAPABILITY = T_CAPABILITY;
+    };
 
     namespace buffers{
         template <typename T_SPEC>
@@ -40,7 +45,7 @@ namespace rl_tools::nn::layers::gru{
     }
 
     template<typename T_SPEC>
-    struct Layer{
+    struct LayerForward{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -120,7 +125,7 @@ namespace rl_tools::nn::layers::gru{
     }
 
     template<typename T_SPEC>
-    struct LayerBackward: Layer<T_SPEC>{
+    struct LayerBackward: LayerForward<T_SPEC>{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -135,7 +140,7 @@ namespace rl_tools::nn::layers::gru{
         OUTPUT_TYPE output;
     };
     template<typename T_SPEC>
-    struct LayerBackwardGradient: LayerBackward<T_SPEC>{
+    struct LayerGradient: LayerBackward<T_SPEC>{
         using BufferBackward = buffers::Backward<T_SPEC>;
     };
 
@@ -144,6 +149,21 @@ namespace rl_tools::nn::layers::gru{
             get<0>(typename INPUT_SPEC::SHAPE{}) == get<0>(typename OUTPUT_SPEC::SHAPE{}) &&
             get<1>(typename INPUT_SPEC::SHAPE{}) == get<1>(typename OUTPUT_SPEC::SHAPE{}) &&
             get<2>(typename INPUT_SPEC::SHAPE{}) == SPEC::INPUT_DIM && get<2>(typename OUTPUT_SPEC::SHAPE{}) == SPEC::HIDDEN_DIM;
+
+    template<typename CAPABILITY, typename SPEC>
+    using Layer =
+            typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Forward,
+                    LayerForward<CapabilitySpecification<CAPABILITY, SPEC>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Backward,
+            LayerBackward<CapabilitySpecification<CAPABILITY, SPEC>>,
+    typename utils::typing::conditional_t<CAPABILITY::TAG == nn::LayerCapability::Gradient,
+            LayerGradient<CapabilitySpecification<CAPABILITY, SPEC>>, void>>>;
+
+    template <typename T_SPEC>
+    struct BindSpecification{
+        template <typename CAPABILITY>
+        using Layer = nn::layers::gru::Layer<CAPABILITY, T_SPEC>;
+    };
 }
 
 #endif

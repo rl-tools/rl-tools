@@ -99,7 +99,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_HIDDEN_BIAS_SHAPE>> grad_b_hr, grad_b_hz, grad_b_hn;
 
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient, BATCH_SIZE>;
-    rlt::nn::layers::gru::LayerBackwardGradient<GRU_SPEC> gru;
+    rlt::nn::layers::gru::LayerGradient<GRU_SPEC> gru;
     decltype(gru)::BufferBackward buffers;
     rlt::malloc(device, gru);
     rlt::malloc(device, buffers);

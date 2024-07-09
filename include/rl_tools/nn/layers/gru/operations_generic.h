@@ -10,7 +10,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn::layers::gru::Layer<SPEC>& layer){
+    void malloc(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& layer){
         malloc(device, layer.weights_input);
         using VIEW_SPEC = tensor::ViewSpec<0, SPEC::HIDDEN_DIM>;
         layer.W_ir = view_range(device, layer.weights_input.parameters, 0*SPEC::HIDDEN_DIM, VIEW_SPEC{});
@@ -36,7 +36,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer){
-        malloc(device, static_cast<nn::layers::gru::Layer<SPEC>&>(layer));
+        malloc(device, static_cast<nn::layers::gru::LayerForward<SPEC>&>(layer));
         malloc(device, layer.n_pre_pre_activation);
         malloc(device, layer.post_activation);
         malloc(device, layer.output);
@@ -91,7 +91,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC>
-    void evaluate(DEVICE& device, nn::layers::gru::Layer<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output){
+    void evaluate(DEVICE& device, nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename INPUT_SPEC::SHAPE{});
@@ -146,7 +146,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    void evaluate(DEVICE& device, nn::layers::gru::Layer<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<LAYER_SPEC>& buffers){
+    void evaluate(DEVICE& device, nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<LAYER_SPEC>& buffers){
         evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output);
     }
 
@@ -243,7 +243,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    void zero_gradient(DEVICE& device, nn::layers::gru::LayerBackwardGradient<SPEC>& layer) {
+    void zero_gradient(DEVICE& device, nn::layers::gru::LayerGradient<SPEC>& layer) {
         zero_gradient(device, layer.weights_input);
         zero_gradient(device, layer.biases_input);
         zero_gradient(device, layer.weights_hidden);
@@ -295,7 +295,7 @@ namespace rl_tools{
     }
 
     template<bool CALCULATE_D_INPUT, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward(DEVICE& device, nn::layers::gru::LayerBackwardGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i){
+    void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i){
         // call with backward<false> to disable d_input calculation
         // warning: this modifies d_output!
         static_assert(tensor::same_dimensions<typename decltype(layer.output)::SPEC, D_OUTPUT_SPEC>());
@@ -360,12 +360,12 @@ namespace rl_tools{
         reduce_sum<true>(device, buffer_n_transpose, b_hn_grad);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC>
-    void backward(DEVICE& device, nn::layers::gru::LayerBackwardGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i){
+    void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i){
         backward<true>(device, layer, input, d_output, d_input, buffers, step_i);
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn::layers::gru::Layer<SPEC>& layer){
+    void free(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& layer){
         free(device, layer.weights_input);
         free(device, layer.biases_input);
         free(device, layer.weights_hidden);
@@ -374,7 +374,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::gru::LayerBackward<SPEC>& layer){
-        free(device, static_cast<nn::layers::gru::Layer<SPEC>&>(layer));
+        free(device, static_cast<nn::layers::gru::LayerForward<SPEC>&>(layer));
         free(device, layer.n_pre_pre_activation);
         free(device, layer.post_activation);
         free(device, layer.output);
