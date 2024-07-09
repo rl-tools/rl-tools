@@ -30,8 +30,12 @@ namespace rl_tools::nn::layers::gru{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>> post_activation;
-            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>> n_pre_pre_activation;
+            using POST_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
+            using POST_ACTIVATION_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<POST_ACTIVATION_SPEC>;
+            POST_ACTIVATION_TYPE post_activation;
+            using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>;
+            using N_PRE_PRE_ACTIVATION_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<N_PRE_PRE_ACTIVATION_SPEC>;
+            N_PRE_PRE_ACTIVATION_TYPE n_pre_pre_activation;
         };
     }
 
@@ -91,7 +95,9 @@ namespace rl_tools::nn::layers::gru{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>> buffer;
+            using BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
+            using BUFFER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<BUFFER_SPEC>;
+            BUFFER_TYPE buffer;
             typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>> buffer_rz;
             typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, SPEC::HIDDEN_DIM>> buffer_r, buffer_z, buffer_n;
             Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>>
@@ -119,11 +125,14 @@ namespace rl_tools::nn::layers::gru{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using FULL_HIDDEN_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
-        Tensor<FULL_HIDDEN_SPEC> post_activation;
+        using FULL_HIDDEN_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<FULL_HIDDEN_SPEC>;
+        FULL_HIDDEN_TYPE post_activation;
         using HIDDEN_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>;
-        Tensor<HIDDEN_SPEC> n_pre_pre_activation;
+        using HIDDEN_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<HIDDEN_SPEC>;
+        HIDDEN_TYPE n_pre_pre_activation;
         using OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::SEQUENCE_LENGTH, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>;
-        Tensor<OUTPUT_SPEC> output;
+        using OUTPUT_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_SPEC>;
+        OUTPUT_TYPE output;
     };
     template<typename T_SPEC>
     struct LayerBackwardGradient: LayerBackward<T_SPEC>{

@@ -47,14 +47,18 @@ namespace rl_tools{
         malloc(device, buffers.n_pre_pre_activation);
     }
     template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, nn::layers::gru::buffers::Backward<SPEC>& buffers){
-        malloc(device, buffers.buffer);
+    void init(DEVICE& device, nn::layers::gru::buffers::Backward<SPEC>& buffers){
         using VIEW_SPEC_DOUBLE = tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>;
         buffers.buffer_rz = view_range(device, buffers.buffer, 0*SPEC::HIDDEN_DIM, VIEW_SPEC_DOUBLE{});
         using VIEW_SPEC = tensor::ViewSpec<1, SPEC::HIDDEN_DIM>;
         buffers.buffer_r = view_range(device, buffers.buffer, 0*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         buffers.buffer_z = view_range(device, buffers.buffer, 1*SPEC::HIDDEN_DIM, VIEW_SPEC{});
         buffers.buffer_n = view_range(device, buffers.buffer, 2*SPEC::HIDDEN_DIM, VIEW_SPEC{});
+    }
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, nn::layers::gru::buffers::Backward<SPEC>& buffers){
+        malloc(device, buffers.buffer);
+        init(device, buffers);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_broadcast_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
