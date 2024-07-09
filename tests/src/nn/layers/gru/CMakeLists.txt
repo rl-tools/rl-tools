@@ -1,3 +1,14 @@
+
+add_executable(
+        test_nn_layers_gru_compile_time
+        gru_compile.cpp
+)
+target_link_libraries(
+        test_nn_layers_gru_compile_time
+        PRIVATE
+        RLtools::RLtools
+)
+
 if(RL_TOOLS_ENABLE_HDF5)
 add_executable(
         test_nn_layers_gru

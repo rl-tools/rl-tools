@@ -40,7 +40,7 @@ namespace rl_tools::devices{
         template <typename OTHER_DEVICE>
         static constexpr bool compatible = utils::typing::is_same_v<OTHER_DEVICE, WASM32<T_SPEC>>;
         using SPEC = T_SPEC;
-        typename SPEC::LOGGING* logger = nullptr;
+        typename SPEC::LOGGING logger;
         typename SPEC::MATH math;
         typename SPEC::RANDOM random;
     };
