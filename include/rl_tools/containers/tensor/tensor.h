@@ -150,13 +150,14 @@ namespace rl_tools{
             }
         }
 
-        template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE = RowMajorStride<T_SHAPE>, bool T_STATIC=false>
+        template <typename T_T, typename T_TI, typename T_SHAPE, typename T_STRIDE = RowMajorStride<T_SHAPE>, bool T_STATIC=false, bool T_CONST=false>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
             using SHAPE = T_SHAPE;
             using STRIDE = T_STRIDE;
             static constexpr bool STATIC = T_STATIC;
+            static constexpr bool CONST = T_CONST;
             static constexpr TI SIZE = max_span<SHAPE, STRIDE>();
             static constexpr TI SIZE_BYTES = SIZE * sizeof(T);
 
@@ -207,16 +208,16 @@ namespace rl_tools{
                 using Shape = tensor::Replace<SHAPE, VIEW_SPEC::SIZE, VIEW_SPEC::DIM>;
                 template <typename STRIDE, typename VIEW_SPEC>
                 using Stride = STRIDE;
-                template <typename SPEC, typename VIEW_SPEC>
-                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, Stride<typename SPEC::STRIDE, VIEW_SPEC>>;
+                template <typename SPEC, typename VIEW_SPEC, bool T_CONST>
+                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, Stride<typename SPEC::STRIDE, VIEW_SPEC>, false, T_CONST>;
             }
             namespace point{
                 template <typename SHAPE, typename VIEW_SPEC>
                 using Shape = tensor::Remove<SHAPE, VIEW_SPEC::DIM>;
                 template <typename STRIDE, typename VIEW_SPEC>
                 using Stride = tensor::Remove<STRIDE, VIEW_SPEC::DIM>;
-                template <typename SPEC, typename VIEW_SPEC>
-                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, Stride<typename SPEC::STRIDE, VIEW_SPEC>>;
+                template <typename SPEC, typename VIEW_SPEC, bool T_CONST>
+                using Specification = tensor::Specification<typename SPEC::T, typename SPEC::TI, Shape<typename SPEC::SHAPE, VIEW_SPEC>, Stride<typename SPEC::STRIDE, VIEW_SPEC>, false, T_CONST>;
             }
         }
     }
@@ -226,15 +227,22 @@ namespace rl_tools{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         template <typename VIEW_SPEC>
-        using VIEW_POINT = Tensor<tensor::spec::view::point::Specification<SPEC, VIEW_SPEC>>;
+        using VIEW_POINT = Tensor<tensor::spec::view::point::Specification<SPEC, VIEW_SPEC, SPEC::CONST>>;
         template <typename VIEW_SPEC>
-        using VIEW_RANGE = Tensor<tensor::spec::view::range::Specification<SPEC, VIEW_SPEC>>;
-        utils::typing::conditional_t<SPEC::STATIC, T[SPEC::SIZE], T*> _data;
+        using VIEW_RANGE = Tensor<tensor::spec::view::range::Specification<SPEC, VIEW_SPEC, SPEC::CONST>>;
+        using T_CV = utils::typing::conditional_t<SPEC::CONST, const T, T>;
+        using DATA_TYPE = utils::typing::conditional_t<SPEC::STATIC, T_CV[SPEC::SIZE], T_CV*>;
+        DATA_TYPE _data;
     };
 
     template <typename SPEC>
-    constexpr typename SPEC::T* data(const Tensor<SPEC>& tensor){
+    constexpr auto data(Tensor<SPEC>& tensor){
         return tensor._data;
+    }
+
+    template <typename SPEC>
+    constexpr auto data(const Tensor<SPEC>& tensor){
+        return &tensor._data[0];
     }
     template <typename SPEC>
     constexpr typename SPEC::T*& data_reference(Tensor<SPEC>& tensor){

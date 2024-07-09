@@ -12,7 +12,7 @@ namespace rl_tools{
         data_reference(tensor) = (typename SPEC::T*) new typename SPEC::T[SPEC::SIZE];
 #if RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
         for(typename DEVICE::index_t i=0; i < SPEC::SIZE; i++){
-            data(tensor)[i] = std::numeric_limits<typename SPEC::T>::quiet_NaN();
+            data(tensor)[i] = math::nan<typename SPEC::T>(device.math);
         }
 #endif
     }
@@ -30,8 +30,24 @@ namespace rl_tools{
         utils::assert_exit(device, offset < SPEC::SIZE, "Index out of bounds");
         utils::assert_exit(device, offset + SIZE <= SPEC::SIZE, "Index out of bounds");
 #endif
-        Tensor<tensor::spec::view::range::Specification<SPEC, tensor::ViewSpec<DIM, SIZE>>> view;
-        data_reference(view) = data(tensor) + offset;
+        using VIEW_TYPE = Tensor<tensor::spec::view::range::Specification<SPEC, tensor::ViewSpec<DIM, SIZE>, true>>;
+        using VIEW_TYPE_CV = const VIEW_TYPE;
+
+        VIEW_TYPE_CV view{data(tensor) + offset};
+        return view;
+    }
+
+    template <typename DEVICE, typename SPEC, auto DIM=0, auto SIZE=0>
+    auto view_range(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM, SIZE>){
+        static_assert(SIZE > 0);
+        static_assert(get<DIM>(typename SPEC::SHAPE{}) >= SIZE);
+        auto offset = index * get<DIM>(typename SPEC::STRIDE{});
+#ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
+        utils::assert_exit(device, offset < SPEC::SIZE, "Index out of bounds");
+        utils::assert_exit(device, offset + SIZE <= SPEC::SIZE, "Index out of bounds");
+#endif
+        using VIEW_TYPE = Tensor<tensor::spec::view::range::Specification<SPEC, tensor::ViewSpec<DIM, SIZE>, false>>;
+        VIEW_TYPE view{data(tensor) + offset};
         return view;
     }
 
@@ -39,10 +55,21 @@ namespace rl_tools{
     auto view(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM> = {}){
         using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;
-        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE>;
-        Tensor<NEW_SPEC> view;
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE, false, true>;
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
-        data_reference(view) = data(tensor) + offset;
+//        data_reference(view) = ;
+        Tensor<NEW_SPEC> view{data(tensor) + offset};
+        return view;
+    }
+
+    template <typename DEVICE, typename SPEC, auto DIM=0>
+    auto view(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM> = {}){
+        using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
+        using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE, false, false>;
+        auto offset = index * get<DIM>(typename SPEC::STRIDE{});
+//        data_reference(view) = ;
+        Tensor<NEW_SPEC> view{data(tensor) + offset};
         return view;
     }
 
@@ -66,7 +93,24 @@ namespace rl_tools{
         using STRIDE = typename SPEC::STRIDE;
         using NEW_STRIDE_INTERMEDIATE = tensor::Replace<STRIDE, get<DIM_2>(STRIDE{}), DIM_1>;
         using NEW_STRIDE = tensor::Replace<NEW_STRIDE_INTERMEDIATE, get<DIM_1>(STRIDE{}), DIM_2>;
-        using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, NEW_STRIDE>;
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, NEW_STRIDE, false, true>; // const here
+        Tensor<NEW_SPEC> view;
+        data_reference(view) = data(tensor);
+        return view;
+    }
+    template <typename DEVICE, typename SPEC, auto DIM_1=0, auto DIM_2=1>
+    auto constexpr permute(DEVICE& device, Tensor<SPEC>& tensor, const tensor::PermutationSpec<DIM_1, DIM_2> spec={}){
+        static_assert(length(typename SPEC::SHAPE{}) >= 2);
+        static_assert(DIM_1 < length(typename SPEC::SHAPE{}));
+        static_assert(DIM_2 < length(typename SPEC::SHAPE{}));
+        using SHAPE = typename SPEC::SHAPE;
+        using TI = typename SHAPE::TI;
+        using NEW_SHAPE_INTERMEDIATE = tensor::Replace<SHAPE, get<DIM_2>(SHAPE{}), DIM_1>;
+        using NEW_SHAPE = tensor::Replace<NEW_SHAPE_INTERMEDIATE, get<DIM_1>(SHAPE{}), DIM_2>;
+        using STRIDE = typename SPEC::STRIDE;
+        using NEW_STRIDE_INTERMEDIATE = tensor::Replace<STRIDE, get<DIM_2>(STRIDE{}), DIM_1>;
+        using NEW_STRIDE = tensor::Replace<NEW_STRIDE_INTERMEDIATE, get<DIM_1>(STRIDE{}), DIM_2>;
+        using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, NEW_STRIDE, false, false>; // non-const here
         Tensor<NEW_SPEC> view;
         data_reference(view) = data(tensor);
         return view;
