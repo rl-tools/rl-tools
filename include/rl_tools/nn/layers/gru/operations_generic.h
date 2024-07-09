@@ -136,7 +136,7 @@ namespace rl_tools{
             multiply_accumulate(device, n_pre_pre_activation_step, r_post_activation, n_post_activation);
             tanh(device, n_post_activation);
             one_minus(device, z_post_activation, output_step);
-            multiply(device, output_step, n_post_activation);
+            multiply(device, n_post_activation, output_step);
             if(step_i == 0){
                 multiply_broadcast_accumulate(device, z_post_activation, layer.initial_hidden_state.parameters, output_step);
             }
@@ -342,7 +342,7 @@ namespace rl_tools{
             matrix_multiply_accumulate(device, buffers.buffer, layer.weights_input.parameters, d_input_step);
         }
 
-        multiply(device, buffers.buffer_n, r_post_activation);
+        multiply(device, r_post_activation, buffers.buffer_n);
 
         if(step_i == 0){
             matrix_multiply_broadcast_accumulate(device, buffer_transpose, layer.initial_hidden_state.parameters, layer.weights_hidden.gradient);

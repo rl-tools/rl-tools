@@ -363,7 +363,7 @@ namespace rl_tools{
                 T t1_value = get(device, t1, i);
                 T t2_value = get(device, t2, i);
                 T result_value = BINARY_OPERATION(t1_value, t2_value);
-                set(device, t1, result_value, i);
+                set(device, t2, result_value, i);
             }
         }
     }

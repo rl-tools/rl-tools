@@ -737,8 +737,8 @@ bool test_element_wise_multiply_accumulate(){
         rlt::copy(device, device, C, C_target);
         T manual_target = rlt::get_flat(device, A_target, 0) * rlt::get_flat(device, B, 0) + rlt::get_flat(device, C_target, 0);
         rlt::multiply_accumulate(device, A, B, C);
-        rlt::multiply(device, A_target, B_target);
-        rlt::add(device, C_target, A_target);
+        rlt::multiply(device, B_target, A_target);
+        rlt::add(device, A_target, C_target);
         std::cout << "manual: " << manual << std::endl;
         std::cout << "manual_target: " << manual_target << std::endl;
         std::cout << "C:" << std::endl;
