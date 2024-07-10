@@ -26,7 +26,7 @@ def render(target, float_type, ptr, shape, stride, title="", use_title=False, ou
             output = output[:-2]
         return output + "]"
     elif len(shape) == 2:
-        output = "[ " + (("\\\\ Subtensor: " + title) if use_title and len(title) > 0 else "") + "\n"
+        output = "[ " + (("\\\\ Subtensor: " + title + f"({shape[0]}x{shape[1]})") if use_title and len(title) > 0 else "") + "\n"
         for row_i in range(shape[0]) if shape[0] < inner_limit else list(range(inner_limit // 2)) + ["..."] + list(range(shape[0] - inner_limit // 2, shape[0])):
             if row_i == "...":
                 output += "...\n"
