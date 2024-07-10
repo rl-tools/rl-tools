@@ -13,12 +13,12 @@ render_outer_limit = os.environ["RL_TOOLS_LLDB_RENDER_OUTER_LIMIT"] if "RL_TOOLS
 print(f"RLtools Tensor renderer outer limit: {render_outer_limit}")
 render_inner_limit = os.environ["RL_TOOLS_LLDB_RENDER_INNER_LIMIT"] if "RL_TOOLS_LLDB_RENDER_INNER_LIMIT" in os.environ else 500
 print(f"RLtools Tensor renderer inner limit: {render_inner_limit}")
-def render(target, float_type, ptr, shape, stride, title="", use_title=False, outer_limit=render_outer_limit, inner_limit=render_inner_limit):
+def render(target, float_type, ptr, shape, stride, title="", use_title=False, outer_limit=render_outer_limit, inner_limit=render_inner_limit, base_offset=0):
     if len(shape) == 1:
         output = "["
         for element_i in range(shape[0]):
             pos = element_i * stride[0]
-            offset = ptr.GetValueAsUnsigned() + pos * float_type.GetByteSize()
+            offset = ptr.GetValueAsUnsigned() + base_offset + pos * float_type.GetByteSize()
             val_wrapper = target.CreateValueFromAddress("temp", lldb.SBAddress(offset, target), float_type)
             val = val_wrapper.GetValue()
             output += str(val) + ", "
@@ -53,7 +53,8 @@ def render(target, float_type, ptr, shape, stride, title="", use_title=False, ou
         for i in range(shape[0]) if shape[0] < outer_limit else list(range(outer_limit // 2)) + ["..."] + list(range(shape[0] - outer_limit // 2, shape[0])):
             if i != "...":
                 current_title = title + pad_number(i, 10) + " | "
-                output += render(target, float_type, ptr, shape[1:], stride[1:], title=current_title, use_title=use_title) + ", \n"
+                new_base_offset = base_offset + i * stride[0] * float_type.GetByteSize()
+                output += render(target, float_type, ptr, shape[1:], stride[1:], title=current_title, use_title=use_title, base_offset=new_base_offset) + ", \n"
             else:
                 output += "...\n"
                 output += "...\n"
@@ -80,8 +81,7 @@ def pretty_print(valobj, internal_dict, options):
         return str(tensor)
 
     print(valobj.type.name)
-    if not valobj.type.name.endswith(">"):
-
+    if not valobj.type.name[-1] in [">", "&"]:
         return str(tensor)
 
     use_title = True
