@@ -135,13 +135,13 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, SEQUENTIAL_V2){
             rlt::load(device, W_out_ds, weight_out);
             rlt::load(device, b_out_ds, bias_out);
             rlt::load(device, dloss_dgru_output_ds, dloss_dgru_output);
-//            {
-//                rlt::forward(device, gru, input);
-//                rlt::print(device, gru.output);
-//                T abs_diff = rlt::absolute_difference(device, gru_output, gru.output) / (decltype(gru_output)::SPEC::SIZE);
-//                std::cout << "abs_diff: " << abs_diff << std::endl;
-//                ASSERT_LT(abs_diff, 1e-15);
-//            }
+            {
+                rlt::forward(device, sequential, input, buffers, rng);
+                rlt::print(device, gru.output);
+                T abs_diff = rlt::absolute_difference(device, gru_output, gru.output) / (decltype(gru_output)::SPEC::SIZE);
+                std::cout << "abs_diff: " << abs_diff << std::endl;
+                ASSERT_LT(abs_diff, 1e-15);
+            }
             {
                 rlt::evaluate(device, sequential, input, gru_output_evaluate, buffers, rng);
 //                rlt::print(device, gru_output_evaluate);
