@@ -92,11 +92,11 @@ namespace rl_tools{
         };
 
         template <typename ELEMENT>
-        struct Product: Element<
+        struct CumulativeProduct: Element<
                 typename ELEMENT::TI,
                 product(ELEMENT{}),
                 utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,
-                        Product<typename ELEMENT::NEXT_ELEMENT>,
+                        CumulativeProduct<typename ELEMENT::NEXT_ELEMENT>,
                         FinalElement
         >>{};
         template <typename ELEMENT, auto NEW_ELEMENT, auto NEW_ELEMENT_OFFSET>
@@ -133,7 +133,7 @@ namespace rl_tools{
         };
 
         template <typename SHAPE>
-        using RowMajorStride = Append<PopFront<Product<SHAPE>>, 1>;
+        using RowMajorStride = Append<PopFront<CumulativeProduct<SHAPE>>, 1>;
 
         template <typename SHAPE, typename STRIDE>
         constexpr typename SHAPE::TI max_span(){
@@ -169,7 +169,9 @@ namespace rl_tools{
         };
         template <typename A, typename B>
         bool constexpr same_dimensions_shape(){
-            static_assert(length(A{}) == length(B{}));
+            if constexpr(length(A{}) != length(B{})){
+                return false;
+            }
             if constexpr(length(A{}) == 0){
                 return true;
             }
@@ -187,8 +189,10 @@ namespace rl_tools{
 
         template <typename SHAPE, typename STRIDE>
         bool constexpr _dense_layout_shape(){
-            static_assert(length(STRIDE{}) == length(SHAPE{}));
             static_assert(length(SHAPE{}) > 0);
+            if(length(STRIDE{}) != length(SHAPE{})){
+                return false;
+            }
             if constexpr(length(STRIDE{}) == 1){
                 return get<0>(STRIDE{}) == 1;
             }

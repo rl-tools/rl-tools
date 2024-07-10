@@ -50,3 +50,4 @@
 /**/.DS_Store
 /**/*.json
 /tmp
+/lldb_type_dump.txt

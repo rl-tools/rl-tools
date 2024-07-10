@@ -54,6 +54,15 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "tools/pretty_print_lldb/parse_tensor.py",
+            "type": "python",
+            "request": "launch",
+            "program": "tools/pretty_print_lldb/parse_tensor.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
         }
     ]
 }

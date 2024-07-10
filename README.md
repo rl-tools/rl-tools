@@ -201,6 +201,8 @@ For maximum performance and malleability for research and development we recomme
 
 #### [Windows instructions & examples](examples/windows/README.MD)
 
+**Pro tip**: Enable `lldb` data formatters to get nicely formatted, human- (and machine-) readable outputs for `rl_tools::Matrix` and `rl_tools::Tensor` while debugging. Instructions to use [.lldbinit](./.lldbinit) for [CLion](https://www.jetbrains.com/help/clion/configuring-debugger-options.html#enable-initfiles-root) & [VS Code](https://code.visualstudio.com/docs/cpp/cpp-debug#_lldb-data-formatters)
+
 ### Python Interface
 
 We provide Python bindings that available as `rltools` through PyPI (the pip package index). Note that using Python Gym environments can slow down the trianing significantly compared to native <span style="color:#7DB9B6">RLtools</span> environments.

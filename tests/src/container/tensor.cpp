@@ -96,8 +96,10 @@ void test_shape_operations(typename INPUT::TI length){
     }
 
     if constexpr(rlt::length(INPUT{}) == 3){
-        using PRODUCT = rlt::tensor::Product<INPUT>;
+        using PRODUCT = rlt::tensor::CumulativeProduct<INPUT>;
         ASSERT_TRUE(rlt::get<0>(PRODUCT{}) == rlt::get<0>(INPUT{}) * rlt::get<1>(INPUT{}) * rlt::get<2>(INPUT{}));
+        ASSERT_TRUE(rlt::get<1>(PRODUCT{}) == rlt::get<1>(INPUT{}) * rlt::get<2>(INPUT{}));
+        ASSERT_TRUE(rlt::get<2>(PRODUCT{}) == rlt::get<2>(INPUT{}));
     }
 }
 
@@ -296,7 +298,7 @@ TEST(RL_TOOLS_TENSOR_TEST, RANDN){
 //        rlt::print(device, tensor);
         T sum = rlt::sum(device, tensor);
         std::cout << "sum: " << sum << std::endl;
-        T num_elements = rlt::get<0>(rlt::tensor::Product<SHAPE>{});
+        T num_elements = rlt::get<0>(rlt::tensor::CumulativeProduct<SHAPE>{});
         ASSERT_EQ(num_elements, 20*30*40);
         ASSERT_LT(rlt::math::abs(device.math, sum), rlt::math::sqrt(device.math, num_elements) * 5);
         rlt::free(device, tensor);
@@ -361,7 +363,7 @@ TEST(RL_TOOLS_TENSOR_TEST, SUM){
         rlt::malloc(device, tensor);
         rlt::set_all(device, tensor, 1337);
         T sum = rlt::sum(device, tensor);
-        ASSERT_EQ(sum, 1337 * rlt::get<0>(rlt::tensor::Product<SHAPE>{}));
+        ASSERT_EQ(sum, 1337 * rlt::get<0>(rlt::tensor::CumulativeProduct<SHAPE>{}));
     }
     {
         using SHAPE = rlt::tensor::Shape<TI, 10, 3, 4>;
@@ -453,11 +455,11 @@ TEST(RL_TOOLS_TENSOR_TEST, SUBTRACT) {
     rlt::set_all(device, tensor2, 1338);
     rlt::subtract(device, tensor, tensor2, diff);
     T sum = rlt::sum(device, diff);
-    ASSERT_EQ(sum, -(T)rlt::get<0>(rlt::tensor::Product<SHAPE>{}));
+    ASSERT_EQ(sum, -(T)rlt::get<0>(rlt::tensor::CumulativeProduct<SHAPE>{}));
     rlt::copy(device, device, diff, abs_diff);
     rlt::abs(device, abs_diff);
     T sum_abs = rlt::sum(device, abs_diff);
-    ASSERT_EQ(sum_abs, rlt::get<0>(rlt::tensor::Product<SHAPE>{}));
+    ASSERT_EQ(sum_abs, rlt::get<0>(rlt::tensor::CumulativeProduct<SHAPE>{}));
 }
 TEST(RL_TOOLS_TENSOR_TEST, COPY){
     using DEVICE = rlt::devices::DefaultCPU;
