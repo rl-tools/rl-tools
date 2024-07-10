@@ -1,13 +1,19 @@
 import re
 import lldb
 import json
+import os
 
 from parse_tensor import parse_string
 
 
 def pad_number(number, length):
     return str(number).rjust(length)
-def render(target, float_type, ptr, shape, stride, title="", use_title=False):
+
+render_outer_limit = os.environ["RL_TOOLS_LLDB_RENDER_OUTER_LIMIT"] if "RL_TOOLS_LLDB_RENDER_OUTER_LIMIT" in os.environ else 20
+print(f"RLtools Tensor renderer outer limit: {render_outer_limit}")
+render_inner_limit = os.environ["RL_TOOLS_LLDB_RENDER_INNER_LIMIT"] if "RL_TOOLS_LLDB_RENDER_INNER_LIMIT" in os.environ else 500
+print(f"RLtools Tensor renderer inner limit: {render_inner_limit}")
+def render(target, float_type, ptr, shape, stride, title="", use_title=False, outer_limit=render_outer_limit, inner_limit=render_inner_limit):
     if len(shape) == 1:
         output = "["
         for element_i in range(shape[0]):
@@ -20,10 +26,16 @@ def render(target, float_type, ptr, shape, stride, title="", use_title=False):
             output = output[:-2]
         return output + "]"
     elif len(shape) == 2:
-        output = "[ " + (("\\\\ " + title) if use_title and len(title) > 0 else "") + "\n"
-        for row_i in range(shape[0]):
+        output = "[ " + (("\\\\ Subtensor: " + title) if use_title and len(title) > 0 else "") + "\n"
+        for row_i in range(shape[0]) if shape[0] < inner_limit else list(range(inner_limit // 2)) + ["..."] + list(range(shape[0] - inner_limit // 2, shape[0])):
+            if row_i == "...":
+                output += "...\n"
+                continue
             output += "["
-            for col_i in range(shape[1]):
+            for col_i in range(shape[1]) if shape[1] < inner_limit else list(range(inner_limit // 2)) + ["..."] + list(range(shape[1] - inner_limit // 2, shape[1])):
+                if col_i == "...":
+                    output += "..., "
+                    continue
                 pos = row_i * stride[0] + col_i * stride[1]
                 offset = ptr.GetValueAsUnsigned() + pos * float_type.GetByteSize()
                 val_wrapper = target.CreateValueFromAddress("temp", lldb.SBAddress(offset, target), float_type)
@@ -38,9 +50,14 @@ def render(target, float_type, ptr, shape, stride, title="", use_title=False):
         return output + "]\n"
     else:
         output = "[" + ("\n" if len(shape) == 3 else "")
-        for i in range(shape[0]):
-            current_title = title +  pad_number(i, 10) + " | "
-            output += render(target, float_type, ptr, shape[1:], stride[1:], current_title) + ", \n"
+        for i in range(shape[0]) if shape[0] < outer_limit else list(range(outer_limit // 2)) + ["..."] + list(range(shape[0] - outer_limit // 2, shape[0])):
+            if i != "...":
+                current_title = title + pad_number(i, 10) + " | "
+                output += render(target, float_type, ptr, shape[1:], stride[1:], title=current_title, use_title=use_title) + ", \n"
+            else:
+                output += "...\n"
+                output += "...\n"
+                output += "...\n"
         if shape[0] > 0:
             output = output[:-3]
         return output + "]"
@@ -67,7 +84,9 @@ def pretty_print(valobj, internal_dict, options):
 
         return str(tensor)
 
-    return str(tensor) + "\n" + render(target, float_type, float_ptr, tensor.shape, tensor.stride)
+    use_title = True
+
+    return str(tensor) + "\n" + render(target, float_type, float_ptr, tensor.shape, tensor.stride, use_title=use_title)
 
 
 
