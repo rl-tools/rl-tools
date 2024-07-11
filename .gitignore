@@ -13,6 +13,8 @@
 /install
 /test_results
 /conan_provider.cmake
+/**/*tfevents*
+/lightning_logs
 
 
 /.idea
