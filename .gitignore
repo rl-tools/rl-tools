@@ -53,3 +53,5 @@
 /**/*.json
 /tmp
 /lldb_type_dump.txt
+/wandb
+/your_project_name
