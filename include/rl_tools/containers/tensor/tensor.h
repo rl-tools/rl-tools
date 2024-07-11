@@ -167,6 +167,20 @@ namespace rl_tools{
             static constexpr auto DIM = T_DIM;
             static constexpr auto SIZE = T_SIZE;
         };
+        template <typename SHAPE, typename STRIDE>
+        bool constexpr generalized_row_major(){
+            static_assert(length(SHAPE{}) == length(STRIDE{}));
+            if constexpr(length(SHAPE{}) == 1){
+                return true;
+            }
+            else{
+                constexpr auto back_value_shape = get<length(SHAPE{})-1>(SHAPE{});
+                constexpr auto back_value_stride = get<length(STRIDE{})-1>(STRIDE{});
+                using NEXT_SHAPE = PopBack<SHAPE>;
+                using NEXT_STRIDE = PopBack<STRIDE>;
+                return back_value_shape * back_value_stride <= get<length(NEXT_STRIDE{})-1>(NEXT_STRIDE{}) && generalized_row_major<NEXT_SHAPE, NEXT_STRIDE>();
+            }
+        }
         template <typename A, typename B>
         bool constexpr same_dimensions_shape(){
             if constexpr(length(A{}) != length(B{})){

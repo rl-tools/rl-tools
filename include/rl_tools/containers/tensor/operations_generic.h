@@ -76,7 +76,7 @@ namespace rl_tools{
         using NEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, NEW_SHAPE, NEW_STRIDE, false, true>;
         auto offset = index * get<DIM>(typename SPEC::STRIDE{});
 //        data_reference(view) = ;
-        Tensor<NEW_SPEC> view{data(tensor) + offset};
+        const Tensor<NEW_SPEC> view{data(tensor) + offset};
         return view;
     }
 
@@ -670,6 +670,47 @@ namespace rl_tools{
                 set(device, result, acc, row_i, col_j);
             }
         }
+    }
+//    template<typename DEVICE, typename SPEC, typename = utils::typing::enable_if_t<length(typename SPEC::SHAPE{}) == 2, typename SPEC::TI>>
+//    auto matrix_view(DEVICE& device, Tensor<SPEC>& t){
+//        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
+//        using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<0>(typename SPEC::STRIDE{}), get<1>(typename SPEC::STRIDE{})>;
+//        MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, get<0>(typename SPEC::SHAPE{}), get<1>(typename SPEC::SHAPE{})>> view{data(t)};
+//        return view;
+//    }
+    namespace tensor{
+            template <auto A, auto B>
+            constexpr  bool greater_than(){
+                return A > B;
+            }
+    }
+    template<typename DEVICE, typename SPEC, typename = utils::typing::enable_if_t<tensor::greater_than<length(typename SPEC::SHAPE{}), 1>(), void>>
+    auto matrix_view(DEVICE& device, const Tensor<SPEC>& t){
+        // broadcasting over the first N-1 dimensions => M x N x K => (M*N) x K
+        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
+        using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
+        static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
+        using TI = typename SPEC::TI;
+        constexpr TI N_DIM = length(typename SPEC::SHAPE{});
+        using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
+        constexpr TI TOTAL_ROWS = get<0>(PROD{});
+        using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
+        const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
+        return view;
+    }
+    template<typename DEVICE, typename SPEC, typename = utils::typing::enable_if_t<tensor::greater_than<length(typename SPEC::SHAPE{}), 1>(), void>>
+    auto matrix_view(DEVICE& device, Tensor<SPEC>& t){
+        // broadcasting over the first N-1 dimensions => M x N x K => (M*N) x K
+        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
+        using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
+        static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
+        using TI = typename SPEC::TI;
+        constexpr TI N_DIM = length(typename SPEC::SHAPE{});
+        using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
+        constexpr TI TOTAL_ROWS = get<0>(PROD{});
+        using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
+        MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
+        return view;
     }
 
 }

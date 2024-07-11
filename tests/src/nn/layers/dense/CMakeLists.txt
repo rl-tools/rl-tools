@@ -12,3 +12,15 @@ target_link_libraries(
 )
 gtest_discover_tests(test_nn_layers_dense_mkl)
 endif()
+
+add_executable(
+        test_nn_layers_dense_tensor
+        tensor.cpp
+)
+target_link_libraries(
+        test_nn_layers_dense_tensor
+        PRIVATE
+        RLtools::Backend
+        GTest::gtest_main
+)
+gtest_discover_tests(test_nn_layers_dense_tensor)

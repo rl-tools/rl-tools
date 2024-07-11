@@ -109,7 +109,7 @@ namespace rl_tools::nn_models::sequential_v2{
         using CONTENT = typename SPEC::CONTENT;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
-        using CONTENT_BUFFER = typename CONTENT::Buffer;
+        using CONTENT_BUFFER = typename CONTENT::template Buffer<BATCH_SIZE>;
         static constexpr bool IS_FINAL = utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>;
         using NEXT_MODULE = utils::typing::conditional_t<!IS_FINAL, typename SPEC::NEXT_MODULE, ModuleForward<SPEC>>;
         using NEXT_SPEC = utils::typing::conditional_t<

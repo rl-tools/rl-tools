@@ -194,6 +194,80 @@ TEST(RL_TOOLS_TENSOR_TEST, SHAPE_OPERATIONS2){
         static_assert(rlt::get<2>(REPLACE2{}) == 1339);
     }
 }
+template <typename SHAPE, typename STRIDE>
+bool test_row_major(){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = typename DEVICE::index_t;
+    DEVICE device;
+    std::cout << "Shape: \n";
+    rlt::print(device, SHAPE{});
+    std::cout << "Stride: \n";
+    rlt::print(device, STRIDE{});
+
+    return rlt::tensor::generalized_row_major<SHAPE, STRIDE>();
+}
+TEST(RL_TOOLS_TENSOR_TEST, ROW_MAJOR_TEST){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = typename DEVICE::index_t;
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
+        using STRIDE = rlt::tensor::RowMajorStride<SHAPE>;
+        bool grm = test_row_major<SHAPE, STRIDE>() == true;
+        ASSERT_TRUE(grm);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
+        using STRIDE = rlt::tensor::Stride<TI, 13, 4, 1>;
+        bool grm = test_row_major<SHAPE, STRIDE>() == true;
+        ASSERT_TRUE(grm);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 2, 4>;
+        using STRIDE = rlt::tensor::Stride<TI, 13, 4, 1>;
+        bool grm = test_row_major<SHAPE, STRIDE>() == true;
+        ASSERT_TRUE(grm);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 2, 2>;
+        using STRIDE = rlt::tensor::Stride<TI, 13, 4, 1>;
+        bool grm = test_row_major<SHAPE, STRIDE>() == true;
+        ASSERT_TRUE(grm);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 2, 6>;
+        using STRIDE = rlt::tensor::Stride<TI, 13, 4, 1>;
+        bool grm = test_row_major<SHAPE, STRIDE>() == false;
+        ASSERT_TRUE(grm);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 2, 1>;
+        using STRIDE = rlt::tensor::Stride<TI, 7, 4, 1>;
+        bool grm = test_row_major<SHAPE, STRIDE>() == false;
+        ASSERT_TRUE(grm);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2>;
+        using STRIDE = rlt::tensor::Stride<TI, 7>;
+        bool grm = test_row_major<SHAPE, STRIDE>() == true;
+        ASSERT_TRUE(grm);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 2>;
+        using STRIDE = rlt::tensor::Stride<TI, 7, 2>;
+        bool grm = test_row_major<SHAPE, STRIDE>() == true;
+        ASSERT_TRUE(grm);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 2, 1>;
+        using STRIDE = rlt::tensor::Stride<TI, 1, 2>;
+        bool grm = test_row_major<SHAPE, STRIDE>() == false;
+        ASSERT_TRUE(grm);
+    }
+
+
+}
 
 TEST(RL_TOOLS_TENSOR_TEST, STRIDE){
     using DEVICE = rlt::devices::DefaultCPU;

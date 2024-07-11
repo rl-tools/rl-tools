@@ -81,6 +81,8 @@ namespace rl_tools::nn::layers::dense {
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::NUM_WEIGHTS;
+        using INPUT_SHAPE = tensor::Shape<TI, SPEC::BATCH_SIZE, INPUT_DIM>;
+        using OUTPUT_SHAPE = tensor::Shape<TI, SPEC::BATCH_SIZE, OUTPUT_DIM>;
         using WEIGHTS_CONTAINER_SPEC = matrix::Specification<T, TI, OUTPUT_DIM, INPUT_DIM, typename SPEC::MEMORY_LAYOUT>;
         using WEIGHTS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<WEIGHTS_CONTAINER_SPEC>;
         using WEIGHTS_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<WEIGHTS_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Weights>;

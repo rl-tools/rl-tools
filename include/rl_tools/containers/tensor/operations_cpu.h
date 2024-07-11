@@ -4,6 +4,7 @@
 #define RL_TOOLS_CONTAINERS_TENSOR_OPERATIONS_CPU_H
 
 #include "tensor.h"
+#include "operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
