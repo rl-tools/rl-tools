@@ -30,17 +30,17 @@ int main(){
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::groups::Normal, rlt::TensorStaticTag>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     rlt::nn::layers::gru::Layer<CAPABILITY, GRU_SPEC> gru;
-    decltype(gru)::Buffer buffers;
+    decltype(gru)::Buffer<BATCH_SIZE> buffers;
 //    rlt::malloc(device, gru);
     rlt::init(device, buffers);
     rlt::randn(device, input, rng);
 
-    rlt::forward(device, gru, input, rng);
+    rlt::forward(device, gru, input, buffers, rng);
 //    rlt::print(device, gru.output);
     rlt::zero_gradient(device, gru);
 
     for(TI step=SEQUENCE_LENGTH-1; true; step--){
-        rlt::backward(device, gru, input, dloss_dgru_output, dinput, buffers, step);
+        rlt::backward_full(device, gru, input, dloss_dgru_output, dinput, buffers, step);
         if(step == 0){
             break;
         }

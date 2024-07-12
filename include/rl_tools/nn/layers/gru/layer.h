@@ -90,6 +90,7 @@ namespace rl_tools::nn::layers::gru{
         using INITIAL_HIDDEN_STATE_PARAMETER_SPEC = typename SPEC::PARAMETER_TYPE::template spec<INITIAL_HIDDEN_STATE_CONTAINER_TYPE, typename SPEC::PARAMETER_GROUP, nn::parameters::categories::Biases>;
         typename SPEC::PARAMETER_TYPE::template instance<INITIAL_HIDDEN_STATE_PARAMETER_SPEC> initial_hidden_state;
 
+        template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Buffer = buffers::Evaluation<SPEC>;
     };
 
@@ -140,6 +141,8 @@ namespace rl_tools::nn::layers::gru{
     };
     template<typename T_SPEC>
     struct LayerGradient: LayerBackward<T_SPEC>{
+        using TI = typename T_SPEC::TI;
+        template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Buffer = buffers::Backward<T_SPEC>;
     };
 

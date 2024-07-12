@@ -14,6 +14,7 @@
 // Group 3: dependent on assert
 #include <rl_tools/containers/matrix/operations_cpu.h>
 #include <rl_tools/containers/matrix/operations_dummy.h>
+#include <rl_tools/containers/tensor/operations_generic.h>
 
 #include <rl_tools/nn/operations_cpu.h>
 #include <rl_tools/utils/generic/typing.h>

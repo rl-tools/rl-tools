@@ -3,10 +3,10 @@
 #pragma once
 #define RL_TOOLS_CONTAINERS_MATRIX_OPERATIONS_CPU_ACCELERATE_H
 
+#include <Accelerate/Accelerate.h>
 #include "matrix.h"
 #include "operations_cpu_blas.h"
 #include "../../devices/cpu_accelerate.h"
-#include <Accelerate/Accelerate.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

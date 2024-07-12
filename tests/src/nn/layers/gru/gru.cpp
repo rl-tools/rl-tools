@@ -102,9 +102,9 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, SEQUENCE_LENGTH, INPUT_DIM, HIDDEN_DIM, rlt::nn::parameters::Gradient>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     rlt::nn::layers::gru::Layer<CAPABILITY, GRU_SPEC> gru;
-    decltype(gru)::Buffer buffers;
+    decltype(gru)::Buffer<BATCH_SIZE> buffer;
     rlt::malloc(device, gru);
-    rlt::malloc(device, buffers);
+    rlt::malloc(device, buffer);
 
     rlt::malloc(device, input);
     rlt::malloc(device, dinput);
@@ -176,7 +176,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, W_out_ds, weight_out);
             rlt::load(device, b_out_ds, bias_out);
             rlt::load(device, dloss_dgru_output_ds, dloss_dgru_output);
-            rlt::forward(device, gru, input, rng);
+            rlt::forward(device, gru, input, buffer, rng);
             rlt::print(device, gru.output);
             T abs_diff = rlt::absolute_difference(device, gru_output, gru.output) / (decltype(gru_output)::SPEC::SIZE);
             ASSERT_LT(abs_diff, 1e-15);
@@ -212,7 +212,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
                 rlt::load(device, grad_b_hz_ds, grad_b_hz);
                 rlt::load(device, grad_b_hn_ds, grad_b_hn);
 
-                rlt::backward(device, gru, input, dloss_dgru_output, dinput, buffers, step);
+                rlt::_backward<true>(device, gru, input, dloss_dgru_output, dinput, buffer, step);
 
 
                 std::cout << "Step: " << step << std::endl;

@@ -5,6 +5,7 @@
 #if defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_OPERATIONS_DUMMY_GROUP_3)
     #define RL_TOOLS_OPERATIONS_DUMMY_GROUP_3
     #include "../../containers/matrix/operations_dummy.h"
+    #include "../../containers/tensor/operations_generic.h"
 #else
     #error "Group 3 already imported"
 #endif
