@@ -60,10 +60,6 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, SEQUENTIAL_V2){
 
     rlt::malloc(device, sequential);
     rlt::malloc(device, buffers);
-
-    auto gru = rlt::get_layer<0>(sequential);
-
-
     rlt::malloc(device, input);
     rlt::malloc(device, dinput);
     rlt::malloc(device, gru_output);
@@ -87,6 +83,11 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, SEQUENTIAL_V2){
     rlt::malloc(device, grad_b_hz);
     rlt::malloc(device, grad_b_hn);
     rlt::malloc(device, dloss_dgru_output_step);
+
+
+    auto gru = rlt::get_layer<0>(sequential);
+
+
 
     std::string DATA_FILE_NAME = "gru_training_trace.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
@@ -240,12 +241,29 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, SEQUENTIAL_V2){
             ASSERT_LT(abs_diff_b_in, EPSILON);
         }
     }
+    rlt::free(device, sequential);
+    rlt::free(device, buffers);
     rlt::free(device, input);
+    rlt::free(device, dinput);
     rlt::free(device, gru_output);
+    rlt::free(device, gru_output_evaluate);
+    rlt::free(device, dloss_dgru_output);
     rlt::free(device, output_target);
     rlt::free(device, weight_out);
     rlt::free(device, weight_out_grad);
     rlt::free(device, bias_out);
     rlt::free(device, bias_out_grad);
-    rlt::free(device, gru);
+    rlt::free(device, grad_W_ir);
+    rlt::free(device, grad_W_iz);
+    rlt::free(device, grad_W_in);
+    rlt::free(device, grad_b_ir);
+    rlt::free(device, grad_b_iz);
+    rlt::free(device, grad_b_in);
+    rlt::free(device, grad_W_hr);
+    rlt::free(device, grad_W_hz);
+    rlt::free(device, grad_W_hn);
+    rlt::free(device, grad_b_hr);
+    rlt::free(device, grad_b_hz);
+    rlt::free(device, grad_b_hn);
+    rlt::free(device, dloss_dgru_output_step);
 }
