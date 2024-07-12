@@ -82,14 +82,37 @@ namespace rl_tools{
     }
 
     namespace nn::layers::gru{
-        template <typename DEVICE, typename SPEC, typename utils::typing::enable_if<length(typename SPEC::SHAPE{}) == 3, int>::type = 0>
-        auto multi_step_intermediates(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i){
-            return view(device, tensor, step_i);
+        namespace multi_step_intermediates_tag_dispatch{ // this is required for MSVC because it complains about the slicker SFINAE-based version
+            struct three_dimensional_tag {};
+            struct two_dimensional_tag {};
+
+            template <typename SPEC>
+            struct dimension_tag {
+                using type = typename utils::typing::conditional_t<length(typename SPEC::SHAPE{})==3, three_dimensional_tag, two_dimensional_tag>;
+            };
+            template <typename DEVICE, typename SPEC>
+            auto impl(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i, three_dimensional_tag) {
+                return view(device, tensor, step_i);
+            }
+            template <typename DEVICE, typename SPEC>
+            auto impl(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i, two_dimensional_tag) {
+                return tensor;
+            }
         }
-        template <typename DEVICE, typename SPEC, typename utils::typing::enable_if<length(typename SPEC::SHAPE{}) == 2, int>::type = 0>
-        auto multi_step_intermediates(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i){
-            return tensor;
+
+        template <typename DEVICE, typename SPEC>
+        auto multi_step_intermediates(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i) {
+            return multi_step_intermediates_tag_dispatch::impl(device, tensor, step_i, typename multi_step_intermediates_tag_dispatch::dimension_tag<SPEC>::type{});
         }
+
+//        template <typename DEVICE, typename SPEC, typename utils::typing::enable_if<length(typename SPEC::SHAPE{}) == 3, int>::type = 0>
+//        auto multi_step_intermediates(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i){
+//            return view(device, tensor, step_i);
+//        }
+//        template <typename DEVICE, typename SPEC, typename utils::typing::enable_if<length(typename SPEC::SHAPE{}) == 2, int>::type = 0>
+//        auto multi_step_intermediates(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i){
+//            return tensor;
+//        }
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC, typename RNG, typename MODE = nn::mode::Default>
