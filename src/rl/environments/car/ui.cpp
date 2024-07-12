@@ -84,7 +84,7 @@ int main(int argc, char** argv){
     bool forward = true;
 
     rlt::init(device, env, env_parameters);
-    rlt::init(device, env, ui);
+    rlt::init(device, env, env_parameters, ui);
 //    rlt::initial_state(device, env, state);
     T steering = 0, throttle = 0;
     rlt::sample_initial_parameters(device, env, env_parameters, rng);

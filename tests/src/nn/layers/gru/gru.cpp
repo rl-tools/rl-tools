@@ -64,6 +64,11 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     auto diff = rlt::absolute_difference(device, C_target, C);
     std::cout << "Matrix mul diff: " << diff << std::endl;
     ASSERT_TRUE(diff < 1e-15);
+    rlt::free(device, A);
+    rlt::free(device, B);
+    rlt::free(device, C);
+    rlt::free(device, C_target);
+    rlt::free(device, bias);
 }
 
 TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
@@ -177,7 +182,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, b_out_ds, bias_out);
             rlt::load(device, dloss_dgru_output_ds, dloss_dgru_output);
             rlt::forward(device, gru, input, buffer, rng);
-            rlt::print(device, gru.output);
+//            rlt::print(device, gru.output);
             T abs_diff = rlt::absolute_difference(device, gru_output, gru.output) / (decltype(gru_output)::SPEC::SIZE);
             ASSERT_LT(abs_diff, 1e-15);
             std::cout << "abs_diff: " << abs_diff << std::endl;
@@ -285,14 +290,30 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
 
         }
     }
+    rlt::free(device, gru);
+    rlt::free(device, buffer);
     rlt::free(device, input);
+    rlt::free(device, dinput);
     rlt::free(device, gru_output);
+    rlt::free(device, dloss_dgru_output);
     rlt::free(device, output_target);
     rlt::free(device, weight_out);
     rlt::free(device, weight_out_grad);
     rlt::free(device, bias_out);
     rlt::free(device, bias_out_grad);
-    rlt::free(device, gru);
+    rlt::free(device, grad_W_ir);
+    rlt::free(device, grad_W_iz);
+    rlt::free(device, grad_W_in);
+    rlt::free(device, grad_b_ir);
+    rlt::free(device, grad_b_iz);
+    rlt::free(device, grad_b_in);
+    rlt::free(device, grad_W_hr);
+    rlt::free(device, grad_W_hz);
+    rlt::free(device, grad_W_hn);
+    rlt::free(device, grad_b_hr);
+    rlt::free(device, grad_b_hz);
+    rlt::free(device, grad_b_hn);
+    rlt::free(device, dloss_dgru_output_step);
 }
 
 

@@ -117,7 +117,7 @@ int main(){
     rlt::set_all(device, action, 0);
     rlt::set(action, 0, 1, 20.0/180.0*rlt::math::PI<T>);
     rlt::init(device, env, env_parameters);
-    rlt::init(device, env, ui);
+    rlt::init(device, env, env_parameters, ui);
     rlt::initial_parameters(device, env, env_parameters);
     rlt::initial_state(device, env, env_parameters, state);
     std::cout << "BOUND_X_LOWER: " << ENVIRONMENT::SPEC::BOUND_X_LOWER << std::endl;

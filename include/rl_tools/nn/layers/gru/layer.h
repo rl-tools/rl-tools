@@ -105,22 +105,6 @@ namespace rl_tools::nn::layers::gru{
             BUFFER_TYPE buffer;
             typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>> buffer_rz;
             typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, SPEC::HIDDEN_DIM>> buffer_r, buffer_z, buffer_n;
-            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>>
-                    dr_dr_pa,
-                    dh_dr,
-                    dh_dr_pa,
-                    dh_dz,
-                    dz_dz_pa,
-                    dh_dn,
-                    dn_dn_pa,
-                    dn_dn_pa_pa,
-                    dh_dz_pa,
-                    dh_dn_pa,
-                    dh_dn_pa_pa,
-                    dr_pa,
-                    dz_pa,
-                    dn_pa,
-                    dn_pa_pa;
         };
     }
 

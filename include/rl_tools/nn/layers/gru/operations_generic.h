@@ -62,6 +62,11 @@ namespace rl_tools{
         malloc(device, buffers.buffer);
         init(device, buffers);
     }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn::layers::gru::buffers::Backward<SPEC>& buffer){
+        free(device, static_cast<nn::layers::gru::buffers::Evaluation<SPEC>&>(buffer));
+        free(device, buffer.buffer);
+    }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_broadcast_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
@@ -430,14 +435,6 @@ namespace rl_tools{
     void free(DEVICE& device, nn::layers::gru::buffers::Evaluation<SPEC>& buffers){
         free(device, buffers.post_activation);
         free(device, buffers.n_pre_pre_activation);
-    }
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn::layers::gru::buffers::Backward<SPEC>& layer){
-        free(device, layer.dh_dz);
-        free(device, layer.dz_dz_pa);
-        free(device, layer.dh_dn);
-        free(device, layer.dn_dn_pa);
-        free(device, layer.dn_dn_pa_pa);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
