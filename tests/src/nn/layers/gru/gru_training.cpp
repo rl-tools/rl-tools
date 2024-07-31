@@ -16,8 +16,8 @@ using T = float;
 constexpr TI NUM_CLASSES = 2<<7;
 constexpr TI EMBEDDING_DIM = 32;
 constexpr TI BATCH_SIZE = 32;
-constexpr TI SEQUENCE_LENGTH = 32;
-constexpr TI HIDDEN_DIM = 32;
+constexpr TI SEQUENCE_LENGTH = 64;
+constexpr TI HIDDEN_DIM = 64;
 constexpr TI OUTPUT_DIM = NUM_CLASSES;
 
 template <TI BATCH_SIZE>
