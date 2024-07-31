@@ -158,81 +158,29 @@ namespace rl_tools{
         return abs_diff(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC_1>&>(l1), static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC_2>&>(l2));
     }
     template <typename DEVICE, typename SPEC>
-    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
-        reset_forward_state(device, (rl_tools::nn::layers::dense::LayerForward<SPEC>*) l);
+    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::embedding::LayerBackward<SPEC>& l) {
+        reset_forward_state(device, (rl_tools::nn::layers::embedding::LayerForward<SPEC>&) l);
     }
     template <typename DEVICE, typename SPEC>
-    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerGradient<SPEC>& l) {
-        reset_forward_state(device, &l);
+    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::embedding::LayerGradient<SPEC>& l) {
+        reset_forward_state(device, l);
     }
     template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerForward<SPEC>& l) {
-        return is_nan(device, l.weights) || is_nan(device, l.biases);
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC>& l) {
+        return is_nan(device, l.weights);
     }
     template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
-        return is_nan(device, (rl_tools::nn::layers::dense::LayerForward<SPEC>&) l);
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerBackward<SPEC>& l) {
+        return is_nan(device, static_cast<rl_tools::nn::layers::embedding::LayerForward<SPEC>&>(l));
     }
     template <typename DEVICE, typename SPEC>
-    bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerGradient<SPEC>& l) {
-        return is_nan(device, (rl_tools::nn::layers::dense::LayerBackward<SPEC>&) l) ||
-                is_nan(device, l.output);
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerGradient<SPEC>& l) {
+        return is_nan(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC>&>(l));
     }
     template<typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn::layers::dense::LayerGradient<SPEC>& l){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn::layers::embedding::LayerGradient<SPEC>& l){
         return l.output;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
-
-// Tensor proxies
-RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools{
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void evaluate(DEVICE& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
-        auto matrix_view_input = matrix_view(device, input);
-        auto matrix_view_output = matrix_view(device, output);
-        evaluate(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
-    }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        auto matrix_view_input = matrix_view(device, input);
-        auto matrix_view_output = matrix_view(device, output);
-        forward(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
-    }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
-        auto matrix_view_input = matrix_view(device, input);
-        forward(device, layer, matrix_view_input, layer.output, buffer, rng);
-    }
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void forward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
-        auto matrix_view_input = matrix_view(device, input);
-        auto matrix_view_output = matrix_view(device, output);
-        forward(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
-    }
-    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = nn::mode::Default>
-    void backward_input(DEVICE& device, const nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        auto matrix_view_d_output = matrix_view(device, d_output);
-        auto matrix_view_d_input = matrix_view(device, d_input);
-        backward_input(device, layer, matrix_view_d_output, matrix_view_d_input);
-    }
-
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = nn::mode::Default>
-    void backward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::dense::Buffer&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
-        auto matrix_view_input = matrix_view(device, input);
-        auto matrix_view_d_output = matrix_view(device, d_output);
-        backward(device, layer, matrix_view_input, matrix_view_d_output);
-    }
-
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = nn::mode::Default>
-    void backward_full(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
-        auto matrix_view_input = matrix_view(device, input);
-        auto matrix_view_d_output = matrix_view(device, d_output);
-        auto matrix_view_d_input = matrix_view(device, d_input);
-        backward_full(device, layer, matrix_view_input, matrix_view_d_output, matrix_view_d_input);
-    }
-}
-RL_TOOLS_NAMESPACE_WRAPPER_END
-
 #endif
