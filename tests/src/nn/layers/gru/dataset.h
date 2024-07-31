@@ -58,6 +58,7 @@ std::string load_dataset(std::string data_path){
                 std::cerr << "Expected a string." << std::endl;
                 return "";
             }
+            output += "\n";
             output += cJSON_GetStringValue(text);
         }
         cJSON_Delete(json);

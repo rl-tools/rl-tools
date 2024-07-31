@@ -9,7 +9,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEV_SPEC, typename SPEC>
-    void print(devices::CPU<DEV_SPEC>& device, Tensor<SPEC>& tensor, bool python_literal=false, typename DEV_SPEC::index_t level=0){
+    void print(devices::CPU<DEV_SPEC>& device, const Tensor<SPEC>& tensor, bool python_literal=false, typename DEV_SPEC::index_t level=0){
         using TI = typename DEV_SPEC::index_t;
         if constexpr(length(typename SPEC::SHAPE{}) == 1){
             std::cout << (python_literal ? "[" : "");

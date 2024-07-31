@@ -258,26 +258,26 @@ namespace rl_tools{
 
     namespace tensor{
         struct OperationEmptyParameter{};
-        template <auto T_OPERATION, typename PARAMETER>
+        template <auto T_OPERATION, typename PARAMETER=OperationEmptyParameter>
         struct Operation{
             static constexpr auto OPERATION = T_OPERATION;
             PARAMETER parameter;
         };
         namespace binary_operations{
             template <typename T>
-            T add(T a, T b){
+            T add(T a, T b, const OperationEmptyParameter){
                 return a + b;
             }
             template <typename T>
-            T subtract(T a, T b){
+            T subtract(T a, T b, const OperationEmptyParameter){
                 return a - b;
             }
             template <typename T>
-            T multiply(T a, T b){
+            T multiply(T a, T b, const OperationEmptyParameter){
                 return a * b;
             }
             template <typename T>
-            T divide(T a, T b){
+            T divide(T a, T b, const OperationEmptyParameter){
                 return a / b;
             }
         }
@@ -357,10 +357,9 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT, auto BINARY_OPERATION, typename OPERATION_PARAMETER>
-    inline void binary_operation(DEVICE& device, const tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+    inline void binary_operation(DEVICE& device, const tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER> param, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
-        using BOP = tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER>;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_OUT>());
         if constexpr(length(typename SPEC_1::SHAPE{}) > 1){
@@ -368,36 +367,35 @@ namespace rl_tools{
                 auto next_t1 = view(device, t1, i);
                 auto next_t2 = view(device, t2, i);
                 auto next_result = view(device, result, i);
-                binary_operation(device, BOP{}, next_t1, next_t2, next_result);
+                binary_operation(device, param, next_t1, next_t2, next_result);
             }
         }
         else{
             for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
                 T t1_value = get(device, t1, i);
                 T t2_value = get(device, t2, i);
-                T result_value = BINARY_OPERATION(t1_value, t2_value);
+                T result_value = BINARY_OPERATION(t1_value, t2_value, param.parameter);
                 set(device, result, result_value, i);
             }
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto BINARY_OPERATION, typename OPERATION_PARAMETER>
-    inline void binary_operation(DEVICE& device, const tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER>, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
+    inline void binary_operation(DEVICE& device, const tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER> params, const Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
-        using BOP = tensor::Operation<BINARY_OPERATION, OPERATION_PARAMETER>;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
         if constexpr(length(typename SPEC_1::SHAPE{}) > 1){
             for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
                 auto next_t1 = view(device, t1, i);
                 auto next_t2 = view(device, t2, i);
-                binary_operation(device, BOP{}, next_t1, next_t2);
+                binary_operation(device, params, next_t1, next_t2);
             }
         }
         else{
             for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); i++){
                 T t1_value = get(device, t1, i);
                 T t2_value = get(device, t2, i);
-                T result_value = BINARY_OPERATION(t1_value, t2_value);
+                T result_value = BINARY_OPERATION(t1_value, t2_value, params.parameter);
                 set(device, t2, result_value, i);
             }
         }
@@ -700,36 +698,71 @@ namespace rl_tools{
             constexpr  bool greater_than(){
                 return A > B;
             }
+        template <auto A, auto B>
+        constexpr bool equal(){
+            return A == B;
+        }
     }
-    template<typename DEVICE, typename SPEC, typename = utils::typing::enable_if_t<tensor::greater_than<length(typename SPEC::SHAPE{}), 1>(), void>>
+    template<typename DEVICE, typename SPEC>
+    auto _matrix_view_one_dim(DEVICE& device, const Tensor<SPEC>& t){
+        using TI = typename SPEC::TI;
+        constexpr TI N_DIM = length(typename SPEC::SHAPE{});
+        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
+        using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
+        static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
+        using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, 1, get<N_DIM-1>(typename SPEC::STRIDE{})>;
+        const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
+        return view;
+    }
+    template<typename DEVICE, typename SPEC>
+    auto _matrix_view_one_dim(DEVICE& device, Tensor<SPEC>& t){
+        using TI = typename SPEC::TI;
+        constexpr TI N_DIM = length(typename SPEC::SHAPE{});
+        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
+        using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
+        static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
+        using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, 1, get<N_DIM-1>(typename SPEC::STRIDE{})>;
+        const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
+        return view;
+    }
+    template<typename DEVICE, typename SPEC>
     auto matrix_view(DEVICE& device, const Tensor<SPEC>& t){
         // broadcasting over the first N-1 dimensions => M x N x K => (M*N) x K
-        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
-        using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
-        static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
         using TI = typename SPEC::TI;
         constexpr TI N_DIM = length(typename SPEC::SHAPE{});
-        using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
-        constexpr TI TOTAL_ROWS = get<0>(PROD{});
-        using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
-        const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
-        return view;
+        if constexpr (N_DIM == 1){
+            return _matrix_view_one_dim(device, t);
+        }
+        else{
+            static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
+            using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
+            static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
+            using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
+            constexpr TI TOTAL_ROWS = get<0>(PROD{});
+            using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
+            const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
+            return view;
+        }
     }
-    template<typename DEVICE, typename SPEC, typename = utils::typing::enable_if_t<tensor::greater_than<length(typename SPEC::SHAPE{}), 1>(), void>>
+    template<typename DEVICE, typename SPEC>
     auto matrix_view(DEVICE& device, Tensor<SPEC>& t){
         // broadcasting over the first N-1 dimensions => M x N x K => (M*N) x K
-        static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
-        using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
-        static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
         using TI = typename SPEC::TI;
         constexpr TI N_DIM = length(typename SPEC::SHAPE{});
-        using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
-        constexpr TI TOTAL_ROWS = get<0>(PROD{});
-        using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
-        MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
-        return view;
+        if constexpr (N_DIM == 1){
+            return _matrix_view_one_dim(device, t);
+        }
+        else{
+            static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
+            using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
+            static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
+            using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
+            constexpr TI TOTAL_ROWS = get<0>(PROD{});
+            using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
+            const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
+            return view;
+        }
     }
-
     template<typename DEVICE, typename SPEC, typename RESHAPE>
     auto reshape_row_major(DEVICE& device, Tensor<SPEC>& t, const RESHAPE&){
         static_assert(tensor::dense_row_major_layout<SPEC, true>());

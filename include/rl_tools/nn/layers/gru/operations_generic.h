@@ -292,6 +292,24 @@ namespace rl_tools{
         zero_gradient(device, layer.initial_hidden_state);
     }
 
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void update(DEVICE& device, nn::layers::gru::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
+        update(device, layer.weights_input, optimizer);
+        update(device, layer.biases_input, optimizer);
+        update(device, layer.weights_hidden, optimizer);
+        update(device, layer.biases_hidden, optimizer);
+        update(device, layer.initial_hidden_state, optimizer);
+    }
+
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void _reset_optimizer_state(DEVICE& device, nn::layers::gru::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {
+        _reset_optimizer_state(device, layer.weights_input, optimizer);
+        _reset_optimizer_state(device, layer.biases_input, optimizer);
+        _reset_optimizer_state(device, layer.weights_hidden, optimizer);
+        _reset_optimizer_state(device, layer.biases_hidden, optimizer);
+        _reset_optimizer_state(device, layer.initial_hidden_state, optimizer);
+    }
+
     template<typename DEVICE, typename SPEC>
     void one_minus(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
@@ -323,15 +341,14 @@ namespace rl_tools{
     }
     namespace tensor::binary_operations{
         template <typename T>
-        T multiply_d_sigmoid_post_activation(T factor, T post_activation){
+        T multiply_d_sigmoid_post_activation(T factor, T post_activation, OperationEmptyParameter){
             return factor * post_activation * (1-post_activation);
         }
     }
     template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_PA, typename SPEC_RESULT>
     void multiply_d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_PA>& pre_activation, Tensor<SPEC_RESULT>& result){
         using T = typename SPEC_FACTOR::T;
-        using PARAMETER = T;
-        tensor::Operation<tensor::binary_operations::multiply_d_sigmoid_post_activation<T>, PARAMETER> op;
+        tensor::Operation<tensor::binary_operations::multiply_d_sigmoid_post_activation<T>, tensor::OperationEmptyParameter> op;
         binary_operation(device, op, factor, pre_activation, result);
     }
 
@@ -379,7 +396,7 @@ namespace rl_tools{
         copy(device, device, b_irz_grad, b_hrz_grad);
 
         if constexpr(CALCULATE_D_INPUT){
-            matrix_multiply_accumulate(device, buffers.buffer, layer.weights_input.parameters, d_input_step);
+            matrix_multiply(device, buffers.buffer, layer.weights_input.parameters, d_input_step);
         }
 
         multiply(device, r_post_activation, buffers.buffer_n);
@@ -446,6 +463,10 @@ namespace rl_tools{
     void free(DEVICE& device, nn::layers::gru::buffers::Evaluation<SPEC>& buffers){
         free(device, buffers.post_activation);
         free(device, buffers.n_pre_pre_activation);
+    }
+    template <typename SPEC>
+    auto output(nn::layers::gru::LayerBackward<SPEC>& layer){
+        return layer.output;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

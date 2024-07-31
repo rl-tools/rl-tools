@@ -796,6 +796,14 @@ namespace rl_tools{
             }
         }
     }
+    template<typename DEVICE, typename SPEC>
+    auto matrix_view(DEVICE& device, Matrix<SPEC>& m){
+        return m;
+    }
+    template<typename DEVICE, typename SPEC>
+    auto matrix_view(DEVICE& device, const Matrix<SPEC>& m){
+        return m;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

@@ -18,7 +18,7 @@ namespace rl_tools::nn::loss_functions::categorical_cross_entropy{
             T maximum = max(device, row(device, a, row_i));
             acc -= maximum;
             T sum = 0;
-            for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++) {
+            for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++){
                 T logit = get(a, row_i, col_i);
                 sum += math::exp(device.math, logit - maximum);
             }

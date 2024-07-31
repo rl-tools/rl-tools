@@ -31,7 +31,7 @@ def render(target, float_type, ptr, shape, stride, title="", use_title=False, ou
             if row_i == "...":
                 output += "...\n"
                 continue
-            output += "["
+            output += "[" if shape[0] < inner_limit else f"{row_i}: ["
             for col_i in range(shape[1]) if shape[1] < inner_limit else list(range(inner_limit // 2)) + ["..."] + list(range(shape[1] - inner_limit // 2, shape[1])):
                 if col_i == "...":
                     output += "..., "
@@ -65,8 +65,10 @@ def render(target, float_type, ptr, shape, stride, title="", use_title=False, ou
 
 
 def pretty_print(valobj, internal_dict, options):
-    float_ptr = valobj.GetChildMemberWithName("_data")
-    float_type = float_ptr.GetType().GetPointeeType()
+    # float_ptr = valobj.GetChildMemberWithName("_data")
+    # float_type = float_ptr.GetType().GetPointeeType()
+    float_type = valobj.GetType().GetPointeeType()
+    print(f"Float type: {float_type}")
     target = valobj.GetTarget()
 
     tensor = parse_string(valobj.type.name)
@@ -81,12 +83,13 @@ def pretty_print(valobj, internal_dict, options):
         return str(tensor)
 
     print(valobj.type.name)
-    if not valobj.type.name[-1] in [">", "&"]:
+    # if not valobj.type.name[-1] in [">", "&"]:
+    if not valobj.type.name.endswith("DATA_TYPE"):
         return str(tensor)
 
     use_title = True
 
-    return str(tensor) + "\n" + render(target, float_type, float_ptr, tensor.shape, tensor.stride, use_title=use_title)
+    return str(tensor) + "\n" + render(target, float_type, valobj, tensor.shape, tensor.stride, use_title=use_title)
 
 
 

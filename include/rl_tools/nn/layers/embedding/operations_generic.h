@@ -113,7 +113,9 @@ namespace rl_tools{
             for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++){
                 typename INPUT_SPEC::T class_id = get(device, input_view, element_i);
                 T d_output_value = get(device, d_output_view, element_i, output_i);
-                increment(layer.weights.gradient, class_id, output_i, d_output_view);
+                T gradient_value = get(device, layer.weights.gradient, (TI)class_id, output_i);
+                gradient_value += d_output_value;
+                set(device, layer.weights.gradient, gradient_value, (TI)class_id, output_i);
             }
         }
     }

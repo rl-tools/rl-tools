@@ -29,6 +29,35 @@ namespace rl_tools::utils::polyak {
             }
         }
     }
+    namespace binary_kernels{
+        template <typename T>
+        struct PolyakParameters{
+            T polyak;
+        };
+        template <typename T>
+        T update(T source, T target, const PolyakParameters<T>& p){
+            return p.polyak * target + (1 - p.polyak) * source;
+        }
+        template <typename T>
+        T update_squared(T source, T target, const PolyakParameters<T>& p){
+            return p.polyak * target + (1 - p.polyak) * source * source;
+        }
+    }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void update(DEVICE& device, const  Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak) {
+        using T = typename SOURCE_SPEC::T;
+        tensor::Operation<binary_kernels::update<T>, binary_kernels::PolyakParameters<T>> params{};
+        params.parameter.polyak = polyak;
+        binary_operation(device, params, source, target);
+    }
+
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void update_squared(DEVICE& device, const  Tensor<SOURCE_SPEC>& source, Tensor<TARGET_SPEC>& target, const typename SOURCE_SPEC::T polyak) {
+        using T = typename SOURCE_SPEC::T;
+        tensor::Operation<binary_kernels::update_squared<T>, binary_kernels::PolyakParameters<T>> params{};
+        params.parameter.polyak = polyak;
+        binary_operation(device, params, source, target);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

@@ -29,30 +29,38 @@ namespace rl_tools{
         gradient_descent(device, parameter, optimizer);
     }
 
+
     template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC>
     void gradient_descent(DEVICE& device, nn::parameters::Adam::instance<PARAMETER_SPEC>& parameter, nn::optimizers::Adam<SPEC>& optimizer){
         using TI = typename DEVICE::index_t;
         using T = typename PARAMETER_SPEC::CONTAINER::T;
-        for(TI row_i = 0; row_i < PARAMETER_SPEC::CONTAINER::ROWS; row_i++) {
-            for(TI col_i = 0; col_i < PARAMETER_SPEC::CONTAINER::COLS; col_i++) {
-                T pre_sqrt_term = get(parameter.gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction;
+        auto parameters = matrix_view(device, parameter.parameters);
+        auto gradient_first_order_moment = matrix_view(device, parameter.gradient_first_order_moment);
+        auto gradient_second_order_moment = matrix_view(device, parameter.gradient_second_order_moment);
+        constexpr TI ROWS = decltype(parameters)::ROWS;
+        constexpr TI COLS = decltype(parameters)::COLS;
+        for(TI row_i = 0; row_i < ROWS; row_i++) {
+            for(TI col_i = 0; col_i < COLS; col_i++) {
+                T pre_sqrt_term = get(gradient_second_order_moment, row_i, col_i) * optimizer.second_order_moment_bias_correction;
                 pre_sqrt_term = math::max(device.math, pre_sqrt_term, (T)optimizer.parameters.epsilon_sqrt);
-                T parameter_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * get(parameter.gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer.parameters.epsilon);
+                T parameter_update = optimizer.parameters.alpha * optimizer.first_order_moment_bias_correction * get(gradient_first_order_moment, row_i, col_i) / (math::sqrt(device.math, pre_sqrt_term) + optimizer.parameters.epsilon);
                 if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Biases> && SPEC::ENABLE_BIAS_LR_FACTOR){
                     parameter_update *= optimizer.parameters.bias_lr_factor;
                 }
                 if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::CATEGORY_TAG, nn::parameters::categories::Weights>){
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Normal> && SPEC::ENABLE_WEIGHT_DECAY){
-                        parameter_update += get(parameter.parameters, row_i, col_i) * optimizer.parameters.weight_decay / 2;
+                        parameter_update += get(parameters, row_i, col_i) * optimizer.parameters.weight_decay / 2;
                     }
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Input> && SPEC::ENABLE_WEIGHT_DECAY){
-                        parameter_update += get(parameter.parameters, row_i, col_i) * optimizer.parameters.weight_decay_input / 2;
+                        parameter_update += get(parameters, row_i, col_i) * optimizer.parameters.weight_decay_input / 2;
                     }
                     if constexpr(utils::typing::is_same_v<typename PARAMETER_SPEC::GROUP_TAG, nn::parameters::groups::Output> && SPEC::ENABLE_WEIGHT_DECAY){
-                        parameter_update += get(parameter.parameters, row_i, col_i) * optimizer.parameters.weight_decay_output / 2;
+                        parameter_update += get(parameters, row_i, col_i) * optimizer.parameters.weight_decay_output / 2;
                     }
                 }
-                increment(parameter.parameters, row_i, col_i, -parameter_update);
+                T value = get(parameters, row_i, col_i);
+                value -= parameter_update;
+                set(parameters, row_i, col_i, value);
             }
         }
     }
