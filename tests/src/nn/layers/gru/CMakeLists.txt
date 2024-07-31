@@ -58,3 +58,17 @@ gtest_discover_tests(test_nn_layers_gru_sequential)
 RL_TOOLS_WARNINGS_ARE_ERRORS(test_nn_layers_gru_sequential)
 target_compile_definitions(test_nn_layers_gru_sequential PRIVATE -DRL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS)
 endif()
+
+if(RL_TOOLS_ENABLE_ZLIB AND RL_TOOLS_ENABLE_CJSON)
+add_executable(
+        test_nn_layers_gru_training
+        gru_training.cpp
+)
+target_link_libraries(
+        test_nn_layers_gru_training
+        PRIVATE
+        RLtools::RLtools
+        ZLIB::ZLIB
+        cjson
+)
+endif()

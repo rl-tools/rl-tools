@@ -176,7 +176,7 @@ namespace rl_tools{
 
     template<typename DEVICE, typename SPEC>
     typename SPEC::T get_flat(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t local_index){
-        static_assert(tensor::dense_layout<SPEC>());
+        static_assert(tensor::dense_row_major_layout<SPEC>());
 #ifdef RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS
         utils::assert_exit(device, local_index < SPEC::SIZE, "Index out of bounds");
 #endif
@@ -234,6 +234,23 @@ namespace rl_tools{
         else{
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
                 T value = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
+                set(device, t, value, i);
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    void rand(DEVICE& device, Tensor<SPEC>& t, RNG& rng, typename SPEC::T min=0, typename SPEC::T max=1){
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        if constexpr(length(typename SPEC::SHAPE{}) > 1){
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
+                auto next = view(device, t, i);
+                rand(device, next, rng, min, max);
+            }
+        }
+        else{
+            for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
+                T value = random::uniform_real_distribution(device.random, (T)min, (T)max, rng);
                 set(device, t, value, i);
             }
         }
@@ -712,6 +729,38 @@ namespace rl_tools{
         MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
         return view;
     }
+
+    template<typename DEVICE, typename SPEC, typename RESHAPE>
+    auto reshape_row_major(DEVICE& device, Tensor<SPEC>& t, const RESHAPE&){
+        static_assert(tensor::dense_row_major_layout<SPEC, true>());
+        using TI = typename DEVICE::index_t;
+        using T = typename SPEC::T;
+        constexpr TI N_ELEMENTS = get<0>(tensor::CumulativeProduct<typename SPEC::SHAPE>{});
+        constexpr TI N_NEW_ELEMENTS = get<0>(tensor::CumulativeProduct<RESHAPE>{});
+        static_assert(N_ELEMENTS == N_NEW_ELEMENTS, "Tensor reshape: Number of elements must be the same");
+        using STRIDE = typename SPEC::STRIDE;
+        constexpr TI OLD_LAST_STRIDE = get<length(STRIDE{}) - 1>(STRIDE{});
+        using NEW_STRIDE = tensor::PopFront<tensor::CumulativeProduct<tensor::Append<RESHAPE, OLD_LAST_STRIDE>>>;
+        using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, NEW_STRIDE>;
+        return Tensor<NEW_SPEC>{data(t)};
+    }
+    template<typename DEVICE, typename SPEC, typename RESHAPE>
+    auto reshape_row_major(DEVICE& device, const Tensor<SPEC>& t, const RESHAPE&){
+
+        static_assert(tensor::dense_row_major_layout<SPEC, true>());
+        using TI = typename DEVICE::index_t;
+        using T = typename SPEC::T;
+        constexpr TI N_ELEMENTS = get<0>(tensor::CumulativeProduct<typename SPEC::SHAPE>{});
+        constexpr TI N_NEW_ELEMENTS = get<0>(tensor::CumulativeProduct<RESHAPE>{});
+        static_assert(N_ELEMENTS == N_NEW_ELEMENTS, "Tensor reshape: Number of elements must be the same");
+        using STRIDE = typename SPEC::STRIDE;
+        constexpr TI OLD_LAST_STRIDE = get<length(STRIDE{}) - 1>(STRIDE{});
+        using NEW_STRIDE = tensor::PopFront<tensor::CumulativeProduct<tensor::Append<RESHAPE, OLD_LAST_STRIDE>>>;
+        using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, NEW_STRIDE>;
+        return Tensor<NEW_SPEC>{data(t)};
+    }
+
+
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

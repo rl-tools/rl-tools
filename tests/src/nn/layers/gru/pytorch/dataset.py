@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 # Load the data
 print("Loading the data:")
-full_data_path = "/home/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.zip"
+full_data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.zip"
 full_data = None
 with zipfile.ZipFile(full_data_path, "r") as z:
     with z.open(os.path.basename(full_data_path)[:-4]) as f:

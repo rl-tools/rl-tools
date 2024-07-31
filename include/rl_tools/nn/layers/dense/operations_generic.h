@@ -123,13 +123,13 @@ namespace rl_tools{
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, typename decltype(layer.output)::SPEC>);
-        forward(device, (nn::layers::dense::LayerBackward<LAYER_SPEC>&)layer, input, layer.output, buffer, rng);
+        forward(device, static_cast<nn::layers::dense::LayerBackward<LAYER_SPEC>&>(layer), input, layer.output, buffer, rng, mode);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         static_assert(nn::layers::dense::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
         // compile time warning if used
-        forward(device, layer, input, buffer, rng);
+        forward(device, layer, input, buffer, rng, mode);
         copy(device, device, layer.output, output);
     }
 

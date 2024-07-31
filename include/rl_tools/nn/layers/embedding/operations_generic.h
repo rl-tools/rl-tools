@@ -1,0 +1,238 @@
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_EMBEDDING_OPERATIONS_GENERIC_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_NN_LAYERS_EMBEDDING_OPERATIONS_GENERIC_H
+
+#include "../../../containers/matrix/matrix.h"
+#include "../../../nn/parameters/operations_generic.h"
+
+#include "layer.h"
+#include "../../../nn/mode.h"
+#ifndef RL_TOOLS_FUNCTION_PLACEMENT
+#define RL_TOOLS_FUNCTION_PLACEMENT
+#endif
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools{
+    template<typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer) {
+        malloc(device, layer.weights);
+    }
+    template<typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer) {
+        free(device, layer.weights);
+    }
+    template<typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer) {
+        malloc(device, (nn::layers::embedding::LayerForward<SPEC>&) layer);
+        malloc(device, layer.pre_activations);
+    }
+    template<typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer) {
+        free(device, (nn::layers::embedding::LayerForward<SPEC>&) layer);
+        free(device, layer.pre_activations);
+    }
+    template<typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer) {
+        malloc(device, (nn::layers::embedding::LayerBackward<SPEC>&) layer);
+        malloc(device, layer.output);
+    }
+    template<typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer) {
+        free(device, (nn::layers::embedding::LayerBackward<SPEC>&) layer);
+        free(device, layer.output);
+    }
+    template<typename DEVICE>
+    void malloc(DEVICE& device, nn::layers::embedding::Buffer& buffer) { } // no-op
+    template<typename DEVICE>
+    void free(DEVICE& device, nn::layers::embedding::Buffer& buffer) { } // no-op
+
+    template<typename DEVICE, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
+    void init_weights(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, const nn::layers::embedding::StandardNormal<INITIALIZER_SPEC>& initializer, RNG& rng) {
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        for(TI class_i = 0; class_i < SPEC::NUM_CLASSES; class_i++){
+            for(TI dim_i = 0; dim_i < SPEC::OUTPUT_DIM; dim_i++){
+                T value = random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
+                set(device, layer.weights.parameters, value, class_i, dim_i);
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename RNG>
+    void init_weights(DEVICE& device, nn::layers::embedding::LayerForward<SPEC>& layer, RNG& rng) {
+        init_weights(device, layer, typename SPEC::INITIALIZER{}, rng);
+    }
+
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void evaluate(DEVICE& device, const nn::layers::embedding::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer&, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+//        static_assert(nn::layers::embedding::check_input_output<LAYER_SPEC, INPUT_SPEC, OUTPUT_SPEC>);
+        // Warning do not use the same buffer for input and output!
+        using TI = typename DEVICE::index_t;
+//        auto input_flat = reshape
+        constexpr TI INPUT_ELEMENTS = get<0>(tensor::CumulativeProduct<typename INPUT_SPEC::SHAPE>{});
+        auto input_view = reshape_row_major(device, input, tensor::Shape<TI, INPUT_ELEMENTS>{});
+        auto output_view = reshape_row_major(device, output, tensor::Shape<TI, INPUT_ELEMENTS, LAYER_SPEC::OUTPUT_DIM>{});
+        for(TI batch_i=0; batch_i < get<0>(typename decltype(input_view)::SPEC::SHAPE{}); batch_i++){
+            auto index = get(device, input_view, batch_i);
+            auto embedding = view(device, layer.weights.parameters, index, tensor::ViewSpec<0>{});
+            auto output_row = view(device, output_view, batch_i, tensor::ViewSpec<0>{});
+            copy(device, device, embedding, output_row);
+        }
+    }
+
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(DEVICE& device, nn::layers::embedding::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+        evaluate(device, static_cast<nn::layers::embedding::LayerForward<LAYER_SPEC>&>(layer), input, output, buffer, rng, mode);
+    }
+#endif
+
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::embedding::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        forward(device, static_cast<nn::layers::embedding::LayerBackward<LAYER_SPEC>&>(layer), input, layer.output, buffer, rng, mode);
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::embedding::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        forward(device, layer, input, buffer, rng, mode);
+        copy(device, device, layer.output, output);
+    }
+
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+    // backward_input / backward_full are not supported because the inputs are discrete classes
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = nn::mode::Default>
+    void backward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::embedding::Buffer&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
+        using T = typename LAYER_SPEC::T;
+        using TI = typename DEVICE::index_t;
+
+        constexpr TI INPUT_ELEMENTS = get<0>(tensor::CumulativeProduct<typename INPUT_SPEC::SHAPE>{});
+        auto input_view = reshape_row_major(device, input, tensor::Shape<TI, INPUT_ELEMENTS>{});
+        auto d_output_view = reshape_row_major(device, d_output, tensor::Shape<TI, INPUT_ELEMENTS, LAYER_SPEC::OUTPUT_DIM>{});
+
+        for(TI element_i=0; element_i < INPUT_ELEMENTS; element_i++){
+            for(TI output_i = 0; output_i < OUTPUT_DIM; output_i++){
+                typename INPUT_SPEC::T class_id = get(device, input_view, element_i);
+                T d_output_value = get(device, d_output_view, element_i, output_i);
+                increment(layer.weights.gradient, class_id, output_i, d_output_view);
+            }
+        }
+    }
+#endif
+    template<typename DEVICE, typename SPEC>
+    void zero_gradient(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer) {
+        zero_gradient(device, layer.weights);
+    }
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void update(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
+        update(device, layer.weights, optimizer);
+    }
+
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER>
+    void _reset_optimizer_state(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {
+        _reset_optimizer_state(device, layer.weights, optimizer);
+    }
+
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::layers::embedding::LayerForward<SOURCE_SPEC>& source, nn::layers::embedding::LayerForward<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.weights, target.weights);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::embedding::LayerBackward<SOURCE_SPEC>& source, nn::layers::embedding::LayerBackward<TARGET_SPEC>& target){
+        copy(source_device, target_device, static_cast<nn::layers::embedding::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::embedding::LayerForward<TARGET_SPEC>&>(target));
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::embedding::LayerGradient<SOURCE_SPEC>& source, nn::layers::embedding::LayerGradient<TARGET_SPEC>& target){
+        copy(source_device, target_device, static_cast<nn::layers::embedding::LayerBackward<SOURCE_SPEC>&>(source), static_cast<nn::layers::embedding::LayerBackward<TARGET_SPEC>&>(target));
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC_1>& l1, const rl_tools::nn::layers::embedding::LayerForward<SPEC_2>& l2) {
+        return abs_diff(device, l1.weights, l2.weights);
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::embedding::LayerBackward<SPEC_1>& l1, const rl_tools::nn::layers::embedding::LayerBackward<SPEC_2>& l2) {
+        using T = typename SPEC_1::T;
+        return abs_diff(device, static_cast<rl_tools::nn::layers::embedding::LayerForward<SPEC_1>&>(l1), static_cast<rl_tools::nn::layers::embedding::LayerForward<SPEC_2>&>(l2));
+    }
+    template <typename DEVICE, typename SPEC_1, typename SPEC_2>
+    typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::embedding::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::embedding::LayerGradient<SPEC_2>& l2) {
+        return abs_diff(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC_1>&>(l1), static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC_2>&>(l2));
+    }
+    template <typename DEVICE, typename SPEC>
+    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
+        reset_forward_state(device, (rl_tools::nn::layers::dense::LayerForward<SPEC>*) l);
+    }
+    template <typename DEVICE, typename SPEC>
+    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::dense::LayerGradient<SPEC>& l) {
+        reset_forward_state(device, &l);
+    }
+    template <typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerForward<SPEC>& l) {
+        return is_nan(device, l.weights) || is_nan(device, l.biases);
+    }
+    template <typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerBackward<SPEC>& l) {
+        return is_nan(device, (rl_tools::nn::layers::dense::LayerForward<SPEC>&) l);
+    }
+    template <typename DEVICE, typename SPEC>
+    bool is_nan(DEVICE& device, const rl_tools::nn::layers::dense::LayerGradient<SPEC>& l) {
+        return is_nan(device, (rl_tools::nn::layers::dense::LayerBackward<SPEC>&) l) ||
+                is_nan(device, l.output);
+    }
+    template<typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn::layers::dense::LayerGradient<SPEC>& l){
+        return l.output;
+    }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+// Tensor proxies
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools{
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void evaluate(DEVICE& device, const nn::layers::dense::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        auto matrix_view_input = matrix_view(device, input);
+        auto matrix_view_output = matrix_view(device, output);
+        evaluate(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(DEVICE& device, nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+        auto matrix_view_input = matrix_view(device, input);
+        auto matrix_view_output = matrix_view(device, output);
+        forward(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        auto matrix_view_input = matrix_view(device, input);
+        forward(device, layer, matrix_view_input, layer.output, buffer, rng);
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void forward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::dense::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        auto matrix_view_input = matrix_view(device, input);
+        auto matrix_view_output = matrix_view(device, output);
+        forward(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = nn::mode::Default>
+    void backward_input(DEVICE& device, const nn::layers::dense::LayerBackward<LAYER_SPEC>& layer, const Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+        auto matrix_view_d_output = matrix_view(device, d_output);
+        auto matrix_view_d_input = matrix_view(device, d_input);
+        backward_input(device, layer, matrix_view_d_output, matrix_view_d_input);
+    }
+
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = nn::mode::Default>
+    void backward(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::dense::Buffer&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        auto matrix_view_input = matrix_view(device, input);
+        auto matrix_view_d_output = matrix_view(device, d_output);
+        backward(device, layer, matrix_view_input, matrix_view_d_output);
+    }
+
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = nn::mode::Default>
+    void backward_full(DEVICE& device, nn::layers::dense::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        auto matrix_view_input = matrix_view(device, input);
+        auto matrix_view_d_output = matrix_view(device, d_output);
+        auto matrix_view_d_input = matrix_view(device, d_input);
+        backward_full(device, layer, matrix_view_input, matrix_view_d_output, matrix_view_d_input);
+    }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif

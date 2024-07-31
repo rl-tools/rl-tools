@@ -67,6 +67,17 @@ namespace rl_tools{
         free(device, static_cast<nn::layers::gru::buffers::Evaluation<SPEC>&>(buffer));
         free(device, buffer.buffer);
     }
+    template <typename DEVICE, typename SPEC, typename RNG>
+    void init_weights(DEVICE& device, nn::layers::gru::LayerForward<SPEC>& l, RNG& rng){
+        // same as in PyTorch
+        using T = typename SPEC::T;
+        using TI = typename DEVICE::index_t;
+        T scale = 1.0 / math::sqrt(device.math, (T)SPEC::HIDDEN_DIM);
+        rand(device, l.weights_hidden.parameters, rng, -scale, scale);
+        rand(device, l.weights_input.parameters, rng, -scale, scale);
+        rand(device, l.biases_hidden.parameters, rng, -scale, scale);
+        rand(device, l.biases_input.parameters, rng, -scale, scale);
+    }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_broadcast_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
@@ -88,19 +99,19 @@ namespace rl_tools{
 
     namespace nn::layers::gru{
         namespace multi_step_intermediates_tag_dispatch{ // this is required for MSVC because it complains about the slicker SFINAE-based version
-            struct three_dimensional_tag {};
-            struct two_dimensional_tag {};
+            struct three_dimensional_tag{};
+            struct two_dimensional_tag{};
 
             template <typename SPEC>
-            struct dimension_tag {
+            struct dimension_tag{
                 using type = typename utils::typing::conditional_t<length(typename SPEC::SHAPE{})==3, three_dimensional_tag, two_dimensional_tag>;
             };
             template <typename DEVICE, typename SPEC>
-            auto impl(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i, three_dimensional_tag) {
+            auto impl(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i, three_dimensional_tag){
                 return view(device, tensor, step_i);
             }
             template <typename DEVICE, typename SPEC>
-            auto impl(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i, two_dimensional_tag) {
+            auto impl(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t step_i, two_dimensional_tag){
                 return tensor;
             }
         }

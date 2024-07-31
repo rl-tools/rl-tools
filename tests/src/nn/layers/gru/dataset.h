@@ -1,0 +1,71 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <zlib.h>
+#include <cjson/cJSON.h>
+
+bool decompressFile(const std::string& source, std::vector<char>& outBuffer) {
+    gzFile gzFile = gzopen(source.c_str(), "rb");
+    if (!gzFile) {
+        std::cerr << "Error opening file: " << source << std::endl;
+        return false;
+    }
+
+    const size_t bufferSize = 8192;
+    char buffer[bufferSize];
+    int bytesRead = 0;
+
+    while ((bytesRead = gzread(gzFile, buffer, bufferSize)) > 0) {
+        outBuffer.insert(outBuffer.end(), buffer, buffer + bytesRead);
+    }
+
+    if (gzclose(gzFile) != Z_OK) {
+        std::cerr << "Error closing file: " << source << std::endl;
+        return false;
+    }
+
+    // Ensure the buffer is null-terminated for string operations
+    outBuffer.push_back('\0');
+
+    return true;
+}
+template <typename TI>
+std::string load_dataset(std::string data_path){
+    std::vector<char> decompressed_data;
+
+    if(decompressFile(data_path, decompressed_data)) {
+        std::cout << "Decompressed data:\n";
+        cJSON* json = cJSON_Parse(decompressed_data.data());
+        if(json == nullptr) {
+            std::cerr << "Error parsing JSON data." << std::endl;
+            return "";
+        }
+        if(!cJSON_IsArray(json)){
+            std::cerr << "Expected an array of objects." << std::endl;
+            return "";
+        }
+        TI size = cJSON_GetArraySize(json);
+        std::string output;
+        for(TI i = 0; i < size; i++){
+            cJSON* obj = cJSON_GetArrayItem(json, i);
+            if(!cJSON_IsObject(obj)){
+                std::cerr << "Expected an object." << std::endl;
+                return "";
+            }
+            cJSON* text = cJSON_GetObjectItem(obj, "text");
+            if(!cJSON_IsString(text)){
+                std::cerr << "Expected a string." << std::endl;
+                return "";
+            }
+            output += cJSON_GetStringValue(text);
+        }
+        cJSON_Delete(json);
+        return output;
+    } else {
+        std::cerr << "Failed to decompress the file.\n";
+        return "";
+    }
+}
+
+

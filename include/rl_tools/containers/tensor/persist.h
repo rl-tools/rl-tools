@@ -87,7 +87,7 @@ namespace rl_tools {
     void load(DEVICE& device, const HighFive::DataSet& dataset, Tensor<SPEC>& tensor, bool fallback_to_zero = false) {
         using T = typename SPEC::T;
         auto dims = dataset.getDimensions();
-        static_assert(tensor::dense_layout<SPEC>(), "Load only supports dense tensors for now");
+        static_assert(tensor::dense_row_major_layout<SPEC>(), "Load only supports dense tensors for now");
         utils::assert_exit(device, dims.size() == length(typename SPEC::SHAPE{}), "Rank mismatch");
         utils::assert_exit(device, tensor::check_dimensions(device, tensor, dims), "Dimension mismatch");
         typename SPEC::T* data_ptr = data(tensor);

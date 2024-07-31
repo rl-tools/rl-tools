@@ -201,24 +201,24 @@ namespace rl_tools{
         }
 
 
-        template <typename SHAPE, typename STRIDE>
-        bool constexpr _dense_layout_shape(){
+        template <typename SHAPE, typename STRIDE, bool RELAX_MAJOR=false>
+        bool constexpr _dense_row_major_layout_shape(){
             static_assert(length(SHAPE{}) > 0);
             if(length(STRIDE{}) != length(SHAPE{})){
                 return false;
             }
             if constexpr(length(STRIDE{}) == 1){
-                return get<0>(STRIDE{}) == 1;
+                return RELAX_MAJOR || get<0>(STRIDE{}) == 1;
             }
             else{
                 using NEXT_SHAPE = PopFront<SHAPE>;
                 using NEXT_STRIDE = PopFront<STRIDE>;
-                return (STRIDE::VALUE == get<0>(NEXT_STRIDE{}) * get<0>(NEXT_SHAPE{})) && _dense_layout_shape<NEXT_SHAPE, NEXT_STRIDE>();
+                return (STRIDE::VALUE == get<0>(NEXT_STRIDE{}) * get<0>(NEXT_SHAPE{})) && _dense_row_major_layout_shape<NEXT_SHAPE, NEXT_STRIDE, RELAX_MAJOR>();
             }
         }
-        template <typename SPEC>
-        bool constexpr dense_layout(){
-            return _dense_layout_shape<typename SPEC::SHAPE, typename SPEC::STRIDE>();
+        template <typename SPEC, bool RELAX_MAJOR=false>
+        bool constexpr dense_row_major_layout(){
+            return _dense_row_major_layout_shape<typename SPEC::SHAPE, typename SPEC::STRIDE, RELAX_MAJOR>();
         }
         namespace spec::view{
             namespace range{
