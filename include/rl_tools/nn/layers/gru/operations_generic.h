@@ -80,6 +80,9 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_broadcast_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::multiply_broadcast_accumulate");
+#endif
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 1);
         static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_OUTPUT::SHAPE{}));
@@ -150,6 +153,9 @@ namespace rl_tools{
 
 
         for(TI step_i=0; step_i < SEQUENCE_LENGTH; ++step_i){
+#ifdef RL_TOOLS_ENABLE_TRACY
+            ZoneScopedN("gru::evaluate_step");
+#endif
             auto input_step = view(device, input, step_i);
             auto post_activation_step = nn::layers::gru::multi_step_intermediates(device, post_activation, step_i);
             auto n_pre_pre_activation_step = nn::layers::gru::multi_step_intermediates(device, n_pre_pre_activation, step_i);
@@ -197,6 +203,9 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_subtract_broadcast(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output) {
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::multiply_subtract_broadcast");
+#endif
         // broadcast t1 along first dimension
         static_assert(length(typename SPEC_FACTOR::SHAPE{}) == 2);
         static_assert(get<0>(typename SPEC_FACTOR::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
@@ -225,10 +234,16 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void multiply_subtract(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::multiply_subtract");
+#endif
         ternary_operation(device, tensor::Operation<tensor::ternary_operations::multiply_subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, factor, t1, t2, result);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply_broadcast_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::matrix_multiply_broadcast_accumulate");
+#endif
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 1);
         static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
@@ -249,6 +264,9 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply_accumulate_reduce(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::matrix_multiply_accumulate_reduce");
+#endif
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUT::SHAPE{}) == 1);
@@ -268,6 +286,9 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_accumulate_reduce(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::multiply_accumulate_reduce");
+#endif
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUTPUT::SHAPE{}) == 1);
@@ -354,6 +375,9 @@ namespace rl_tools{
 
     template<bool CALCULATE_D_INPUT, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = nn::mode::Default>
     void _backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::_backward_step");
+#endif
         // call with backward<false> to disable d_input calculation
         // warning: this modifies d_output!
         static_assert(tensor::same_dimensions<typename decltype(layer.output)::SPEC, D_OUTPUT_SPEC>());
@@ -437,11 +461,34 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = nn::mode::Default>
     void backward_full(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::backward_full");
+#endif
         _backward<true>(device, layer, input, d_output, d_input, buffers);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = nn::mode::Default>
     void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         _backward<true>(device, layer, input, d_output, false, buffers);
+    }
+
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target){
+        copy(source_device, target_device, source.weights_input, target.weights_input);
+        copy(source_device, target_device, source.biases_input, target.biases_input);
+        copy(source_device, target_device, source.weights_hidden, target.weights_hidden);
+        copy(source_device, target_device, source.biases_hidden, target.biases_hidden);
+        copy(source_device, target_device, source.initial_hidden_state, target.initial_hidden_state);
+    }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::gru::LayerBackward<SOURCE_SPEC>& source, nn::layers::gru::LayerBackward<TARGET_SPEC>& target){
+        copy(source_device, target_device, static_cast<const nn::layers::gru::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::gru::LayerForward<TARGET_SPEC>&>(target));
+        copy(source_device, target_device, source.post_activation, target.post_activation);
+        copy(source_device, target_device, source.n_pre_pre_activation, target.n_pre_pre_activation);
+        copy(source_device, target_device, source.output, target.output);
+    }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::gru::LayerGradient<SOURCE_SPEC>& source, nn::layers::gru::LayerGradient<TARGET_SPEC>& target){
+        copy(source_device, target_device, static_cast<const nn::layers::gru::LayerForward<SOURCE_SPEC>&>(source), static_cast<nn::layers::gru::LayerForward<TARGET_SPEC>&>(target));
     }
 
     template <typename DEVICE, typename SPEC>

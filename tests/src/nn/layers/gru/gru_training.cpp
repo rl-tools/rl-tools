@@ -1,16 +1,23 @@
-#include <rl_tools/operations/cpu.h>
+#ifdef RL_TOOLS_ENABLE_TRACY
+#include "Tracy.hpp"
+#endif
+#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+#include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/embedding/operations_generic.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
-#include <rl_tools/nn/layers/dense/operations_generic.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/loss_functions/categorical_cross_entropy/operations_generic.h>
 #include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include "dataset.h"
 
+
+#include <chrono>
+
 namespace rlt = rl_tools;
 
-using DEVICE = rlt::devices::DefaultCPU;
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using TI = typename DEVICE::index_t;
 using T = float;
 
@@ -110,7 +117,9 @@ int main() {
 //    rlt::print(device, embedding_layer.weights.parameters);
     for(TI epoch_i=0; epoch_i < 10; epoch_i++){
         std::shuffle(dataset.begin(), dataset.end(), rng);
+        auto start_time = std::chrono::high_resolution_clock::now();
         for(TI sample_i=0; sample_i < dataset.size(); sample_i += BATCH_SIZE){
+            FrameMark;
             for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
                 for(TI sequence_i = 0; sequence_i < SEQUENCE_LENGTH; sequence_i++){
                     rlt::set(device, input, std::get<0>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i);
@@ -121,14 +130,18 @@ int main() {
 //            rlt::forward(device, gru, rlt::output(embedding_layer), gru_buffer, rng);
 //            auto hidden_state = rlt::matrix_view(device, rlt::output(gru));
 //            rlt::forward(device, dense_layer, hidden_state, dense_buffer, rng);
-            rlt::forward(device, model, input, buffer, rng);
+            {
+                ZoneScopedN("forward");
+                rlt::forward(device, model, input, buffer, rng);
+            }
             auto output_logits = rlt::output(model);
 //            auto output_logits_matrix_view = rlt::matrix_view(device, output_logits);
             auto output_target_matrix_view = rlt::matrix_view(device, output_target);
             auto d_output_matrix_view = rlt::matrix_view(device, d_output);
             rlt::nn::loss_functions::categorical_cross_entropy::gradient(device, output_logits, output_target_matrix_view, d_output_matrix_view);
             T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits, output_target_matrix_view);
-            std::cout << "Sample: " << sample_i << " Batch: " << sample_i/BATCH_SIZE << " Loss: " << loss << std::endl;
+            T elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() / 1000.0;
+            std::cout << "Sample: " << sample_i << " Batch: " << sample_i/BATCH_SIZE << "(" << sample_i/BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
             rlt::zero_gradient(device, model);
 //            rlt::zero_gradient(device, gru);
 //            rlt::zero_gradient(device, dense_layer);
@@ -136,7 +149,10 @@ int main() {
 //            auto d_gru_output_matrix_view = rlt::matrix_view(device, d_gru_output);
 //            rlt::backward_full(device, dense_layer, hidden_state, d_output_matrix_view, d_gru_output_matrix_view, dense_buffer);
 //            rlt::backward_full(device, gru, rlt::output(embedding_layer), d_gru_output, d_embedding_output, gru_buffer);
-            rlt::backward(device, model, input, d_output, buffer);
+            {
+                ZoneScopedN("backward");
+                rlt::backward(device, model, input, d_output, buffer);
+            }
 //            rlt::step(device, optimizer, embedding_layer);
 //            rlt::step(device, optimizer, gru);
             rlt::step(device, optimizer, model);

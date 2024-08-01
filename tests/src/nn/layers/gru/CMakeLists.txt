@@ -71,4 +71,23 @@ target_link_libraries(
         ZLIB::ZLIB
         cjson
 )
+if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
+    target_compile_options(test_nn_layers_gru_training PRIVATE -Ofast)
 endif()
+if(RL_TOOLS_ENABLE_TRACY)
+    target_link_libraries(test_nn_layers_gru_training PRIVATE Tracy::TracyClient)
+    target_include_directories(test_nn_layers_gru_training PRIVATE ${PROJECT_SOURCE_DIR}/external/tracy/public/tracy)
+endif()
+endif()
+
+add_executable(
+        test_nn_layers_gru_blas
+        gru_blas.cpp
+)
+target_link_libraries(
+        test_nn_layers_gru_blas
+        PRIVATE
+        RLtools::RLtools
+        RLtools::Test
+        GTest::gtest_main
+)

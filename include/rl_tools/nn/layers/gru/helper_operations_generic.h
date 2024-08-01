@@ -10,6 +10,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru::helper{
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
     void matrix_multiply_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::matrix_multiply_transpose_bias");
+#endif
         // Y^T = WX^T
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
@@ -33,6 +36,9 @@ namespace rl_tools::nn::layers::gru::helper{
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
     void matrix_multiply_transpose_bias_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::matrix_multiply_transpose_bias_accumulate");
+#endif
         // Y^T = WX^T
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
@@ -57,6 +63,9 @@ namespace rl_tools::nn::layers::gru::helper{
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
     void matrix_multiply_broadcast_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::matrix_multiply_broadcast_transpose_bias");
+#endif
         // Y^T = WX^T
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 1);

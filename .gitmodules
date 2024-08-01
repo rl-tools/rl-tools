@@ -60,6 +60,9 @@
 [submodule "external/libwebsockets"]
 	path = external/libwebsockets
 	url = https://github.com/warmcat/libwebsockets.git
+[submodule "external/tracy"]
+	path = external/tracy
+	url = https://github.com/wolfpld/tracy.git
 
 # Test dependencies
 [submodule "tests/lib/matplotlib"]

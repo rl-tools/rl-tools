@@ -209,7 +209,7 @@ namespace rl_tools{
     }
 
     template<typename FROM_DEVICE, typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
-    void copy(FROM_DEVICE& from_device, TO_DEVICE& to_device, Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+    void copy(FROM_DEVICE& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
         using TI = typename FROM_DEVICE::index_t;
         static_assert(tensor::same_dimensions<FROM_SPEC, TO_SPEC>());
         if constexpr(length(typename FROM_SPEC::SHAPE{}) > 1){
@@ -569,7 +569,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, auto BINARY_REDUCE_OPERATION, auto BINARY_ASSOCIATIVE_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE1, typename CURRENT_TYPE2, typename OPERATION_PARAMETER>
-    ACCUMULATOR_TYPE binary_associative_reduce(DEVICE& device, const tensor::BinaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE1, CURRENT_TYPE2, BINARY_REDUCE_OPERATION, BINARY_ASSOCIATIVE_REDUCE_OPERATION>& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
+    ACCUMULATOR_TYPE binary_associative_reduce(DEVICE& device, const tensor::BinaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE1, CURRENT_TYPE2, BINARY_REDUCE_OPERATION, BINARY_ASSOCIATIVE_REDUCE_OPERATION>& op, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2){
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
         static_assert(tensor::same_dimensions<SPEC_1, SPEC_2>());
@@ -593,7 +593,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T absolute_difference(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2){
+    typename SPEC_1::T absolute_difference(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2){
         tensor::binary_reduce_operations::AbsoluteDifference<DEVICE, typename SPEC_1::T, typename SPEC_2::T> op;
         op.initial_value = 0;
         return binary_associative_reduce(device, op, t1, t2);
