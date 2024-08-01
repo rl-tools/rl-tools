@@ -92,7 +92,7 @@ namespace rl_tools{
         };
 
         template <typename ELEMENT>
-        struct CumulativeProduct: Element<
+        struct CumulativeProduct: Element< // e.g. (2, 3, 4) -> (24, 12, 4)
                 typename ELEMENT::TI,
                 product(ELEMENT{}),
                 utils::typing::conditional_t<!utils::typing::is_same_v<typename ELEMENT::NEXT_ELEMENT, FinalElement>,

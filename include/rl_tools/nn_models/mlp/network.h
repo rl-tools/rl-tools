@@ -31,9 +31,9 @@ namespace rl_tools::nn_models::mlp {
 
         using LAYER_INITIALIZER = T_LAYER_INITIALIZER;
 
-        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Input , CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
-        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, OUTPUT_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Output, CONTAINER_TYPE_TAG, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using INPUT_LAYER_SPEC  = nn::layers::dense::Specification<T, TI, INPUT_DIM , HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Input , CONTAINER_TYPE_TAG, nn::layers::dense::DefaultInputShapeFactory, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using HIDDEN_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, HIDDEN_DIM, HIDDEN_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Normal, CONTAINER_TYPE_TAG, nn::layers::dense::DefaultInputShapeFactory, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
+        using OUTPUT_LAYER_SPEC = nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, OUTPUT_ACTIVATION_FUNCTION, LAYER_INITIALIZER, nn::parameters::groups::Output, CONTAINER_TYPE_TAG, nn::layers::dense::DefaultInputShapeFactory, ENFORCE_FLOATING_POINT_TYPE, MEMORY_LAYOUT>;
     };
     template<typename SPEC_1, typename SPEC_2>
     constexpr bool check_spec_memory =
