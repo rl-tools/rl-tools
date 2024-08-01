@@ -116,8 +116,7 @@ namespace rl_tools{
         using NEW_STRIDE_INTERMEDIATE = tensor::Replace<STRIDE, get<DIM_2>(STRIDE{}), DIM_1>;
         using NEW_STRIDE = tensor::Replace<NEW_STRIDE_INTERMEDIATE, get<DIM_1>(STRIDE{}), DIM_2>;
         using NEW_SPEC = tensor::Specification<typename SPEC::T, TI, NEW_SHAPE, NEW_STRIDE, false, true>; // const here
-        Tensor<NEW_SPEC> view;
-        data_reference(view) = data(tensor);
+        const Tensor<NEW_SPEC> view{data(tensor)};
         return view;
     }
     template <typename DEVICE, typename SPEC, auto DIM_1=0, auto DIM_2=1>
