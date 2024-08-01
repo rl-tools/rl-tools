@@ -101,7 +101,6 @@ namespace rl_tools{
     // backward_input / backward_full are not supported because the inputs are discrete classes
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = nn::mode::Default>
     void backward(DEVICE& device, nn::layers::embedding::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::embedding::Buffer&, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
-        ZoneScopedN("embedding::backward");
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;

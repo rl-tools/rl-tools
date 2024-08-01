@@ -5,7 +5,7 @@
 #define RL_TOOLS_CONTAINERS_TENSOR_OPERATIONS_ACCELERATE_H
 
 #include "tensor.h"
-#include "operations_generic.h"
+#include "operations_cpu.h"
 #include "operations_cpu_blas.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
