@@ -23,8 +23,9 @@ namespace rl_tools{
 
     template <typename SHAPE, typename DEVICE, typename SPEC>
     auto view_memory(DEVICE& device, const Tensor<SPEC>& tensor){
-        static_assert(product<SHAPE> <= SPEC::SIZE);
-        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, typename SPEC::STRIDE, false, true>;
+        static_assert(product(SHAPE{}) <= SPEC::SIZE);
+        static_assert(tensor::dense_row_major_layout<SPEC, true>());
+        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, typename SPEC::STRIDE, false, true>; // note the last boolean signals constness and needs to be flipped for the non-const version of this function
         using VIEW_TYPE = Tensor<VIEW_SPEC>;
         const VIEW_TYPE view{data(tensor)};
         return view;
@@ -32,8 +33,11 @@ namespace rl_tools{
 
     template <typename SHAPE, typename DEVICE, typename SPEC>
     auto view_memory(DEVICE& device, Tensor<SPEC>& tensor){
-        static_assert(product<SHAPE> <= SPEC::SIZE);
-        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, typename SPEC::STRIDE, false, true>;
+        static_assert(product(SHAPE{}) <= SPEC::SIZE);
+        static_assert(tensor::dense_row_major_layout<SPEC, true>());
+        using DENSE_STRIDE = tensor::RowMajorStride<SHAPE>;
+        using STRIDE = tensor::Append<tensor::PopBack<DENSE_STRIDE>, get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{})>; // the RELAX_MAJOR in dense_row_major_layout allows for a stride in the last element which is accounted for here;
+        using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, STRIDE, false, false>;
         using VIEW_TYPE = Tensor<VIEW_SPEC>;
         VIEW_TYPE view{data(tensor)};
         return view;

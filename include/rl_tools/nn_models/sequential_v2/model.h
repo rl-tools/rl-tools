@@ -10,7 +10,6 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::sequential_v2{
     struct OutputModule{
         struct CONTENT{
-            static constexpr auto INPUT_DIM = 0;
             using INPUT_SHAPE = tensor::Shape<decltype(0), 0>;
             static constexpr auto BATCH_SIZE = 0;
         };
@@ -43,6 +42,14 @@ namespace rl_tools::nn_models::sequential_v2{
             return find_output_dim<typename SPEC::NEXT_MODULE>();
         }
     }
+    template <typename SPEC>
+    constexpr auto find_output_shape() {
+        if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
+            return typename SPEC::CONTENT::OUTPUT_SHAPE{};
+        } else {
+            return find_output_dim<typename SPEC::NEXT_MODULE>();
+        }
+    }
     template <typename TI, typename SPEC>
     constexpr auto find_max_hiddend_dim(TI current_max = 0){
         constexpr TI CONTENT_OUTPUT_DIM = product(typename SPEC::CONTENT::OUTPUT_SHAPE{});
@@ -66,16 +73,16 @@ namespace rl_tools::nn_models::sequential_v2{
     template <typename MODULE>
     constexpr bool check_batch_size_consistency = check_batch_size_consistency_f<MODULE>();
 
-    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    constexpr bool check_input_output_f(){
-        static_assert(INPUT_SPEC::COLS == SPEC::CONTENT::INPUT_DIM);
-        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
-        static_assert(OUTPUT_SPEC::COLS == find_output_dim<SPEC>());
-        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
-        return true;
-    }
-    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
-    constexpr bool check_input_output = check_input_output_f<SPEC, INPUT_SPEC, OUTPUT_SPEC>();
+//    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+//    constexpr bool check_input_output_f(){
+//        static_assert(INPUT_SPEC::COLS == SPEC::CONTENT::INPUT_DIM);
+//        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
+//        static_assert(OUTPUT_SPEC::COLS == find_output_dim<SPEC>());
+//        static_assert(OUTPUT_SPEC::ROWS == INPUT_SPEC::ROWS);
+//        return true;
+//    }
+//    template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
+//    constexpr bool check_input_output = check_input_output_f<SPEC, INPUT_SPEC, OUTPUT_SPEC>();
 
 
     template <typename BUFFER_SPEC, typename MODULE_SPEC>
@@ -88,8 +95,8 @@ namespace rl_tools::nn_models::sequential_v2{
         using T = typename CONTENT::T;
         using TI = typename CONTENT::TI;
         using CONTAINER_TYPE_TAG = typename CONTENT::CONTAINER_TYPE_TAG;
-        static constexpr TI INPUT_DIM = CONTENT::INPUT_DIM;
-        static constexpr TI OUTPUT_DIM = find_output_dim<Specification<T_CONTENT, T_NEXT_MODULE>>();
+        using INPUT_SHAPE = typename CONTENT::INPUT_SHAPE;
+        using OUTPUT_SHAPE = decltype(find_output_shape<Specification<T_CONTENT, T_NEXT_MODULE>>());
         static constexpr TI MAX_HIDDEN_DIM = find_max_hiddend_dim<typename CONTENT::TI, Specification<T_CONTENT, T_NEXT_MODULE>>();
         static constexpr bool NEXT_IS_OUTPUT = utils::typing::is_same_v<NEXT_MODULE, OutputModule>;
         static_assert(NEXT_IS_OUTPUT || tensor::same_dimensions_shape<typename CONTENT::OUTPUT_SHAPE, utils::typing::conditional_t<NEXT_IS_OUTPUT, typename CONTENT::OUTPUT_SHAPE, typename NEXT_MODULE::CONTENT::INPUT_SHAPE>>());
@@ -167,8 +174,8 @@ namespace rl_tools::nn_models::sequential_v2{
         CONTENT content;
         NEXT_MODULE next_module;
 
-        static constexpr auto INPUT_DIM = SPEC::INPUT_DIM;
-        static constexpr auto OUTPUT_DIM = SPEC::OUTPUT_DIM;
+//        static constexpr auto INPUT_DIM = SPEC::INPUT_DIM;
+//        static constexpr auto OUTPUT_DIM = SPEC::OUTPUT_DIM;
 
         // We have one module Buffer for the whole module and possible ContentBuffers for the intermediate steps (that are unwrapped recursively in tandem with the module/content)
         template <typename SPEC::TI BATCH_SIZE, typename CONTAINER_TYPE_TAG=typename SPEC::CONTAINER_TYPE_TAG, typename MEMORY_LAYOUT = matrix::layouts::DEFAULT<typename SPEC::TI>>
