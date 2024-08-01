@@ -35,7 +35,7 @@ int main() {
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
 
-    std::string data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.gzip";
+    std::string data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
     std::string dataset_string = load_dataset<TI>(data_path);
     std::vector<std::tuple<std::string, std::string>> dataset;
     for(TI offset=0; offset < dataset_string.size() - SEQUENCE_LENGTH - 1; offset++){
@@ -118,8 +118,11 @@ int main() {
     for(TI epoch_i=0; epoch_i < 10; epoch_i++){
         std::shuffle(dataset.begin(), dataset.end(), rng);
         auto start_time = std::chrono::high_resolution_clock::now();
+        auto last_print = start_time;
         for(TI sample_i=0; sample_i < dataset.size(); sample_i += BATCH_SIZE){
+#ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
+#endif
             for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
                 for(TI sequence_i = 0; sequence_i < SEQUENCE_LENGTH; sequence_i++){
                     rlt::set(device, input, std::get<0>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i);
@@ -131,18 +134,29 @@ int main() {
 //            auto hidden_state = rlt::matrix_view(device, rlt::output(gru));
 //            rlt::forward(device, dense_layer, hidden_state, dense_buffer, rng);
             {
+#ifdef RL_TOOLS_ENABLE_TRACY
                 ZoneScopedN("forward");
+#endif
                 rlt::forward(device, model, input, buffer, rng);
             }
             auto output_logits = rlt::output(model);
 //            auto output_logits_matrix_view = rlt::matrix_view(device, output_logits);
             auto output_target_matrix_view = rlt::matrix_view(device, output_target);
             auto d_output_matrix_view = rlt::matrix_view(device, d_output);
-            rlt::nn::loss_functions::categorical_cross_entropy::gradient(device, output_logits, output_target_matrix_view, d_output_matrix_view);
-            T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits, output_target_matrix_view);
+            {
+#ifdef RL_TOOLS_ENABLE_TRACY
+                ZoneScopedN("loss_gradient");
+#endif
+                rlt::nn::loss_functions::categorical_cross_entropy::gradient(device, output_logits, output_target_matrix_view, d_output_matrix_view);
+            }
             T elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() / 1000.0;
-            std::cout << "Sample: " << sample_i << " Batch: " << sample_i/BATCH_SIZE << "(" << sample_i/BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
-            rlt::zero_gradient(device, model);
+            T elapsed_print = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - last_print).count() / 1000.0;
+            if(elapsed_print > 0.2){
+                T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits, output_target_matrix_view);
+                last_print = std::chrono::high_resolution_clock::now();
+                std::cout << "Sample: " << sample_i << " Batch: " << sample_i/BATCH_SIZE << "(" << sample_i/BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
+            }
+//            rlt::zero_gradient(device, model);
 //            rlt::zero_gradient(device, gru);
 //            rlt::zero_gradient(device, dense_layer);
             rlt::zero_gradient(device, model);
@@ -150,7 +164,9 @@ int main() {
 //            rlt::backward_full(device, dense_layer, hidden_state, d_output_matrix_view, d_gru_output_matrix_view, dense_buffer);
 //            rlt::backward_full(device, gru, rlt::output(embedding_layer), d_gru_output, d_embedding_output, gru_buffer);
             {
+#ifdef RL_TOOLS_ENABLE_TRACY
                 ZoneScopedN("backward");
+#endif
                 rlt::backward(device, model, input, d_output, buffer);
             }
 //            rlt::step(device, optimizer, embedding_layer);

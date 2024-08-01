@@ -14,6 +14,7 @@ namespace rl_tools::nn::layers::gru::helper{
         ZoneScopedN("gru::matrix_multiply_transpose_bias");
 #endif
         // Y^T = WX^T
+        // Y = (WX^T)^T = XW^T
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
@@ -24,15 +25,23 @@ namespace rl_tools::nn::layers::gru::helper{
         static_assert(get<0>(typename SPEC_BIAS::SHAPE{}) == get<0>(typename SPEC_1::SHAPE{}));
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
-        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
-            for(TI j=0; j < get<0>(typename SPEC_2::SHAPE{}); ++j){
-                T acc = get(device, bias, i);
-                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
-                    acc += get(device, t1, i, k) * get(device, t2, j, k);
-                }
-                set(device, result, acc, j, i);
+        for(TI i=0; i < get<0>(typename SPEC_BIAS::SHAPE{}); i++){
+            for(TI j=0; j < get<0>(typename SPEC_OUT::SHAPE{}); j++){
+                T bias_value = get(device, bias, i);
+                set(device, result, bias_value, j, i);
             }
         }
+        auto t1_transpose = permute(device, t1, tensor::PermutationSpec<1, 0>{});
+        matrix_multiply_accumulate(device, t2, t1_transpose, result);
+//        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
+//            for(TI j=0; j < get<0>(typename SPEC_2::SHAPE{}); ++j){
+//                T acc = get(device, bias, i);
+//                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
+//                    acc += get(device, t1, i, k) * get(device, t2, j, k);
+//                }
+//                set(device, result, acc, j, i);
+//            }
+//        }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
     void matrix_multiply_transpose_bias_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
