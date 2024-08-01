@@ -5,6 +5,7 @@
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/nn/loss_functions/categorical_cross_entropy/operations_generic.h>
+#include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include "dataset.h"
 
 namespace rlt = rl_tools;
@@ -47,7 +48,6 @@ int main() {
     using INPUT_SPEC = rlt::tensor::Specification<unsigned char, TI, INPUT_SHAPE>;
 
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
-    using DENSE_CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, SEQUENCE_LENGTH*BATCH_SIZE>;
 
     using EMBEDDING_LAYER_SPEC = rlt::nn::layers::embedding::Specification<T, TI, NUM_CLASSES, EMBEDDING_DIM, INPUT_SHAPE_TEMPLATE>;
     using EMBEDDING_LAYER = rlt::nn::layers::embedding::Layer<CAPABILITY, EMBEDDING_LAYER_SPEC>;
@@ -58,10 +58,12 @@ int main() {
     rlt::nn::layers::gru::Layer<CAPABILITY, GRU_SPEC> gru;
     decltype(gru)::Buffer<BATCH_SIZE> gru_buffer;
 
-    using DENSE_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
-    using DENSE_LAYER = rlt::nn::layers::dense::Layer<DENSE_CAPABILITY, DENSE_LAYER_SPEC>;
+    using DENSE_LAYER_SPEC = rlt::nn::layers::dense::Specification<T, TI, HIDDEN_DIM, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<T, TI>, rlt::nn::parameters::groups::Normal, rlt::MatrixDynamicTag, rlt::nn::layers::dense::SequenceInputShapeFactory<TI, SEQUENCE_LENGTH>>;
+    using DENSE_LAYER = rlt::nn::layers::dense::Layer<CAPABILITY, DENSE_LAYER_SPEC>;
     DENSE_LAYER dense_layer;
     DENSE_LAYER::Buffer<BATCH_SIZE> dense_buffer;
+
+//    using IF = rlt::nn_models::sequential_v2::Interface<CAPABILITY>
 
     using EMBEDDING_OUTPUT_SPEC = rlt::tensor::Specification<T, TI, decltype(embedding_layer)::OUTPUT_SHAPE>;
     using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, OUTPUT_DIM>;
@@ -71,6 +73,9 @@ int main() {
     using OUTPUT_TARGET_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_TARGET_SHAPE>;
     using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<T, TI>;
     using ADAM = rlt::nn::optimizers::Adam<ADAM_SPEC>;
+
+
+
     ADAM optimizer;
     rlt::Tensor<INPUT_SPEC> input;
     rlt::Tensor<EMBEDDING_OUTPUT_SPEC> d_embedding_output;

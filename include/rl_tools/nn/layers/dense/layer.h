@@ -43,6 +43,12 @@ namespace rl_tools::nn::layers::dense {
         template <typename T_TI, T_TI BATCH_SIZE, T_TI INPUT_DIM>
         using SHAPE = tensor::Shape<T_TI, BATCH_SIZE, INPUT_DIM>;
     };
+    template <typename T_TI, T_TI T_SEQUENCE_LENGTH>
+    struct SequenceInputShapeFactory{
+        template <typename TI, T_TI BATCH_SIZE, T_TI INPUT_DIM>
+        using SHAPE = tensor::Shape<T_TI, T_SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
+    };
+
 
     template<typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, nn::activation_functions::ActivationFunction T_ACTIVATION_FUNCTION, typename T_INITIALIZER = DefaultInitializer<T_T, T_TI>, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = MatrixDynamicTag, typename T_INPUT_SHAPE_FACTORY = DefaultInputShapeFactory, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification {
