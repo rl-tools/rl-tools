@@ -20,22 +20,33 @@ namespace rl_tools{
         static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
         static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_OUT::SHAPE{}));
         static_assert(get<1>(typename SPEC_2::SHAPE{}) == get<1>(typename SPEC_OUT::SHAPE{}));
+        static_assert(tensor::dense_row_major_layout<SPEC_1>());
+        static_assert(tensor::dense_row_major_layout<SPEC_2>());
+        static_assert(tensor::dense_row_major_layout<SPEC_OUT>());
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
 
-        const TI M = get<0>(typename SPEC_1::SHAPE{});// LDC = N (number of columns in result)
-        const TI N = get<1>(typename SPEC_2::SHAPE{});// LDB = N (number of columns in t2)
-        const TI K = get<1>(typename SPEC_1::SHAPE{});  // LDA = K (number of columns in t1)
+        const TI M = get<0>(typename SPEC_1::SHAPE{});
+        const TI N = get<1>(typename SPEC_2::SHAPE{});
+        const TI K = get<1>(typename SPEC_1::SHAPE{});
+
+        // This operation can also handle transposed/column major matrices
+        CBLAS_TRANSPOSE transA = (get<0>(typename SPEC_1::STRIDE{}) < get<1>(typename SPEC_1::STRIDE{})) ? CblasTrans : CblasNoTrans;
+        CBLAS_TRANSPOSE transB = (get<0>(typename SPEC_2::STRIDE{}) < get<1>(typename SPEC_2::STRIDE{})) ? CblasTrans : CblasNoTrans;
+
+        const TI lda = (transA == CblasNoTrans) ? get<0>(typename SPEC_1::STRIDE{}) : get<1>(typename SPEC_1::STRIDE{});
+        const TI ldb = (transB == CblasNoTrans) ? get<0>(typename SPEC_2::STRIDE{}) : get<1>(typename SPEC_2::STRIDE{});
+        const TI ldc = get<0>(typename SPEC_OUT::STRIDE{});
 
         const T alpha = 1.0;
         const T beta = 0.0;
 
         static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>, "CPU BLAS Tensor: matrix_multiply: Only float and double are supported for now");
         if constexpr(utils::typing::is_same_v<T, float>) {
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha, t1._data, K, t2._data, N, beta, result._data, N);
+            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha, t1._data, lda, t2._data, ldb, beta, result._data, ldc);
         }
         else{
-            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha, t1._data, K, t2._data, N, beta, result._data, N);
+            cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, M, N, K, alpha, t1._data, lda, t2._data, ldb, beta, result._data, ldc);
         }
     }
     template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
@@ -58,10 +69,10 @@ namespace rl_tools{
         const TI N = get<1>(typename SPEC_2::SHAPE{});
         const TI K = get<1>(typename SPEC_1::SHAPE{});
 
+        // This operation can also handle transposed/column major matrices
         CBLAS_TRANSPOSE transA = (get<0>(typename SPEC_1::STRIDE{}) < get<1>(typename SPEC_1::STRIDE{})) ? CblasTrans : CblasNoTrans;
         CBLAS_TRANSPOSE transB = (get<0>(typename SPEC_2::STRIDE{}) < get<1>(typename SPEC_2::STRIDE{})) ? CblasTrans : CblasNoTrans;
 
-        // Set leading dimensions based on transposition
         const TI lda = (transA == CblasNoTrans) ? get<0>(typename SPEC_1::STRIDE{}) : get<1>(typename SPEC_1::STRIDE{});
         const TI ldb = (transB == CblasNoTrans) ? get<0>(typename SPEC_2::STRIDE{}) : get<1>(typename SPEC_2::STRIDE{});
         const TI ldc = get<0>(typename SPEC_OUT::STRIDE{});

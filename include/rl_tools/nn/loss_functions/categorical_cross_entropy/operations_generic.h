@@ -33,6 +33,7 @@ namespace rl_tools::nn::loss_functions::categorical_cross_entropy{
         static_assert(containers::check_structure<SPEC_A, SPEC_DA>);
         using T = typename SPEC_A::T;
         using TI = typename SPEC_A::TI;
+        T effective_weight = loss_weight / SPEC_A::ROWS;
         set_all(device, d_a, 0);
         for(TI row_i = 0; row_i < SPEC_A::ROWS; row_i++) {
             T maximum = max(device, row(device, a, row_i));
@@ -41,13 +42,58 @@ namespace rl_tools::nn::loss_functions::categorical_cross_entropy{
                 T logit = get(a, row_i, col_i);
                 sum += math::exp(device.math, logit - maximum);
             }
+            T sum_reciprocal = (T)1.0 / sum;
             TI target_index = get(b, row_i, 0);
             for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++) {
                 if(col_i == target_index){
-                    increment(d_a, row_i, col_i, -1);
+                    increment(d_a, row_i, col_i, -1*effective_weight);
                 }
-                T p = math::exp(device.math, get(a, row_i, col_i) - maximum) / sum;
-                increment(d_a, row_i, col_i, p);
+                T p = math::exp(device.math, get(a, row_i, col_i) - maximum) * sum_reciprocal;
+                increment(d_a, row_i, col_i, p*effective_weight);
+            }
+        }
+    }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B, typename SPEC_DA>
+    void gradient_tiled(DEVICE& device, Matrix<SPEC_A> a, Matrix<SPEC_B> b, Matrix<SPEC_DA> d_a, typename SPEC_A::T loss_weight = 1) {
+        static_assert(SPEC_A::ROWS == SPEC_B::ROWS);
+        static_assert(SPEC_B::COLS == 1);
+        static_assert(containers::check_structure<SPEC_A, SPEC_DA>);
+        using T = typename SPEC_A::T;
+        using TI = typename SPEC_A::TI;
+
+        T effective_weight = loss_weight / SPEC_A::ROWS;
+        set_all(device, d_a, 0);
+        for(TI row_i = 0; row_i < SPEC_A::ROWS; row_i++) {
+            T maximum = max(device, row(device, a, row_i));
+            T sum = 0;
+            constexpr TI TILE_SIZE = 8;
+            constexpr TI REMAINDER = SPEC_A::COLS % TILE_SIZE;
+            constexpr TI REMAINDER_START = SPEC_A::COLS - REMAINDER;
+
+            for(TI tile_i = 0; tile_i < SPEC_A::COLS/TILE_SIZE; tile_i++) {
+                for(TI col_i = tile_i * TILE_SIZE; col_i < (tile_i+1)*TILE_SIZE; col_i++) {
+                    T logit = get(a, row_i, col_i);
+                    sum += math::exp(device.math, logit - maximum);
+                }
+            }
+            for(TI col_i = REMAINDER_START; col_i < SPEC_A::COLS; col_i++) {
+                T logit = get(a, row_i, col_i);
+                sum += math::exp(device.math, logit - maximum);
+            }
+
+            T sum_reciprocal = (T)1.0 / sum;
+
+            TI target_index = get(b, row_i, 0);
+            increment(d_a, row_i, target_index, -1 * effective_weight);
+            for(TI tile_i = 0; tile_i < SPEC_A::COLS/TILE_SIZE; tile_i++) {
+                for(TI col_i = tile_i * TILE_SIZE; col_i < (tile_i+1)*TILE_SIZE; col_i++) {
+                    T p = math::exp(device.math, get(a, row_i, col_i) - maximum) * sum_reciprocal;
+                    increment(d_a, row_i, col_i, p * effective_weight);
+                }
+            }
+            for(TI col_i = REMAINDER_START; col_i < SPEC_A::COLS; col_i++) {
+                T p = math::exp(device.math, get(a, row_i, col_i) - maximum) * sum_reciprocal;
+                increment(d_a, row_i, col_i, p * effective_weight);
             }
         }
     }

@@ -13,8 +13,10 @@ namespace rl_tools::nn::layers::gru::helper{
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::matrix_multiply_transpose_bias");
 #endif
-        // Y^T = WX^T
-        // Y = (WX^T)^T = XW^T
+        // Y = WX
+        // Y^T = X^T W^T
+        // W = t1, X^T = t2, Y^T = result
+        // Y^T = result = t2 t1^T
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUT::SHAPE{}) == 2);
@@ -25,10 +27,10 @@ namespace rl_tools::nn::layers::gru::helper{
         static_assert(get<0>(typename SPEC_BIAS::SHAPE{}) == get<0>(typename SPEC_1::SHAPE{}));
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
-        for(TI i=0; i < get<0>(typename SPEC_BIAS::SHAPE{}); i++){
-            for(TI j=0; j < get<0>(typename SPEC_OUT::SHAPE{}); j++){
-                T bias_value = get(device, bias, i);
-                set(device, result, bias_value, j, i);
+        for(TI i=0; i < get<0>(typename SPEC_OUT::SHAPE{}); i++){
+            for(TI j=0; j < get<1>(typename SPEC_OUT::SHAPE{}); j++){
+                T bias_value = get(device, bias, j);
+                set(device, result, bias_value, i, j);
             }
         }
         auto t1_transpose = permute(device, t1, tensor::PermutationSpec<1, 0>{});
@@ -59,15 +61,23 @@ namespace rl_tools::nn::layers::gru::helper{
         static_assert(get<0>(typename SPEC_BIAS::SHAPE{}) == get<0>(typename SPEC_1::SHAPE{}));
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
-        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
-            for(TI j=0; j < get<0>(typename SPEC_2::SHAPE{}); ++j){
-                T acc = get(device, result, j, i) + get(device, bias, i);
-                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
-                    acc += get(device, t1, i, k) * get(device, t2, j, k);
-                }
-                set(device, result, acc, j, i);
+        for(TI i=0; i < get<0>(typename SPEC_OUT::SHAPE{}); i++){
+            for(TI j=0; j < get<1>(typename SPEC_OUT::SHAPE{}); j++){
+                T value = get(device, result, i, j) + get(device, bias, j);
+                set(device, result, value, i, j);
             }
         }
+        auto t1_transpose = permute(device, t1, tensor::PermutationSpec<1, 0>{});
+        matrix_multiply_accumulate(device, t2, t1_transpose, result);
+//        for(TI i=0; i < get<0>(typename SPEC_1::SHAPE{}); ++i){
+//            for(TI j=0; j < get<0>(typename SPEC_2::SHAPE{}); ++j){
+//                T acc = get(device, result, j, i) + get(device, bias, i);
+//                for(TI k=0; k < get<1>(typename SPEC_1::SHAPE{}); ++k){
+//                    acc += get(device, t1, i, k) * get(device, t2, j, k);
+//                }
+//                set(device, result, acc, j, i);
+//            }
+//        }
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>

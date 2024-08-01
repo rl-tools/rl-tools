@@ -22,9 +22,12 @@ using TI = typename DEVICE::index_t;
 using T = float;
 
 constexpr TI NUM_CLASSES = 2<<7;
+//constexpr TI EMBEDDING_DIM = 64;
 constexpr TI EMBEDDING_DIM = 32;
 constexpr TI BATCH_SIZE = 32;
 constexpr TI SEQUENCE_LENGTH = 64;
+//constexpr TI SEQUENCE_LENGTH = 128;
+//constexpr TI HIDDEN_DIM = 256;
 constexpr TI HIDDEN_DIM = 64;
 constexpr TI OUTPUT_DIM = NUM_CLASSES;
 
@@ -147,14 +150,14 @@ int main() {
 #ifdef RL_TOOLS_ENABLE_TRACY
                 ZoneScopedN("loss_gradient");
 #endif
-                rlt::nn::loss_functions::categorical_cross_entropy::gradient(device, output_logits, output_target_matrix_view, d_output_matrix_view);
+                rlt::nn::loss_functions::categorical_cross_entropy::gradient_tiled(device, output_logits, output_target_matrix_view, d_output_matrix_view);
             }
             T elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() / 1000.0;
             T elapsed_print = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - last_print).count() / 1000.0;
             if(elapsed_print > 0.2){
                 T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits, output_target_matrix_view);
                 last_print = std::chrono::high_resolution_clock::now();
-                std::cout << "Sample: " << sample_i << " Batch: " << sample_i/BATCH_SIZE << "(" << sample_i/BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
+                std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/BATCH_SIZE << " (" << sample_i/BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
             }
 //            rlt::zero_gradient(device, model);
 //            rlt::zero_gradient(device, gru);
