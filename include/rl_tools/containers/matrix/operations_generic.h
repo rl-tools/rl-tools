@@ -768,7 +768,7 @@ namespace rl_tools{
 
     template <typename DEVICE, typename SPEC_INPUT>
     typename DEVICE::index_t argmax_col(DEVICE& device, Matrix<SPEC_INPUT>& input){
-        static_assert(SPEC_INPUT::COL == 1);
+        static_assert(SPEC_INPUT::COLS == 1);
         using T = typename SPEC_INPUT::T;
         using TI = typename DEVICE::index_t;
         MatrixStatic<matrix::Specification<TI, TI, 1, 1>> output;

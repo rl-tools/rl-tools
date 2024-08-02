@@ -108,3 +108,16 @@ target_link_libraries(
 )
 gtest_discover_tests(test_nn_layers_gru_persist)
 endif()
+
+if(RL_TOOLS_ENABLE_HDF5)
+    add_executable(
+            test_nn_layers_gru_inference
+            gru_inference.cpp
+    )
+    target_link_libraries(
+            test_nn_layers_gru_inference
+            PRIVATE
+            RLtools::RLtools
+            RLtools::Test
+    )
+endif()

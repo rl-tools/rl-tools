@@ -1,7 +1,16 @@
 
 
-template <typename T, typename TI, TI BATCH_SIZE, TI NUM_CLASSES, TI EMBEDDING_DIM, TI SEQUENCE_LENGTH, TI HIDDEN_DIM, TI OUTPUT_DIM>
+template <typename T, typename TI>
 struct Config{
+    static constexpr TI NUM_CLASSES = 2<<7;
+    static constexpr TI BATCH_SIZE = 32;
+    static constexpr TI SEQUENCE_LENGTH = 128;
+    static constexpr TI OUTPUT_DIM = NUM_CLASSES;
+//    static constexpr TI EMBEDDING_DIM = 32;
+//    static constexpr TI HIDDEN_DIM = 64;
+    static constexpr TI EMBEDDING_DIM = 128;
+    static constexpr TI HIDDEN_DIM = 256;
+
     template <TI T_BATCH_SIZE>
     using INPUT_SHAPE_TEMPLATE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, T_BATCH_SIZE>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;

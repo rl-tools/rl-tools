@@ -31,22 +31,13 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using TI = typename DEVICE::index_t;
 using T = float;
 
-constexpr TI NUM_CLASSES = 2<<7;
-//constexpr TI EMBEDDING_DIM = 64;
-constexpr TI EMBEDDING_DIM = 32;
-constexpr TI BATCH_SIZE = 16;
-constexpr TI SEQUENCE_LENGTH = 128;
-//constexpr TI SEQUENCE_LENGTH = 128;
-//constexpr TI HIDDEN_DIM = 256;
-constexpr TI HIDDEN_DIM = 64;
-constexpr TI OUTPUT_DIM = NUM_CLASSES;
-
+using CONFIG = Config<T, TI>;
 
 int main() {
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
 
-    std::string data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
+    std::string data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.gzip";
 //    std::string data_path = "/home/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
     if(!std::filesystem::exists(data_path)){
         std::cerr << "Data path does not exist: " << data_path << std::endl;
@@ -54,9 +45,9 @@ int main() {
     }
     std::string dataset_string = load_dataset<TI>(data_path);
     std::vector<std::tuple<std::string, std::string>> dataset;
-    for(TI offset=0; offset < dataset_string.size() - SEQUENCE_LENGTH - 1; offset++){
-        auto input = dataset_string.substr(offset, SEQUENCE_LENGTH);
-        auto output = dataset_string.substr(offset+1, SEQUENCE_LENGTH);
+    for(TI offset=0; offset < dataset_string.size() - CONFIG::SEQUENCE_LENGTH - 1; offset++){
+        auto input = dataset_string.substr(offset, CONFIG::SEQUENCE_LENGTH);
+        auto output = dataset_string.substr(offset+1, CONFIG::SEQUENCE_LENGTH);
         dataset.emplace_back(std::tuple(input, output));
     }
     std::shuffle(dataset.begin(), dataset.end(), rng);
@@ -66,10 +57,8 @@ int main() {
         std::cout << std::get<0>(dataset[i]) << " -> " << std::get<1>(dataset[i]) << std::endl;
     }
 
-    using CONFIG = Config<T, TI, BATCH_SIZE, NUM_CLASSES, EMBEDDING_DIM, SEQUENCE_LENGTH, HIDDEN_DIM, OUTPUT_DIM>;
-
     typename CONFIG::MODEL model;
-    typename CONFIG::MODEL::Buffer<BATCH_SIZE> buffer;
+    typename CONFIG::MODEL::Buffer<CONFIG::BATCH_SIZE> buffer;
     typename CONFIG::ADAM optimizer;
     rlt::Tensor<typename CONFIG::INPUT_SPEC> input;
     rlt::Tensor<typename CONFIG::OUTPUT_SPEC> d_output;
@@ -85,7 +74,7 @@ int main() {
         std::shuffle(dataset.begin(), dataset.end(), rng);
         auto start_time = std::chrono::high_resolution_clock::now();
         auto last_print = start_time;
-        for(TI sample_i=0; sample_i < dataset.size(); sample_i += BATCH_SIZE){
+        for(TI sample_i=0; sample_i < dataset.size(); sample_i += CONFIG::BATCH_SIZE){
 #ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
 #endif
@@ -99,7 +88,7 @@ int main() {
                     rlt::reset_forward_state(device, model);
                     rlt::save(device, model, file.createGroup("checkpoint"));
                 }
-                if(sample_i == 0 || sample_i == BATCH_SIZE){ // reload check
+                if(sample_i == 0 || sample_i == CONFIG::BATCH_SIZE){ // reload check
                     auto file = HighFive::File(FILE_PATH, HighFive::File::ReadOnly);
                     CONFIG::MODEL model_copy;
                     rlt::malloc(device, model_copy);
@@ -110,8 +99,8 @@ int main() {
                 }
             }
 
-            for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                for(TI sequence_i = 0; sequence_i < SEQUENCE_LENGTH; sequence_i++){
+            for(TI batch_i = 0; batch_i < CONFIG::BATCH_SIZE; batch_i++){
+                for(TI sequence_i = 0; sequence_i < CONFIG::SEQUENCE_LENGTH; sequence_i++){
                     rlt::set(device, input, std::get<0>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i);
                     rlt::set(device, output_target, std::get<1>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i, 0);
                 }
@@ -136,7 +125,7 @@ int main() {
             if(elapsed_print > 0.2 || sample_i % 10000 == 0){
                 T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits, output_target_matrix_view);
                 last_print = std::chrono::high_resolution_clock::now();
-                std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/BATCH_SIZE << " (" << sample_i/BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
+                std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::BATCH_SIZE << " (" << sample_i/CONFIG::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
             }
             rlt::zero_gradient(device, model);
             {

@@ -35,7 +35,7 @@ std::string load_dataset(std::string data_path){
     std::vector<char> decompressed_data;
 
     if(decompressFile(data_path, decompressed_data)) {
-        std::cout << "Decompressed data:\n";
+        std::cout << "Loading dataset: " << data_path << std::endl;
         cJSON* json = cJSON_Parse(decompressed_data.data());
         if(json == nullptr) {
             std::cerr << "Error parsing JSON data." << std::endl;

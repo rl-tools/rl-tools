@@ -205,7 +205,7 @@ namespace rl_tools{
         else{
             DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
 //            auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            auto output_buffer_view = view_memory<MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(output_buffer);
+            auto output_buffer_view = view_memory<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(output_buffer);
             evaluate(device, model.content, input, output_buffer_view, content_buffer.buffer, rng, mode);
             _evaluate<!TICK>(device, model.next_module, output_buffer_view, output, buffers, content_buffer.next_content_buffer, rng, mode);
         }
