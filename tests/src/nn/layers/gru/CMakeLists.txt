@@ -59,7 +59,7 @@ RL_TOOLS_WARNINGS_ARE_ERRORS(test_nn_layers_gru_sequential)
 target_compile_definitions(test_nn_layers_gru_sequential PRIVATE -DRL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS)
 endif()
 
-if(RL_TOOLS_ENABLE_ZLIB AND RL_TOOLS_ENABLE_CJSON)
+if(RL_TOOLS_ENABLE_ZLIB AND RL_TOOLS_ENABLE_CJSON and RL_TOOLS_ENABLE_HDF5)
 add_executable(
         test_nn_layers_gru_training
         gru_training.cpp
@@ -94,6 +94,7 @@ target_link_libraries(
 )
 gtest_discover_tests(test_nn_layers_gru_blas)
 
+if(RL_TOOLS_ENABLE_HDF5)
 add_executable(
         test_nn_layers_gru_persist
         gru_persist.cpp
@@ -106,3 +107,4 @@ target_link_libraries(
         GTest::gtest_main
 )
 gtest_discover_tests(test_nn_layers_gru_persist)
+endif()
