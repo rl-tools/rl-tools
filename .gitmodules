@@ -54,6 +54,9 @@
 [submodule "external/json"]
 	path = external/json
 	url = https://github.com/nlohmann/json.git
+[submodule "external/cjson"]
+	path = external/cjson
+	url = https://github.com/DaveGamble/cJSON.git
 [submodule "external/libattopng"]
 	path = external/libattopng
 	url = https://github.com/rl-tools/libattopng.git

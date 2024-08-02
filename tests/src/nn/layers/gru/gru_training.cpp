@@ -38,7 +38,8 @@ int main() {
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
 
-    std::string data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
+//    std::string data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
+    std::string data_path = "/home/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
     std::string dataset_string = load_dataset<TI>(data_path);
     std::vector<std::tuple<std::string, std::string>> dataset;
     for(TI offset=0; offset < dataset_string.size() - SEQUENCE_LENGTH - 1; offset++){
