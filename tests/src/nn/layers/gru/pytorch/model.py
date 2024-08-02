@@ -1,9 +1,6 @@
 from torch import nn
 import torch
 import lightning as pl
-from dataset import vocab
-
-pad_index = vocab.get_stoi()['<pad>']
 
 # PyTorch Lightning Module
 class GRURNN(pl.LightningModule):
@@ -24,7 +21,7 @@ class GRURNN(pl.LightningModule):
         text, targets, text_lengths = batch
         text, text_lengths = text.to(self.device), text_lengths.to(self.device)
         output = self(text, text_lengths)
-        loss = nn.functional.cross_entropy(output.view(-1, output.shape[-1]), targets.view(-1), ignore_index=pad_index)
+        loss = nn.functional.cross_entropy(output.reshape(-1, output.shape[-1]), targets.reshape(-1))
         perplexity = torch.exp(loss)
         self.log('train_loss', loss, prog_bar=True, on_epoch=True)
         self.log('train_perplexity', perplexity, prog_bar=True, on_epoch=True)
@@ -34,4 +31,4 @@ class GRURNN(pl.LightningModule):
         return torch.optim.Adam(self.parameters())
 
 
-model = GRURNN(len(vocab), embedding_dim=32, hidden_dim=256, output_dim=len(vocab), num_layers=4)
+model = GRURNN(256, embedding_dim=32, hidden_dim=64, output_dim=256, num_layers=1)

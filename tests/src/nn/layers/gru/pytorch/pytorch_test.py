@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import lightning as pl
 import datetime
 
-from dataset import dataset, vocab, collate_fn
+from dataset import dataset, collate_fn
 from model import model
 
 

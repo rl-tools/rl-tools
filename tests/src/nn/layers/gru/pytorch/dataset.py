@@ -1,7 +1,7 @@
 import json
 import zipfile
 import os
-from torchtext.vocab import build_vocab_from_iterator
+# from torchtext.vocab import build_vocab_from_iterator
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 import torch
@@ -16,31 +16,30 @@ with zipfile.ZipFile(full_data_path, "r") as z:
     with z.open(os.path.basename(full_data_path)[:-4]) as f:
         full_data = json.load(f)
 
-n_articles = 100
+n_articles = 10000000000000000000
 
 print("Concatenating the dataset")
 def get_texts(data):
     for item in tqdm(data[:n_articles]):
         yield item['text']
-long_text = "\n".join(get_texts(full_data))
+long_text = "\n".join(get_texts(full_data)).encode("utf-8")
 
 print("Chunking the dataset")
-max_length = 100
+max_length = 64 + 1
 chunks = [long_text[i:i + max_length] for i in tqdm(range(0, len(long_text)-max_length))]
 
-print("Building vocab")
-def yield_tokens(data):
-    for chunk in data:
-        yield chunk
+# print("Building vocab")
+# def yield_tokens(data):
+#     for chunk in data:
+#         yield chunk
 
-vocab = build_vocab_from_iterator(yield_tokens(chunks), specials=['<pad>', '<unk>'])
-vocab.set_default_index(vocab['<unk>'])
+# vocab = build_vocab_from_iterator(yield_tokens(chunks), specials=['<pad>', '<unk>'])
+# vocab.set_default_index(vocab['<unk>'])
 
 # Data Preprocessing
 class TextDataset(Dataset):
-    def __init__(self, data, vocab, max_length=100):
+    def __init__(self, data, max_length=100):
         self.data = data
-        self.vocab = vocab
         self.max_length = max_length
 
     def __len__(self):
@@ -48,10 +47,9 @@ class TextDataset(Dataset):
 
     def __getitem__(self, idx):
         text = self.data[idx]
-        tokens = [self.vocab[token] for token in text]
-        input_tokens = tokens[:-1]
-        target_tokens = tokens[1:]
-        return torch.tensor(input_tokens), torch.tensor(target_tokens)
+        input_tokens = text[:-1]
+        target_tokens = text[1:]
+        return torch.tensor(list(input_tokens), dtype=torch.int64), torch.tensor(list(target_tokens), dtype=torch.int64)
 
 def collate_fn(batch):
     inputs, targets = zip(*batch)
@@ -61,4 +59,4 @@ def collate_fn(batch):
     return inputs_padded, targets_padded, torch.tensor(input_lengths)
 
 # Create dataset
-dataset = TextDataset(chunks, vocab)
+dataset = TextDataset(chunks)
