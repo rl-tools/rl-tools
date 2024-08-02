@@ -178,9 +178,19 @@ namespace rl_tools{
             set_all(device, n_post_activation, 0);
 
             nn::layers::gru::helper::matrix_multiply_transpose_bias_accumulate(device, layer.weights_input.parameters, input_step, layer.biases_input.parameters, post_activation_step);
-            sigmoid(device, rz_post_activation);
+            if(LAYER_SPEC::FAST_TANH){
+                fast_sigmoid(device, rz_post_activation);
+            }
+            else{
+                sigmoid(device, rz_post_activation);
+            }
             multiply_accumulate(device, n_pre_pre_activation_step, r_post_activation, n_post_activation);
-            tanh(device, n_post_activation);
+            if constexpr(LAYER_SPEC::FAST_TANH){
+                fast_tanh(device, n_post_activation);
+            }
+            else{
+                tanh(device, n_post_activation);
+            }
             one_minus(device, z_post_activation, output_step);
             multiply(device, n_post_activation, output_step);
             if(step_i == 0){
