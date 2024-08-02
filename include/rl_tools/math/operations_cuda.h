@@ -165,11 +165,19 @@ namespace rl_tools::math {
             return ::abs(x);
         }
     }
+//    template<typename T>
+//    RL_TOOLS_FUNCTION_PLACEMENT T fast_tanh(const devices::math::CUDA& dev, T x) {
+//        x = clamp(dev, x, -(T)3.0, (T)3.0);
+//        T x_squared = x * x;
+//        return x * (27 + x_squared) / (27 + 9 * x_squared);
+//    }
+    template<typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT T fast_sigmoid(const devices::math::CUDA& dev, T x) {
+        return fast_sigmoid(devices::math::Generic{}, x);
+    }
     template<typename T>
     RL_TOOLS_FUNCTION_PLACEMENT T fast_tanh(const devices::math::CUDA& dev, T x) {
-        x = clamp(dev, x, -(T)3.0, (T)3.0);
-        T x_squared = x * x;
-        return x * (27 + x_squared) / (27 + 9 * x_squared);
+        return fast_tanh(devices::math::Generic{}, x);
     }
     template<typename T>
     RL_TOOLS_FUNCTION_PLACEMENT T atan2(const devices::math::CUDA&, const T a, const T b) {

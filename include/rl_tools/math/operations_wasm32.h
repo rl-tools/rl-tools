@@ -75,12 +75,16 @@ namespace rl_tools::math {
         return nan<T>(devices::math::Generic{});
     }
     template<typename T>
-    T fast_tanh(const devices::math::WASM32& dev, T x) {
-        return fast_tanh(devices::math::Generic{}, x);
-    }
-    template<typename T>
     T atan2(const devices::math::WASM32&, T a, T b){
         return atan2(devices::math::Generic{}, a, b);
+    }
+    template<typename T>
+    T fast_sigmoid(const devices::math::WASM32& dev, T x) {
+        return fast_sigmoid(devices::math::Generic{}, x);
+    }
+    template<typename T>
+    T fast_tanh(const devices::math::WASM32& dev, T x) {
+        return fast_tanh(devices::math::Generic{}, x);
     }
 
 }

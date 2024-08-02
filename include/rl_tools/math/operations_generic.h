@@ -150,13 +150,13 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    T fast_tanh(const devices::math::Generic& dev, T x){
+    RL_TOOLS_FUNCTION_PLACEMENT T fast_tanh(const devices::math::Generic& dev, T x){
         x = clamp(dev, x, static_cast<T>(-3.0), static_cast<T>(3.0));
         T x_squared = x * x;
         return x * (27 + x_squared) / (27 + 9 * x_squared);
     }
     template<typename T>
-    T fast_sigmoid(const devices::math::Generic& dev, T x){
+    RL_TOOLS_FUNCTION_PLACEMENT T fast_sigmoid(const devices::math::Generic& dev, T x){
         return (T)0.5 * fast_tanh(dev, (T)0.5 * x) + (T)0.5;
     }
 
