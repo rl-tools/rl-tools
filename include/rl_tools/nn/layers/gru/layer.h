@@ -8,7 +8,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru{
-    template<typename T_T, typename T_TI, T_TI T_SEQUENCE_LENGTH, T_TI T_INPUT_DIM, T_TI T_HIDDEN_DIM, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = TensorDynamicTag, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
+    template<typename T_T, typename T_TI, T_TI T_SEQUENCE_LENGTH, T_TI T_INPUT_DIM, T_TI T_HIDDEN_DIM, typename T_PARAMETER_GROUP=parameters::groups::Normal, typename T_CONTAINER_TYPE_TAG = TensorDynamicTag, bool T_FAST_TANH = false, bool T_ENFORCE_FLOATING_POINT_TYPE=true, typename T_MEMORY_LAYOUT = matrix::layouts::RowMajorAlignmentOptimized<T_TI>>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
@@ -17,6 +17,7 @@ namespace rl_tools::nn::layers::gru{
         static constexpr T_TI HIDDEN_DIM = T_HIDDEN_DIM;
         using PARAMETER_GROUP = T_PARAMETER_GROUP;
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
+        static constexpr bool FAST_TANH = T_FAST_TANH;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
         // Summary

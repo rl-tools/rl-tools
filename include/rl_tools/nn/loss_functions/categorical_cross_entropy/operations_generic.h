@@ -44,10 +44,8 @@ namespace rl_tools::nn::loss_functions::categorical_cross_entropy{
             }
             T sum_reciprocal = (T)1.0 / sum;
             TI target_index = get(b, row_i, 0);
+            increment(d_a, row_i, target_index, -1 * effective_weight);
             for(TI col_i = 0; col_i < SPEC_A::COLS; col_i++) {
-                if(col_i == target_index){
-                    increment(d_a, row_i, col_i, -1*effective_weight);
-                }
                 T p = math::exp(device.math, get(a, row_i, col_i) - maximum) * sum_reciprocal;
                 increment(d_a, row_i, col_i, p*effective_weight);
             }

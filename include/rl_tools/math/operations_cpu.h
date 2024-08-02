@@ -105,6 +105,10 @@ namespace rl_tools::math {
         return std::numeric_limits<T>::infinity();
     }
     template<typename T>
+    T fast_sigmoid(const devices::math::CPU& dev, T x) {
+        return fast_sigmoid(devices::math::Generic{}, x);
+    }
+    template<typename T>
     T fast_tanh(const devices::math::CPU& dev, T x) {
         return fast_tanh(devices::math::Generic{}, x);
     }

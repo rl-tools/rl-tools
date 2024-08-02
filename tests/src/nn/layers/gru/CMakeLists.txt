@@ -74,11 +74,11 @@ target_link_libraries(
 if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
     target_compile_options(test_nn_layers_gru_training PRIVATE -Ofast -march=native)
 endif()
-if(RL_TOOLS_ENABLE_TRACY)
-    target_link_libraries(test_nn_layers_gru_training PRIVATE Tracy::TracyClient)
-    target_include_directories(test_nn_layers_gru_training PRIVATE ${PROJECT_SOURCE_DIR}/external/tracy/public/tracy)
-    target_compile_definitions(test_nn_layers_gru_training PRIVATE RL_TOOLS_ENABLE_TRACY)
-endif()
+#if(RL_TOOLS_ENABLE_TRACY)
+#    target_link_libraries(test_nn_layers_gru_training PRIVATE Tracy::TracyClient)
+#    target_include_directories(test_nn_layers_gru_training PRIVATE ${PROJECT_SOURCE_DIR}/external/tracy/public/tracy)
+#    target_compile_definitions(test_nn_layers_gru_training PRIVATE RL_TOOLS_ENABLE_TRACY)
+#endif()
 endif()
 
 add_executable(
