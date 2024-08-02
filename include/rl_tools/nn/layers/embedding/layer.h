@@ -84,11 +84,6 @@ namespace rl_tools::nn::layers::embedding {
     template<typename SPEC>
     struct LayerBackward: public LayerForward<SPEC>{
         static constexpr typename SPEC::TI BATCH_SIZE = SPEC::BATCH_SIZE;
-        // This layer supports backpropagation wrt its input but not its weights (for this it stores the intermediate pre_activations)
-        using PRE_ACTIVATIONS_CONTAINER_SHAPE = tensor::Shape<typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::OUTPUT_DIM>;
-        using PRE_ACTIVATIONS_CONTAINER_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, PRE_ACTIVATIONS_CONTAINER_SHAPE>;
-        using PRE_ACTIVATIONS_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<PRE_ACTIVATIONS_CONTAINER_SPEC>;
-        PRE_ACTIVATIONS_CONTAINER_TYPE pre_activations;
     };
     template<typename SPEC>
     struct LayerGradient: public LayerBackward<SPEC>{

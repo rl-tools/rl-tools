@@ -25,12 +25,10 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer) {
         malloc(device, (nn::layers::embedding::LayerForward<SPEC>&) layer);
-        malloc(device, layer.pre_activations);
     }
     template<typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::embedding::LayerBackward<SPEC>& layer) {
         free(device, (nn::layers::embedding::LayerForward<SPEC>&) layer);
-        free(device, layer.pre_activations);
     }
     template<typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer) {
