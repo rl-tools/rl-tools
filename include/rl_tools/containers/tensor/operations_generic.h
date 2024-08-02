@@ -302,8 +302,16 @@ namespace rl_tools{
                 return 1 / (1 + math::exp(device.math, -a));
             }
             template <typename DEVICE, typename PARAMETER, typename T>
+            T fast_sigmoid(DEVICE& device, const PARAMETER& parameter, T a){
+                return math::fast_sigmoid(device.math, a);
+            }
+            template <typename DEVICE, typename PARAMETER, typename T>
             T tanh(DEVICE& device, const PARAMETER& parameter, T a){
                 return math::tanh(device.math, a);
+            }
+            template <typename DEVICE, typename PARAMETER, typename T>
+            T fast_tanh(DEVICE& device, const PARAMETER& parameter, T a){
+                return math::fast_tanh(device.math, a);
             }
             template <typename DEVICE, typename PARAMETER, typename T>
             T one_minus(DEVICE& device, const PARAMETER& parameter, T a){
@@ -469,6 +477,17 @@ namespace rl_tools{
         unary_operation(device, tensor::Operation<tensor::unary_operations::sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
     template<typename DEVICE, typename SPEC>
+    void fast_sigmoid(DEVICE& device, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::fast_sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
+    void fast_sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::fast_sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+    }
+    template<typename DEVICE, typename SPEC>
     void tanh(DEVICE& device, Tensor<SPEC>& t){
         using T = typename SPEC::T;
         unary_operation(device, tensor::Operation<tensor::unary_operations::tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
@@ -478,6 +497,17 @@ namespace rl_tools{
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
         unary_operation(device, tensor::Operation<tensor::unary_operations::tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
+    }
+    template<typename DEVICE, typename SPEC>
+    void fast_tanh(DEVICE& device, Tensor<SPEC>& t){
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::fast_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
+    }
+    template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
+    void fast_tanh(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+        static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
+        using T = typename SPEC::T;
+        unary_operation(device, tensor::Operation<tensor::unary_operations::fast_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
 
     template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER>
