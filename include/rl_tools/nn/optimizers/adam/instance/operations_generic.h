@@ -77,9 +77,9 @@ namespace rl_tools{
         copy(source_device, target_device, source.gradient_second_order_moment, target.gradient_second_order_moment);
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2>
-    typename SPEC_1::T abs_diff(DEVICE& device, const nn::parameters::Adam::instance<SPEC_1>& p1, const nn::parameters::Adam::instance<SPEC_2>& p2){
-        typename SPEC_1::T acc = 0;
-        acc += abs_diff(device, (nn::parameters::Gradient::instance<SPEC_1>&) p1, (nn::parameters::Gradient::instance<SPEC_2>&) p2);
+    typename SPEC_1::CONTAINER::T abs_diff(DEVICE& device, const nn::parameters::Adam::instance<SPEC_1>& p1, const nn::parameters::Adam::instance<SPEC_2>& p2){
+        typename SPEC_1::CONTAINER::T acc = 0;
+        acc += abs_diff(device, static_cast<const nn::parameters::Gradient::instance<SPEC_1>&>(p1), static_cast<const nn::parameters::Gradient::instance<SPEC_2>&>(p2));
         acc += abs_diff(device, p1.gradient_first_order_moment, p2.gradient_first_order_moment);
         acc += abs_diff(device, p1.gradient_second_order_moment, p2.gradient_second_order_moment);
         return acc;

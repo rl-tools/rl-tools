@@ -84,33 +84,39 @@ namespace rl_tools {
     }
 
     template<typename DEVICE, typename SPEC>
-    void load(DEVICE& device, const HighFive::DataSet& dataset, Tensor<SPEC>& tensor, bool fallback_to_zero = false) {
+    void load(DEVICE& device, Tensor<SPEC>& tensor, const HighFive::Group& group, std::string dataset_name, bool fallback_to_zero = false) {
         using T = typename SPEC::T;
-        auto dims = dataset.getDimensions();
-        static_assert(tensor::dense_row_major_layout<SPEC>(), "Load only supports dense tensors for now");
-        utils::assert_exit(device, dims.size() == length(typename SPEC::SHAPE{}), "Rank mismatch");
-        utils::assert_exit(device, tensor::check_dimensions(device, tensor, dims), "Dimension mismatch");
-        typename SPEC::T* data_ptr = data(tensor);
-        utils::assert_exit(device, data_ptr != nullptr, "Data pointer is null");
-        auto data_type = dataset.getDataType();
-        auto data_type_class = data_type.getClass();
-        auto data_type_size = data_type.getSize();
-        utils::assert_exit(device, data_type_class == HighFive::DataTypeClass::Float, "Only Float is currently supported");
-        utils::assert_exit(device, data_type_size == 4 || data_type_size == 8, "Only Float32 and Float64 are currently supported");
-        utils::assert_exit(device, dataset.getStorageSize() == data_type_size * SPEC::SIZE, "Storage size mismatch");
-        if(data_type_size == 4){
-            std::vector<float> buffer(SPEC::SIZE);
-            dataset.read(buffer.data()); // we use the .data() pointer here because otherwise HighFive will complain about a multi-dimensional dataset. In this way we can load (the assumedly dense data directly)
-            from_flat_vector(device, buffer, tensor);
+        if(fallback_to_zero && !group.exist(dataset_name)){
+            set_all(device, tensor, 0);
         }
         else{
-            if(data_type_size == 8){
-                std::vector<double> buffer(SPEC::SIZE);
-                dataset.read(buffer.data());
+            auto dataset = group.getDataSet(dataset_name);
+            auto dims = dataset.getDimensions();
+            static_assert(tensor::dense_row_major_layout<SPEC>(), "Load only supports dense tensors for now");
+            utils::assert_exit(device, dims.size() == length(typename SPEC::SHAPE{}), "Rank mismatch");
+            utils::assert_exit(device, tensor::check_dimensions(device, tensor, dims), "Dimension mismatch");
+            typename SPEC::T* data_ptr = data(tensor);
+            utils::assert_exit(device, data_ptr != nullptr, "Data pointer is null");
+            auto data_type = dataset.getDataType();
+            auto data_type_class = data_type.getClass();
+            auto data_type_size = data_type.getSize();
+            utils::assert_exit(device, data_type_class == HighFive::DataTypeClass::Float, "Only Float is currently supported");
+            utils::assert_exit(device, data_type_size == 4 || data_type_size == 8, "Only Float32 and Float64 are currently supported");
+            utils::assert_exit(device, dataset.getStorageSize() == data_type_size * SPEC::SIZE, "Storage size mismatch");
+            if(data_type_size == 4){
+                std::vector<float> buffer(SPEC::SIZE);
+                dataset.read(buffer.data()); // we use the .data() pointer here because otherwise HighFive will complain about a multi-dimensional dataset. In this way we can load (the assumedly dense data directly)
                 from_flat_vector(device, buffer, tensor);
             }
             else{
-                utils::assert_exit(device, false, "Unsupported data type size");
+                if(data_type_size == 8){
+                    std::vector<double> buffer(SPEC::SIZE);
+                    dataset.read(buffer.data());
+                    from_flat_vector(device, buffer, tensor);
+                }
+                else{
+                    utils::assert_exit(device, false, "Unsupported data type size");
+                }
             }
         }
     }

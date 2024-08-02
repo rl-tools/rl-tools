@@ -86,12 +86,11 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
         auto epoch_group = output_file.getGroup(epoch_group_name);
         for(auto batch_group_name: epoch_group.listObjectNames()){
             auto batch_group = epoch_group.getGroup(batch_group_name);
-            auto input_ds = batch_group.getDataSet("input");
-            auto output_ds = batch_group.getDataSet("output");
-            rlt::load(device, input_ds, input);
-            rlt::load(device, output_ds, output);
+            rlt::load(device, input, batch_group, "input");
+            rlt::load(device, output, batch_group, "output");
             auto input_slice = rlt::view_range(device, input, 0, rlt::tensor::ViewSpec<0, 1>{});
             std::vector<std::vector<std::vector<T>>> input_data;
+            auto input_ds = batch_group.getDataSet("input");
             input_ds.read(input_data);
             for(TI i=0; i < SEQUENCE_LENGTH; i++){
                 for(TI j=0; j < BATCH_SIZE; j++){
@@ -102,6 +101,7 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
                 }
             }
             std::vector<std::vector<std::vector<T>>> output_data;
+            auto output_ds = batch_group.getDataSet("output");
             output_ds.read(output_data);
             for(TI i=0; i < SEQUENCE_LENGTH; i++){
                 for(TI j=0; j < BATCH_SIZE; j++){
@@ -113,9 +113,9 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
             }
             auto weight_group = batch_group.getGroup("weights");
             auto gradient_group = batch_group.getGroup("gradient");
-            auto W_ir_ds = weight_group.getDataSet("W_ir");
-             rlt::load(device, W_ir_ds, W_ir);
+            rlt::load(device, W_ir, weight_group, "W_ir");
             std::vector<std::vector<T>> W_ir_data;
+            auto W_ir_ds = weight_group.getDataSet("W_ir");
             W_ir_ds.read(W_ir_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < INPUT_DIM; j++){
@@ -123,9 +123,9 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
                     ASSERT_LT(diff, EPSILON);
                 }
             }
-            auto W_iz_ds = weight_group.getDataSet("W_iz");
-             rlt::load(device, W_iz_ds, W_iz);
+            rlt::load(device, W_iz, weight_group, "W_iz");
             std::vector<std::vector<T>> W_iz_data;
+            auto W_iz_ds = weight_group.getDataSet("W_iz");
             W_iz_ds.read(W_iz_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < INPUT_DIM; j++){
@@ -133,9 +133,9 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
                     ASSERT_LT(diff, EPSILON);
                 }
             }
-            auto W_in_ds = weight_group.getDataSet("W_in");
-             rlt::load(device, W_in_ds, W_in);
+            rlt::load(device, W_in, weight_group, "W_in");
             std::vector<std::vector<T>> W_in_data;
+            auto W_in_ds = weight_group.getDataSet("W_in");
             W_in_ds.read(W_in_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < INPUT_DIM; j++){
@@ -143,9 +143,9 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
                     ASSERT_LT(diff, EPSILON);
                 }
             }
-            auto W_hr_ds = weight_group.getDataSet("W_hr");
-             rlt::load(device, W_hr_ds, W_hr);
+            rlt::load(device, W_hr, weight_group, "W_hr");
             std::vector<std::vector<T>> W_hr_data;
+            auto W_hr_ds = weight_group.getDataSet("W_hr");
             W_hr_ds.read(W_hr_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < HIDDEN_DIM; j++){
@@ -153,9 +153,9 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
                     ASSERT_LT(diff, EPSILON);
                 }
             }
-            auto W_hz_ds = weight_group.getDataSet("W_hz");
-             rlt::load(device, W_hz_ds, W_hz);
+            rlt::load(device, W_hz, weight_group, "W_hz");
             std::vector<std::vector<T>> W_hz_data;
+            auto W_hz_ds = weight_group.getDataSet("W_hz");
             W_hz_ds.read(W_hz_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < HIDDEN_DIM; j++){
@@ -163,9 +163,9 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
                     ASSERT_LT(diff, EPSILON);
                 }
             }
-            auto W_hn_ds = weight_group.getDataSet("W_hn");
-             rlt::load(device, W_hn_ds, W_hn);
+            rlt::load(device, W_hn, weight_group, "W_hn");
             std::vector<std::vector<T>> W_hn_data;
+            auto W_hn_ds = weight_group.getDataSet("W_hn");
             W_hn_ds.read(W_hn_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 for(TI j=0; j < HIDDEN_DIM; j++){
@@ -173,57 +173,57 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
                     ASSERT_LT(diff, EPSILON);
                 }
             }
-            auto b_ir_ds = weight_group.getDataSet("b_ir");
-             rlt::load(device, b_ir_ds, b_ir);
+            rlt::load(device, b_ir, weight_group, "b_ir");
             std::vector<T> b_ir_data;
+            auto b_ir_ds = weight_group.getDataSet("b_ir");
             b_ir_ds.read(b_ir_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_ir_data[i]) - static_cast<T>(rlt::get(device, b_ir, i)));
                 ASSERT_LT(diff, EPSILON);
             }
-            auto b_iz_ds = weight_group.getDataSet("b_iz");
-             rlt::load(device, b_iz_ds, b_iz);
+            rlt::load(device, b_iz, weight_group, "b_iz");
             std::vector<T> b_iz_data;
+            auto b_iz_ds = weight_group.getDataSet("b_iz");
             b_iz_ds.read(b_iz_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_iz_data[i]) - static_cast<T>(rlt::get(device, b_iz, i)));
                 ASSERT_LT(diff, EPSILON);
             }
-            auto b_in_ds = weight_group.getDataSet("b_in");
-             rlt::load(device, b_in_ds, b_in);
+            rlt::load(device, b_in, weight_group, "b_in");
             std::vector<T> b_in_data;
+            auto b_in_ds = weight_group.getDataSet("b_in");
             b_in_ds.read(b_in_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_in_data[i]) - static_cast<T>(rlt::get(device, b_in, i)));
                 ASSERT_LT(diff, EPSILON);
             }
-            auto b_hr_ds = weight_group.getDataSet("b_hr");
-             rlt::load(device, b_hr_ds, b_hr);
+            rlt::load(device, b_hr, weight_group, "b_hr");
             std::vector<T> b_hr_data;
+            auto b_hr_ds = weight_group.getDataSet("b_hr");
             b_hr_ds.read(b_hr_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_hr_data[i]) - static_cast<T>(rlt::get(device, b_hr, i)));
                 ASSERT_LT(diff, EPSILON);
             }
-            auto b_hz_ds = weight_group.getDataSet("b_hz");
-             rlt::load(device, b_hz_ds, b_hz);
+            rlt::load(device, b_hz, weight_group, "b_hz");
             std::vector<T> b_hz_data;
+            auto b_hz_ds = weight_group.getDataSet("b_hz");
             b_hz_ds.read(b_hz_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_hz_data[i]) - static_cast<T>(rlt::get(device, b_hz, i)));
                 ASSERT_LT(diff, EPSILON);
             }
             auto b_hn_ds = weight_group.getDataSet("b_hn");
-             rlt::load(device, b_hn_ds, b_hn);
+            rlt::load(device, b_hn, weight_group, "b_hn");
             std::vector<T> b_hn_data;
             b_hn_ds.read(b_hn_data);
             for(TI i=0; i < HIDDEN_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_hn_data[i]) - static_cast<T>(rlt::get(device, b_hn, i)));
                 ASSERT_LT(diff, EPSILON);
             }
-            auto W_out_ds = weight_group.getDataSet("W_out");
-             rlt::load(device, W_out_ds, W_out);
+            rlt::load(device, W_out, weight_group, "W_out");
             std::vector<std::vector<T>> W_out_data;
+            auto W_out_ds = weight_group.getDataSet("W_out");
             W_out_ds.read(W_out_data);
             for(TI i=0; i < OUTPUT_DIM; i++){
                 for(TI j=0; j < HIDDEN_DIM; j++){
@@ -231,9 +231,9 @@ TEST(RL_TOOLS_CONTAINERS_TENSOR_PERSIST, LOAD_GRU){
                     ASSERT_LT(diff, EPSILON);
                 }
             }
-            auto b_out_ds = weight_group.getDataSet("b_out");
-             rlt::load(device, b_out_ds, b_out);
+            rlt::load(device, b_out, weight_group, "b_out");
             std::vector<T> b_out_data;
+            auto b_out_ds = weight_group.getDataSet("b_out");
             b_out_ds.read(b_out_data);
             for(TI i=0; i < OUTPUT_DIM; i++){
                 T diff = rlt::math::abs(device.math, static_cast<T>(b_out_data[i]) - static_cast<T>(rlt::get(device, b_out, i)));
@@ -394,8 +394,7 @@ bool save_and_load_one_way(DEVICE& device){
     rlt::Tensor<rlt::tensor::Specification<T2, TI, SHAPE>> tensor_loaded, diff;
     rlt::malloc(device, tensor_loaded);
     rlt::malloc(device, diff);
-    auto dataset = group.getDataSet("tensor");
-    rlt::load(device, dataset, tensor_loaded);
+    rlt::load(device, tensor_loaded, group, "tensor");
     rlt::subtract(device, tensor, tensor_loaded, diff);
     rlt::abs(device, diff);
     T abs_diff = rlt::sum(device, diff)/decltype(tensor)::SPEC::SIZE;

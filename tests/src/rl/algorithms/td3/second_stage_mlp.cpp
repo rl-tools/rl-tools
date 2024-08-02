@@ -274,8 +274,16 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::reset_forward_state(device, pre_critic_1);
             rlt::reset_forward_state(device, post_critic_1);
             rlt::reset_forward_state(device, actor_critic.critic_1);
+            auto reset_optimizer = actor_critic.critic_optimizers[0];
+            rlt::reset_optimizer_state(device, reset_optimizer, pre_critic_1);
+            rlt::reset_optimizer_state(device, reset_optimizer, post_critic_1);
+            decltype(actor_critic.critic_1) compare_critic;
+            rlt::malloc(device, compare_critic);
+            rlt::copy(device, device, actor_critic.critic_1, compare_critic);
+            rlt::reset_optimizer_state(device, reset_optimizer, compare_critic);
+
             T pre_post_diff_per_weight = abs_diff(device, pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
-            T diff_target_per_weight = abs_diff(device, post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+            T diff_target_per_weight = abs_diff(device, post_critic_1, compare_critic)/ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
             T diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
             T pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
@@ -283,8 +291,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             T diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
             T pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_critic_1, post_critic_1)/ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
-            T diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1, actor_critic.critic_1)/ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
+            T diff_target_adam_per_weight = abs_diff_adam(device, post_critic_1, compare_critic)/ActorCriticType::SPEC::CRITIC_TYPE::NUM_WEIGHTS;
             T diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
+
+            rlt::free(device, compare_critic);
 
             if(verbose){
                 std:: cout << "    critic update" << std::endl;
@@ -391,9 +401,16 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             rlt::reset_forward_state(device, pre_actor);
             rlt::reset_forward_state(device, post_actor);
             rlt::reset_forward_state(device, actor_critic.actor);
+            auto reset_optimizer = actor_critic.actor_optimizer;
+            rlt::reset_optimizer_state(device, reset_optimizer, pre_actor);
+            rlt::reset_optimizer_state(device, reset_optimizer, post_actor);
+            decltype(actor_critic.actor) compare_actor;
+            rlt::malloc(device, compare_actor);
+            rlt::copy(device, device, actor_critic.actor, compare_actor);
+            rlt::reset_optimizer_state(device, reset_optimizer, compare_actor);
 
             T pre_post_diff_per_weight = abs_diff(device, pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
-            T diff_target_per_weight = abs_diff(device, post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+            T diff_target_per_weight = abs_diff(device, post_actor, compare_actor)/ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
             T diff_ratio = pre_post_diff_per_weight/diff_target_per_weight;
 
             T pre_post_diff_grad_per_weight = abs_diff_grad(device, pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
@@ -401,8 +418,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_TD3_MLP_SECOND_STAGE, TEST_COPY_TRAINING) {
             T diff_ratio_grad = pre_post_diff_grad_per_weight/diff_target_grad_per_weight;
 
             T pre_post_diff_adam_per_weight = abs_diff_adam(device, pre_actor, post_actor)/ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
-            T diff_target_adam_per_weight = abs_diff_adam(device, post_actor, actor_critic.actor)/ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
+            T diff_target_adam_per_weight = abs_diff_adam(device, post_actor, compare_actor)/ActorCriticType::SPEC::ACTOR_TYPE::NUM_WEIGHTS;
             T diff_ratio_adam = pre_post_diff_adam_per_weight/diff_target_adam_per_weight;
+
+
+            rlt::free(device, compare_actor);
 
             if(verbose){
                 std:: cout << "    actor update" << std::endl;

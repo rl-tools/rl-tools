@@ -737,7 +737,7 @@ TEST(RL_TOOLS_TENSOR_TEST, ABSOLUTE_DIFFERENCE){
         set(device, B, 4, 1, 0);
         set(device, B, 3, 1, 1);
 
-        T diff = rlt::absolute_difference(device, A, B);
+        T diff = rlt::abs_diff(device, A, B);
         ASSERT_EQ(diff, 4);
     }
     {
@@ -748,7 +748,7 @@ TEST(RL_TOOLS_TENSOR_TEST, ABSOLUTE_DIFFERENCE){
         set(device, A, 2, 1);
         set(device, B, 2, 0);
         set(device, B, 2, 1);
-        T diff = rlt::absolute_difference(device, A, B);
+        T diff = rlt::abs_diff(device, A, B);
         ASSERT_EQ(diff, 1);
     }
 }
@@ -781,7 +781,7 @@ TEST(RL_TOOLS_TENSOR_TEST, MATRIX_MULTIPLICATION_GENERIC){
 
     rlt::matrix_multiply(device, A, B, C);
     rlt::print(device, C);
-    auto diff = rlt::absolute_difference(device, C_target, C);
+    auto diff = rlt::abs_diff(device, C_target, C);
     std::cout << "Matrix mul diff: " << diff << std::endl;
     ASSERT_TRUE(diff < EPSILON);
 }
@@ -821,7 +821,7 @@ bool test_element_wise_multiply_accumulate(){
         rlt::print(device, C);
         std::cout << "C_target:" << std::endl;
         rlt::print(device, C_target);
-        T diff = rlt::absolute_difference(device, C_target, C);
+        T diff = rlt::abs_diff(device, C_target, C);
         std::cout << "Element wise multiply accumulate diff: " << diff << std::endl;
         bool good = manual == manual_target;
         good &= diff < EPSILON;
@@ -858,7 +858,7 @@ TEST(RL_TOOLS_TENSOR_TEST, ELEMENT_WISE_MULTIPLY_ACCUMULATE){
         rlt::set(device, C_target, 12+1337, 1, 0);
         rlt::set(device, C_target, 12, 1, 1);
         rlt::print(device, C);
-        T diff = rlt::absolute_difference(device, C_target, C);
+        T diff = rlt::abs_diff(device, C_target, C);
         std::cout << "Element wise multiply accumulate diff: " << diff << std::endl;
         ASSERT_TRUE(diff < EPSILON);
     }

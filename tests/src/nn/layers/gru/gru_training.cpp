@@ -89,13 +89,27 @@ int main() {
 #ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
 #endif
-            if(false && sample_i % 10000 == 0){
+            if(sample_i % 10000 == 0){
                 //checkpoint
                 std::filesystem::path FILE_PATH = "model_checkpoint.h5";
-                std::cout << "Checkpointing" << std::endl;
-                auto file = HighFive::File(FILE_PATH, HighFive::File::Overwrite);
-                rlt::save(device, model, file.createGroup("checkpoint"));
+                {
+                    std::cout << "Checkpointing" << std::endl;
+                    auto file = HighFive::File(FILE_PATH, HighFive::File::Overwrite);
+                    rlt::zero_gradient(device, model);
+                    rlt::reset_forward_state(device, model);
+                    rlt::save(device, model, file.createGroup("checkpoint"));
+                }
+                if(sample_i == 0 || sample_i == BATCH_SIZE){ // reload check
+                    auto file = HighFive::File(FILE_PATH, HighFive::File::ReadOnly);
+                    CONFIG::MODEL model_copy;
+                    rlt::malloc(device, model_copy);
+                    rlt::load(device, model_copy, file.getGroup("checkpoint"));
+                    T abs_diff = rlt::abs_diff(device, model, model_copy);
+                    rlt::utils::assert_exit(device, abs_diff < 1e-6, "Checkpoint failed");
+                    rlt::free(device, model_copy);
+                }
             }
+
             for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
                 for(TI sequence_i = 0; sequence_i < SEQUENCE_LENGTH; sequence_i++){
                     rlt::set(device, input, std::get<0>(dataset[sample_i + batch_i])[sequence_i], sequence_i, batch_i);

@@ -151,19 +151,24 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::embedding::LayerBackward<SPEC_1>& l1, const rl_tools::nn::layers::embedding::LayerBackward<SPEC_2>& l2) {
         using T = typename SPEC_1::T;
-        return abs_diff(device, static_cast<rl_tools::nn::layers::embedding::LayerForward<SPEC_1>&>(l1), static_cast<rl_tools::nn::layers::embedding::LayerForward<SPEC_2>&>(l2));
+        return abs_diff(device, static_cast<const rl_tools::nn::layers::embedding::LayerForward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::embedding::LayerForward<SPEC_2>&>(l2));
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     typename SPEC_1::T abs_diff(DEVICE& device, const rl_tools::nn::layers::embedding::LayerGradient<SPEC_1>& l1, const rl_tools::nn::layers::embedding::LayerGradient<SPEC_2>& l2) {
-        return abs_diff(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC_1>&>(l1), static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC_2>&>(l2));
+        typename SPEC_1::T diff = abs_diff(device, l1.output, l2.output);
+        diff += abs_diff(device, static_cast<const rl_tools::nn::layers::embedding::LayerBackward<SPEC_1>&>(l1), static_cast<const rl_tools::nn::layers::embedding::LayerBackward<SPEC_2>&>(l2));
+        return diff;
     }
+    template <typename DEVICE, typename SPEC>
+    void reset_forward_state(DEVICE& device, rl_tools::nn::layers::embedding::LayerForward<SPEC>& l) { }
     template <typename DEVICE, typename SPEC>
     void reset_forward_state(DEVICE& device, rl_tools::nn::layers::embedding::LayerBackward<SPEC>& l) {
         reset_forward_state(device, (rl_tools::nn::layers::embedding::LayerForward<SPEC>&) l);
     }
     template <typename DEVICE, typename SPEC>
     void reset_forward_state(DEVICE& device, rl_tools::nn::layers::embedding::LayerGradient<SPEC>& l) {
-        reset_forward_state(device, l);
+        reset_forward_state(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC>&>(l));
+        set_all(device, l.output, (typename SPEC::T)0);
     }
     template <typename DEVICE, typename SPEC>
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerForward<SPEC>& l) {

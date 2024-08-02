@@ -45,7 +45,7 @@ namespace rl_tools {
     }
     template<typename DEVICE, typename SPEC>
     void load(DEVICE& device, nn::layers::gru::LayerGradient<SPEC>& layer, HighFive::Group group) {
-        save(device, (nn::layers::gru::LayerBackward<SPEC>&)layer, group);
+        load(device, (nn::layers::gru::LayerBackward<SPEC>&)layer, group);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

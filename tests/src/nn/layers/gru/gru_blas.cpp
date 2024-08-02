@@ -54,7 +54,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, BLAS){
     rlt::forward(device_generic, gru_generic, input, buffer, rng);
     rlt::forward(device_blas, gru_blas, input, buffer, rng);
 
-    T forward_diff = rlt::absolute_difference(device_generic, rlt::output(gru_generic), rlt::output(gru_blas));
+    T forward_diff = rlt::abs_diff(device_generic, rlt::output(gru_generic), rlt::output(gru_blas));
     std::cout << "Forward diff: " << forward_diff << std::endl;
     EXPECT_NEAR(forward_diff, 0, 1e-10);
 
@@ -66,7 +66,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, BLAS){
     rlt::backward_full(device_generic, gru_generic, input, d_output_generic, d_input_generic, buffer);
     rlt::backward_full(device_blas, gru_blas, input, d_output_blas, d_input_blas, buffer);
 
-    T backward_diff = rlt::absolute_difference(device_generic, d_input_generic, d_input_blas) / decltype(d_input_generic)::SPEC::SIZE;
+    T backward_diff = rlt::abs_diff(device_generic, d_input_generic, d_input_blas) / decltype(d_input_generic)::SPEC::SIZE;
     std::cout << "Backward diff: " << backward_diff << std::endl;
     EXPECT_NEAR(backward_diff, 0, 1e-10);
 }
