@@ -467,7 +467,10 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = nn::mode::Default>
     void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, typename DEVICE::index_t step_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        _backward<false>(device, layer, input, d_output, false, buffers, step_i);
+        using T = typename LAYER_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
+        _backward<false>(device, layer, input, d_output, d_input_dummy, buffers, step_i);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE = nn::mode::Default>
     void backward_full(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
@@ -478,7 +481,10 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename MODE = nn::mode::Default>
     void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<LAYER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        _backward<true>(device, layer, input, d_output, false, buffers);
+        using T = typename LAYER_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
+        _backward<false>(device, layer, input, d_output, d_input_dummy, buffers);
     }
 
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
