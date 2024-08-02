@@ -26,21 +26,11 @@ using DEVICE = rlt::devices::DefaultCPU;
 using TI = typename DEVICE::index_t;
 using T = double;
 
-constexpr TI NUM_CLASSES = 2<<7;
-//constexpr TI EMBEDDING_DIM = 64;
-constexpr TI EMBEDDING_DIM = 32;
-constexpr TI BATCH_SIZE = 16;
-constexpr TI SEQUENCE_LENGTH = 128;
-//constexpr TI SEQUENCE_LENGTH = 128;
-//constexpr TI HIDDEN_DIM = 256;
-constexpr TI HIDDEN_DIM = 64;
-constexpr TI OUTPUT_DIM = NUM_CLASSES;
-
 TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST){
-    using CONFIG = Config<T, TI, BATCH_SIZE, NUM_CLASSES, EMBEDDING_DIM, SEQUENCE_LENGTH, HIDDEN_DIM, OUTPUT_DIM>;
+    using CONFIG = Config<T, TI>;
     using GRU = typename CONFIG::GRU_TEMPLATE::Layer<typename CONFIG::CAPABILITY>;
     GRU gru;
-    typename GRU::Buffer<BATCH_SIZE> buffer;
+    typename GRU::Buffer<CONFIG::BATCH_SIZE> buffer;
     typename CONFIG::ADAM optimizer;
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU::INPUT_SHAPE>> input;
