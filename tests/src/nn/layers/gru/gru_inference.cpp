@@ -13,7 +13,6 @@
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn_models/sequential_v2/persist.h>
-#include "dataset.h"
 
 namespace rlt = rl_tools;
 
