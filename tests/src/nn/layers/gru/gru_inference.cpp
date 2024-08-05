@@ -35,7 +35,7 @@ int main() {
 
 
     typename CONFIG::MODEL model;
-    typename CONFIG::MODEL::Buffer<CONFIG::BATCH_SIZE> buffer;
+    typename CONFIG::MODEL::Buffer<CONFIG::PARAMS::BATCH_SIZE> buffer;
     rlt::Tensor<typename CONFIG::INPUT_SPEC> input;
     rlt::Tensor<rlt::tensor::Specification<T, TI, typename CONFIG::OUTPUT_SHAPE>> output;
 
@@ -55,11 +55,11 @@ int main() {
     input_string = "The car is on the str";
     std::cout << input_string << std::flush;
     while(true){
-        if(input_string.size() > CONFIG::SEQUENCE_LENGTH){
-            input_string = input_string.substr(input_string.size() - CONFIG::SEQUENCE_LENGTH, CONFIG::SEQUENCE_LENGTH);
+        if(input_string.size() > CONFIG::PARAMS::SEQUENCE_LENGTH){
+            input_string = input_string.substr(input_string.size() - CONFIG::PARAMS::SEQUENCE_LENGTH, CONFIG::PARAMS::SEQUENCE_LENGTH);
         }
-        for(TI batch_i = 0; batch_i < CONFIG::BATCH_SIZE; batch_i++){
-            for(TI sequence_i = 0; sequence_i < CONFIG::SEQUENCE_LENGTH; sequence_i++){
+        for(TI batch_i = 0; batch_i < CONFIG::PARAMS::BATCH_SIZE; batch_i++){
+            for(TI sequence_i = 0; sequence_i < CONFIG::PARAMS::SEQUENCE_LENGTH; sequence_i++){
                 if(sequence_i < input_string.size()) {
                     rlt::set(device, input, input_string[sequence_i], sequence_i, batch_i);
                 }
@@ -77,7 +77,7 @@ int main() {
         T sum = rlt::sum(device, logits);
         T comulative_prob = 0;
         T random_number = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, rng);
-        for(TI i=0; i < CONFIG::NUM_CLASSES; i++){
+        for(TI i=0; i < CONFIG::PARAMS::NUM_CLASSES; i++){
             T prob = rlt::get(device, logits, i) / sum;
             if(random_number < comulative_prob + prob){
                 input_string += (char)i;
@@ -85,7 +85,7 @@ int main() {
                 break;
             }
             comulative_prob += prob;
-            if(i == CONFIG::NUM_CLASSES - 1){
+            if(i == CONFIG::PARAMS::NUM_CLASSES - 1){
                 input_string += (char)i;
                 std::cout << (char)0 << std::flush;
             }
@@ -95,7 +95,7 @@ int main() {
 //        char next_token = rlt::argmax_row(device, logit_matrix);
 //        input_string += next_token;
 //        std::cout << input_string << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
 

@@ -865,9 +865,36 @@ namespace rl_tools{
         using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(t)};
     }
-
-
-
+    template <typename DEVICE, typename MATRIX_SPEC>
+    auto to_tensor(DEVICE& device, Matrix<MATRIX_SPEC>& m){
+        using T = typename MATRIX_SPEC::T;
+        using TI = typename MATRIX_SPEC::TI;
+        using SHAPE = tensor::Shape<TI, MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
+        constexpr TI ROW_PITCH = MATRIX_SPEC::LAYOUT::template ROW_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
+        constexpr TI COL_PITCH = MATRIX_SPEC::LAYOUT::template COL_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
+        using STRIDE = tensor::Stride<TI, ROW_PITCH, COL_PITCH>;
+        using SPEC = tensor::Specification<T, TI, SHAPE, STRIDE>;
+        return Tensor<SPEC>{m._data};
+    }
+    template <typename DEVICE, typename MATRIX_SPEC>
+    auto to_tensor(DEVICE& device, const Matrix<MATRIX_SPEC>& m){
+        using T = typename MATRIX_SPEC::T;
+        using TI = typename MATRIX_SPEC::TI;
+        using SHAPE = tensor::Shape<TI, MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
+        constexpr TI ROW_PITCH = MATRIX_SPEC::LAYOUT::template ROW_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
+        constexpr TI COL_PITCH = MATRIX_SPEC::LAYOUT::template COL_PITCH<MATRIX_SPEC::ROWS, MATRIX_SPEC::COLS>;
+        using STRIDE = tensor::Stride<TI, ROW_PITCH, COL_PITCH>;
+        using SPEC = tensor::Specification<T, TI, SHAPE, STRIDE, false, true>;
+        return Tensor<SPEC>{m._data};
+    }
+    template <typename DEVICE, typename SPEC>
+    auto to_tensor(DEVICE& device, const Tensor<SPEC>& t){
+        return t;
+    }
+    template <typename DEVICE, typename SPEC>
+    auto to_tensor(DEVICE& device, Tensor<SPEC>& t){
+        return t;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

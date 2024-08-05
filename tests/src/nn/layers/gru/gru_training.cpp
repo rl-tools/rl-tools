@@ -38,19 +38,21 @@ int main() {
     auto rng = rlt::random::default_engine(device.random, 0);
 
     std::string data_path;
+    std::string file_name = "00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
+//    std::string file_name = "enwik8.zip";
     if(std::filesystem::exists("/Users")) {
-        data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
+        data_path = "/Users/jonas/Downloads/" + file_name;
     }
     else{
-        data_path = "/home/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
+        data_path = "/home/jonas/Downloads/" + file_name;
     }
-//    std::string data_path = "/home/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
     if(!std::filesystem::exists(data_path)){
         std::cerr << "Data path does not exist: " << data_path << std::endl;
         return 1;
     }
-    std::string dataset_string = load_dataset<TI>(data_path);
-//    dataset_string = dataset_string.substr(0, 34000);
+    std::string dataset_string = load_dataset_wikipedia_plaintext<TI>(data_path);
+//    std::string dataset_string = load_dataset_enwik8<TI>(data_path);
+
     std::vector<std::tuple<std::string, std::string>> dataset;
     for(TI offset=0; offset < dataset_string.size() - CONFIG::PARAMS::SEQUENCE_LENGTH - 1; offset++){
         auto input = dataset_string.substr(offset, CONFIG::PARAMS::SEQUENCE_LENGTH);
@@ -85,7 +87,7 @@ int main() {
 #ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
 #endif
-            if(sample_i % 1000000 == 0){
+            if(sample_i % 10000 == 0){
                 //checkpoint
                 std::filesystem::path FILE_PATH = "model_checkpoint.h5";
                 {

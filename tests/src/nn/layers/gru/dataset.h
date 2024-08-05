@@ -30,8 +30,10 @@ bool decompressFile(const std::string& source, std::vector<char>& outBuffer) {
 
     return true;
 }
+
+// https://www.kaggle.com/datasets/ltcmdrdata/plain-text-wikipedia-202011
 template <typename TI>
-std::string load_dataset(std::string data_path){
+std::string load_dataset_wikipedia_plaintext(std::string data_path){
     std::vector<char> decompressed_data;
 
     if(decompressFile(data_path, decompressed_data)) {
@@ -69,4 +71,16 @@ std::string load_dataset(std::string data_path){
     }
 }
 
+
+template <typename TI>
+std::string load_dataset_enwik8(std::string data_path){
+    std::vector<char> decompressed_data;
+
+    if(decompressFile(data_path, decompressed_data)) {
+        return std::string(decompressed_data.begin(), decompressed_data.end());
+    } else {
+        std::cerr << "Failed to decompress the file.\n";
+        return "";
+    }
+}
 

@@ -266,7 +266,9 @@ namespace rl_tools{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
 //            auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             auto current_d_output_buffer_view = view_memory<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(device, current_d_output_buffer);
-            _backward_full<!TICK>(device, model.next_module, model.content.output, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer, mode);
+            auto current_output = model.content.output;
+            auto current_output_tensor = to_tensor(device, current_output);
+            _backward_full<!TICK>(device, model.next_module, current_output_tensor, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer, mode);
             backward_full(device, model.content, input, current_d_output_buffer_view, d_input, content_buffer.buffer, mode);
         }
     }

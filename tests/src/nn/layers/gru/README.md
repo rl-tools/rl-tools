@@ -38,5 +38,5 @@ hidden_dim = 64
   - M3 (CPU): 50 batches per second
   - M3 (GPU): 15 batches per second
 - RLtools
-  - M3 (CPU): 350 batches per second
-  - i9: 205 batches per second
+  - M3 (CPU): 360 batches per second
+  - i9: 205 batches per second (160 sustained)
