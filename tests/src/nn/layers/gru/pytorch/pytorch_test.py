@@ -24,7 +24,7 @@ checkpoint_callback = ModelCheckpoint(
 
 # Create model and trainer
 
-device = accelerator='gpu' if torch.cuda.is_available() else ('cpu' if torch.backends.mps.is_available() else 'cpu') # mps is slower than 'cpu' on apple silicon
+device = accelerator='gpu' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu') # mps is slower than 'cpu' on apple silicon
 print(f"Using device: {device}")
 
 trainer = pl.Trainer(max_epochs=1000, accelerator=device, devices=1, logger=wandb_logger, callbacks=[checkpoint_callback])

@@ -81,6 +81,15 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "tests/src/nn/layers/gru/pytorch/mlx_test.py",
+            "type": "python",
+            "request": "launch",
+            "program": "tests/src/nn/layers/gru/pytorch/mlx_test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
         }
     ]
 }
