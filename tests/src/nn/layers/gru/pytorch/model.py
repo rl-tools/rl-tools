@@ -10,17 +10,17 @@ class GRURNN(pl.LightningModule):
         self.gru = nn.GRU(embedding_dim, hidden_dim, batch_first=True, num_layers=num_layers)
         self.fc = nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, text, text_lengths):
+    def forward(self, text):
         embedded = self.embedding(text)
         # packed_embedded = nn.utils.rnn.pack_padded_sequence(embedded, text_lengths.cpu(), batch_first=True, enforce_sorted=False)
         gru_output, hidden = self.gru(embedded)
         output = self.fc(gru_output)
         return output
 
-    def training_step(self, batch, batch_idx):
-        text, targets, text_lengths = batch
-        text, text_lengths = text.to(self.device), text_lengths.to(self.device)
-        output = self(text, text_lengths)
+    def training_step(self, batch):
+        text, targets = batch
+        text = text.to(self.device)
+        output = self(text)
         loss = nn.functional.cross_entropy(output.reshape(-1, output.shape[-1]), targets.reshape(-1))
         perplexity = torch.exp(loss)
         self.log('train_loss', loss, prog_bar=True, on_epoch=True)

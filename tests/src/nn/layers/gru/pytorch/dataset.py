@@ -16,7 +16,7 @@ with zipfile.ZipFile(full_data_path, "r") as z:
     with z.open(os.path.basename(full_data_path)[:-4]) as f:
         full_data = json.load(f)
 
-n_articles = 10000000000000000000
+n_articles = 100
 
 print("Concatenating the dataset")
 def get_texts(data):
@@ -38,18 +38,20 @@ chunks = [long_text[i:i + max_length] for i in tqdm(range(0, len(long_text)-max_
 
 # Data Preprocessing
 class TextDataset(Dataset):
-    def __init__(self, data, max_length=100):
-        self.data = data
+    def __init__(self, data):
+        self.raw_data = data
         self.max_length = max_length
+        self.data = torch.zeros((len(data), max_length), dtype=torch.int64)
+        for i in range(len(data)):
+            text = self.raw_data[i]
+            self.data[i, :] = torch.tensor(list(text), dtype=torch.int64)
+
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        text = self.data[idx]
-        input_tokens = text[:-1]
-        target_tokens = text[1:]
-        return torch.tensor(list(input_tokens), dtype=torch.int64), torch.tensor(list(target_tokens), dtype=torch.int64)
+        return self.data[idx, :-1], self.data[idx, 1:]
 
 def collate_fn(batch):
     inputs, targets = zip(*batch)

@@ -23,10 +23,14 @@ checkpoint_callback = ModelCheckpoint(
 )
 
 # Create model and trainer
-trainer = pl.Trainer(max_epochs=1000, accelerator='gpu' if torch.cuda.is_available() else 'cpu', devices=1, logger=wandb_logger, callbacks=[checkpoint_callback])
+
+device = accelerator='gpu' if torch.cuda.is_available() else ('cpu' if torch.backends.mps.is_available() else 'cpu')
+print(f"Using device: {device}")
+
+trainer = pl.Trainer(max_epochs=1000, accelerator=device, devices=1, logger=wandb_logger, callbacks=[checkpoint_callback])
 
 # Create DataLoader
-train_loader = DataLoader(dataset, batch_size=32, collate_fn=collate_fn, shuffle=True)
+train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
 # Train the model
 trainer.fit(model, train_loader)
