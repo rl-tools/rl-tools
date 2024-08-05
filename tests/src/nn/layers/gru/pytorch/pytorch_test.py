@@ -5,13 +5,13 @@ from torch.utils.data import DataLoader
 import lightning as pl
 import datetime
 
-from dataset import dataset, collate_fn
+from dataset_pytorch import dataset
 from model import model
 
 
 
 # Initialize WandbLogger
-wandb_logger = WandbLogger(project='your_project_name')
+wandb_logger = WandbLogger(project='gru-test')
 
 
 run_date_time =  datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -24,7 +24,7 @@ checkpoint_callback = ModelCheckpoint(
 
 # Create model and trainer
 
-device = accelerator='gpu' if torch.cuda.is_available() else ('cpu' if torch.backends.mps.is_available() else 'cpu')
+device = accelerator='gpu' if torch.cuda.is_available() else ('cpu' if torch.backends.mps.is_available() else 'cpu') # mps is slower than 'cpu' on apple silicon
 print(f"Using device: {device}")
 
 trainer = pl.Trainer(max_epochs=1000, accelerator=device, devices=1, logger=wandb_logger, callbacks=[checkpoint_callback])
