@@ -37,13 +37,20 @@ int main() {
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
 
-    std::string data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
+    std::string data_path;
+    if(std::filesystem::exists("/Users")) {
+        data_path = "/Users/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
+    }
+    else{
+        data_path = "/home/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
+    }
 //    std::string data_path = "/home/jonas/Downloads/00c2bfc7-57db-496e-9d5c-d62f8d8119e3.json.small.gzip";
     if(!std::filesystem::exists(data_path)){
         std::cerr << "Data path does not exist: " << data_path << std::endl;
         return 1;
     }
     std::string dataset_string = load_dataset<TI>(data_path);
+//    dataset_string = dataset_string.substr(0, 34000);
     std::vector<std::tuple<std::string, std::string>> dataset;
     for(TI offset=0; offset < dataset_string.size() - CONFIG::PARAMS::SEQUENCE_LENGTH - 1; offset++){
         auto input = dataset_string.substr(offset, CONFIG::PARAMS::SEQUENCE_LENGTH);
@@ -70,11 +77,11 @@ int main() {
     rlt::malloc(device, output_target);
     rlt::init_weights(device, model, rng);
     rlt::reset_optimizer_state(device, optimizer, model);
-    for(TI epoch_i=0; epoch_i < 10; epoch_i++){
+    for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
         std::shuffle(dataset.begin(), dataset.end(), rng);
         auto start_time = std::chrono::high_resolution_clock::now();
         auto last_print = start_time;
-        for(TI sample_i=0; sample_i < dataset.size(); sample_i += CONFIG::PARAMS::BATCH_SIZE){
+        for(TI sample_i=0; sample_i < dataset.size() - CONFIG::PARAMS::BATCH_SIZE; sample_i += CONFIG::PARAMS::BATCH_SIZE){
 #ifdef RL_TOOLS_ENABLE_TRACY
             FrameMark;
 #endif
