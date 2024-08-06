@@ -11,7 +11,7 @@ import mlx.optimizers as optim
 import numpy as np
 from mlx.utils import tree_flatten
 
-from dataset_mlx import iterate_batches
+from dataset_mlx import create_dataset
 
 
 class TransformerLM(nn.Module):
@@ -46,6 +46,22 @@ class GRURNN(nn.Module):
         gru_output = self.gru(embedded)
         output = self.fc(gru_output)
         return output
+
+def iterate_batches(dataset, batch_size):
+    inputs, targets = dataset
+    s = 0
+    while True:
+        if s == 0:
+            # Reset permutation:
+            perm = np.random.permutation(inputs.shape[0])
+        ids = perm[s : s + batch_size]
+        yield inputs[ids], targets[ids]
+        s += batch_size
+        if s >= inputs.shape[0]:
+            s = 0
+
+sequence_length = 64
+dataset = create_dataset("enwik8", sequence_length)
 
 batch_size = 32
 model = GRURNN(256, embedding_dim=32, hidden_dim=64, output_dim=256)

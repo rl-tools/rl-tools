@@ -2,13 +2,15 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 import torch
 import functools
-from dataset import max_length, chunks
+from dataset import load_dataset
+from tqdm import tqdm
 class TextDataset(Dataset):
-    def __init__(self, data):
+    def __init__(self, data, sequence_length):
         self.raw_data = data
-        self.max_length = max_length
-        self.data = torch.zeros((len(data), max_length), dtype=torch.int64)
-        for i in range(len(data)):
+        self.max_length = sequence_length + 1
+        print("Preprocessing the data")
+        self.data = torch.zeros((len(data), self.max_length), dtype=torch.int64)
+        for i in tqdm(range(len(data))):
             text = self.raw_data[i]
             self.data[i, :] = torch.tensor(list(text), dtype=torch.int64)
 
@@ -26,5 +28,6 @@ def collate_fn(batch):
     targets_padded = pad_sequence(targets, batch_first=True, padding_value=0)
     return inputs_padded, targets_padded, torch.tensor(input_lengths)
 
-# Create dataset
-dataset = TextDataset(chunks)
+def create_dataset(dataset_name, sequence_length):
+    chunks = load_dataset(dataset_name, sequence_length)
+    return TextDataset(chunks, sequence_length)

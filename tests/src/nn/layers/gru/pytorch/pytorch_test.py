@@ -5,8 +5,8 @@ from torch.utils.data import DataLoader
 import lightning as pl
 import datetime
 
-from dataset_pytorch import dataset
-from model import model
+from dataset_pytorch import create_dataset
+from model import model, sequence_length, batch_size
 
 
 
@@ -30,7 +30,8 @@ print(f"Using device: {device}")
 trainer = pl.Trainer(max_epochs=1000, accelerator=device, devices=1, logger=wandb_logger, callbacks=[checkpoint_callback])
 
 # Create DataLoader
-train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
+dataset = create_dataset("enwik8", sequence_length)
+train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 # Train the model
 trainer.fit(model, train_loader)

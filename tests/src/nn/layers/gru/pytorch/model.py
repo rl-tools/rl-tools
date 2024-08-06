@@ -8,13 +8,15 @@ class GRURNN(pl.LightningModule):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.gru = nn.GRU(embedding_dim, hidden_dim, batch_first=True, num_layers=num_layers)
-        self.fc = nn.Linear(hidden_dim, output_dim)
+        self.down_projection = nn.Linear(hidden_dim, embedding_dim)
+        self.fc = nn.Linear(embedding_dim, output_dim)
 
     def forward(self, text):
         embedded = self.embedding(text)
         # packed_embedded = nn.utils.rnn.pack_padded_sequence(embedded, text_lengths.cpu(), batch_first=True, enforce_sorted=False)
         gru_output, hidden = self.gru(embedded)
-        output = self.fc(gru_output)
+        down_projected = self.down_projection(gru_output)
+        output = self.fc(down_projected)
         return output
 
     def training_step(self, batch):
@@ -31,4 +33,13 @@ class GRURNN(pl.LightningModule):
         return torch.optim.Adam(self.parameters())
 
 
-model = GRURNN(256, embedding_dim=32, hidden_dim=64, output_dim=256, num_layers=1)
+model_name = "useful"
+
+if model_name == "base":
+    sequence_length = 64
+    batch_size = 32
+    model = GRURNN(256, embedding_dim=32, hidden_dim=64, output_dim=256, num_layers=1)
+elif model_name == "useful":
+    sequence_length = 128
+    batch_size = 32
+    model = GRURNN(256, embedding_dim=64, hidden_dim=256, output_dim=256, num_layers=4)
