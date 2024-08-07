@@ -275,5 +275,6 @@ namespace rl_tools{
         using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, true>>;
     };
 }
+RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif
