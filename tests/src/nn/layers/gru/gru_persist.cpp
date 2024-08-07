@@ -14,6 +14,8 @@
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn_models/sequential_v2/persist.h>
 
+#include <highfive/H5File.hpp>
+
 namespace rlt = rl_tools;
 
 #include "gru_model.h"
@@ -57,13 +59,13 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST){
     std::filesystem::path FILE_PATH = "tests_nn_layers_gru_persist.h5";
     {
         std::cout << "Checkpointing" << std::endl;
-        auto file = HighFive::File(FILE_PATH, HighFive::File::Overwrite);
+        auto file = HighFive::File(FILE_PATH.string(), HighFive::File::Overwrite);
         rlt::zero_gradient(device, gru);
         rlt::reset_forward_state(device, gru);
         rlt::save(device, gru, file.createGroup("test_gru"));
     }
     {
-        auto file = HighFive::File(FILE_PATH, HighFive::File::ReadOnly);
+        auto file = HighFive::File(FILE_PATH.string(), HighFive::File::ReadOnly);
         GRU gru_copy;
         rlt::malloc(device, gru_copy);
         rlt::load(device, gru_copy, file.getGroup("test_gru"));

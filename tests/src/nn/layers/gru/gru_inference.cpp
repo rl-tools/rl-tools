@@ -45,7 +45,7 @@ int main() {
     std::filesystem::path FILE_PATH = "model_checkpoint.h5";
 
     {
-        auto file = HighFive::File(FILE_PATH, HighFive::File::ReadOnly);
+        auto file = HighFive::File(FILE_PATH.string(), HighFive::File::ReadOnly);
         rlt::load(device, model, file.getGroup("checkpoint"));
     }
 

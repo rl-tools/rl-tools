@@ -18,7 +18,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE:STRING=conan_toolchain.cmake -DCMAKE_BUILD_TYPE=
 ```
 The build can take a long time because it compiles and packages the CUDA device code for every CUDA compute capability not only for the one supported by the GPU in the current machine:
 ```
-cmake --build . --config Release
+cmake --build . --config Release -- /m
 ```
 This will install the binaries and all dependencies into an `install` subdirectory in the current binary directory e.g. `build_conan` where they can be found under `install/rl_tools/bin`. This folder can be distributed and should run on any Windows 10 computer independent of any additional dependencies.
 ```

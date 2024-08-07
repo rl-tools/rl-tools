@@ -63,7 +63,7 @@ namespace rl_tools{
 //            using ACTOR_FORWARD_TYPE = ACTOR_TYPE;
             ACTOR_FORWARD_TYPE actor_forward;
             malloc(device, actor_forward);
-#if defined(RL_TOOLS_ENABLE_HDF5) and !defined(RL_TOOLS_DISABLE_HDF5)
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
             try{
                 auto actor_file = HighFive::File(checkpoint_path.string(), HighFive::File::Overwrite);
                 copy(device, device, actor, actor_forward);

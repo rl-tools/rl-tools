@@ -1,4 +1,3 @@
-#include <gtest/gtest.h>
 #include <rl_tools/operations/cpu.h>
 
 #include <rl_tools/containers/tensor/operations_generic.h>
@@ -16,6 +15,8 @@ namespace rlt = rl_tools;
 
 
 #include "../../../utils/utils.h"
+
+#include <gtest/gtest.h>
 
 TEST(RL_TOOLS_NN_LAYERS_GRU, SEQUENTIAL_V2){
     using DEVICE = rlt::devices::DefaultCPU;
