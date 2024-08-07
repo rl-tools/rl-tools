@@ -5,7 +5,7 @@
 
 #include "operations_cpu_blas.h"
 #include "matrix.h"
-#include "../devices/cpu_openblas.h"
+#include "../../devices/cpu_openblas.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
