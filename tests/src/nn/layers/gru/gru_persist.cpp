@@ -30,7 +30,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, PERSIST){
     using CONFIG = Config<T, TI>;
     using GRU = typename CONFIG::GRU_TEMPLATE::Layer<typename CONFIG::CAPABILITY>;
     GRU gru;
-    typename GRU::Buffer<CONFIG::BATCH_SIZE> buffer;
+    typename GRU::Buffer<CONFIG::PARAMS::BATCH_SIZE> buffer;
     typename CONFIG::ADAM optimizer;
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU::INPUT_SHAPE>> input;
