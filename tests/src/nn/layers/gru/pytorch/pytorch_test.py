@@ -31,7 +31,7 @@ trainer = pl.Trainer(max_epochs=1000, accelerator=device, devices=1, logger=wand
 
 # Create DataLoader
 dataset = create_dataset("enwik8", sequence_length)
-train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=8)
 
 # Train the model
 trainer.fit(model, train_loader)

@@ -8,6 +8,7 @@ class GRURNN(pl.LightningModule):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.gru = nn.GRU(embedding_dim, hidden_dim, batch_first=True, num_layers=num_layers)
+        # self.gru = nn.LSTM(embedding_dim, hidden_dim, batch_first=True, num_layers=num_layers)
         self.down_projection = nn.Linear(hidden_dim, embedding_dim)
         self.fc = nn.Linear(embedding_dim, output_dim)
 
@@ -40,6 +41,6 @@ if model_name == "base":
     batch_size = 32
     model = GRURNN(256, embedding_dim=32, hidden_dim=64, output_dim=256, num_layers=1)
 elif model_name == "useful":
-    sequence_length = 128
+    sequence_length = 256
     batch_size = 32
-    model = GRURNN(256, embedding_dim=64, hidden_dim=256, output_dim=256, num_layers=4)
+    model = GRURNN(256, embedding_dim=64, hidden_dim=256, output_dim=256, num_layers=1)

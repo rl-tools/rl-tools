@@ -3,7 +3,6 @@ import os
 import lightning as pl
 from torch.nn.utils.rnn import pad_sequence
 
-from dataset import vocab, long_text
 from model import model
 
 import difflib
@@ -37,21 +36,22 @@ def load_last_checkpoint(model, checkpoint_dir, checkpoint_path=None):
 def generate_text(model, prompt, max_length=100, n=100):
     model.eval()
     device = next(model.parameters()).device
-    tokens = [vocab[token] for token in prompt]
-    input_tensor = torch.tensor(tokens).unsqueeze(0).to(device)
+    tokens = list(bytes(prompt, 'utf-8'))
+    input_tensor = torch.tensor(tokens, dtype=torch.int64).unsqueeze(0).to(device)
     input_lengths = torch.tensor([len(tokens)])
 
     generated_tokens = tokens.copy()
     
     with torch.no_grad():
         for _ in range(n):
-            output = model(input_tensor[:1, -max_length:], input_lengths)
-            next_token_idx = torch.multinomial(torch.softmax(output[0, -1], dim=0), 1).item()
+            output = model(input_tensor[:1, -max_length:])
+            temperature = 0.5
+            next_token_idx = torch.multinomial(torch.softmax(output[0, -1] / temperature, dim=0), 1).item()
             generated_tokens.append(next_token_idx)
             input_tensor = torch.cat([input_tensor, torch.tensor([[next_token_idx]]).to(device)], dim=1)
             input_lengths = torch.tensor([input_tensor.size(1)])
 
-    generated_text = ''.join([vocab.get_itos()[idx] for idx in generated_tokens])
+    generated_text = bytes(generated_tokens).decode("utf-8")
     return generated_text
 
 def main():
@@ -66,12 +66,14 @@ def main():
     model = model.to(device)
 
     # Get user input for the prompt
-    prompt = input("Enter a prompt for text generation: ")
+    # prompt = input("Enter a prompt for text generation: ")
     # prompt = "signation was decommissioned in the process; signage was removed by August 2020 to reflect the chang"
     # prompt = "and"
 
+    prompt = "The car was on the stre"
+
     # Generate text
-    generated_text = generate_text(model, prompt, max_length=100, n=20)
+    generated_text = generate_text(model, prompt, max_length=100, n=1000)
 
     print("Generated text:")
     print(generated_text)
