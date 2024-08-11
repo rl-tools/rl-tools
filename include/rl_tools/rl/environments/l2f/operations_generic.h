@@ -313,7 +313,6 @@ namespace rl_tools{
         for(typename DEVICE::index_t i = 0; i < 3; i++){
             state.angular_velocity[i] = 0;
         }
-        initial_parameters(device, env, parameters);
     }
     template<typename DEVICE, typename T, typename TI, typename NEXT_COMPONENT, typename SPEC>
     static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StatePoseErrorIntegral<T, TI, NEXT_COMPONENT>& state){
