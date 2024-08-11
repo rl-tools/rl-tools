@@ -8,7 +8,7 @@
 </div>
 
 <p align="center">
-  <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://rl.tools">Live demo (browser)</a> | <a href="https://discord.gg/kbvxCavb5h">Discord</a>
+  <a href="https://arxiv.org/abs/2306.03530">Paper on arXiv</a> | <a href="https://rl.tools">Live demo (browser)</a> | <a href="https://docs.rl.tools">Documentation</a> | <a href="https://zoo.rl.tools">Zoo</a> | <a href="https://studio.rl.tools">Studio</a>
   </br>
 </br>
   <a href="https://github.com/rl-tools/rl-tools/actions/workflows/tests-backend.yml">
@@ -26,6 +26,10 @@
   </a>
   <a href="https://colab.research.google.com/github/rl-tools/documentation/blob/master/docs/09-Python%20Interface.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Run Example on Colab">
+  </a>
+</br>
+<a href="https://discord.gg/kbvxCavb5h">
+  <img src="https://img.shields.io/discord/1194228521216778250?label=Discord&logo=discord&logoColor=white&color=7289da" alt="Join our Discord!">
   </a>
 </p>
 
