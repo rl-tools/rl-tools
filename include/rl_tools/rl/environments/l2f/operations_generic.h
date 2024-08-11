@@ -460,8 +460,6 @@ namespace rl_tools{
                 state.angular_velocity[i] = 0;
             }
         }
-
-//        sample_initial_parameters(device, env, parameters, rng);
     }
     template<typename DEVICE, typename T_S, typename TI_S, typename SPEC, typename NEXT_COMPONENT, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, typename rl::environments::Multirotor<SPEC>::Parameters& parameters, typename rl::environments::l2f::StatePoseErrorIntegral<T_S, TI_S, NEXT_COMPONENT>& state, RNG& rng){
