@@ -17,7 +17,11 @@ namespace rl_tools{
         json += "\"rotors\": [";
         for (TI i = 0; i < PARAM_SPEC::N; i++){
             json += "{";
-            json += "\"thrust_curve\": {\"factor_1\": 1}, ";
+            json += "\"thrust_curve\": [";
+            json += std::to_string(parameters.dynamics.rotor_thrust_coefficients[0]) + ", ";
+            json += std::to_string(parameters.dynamics.rotor_thrust_coefficients[1]) + ", ";
+            json += std::to_string(parameters.dynamics.rotor_thrust_coefficients[2]);
+            json += "], ";
             json += "\"pose\": {";
             json += "\"position\": [" + std::to_string(parameters.dynamics.rotor_positions[i][0]) + ", " + std::to_string(parameters.dynamics.rotor_positions[i][1]) + ", " + std::to_string(parameters.dynamics.rotor_positions[i][2]) + "], ";
             T qw, qx, qy, qz;
