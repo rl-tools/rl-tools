@@ -1,0 +1,2 @@
+add_executable(rl_environments_memory_sac memory.cpp)
+target_link_libraries(rl_environments_memory_sac PRIVATE rl_tools)

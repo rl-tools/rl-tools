@@ -1,13 +1,13 @@
 #include "../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_MEMORY_PENDULUM_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ENVIRONMENTS_PENDULUM_PENDULUM_H
+#define RL_TOOLS_RL_ENVIRONMENTS_MEMORY_PENDULUM_H
 
 #include "../../../math/operations_generic.h"
 #include "../environments.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::pendulum {
+namespace rl_tools::rl::environments::memory {
     template <typename T>
     struct DefaultParameters {
         constexpr static T g = 10;
@@ -29,12 +29,8 @@ namespace rl_tools::rl::environments::pendulum {
     };
 
     template <typename TI>
-    struct ObservationFourier{
+    struct Observation{
         static constexpr TI DIM = 3;
-    };
-    template <typename TI>
-    struct ObservationRaw{
-        static constexpr TI DIM = 2;
     };
 
     template <typename T, typename TI>
@@ -50,25 +46,18 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments{
     template <typename T_SPEC>
-    struct Pendulum: Environment<typename T_SPEC::T, typename T_SPEC::TI>{
+    struct Memory: Environment<typename T_SPEC::T, typename T_SPEC::TI>{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using State = pendulum::State<T, TI>;
+        using State = memory::State<T, TI>;
         using Parameters = typename SPEC::PARAMETERS;
-        using Observation = pendulum::ObservationFourier<TI>;
+        using Observation = memory::Observation<TI>;
         using ObservationPrivileged = Observation;
         static constexpr TI N_AGENTS = 1; // single agent
         static constexpr TI ACTION_DIM = 1;
         static constexpr TI EPISODE_STEP_LIMIT = 200;
     };
-    template <typename T_SPEC>
-    struct PendulumAsymmetric: Pendulum<T_SPEC>{
-        using PENDULUM = Pendulum<T_SPEC>;
-        using Observation = pendulum::ObservationRaw<typename PENDULUM::TI>;
-        using ObservationPrivileged = pendulum::ObservationFourier<typename PENDULUM::TI>;
-    };
-
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
