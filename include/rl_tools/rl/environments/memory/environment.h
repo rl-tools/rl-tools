@@ -8,20 +8,11 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::memory {
-    template <typename T>
+    template <typename T, typename TI>
     struct DefaultParameters {
-        constexpr static T g = 10;
-        constexpr static T max_speed = 8;
-        constexpr static T max_torque = 2;
-        constexpr static T dt = 0.05;
-        constexpr static T m = 1;
-        constexpr static T l = 1;
-        constexpr static T initial_state_min_angle = -math::PI<T>;
-        constexpr static T initial_state_max_angle = math::PI<T>;
-        constexpr static T initial_state_min_speed = -1;
-        constexpr static T initial_state_max_speed = 1;
+        constexpr static TI HORIZON = 10;
     };
-    template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T>>
+    template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T, T_TI>>
     struct Specification{
         using T = T_T;
         using TI = T_TI;
@@ -30,14 +21,13 @@ namespace rl_tools::rl::environments::memory {
 
     template <typename TI>
     struct Observation{
-        static constexpr TI DIM = 3;
+        static constexpr TI DIM = 1;
     };
 
-    template <typename T, typename TI>
+    template <typename T, typename TI, TI HORIZON>
     struct State{
-        static constexpr TI DIM = 2;
-        T theta;
-        T theta_dot;
+        static constexpr TI DIM = HORIZON;
+        T history[DIM];
     };
 
 }
@@ -50,13 +40,13 @@ namespace rl_tools::rl::environments{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using State = memory::State<T, TI>;
+        using State = memory::State<T, TI, SPEC::PARAMETERS::HORIZON>;
         using Parameters = typename SPEC::PARAMETERS;
         using Observation = memory::Observation<TI>;
         using ObservationPrivileged = Observation;
         static constexpr TI N_AGENTS = 1; // single agent
         static constexpr TI ACTION_DIM = 1;
-        static constexpr TI EPISODE_STEP_LIMIT = 200;
+        static constexpr TI EPISODE_STEP_LIMIT = 10;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

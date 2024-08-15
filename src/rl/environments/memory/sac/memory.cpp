@@ -22,7 +22,7 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using T = float;
 using TI = typename DEVICE::index_t;
 
-using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, rlt::rl::environments::memory::DefaultParameters<T>>;
+using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, rlt::rl::environments::memory::DefaultParameters<T, TI>>;
 using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
