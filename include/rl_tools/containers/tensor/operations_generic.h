@@ -73,7 +73,7 @@ namespace rl_tools{
         return view;
     }
 
-    template <typename DEVICE, typename SPEC, auto DIM=0>
+    template <auto DIM=0, typename DEVICE, typename SPEC>
     auto view(DEVICE& device, const Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM> = {}){
         using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;
@@ -84,7 +84,7 @@ namespace rl_tools{
         return view;
     }
 
-    template <typename DEVICE, typename SPEC, auto DIM=0>
+    template <auto DIM=0, typename DEVICE, typename SPEC>
     auto view(DEVICE& device, Tensor<SPEC>& tensor, typename DEVICE::index_t index, const tensor::ViewSpec<DIM> = {}){
         using NEW_SHAPE = tensor::Remove<typename SPEC::SHAPE, DIM>;
         using NEW_STRIDE = tensor::Remove<typename SPEC::STRIDE, DIM>;
@@ -894,6 +894,18 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC>
     auto to_tensor(DEVICE& device, Tensor<SPEC>& t){
         return t;
+    }
+    template <typename SPEC>
+    auto squeeze(const Tensor<SPEC>& m){
+        using TI = typename SPEC::TI;
+        using T = typename SPEC::T;
+        constexpr TI N_DIM = length(typename SPEC::SHAPE{});
+        static_assert(N_DIM > 1, "Cannot squeeze a tensor with less than 2 dimensions");
+        static_assert(get<0>(typename SPEC::SHAPE{}) == 1, "Cannot squeeze a tensor with a dimension size greater than 1");
+        using NEW_SHAPE = tensor::PopFront<typename SPEC::SHAPE>;
+        using NEW_STRIDE = tensor::PopFront<typename SPEC::STRIDE>;
+        using NEW_SPEC = tensor::Specification<T, TI, NEW_SHAPE, NEW_STRIDE>;
+        return Tensor<NEW_SPEC>{data(m)};
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

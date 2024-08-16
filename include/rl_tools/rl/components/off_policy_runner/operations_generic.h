@@ -64,6 +64,26 @@ namespace rl_tools{
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
         malloc(device, batch.truncated);
+        malloc(device, batch.reset);
+    }
+    template <typename DEVICE, typename BATCH_SPEC>
+    void malloc(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
+        using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
+        using SPEC = typename BATCH_SPEC::SPEC;
+        using DATA_SPEC = typename decltype(batch.observations_actions_next_observations)::SPEC;
+        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
+        malloc(device, batch.observations_actions_next_observations);
+        typename DEVICE::index_t offset = 0;
+        batch.observations                 = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM>{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
+        batch.observations_and_actions     = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED + BATCH::ACTION_DIM>{});
+        batch.observations_privileged      = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
+        batch.actions                      = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::     ACTION_DIM                               >{}); offset += BATCH::ACTION_DIM;
+        batch.next_observations            = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM                               >{}); offset += BATCH::ASYMMETRIC_OBSERVATIONS ? BATCH::OBSERVATION_DIM : 0;
+        batch.next_observations_privileged = view_range(device, batch.observations_actions_next_observations, offset, tensor::ViewSpec<2, BATCH::OBSERVATION_DIM_PRIVILEGED                    >{}); offset += BATCH::OBSERVATION_DIM_PRIVILEGED;
+
+        malloc(device, batch.rewards);
+        malloc(device, batch.terminated);
+        malloc(device, batch.truncated);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
@@ -102,6 +122,7 @@ namespace rl_tools{
         free(device, batch.rewards);
         free(device, batch.terminated);
         free(device, batch.truncated);
+        free(device, batch.reset);
     }
     template<typename DEVICE, typename SPEC>
     void init(DEVICE& device, rl::components::OffPolicyRunner<SPEC> &runner, typename SPEC::ENVIRONMENT envs[SPEC::PARAMETERS::N_ENVIRONMENTS], typename SPEC::ENVIRONMENT::Parameters parameters[SPEC::PARAMETERS::N_ENVIRONMENTS]) {
@@ -194,6 +215,83 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
     void gather_batch(DEVICE& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, RNG& rng) {
+        static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using RUNNER = rl::components::OffPolicyRunner<SPEC>;
+        constexpr typename DEVICE::index_t BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
+        for(typename DEVICE::index_t batch_step_i=0; batch_step_i < BATCH_SIZE; batch_step_i++) {
+            typename DEVICE::index_t env_i = DETERMINISTIC ? 0 : random::uniform_int_distribution(typename DEVICE::SPEC::RANDOM(), (typename DEVICE::index_t) 0, SPEC::PARAMETERS::N_ENVIRONMENTS - 1, rng);
+            auto& replay_buffer = runner.replay_buffers[env_i];
+            gather_batch<DEVICE, typename RUNNER::REPLAY_BUFFER_SPEC, BATCH_SPEC, RNG, DETERMINISTIC>(device, replay_buffer, batch, batch_step_i, rng);
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC = false>
+    void gather_batch(DEVICE& device, const rl::components::ReplayBuffer<SPEC>& replay_buffer, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, typename DEVICE::index_t batch_step_i, RNG& rng) {
+        // note: make sure that the replay_buffer has at least one transition in it;
+        using TI = typename DEVICE::index_t;
+        using T = typename SPEC::T;
+        constexpr TI SEQUENCE_LENGTH = BATCH_SPEC::SEQUENCE_LENGTH;
+        TI sample_index_max = (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position) - 1;
+        TI sample_index;
+
+        bool previous_step_truncated = true;
+        for(typename DEVICE::index_t seq_step_i=0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++) {
+            if(previous_step_truncated){
+                sample_index = DETERMINISTIC ? batch_step_i : random::uniform_int_distribution(device.random, (TI) 0, sample_index_max, rng);
+            }
+
+            auto observation_target_sequence = view<0>(device, batch.observations, seq_step_i);
+            auto observation_target = view<0>(device, observation_target_sequence, batch_step_i);
+            auto observation_source = row(device, replay_buffer.observations, sample_index);
+            auto observation_source_tensor = to_tensor(device, observation_source);
+            auto observation_source_tensor_squeezed = squeeze(observation_source_tensor);
+            copy(device, device, observation_source_tensor_squeezed, observation_target);
+
+            if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
+                auto observation_privileged_target_sequence = view<0>(device, batch.observations_privileged, seq_step_i);
+                auto observation_privileged_target = view<0>(device, observation_privileged_target_sequence, batch_step_i);
+                auto observation_privileged_source = row(device, replay_buffer.observations_privileged, sample_index);
+                auto observation_privileged_source_tensor = to_tensor(device, observation_privileged_source);
+                auto observation_privileged_source_squeezed = squeeze(observation_privileged_source_tensor);
+                copy(device, device, observation_privileged_source_squeezed, observation_privileged_target);
+            }
+
+            auto action_target_sequence = view<0>(device, batch.actions, seq_step_i);
+            auto action_target = view<0>(device, action_target_sequence, batch_step_i);
+            auto action_source = row(device, replay_buffer.actions, sample_index);
+            auto action_source_tensor = to_tensor(device, action_source);
+            auto action_source_tensor_squeezed = squeeze(action_source_tensor);
+            copy(device, device, action_source_tensor_squeezed, action_target);
+
+            auto next_observation_target_sequence = view<0>(device, batch.next_observations, seq_step_i);
+            auto next_observation_target = view<0>(device, next_observation_target_sequence, batch_step_i);
+            auto next_observation_source = row(device, replay_buffer.next_observations, sample_index);
+            auto next_observation_source_tensor = to_tensor(device, next_observation_source);
+            auto next_observation_source_tensor_squeezed = squeeze(next_observation_source_tensor);
+            copy(device, device, next_observation_source_tensor_squeezed, next_observation_target);
+
+            if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
+                auto next_observation_privileged_target_sequence = view<0>(device, batch.next_observations_privileged, batch_step_i);
+                auto next_observation_privileged_target = view<0>(device, next_observation_privileged_target_sequence, seq_step_i);
+                auto next_observation_privileged_source = row(device, replay_buffer.next_observations_privileged, sample_index);
+                auto next_observation_privileged_source_tensor = to_tensor(device, next_observation_privileged_source);
+                auto next_observation_privileged_source_tensor_squeezed = squeeze(next_observation_privileged_source_tensor);
+                copy(device, device, next_observation_privileged_source_tensor_squeezed, next_observation_privileged_target);
+            }
+
+            set(device, batch.rewards, get(replay_buffer.rewards, sample_index, 0), seq_step_i, batch_step_i);
+            set(device, batch.terminated, get(replay_buffer.terminated, sample_index, 0), seq_step_i, batch_step_i);
+            set(device, batch.reset, previous_step_truncated, seq_step_i, batch_step_i);
+            bool truncated = get(replay_buffer.truncated, sample_index, 0);
+            set(device, batch.truncated, truncated, seq_step_i, batch_step_i);
+            sample_index = sample_index + 1;
+            sample_index = sample_index % (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position);
+            previous_step_truncated = truncated || sample_index == 0;
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename RNG, bool DETERMINISTIC=false>
+    void gather_batch(DEVICE& device, const rl::components::OffPolicyRunner<SPEC>& runner, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, RNG& rng) {
         static_assert(utils::typing::is_same_v<SPEC, typename BATCH_SPEC::SPEC>);
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;

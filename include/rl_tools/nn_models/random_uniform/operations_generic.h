@@ -3,6 +3,7 @@
 #pragma once
 #define RL_TOOLS_NN_MODELS_RANDOM_UNIFORM_OPERATIONS_GENERIC_H
 #include "model.h"
+#include "../../nn/mode.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>

@@ -83,7 +83,7 @@ TEST(RL_TOOLS_CONTAINER_PERSIST_CODE_STORE, TEST_MLP){
     using DTYPE = float;
     DEVICE device;
     auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM());
-    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>, rlt::MatrixDynamicTag, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
+    using SPEC = rlt::nn_models::mlp::Specification<DTYPE, typename DEVICE::index_t, 13, 4, 3, 64, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::activation_functions::ActivationFunction::IDENTITY, rlt::nn::layers::dense::DefaultInitializer<DTYPE, TI>, rlt::MatrixDynamicTag, rlt::nn::layers::dense::DefaultInputShapeFactory, true, rlt::matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>;
     constexpr TI BATCH_SIZE = 1;
     using CAPABILITY_ADAM = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, BATCH_SIZE>;
     rlt::nn_models::mlp::NeuralNetwork<CAPABILITY_ADAM, SPEC> mlp;

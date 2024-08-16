@@ -70,8 +70,9 @@ namespace rl_tools{
         const TI K = get<1>(typename SPEC_1::SHAPE{});
 
         // This operation can also handle transposed/column major matrices
-        CBLAS_TRANSPOSE transA = (get<0>(typename SPEC_1::STRIDE{}) < get<1>(typename SPEC_1::STRIDE{})) ? CblasTrans : CblasNoTrans;
-        CBLAS_TRANSPOSE transB = (get<0>(typename SPEC_2::STRIDE{}) < get<1>(typename SPEC_2::STRIDE{})) ? CblasTrans : CblasNoTrans;
+
+        CBLAS_TRANSPOSE transA = tensor::generalized_row_major<typename SPEC_1::SHAPE, typename SPEC_1::STRIDE>() ? CblasNoTrans : CblasTrans;
+        CBLAS_TRANSPOSE transB = tensor::generalized_row_major<typename SPEC_2::SHAPE, typename SPEC_2::STRIDE>() ? CblasNoTrans : CblasTrans;
 
         const TI lda = (transA == CblasNoTrans) ? get<0>(typename SPEC_1::STRIDE{}) : get<1>(typename SPEC_1::STRIDE{});
         const TI ldb = (transB == CblasNoTrans) ? get<0>(typename SPEC_2::STRIDE{}) : get<1>(typename SPEC_2::STRIDE{});
@@ -80,6 +81,16 @@ namespace rl_tools{
         const T alpha = 1.0;
         const T beta = 1.0;  // We're accumulating, hence beta is 1.0
 //
+//        std::cout << "Shape: " << std::endl;
+//        print(device, typename SPEC_1::SHAPE{});
+//        std::cout << std::endl;
+//        print(device, typename SPEC_2::SHAPE{});
+//        std::cout << std::endl;
+//        std::cout << "Stride: " << std::endl;
+//        print(device, typename SPEC_1::STRIDE{});
+//        std::cout << std::endl;
+//        print(device, typename SPEC_2::STRIDE{});
+//        std::cout << std::endl;
         static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>, "CPU BLAS Tensor: matrix_multiply: Only float and double are supported for now");
         if constexpr(utils::typing::is_same_v<T, float>){
             cblas_sgemm(CblasRowMajor, transA, transB, M, N, K, alpha, t1._data, lda, t2._data, ldb, beta, result._data, ldc);
@@ -87,7 +98,6 @@ namespace rl_tools{
         else{
             cblas_dgemm(CblasRowMajor, transA, transB, M, N, K, alpha, t1._data, lda, t2._data, ldb, beta, result._data, ldc);
         }
-
     }
 //        for(TI row_i=0; row_i < get<0>(typename SPEC_1::SHAPE{}); ++row_i){
 //            for(TI col_j=0; col_j < get<1>(typename SPEC_2::SHAPE{}); ++col_j){

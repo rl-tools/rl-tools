@@ -65,6 +65,18 @@ namespace rl_tools{
             return get<TARGET_INDEX_INPUT-1>(NEXT_ELEMENT{});
         }
     }
+    template <typename TI, TI VALUE, typename NEXT_ELEMENT>
+    TI constexpr get_last(tensor::Element<TI, VALUE, NEXT_ELEMENT>){
+        constexpr TI TARGET_INDEX = length(NEXT_ELEMENT{}) - 1;
+        //        constexpr bool LAST_ELEMENT = utils::typing::is_same_v<NEXT_ELEMENT, tensor::FinalElement>;
+        static_assert(TARGET_INDEX <= length(NEXT_ELEMENT{}), "Index out of bounds");
+        if constexpr(TARGET_INDEX == 0){
+            return VALUE;
+        }
+        else{
+            return get<TARGET_INDEX-1>(NEXT_ELEMENT{});
+        }
+    }
     namespace tensor {
         template<typename ELEMENT, auto NEW_ELEMENT> // since the last Element is a dummy element containing 0, we need to insert the new element once the NEXT_ELEMENT is the FinalElement
         struct Append: Element<
@@ -273,6 +285,11 @@ namespace rl_tools{
     struct TensorStaticTag{
         template<typename SPEC>
         using type = Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::SHAPE, typename SPEC::STRIDE, true>>;
+    };
+    template <typename MATRIX_TAG>
+    struct MatrixToTensorTypeTag{
+        static_assert(utils::typing::is_same_v<MATRIX_TAG, MatrixDynamicTag> || utils::typing::is_same_v<MATRIX_TAG, MatrixStaticTag>);
+        using TAG = utils::typing::conditional_t<utils::typing::is_same_v<MATRIX_TAG, MatrixDynamicTag>, TensorDynamicTag, TensorStaticTag>;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -1,6 +1,7 @@
 #include <rl_tools/operations/cpu.h>
 
 
+#include <rl_tools/nn_models/random_uniform/operations_generic.h>
 #include <rl_tools/nn_models/operations_generic.h>
 #include <rl_tools/rl/environments/environments.h>
 #include <rl_tools/rl/components/off_policy_runner/off_policy_runner.h>
@@ -46,6 +47,62 @@ TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, TEST_0) {
     for(int step_i = 0; step_i < 10000; step_i++){
         rlt::step(device, off_policy_runner, policy, policy_buffers, rng);
     }
+    rlt::free(device, off_policy_runner);
+}
+
+TEST(RL_TOOLS_RL_ALGORITHMS_OFF_POLICY_RUNNER_TEST, SEQUENTIAL_BATCH) {
+    DEVICE device;
+    using T = float;
+    using TI = typename DEVICE::index_t;
+    constexpr TI BATCH_SIZE = 1;
+
+    using POLICY_SPEC = rlt::nn_models::random_uniform::Specification<T, TI, ENVIRONMENT::Observation::DIM, ENVIRONMENT::ACTION_DIM, rlt::nn_models::random_uniform::Range::MINUS_ONE_TO_ONE>;
+    rlt::nn_models::RandomUniform<POLICY_SPEC> policy;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 0);
+    OffPolicyRunner off_policy_runner;
+    rlt::malloc(device, off_policy_runner);
+    ENVIRONMENT envs[OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS];
+    ENVIRONMENT::Parameters env_parameters[OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS];
+    ENVIRONMENT::State state, next_state;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::Observation::DIM>> observation;
+    rlt::MatrixDynamic<rlt::matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> action;
+    rlt::malloc(device, observation);
+    rlt::malloc(device, action);
+    rlt::set_all(device, observation, 0);
+    rlt::set_all(device, action, 0);
+    rlt::init(device, off_policy_runner, envs, env_parameters);
+    decltype(policy)::Buffer<OffPolicyRunnerSpec::PARAMETERS::N_ENVIRONMENTS> policy_buffers;
+    for(int step_i = 0; step_i < 10000; step_i++){
+//        rlt::step(device, off_policy_runner, policy, policy_buffers, rng);
+        T reward = step_i;
+        bool terminated = false;
+        bool truncated = step_i % 7 == 0;
+        rlt::set_all(device, observation, step_i);
+        rlt::set_all(device, action, step_i);
+        rlt::add(device, off_policy_runner.replay_buffers[0], state, observation, observation, action, reward, next_state, observation, observation, terminated, truncated);
+    }
+    constexpr TI SEQUENCE_LENGTH = 10;
+    OffPolicyRunner::SequentialBatch<SEQUENCE_LENGTH, BATCH_SIZE> batch;
+    rlt::malloc(device, batch);
+
+    rlt::gather_batch(device, off_policy_runner, batch, rng);
+
+    for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+        TI previous_number;
+        for(TI seq_step_i = 0; seq_step_i < SEQUENCE_LENGTH; seq_step_i++){
+            T reward = rlt::get(device, batch.rewards, seq_step_i, batch_i);
+            bool reset = rlt::get(device, batch.reset, seq_step_i, batch_i);
+            if(seq_step_i > 0 && !reset){
+                ASSERT_EQ(previous_number+1, (TI)reward);
+            }
+            T action = rlt::get(device, batch.actions, seq_step_i, batch_i, 0);
+            T observation = rlt::get(device, batch.observations, seq_step_i, batch_i, 0);
+            T observation_priv = rlt::get(device, batch.observations_privileged, seq_step_i, batch_i, 0);
+            std::cout << "roa: " << reward << " | " << observation << " | " << observation_priv << " | " << action << " reset: " << reset << std::endl;
+            previous_number = reward;
+        }
+    }
+
     rlt::free(device, off_policy_runner);
 }
 

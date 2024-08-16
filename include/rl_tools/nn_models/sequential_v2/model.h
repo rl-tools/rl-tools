@@ -47,7 +47,7 @@ namespace rl_tools::nn_models::sequential_v2{
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, OutputModule>){
             return typename SPEC::CONTENT::OUTPUT_SHAPE{};
         } else {
-            return find_output_dim<typename SPEC::NEXT_MODULE>();
+            return find_output_shape<typename SPEC::NEXT_MODULE>();
         }
     }
     template <typename TI, typename SPEC>
@@ -176,6 +176,8 @@ namespace rl_tools::nn_models::sequential_v2{
 
 //        static constexpr auto INPUT_DIM = SPEC::INPUT_DIM;
 //        static constexpr auto OUTPUT_DIM = SPEC::OUTPUT_DIM;
+        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE;
+        using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
         // We have one module Buffer for the whole module and possible ContentBuffers for the intermediate steps (that are unwrapped recursively in tandem with the module/content)
         template <typename SPEC::TI BATCH_SIZE, typename CONTAINER_TYPE_TAG=typename SPEC::CONTAINER_TYPE_TAG, typename MEMORY_LAYOUT = matrix::layouts::DEFAULT<typename SPEC::TI>>

@@ -103,6 +103,47 @@ namespace rl_tools::rl::components::off_policy_runner {
         typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<bool, TI, 1, BATCH_SIZE>> truncated;
     };
 
+    template<typename T_SPEC, typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, typename T_MATRIX_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
+    struct SequentialBatchSpecification {
+        using SPEC = T_SPEC;
+        using MATRIX_CONTAINER_TYPE_TAG = T_MATRIX_CONTAINER_TYPE_TAG;
+        using TENSOR_CONTAINER_TYPE_TAG = typename MatrixToTensorTypeTag<MATRIX_CONTAINER_TYPE_TAG>::TAG;
+        static constexpr typename SPEC::TI SEQUENCE_LENGTH = T_SEQUENCE_LENGTH;
+        static constexpr typename SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
+    };
+
+    template <typename T_SPEC>
+    struct SequentialBatch{
+        using SPEC = typename T_SPEC::SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+
+        static constexpr TI SEQUENCE_LENGTH = T_SPEC::SEQUENCE_LENGTH;
+        static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
+        static constexpr TI OBSERVATION_DIM = SPEC::ENVIRONMENT::Observation::DIM;
+        static constexpr bool ASYMMETRIC_OBSERVATIONS = SPEC::PARAMETERS::ASYMMETRIC_OBSERVATIONS;
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = SPEC::OBSERVATION_DIM_PRIVILEGED;
+        static constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+
+        static constexpr TI DATA_DIM = OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL + ACTION_DIM + OBSERVATION_DIM + SPEC::OBSERVATION_DIM_PRIVILEGED_ACTUAL;
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, DATA_DIM>>> observations_actions_next_observations;
+
+        template<typename SPEC::TI DIM>
+        using OANO_VIEW = typename decltype(observations_actions_next_observations)::template VIEW_RANGE<tensor::ViewSpec<2, DIM>>;
+
+        OANO_VIEW<OBSERVATION_DIM> observations;
+        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> observations_privileged;
+        OANO_VIEW<ACTION_DIM> actions;
+        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED + ACTION_DIM> observations_and_actions;
+        OANO_VIEW<OBSERVATION_DIM> next_observations;
+        OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
+
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> rewards;
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> terminated;
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> truncated;
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> reset;
+    };
+
     template<typename SPEC>
     struct EpisodeStats{
         using T = typename SPEC::T;
@@ -136,6 +177,8 @@ namespace rl_tools::rl::components{
         off_policy_runner::ParametersRuntime<SPEC> parameters;
         template<typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
         using Batch = off_policy_runner::Batch<typename off_policy_runner::BatchSpecification<SPEC, T_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
+        template<typename T_SPEC::TI T_SEQUENCE_LENGTH, typename T_SPEC::TI T_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
+        using SequentialBatch = off_policy_runner::SequentialBatch<typename off_policy_runner::SequentialBatchSpecification<SPEC, T_SEQUENCE_LENGTH, T_BATCH_SIZE, T_CONTAINER_TYPE_TAG>>;
 
         off_policy_runner::Buffers<SPEC> buffers;
 

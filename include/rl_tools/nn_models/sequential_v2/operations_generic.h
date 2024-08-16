@@ -229,7 +229,10 @@ namespace rl_tools{
     template <typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& module, INPUT& input, OUTPUT& output, nn_models::sequential_v2::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         forward(device, module, input, buffers, rng, mode);
-        copy(device, device, rl_tools::output(module), output);
+        auto output_tensor = to_tensor(device, rl_tools::output(module));
+        using MODULE = nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>;
+        auto output_tensor_reshaped = reshape_row_major(device, output_tensor, typename MODULE::OUTPUT_SHAPE{});
+        copy(device, device, output_tensor_reshaped, output);
     }
     template <typename DEVICE, typename MODULE_SPEC>
     void zero_gradient(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& module){

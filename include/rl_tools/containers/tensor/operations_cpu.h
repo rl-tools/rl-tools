@@ -61,7 +61,7 @@ namespace rl_tools{
         }
         else{
             std::cout << VALUE << ", ";
-            print(device, NEXT_ELEMENT{}, python_literal, level+1);
+            print(device, NEXT_ELEMENT{}, level+1, python_literal);
         }
     }
     template<typename DEV_SPEC, typename SPEC>
