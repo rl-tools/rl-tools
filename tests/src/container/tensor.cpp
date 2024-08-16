@@ -111,6 +111,8 @@ TEST(RL_TOOLS_TENSOR_TEST, SHAPE_OPERATIONS){
     using TEST_SPEC = rlt::tensor::Specification<T, TI, TEST_SHAPE>;
     static_assert(TEST_SPEC::SIZE == 2*3*4);
 
+    using GET_LAST_TEST_SHAPE = rlt::tensor::Shape<TI, 2, 3, 4>;
+    static_assert(rlt::get_last(GET_LAST_TEST_SHAPE{}) == 4);
     test_shape_operations<rlt::tensor::Shape<TI, 2, 3, 4>>(3);
     test_shape_operations<rlt::tensor::Shape<TI, 2, 3>>(2);
     test_shape_operations<rlt::tensor::Shape<TI, 2>>(1);

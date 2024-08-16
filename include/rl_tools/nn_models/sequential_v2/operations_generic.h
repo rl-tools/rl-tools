@@ -205,7 +205,7 @@ namespace rl_tools{
         else{
             DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
 //            auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            auto output_buffer_view = view_memory<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(output_buffer);
+            auto output_buffer_view = view_memory<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(device, output_buffer);
             evaluate(device, model.content, input, output_buffer_view, content_buffer.buffer, rng, mode);
             _evaluate<!TICK>(device, model.next_module, output_buffer_view, output, buffers, content_buffer.next_content_buffer, rng, mode);
         }
@@ -269,7 +269,7 @@ namespace rl_tools{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
 //            auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             auto current_d_output_buffer_view = view_memory<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(device, current_d_output_buffer);
-            auto current_output = model.content.output;
+            auto current_output = output(model.content);
             auto current_output_tensor = to_tensor(device, current_output);
             _backward_full<!TICK>(device, model.next_module, current_output_tensor, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer, mode);
             backward_full(device, model.content, input, current_d_output_buffer_view, d_input, content_buffer.buffer, mode);

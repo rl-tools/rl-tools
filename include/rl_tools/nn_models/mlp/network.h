@@ -61,6 +61,9 @@ namespace rl_tools::nn_models::mlp {
         using SPEC = T_SPEC;
         using TI = typename SPEC::TI;
         static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+        using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, BATCH_SIZE, SPEC::INPUT_DIM>;
+        using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, SPEC::OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+        static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
         using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
         static constexpr TI DIM = SPEC::HIDDEN_DIM;
         using LAYER_PROTOTYPE = T_LAYER_PROTOTYPE;
@@ -72,12 +75,12 @@ namespace rl_tools::nn_models::mlp {
         using SPEC = typename BUFFER_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
-        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, BATCH_SIZE, BUFFER_SPEC::DIM, typename SPEC::MEMORY_LAYOUT>;
+        static constexpr TI ACTUAL_BATCH_SIZE = T_BUFFER_SPEC::ACTUAL_BATCH_SIZE;
+        using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, ACTUAL_BATCH_SIZE, BUFFER_SPEC::DIM, typename SPEC::MEMORY_LAYOUT>;
         using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;
         TICK_TOCK_CONTAINER_TYPE tick;
         TICK_TOCK_CONTAINER_TYPE tock;
-        using LayerBuffer = typename BUFFER_SPEC::LAYER_PROTOTYPE::template Buffer<BATCH_SIZE, typename SPEC::CONTAINER_TYPE_TAG>;
+        using LayerBuffer = typename BUFFER_SPEC::LAYER_PROTOTYPE::template Buffer<ACTUAL_BATCH_SIZE, typename SPEC::CONTAINER_TYPE_TAG>;
         LayerBuffer layer_buffer;
     };
 
@@ -98,6 +101,7 @@ namespace rl_tools::nn_models::mlp {
         static constexpr TI  INPUT_DIM = SPEC::INPUT_LAYER_SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_LAYER_SPEC::OUTPUT_DIM;
         static constexpr TI NUM_WEIGHTS = SPEC::INPUT_LAYER_SPEC::NUM_WEIGHTS + SPEC::HIDDEN_LAYER_SPEC::NUM_WEIGHTS * NUM_HIDDEN_LAYERS + SPEC::OUTPUT_LAYER_SPEC::NUM_WEIGHTS;
+
         using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, SPEC::BATCH_SIZE, INPUT_DIM>;
         using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
 

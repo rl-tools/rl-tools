@@ -33,14 +33,17 @@ namespace rl_tools{
         template <typename T_TI, T_TI T_BATCH_SIZE, typename T_SPEC>
         struct BufferSpecification {
             using TI = T_TI;
-            static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
             using SPEC = T_SPEC;
+            static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
+            using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, T_BATCH_SIZE, SPEC::INPUT_DIM>;
+            using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, SPEC::OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
+            static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
         };
 
         template <typename BUFFER_SPEC>
         struct Buffer{
             using SPEC = typename BUFFER_SPEC::SPEC;
-            using NOISE_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, BUFFER_SPEC::BATCH_SIZE, SPEC::DIM>;
+            using NOISE_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, BUFFER_SPEC::ACTUAL_BATCH_SIZE, SPEC::DIM>;
             using NOISE_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<NOISE_CONTAINER_SPEC>;
             NOISE_CONTAINER_TYPE noise;
         };
@@ -49,6 +52,8 @@ namespace rl_tools{
             using T = T_T;
             using TI = T_TI;
             static constexpr auto DIM = T_DIM;
+            static constexpr TI INPUT_DIM = 2*DIM; // mean and std
+            static constexpr TI OUTPUT_DIM = DIM;
             using CONTAINER_TYPE_TAG = T_CONTAINER_TYPE_TAG;
             using INPUT_SHAPE_FACTORY = T_INPUT_SHAPE_FACTORY;
             using PARAMETERS = T_PARAMETERS;
@@ -59,8 +64,8 @@ namespace rl_tools{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             static constexpr TI DIM = SPEC::DIM;
-            static constexpr TI INPUT_DIM = 2*DIM; // mean and std
-            static constexpr TI OUTPUT_DIM = DIM;
+            static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
+            static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
             using INPUT_SHAPE = typename SPEC::INPUT_SHAPE_FACTORY::template SHAPE<TI, SPEC::BATCH_SIZE, INPUT_DIM>;
             using OUTPUT_SHAPE = tensor::Replace<INPUT_SHAPE, OUTPUT_DIM, length(INPUT_SHAPE{})-1>;
             static constexpr TI ACTUAL_BATCH_SIZE = get<0>(tensor::CumulativeProduct<tensor::PopBack<OUTPUT_SHAPE>>{}); // Since the Dense layer is based on Matrices (2D Tensors) the dense layer operation is broadcasted over the leading dimensions. Hence, the actual batch size is the product of all leading dimensions, excluding the last one (containing the features). Since rl_tools::matrix_view is used for zero-cost conversion the ACTUAL_BATCH_SIZE accounts for all leading dimensions.
@@ -81,7 +86,7 @@ namespace rl_tools{
             using LOG_PROBABILITIES_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, BATCH_SIZE>;
             using LOG_PROBABILITIES_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<LOG_PROBABILITIES_CONTAINER_SPEC>;
             LOG_PROBABILITIES_CONTAINER_TYPE log_probabilities;
-            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, SPEC::BATCH_SIZE, SPEC::DIM>;
+            using OUTPUT_CONTAINER_SPEC = matrix::Specification<typename SPEC::T, typename SPEC::TI, BATCH_SIZE, SPEC::DIM>;
             using OUTPUT_CONTAINER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<OUTPUT_CONTAINER_SPEC>;
             OUTPUT_CONTAINER_TYPE output;
             using ALPHA_CONTAINER = typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<typename SPEC::T, typename SPEC::TI, 1, 1>>;

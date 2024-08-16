@@ -61,9 +61,11 @@ namespace rl_tools{
     void evaluate(DEVICE& device, ENVIRONMENT&, UI& ui, const POLICY& policy, rl::utils::evaluation::Result<SPEC>& results, DATA<SPEC>& data, POLICY_EVALUATION_BUFFERS& policy_evaluation_buffers, RNG &rng, bool deterministic = false){
         using T = typename POLICY::T;
         using TI = typename DEVICE::index_t;
-        static_assert(ENVIRONMENT::Observation::DIM == POLICY::INPUT_DIM, "Observation and policy input dimensions must match");
-        static_assert(ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == POLICY::OUTPUT_DIM), "Action and policy output dimensions must match");
-        static constexpr bool STOCHASTIC_POLICY = POLICY::OUTPUT_DIM == 2*ENVIRONMENT::ACTION_DIM;
+        constexpr TI INPUT_DIM = get_last(typename POLICY::INPUT_SHAPE{});
+        constexpr TI OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});
+        static_assert(ENVIRONMENT::Observation::DIM == INPUT_DIM, "Observation and policy input dimensions must match");
+        static_assert(ENVIRONMENT::ACTION_DIM == OUTPUT_DIM || (2*ENVIRONMENT::ACTION_DIM == OUTPUT_DIM), "Action and policy output dimensions must match");
+        static constexpr bool STOCHASTIC_POLICY = OUTPUT_DIM == 2*ENVIRONMENT::ACTION_DIM;
         results.returns_mean = 0;
         results.returns_std = 0;
         results.episode_length_mean = 0;

@@ -64,7 +64,6 @@ namespace rl_tools{
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
         malloc(device, batch.truncated);
-        malloc(device, batch.reset);
     }
     template <typename DEVICE, typename BATCH_SPEC>
     void malloc(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch) {
@@ -84,6 +83,7 @@ namespace rl_tools{
         malloc(device, batch.rewards);
         malloc(device, batch.terminated);
         malloc(device, batch.truncated);
+        malloc(device, batch.reset);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Buffers<SPEC>& buffers) {
@@ -112,6 +112,19 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::components::off_policy_runner::Batch<SPEC>& batch){
+        free(device, batch.observations_actions_next_observations);
+        batch.observations.                _data = nullptr;
+        batch.observations_privileged.     _data = nullptr;
+        batch.observations_and_actions.    _data = nullptr;
+        batch.actions.                     _data = nullptr;
+        batch.next_observations.           _data = nullptr;
+        batch.next_observations_privileged._data = nullptr;
+        free(device, batch.rewards);
+        free(device, batch.terminated);
+        free(device, batch.truncated);
+    }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<SPEC>& batch){
         free(device, batch.observations_actions_next_observations);
         batch.observations.                _data = nullptr;
         batch.observations_privileged.     _data = nullptr;
