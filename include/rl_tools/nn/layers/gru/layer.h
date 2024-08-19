@@ -2,6 +2,7 @@
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_GRU_LAYER_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_NN_LAYERS_GRU_LAYER_H
+#include "../../../nn/mode.h"
 #include "../../../nn/activation_functions.h"
 #include "../../../nn/parameters/parameters.h"
 #include "../../../nn/capability/capability.h"
@@ -29,19 +30,29 @@ namespace rl_tools::nn::layers::gru{
     };
 
     namespace buffers{
+        template <typename T_SPEC, typename T_SPEC::TI T_BATCH_SIZE>
+        struct Specification{
+            using SPEC = T_SPEC;
+            static constexpr typename T_SPEC::TI BATCH_SIZE = T_BATCH_SIZE;
+        };
         template <typename T_SPEC>
         struct Evaluation{
-            using SPEC = T_SPEC;
+            using SPEC = typename T_SPEC::SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            using POST_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
+            static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
+            using POST_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
             using POST_ACTIVATION_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<POST_ACTIVATION_SPEC>;
             POST_ACTIVATION_TYPE post_activation;
-            using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, SPEC::HIDDEN_DIM>>;
+            using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::HIDDEN_DIM>>;
             using N_PRE_PRE_ACTIVATION_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<N_PRE_PRE_ACTIVATION_SPEC>;
             N_PRE_PRE_ACTIVATION_TYPE n_pre_pre_activation;
         };
     }
+
+    struct StepByStepMode: nn::mode::Default{
+        bool reset = false;
+    };
 
     template<typename T_SPEC>
     struct LayerForward{
@@ -92,16 +103,17 @@ namespace rl_tools::nn::layers::gru{
         typename SPEC::PARAMETER_TYPE::template instance<INITIAL_HIDDEN_STATE_PARAMETER_SPEC> initial_hidden_state;
 
         template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
-        using Buffer = buffers::Evaluation<SPEC>;
+        using Buffer = buffers::Evaluation<buffers::Specification<SPEC, BUFFER_BATCH_SIZE>>;
     };
 
     namespace buffers{
         template <typename T_SPEC>
         struct Backward: Evaluation<T_SPEC>{
-            using SPEC = T_SPEC;
+            using SPEC = typename T_SPEC::SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            using BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, SPEC::BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
+            static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
+            using BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
             using BUFFER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<BUFFER_SPEC>;
             BUFFER_TYPE buffer;
             typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>> buffer_rz;
@@ -128,7 +140,7 @@ namespace rl_tools::nn::layers::gru{
     struct LayerGradient: LayerBackward<T_SPEC>{
         using TI = typename T_SPEC::TI;
         template<TI BUFFER_BATCH_SIZE, typename T_CONTAINER_TYPE_TAG = typename T_SPEC::CONTAINER_TYPE_TAG>
-        using Buffer = buffers::Backward<T_SPEC>;
+        using Buffer = buffers::Backward<buffers::Specification<T_SPEC, BUFFER_BATCH_SIZE>>;
     };
 
     template <typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC>
