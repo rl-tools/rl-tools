@@ -46,6 +46,13 @@ namespace rl_tools{
     void malloc(DEVICE& device, nn::layers::gru::buffers::Evaluation<SPEC>& buffers){
         malloc(device, buffers.post_activation);
         malloc(device, buffers.n_pre_pre_activation);
+        malloc(device, buffers.step_by_step_output);
+    }
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, nn::layers::gru::buffers::Evaluation<SPEC>& buffers){
+        free(device, buffers.post_activation);
+        free(device, buffers.n_pre_pre_activation);
+        free(device, buffers.step_by_step_output);
     }
     template <typename DEVICE, typename BUFFER_SPEC>
     void init(DEVICE& device, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers){
@@ -232,7 +239,14 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output, rng, mode);
+        constexpr bool STEP_BY_STEP = nn::layers::gru::mode::step_by_step_mode(decltype(mode){});
+        if constexpr(STEP_BY_STEP){
+            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, buffers.step_by_step_output, rng, mode);
+            copy(device, device, buffers.step_by_step_output, output);
+        }
+        else{
+            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output, rng, mode);
+        }
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
@@ -603,11 +617,6 @@ namespace rl_tools{
         free(device, layer.n_pre_pre_activation);
         free(device, layer.post_activation);
         free(device, layer.output);
-    }
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, nn::layers::gru::buffers::Evaluation<SPEC>& buffers){
-        free(device, buffers.post_activation);
-        free(device, buffers.n_pre_pre_activation);
     }
     template <typename SPEC>
     auto output(nn::layers::gru::LayerBackward<SPEC>& layer){

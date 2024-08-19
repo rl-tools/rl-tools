@@ -296,7 +296,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename BUFFER_MODEL_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& model, const Tensor<INPUT_SPEC>& input,nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
         auto matrix_view_input = matrix_view(device, input);
-        forward(device, model, matrix_view_input, output(model), buffer, rng);
+        forward(device, model, matrix_view_input, buffer, rng);
     }
     template<typename DEVICE, typename SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SPEC>& model, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output,nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {

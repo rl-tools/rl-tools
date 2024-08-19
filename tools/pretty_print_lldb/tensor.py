@@ -37,7 +37,7 @@ def render(target, float_type, ptr, shape, stride, title="", use_title=False, ou
                     output += "..., "
                     continue
                 pos = row_i * stride[0] + col_i * stride[1]
-                offset = ptr.GetValueAsUnsigned() + pos * float_type.GetByteSize()
+                offset = ptr.GetValueAsUnsigned() + base_offset + pos * float_type.GetByteSize()
                 val_wrapper = target.CreateValueFromAddress("temp", lldb.SBAddress(offset, target), float_type)
                 val = val_wrapper.GetValue()
                 output += str(val) + ", "

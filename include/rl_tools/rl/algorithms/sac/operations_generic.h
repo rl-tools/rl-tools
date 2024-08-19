@@ -132,9 +132,9 @@ namespace rl_tools{
                                                   get(next_state_action_value_critic_2_matrix_view, batch_step_i, 0)
         );
         auto rewards_matrix_view = matrix_view(device, batch.rewards);
-        T reward = get(rewards_matrix_view, 0, batch_step_i);
+        T reward = get(rewards_matrix_view, batch_step_i, 0);
         auto terminated_matrix_view = matrix_view(device, batch.terminated);
-        bool terminated = get(terminated_matrix_view, 0, batch_step_i);
+        bool terminated = get(terminated_matrix_view, batch_step_i, 0);
         T entropy_bonus = -alpha * get(next_action_log_probs, batch_step_i, 0);
         T min_next_state_action_value_entropy_bonus = min_next_state_action_value + entropy_bonus;
         T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value_entropy_bonus : 0;
@@ -149,9 +149,10 @@ namespace rl_tools{
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
         using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
         constexpr TI BATCH_SIZE = BATCH::BATCH_SIZE;
+        constexpr TI SEQUENCE_LENGTH = BATCH::SEQUENCE_LENGTH;
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, get(log_alpha.parameters, 0, 0));
-        for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
+        for(TI batch_step_i = 0; batch_step_i < SEQUENCE_LENGTH * BATCH_SIZE; batch_step_i++){
             target_actions_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
         }
     }
@@ -238,7 +239,8 @@ namespace rl_tools{
         using BUFFERS = rl::algorithms::sac::ActorTrainingBuffers<SPEC>;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = BUFFERS::BATCH_SIZE;
-        for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
+        constexpr TI SEQUENCE_LENGTH = SPEC::PARAMETERS::SEQUENCE_LENGTH;
+        for(TI batch_i=0; batch_i < SEQUENCE_LENGTH * BATCH_SIZE; batch_i++){
             min_value_d_output_per_sample(device, actor_critic, training_buffers, batch_i);
         }
     }

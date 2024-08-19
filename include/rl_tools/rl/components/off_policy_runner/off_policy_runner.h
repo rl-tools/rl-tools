@@ -138,10 +138,10 @@ namespace rl_tools::rl::components::off_policy_runner {
         OANO_VIEW<OBSERVATION_DIM> next_observations;
         OANO_VIEW<SPEC::OBSERVATION_DIM_PRIVILEGED> next_observations_privileged;
 
-        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> rewards;
-        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> terminated;
-        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> truncated;
-        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE>>> reset;
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<T, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> rewards;
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> terminated;
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> truncated;
+        typename T_SPEC::TENSOR_CONTAINER_TYPE_TAG::template type<tensor::Specification<bool, TI, tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> reset;
     };
 
     template<typename SPEC>

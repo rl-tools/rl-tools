@@ -105,20 +105,24 @@ namespace rl_tools{
         set_step(device, device.logger, ts.step);
         bool finished = false;
         using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::Sample<nn::mode::Default>>;
+        step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng, SAMPLE_AND_SQUASH_MODE{});
+        // disabling the exploration policy for now because there needs to be a reset of the sequential policy when the policy is switched
+//        if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
+//            step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng, SAMPLE_AND_SQUASH_MODE{});
+//        }
+//        else{
+//            typename CONFIG::EXPLORATION_POLICY exploration_policy;
+//            typename CONFIG::EXPLORATION_POLICY::template Buffer<> exploration_policy_buffer;
+//            step(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng, SAMPLE_AND_SQUASH_MODE{});
+//        }
         if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            step(device, ts.off_policy_runner, get_actor(ts), ts.actor_buffers_eval, ts.rng, SAMPLE_AND_SQUASH_MODE{});
-        }
-        else{
-            typename CONFIG::EXPLORATION_POLICY exploration_policy;
-            typename CONFIG::EXPLORATION_POLICY::template Buffer<> exploration_policy_buffer;
-            step(device, ts.off_policy_runner, exploration_policy, exploration_policy_buffer, ts.rng, SAMPLE_AND_SQUASH_MODE{});
-        }
-        if(ts.step >= CONFIG::CORE_PARAMETERS::N_WARMUP_STEPS){
-            if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH){
+            bool train_critic_flag = ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0;
+            bool train_actor_flag = ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0;
+            if(CONFIG::CORE_PARAMETERS::SHARED_BATCH && (train_critic_flag || train_actor_flag)){
                 gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
                 randn(device, ts.action_noise_critic, ts.rng);
             }
-            if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::CRITIC_TRAINING_INTERVAL == 0){
+            if(train_critic_flag){
                 for(int critic_i = 0; critic_i < 2; critic_i++){
                     if constexpr(!CONFIG::CORE_PARAMETERS::SHARED_BATCH) {
                         gather_batch(device, ts.off_policy_runner, ts.critic_batch, ts.rng);
@@ -127,7 +131,7 @@ namespace rl_tools{
                     train_critic(device, ts.actor_critic, critic_i == 0 ? ts.actor_critic.critic_1 : ts.actor_critic.critic_2, ts.critic_batch, ts.critic_optimizers[critic_i], ts.actor_buffers[critic_i], ts.critic_buffers[critic_i], ts.critic_training_buffers[critic_i], ts.action_noise_critic, ts.rng);
                 }
             }
-            if(ts.step % CONFIG::CORE_PARAMETERS::SAC_PARAMETERS::ACTOR_TRAINING_INTERVAL == 0){
+            if(train_actor_flag){
                 randn(device, ts.action_noise_actor, ts.rng);
                 if constexpr(CONFIG::CORE_PARAMETERS::SHARED_BATCH){
                     train_actor(device, ts.actor_critic, ts.critic_batch, ts.actor_optimizer, ts.actor_buffers[0], ts.critic_buffers[0], ts.actor_training_buffers, ts.action_noise_actor, ts.rng);

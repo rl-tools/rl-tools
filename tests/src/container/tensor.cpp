@@ -1063,3 +1063,46 @@ TEST(RL_TOOLS_TENSOR_TEST, RESHAPE){
     rlt::print(device, tensor);
     rlt::print(device, reshaped);
 }
+
+TEST(RL_TOOLS_TENSOR_TEST, IS_NAN){
+    using DEVICE = rlt::devices::DefaultCPU;
+    using T = double;
+    using TI = DEVICE::index_t;
+    DEVICE device;
+    auto rng = rlt::random::default_engine(DEVICE::SPEC::RANDOM(), 1);
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        bool is_nan = rlt::is_nan(device, tensor);
+        ASSERT_FALSE(is_nan);
+        rlt::set(device, tensor, rlt::math::nan<T>(device.math), 3);
+        bool is_nan_now = rlt::is_nan(device, tensor);
+        ASSERT_TRUE(is_nan_now);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 5>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        bool is_nan = rlt::is_nan(device, tensor);
+        ASSERT_FALSE(is_nan);
+        rlt::set(device, tensor, rlt::math::nan<T>(device.math), 3, 2);
+        rlt::print(device, tensor);
+        bool is_nan_now = rlt::is_nan(device, tensor);
+        ASSERT_TRUE(is_nan_now);
+    }
+    {
+        using SHAPE = rlt::tensor::Shape<TI, 10, 5, 3>;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, SHAPE>> tensor;
+        rlt::malloc(device, tensor);
+        rlt::randn(device, tensor, rng);
+        bool is_nan = rlt::is_nan(device, tensor);
+        ASSERT_FALSE(is_nan);
+        rlt::set(device, tensor, rlt::math::nan<T>(device.math), 3, 2, 2);
+        rlt::print(device, tensor);
+        bool is_nan_now = rlt::is_nan(device, tensor);
+        ASSERT_TRUE(is_nan_now);
+    }
+}

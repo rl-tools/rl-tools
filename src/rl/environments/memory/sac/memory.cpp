@@ -1,3 +1,4 @@
+#define MUX
 #ifdef MUX
 #include <rl_tools/operations/cpu_mux.h>
 #else
@@ -38,9 +39,9 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using T = float;
 using TI = typename DEVICE::index_t;
 
-constexpr TI SEQUENCE_LENGTH = 16;
+constexpr TI SEQUENCE_LENGTH = 20;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 32;
+constexpr TI BATCH_SIZE = 6;
 
 using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, rlt::rl::environments::memory::DefaultParameters<T, TI>>;
 using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
@@ -52,9 +53,9 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     };
     static constexpr TI STEP_LIMIT = 10000;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI ACTOR_HIDDEN_DIM = 12;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
-    static constexpr TI CRITIC_HIDDEN_DIM = 64;
+    static constexpr TI CRITIC_HIDDEN_DIM = 12;
 };
 #ifdef BENCHMARK
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<T, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS>;
@@ -72,6 +73,7 @@ struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI,
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS>;
 using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+//using LOOP_CONFIG = LOOP_CORE_CONFIG;
 #endif
 
 using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;

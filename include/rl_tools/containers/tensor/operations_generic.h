@@ -854,7 +854,7 @@ namespace rl_tools{
             using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
             constexpr TI TOTAL_ROWS = get<0>(PROD{});
             using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
-            const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
+            const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), LAYOUT>> view{data(t)};
             return view;
         }
     }

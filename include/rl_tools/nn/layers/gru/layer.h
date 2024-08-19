@@ -47,6 +47,9 @@ namespace rl_tools::nn::layers::gru{
             using N_PRE_PRE_ACTIVATION_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::HIDDEN_DIM>>;
             using N_PRE_PRE_ACTIVATION_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<N_PRE_PRE_ACTIVATION_SPEC>;
             N_PRE_PRE_ACTIVATION_TYPE n_pre_pre_activation;
+            using STEP_BY_STEP_OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::HIDDEN_DIM>>;
+            using STEP_BY_STEP_OUTPUT_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<STEP_BY_STEP_OUTPUT_SPEC>;
+            STEP_BY_STEP_OUTPUT_TYPE step_by_step_output;
         };
     }
 

@@ -302,11 +302,11 @@ namespace rl_tools{
                 copy(device, device, next_observation_privileged_source_tensor_squeezed, next_observation_privileged_target);
             }
 
-            set(device, batch.rewards, get(replay_buffer.rewards, sample_index, 0), seq_step_i, batch_step_i);
-            set(device, batch.terminated, get(replay_buffer.terminated, sample_index, 0), seq_step_i, batch_step_i);
-            set(device, batch.reset, previous_step_truncated, seq_step_i, batch_step_i);
+            set(device, batch.rewards, get(replay_buffer.rewards, sample_index, 0), seq_step_i, batch_step_i, 0);
+            set(device, batch.terminated, get(replay_buffer.terminated, sample_index, 0), seq_step_i, batch_step_i, 0);
+            set(device, batch.reset, previous_step_truncated, seq_step_i, batch_step_i, 0);
             bool truncated = get(replay_buffer.truncated, sample_index, 0);
-            set(device, batch.truncated, truncated, seq_step_i, batch_step_i);
+            set(device, batch.truncated, truncated, seq_step_i, batch_step_i, 0);
             sample_index = sample_index + 1;
             sample_index = sample_index % (replay_buffer.full ? SPEC::CAPACITY : replay_buffer.position);
             previous_step_truncated = truncated || sample_index == 0;
