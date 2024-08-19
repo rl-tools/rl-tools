@@ -895,8 +895,8 @@ namespace rl_tools{
     auto to_tensor(DEVICE& device, Tensor<SPEC>& t){
         return t;
     }
-    template <typename SPEC>
-    auto squeeze(const Tensor<SPEC>& m){
+    template <typename DEVICE, typename SPEC>
+    auto squeeze(DEVICE& device, const Tensor<SPEC>& m){
         using TI = typename SPEC::TI;
         using T = typename SPEC::T;
         constexpr TI N_DIM = length(typename SPEC::SHAPE{});
@@ -904,6 +904,15 @@ namespace rl_tools{
         static_assert(get<0>(typename SPEC::SHAPE{}) == 1, "Cannot squeeze a tensor with a dimension size greater than 1");
         using NEW_SHAPE = tensor::PopFront<typename SPEC::SHAPE>;
         using NEW_STRIDE = tensor::PopFront<typename SPEC::STRIDE>;
+        using NEW_SPEC = tensor::Specification<T, TI, NEW_SHAPE, NEW_STRIDE>;
+        return Tensor<NEW_SPEC>{data(m)};
+    }
+    template <typename DEVICE, typename SPEC>
+    auto unsqueeze(DEVICE& device, const Tensor<SPEC>& m){
+        using TI = typename SPEC::TI;
+        using T = typename SPEC::T;
+        using NEW_SHAPE = tensor::Insert<typename SPEC::SHAPE, 1, 0>;
+        using NEW_STRIDE = tensor::Insert<typename SPEC::STRIDE, get<0>(typename SPEC::STRIDE{}) * get<0>(typename SPEC::SHAPE{}), 0>;
         using NEW_SPEC = tensor::Specification<T, TI, NEW_SHAPE, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(m)};
     }

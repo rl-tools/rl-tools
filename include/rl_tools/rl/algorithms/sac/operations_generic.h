@@ -118,31 +118,36 @@ namespace rl_tools{
         copy(device, device, actor_critic.critic_2, actor_critic.critic_target_2);
     }
     template <typename DEVICE, typename BATCH_SPEC, typename SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER, typename TI_SAMPLE>
-    RL_TOOLS_FUNCTION_PLACEMENT void target_actions_per_sample(DEVICE& device, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER alpha, TI_SAMPLE batch_step_i){
+    RL_TOOLS_FUNCTION_PLACEMENT void target_actions_per_sample(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER alpha, TI_SAMPLE batch_step_i){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
-        using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
+        using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
         constexpr TI BATCH_SIZE = BATCH::BATCH_SIZE;
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
+        auto next_state_action_value_critic_1_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_1);
+        auto next_state_action_value_critic_2_matrix_view = matrix_view(device, training_buffers.next_state_action_value_critic_2);
         T min_next_state_action_value = math::min(device.math,
-                                                  get(training_buffers.next_state_action_value_critic_1, batch_step_i, 0),
-                                                  get(training_buffers.next_state_action_value_critic_2, batch_step_i, 0)
+                                                  get(next_state_action_value_critic_1_matrix_view, batch_step_i, 0),
+                                                  get(next_state_action_value_critic_2_matrix_view, batch_step_i, 0)
         );
-        T reward = get(batch.rewards, 0, batch_step_i);
-        bool terminated = get(batch.terminated, 0, batch_step_i);
+        auto rewards_matrix_view = matrix_view(device, batch.rewards);
+        T reward = get(rewards_matrix_view, 0, batch_step_i);
+        auto terminated_matrix_view = matrix_view(device, batch.terminated);
+        bool terminated = get(terminated_matrix_view, 0, batch_step_i);
         T entropy_bonus = -alpha * get(next_action_log_probs, batch_step_i, 0);
         T min_next_state_action_value_entropy_bonus = min_next_state_action_value + entropy_bonus;
         T future_value = SPEC::PARAMETERS::IGNORE_TERMINATION || !terminated ? SPEC::PARAMETERS::GAMMA * min_next_state_action_value_entropy_bonus : 0;
         T current_target_action_value = reward + future_value;
-        set(training_buffers.target_action_value, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
+        auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
+        set(target_action_value_matrix_view, batch_step_i, 0, current_target_action_value); // todo: improve pitch of target action values etc. (by transformig it into row vectors instead of column vectors)
     }
     template <typename DEVICE, typename BATCH_SPEC, typename SPEC, typename NEXT_ACTION_LOG_PROBS_SPEC, typename ALPHA_PARAMETER>
-    void target_actions(DEVICE& device, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER& log_alpha) {
+    void target_actions(DEVICE& device, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, const Matrix<NEXT_ACTION_LOG_PROBS_SPEC>& next_action_log_probs, ALPHA_PARAMETER& log_alpha) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         using BUFFERS = rl::algorithms::sac::CriticTrainingBuffers<SPEC>;
-        using BATCH = rl::components::off_policy_runner::Batch<BATCH_SPEC>;
+        using BATCH = rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>;
         constexpr TI BATCH_SIZE = BATCH::BATCH_SIZE;
         static_assert(BATCH_SIZE == BUFFERS::BATCH_SIZE);
         T alpha = math::exp(typename DEVICE::SPEC::MATH{}, get(log_alpha.parameters, 0, 0));
@@ -150,15 +155,16 @@ namespace rl_tools{
             target_actions_per_sample(device, batch, training_buffers, next_action_log_probs, alpha, batch_step_i);
         }
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename ACTION_NOISE_SPEC, typename RNG>
-    void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename ACTION_NOISE_SPEC, typename RNG>
+    void train_critic(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE>>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+        static_assert(SPEC::PARAMETERS::SEQUENCE_LENGTH == SEQUENCE_LENGTH, "Specification SEQUENCE_LENGTH should be equal to the batch sequence length");
         static_assert(BATCH_SIZE == SPEC::PARAMETERS::CRITIC_BATCH_SIZE);
         static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
         static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
-        static_assert(BATCH_SIZE == ACTION_NOISE_SPEC::ROWS);
+        static_assert(SEQUENCE_LENGTH * BATCH_SIZE == ACTION_NOISE_SPEC::ROWS);
         static_assert(ACTION_DIM == ACTION_NOISE_SPEC::COLS);
 
         zero_gradient(device, critic);
@@ -177,12 +183,15 @@ namespace rl_tools{
         auto next_action_log_probs = view_transpose(device, last_layer.log_probabilities);
         target_actions(device, batch, training_buffers, next_action_log_probs, sample_and_squash_layer.log_alpha);
         forward(device, critic, batch.observations_and_actions, critic_buffers, rng);
-        nn::loss_functions::mse::gradient(device, output(critic), training_buffers.target_action_value, training_buffers.d_output, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
+        auto output_matrix_view = matrix_view(device, output(critic));
+        auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
+        auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
+        nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
         step(device, optimizer, critic);
     }
-    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename RNG>
-    typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
+    template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename RNG>
+    typename SPEC::T critic_loss(DEVICE& device, const rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, CRITIC_TYPE& critic, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename CRITIC_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::sac::CriticTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
         // todo: needs to be updated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -205,18 +214,23 @@ namespace rl_tools{
         auto critic_2_output = output(actor_critic.critic_2);
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
+        constexpr TI CRITIC_INPUT_DIM = get_last(typename SPEC::CRITIC_NETWORK_TYPE::INPUT_SHAPE{});
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
+
         bool critic_1_value = get(critic_1_output, batch_i, 0) < get(critic_2_output, batch_i, 0);
+        auto d_critic_1_input_matrix_view = matrix_view(device, training_buffers.d_critic_1_input);
+        auto d_critic_2_input_matrix_view = matrix_view(device, training_buffers.d_critic_2_input);
+        auto d_actor_output_squashing_matrix_view = matrix_view(device, training_buffers.d_actor_output_squashing);
         for(TI action_i=0; action_i < ACTION_DIM; action_i++){
             T d_input = 0;
             if(critic_1_value) {
-                d_input = get(training_buffers.d_critic_1_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
+                d_input = get(d_critic_1_input_matrix_view, batch_i, CRITIC_INPUT_DIM - ACTION_DIM + action_i);
             }
             else{
-                d_input = get(training_buffers.d_critic_2_input, batch_i, SPEC::CRITIC_NETWORK_TYPE::INPUT_DIM - ACTION_DIM + action_i);
+                d_input = get(d_critic_2_input_matrix_view, batch_i, CRITIC_INPUT_DIM - ACTION_DIM + action_i);
             }
-            set(training_buffers.d_actor_output_squashing, batch_i, action_i, (T)d_input);
+            set(d_actor_output_squashing_matrix_view, batch_i, action_i, (T)d_input);
         }
     }
     template <typename DEVICE, typename SPEC>
@@ -229,7 +243,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename BATCH_SPEC, typename OPTIMIZER, typename ACTOR_BUFFERS, typename CRITIC_BUFFERS, typename ACTION_NOISE_SPEC, typename RNG>
-    void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng) {
+    void train_actor(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::SequentialBatch<BATCH_SPEC>& batch, OPTIMIZER& optimizer, ACTOR_BUFFERS& actor_buffers, CRITIC_BUFFERS& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, Matrix<ACTION_NOISE_SPEC>& action_noise, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = BATCH_SPEC::BATCH_SIZE;
@@ -237,7 +251,8 @@ namespace rl_tools{
         static_assert(BATCH_SIZE == CRITIC_BUFFERS::BATCH_SIZE);
         static_assert(BATCH_SIZE == ACTOR_BUFFERS::BATCH_SIZE);
         constexpr auto ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
-        static_assert(SPEC::ACTOR_NETWORK_TYPE::OUTPUT_DIM == ACTION_DIM);
+        constexpr TI ACTOR_OUTPUT_DIM = get_last(typename SPEC::ACTOR_NETWORK_TYPE::OUTPUT_SHAPE{});
+        static_assert(ACTOR_OUTPUT_DIM == ACTION_DIM);
 
         auto sample_and_squashing_buffer = get_last_buffer(actor_buffers);
 
@@ -259,8 +274,8 @@ namespace rl_tools{
         step(device, optimizer, actor_critic.actor);
     }
 
-    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename RNG>
-    typename SPEC::T actor_value(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename SPEC::CRITIC_NETWORK_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
+    template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename RNG>
+    typename SPEC::T actor_value(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::components::off_policy_runner::SequentialBatch<rl::components::off_policy_runner::SequentialBatchSpecification<OFF_POLICY_RUNNER_SPEC, SEQUENCE_LENGTH, BATCH_SIZE>>& batch, typename SPEC::ACTOR_NETWORK_TYPE::template Buffers<BATCH_SIZE>& actor_buffers, typename SPEC::CRITIC_NETWORK_TYPE::template Buffers<BATCH_SIZE>& critic_buffers, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, RNG& rng) {
         // todo: needs to be updated
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -279,6 +294,13 @@ namespace rl_tools{
             rl_tools::utils::polyak::update(device, source.weights.parameters, target.weights.parameters, polyak);
             rl_tools::utils::polyak::update(device, source.biases.parameters , target.biases.parameters , polyak);
         }
+        template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+        void update_target_module(DEVICE& device, const  nn::layers::gru::LayerForward<SOURCE_SPEC>& source, nn::layers::gru::LayerForward<TARGET_SPEC>& target, typename SOURCE_SPEC::T polyak) {
+            rl_tools::utils::polyak::update(device, source.weights_input.parameters, target.weights_input.parameters, polyak);
+            rl_tools::utils::polyak::update(device, source.biases_input.parameters, target.biases_input.parameters, polyak);
+            rl_tools::utils::polyak::update(device, source.weights_hidden.parameters, target.weights_hidden.parameters, polyak);
+            rl_tools::utils::polyak::update(device, source.biases_hidden.parameters, target.biases_hidden.parameters, polyak);
+        }
         template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
         void update_target_module(DEVICE& device, const  nn_models::mlp::NeuralNetworkForward<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>& target, T polyak) {
             using TargetNetworkType = nn_models::mlp::NeuralNetworkForward<TARGET_SPEC>;
@@ -292,6 +314,13 @@ namespace rl_tools{
         void update_target_module(DEVICE& device, const  nn_models::sequential::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential::ModuleForward<TARGET_SPEC>& target, T polyak) {
             update_target_module(device, source.content, target.content, polyak);
             if constexpr(!rl_tools::utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
+                update_target_module(device, source.next_module, target.next_module, polyak);
+            }
+        }
+        template<typename T, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+        void update_target_module(DEVICE& device, const  nn_models::sequential_v2::ModuleForward<SOURCE_SPEC>& source, nn_models::sequential_v2::ModuleForward<TARGET_SPEC>& target, T polyak) {
+            update_target_module(device, source.content, target.content, polyak);
+            if constexpr(!rl_tools::utils::typing::is_same_v<typename SOURCE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
                 update_target_module(device, source.next_module, target.next_module, polyak);
             }
         }

@@ -1,12 +1,21 @@
+#define MUX
 #ifdef RL_TOOLS_ENABLE_TRACY
 #include "Tracy.hpp"
 #endif
-#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+//#define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
+#ifdef MUX
 #include <rl_tools/operations/cpu_mux.h>
+#else
+#include <rl_tools/operations/cpu.h>
+#endif
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/embedding/operations_generic.h>
 #include <rl_tools/nn/layers/gru/operations_generic.h>
+#ifdef MUX
 #include <rl_tools/nn/operations_cpu_mux.h>
+#else
+#include <rl_tools/nn/operations_cpu.h>
+#endif
 #include <rl_tools/nn/loss_functions/categorical_cross_entropy/operations_generic.h>
 #include <rl_tools/nn_models/sequential_v2/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
@@ -25,9 +34,14 @@ namespace rlt = rl_tools;
 
 
 #include <chrono>
+#include <filesystem>
 
 
+#ifdef MUX
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+#else
+using DEVICE = rlt::devices::DefaultCPU;
+#endif
 using TI = typename DEVICE::index_t;
 using T = float;
 

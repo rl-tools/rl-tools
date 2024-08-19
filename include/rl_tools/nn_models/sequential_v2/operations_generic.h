@@ -205,7 +205,11 @@ namespace rl_tools{
         else{
             DOUBLE_BUFFER_TYPE& output_buffer = TICK ? buffers.tick : buffers.tock;
 //            auto output_buffer_view = view(device, output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
-            auto output_buffer_view = view_memory<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(device, output_buffer);
+            constexpr TI BATCH_SIZE = get<1>(typename INPUT::SPEC::SHAPE{});
+            // todo: this is hard-coded, we need some mechanism to communicate the desired sequence length
+            using BATCH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE, BATCH_SIZE, 1>;
+            using SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE = tensor::Replace<BATCH_ADJUSTED_OUTPUT_SHAPE, get<0>(typename INPUT::SPEC::SHAPE{}), 0>;
+            auto output_buffer_view = view_memory<SEQ_LENGTH_ADJUSTED_OUTPUT_SHAPE>(device, output_buffer);
             evaluate(device, model.content, input, output_buffer_view, content_buffer.buffer, rng, mode);
             _evaluate<!TICK>(device, model.next_module, output_buffer_view, output, buffers, content_buffer.next_content_buffer, rng, mode);
         }
@@ -290,10 +294,10 @@ namespace rl_tools{
         }
         else{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
-            auto current_d_output_buffer_view = view_memory<MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(current_d_output_buffer);
+            auto current_d_output_buffer_view = view_memory<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(device, current_d_output_buffer);
 //            auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             _backward_input<!TICK>(device, model.next_module, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer);
-            backward_input(device, model.content, current_d_output_buffer, d_input, content_buffer.buffer);
+            backward_input(device, model.content, current_d_output_buffer_view, d_input, content_buffer.buffer);
         }
     }
     template<typename DEVICE, typename MODULE_SPEC, typename D_OUTPUT, typename D_INPUT, typename BUFFER_SPEC, typename MODE = nn::mode::Default>

@@ -30,4 +30,16 @@ namespace rl_tools{
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+// Tensor proxies
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools{
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE = nn::mode::Default>
+    void evaluate(DEVICE& device, const nn_models::RandomUniform<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn_models::random_uniform::Buffer& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}) {
+        auto matrix_view_input = matrix_view(device, input);
+        auto matrix_view_output = matrix_view(device, output);
+        evaluate(device, layer, matrix_view_input, matrix_view_output, buffer, rng, mode);
+    }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

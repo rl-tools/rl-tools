@@ -50,7 +50,8 @@ namespace rl_tools::nn::layers::gru{
         };
     }
 
-    struct StepByStepMode: nn::mode::Default{
+    template <typename BASE>
+    struct StepByStepMode: BASE{
         bool reset = false;
     };
 

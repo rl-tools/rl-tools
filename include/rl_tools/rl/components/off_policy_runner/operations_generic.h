@@ -161,8 +161,15 @@ namespace rl_tools{
         void interlude(DEVICE& device, rl::components::OffPolicyRunner<SPEC>& runner, POLICY &policy, POLICY_BUFFERS& policy_eval_buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
             using TI = typename DEVICE::index_t;
             constexpr TI BATCH_SIZE = decltype(runner.buffers.actions)::ROWS;
-            auto action_view = view(device, runner.buffers.actions, matrix::ViewSpec<BATCH_SIZE, POLICY::OUTPUT_DIM>{});
-            evaluate(device, policy, runner.buffers.observations, action_view, policy_eval_buffers, rng, mode);
+            constexpr TI POLICY_OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});
+            auto action_view = view(device, runner.buffers.actions, matrix::ViewSpec<BATCH_SIZE, POLICY_OUTPUT_DIM>{});
+            auto observation_view_tensor = to_tensor(device, runner.buffers.observations);
+            auto observation_view_tensor_unsqueezed = unsqueeze(device, observation_view_tensor);
+            auto action_view_tensor = to_tensor(device, action_view);
+            auto action_view_tensor_unsqueezed = unsqueeze(device, action_view_tensor);
+            nn::Mode<nn::layers::gru::StepByStepMode<MODE>> step_by_step_mode;
+            step_by_step_mode.reset = get(runner.truncated, 0, 0);
+            evaluate(device, policy, observation_view_tensor_unsqueezed, action_view_tensor_unsqueezed, policy_eval_buffers, rng, step_by_step_mode);
         }
 
         template<typename DEVICE, typename SPEC, typename POLICY, typename RNG>
@@ -178,12 +185,14 @@ namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_OFF_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "OffPolicyRunner not initialized");
 #endif
-        static_assert(POLICY::INPUT_DIM == SPEC::ENVIRONMENT::Observation::DIM, "The policy's input dimension must match the environment's observation dimension.");
+        using TI = typename DEVICE::index_t;
+        constexpr TI POLICY_INPUT_DIM = get_last(typename POLICY::INPUT_SHAPE{});
+        constexpr TI POLICY_OUTPUT_DIM = get_last(typename POLICY::OUTPUT_SHAPE{});
+        static_assert(POLICY_INPUT_DIM == SPEC::ENVIRONMENT::Observation::DIM, "The policy's input dimension must match the environment's observation dimension.");
 //        static_assert(POLICY::OUTPUT_DIM == (SPEC::ENVIRONMENT::ACTION_DIM * (SPEC::STOCHASTIC_POLICY ? 2 : 1)), "The policy's output dimension must match the environment's action dimension.");
-        static_assert(POLICY::OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM ||  POLICY::OUTPUT_DIM == 2*SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
+        static_assert(POLICY_OUTPUT_DIM == SPEC::ENVIRONMENT::ACTION_DIM || POLICY_OUTPUT_DIM == 2*SPEC::ENVIRONMENT::ACTION_DIM, "The policy's output dimension must match the environment's action dimension.");
         // todo: increase efficiency by removing the double observation of each state
         using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
         using ENVIRONMENT = typename SPEC::ENVIRONMENT;
 
         rl::components::off_policy_runner::prologue(device, runner, rng);
@@ -258,7 +267,7 @@ namespace rl_tools{
             auto observation_target = view<0>(device, observation_target_sequence, batch_step_i);
             auto observation_source = row(device, replay_buffer.observations, sample_index);
             auto observation_source_tensor = to_tensor(device, observation_source);
-            auto observation_source_tensor_squeezed = squeeze(observation_source_tensor);
+            auto observation_source_tensor_squeezed = squeeze(device, observation_source_tensor);
             copy(device, device, observation_source_tensor_squeezed, observation_target);
 
             if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
@@ -266,7 +275,7 @@ namespace rl_tools{
                 auto observation_privileged_target = view<0>(device, observation_privileged_target_sequence, batch_step_i);
                 auto observation_privileged_source = row(device, replay_buffer.observations_privileged, sample_index);
                 auto observation_privileged_source_tensor = to_tensor(device, observation_privileged_source);
-                auto observation_privileged_source_squeezed = squeeze(observation_privileged_source_tensor);
+                auto observation_privileged_source_squeezed = squeeze(device, observation_privileged_source_tensor);
                 copy(device, device, observation_privileged_source_squeezed, observation_privileged_target);
             }
 
@@ -274,14 +283,14 @@ namespace rl_tools{
             auto action_target = view<0>(device, action_target_sequence, batch_step_i);
             auto action_source = row(device, replay_buffer.actions, sample_index);
             auto action_source_tensor = to_tensor(device, action_source);
-            auto action_source_tensor_squeezed = squeeze(action_source_tensor);
+            auto action_source_tensor_squeezed = squeeze(device, action_source_tensor);
             copy(device, device, action_source_tensor_squeezed, action_target);
 
             auto next_observation_target_sequence = view<0>(device, batch.next_observations, seq_step_i);
             auto next_observation_target = view<0>(device, next_observation_target_sequence, batch_step_i);
             auto next_observation_source = row(device, replay_buffer.next_observations, sample_index);
             auto next_observation_source_tensor = to_tensor(device, next_observation_source);
-            auto next_observation_source_tensor_squeezed = squeeze(next_observation_source_tensor);
+            auto next_observation_source_tensor_squeezed = squeeze(device, next_observation_source_tensor);
             copy(device, device, next_observation_source_tensor_squeezed, next_observation_target);
 
             if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){

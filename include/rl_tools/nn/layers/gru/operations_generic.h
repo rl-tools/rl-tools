@@ -120,7 +120,16 @@ namespace rl_tools{
             }
         }
         namespace mode{
-            bool reset(const nn::Mode<nn::layers::gru::StepByStepMode>& mode){
+            template <typename BASE>
+            constexpr bool step_by_step_mode(const nn::Mode<nn::layers::gru::StepByStepMode<BASE>>&){
+                return true;
+            }
+            template <typename MODE>
+            constexpr bool step_by_step_mode(const nn::Mode<MODE>&){
+                return false;
+            }
+            template <typename BASE>
+            bool reset(const nn::Mode<nn::layers::gru::StepByStepMode<BASE>>& mode){
                 return mode.reset;
             }
             template <typename MODE>
@@ -163,8 +172,9 @@ namespace rl_tools{
         static_assert(get<length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{})-1>(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == LAYER_SPEC::HIDDEN_DIM);
         static_assert(get<length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{})-2>(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == BATCH_SIZE);
 
-
+        constexpr bool STEP_BY_STEP = nn::layers::gru::mode::step_by_step_mode(decltype(mode){});
         for(TI step_i=0; step_i < SEQUENCE_LENGTH; ++step_i){
+            bool reset = (STEP_BY_STEP && nn::layers::gru::mode::reset(mode)) || (!STEP_BY_STEP && step_i == 0);
 #ifdef RL_TOOLS_ENABLE_TRACY
             ZoneScopedN("gru::evaluate_step");
 #endif
@@ -178,12 +188,18 @@ namespace rl_tools{
             auto z_post_activation  = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
             auto n_post_activation  = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
-            if(step_i == 0){
+            if(reset){
                 nn::layers::gru::helper::matrix_multiply_broadcast_transpose_bias(device, layer.weights_hidden.parameters, layer.initial_hidden_state.parameters, layer.biases_hidden.parameters, post_activation_step);
             }
             else{
-                auto output_previous_step = view(device, output, step_i-1);
-                nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
+                if constexpr(STEP_BY_STEP){
+                    auto output_previous_step = view(device, output, 0);
+                    nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
+                }
+                else{
+                    auto output_previous_step = view(device, output, step_i-1);
+                    nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
+                }
             }
 
             copy(device, device, n_post_activation, n_pre_pre_activation_step);
@@ -205,7 +221,7 @@ namespace rl_tools{
             }
             one_minus(device, z_post_activation, output_step);
             multiply(device, n_post_activation, output_step);
-            if(step_i == 0){
+            if(reset){
                 multiply_broadcast_accumulate(device, z_post_activation, layer.initial_hidden_state.parameters, output_step);
             }
             else{
@@ -395,7 +411,7 @@ namespace rl_tools{
         binary_operation(device, op, factor, pre_activation, result);
     }
 
-    template<bool CALCULATE_D_INPUT, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
+    template<bool CALCULATE_D_INPUT, bool CALCULATE_D_PARAMETERS, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void _backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::_backward_step");
@@ -420,8 +436,10 @@ namespace rl_tools{
 
         if(step_i == 0){
             multiply_subtract_broadcast(device, d_output_step, layer.initial_hidden_state.parameters, n_post_activation, buffers.buffer_z);
-            auto d_output_previous_step = layer.initial_hidden_state.gradient;
-            multiply_accumulate_reduce(device, d_output_step, z_post_activation, d_output_previous_step);
+            if constexpr (CALCULATE_D_PARAMETERS){
+                auto d_output_previous_step = layer.initial_hidden_state.gradient;
+                multiply_accumulate_reduce(device, d_output_step, z_post_activation, d_output_previous_step);
+            }
         }
         else{
             auto output_previous_step = view(device, layer.output, step_i-1);
@@ -434,12 +452,13 @@ namespace rl_tools{
         multiply_d_sigmoid_post_activation(device, buffers.buffer_rz, rz_post_activation, buffers.buffer_rz);
         auto buffer_transpose = permute(device, buffers.buffer, tensor::PermutationSpec<1, 0>{});
         static_assert(decltype(buffer_transpose)::SPEC::SIZE == decltype(buffers.buffer)::SPEC::SIZE);
-        matrix_multiply_accumulate(device, buffer_transpose, input_step, layer.weights_input.gradient);
-
-        reduce_sum<true>(device, buffer_transpose, layer.biases_input.gradient);
-        auto b_irz_grad = view_range(device, layer.biases_input.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
-        auto b_hrz_grad = view_range(device, layer.biases_hidden.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
-        copy(device, device, b_irz_grad, b_hrz_grad);
+        if constexpr(CALCULATE_D_PARAMETERS){
+            matrix_multiply_accumulate(device, buffer_transpose, input_step, layer.weights_input.gradient);
+            reduce_sum<true>(device, buffer_transpose, layer.biases_input.gradient);
+            auto b_irz_grad = view_range(device, layer.biases_input.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
+            auto b_hrz_grad = view_range(device, layer.biases_hidden.gradient, 0*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, 2*LAYER_SPEC::HIDDEN_DIM>{});
+            copy(device, device, b_irz_grad, b_hrz_grad);
+        }
 
         if constexpr(CALCULATE_D_INPUT){
             matrix_multiply(device, buffers.buffer, layer.weights_input.parameters, d_input_step);
@@ -448,26 +467,32 @@ namespace rl_tools{
         multiply(device, r_post_activation, buffers.buffer_n);
 
         if(step_i == 0){
-            matrix_multiply_broadcast_accumulate(device, buffer_transpose, layer.initial_hidden_state.parameters, layer.weights_hidden.gradient);
+            if constexpr(CALCULATE_D_PARAMETERS){
+                matrix_multiply_broadcast_accumulate(device, buffer_transpose, layer.initial_hidden_state.parameters, layer.weights_hidden.gradient);
+            }
             auto d_output_previous_step = layer.initial_hidden_state.gradient;
             matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
         }
         else{
-            auto output_previous_step = view(device, layer.output, step_i-1);
-            matrix_multiply_accumulate(device, buffer_transpose, output_previous_step, layer.weights_hidden.gradient);
+            if constexpr(CALCULATE_D_PARAMETERS){
+                auto output_previous_step = view(device, layer.output, step_i-1);
+                matrix_multiply_accumulate(device, buffer_transpose, output_previous_step, layer.weights_hidden.gradient);
+            }
             auto d_output_previous_step = view(device, d_output, step_i-1);
             matrix_multiply_accumulate(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
         }
 
-        auto b_hn_grad = view_range(device, layer.biases_hidden.gradient, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
-        auto buffer_n_transpose = permute(device, buffers.buffer_n, tensor::PermutationSpec<1, 0>{});
-        reduce_sum<true>(device, buffer_n_transpose, b_hn_grad);
+        if constexpr(CALCULATE_D_PARAMETERS){
+            auto b_hn_grad = view_range(device, layer.biases_hidden.gradient, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<0, LAYER_SPEC::HIDDEN_DIM>{});
+            auto buffer_n_transpose = permute(device, buffers.buffer_n, tensor::PermutationSpec<1, 0>{});
+            reduce_sum<true>(device, buffer_n_transpose, b_hn_grad);
+        }
     }
-    template<bool CALCULATE_D_INPUT, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
+    template<bool CALCULATE_D_INPUT, bool CALCULATE_D_PARAMETERS, typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void _backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         using TI = typename DEVICE::index_t;
         for(TI step_i=LAYER_SPEC::SEQUENCE_LENGTH-1; true; step_i--){
-            _backward<CALCULATE_D_INPUT>(device, layer, input, d_output, d_input, buffers, step_i);
+            _backward<CALCULATE_D_INPUT, CALCULATE_D_PARAMETERS>(device, layer, input, d_output, d_input, buffers, step_i);
             if(step_i == 0){
                 break;
             }
@@ -475,28 +500,38 @@ namespace rl_tools{
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void backward_full(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        _backward<true>(device, layer, input, d_output, d_input, buffers, step_i);
+        _backward<true, true>(device, layer, input, d_output, d_input, buffers, step_i);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, typename DEVICE::index_t step_i, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
-        _backward<false>(device, layer, input, d_output, d_input_dummy, buffers, step_i);
+        _backward<false, true>(device, layer, input, d_output, d_input_dummy, buffers, step_i);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void backward_full(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::backward_full");
 #endif
-        _backward<true>(device, layer, input, d_output, d_input, buffers);
+        _backward<true, true>(device, layer, input, d_output, d_input, buffers);
+    }
+    template<typename DEVICE, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
+    void backward_input(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+#ifdef RL_TOOLS_ENABLE_TRACY
+        ZoneScopedN("gru::backward_full");
+#endif
+        using T = typename LAYER_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        Tensor<tensor::Specification<T, TI, typename D_INPUT_SPEC::SHAPE>> input_dummy; // not allocated, pointer should be optimized away because it is not used
+        _backward<true, false>(device, layer, input_dummy, d_output, d_input, buffers);
     }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void backward(DEVICE& device, nn::layers::gru::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         Tensor<tensor::Specification<T, TI, typename INPUT_SPEC::SHAPE>> d_input_dummy; // not allocated, pointer should be optimized away because it is not used
-        _backward<false>(device, layer, input, d_output, d_input_dummy, buffers);
+        _backward<false, true>(device, layer, input, d_output, d_input_dummy, buffers);
     }
 
     template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>

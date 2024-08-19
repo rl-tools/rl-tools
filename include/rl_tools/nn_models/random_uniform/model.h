@@ -29,6 +29,8 @@ namespace rl_tools::nn_models{
         using TI = typename SPEC::TI;
         static constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
         static constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
+        using INPUT_SHAPE = tensor::Shape<TI, 0, 0, INPUT_DIM>;
+        using OUTPUT_SHAPE = tensor::Shape<TI, 0, 0, OUTPUT_DIM>;
 
         template <TI BATCH_SIZE=1>
         using Buffer = typename random_uniform::Buffer;

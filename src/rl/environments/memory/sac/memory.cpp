@@ -1,6 +1,14 @@
+#ifdef MUX
 #include <rl_tools/operations/cpu_mux.h>
+#else
+#include <rl_tools/operations/cpu.h>
+#endif
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#ifdef MUX
 #include <rl_tools/nn/operations_cpu_mux.h>
+#else
+#include <rl_tools/nn/operations_cpu.h>
+#endif
 #include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
 #include <rl_tools/rl/environments/memory/operations_generic.h>
@@ -21,13 +29,17 @@ namespace rlt = rl_tools;
 #include "approximators.h"
 
 
+#ifdef MUX
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-//using DEVICE = rlt::devices::DefaultCPU;
+#else
+using DEVICE = rlt::devices::DefaultCPU;
+#endif
 using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}));
 using T = float;
 using TI = typename DEVICE::index_t;
 
 constexpr TI SEQUENCE_LENGTH = 16;
+constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 32;
 
 using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, rlt::rl::environments::memory::DefaultParameters<T, TI>>;
@@ -36,6 +48,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
         static constexpr TI ACTOR_BATCH_SIZE = BATCH_SIZE;
         static constexpr TI CRITIC_BATCH_SIZE = BATCH_SIZE;
+        static constexpr TI SEQUENCE_LENGTH = SEQUENCE_LENGTH_PROXY;
     };
     static constexpr TI STEP_LIMIT = 10000;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
