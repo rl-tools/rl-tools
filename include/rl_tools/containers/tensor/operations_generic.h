@@ -336,23 +336,37 @@ namespace rl_tools{
                 return acc + a * b;
             }
         }
-        template <typename PARAMETER, typename T_ACCUMULATOR_TYPE, typename T_CURRENT_TYPE, auto T_OPERATION>
+        template <typename PARAMETER, typename T_ACCUMULATOR_TYPE, typename T_CURRENT_TYPE, auto T_UNARY_REDUCE_OPERATION>
         struct UnaryReduceOperation{
             using ACCUMULATOR_TYPE = T_ACCUMULATOR_TYPE;
             using CURRENT_TYPE = T_CURRENT_TYPE;
-            static constexpr auto OPERATION = T_OPERATION;
+            static constexpr auto UNARY_REDUCE_OPERATION = T_UNARY_REDUCE_OPERATION;
             PARAMETER parameter;
             ACCUMULATOR_TYPE initial_value;
         };
         namespace unary_reduce_operations{
             namespace impl{
-                template <typename PARAMETER, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE>
-                ACCUMULATOR_TYPE sum(const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
+                template <typename DEVICE, typename PARAMETER, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE>
+                ACCUMULATOR_TYPE sum(DEVICE, const PARAMETER& parameter, const ACCUMULATOR_TYPE& accumulator, CURRENT_TYPE current){
                     return accumulator + current;
                 }
+                template <typename DEVICE, typename PARAMETER, typename CURRENT_TYPE>
+                CURRENT_TYPE sum_reduce(DEVICE, const PARAMETER& parameter, CURRENT_TYPE a, CURRENT_TYPE b){
+                    return a + b;
+                }
+                template <typename DEVICE, typename PARAMETER, typename CURRENT_TYPE>
+                bool is_nan(DEVICE& device, const PARAMETER& parameter, const bool& accumulator, CURRENT_TYPE current){
+                    return accumulator || math::is_nan(device, current);
+                }
+                template <typename DEVICE, typename PARAMETER>
+                bool is_nan_reduce(DEVICE& device, const PARAMETER& parameter, bool a, bool b){
+                    return a || b;
+                }
             }
-            template <typename T>
-            using Sum = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::sum<OperationEmptyParameter, T, T>>;
+            template <typename DEVICE, typename T>
+            using Sum = UnaryReduceOperation<OperationEmptyParameter, T, T, impl::sum<DEVICE, OperationEmptyParameter, T, T>>;
+            template <typename DEVICE, typename T>
+            using IsNan = UnaryReduceOperation<OperationEmptyParameter, bool, T, impl::is_nan<DEVICE, OperationEmptyParameter, T>>;
         }
         template <typename PARAMETER, typename T_ACCUMULATOR_TYPE, typename T_CURRENT_TYPE1, typename T_CURRENT_TYPE2, auto T_OPERATION, auto T_REDUCE_OPERATION>
         struct BinaryReduceOperation{
@@ -551,31 +565,39 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER>
-    ACCUMULATOR_TYPE unary_associative_reduce(DEVICE& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, Tensor<SPEC>& t){
+    ACCUMULATOR_TYPE _unary_associative_reduce(DEVICE& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t, ACCUMULATOR_TYPE accumulator){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         if constexpr(length(typename SPEC::SHAPE{}) > 1){
-            ACCUMULATOR_TYPE accumulator = op.initial_value;
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); ++i){
                 auto next_t = view(device, t, i);
-                accumulator = UNARY_REDUCE_OPERATION(op.parameter, accumulator, unary_associative_reduce(device, op, next_t));
+                accumulator = _unary_associative_reduce(device, op, next_t, accumulator);
             }
             return accumulator;
         }
         else{
-            ACCUMULATOR_TYPE accumulator = op.initial_value;
             for(TI i=0; i < get<0>(typename SPEC::SHAPE{}); i++){
                 T t_value = get(device, t, i);
-                accumulator = UNARY_REDUCE_OPERATION(op.parameter, accumulator, t_value);
+                accumulator = UNARY_REDUCE_OPERATION(device.math, op.parameter, accumulator, t_value);
             }
             return accumulator;
         }
     }
+    template<typename DEVICE, typename SPEC, auto UNARY_REDUCE_OPERATION, typename ACCUMULATOR_TYPE, typename CURRENT_TYPE, typename OPERATION_PARAMETER>
+    ACCUMULATOR_TYPE unary_associative_reduce(DEVICE& device, const tensor::UnaryReduceOperation<OPERATION_PARAMETER, ACCUMULATOR_TYPE, CURRENT_TYPE, UNARY_REDUCE_OPERATION>& op, const Tensor<SPEC>& t){
+        return _unary_associative_reduce(device, op, t, op.initial_value);
+    }
 
     template<typename DEVICE, typename SPEC>
     typename SPEC::T sum(DEVICE& device, Tensor<SPEC>& t){
-        tensor::unary_reduce_operations::Sum<typename SPEC::T> op;
+        tensor::unary_reduce_operations::Sum<decltype(device.math), typename SPEC::T> op;
         op.initial_value = 0;
+        return unary_associative_reduce(device, op, t);
+    }
+    template<typename DEVICE, typename SPEC>
+    typename SPEC::T is_nan(DEVICE& device, const Tensor<SPEC>& t){
+        tensor::unary_reduce_operations::IsNan<decltype(device.math), typename SPEC::T> op;
+        op.initial_value = false;
         return unary_associative_reduce(device, op, t);
     }
 
