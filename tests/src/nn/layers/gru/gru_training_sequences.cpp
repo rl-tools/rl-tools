@@ -51,7 +51,7 @@ struct Config{
         static constexpr TI INPUT_DIM = 1;
         static constexpr TI OUTPUT_DIM = 1;
         static constexpr TI HIDDEN_DIM = 16;
-        static constexpr TI SEQUENCE_LENGTH = 32;
+        static constexpr TI SEQUENCE_LENGTH = 128;
         static constexpr TI HORIZON = 10;
         static constexpr TI DATASET_SIZE = 100000;
     };
@@ -63,7 +63,7 @@ struct Config{
     using INPUT_SHAPE_TEMPLATE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, T_BATCH_SIZE, 1>;
     using CAPABILITY = rlt::nn::layer_capability::Gradient<rlt::nn::parameters::Adam, PARAMS::BATCH_SIZE>;
     using INPUT_SHAPE = INPUT_SHAPE_TEMPLATE<PARAMS::BATCH_SIZE>;
-    using RESET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE>;
+    using RESET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using RESET_TYPE = rlt::tensor::Specification<bool, TI, RESET_SHAPE>;
     using INPUT_SPEC = rlt::tensor::Specification<T, TI, INPUT_SHAPE>;
     using GRU_SPEC = rlt::nn::layers::gru::Specification<T, TI, PARAMS::SEQUENCE_LENGTH, PARAMS::INPUT_DIM, PARAMS::HIDDEN_DIM, rlt::nn::parameters::Gradient, rlt::TensorDynamicTag, true>;
@@ -79,7 +79,7 @@ struct Config{
     using OUTPUT_TARGET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using OUTPUT_TARGET_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_TARGET_SHAPE>;
     struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-        static constexpr T ALPHA = 0.001;
+        static constexpr T ALPHA = 0.01;
     };
     using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMS>;
     using ADAM = rlt::nn::optimizers::Adam<ADAM_SPEC>;
@@ -136,6 +136,14 @@ int main(){
                     }
                     else{
                         // needle in haystack
+                        bool reset_now = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, rng) < 0.5/((T)CONFIG::PARAMS::HORIZON);
+                        if(sequence_i == 0 || reset_now){
+                            values.clear();
+                            rlt::set(device, reset, true, sequence_i, batch_i, 0);
+                        }
+                        else{
+                            rlt::set(device, reset, false, sequence_i, batch_i, 0);
+                        }
                         T new_value = rlt::random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
                         if(rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, rng) < PROBABILITY){
                             new_value = 1;
@@ -148,13 +156,14 @@ int main(){
                         set(device, input, new_value, sequence_i, batch_i, 0);
                         set(device, output_target, (T)number_of_ones/(CONFIG::PARAMS::HORIZON * PROBABILITY), sequence_i, batch_i, 0);
                     }
-//                    if(sequence_i == 0 || reset_now){
-//
-//                    }
 
                 }
             }
-            rlt::forward(device, model, input, buffer, rng);
+            using RESET_MODE_SPEC = rlt::nn::layers::gru::ResetModeSpecification<rlt::nn::mode::Default, decltype(reset)>;
+            using RESET_MODE = rlt::nn::layers::gru::ResetMode<RESET_MODE_SPEC>;
+            rlt::nn::Mode<RESET_MODE> reset_mode;
+            reset_mode.reset_container = reset;
+            rlt::forward(device, model, input, buffer, rng, reset_mode);
             auto output = rlt::output(device, model);
             auto output_matrix_view = rlt::matrix_view(device, output);
             auto output_target_matrix_view = rlt::matrix_view(device, output_target);
@@ -166,7 +175,7 @@ int main(){
                 for(TI sequence_i = 0; sequence_i < CONFIG::PARAMS::SEQUENCE_LENGTH; sequence_i++){
                     std::cout << "Step: " << sequence_i << std::endl;
                     for(TI sample_i = 0; sample_i < 1; sample_i++){
-                        std::cout << "Input: " << rlt::get(device, input, sequence_i, sample_i, 0) << " Target: " << rlt::get(device, output_target, sequence_i, sample_i, 0) << " => " << rlt::get(device, output, sequence_i, sample_i, 0) << std::endl;
+                        std::cout << "Input: " << rlt::get(device, input, sequence_i, sample_i, 0) << " Reset: " << rlt::get(device, reset, sequence_i, sample_i, 0) << " Target: " << rlt::get(device, output_target, sequence_i, sample_i, 0) << " => " << rlt::get(device, output, sequence_i, sample_i, 0) << std::endl;
                     }
                 }
                 T loss = rlt::nn::loss_functions::mse::evaluate(device, output_matrix_view, output_target_matrix_view);
@@ -174,9 +183,7 @@ int main(){
                 std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
             }
             rlt::zero_gradient(device, model);
-            {
-                rlt::backward(device, model, input, d_output, buffer);
-            }
+            rlt::backward(device, model, input, d_output, buffer, reset_mode);
             rlt::step(device, optimizer, model);
         }
     }
