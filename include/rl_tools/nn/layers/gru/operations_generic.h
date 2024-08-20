@@ -47,12 +47,14 @@ namespace rl_tools{
         malloc(device, buffers.post_activation);
         malloc(device, buffers.n_pre_pre_activation);
         malloc(device, buffers.step_by_step_output);
+        malloc(device, buffers.previous_output_scratch);
     }
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, nn::layers::gru::buffers::Evaluation<SPEC>& buffers){
         free(device, buffers.post_activation);
         free(device, buffers.n_pre_pre_activation);
         free(device, buffers.step_by_step_output);
+        free(device, buffers.previous_output_scratch);
     }
     template <typename DEVICE, typename BUFFER_SPEC>
     void init(DEVICE& device, nn::layers::gru::buffers::Backward<BUFFER_SPEC>& buffers){
@@ -135,12 +137,40 @@ namespace rl_tools{
             constexpr bool step_by_step_mode(const nn::Mode<MODE>&){
                 return false;
             }
-            template <typename BASE>
-            bool reset(const nn::Mode<nn::layers::gru::StepByStepMode<BASE>>& mode){
+            template <typename BASE, typename TI>
+            bool reset_full_batch(const nn::Mode<nn::layers::gru::StepByStepMode<BASE>>& mode, TI step_i){
                 return mode.reset;
             }
+            template <typename SPEC>
+            constexpr bool can_reset_sample(const nn::Mode<nn::layers::gru::StepByStepMode<SPEC>>& mode){
+                return false;
+            }
+            template <typename SPEC, typename TI>
+            bool reset_sample(const nn::Mode<nn::layers::gru::StepByStepMode<SPEC>>& mode, TI step_i, TI batch_sample_i){
+                return false;
+            }
+            template <typename SPEC, typename TI>
+            bool reset_full_batch(const nn::Mode<nn::layers::gru::ResetMode<SPEC>>& mode, TI step_i){
+                return false;
+            }
+            template <typename SPEC>
+            constexpr bool can_reset_sample(const nn::Mode<nn::layers::gru::ResetMode<SPEC>>& mode){
+                return true;
+            }
+            template <typename DEVICE, typename SPEC, typename TI>
+            bool reset_sample(DEVICE& device, const nn::Mode<nn::layers::gru::ResetMode<SPEC>>& mode, TI step_i, TI batch_sample_i){
+                return get(device, mode.reset_container, step_i, batch_sample_i, 0);
+            }
+            template <typename MODE, typename TI>
+            bool reset_full_batch(const nn::Mode<MODE>& mode, TI step_i){
+                return false;
+            }
             template <typename MODE>
-            bool reset(const nn::Mode<MODE>& mode){
+            constexpr bool can_reset_sample(const nn::Mode<MODE>& mode){
+                return false;
+            }
+            template <typename MODE, typename TI>
+            bool reset_sample(const nn::Mode<MODE>& mode, TI step_i, TI batch_sample_i){
                 return false;
             }
         }
@@ -160,8 +190,8 @@ namespace rl_tools{
 //        }
     }
 
-    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC, typename RNG, typename MODE = nn::mode::Default>
-    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
+    template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename POST_ACTIVATION_SPEC, typename N_PRE_PRE_ACTIVATION_SPEC, typename PREVIOUS_OUTPUT_SCRATCH, typename RNG, typename MODE = nn::mode::Default>
+    void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<POST_ACTIVATION_SPEC>& post_activation, Tensor<N_PRE_PRE_ACTIVATION_SPEC>& n_pre_pre_activation, Tensor<OUTPUT_SPEC>& output, Tensor<PREVIOUS_OUTPUT_SCRATCH>& previous_output_scratch, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         using T = typename LAYER_SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr TI SEQUENCE_LENGTH = get<0>(typename INPUT_SPEC::SHAPE{});
@@ -180,8 +210,9 @@ namespace rl_tools{
         static_assert(get<length(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{})-2>(typename N_PRE_PRE_ACTIVATION_SPEC::SHAPE{}) == BATCH_SIZE);
 
         constexpr bool STEP_BY_STEP = nn::layers::gru::mode::step_by_step_mode(decltype(mode){});
-        for(TI step_i=0; step_i < SEQUENCE_LENGTH; ++step_i){
-            bool reset = (STEP_BY_STEP && nn::layers::gru::mode::reset(mode)) || (!STEP_BY_STEP && step_i == 0);
+        constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample(decltype(mode){});
+        for(TI step_i=0; step_i < SEQUENCE_LENGTH; step_i++){
+            bool reset_full_batch = nn::layers::gru::mode::reset_full_batch(mode, step_i) || (!STEP_BY_STEP && step_i == 0);
 #ifdef RL_TOOLS_ENABLE_TRACY
             ZoneScopedN("gru::evaluate_step");
 #endif
@@ -195,17 +226,35 @@ namespace rl_tools{
             auto z_post_activation  = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
             auto n_post_activation  = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
-            if(reset){
+            if(reset_full_batch){
                 nn::layers::gru::helper::matrix_multiply_broadcast_transpose_bias(device, layer.weights_hidden.parameters, layer.initial_hidden_state.parameters, layer.biases_hidden.parameters, post_activation_step);
             }
             else{
-                if constexpr(STEP_BY_STEP){
-                    auto output_previous_step = view(device, output, 0);
-                    nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
+                if constexpr(CAN_RESET_SAMPLE){
+                    for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
+                        auto target = view(device, previous_output_scratch, sample_i);
+                        bool reset = nn::layers::gru::mode::reset_sample(device, mode, step_i, sample_i);
+                        if(reset){
+                            auto source = layer.initial_hidden_state.parameters;
+                            copy(device, device, source, target);
+                        }
+                        else{
+                            auto output_previous_step = view(device, output, step_i-1);
+                            auto source = view(device, output_previous_step, sample_i);
+                            copy(device, device, source, target);
+                        }
+                    }
+                    nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, previous_output_scratch, layer.biases_hidden.parameters, post_activation_step);
                 }
                 else{
-                    auto output_previous_step = view(device, output, step_i-1);
-                    nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
+                    if constexpr(STEP_BY_STEP){
+                        auto output_previous_step = view(device, output, 0);
+                        nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
+                    }
+                    else{
+                        auto output_previous_step = view(device, output, step_i-1);
+                        nn::layers::gru::helper::matrix_multiply_transpose_bias(device, layer.weights_hidden.parameters, output_previous_step, layer.biases_hidden.parameters, post_activation_step);
+                    }
                 }
             }
 
@@ -228,12 +277,18 @@ namespace rl_tools{
             }
             one_minus(device, z_post_activation, output_step);
             multiply(device, n_post_activation, output_step);
-            if(reset){
+            if(reset_full_batch){
                 multiply_broadcast_accumulate(device, z_post_activation, layer.initial_hidden_state.parameters, output_step);
             }
             else{
-                auto output_previous_step = view(device, output, step_i-1);
-                multiply_accumulate(device, z_post_activation, output_previous_step, output_step);
+                if constexpr(CAN_RESET_SAMPLE) {
+                    // we don't need to assemble previous_output_scratch again because we know that we assembled it before already
+                    multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
+                }
+                else{
+                    auto output_previous_step = view(device, output, step_i-1);
+                    multiply_accumulate(device, z_post_activation, output_previous_step, output_step);
+                }
             }
         }
     }
@@ -241,17 +296,17 @@ namespace rl_tools{
     void evaluate(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         constexpr bool STEP_BY_STEP = nn::layers::gru::mode::step_by_step_mode(decltype(mode){});
         if constexpr(STEP_BY_STEP){
-            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, buffers.step_by_step_output, rng, mode);
+            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, buffers.step_by_step_output, buffers.previous_output_scratch, rng, mode);
             copy(device, device, buffers.step_by_step_output, output);
         }
         else{
-            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output, rng, mode);
+            evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output, buffers.previous_output_scratch, rng, mode);
         }
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename BUFFER_SPEC, typename MODE = nn::mode::Default>
     void forward(DEVICE& device, nn::layers::gru::LayerBackward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
-        evaluate(device, layer, input, layer.post_activation, layer.n_pre_pre_activation, layer.output, rng, mode);
+        evaluate(device, layer, input, layer.post_activation, layer.n_pre_pre_activation, layer.output, buffers.previous_output_scratch, rng, mode);
     }
     template<typename DEVICE, typename SPEC_FACTOR, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_subtract_broadcast(DEVICE& device, Tensor<SPEC_FACTOR>& factor, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output) {
@@ -436,6 +491,7 @@ namespace rl_tools{
         static_assert(tensor::same_dimensions<INPUT_SPEC, D_INPUT_SPEC>());
         static_assert(nn::layers::gru::check_input_output<LAYER_SPEC, INPUT_SPEC, typename decltype(layer.output)::SPEC>, "Input and output spec not matching");
         using TI = typename DEVICE::index_t;
+        constexpr TI BATCH_SIZE = get<1>(typename INPUT_SPEC::SHAPE{});
         auto input_step = view(device, input, step_i);
         auto n_pre_pre_activation_step = view(device, layer.n_pre_pre_activation, step_i);
         auto post_activation_step = view(device, layer.post_activation, step_i);
@@ -448,7 +504,10 @@ namespace rl_tools{
         auto z_post_activation = view_range(device, post_activation_step, 1*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
         auto n_post_activation = view_range(device, post_activation_step, 2*LAYER_SPEC::HIDDEN_DIM, tensor::ViewSpec<1, LAYER_SPEC::HIDDEN_DIM>{});
 
-        if(step_i == 0){
+        constexpr bool CAN_RESET_SAMPLE = nn::layers::gru::mode::can_reset_sample(decltype(mode){});
+        static_assert(!nn::layers::gru::mode::step_by_step_mode(decltype(mode){}));
+        bool reset_full_batch = nn::layers::gru::mode::reset_full_batch(mode, step_i) || step_i == 0;
+        if(reset_full_batch){
             multiply_subtract_broadcast(device, d_output_step, layer.initial_hidden_state.parameters, n_post_activation, buffers.buffer_z);
             if constexpr (CALCULATE_D_PARAMETERS){
                 auto d_output_previous_step = layer.initial_hidden_state.gradient;
@@ -456,10 +515,37 @@ namespace rl_tools{
             }
         }
         else{
-            auto output_previous_step = view(device, layer.output, step_i-1);
-            multiply_subtract(device, d_output_step, output_previous_step, n_post_activation, buffers.buffer_z);
-            auto d_output_previous_step = view(device, d_output, step_i-1);
-            multiply_accumulate(device, d_output_step, z_post_activation, d_output_previous_step);
+            if constexpr(CAN_RESET_SAMPLE){
+                for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
+                    auto target = view(device, buffers.previous_output_scratch, sample_i);
+                    auto z_post_activation_sample = view(device, z_post_activation, sample_i);
+                    auto d_output_step_sample = view(device, d_output, step_i, sample_i);
+                    bool reset = nn::layers::gru::mode::reset_sample(device, mode, step_i, sample_i);
+                    if(reset){
+                        auto source = layer.initial_hidden_state.parameters;
+                        copy(device, device, source, target);
+
+                        // also propagate the d_output to the initial state
+                        auto d_output_previous_step_sample = layer.initial_hidden_state.gradient;
+                        multiply_accumulate(device, d_output_step_sample, z_post_activation_sample, d_output_previous_step_sample);
+                    }
+                    else{
+                        auto source = view(device, layer.output, step_i-1, sample_i);
+                        copy(device, device, source, target);
+
+                        // also propagate the d_output to the previous step
+                        auto d_output_previous_step_sample = view(device, d_output, step_i-1, sample_i);
+                        multiply_accumulate(device, d_output_step_sample, z_post_activation_sample, d_output_previous_step_sample);
+                    }
+                }
+                multiply_subtract(device, d_output_step, buffers.previous_output_scratch, n_post_activation, buffers.buffer_z);
+            }
+            else{
+                auto output_previous_step = view(device, layer.output, step_i-1);
+                multiply_subtract(device, d_output_step, output_previous_step, n_post_activation, buffers.buffer_z);
+                auto d_output_previous_step = view(device, d_output, step_i-1);
+                multiply_accumulate(device, d_output_step, z_post_activation, d_output_previous_step);
+            }
         }
         multiply_one_minus_times_d_tanh_post_activation(device, d_output_step, z_post_activation, n_post_activation, buffers.buffer_n);
         multiply(device, buffers.buffer_n, n_pre_pre_activation_step, buffers.buffer_r);
@@ -480,20 +566,45 @@ namespace rl_tools{
 
         multiply(device, r_post_activation, buffers.buffer_n);
 
-        if(step_i == 0){
+        if(reset_full_batch){
             if constexpr(CALCULATE_D_PARAMETERS){
                 matrix_multiply_broadcast_accumulate(device, buffer_transpose, layer.initial_hidden_state.parameters, layer.weights_hidden.gradient);
+                auto d_output_previous_step = layer.initial_hidden_state.gradient;
+                matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
             }
-            auto d_output_previous_step = layer.initial_hidden_state.gradient;
-            matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
         }
         else{
-            if constexpr(CALCULATE_D_PARAMETERS){
-                auto output_previous_step = view(device, layer.output, step_i-1);
-                matrix_multiply_accumulate(device, buffer_transpose, output_previous_step, layer.weights_hidden.gradient);
+            if constexpr(CAN_RESET_SAMPLE){
+                if constexpr(CALCULATE_D_PARAMETERS){
+                    auto output_previous_step = buffers.previous_output_scratch;
+                    matrix_multiply_accumulate(device, buffer_transpose, output_previous_step, layer.weights_hidden.gradient);
+                }
+                auto d_output_previous_step = view(device, d_output, step_i-1);
+                copy(device, device, buffers.buffer, buffers.buffer2);
+                for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
+                    auto buffer_sample = view(device, buffers.buffer, sample_i);
+                    auto buffer2_sample = view(device, buffers.buffer2, sample_i);
+                    bool reset = nn::layers::gru::mode::reset_sample(device, mode, step_i, sample_i);
+                    if(reset){
+                        set_all(buffer_sample, 0);
+                    }
+                    else{
+                        set_all(buffer2_sample, 0);
+                    }
+                }
+                matrix_multiply_accumulate(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
+                if constexpr(CALCULATE_D_PARAMETERS){
+                    matrix_multiply_accumulate_reduce(device, buffers.buffer2, layer.weights_hidden.parameters, layer.initial_hidden_state.gradient);
+                }
             }
-            auto d_output_previous_step = view(device, d_output, step_i-1);
-            matrix_multiply_accumulate(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
+            else{
+                if constexpr(CALCULATE_D_PARAMETERS){
+                    auto output_previous_step = view(device, layer.output, step_i-1);
+                    matrix_multiply_accumulate(device, buffer_transpose, output_previous_step, layer.weights_hidden.gradient);
+                }
+                auto d_output_previous_step = view(device, d_output, step_i-1);
+                matrix_multiply_accumulate(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
+            }
         }
 
         if constexpr(CALCULATE_D_PARAMETERS){

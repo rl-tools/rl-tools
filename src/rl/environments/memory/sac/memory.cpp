@@ -23,6 +23,7 @@
 #include <rl_tools/rl/loop/steps/timing/config.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
 #include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
+#include <rl_tools/rl/loop/steps/extrack/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
 
 namespace rlt = rl_tools;
@@ -41,9 +42,12 @@ using TI = typename DEVICE::index_t;
 
 constexpr TI SEQUENCE_LENGTH = 20;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
-constexpr TI BATCH_SIZE = 6;
+constexpr TI BATCH_SIZE = 16;
 
-using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, rlt::rl::environments::memory::DefaultParameters<T, TI>>;
+struct ENVIRONMENT_PARAMETERS{
+    constexpr static TI HORIZON = 3;
+};
+using ENVIRONMENT_SPEC = rlt::rl::environments::memory::Specification<T, TI, ENVIRONMENT_PARAMETERS>;
 using ENVIRONMENT = rlt::rl::environments::Memory<ENVIRONMENT_SPEC>;
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<T, TI, ENVIRONMENT>{
     struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<T, TI, ENVIRONMENT::ACTION_DIM>{
@@ -51,7 +55,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParame
         static constexpr TI CRITIC_BATCH_SIZE = BATCH_SIZE;
         static constexpr TI SEQUENCE_LENGTH = SEQUENCE_LENGTH_PROXY;
     };
-    static constexpr TI STEP_LIMIT = 10000;
+    static constexpr TI STEP_LIMIT = 100000;
     static constexpr TI ACTOR_NUM_LAYERS = 3;
     static constexpr TI ACTOR_HIDDEN_DIM = 12;
     static constexpr TI CRITIC_NUM_LAYERS = 3;
@@ -71,7 +75,8 @@ struct LOOP_EVAL_PARAMETERS: rlt::rl::loop::steps::evaluation::Parameters<T, TI,
     static constexpr TI EVALUATION_EPISODES = 100;
 };
 using LOOP_EVAL_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG, LOOP_EVAL_PARAMETERS>;
-using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVAL_CONFIG>;
+using LOOP_EXTRACK_CONFIG = rlt::rl::loop::steps::extrack::Config<LOOP_EVAL_CONFIG>;
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EXTRACK_CONFIG>;
 using LOOP_CONFIG = LOOP_TIMING_CONFIG;
 //using LOOP_CONFIG = LOOP_CORE_CONFIG;
 #endif
@@ -82,8 +87,16 @@ int main(){
     TI seed = 0;
     DEVICE device;
     LOOP_STATE ts;
+    ts.extrack_name = "sequential";
+    ts.extrack_population_variates = "algorithm_environment";
+    ts.extrack_population_values = "sac_memory";
+    rlt::malloc(device);
+    rlt::init(device);
     rlt::malloc(device, ts);
-    rlt::init(device, ts, 0);
+    rlt::init(device, ts, seed);
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+    rlt::init(device, device.logger, ts.extrack_seed_path);
+#endif
     while(!rlt::step(device, ts)){
     }
     return 0;

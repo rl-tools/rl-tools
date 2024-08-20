@@ -47,7 +47,7 @@ using T = float;
 
 using CONFIG = Config<T, TI>;
 
-int main() {
+int main(){
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
 

@@ -65,6 +65,17 @@ target_link_libraries(
         ZLIB::ZLIB
         cjson
 )
+add_executable(
+        test_nn_layers_gru_training_sequences
+        gru_training_sequences.cpp
+)
+target_link_libraries(
+        test_nn_layers_gru_training_sequences
+        PRIVATE
+        RLtools::RLtools
+        ZLIB::ZLIB
+        cjson
+)
 if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
     target_compile_options(test_nn_layers_gru_training PRIVATE -Ofast -march=native)
 endif()

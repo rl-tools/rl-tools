@@ -64,6 +64,7 @@
 - Properly export `nn::layers::dense::DefaultParameters` in the `persist_code` operations
 - Remove the memcopy in `containers/tensor/persist.h`
 - Check all examples with `-fsanitize=address`
+- Make `rlt::get` consistent for Matrix and Tensor (matrix should take the device as the first argument as well)
 
 # Features
 - Look into implementing TQC, DroQ and CrossQ

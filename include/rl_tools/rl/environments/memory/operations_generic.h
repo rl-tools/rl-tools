@@ -52,7 +52,7 @@ namespace rl_tools{
         for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON; step_i++){
             acc += state.history[step_i];
         }
-        T diff = get(action, 0, 0) - acc;
+        T diff = get(action, 0, 0) - acc/math::sqrt(device.math, SPEC::PARAMETERS::HORIZON)/4.0;
         return -diff * diff;
     }
 

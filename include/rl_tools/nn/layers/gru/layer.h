@@ -50,12 +50,26 @@ namespace rl_tools::nn::layers::gru{
             using STEP_BY_STEP_OUTPUT_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, 1, BATCH_SIZE, SPEC::HIDDEN_DIM>>;
             using STEP_BY_STEP_OUTPUT_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<STEP_BY_STEP_OUTPUT_SPEC>;
             STEP_BY_STEP_OUTPUT_TYPE step_by_step_output;
+            using PREVIOUS_OUTPUT_SCRATCH_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, SPEC::HIDDEN_DIM>>;
+            using PREVIOUS_OUTPUT_SCRATCH = typename SPEC::CONTAINER_TYPE_TAG::template type<PREVIOUS_OUTPUT_SCRATCH_SPEC>;
+            PREVIOUS_OUTPUT_SCRATCH previous_output_scratch;
         };
     }
 
     template <typename BASE>
     struct StepByStepMode: BASE{
         bool reset = false;
+    };
+
+    template <typename T_BASE, typename T_RESET_CONTAINER_TYPE>
+    struct ResetModeSpecification{
+        using BASE = T_BASE;
+        using RESET_CONTAINER_TYPE = T_RESET_CONTAINER_TYPE;
+    };
+    template <typename T_SPEC>
+    struct ResetMode: T_SPEC::BASE{
+        using SPEC = T_SPEC;
+        typename SPEC::RESET_CONTAINER_TYPE reset_container;
     };
 
     template<typename T_SPEC>
@@ -119,7 +133,7 @@ namespace rl_tools::nn::layers::gru{
             static constexpr TI BATCH_SIZE = T_SPEC::BATCH_SIZE;
             using BUFFER_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, BATCH_SIZE, 3*SPEC::HIDDEN_DIM>>;
             using BUFFER_TYPE = typename SPEC::CONTAINER_TYPE_TAG::template type<BUFFER_SPEC>;
-            BUFFER_TYPE buffer;
+            BUFFER_TYPE buffer, buffer2;
             typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, 2*SPEC::HIDDEN_DIM>> buffer_rz;
             typename decltype(buffer)::template VIEW_RANGE<tensor::ViewSpec<1, SPEC::HIDDEN_DIM>> buffer_r, buffer_z, buffer_n;
         };

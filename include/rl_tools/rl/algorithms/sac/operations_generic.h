@@ -175,20 +175,30 @@ namespace rl_tools{
         auto sample_and_squash_buffer = get_last_buffer(actor_buffers);
         copy(device, device, action_noise, sample_and_squash_buffer.noise);
         using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
-        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng, SAMPLE_AND_SQUASH_MODE{});
+        using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<SAMPLE_AND_SQUASH_MODE, decltype(batch.reset)>;
+        using RESET_MODE_SAS = nn::layers::gru::ResetMode<RESET_MODE_SAS_SPEC>;
+        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<nn::mode::Default, decltype(batch.reset)>;
+        using RESET_MODE = nn::layers::gru::ResetMode<RESET_MODE_SPEC>;
+        nn::Mode<RESET_MODE_SAS> reset_mode_sas;
+        reset_mode_sas.reset_container = batch.reset;
+        nn::Mode<RESET_MODE> reset_mode;
+        reset_mode.reset_container = batch.reset;
+        forward(device, actor_critic.actor, batch.next_observations, training_buffers.next_actions_mean, actor_buffers, rng, reset_mode_sas);
         copy(device, device, batch.next_observations_privileged, training_buffers.next_observations);
-        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng);
-        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng);
+        evaluate(device, actor_critic.critic_target_1, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_1, critic_buffers, rng, reset_mode);
+        evaluate(device, actor_critic.critic_target_2, training_buffers.next_state_action_value_input, training_buffers.next_state_action_value_critic_2, critic_buffers, rng, reset_mode);
 
         auto last_layer = get_last_layer(actor_critic.actor);
         auto next_action_log_probs = view_transpose(device, last_layer.log_probabilities);
         target_actions(device, batch, training_buffers, next_action_log_probs, sample_and_squash_layer.log_alpha);
-        forward(device, critic, batch.observations_and_actions, critic_buffers, rng);
+        forward(device, critic, batch.observations_and_actions, critic_buffers, rng, reset_mode);
         auto output_matrix_view = matrix_view(device, output(critic));
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
         auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
         nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
-        backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers);
+        T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, 0.5);
+        add_scalar(device, device.logger, "critic_loss", loss);
+        backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
         step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename RNG>
@@ -258,22 +268,33 @@ namespace rl_tools{
 
         auto sample_and_squashing_buffer = get_last_buffer(actor_buffers);
 
+        utils::assert_exit(device, !is_nan(device, actor_critic.actor.content.weights_input.parameters), "actor nan");
+        utils::assert_exit(device, !is_nan(device, batch.observations), "batch observations nan");
         zero_gradient(device, actor_critic.actor);
         copy(device, device, action_noise, sample_and_squashing_buffer.noise);
         using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
-        forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng, SAMPLE_AND_SQUASH_MODE{});
+        using RESET_MODE_SAS_SPEC = nn::layers::gru::ResetModeSpecification<SAMPLE_AND_SQUASH_MODE, decltype(batch.reset)>;
+        using RESET_MODE_SAS = nn::layers::gru::ResetMode<RESET_MODE_SAS_SPEC>;
+        using RESET_MODE_SPEC = nn::layers::gru::ResetModeSpecification<nn::mode::Default, decltype(batch.reset)>;
+        using RESET_MODE = nn::layers::gru::ResetMode<RESET_MODE_SPEC>;
+        nn::Mode<RESET_MODE_SAS> reset_mode_sas;
+        reset_mode_sas.reset_container = batch.reset;
+        nn::Mode<RESET_MODE> reset_mode;
+        reset_mode.reset_container = batch.reset;
+        forward(device, actor_critic.actor, batch.observations, training_buffers.actions, actor_buffers, rng, reset_mode_sas);
         copy(device, device, batch.observations_privileged, training_buffers.observations);
-        forward(device, actor_critic.critic_1, training_buffers.state_action_value_input, critic_buffers, rng);
-        forward(device, actor_critic.critic_2, training_buffers.state_action_value_input, critic_buffers, rng);
+        forward(device, actor_critic.critic_1, training_buffers.state_action_value_input, critic_buffers, rng, reset_mode);
+        forward(device, actor_critic.critic_2, training_buffers.state_action_value_input, critic_buffers, rng, reset_mode);
         // we minimize the negative of the actor loss
         // todo: evaluate only backpropagating the active values
         // note: the alpha * entropy term is minimized according to d_action_d_action_distribution
         set_all(device, training_buffers.d_output, (T)-1/BATCH_SIZE);
-        backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers);
-        backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers);
+        backward_input(device, actor_critic.critic_1, training_buffers.d_output, training_buffers.d_critic_1_input, critic_buffers, reset_mode);
+        backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers, reset_mode);
         min_value_d_output(device, actor_critic, training_buffers);
-        backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output_squashing, actor_buffers);
+        backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output_squashing, actor_buffers, reset_mode_sas);
         step(device, optimizer, actor_critic.actor);
+        utils::assert_exit(device, !is_nan(device, actor_critic.actor.content.weights_input.parameters), "actor nan");
     }
 
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename RNG>

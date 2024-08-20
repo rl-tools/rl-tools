@@ -46,7 +46,7 @@ namespace rl_tools::rl::environments{
         using ObservationPrivileged = Observation;
         static constexpr TI N_AGENTS = 1; // single agent
         static constexpr TI ACTION_DIM = 1;
-        static constexpr TI EPISODE_STEP_LIMIT = 10;
+        static constexpr TI EPISODE_STEP_LIMIT = 20;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
