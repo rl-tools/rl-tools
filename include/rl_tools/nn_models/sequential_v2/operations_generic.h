@@ -179,7 +179,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC> // non-const
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto output(DEVICE& device, nn_models::sequential_v2::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
-            auto output_matrix = output(m.content);
+            auto output_matrix = output(device, m.content);
             auto output_tensor = to_tensor(device, output_matrix);
             auto output_tensor_reshaped = reshape_row_major(device, output_tensor, typename SPEC::OUTPUT_SHAPE{});
             return output_tensor_reshaped;
@@ -190,7 +190,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC> // const
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto output(DEVICE& device, const nn_models::sequential_v2::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
-            auto output_matrix = output(m.content);
+            auto output_matrix = output(device, m.content);
             auto output_tensor = to_tensor(device, output_matrix);
             auto output_tensor_reshaped = reshape_row_major(device, output_tensor, typename SPEC::OUTPUT_SHAPE{});
             return output_tensor_reshaped;
@@ -228,7 +228,7 @@ namespace rl_tools{
     void _forward(DEVICE& device, nn_models::sequential_v2::ModuleGradient<MODULE_SPEC>& module, INPUT& input, nn_models::sequential_v2::ContentBuffer<BUFFER_SPEC>& buffer, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){
         forward(device, module.content, input, buffer.buffer, rng, mode);
         if constexpr(!utils::typing::is_same_v<typename MODULE_SPEC::NEXT_MODULE, nn_models::sequential_v2::OutputModule>){
-            auto output = rl_tools::output(module.content);
+            auto output = rl_tools::output(device, module.content);
             _forward(device, module.next_module, output, buffer.next_content_buffer, rng, mode);
         }
     }
@@ -279,7 +279,7 @@ namespace rl_tools{
             DOUBLE_BUFFER_TYPE& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
 //            auto current_d_output_buffer_view = view(device, current_d_output_buffer, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             auto current_d_output_buffer_view = view_memory<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(device, current_d_output_buffer);
-            auto current_output = output(model.content);
+            auto current_output = output(device, model.content);
             auto current_output_tensor = to_tensor(device, current_output);
             _backward_full<!TICK>(device, model.next_module, current_output_tensor, d_output, current_d_output_buffer_view, buffers, content_buffer.next_content_buffer, mode);
             backward_full(device, model.content, input, current_d_output_buffer_view, d_input, content_buffer.buffer, mode);
@@ -318,7 +318,7 @@ namespace rl_tools{
         if constexpr(!NEXT_IS_FINAL){
 //            auto current_d_input_buffer_view = view(device, buffers.tick, matrix::ViewSpec<BATCH_SIZE, MODULE_SPEC::CONTENT::OUTPUT_DIM>{});
             auto current_d_input_buffer_view = view_memory<typename MODULE_SPEC::CONTENT::OUTPUT_SHAPE>(device, buffers.tick);
-            _backward_full<false>(device, model.next_module, output(model.content), d_output, current_d_input_buffer_view, buffers, buffers.content_buffer.next_content_buffer, mode);
+            _backward_full<false>(device, model.next_module, output(device, model.content), d_output, current_d_input_buffer_view, buffers, buffers.content_buffer.next_content_buffer, mode);
             backward(device, model.content, input, current_d_input_buffer_view, buffers.content_buffer.buffer, mode);
         }
         else{

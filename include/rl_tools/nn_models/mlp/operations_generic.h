@@ -44,8 +44,8 @@ namespace rl_tools {
         init_weights(device, network.output_layer, rng);
     }
 
-    template <typename SPEC>
-    constexpr auto& output(nn_models::mlp::NeuralNetworkForward<SPEC>& m){
+    template <typename DEVICE, typename SPEC>
+    constexpr auto& output(DEVICE& device, nn_models::mlp::NeuralNetworkForward<SPEC>& m){
         return m.output_layer.output;
     }
 

@@ -154,8 +154,8 @@ namespace rl_tools{
         acc += abs_diff(device, l1.precision, l2.precision);
         return acc;
     }
-    template<typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn::layers::standardize::LayerGradient<SPEC>& l){
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& l){
         return l.output;
     }
 }

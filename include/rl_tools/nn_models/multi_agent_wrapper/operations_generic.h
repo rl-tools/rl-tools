@@ -66,13 +66,13 @@ namespace rl_tools{
         return get_last_buffer(buffer.buffer);
     }
 
-    template <typename SPEC> // non-const
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn_models::multi_agent_wrapper::ModuleGradient<SPEC>& m){
-        return output(m.content);
+    template <typename DEVICE, typename SPEC> // non-const
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, nn_models::multi_agent_wrapper::ModuleGradient<SPEC>& m){
+        return output(device, m.content);
     }
-    template <typename SPEC> // const
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(const nn_models::multi_agent_wrapper::ModuleGradient<SPEC>& m){
-        return output(m.content);
+    template <typename DEVICE, typename SPEC> // const
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, const nn_models::multi_agent_wrapper::ModuleGradient<SPEC>& m){
+        return output(device, m.content);
     }
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = nn::mode::Default>
     void evaluate(DEVICE& device, const nn_models::multi_agent_wrapper::ModuleForward<MODULE_SPEC>& model, const Matrix<INPUT_SPEC>& input, Matrix<OUTPUT_SPEC>& output, nn_models::multi_agent_wrapper::ModuleBuffer<BUFFER_SPEC>& buffers, RNG& rng, const nn::Mode<MODE>& mode = nn::Mode<nn::mode::Default>{}){

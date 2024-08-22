@@ -176,20 +176,20 @@ namespace rl_tools{
         return get_buffer<nn_models::sequential::num_layers<typename BUFFER_SPEC::SPEC>()-1>(buffer);
     }
 
-    template <typename SPEC> // non-const
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn_models::sequential::ModuleGradient<SPEC>& m){
+    template <typename DEVICE, typename SPEC> // non-const
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            return output(m.content);
+            return output(device, m.content);
         } else {
-            return output(m.next_module);
+            return output(device, m.next_module);
         }
     }
-    template <typename SPEC> // const
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(const nn_models::sequential::ModuleGradient<SPEC>& m){
+    template <typename DEVICE, typename SPEC> // const
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, const nn_models::sequential::ModuleGradient<SPEC>& m){
         if constexpr (utils::typing::is_same_v<typename SPEC::NEXT_MODULE, nn_models::sequential::OutputModule>){
-            return output(m.content);
+            return output(device, m.content);
         } else {
-            return output(m.next_module);
+            return output(device, m.next_module);
         }
     }
     // Evaluate is like a forward pass but without saving intermediate activations (so a backward pass is not possible). Hence we can reuse the memory of the intermediate outputs and just require a double buffer where each buffer has to be able to contain the maximum hidden dimension of the module
