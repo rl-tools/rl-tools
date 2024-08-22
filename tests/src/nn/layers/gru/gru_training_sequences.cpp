@@ -35,6 +35,10 @@ namespace rlt = rl_tools;
 #include <algorithm>
 #include <filesystem>
 
+#ifdef RL_TOOLS_ENABLE_JSON
+#include <nlohmann/json.hpp>
+#endif
+
 
 #ifdef MUX
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -50,10 +54,11 @@ struct Config{
         static constexpr TI BATCH_SIZE = 16;
         static constexpr TI INPUT_DIM = 1;
         static constexpr TI OUTPUT_DIM = 1;
-        static constexpr TI HIDDEN_DIM = 16;
-        static constexpr TI SEQUENCE_LENGTH = 128;
-        static constexpr TI HORIZON = 10;
+        static constexpr TI HIDDEN_DIM = 32;
+        static constexpr TI SEQUENCE_LENGTH = 1024;
+        static constexpr TI HORIZON = 100;
         static constexpr TI DATASET_SIZE = 100000;
+        static constexpr T PROBABILITY = 5 * 1/((T)HORIZON);
     };
 
     using PARAMS = BASE;
@@ -109,8 +114,6 @@ int main(){
     rlt::malloc(device, output_target);
     rlt::init_weights(device, model, rng);
     rlt::reset_optimizer_state(device, optimizer, model);
-    constexpr T PROBABILITY = 1 * 1/((T)CONFIG::PARAMS::HORIZON);
-    std::cout << "Probability: " << PROBABILITY << std::endl;
     for(TI epoch_i=0; epoch_i < 1000; epoch_i++){
         auto start_time = std::chrono::high_resolution_clock::now();
         auto last_print = start_time;
@@ -136,7 +139,7 @@ int main(){
                     }
                     else{
                         // needle in haystack
-                        bool reset_now = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, rng) < 0.5/((T)CONFIG::PARAMS::HORIZON);
+                        bool reset_now = rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, rng) < 0.2/((T)CONFIG::PARAMS::HORIZON);
                         if(sequence_i == 0 || reset_now){
                             values.clear();
                             rlt::set(device, reset, true, sequence_i, batch_i, 0);
@@ -144,8 +147,8 @@ int main(){
                         else{
                             rlt::set(device, reset, false, sequence_i, batch_i, 0);
                         }
-                        T new_value = rlt::random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
-                        if(rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, rng) < PROBABILITY){
+                        T new_value = 0; //rlt::random::normal_distribution::sample(device.random, (T)0, (T)1, rng);
+                        if(rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, rng) < CONFIG::PARAMS::PROBABILITY){
                             new_value = 1;
                         }
                         values.push_back(new_value);
@@ -154,7 +157,7 @@ int main(){
                         }
                         T number_of_ones = std::count(values.begin(), values.end(), 1);
                         set(device, input, new_value, sequence_i, batch_i, 0);
-                        set(device, output_target, (T)number_of_ones/(CONFIG::PARAMS::HORIZON * PROBABILITY), sequence_i, batch_i, 0);
+                        set(device, output_target, (T)number_of_ones/(CONFIG::PARAMS::HORIZON * CONFIG::PARAMS::PROBABILITY), sequence_i, batch_i, 0);
                     }
 
                 }
@@ -172,12 +175,44 @@ int main(){
             T elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() / 1000.0;
             T elapsed_print = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - last_print).count() / 1000.0;
             if(elapsed_print > 2.0 || sample_i % 1000000 == 0){
+#ifdef RL_TOOLS_ENABLE_JSON
+                nlohmann::json batch;
+#endif
                 for(TI sequence_i = 0; sequence_i < CONFIG::PARAMS::SEQUENCE_LENGTH; sequence_i++){
-                    std::cout << "Step: " << sequence_i << std::endl;
-                    for(TI sample_i = 0; sample_i < 1; sample_i++){
-                        std::cout << "Input: " << rlt::get(device, input, sequence_i, sample_i, 0) << " Reset: " << rlt::get(device, reset, sequence_i, sample_i, 0) << " Target: " << rlt::get(device, output_target, sequence_i, sample_i, 0) << " => " << rlt::get(device, output, sequence_i, sample_i, 0) << std::endl;
+//                    std::cout << "Step: " << sequence_i << std::endl;
+                    for(TI sample_i = 0; sample_i < CONFIG::PARAMS::BATCH_SIZE; sample_i++){
+//                        std::cout << "Input: " << rlt::get(device, input, sequence_i, sample_i, 0) << " Reset: " << rlt::get(device, reset, sequence_i, sample_i, 0) << " Target: " << rlt::get(device, output_target, sequence_i, sample_i, 0) << " => " << rlt::get(device, output, sequence_i, sample_i, 0) << std::endl;
+                        constexpr TI FP_WIDTH = 15;
+                        constexpr TI WIDTH = 2;
+                        if(sample_i == 0){
+                            std::cout << "Input: " << std::setw(WIDTH) << rlt::get(device, input, sequence_i, sample_i, 0)
+                                      << " Reset: " << std::setw(WIDTH) << rlt::get(device, reset, sequence_i, sample_i, 0)
+                                      << " Target: " << std::setw(WIDTH) << rlt::get(device, output_target, sequence_i, sample_i, 0)
+                                      << " => " << std::setw(FP_WIDTH) << rlt::get(device, output, sequence_i, sample_i, 0)
+                                      << std::endl;
+                        }
+#ifdef RL_TOOLS_ENABLE_JSON
+                        nlohmann::json sample;
+                        sample["input"] = rlt::get(device, input, sequence_i, sample_i, 0);
+                        sample["reset"] = rlt::get(device, reset, sequence_i, sample_i, 0);
+                        sample["target"] = rlt::get(device, output_target, sequence_i, sample_i, 0);
+                        sample["output"] = rlt::get(device, output, sequence_i, sample_i, 0);
+                        batch[sample_i][sequence_i] = sample;
+#endif
                     }
                 }
+#ifdef RL_TOOLS_ENABLE_JSON
+                nlohmann::json data;
+                data["meta"]["BATCH_SIZE"] = CONFIG::PARAMS::BATCH_SIZE;
+                data["meta"]["SEQUENCE_LENGTH"] = CONFIG::PARAMS::SEQUENCE_LENGTH;
+                data["meta"]["HORIZON"] = CONFIG::PARAMS::HORIZON;
+                data["meta"]["PROBABILITY"] = CONFIG::PARAMS::PROBABILITY;
+                data["batch"] = batch;
+                std::fstream file;
+                file.open("gru_training_sequences.json", std::ios::out);
+                file << data.dump(4);
+                file.close();
+#endif
                 T loss = rlt::nn::loss_functions::mse::evaluate(device, output_matrix_view, output_target_matrix_view);
                 last_print = std::chrono::high_resolution_clock::now();
                 std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
