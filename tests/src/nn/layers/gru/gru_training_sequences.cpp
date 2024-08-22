@@ -55,7 +55,7 @@ struct Config{
         static constexpr TI INPUT_DIM = 1;
         static constexpr TI OUTPUT_DIM = 1;
         static constexpr TI HIDDEN_DIM = 32;
-        static constexpr TI SEQUENCE_LENGTH = 1024;
+        static constexpr TI SEQUENCE_LENGTH = 512;
         static constexpr TI HORIZON = 100;
         static constexpr TI DATASET_SIZE = 100000;
         static constexpr T PROBABILITY = 5 * 1/((T)HORIZON);
@@ -84,7 +84,7 @@ struct Config{
     using OUTPUT_TARGET_SHAPE = rlt::tensor::Shape<TI, PARAMS::SEQUENCE_LENGTH, PARAMS::BATCH_SIZE, 1>;
     using OUTPUT_TARGET_SPEC = rlt::tensor::Specification<T, TI, OUTPUT_TARGET_SHAPE>;
     struct ADAM_PARAMS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<T>{
-        static constexpr T ALPHA = 1e-2;
+        static constexpr T ALPHA = 2e-2;
     };
     using ADAM_SPEC = rlt::nn::optimizers::adam::Specification<T, TI, ADAM_PARAMS>;
     using ADAM = rlt::nn::optimizers::Adam<ADAM_SPEC>;
