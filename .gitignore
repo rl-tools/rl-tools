@@ -56,3 +56,4 @@
 /wandb
 /your_project_name
 /**/*.out
+/**/*.pdf
