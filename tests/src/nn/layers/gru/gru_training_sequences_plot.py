@@ -13,7 +13,7 @@ def truncate_floats(obj):
         return [truncate_floats(i) for i in obj]
     return obj
 
-def update_chart(axs, fig):
+def update_chart(axs, fig, n_plots):
     # Clear the existing plot
     for ax in axs:
         ax.clear()
@@ -21,7 +21,6 @@ def update_chart(axs, fig):
     with open('gru_training_sequences.json') as f:
         data = json.load(f)
 
-    n_plots = 5
     fig.suptitle(f"{json.dumps(truncate_floats(data['meta']), indent=4)}", fontsize=8)
 
     for i in range(n_plots):
@@ -50,11 +49,11 @@ if __name__ == "__main__":
     file_path = 'gru_training_sequences.json'
     last_mod_time = os.path.getmtime(file_path)
 
-    n_plots = 5
+    n_plots = 2
     fig, axs = plt.subplots(n_plots, 1, figsize=(10, 10))
 
     # Run the initial chart display
-    update_chart(axs, fig)
+    update_chart(axs, fig, n_plots)
 
     try:
         while True:
@@ -63,7 +62,7 @@ if __name__ == "__main__":
             if current_mod_time != last_mod_time:
                 print("File changed, updating chart...")
                 last_mod_time = current_mod_time
-                update_chart(axs, fig)
+                update_chart(axs, fig, n_plots)
 
             time.sleep(1)  # Poll every 1 second to check for changes
     except KeyboardInterrupt:
