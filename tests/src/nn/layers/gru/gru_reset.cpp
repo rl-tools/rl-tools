@@ -44,7 +44,8 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH*4, BATCH_SIZE/4, INPUT_DIM>>> input_4x;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>>> reset;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH*4, BATCH_SIZE/4, 1>>> reset_4x;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>>> output_reset, output_default, d_output, d_output_copy;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>>> output_reset, output_default, d_output, d_output2, d_output_copy;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, SEQUENCE_LENGTH*4, BATCH_SIZE/4, HIDDEN_DIM>>> d_output_4x;
 
     DEVICE device;
     auto rng = rlt::random::default_engine(device.random, 0);
@@ -65,7 +66,9 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
     rlt::malloc(device, output_reset);
     rlt::malloc(device, output_default);
     rlt::malloc(device, d_output);
+    rlt::malloc(device, d_output2);
     rlt::malloc(device, d_output_copy);
+    rlt::malloc(device, d_output_4x);
     rlt::malloc(device, gru);
     rlt::malloc(device, gru_copy);
     rlt::malloc(device, gru_4x);
@@ -79,6 +82,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
     rlt::set_all(device, reset, false);
     auto reset_first_step = rlt::view(device, reset, 0);
     rlt::randn(device, d_output, rng);
+    rlt::copy(device, device, d_output, d_output2);
     rlt::copy(device, device, d_output, d_output_copy);
 
     for(TI reset_first_step_i = 0; reset_first_step_i < 2; reset_first_step_i++){
@@ -117,11 +121,16 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
 
     for(TI seq_i=0; seq_i < SEQUENCE_LENGTH; seq_i++){
         auto input_step = rlt::view(device, input, seq_i, rlt::tensor::ViewSpec<0>{});
+        auto d_output_step = rlt::view(device, d_output2, seq_i, rlt::tensor::ViewSpec<0>{});
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
             auto input_sample = rlt::view(device, input_step, batch_i, rlt::tensor::ViewSpec<0>{});
+            auto d_output_sample = rlt::view(device, d_output_step, batch_i, rlt::tensor::ViewSpec<0>{});
             auto input_step_target = rlt::view(device, input_4x, (batch_i % 4) * SEQUENCE_LENGTH + seq_i, rlt::tensor::ViewSpec<0>{});
+            auto d_output_step_target = rlt::view(device, d_output_4x, (batch_i % 4) * SEQUENCE_LENGTH + seq_i, rlt::tensor::ViewSpec<0>{});
             auto input_sample_target = rlt::view(device, input_step_target, batch_i / 4, rlt::tensor::ViewSpec<0>{});
+            auto d_output_sample_target = rlt::view(device, d_output_step_target, batch_i / 4, rlt::tensor::ViewSpec<0>{});
             rlt::copy(device, device, input_sample, input_sample_target);
+            rlt::copy(device, device, d_output_sample, d_output_sample_target);
         }
     }
 
@@ -162,10 +171,39 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, RESET){
         ASSERT_EQ(0, diff_first_sequence);
     }
 
-
-
     T diff_reset = rlt::abs_diff(device, output_reset, output_default);
     std::cout << "Diff reset: " << diff_reset << std::endl;
     ASSERT_EQ(0, diff_reset);
+
+    // backward
+
+    {
+        rlt::zero_gradient(device, gru);
+        rlt::zero_gradient(device, gru_4x);
+        rlt::backward(device, gru, input, d_output2, buffer, mode_default);
+        rlt::backward(device, gru_4x, input_4x, d_output_4x, buffer_4x, mode_4x);
+
+        T diff_acc = rlt::abs_diff(device, gru.weights_input.gradient, gru_4x.weights_input.gradient);
+        diff_acc += rlt::abs_diff(device, gru.weights_hidden.gradient, gru_4x.weights_hidden.gradient);
+        diff_acc += rlt::abs_diff(device, gru.biases_input.gradient, gru_4x.biases_input.gradient);
+        diff_acc += rlt::abs_diff(device, gru.initial_hidden_state.gradient, gru_4x.initial_hidden_state.gradient);
+        T diff_normalized = diff_acc/(HIDDEN_DIM * HIDDEN_DIM * 3 + HIDDEN_DIM * INPUT_DIM * 3);
+        std::cout << "Backward Diff acc: " << diff_normalized << std::endl;
+        ASSERT_LT(diff_normalized, 1e-13);
+    }
+    {
+        rlt::zero_gradient(device, gru);
+        rlt::zero_gradient(device, gru_4x);
+        rlt::backward(device, gru, input, d_output2, buffer, mode_default);
+        rlt::backward(device, gru_4x, input_4x, d_output_4x, buffer_4x, mode_default); // ignoring reset
+
+        T diff_acc = rlt::abs_diff(device, gru.weights_input.gradient, gru_4x.weights_input.gradient);
+        diff_acc += rlt::abs_diff(device, gru.weights_hidden.gradient, gru_4x.weights_hidden.gradient);
+        diff_acc += rlt::abs_diff(device, gru.biases_input.gradient, gru_4x.biases_input.gradient);
+        diff_acc += rlt::abs_diff(device, gru.initial_hidden_state.gradient, gru_4x.initial_hidden_state.gradient);
+        T diff_normalized = diff_acc/(HIDDEN_DIM * HIDDEN_DIM * 3 + HIDDEN_DIM * INPUT_DIM * 3);
+        std::cout << "Backward Diff acc: " << diff_normalized << std::endl;
+        ASSERT_GT(diff_normalized, 1e-2);
+    }
 }
 
