@@ -187,7 +187,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
                 rlt::load(device, grad_b_hz, gradient_group_step, "b_hz");
                 rlt::load(device, grad_b_hn, gradient_group_step, "b_hn");
 
-                rlt::_backward<true>(device, gru, input, dloss_dgru_output, dinput, buffer, step);
+                rlt::_backward<true, true>(device, gru, input, dloss_dgru_output, dinput, buffer, step);
 
 
                 std::cout << "Step: " << step << std::endl;
