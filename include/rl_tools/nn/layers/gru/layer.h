@@ -21,6 +21,7 @@ namespace rl_tools::nn::layers::gru{
         static constexpr bool FAST_TANH = T_FAST_TANH;
         static constexpr bool ENFORCE_FLOATING_POINT_TYPE = T_ENFORCE_FLOATING_POINT_TYPE;
         using MEMORY_LAYOUT = T_MEMORY_LAYOUT;
+        static constexpr bool LEARN_INITIAL_HIDDEN_STATE = false;
         // Summary
 //        static constexpr auto NUM_WEIGHTS = HIDDEN_DIM * INPUT_DIM + HIDDEN_DIM; // todo
     };

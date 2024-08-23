@@ -144,19 +144,20 @@ int main(){
 #endif
                 rlt::forward(device, model, input, buffer, rng);
             }
-            auto output_logits = rlt::output(model);
+            auto output_logits = rlt::output(device, model);
+            auto output_logits_matrix_view = rlt::matrix_view(device, output_logits);
             auto output_target_matrix_view = rlt::matrix_view(device, output_target);
             auto d_output_matrix_view = rlt::matrix_view(device, d_output);
             {
 #ifdef RL_TOOLS_ENABLE_TRACY
                 ZoneScopedN("loss_gradient");
 #endif
-                rlt::nn::loss_functions::categorical_cross_entropy::gradient_tiled(device, output_logits, output_target_matrix_view, d_output_matrix_view);
+                rlt::nn::loss_functions::categorical_cross_entropy::gradient_tiled(device, output_logits_matrix_view, output_target_matrix_view, d_output_matrix_view);
             }
             T elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start_time).count() / 1000.0;
             T elapsed_print = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - last_print).count() / 1000.0;
             if(elapsed_print > 0.2 || sample_i % 10000 == 0){
-                T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits, output_target_matrix_view);
+                T loss = rlt::nn::loss_functions::categorical_cross_entropy::evaluate(device, output_logits_matrix_view, output_target_matrix_view);
                 last_print = std::chrono::high_resolution_clock::now();
                 std::cout << "Epoch: " << epoch_i << " Sample: " << sample_i << " Batch: " << sample_i/CONFIG::PARAMS::BATCH_SIZE << " (" << sample_i/CONFIG::PARAMS::BATCH_SIZE/elapsed << " batch/s)" << " Loss: " << loss << std::endl;
             }

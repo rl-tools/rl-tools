@@ -511,7 +511,7 @@ namespace rl_tools{
         bool reset_full_batch = nn::layers::gru::mode::reset_full_batch(mode, step_i) || step_i == 0;
         if(reset_full_batch){
             multiply_subtract_broadcast(device, d_output_step, layer.initial_hidden_state.parameters, n_post_activation, buffers.buffer_z);
-            if constexpr (CALCULATE_D_PARAMETERS){
+            if constexpr (CALCULATE_D_PARAMETERS && LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
                 auto d_output_previous_step = layer.initial_hidden_state.gradient;
                 multiply_accumulate_reduce(device, d_output_step, z_post_activation, d_output_previous_step);
             }
@@ -528,8 +528,10 @@ namespace rl_tools{
                         copy(device, device, source, target);
 
                         // also propagate the d_output to the initial state
-                        auto d_output_previous_step_sample = layer.initial_hidden_state.gradient;
-                        multiply_accumulate(device, d_output_step_sample, z_post_activation_sample, d_output_previous_step_sample);
+                        if constexpr(LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+                            auto d_output_previous_step_sample = layer.initial_hidden_state.gradient;
+                            multiply_accumulate(device, d_output_step_sample, z_post_activation_sample, d_output_previous_step_sample);
+                        }
                     }
                     else{
                         auto output_previous_step = view(device, layer.output, step_i-1);
@@ -573,8 +575,10 @@ namespace rl_tools{
         if(reset_full_batch){
             if constexpr(CALCULATE_D_PARAMETERS){
                 matrix_multiply_broadcast_accumulate(device, buffer_transpose, layer.initial_hidden_state.parameters, layer.weights_hidden.gradient);
-                auto d_output_previous_step = layer.initial_hidden_state.gradient;
-                matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
+                if constexpr(LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+                    auto d_output_previous_step = layer.initial_hidden_state.gradient;
+                    matrix_multiply_accumulate_reduce(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
+                }
             }
         }
         else{
@@ -584,20 +588,24 @@ namespace rl_tools{
                     matrix_multiply_accumulate(device, buffer_transpose, output_previous_step, layer.weights_hidden.gradient);
                 }
                 auto d_output_previous_step = view(device, d_output, step_i-1);
-                copy(device, device, buffers.buffer, buffers.buffer2);
+                if constexpr(LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+                    copy(device, device, buffers.buffer, buffers.buffer2);
+                }
                 for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
-                    auto buffer_sample = view(device, buffers.buffer, sample_i);
-                    auto buffer2_sample = view(device, buffers.buffer2, sample_i);
                     bool reset = nn::layers::gru::mode::reset_sample(device, mode, step_i, sample_i);
                     if(reset){
+                        auto buffer_sample = view(device, buffers.buffer, sample_i);
                         set_all(device, buffer_sample, 0);
                     }
                     else{
-                        set_all(device, buffer2_sample, 0);
+                        if constexpr(LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
+                            auto buffer2_sample = view(device, buffers.buffer2, sample_i);
+                            set_all(device, buffer2_sample, 0);
+                        }
                     }
                 }
                 matrix_multiply_accumulate(device, buffers.buffer, layer.weights_hidden.parameters, d_output_previous_step);
-                if constexpr(CALCULATE_D_PARAMETERS){
+                if constexpr(CALCULATE_D_PARAMETERS && LAYER_SPEC::LEARN_INITIAL_HIDDEN_STATE){
                     matrix_multiply_accumulate_reduce(device, buffers.buffer2, layer.weights_hidden.parameters, layer.initial_hidden_state.gradient);
                 }
             }

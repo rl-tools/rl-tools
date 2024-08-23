@@ -48,15 +48,37 @@ namespace rl_tools{
         using namespace rl::environments::memory;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        T count = 0;
-        for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON; step_i++){
-            if(state.history[step_i] == 1){
-                count++;
+        if constexpr (SPEC::PARAMETERS::MODE == rl::environments::memory::Mode::COUNT_INPUT){
+            T count = 0;
+            for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON; step_i++){
+                if(state.history[step_i] == 1){
+                    count++;
+                }
+            }
+            T target = count / (SPEC::PARAMETERS::HORIZON * SPEC::PARAMETERS::INPUT_PROBABILITY) / 5.0;
+            T diff = get(action, 0, 0) - target;
+            return -diff * diff * 10;
+        }
+        else{
+            if constexpr(SPEC::PARAMETERS::MODE == rl::environments::memory::Mode::COUNT_STEPS_SINCE_LAST_INPUT){
+                T count = 0;
+                for(TI step_i = SPEC::PARAMETERS::HORIZON - 1; step_i >= 0; step_i--){
+                    if(state.history[step_i] == 1){
+                        break;
+                    }
+                    count++;
+                    if(step_i == 0){
+                        break;
+                    }
+                }
+                T target = count / SPEC::PARAMETERS::HORIZON;
+                T diff = get(action, 0, 0) - target;
+                return - diff * diff;
+            }
+            else{
+                return 0;
             }
         }
-        T target = count / (SPEC::PARAMETERS::HORIZON * SPEC::PARAMETERS::INPUT_PROBABILITY) / 5.0;
-        T diff = get(action, 0, 0) - target;
-        return -diff * diff * 10;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>

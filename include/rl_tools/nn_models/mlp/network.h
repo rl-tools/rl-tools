@@ -75,6 +75,7 @@ namespace rl_tools::nn_models::mlp {
         using SPEC = typename BUFFER_SPEC::SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        static constexpr TI BATCH_SIZE = T_BUFFER_SPEC::BATCH_SIZE;
         static constexpr TI ACTUAL_BATCH_SIZE = T_BUFFER_SPEC::ACTUAL_BATCH_SIZE;
         using TICK_TOCK_CONTAINER_SPEC = matrix::Specification<T, TI, ACTUAL_BATCH_SIZE, BUFFER_SPEC::DIM, typename SPEC::MEMORY_LAYOUT>;
         using TICK_TOCK_CONTAINER_TYPE = typename BUFFER_SPEC::CONTAINER_TYPE_TAG::template type<TICK_TOCK_CONTAINER_SPEC>;

@@ -8,10 +8,15 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::memory {
+    enum class Mode{
+        COUNT_INPUT,
+        COUNT_STEPS_SINCE_LAST_INPUT
+    };
     template <typename T, typename TI>
     struct DefaultParameters {
         constexpr static TI HORIZON = 10;
         constexpr static T INPUT_PROBABILITY = (T)5/(T)HORIZON;
+        constexpr static Mode MODE = Mode::COUNT_INPUT;
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T, T_TI>>
     struct Specification{

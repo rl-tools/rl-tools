@@ -830,12 +830,11 @@ namespace rl_tools{
         }
         else{
             static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
-            using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
-            static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
+            static_assert(tensor::dense_row_major_layout<SPEC, true>(), "Stride must be row major for creating a matrix view");
             using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
             constexpr TI TOTAL_ROWS = get<0>(PROD{});
             using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
-            const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{})>> view{data(t)};
+            const MatrixDynamic<matrix::Specification<typename SPEC::T, typename SPEC::TI, TOTAL_ROWS, get<N_DIM-1>(typename SPEC::SHAPE{}), LAYOUT>> view{data(t)};
             return view;
         }
     }
@@ -849,8 +848,7 @@ namespace rl_tools{
         }
         else{
             static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
-            using ROW_MAJOR_STRIDE = tensor::RowMajorStride<typename SPEC::SHAPE>;
-            static_assert(tensor::same_dimensions_shape<ROW_MAJOR_STRIDE, typename SPEC::STRIDE>(), "Stride must be row major for creating a matrix view");
+            static_assert(tensor::dense_row_major_layout<SPEC, true>(), "Stride must be row major for creating a matrix view");
             using PROD = tensor::CumulativeProduct<tensor::PopBack<typename SPEC::SHAPE>>;
             constexpr TI TOTAL_ROWS = get<0>(PROD{});
             using LAYOUT = matrix::layouts::Fixed<typename SPEC::TI, get<N_DIM-2>(typename SPEC::STRIDE{}), get<N_DIM-1>(typename SPEC::STRIDE{})>;
