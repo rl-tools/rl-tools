@@ -27,7 +27,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, typename rl::environments::Memory<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         initial_state(device, env, parameters, state);
-        state.history[SPEC::PARAMETERS::HORIZON - 1] = random::normal_distribution::sample(device.random, (T)0, (T)1.0, rng);
+        state.history[SPEC::PARAMETERS::HORIZON - 1] = random::uniform_real_distribution(device.random, (T)0, (T)1.0, rng) < SPEC::PARAMETERS::INPUT_PROBABILITY ? 1 : 0;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T step(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, const typename rl::environments::Memory<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, typename rl::environments::Memory<SPEC>::State& next_state, RNG& rng) {
@@ -40,7 +40,7 @@ namespace rl_tools{
         for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON - 1; step_i++){
             next_state.history[step_i] = state.history[step_i + 1];
         }
-        next_state.history[SPEC::PARAMETERS::HORIZON - 1] = random::normal_distribution::sample(device.random, (T)0, (T)1.0, rng);
+        next_state.history[SPEC::PARAMETERS::HORIZON - 1] = random::uniform_real_distribution(device.random, (T)0, (T)1.0, rng) < SPEC::PARAMETERS::INPUT_PROBABILITY ? 1 : 0;
         return 0;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
@@ -48,12 +48,15 @@ namespace rl_tools{
         using namespace rl::environments::memory;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
-        T acc = 0;
+        T count = 0;
         for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON; step_i++){
-            acc += state.history[step_i];
+            if(state.history[step_i] == 1){
+                count++;
+            }
         }
-        T diff = get(action, 0, 0) - acc/math::sqrt(device.math, SPEC::PARAMETERS::HORIZON)/4.0;
-        return -diff * diff;
+        T target = count / (SPEC::PARAMETERS::HORIZON * SPEC::PARAMETERS::INPUT_PROBABILITY) / 5.0;
+        T diff = get(action, 0, 0) - target;
+        return -diff * diff * 10;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>

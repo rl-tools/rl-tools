@@ -192,7 +192,7 @@ namespace rl_tools{
         auto next_action_log_probs = view_transpose(device, last_layer.log_probabilities);
         target_actions(device, batch, training_buffers, next_action_log_probs, sample_and_squash_layer.log_alpha);
         forward(device, critic, batch.observations_and_actions, critic_buffers, rng, reset_mode);
-        auto output_matrix_view = matrix_view(device, output(critic));
+        auto output_matrix_view = matrix_view(device, output(device, critic));
         auto target_action_value_matrix_view = matrix_view(device, training_buffers.target_action_value);
         auto d_output_matrix_view = matrix_view(device, training_buffers.d_output);
         nn::loss_functions::mse::gradient(device, output_matrix_view, target_action_value_matrix_view, d_output_matrix_view, 0.5); // SB3/SBX uses 1/2, CleanRL doesn't
@@ -221,15 +221,17 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void min_value_d_output_per_sample(DEVICE& device, rl::algorithms::sac::ActorCritic<SPEC>& actor_critic, rl::algorithms::sac::ActorTrainingBuffers<SPEC>& training_buffers, typename DEVICE::index_t batch_i) {
-        auto critic_1_output = output(actor_critic.critic_1);
-        auto critic_2_output = output(actor_critic.critic_2);
+        auto critic_1_output = output(device, actor_critic.critic_1);
+        auto critic_1_output_matrix_view = matrix_view(device, critic_1_output);
+        auto critic_2_output = output(device, actor_critic.critic_2);
+        auto critic_2_output_matrix_view = matrix_view(device, critic_2_output);
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         constexpr TI CRITIC_INPUT_DIM = get_last(typename SPEC::CRITIC_NETWORK_TYPE::INPUT_SHAPE{});
         constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
 
 
-        bool critic_1_value = get(critic_1_output, batch_i, 0) < get(critic_2_output, batch_i, 0);
+        bool critic_1_value = get(critic_1_output_matrix_view, batch_i, 0) < get(critic_2_output_matrix_view, batch_i, 0);
         auto d_critic_1_input_matrix_view = matrix_view(device, training_buffers.d_critic_1_input);
         auto d_critic_2_input_matrix_view = matrix_view(device, training_buffers.d_critic_2_input);
         auto d_actor_output_squashing_matrix_view = matrix_view(device, training_buffers.d_actor_output_squashing);

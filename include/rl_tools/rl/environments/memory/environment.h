@@ -11,6 +11,7 @@ namespace rl_tools::rl::environments::memory {
     template <typename T, typename TI>
     struct DefaultParameters {
         constexpr static TI HORIZON = 10;
+        constexpr static T INPUT_PROBABILITY = (T)5/(T)HORIZON;
     };
     template <typename T_T, typename T_TI, typename T_PARAMETERS = DefaultParameters<T_T, T_TI>>
     struct Specification{
