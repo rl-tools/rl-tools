@@ -182,8 +182,8 @@ namespace rl_tools{
     bool is_nan(DEVICE& device, const rl_tools::nn::layers::embedding::LayerGradient<SPEC>& l) {
         return is_nan(device, static_cast<rl_tools::nn::layers::embedding::LayerBackward<SPEC>&>(l));
     }
-    template<typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(nn::layers::embedding::LayerGradient<SPEC>& l){
+    template<typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& output(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& l){
         return l.output;
     }
 }

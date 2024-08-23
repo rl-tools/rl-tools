@@ -317,8 +317,8 @@ namespace rl_tools{
         }
         increment(layer.log_alpha.gradient, 0, 0, d_log_alpha/BATCH_SIZE);
     }
-    template<typename SPEC>
-    constexpr auto& output(nn::layers::sample_and_squash::LayerGradient<SPEC>& l){
+    template<typename DEVICE, typename SPEC>
+    constexpr auto& output(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& l){
         return l.output;
     }
 }
