@@ -46,7 +46,7 @@ using RNG = decltype(rlt::random::default_engine(typename DEVICE::SPEC::RANDOM{}
 using T = float;
 using TI = typename DEVICE::index_t;
 
-constexpr TI SEQUENCE_LENGTH = 1;
+constexpr TI SEQUENCE_LENGTH = 3;
 constexpr TI SEQUENCE_LENGTH_PROXY = SEQUENCE_LENGTH;
 constexpr TI BATCH_SIZE = 64;
 
