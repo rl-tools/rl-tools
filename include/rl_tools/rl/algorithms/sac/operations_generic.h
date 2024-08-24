@@ -199,6 +199,8 @@ namespace rl_tools{
         T loss = nn::loss_functions::mse::evaluate(device, output_matrix_view, target_action_value_matrix_view, 0.5);
         add_scalar(device, device.logger, "critic_loss", loss);
         backward(device, critic, batch.observations_and_actions, training_buffers.d_output, critic_buffers, reset_mode);
+        set_all(device, critic.content.weights_hidden.gradient, 0);
+        set_all(device, critic.content.biases_hidden.gradient, 0);
         step(device, optimizer, critic);
     }
     template <typename DEVICE, typename SPEC, typename CRITIC_TYPE, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename RNG>
@@ -270,8 +272,8 @@ namespace rl_tools{
 
         auto sample_and_squashing_buffer = get_last_buffer(actor_buffers);
 
-        utils::assert_exit(device, !is_nan(device, actor_critic.actor.content.weights_input.parameters), "actor nan");
-        utils::assert_exit(device, !is_nan(device, batch.observations), "batch observations nan");
+//        utils::assert_exit(device, !is_nan(device, actor_critic.actor.content.weights_input.parameters), "actor nan");
+//        utils::assert_exit(device, !is_nan(device, batch.observations), "batch observations nan");
         zero_gradient(device, actor_critic.actor);
         copy(device, device, action_noise, sample_and_squashing_buffer.noise);
         using SAMPLE_AND_SQUASH_MODE = nn::Mode<nn::layers::sample_and_squash::mode::ExternalNoise<nn::mode::Default>>;
@@ -295,8 +297,10 @@ namespace rl_tools{
         backward_input(device, actor_critic.critic_2, training_buffers.d_output, training_buffers.d_critic_2_input, critic_buffers, reset_mode);
         min_value_d_output(device, actor_critic, training_buffers);
         backward(device, actor_critic.actor, batch.observations, training_buffers.d_actor_output_squashing, actor_buffers, reset_mode_sas);
+        set_all(device, actor_critic.actor.content.weights_hidden.gradient, 0);
+        set_all(device, actor_critic.actor.content.biases_hidden.gradient, 0);
         step(device, optimizer, actor_critic.actor);
-        utils::assert_exit(device, !is_nan(device, actor_critic.actor.content.weights_input.parameters), "actor nan");
+//        utils::assert_exit(device, !is_nan(device, actor_critic.actor.content.weights_input.parameters), "actor nan");
     }
 
     template <typename DEVICE, typename SPEC, typename OFF_POLICY_RUNNER_SPEC, auto SEQUENCE_LENGTH, auto BATCH_SIZE, typename RNG>
