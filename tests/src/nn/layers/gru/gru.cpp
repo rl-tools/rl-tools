@@ -134,6 +134,9 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::malloc(device, grad_b_hn);
     rlt::malloc(device, dloss_dgru_output_step);
 
+
+    rlt::init_weights(device, gru, rng);
+
     std::string DATA_FILE_NAME = "gru_training_trace.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
@@ -162,6 +165,11 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, weight_out, weight_group, "W_out");
             rlt::load(device, bias_out, weight_group, "b_out");
             rlt::load(device, dloss_dgru_output, batch_group, "d_loss_d_y_pred_gru");
+            ASSERT_FALSE(rlt::is_nan(device, gru.weights_input.parameters));
+            ASSERT_FALSE(rlt::is_nan(device, gru.weights_hidden.parameters));
+            ASSERT_FALSE(rlt::is_nan(device, gru.biases_input.parameters));
+            ASSERT_FALSE(rlt::is_nan(device, gru.biases_hidden.parameters));
+            ASSERT_FALSE(rlt::is_nan(device, gru.initial_hidden_state.parameters));
             rlt::forward(device, gru, input, buffer, rng);
 //            rlt::print(device, gru.output);
             T abs_diff = rlt::abs_diff(device, gru_output, gru.output) / (decltype(gru_output)::SPEC::SIZE);
