@@ -71,6 +71,8 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     rlt::free(device, bias);
 }
 
+
+template <bool USE_RESET_MODE>
 void test_loading(std::string DATA_FILE_NAME){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
@@ -83,6 +85,8 @@ void test_loading(std::string DATA_FILE_NAME){
     constexpr TI INPUT_DIM = 1;
     constexpr TI OUTPUT_DIM = 1;
     constexpr TI HIDDEN_DIM = 16;
+    using RESET_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, 1>;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, RESET_SHAPE>> reset;
     using INPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, INPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE>> input, dinput, dinput_real;
     using GRU_OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, HIDDEN_DIM>;
@@ -105,6 +109,7 @@ void test_loading(std::string DATA_FILE_NAME){
     rlt::malloc(device, gru);
     rlt::malloc(device, buffer);
 
+    rlt::malloc(device, reset);
     rlt::malloc(device, input);
     rlt::malloc(device, dinput);
     rlt::malloc(device, dinput_real);
@@ -185,7 +190,20 @@ void test_loading(std::string DATA_FILE_NAME){
                 rlt::load(device, grad_b_hz, gradient_group_step, "b_hz");
                 rlt::load(device, grad_b_hn, gradient_group_step, "b_hn");
 
-                rlt::_backward<true, true>(device, gru, input, dloss_dgru_output, dinput, buffer, step);
+
+                if constexpr (USE_RESET_MODE){
+                    using RESET_MODE_SPEC = rlt::nn::layers::gru::ResetModeSpecification<rlt::nn::mode::Default, decltype(reset)>;
+                    using RESET_MODE = rlt::nn::layers::gru::ResetMode<RESET_MODE_SPEC>;
+                    rlt::nn::Mode<RESET_MODE> reset_mode;
+                    reset_mode.reset_container = reset;
+                    rlt::set_all(device, reset, false);
+                    auto first_step_reset_view = rlt::view(device, reset, 0);
+                    rlt::set_all(device, first_step_reset_view, true);
+                    rlt::_backward<true, true>(device, gru, input, dloss_dgru_output, dinput, buffer, step, reset_mode);
+                }
+                else{
+                    rlt::_backward<true, true>(device, gru, input, dloss_dgru_output, dinput, buffer, step);
+                }
 
 
                 std::cout << "Step: " << step << std::endl;
@@ -291,13 +309,21 @@ void test_loading(std::string DATA_FILE_NAME){
     rlt::free(device, dloss_dgru_output_step);
 }
 
-TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU_TORCH){
+TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU_TORCH_DEFAULT_MODE){
     std::string DATA_FILE_NAME = "gru_training_trace.h5";
-    test_loading(DATA_FILE_NAME);
+    test_loading<false>(DATA_FILE_NAME);
+}
+TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU_TORCH_RESET_MODE){
+    std::string DATA_FILE_NAME = "gru_training_trace.h5";
+    test_loading<true>(DATA_FILE_NAME);
 }
 
-TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU_JAX){
+TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU_JAX_DEFAULT_MODE){
     std::string DATA_FILE_NAME = "gru_training_trace_jax.h5";
-    test_loading(DATA_FILE_NAME);
+    test_loading<false>(DATA_FILE_NAME);
+}
+TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU_JAX_RESET_MODE){
+    std::string DATA_FILE_NAME = "gru_training_trace_jax.h5";
+    test_loading<true>(DATA_FILE_NAME);
 }
 

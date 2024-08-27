@@ -31,7 +31,7 @@ sequence_gru = SequenceGRU(hidden_size=hidden_size)
 batch_size = 128
 sequence_length = 50
 feature_dim = 1
-n_batches = 1
+n_batches = 10
 
 
 

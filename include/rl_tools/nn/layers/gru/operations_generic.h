@@ -161,7 +161,7 @@ namespace rl_tools{
             }
             template <typename DEVICE, typename SPEC, typename TI>
             bool reset_sample(DEVICE& device, const nn::Mode<nn::layers::gru::ResetMode<SPEC>>& mode, TI step_i, TI batch_sample_i){
-                return get(device, mode.reset_container, step_i, batch_sample_i, 0);
+                return get(device, mode.reset_container, step_i, batch_sample_i, (TI)0);
             }
             template <typename MODE, typename TI>
             bool reset_full_batch(const nn::Mode<MODE>& mode, TI step_i){
@@ -348,6 +348,7 @@ namespace rl_tools{
 #endif
         ternary_operation(device, tensor::Operation<tensor::ternary_operations::multiply_subtract<typename SPEC_1::T>, tensor::OperationEmptyParameter>{}, factor, t1, t2, result);
     }
+#ifndef RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUT>
     void matrix_multiply_broadcast_accumulate(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUT>& result){
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -393,6 +394,7 @@ namespace rl_tools{
             }
         }
     }
+#endif
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
     void multiply_accumulate_reduce(DEVICE& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
 #ifdef RL_TOOLS_ENABLE_TRACY

@@ -41,7 +41,7 @@ int main(){
     auto rng = rlt::random::default_engine(device.random, 0);
     GRU gru;
     GRU::Buffer<BATCH_SIZE> buffer;
-    rlt::nn::Mode<rlt::nn::layers::gru::StepByStepMode> mode_no_reset, mode_reset;
+    rlt::nn::Mode<rlt::nn::layers::gru::StepByStepMode<rlt::nn::mode::Default>> mode_no_reset, mode_reset;
     mode_no_reset.reset = false;
     mode_reset.reset = true;
 
