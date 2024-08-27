@@ -71,7 +71,7 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, MATRIX_MULTIPLICATION_TRANSPOSE_GENERIC){
     rlt::free(device, bias);
 }
 
-TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
+void test_loading(std::string DATA_FILE_NAME){
     using DEVICE = rlt::devices::DefaultCPU;
     using T = double;
     using TI = DEVICE::index_t;
@@ -89,12 +89,6 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_SHAPE>> gru_output, dloss_dgru_output;
     using GRU_OUTPUT_STEP_SHAPE = rlt::tensor::Shape<TI, BATCH_SIZE, HIDDEN_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_OUTPUT_STEP_SHAPE>> dloss_dgru_output_step;
-    using OUTPUT_SHAPE = rlt::tensor::Shape<TI, SEQUENCE_LENGTH, BATCH_SIZE, OUTPUT_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, OUTPUT_SHAPE>> output_target;
-    using WOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM, HIDDEN_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, WOUT_SHAPE>> weight_out, weight_out_grad;
-    using BOUT_SHAPE = rlt::tensor::Shape<TI, OUTPUT_DIM>;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, BOUT_SHAPE>> bias_out, bias_out_grad;
     using GRU_INPUT_WEIGHT_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM, INPUT_DIM>;
     rlt::Tensor<rlt::tensor::Specification<T, TI, GRU_INPUT_WEIGHT_SHAPE>> grad_W_ir, grad_W_iz, grad_W_in;
     using GRU_INPUT_BIAS_SHAPE = rlt::tensor::Shape<TI, HIDDEN_DIM>;
@@ -115,11 +109,6 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::malloc(device, dinput);
     rlt::malloc(device, gru_output);
     rlt::malloc(device, dloss_dgru_output);
-    rlt::malloc(device, output_target);
-    rlt::malloc(device, weight_out);
-    rlt::malloc(device, weight_out_grad);
-    rlt::malloc(device, bias_out);
-    rlt::malloc(device, bias_out_grad);
     rlt::malloc(device, grad_W_ir);
     rlt::malloc(device, grad_W_iz);
     rlt::malloc(device, grad_W_in);
@@ -137,7 +126,6 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
 
     rlt::init_weights(device, gru, rng);
 
-    std::string DATA_FILE_NAME = "gru_training_trace.h5";
     const char *data_path_stub = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TESTS_DATA_PATH);
     std::string DATA_FILE_PATH = std::string(data_path_stub) + "/" + DATA_FILE_NAME;
     std::cout << "DATA_FILE_PATH: " << DATA_FILE_PATH << std::endl;
@@ -147,7 +135,6 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
         for(auto batch_group_name: epoch_group.listObjectNames()){
             auto batch_group = epoch_group.getGroup(batch_group_name);
             rlt::load(device, input, batch_group, "input");
-            rlt::load(device, output_target, batch_group, "output");
             rlt::load(device, gru_output, batch_group, "gru_output");
             auto weight_group = batch_group.getGroup("weights");
             rlt::load(device, gru.W_ir, weight_group, "W_ir");
@@ -162,8 +149,6 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
             rlt::load(device, gru.b_hr, weight_group, "b_hr");
             rlt::load(device, gru.b_hz, weight_group, "b_hz");
             rlt::load(device, gru.b_hn, weight_group, "b_hn");
-            rlt::load(device, weight_out, weight_group, "W_out");
-            rlt::load(device, bias_out, weight_group, "b_out");
             rlt::load(device, dloss_dgru_output, batch_group, "d_loss_d_y_pred_gru");
             ASSERT_FALSE(rlt::is_nan(device, gru.weights_input.parameters));
             ASSERT_FALSE(rlt::is_nan(device, gru.weights_hidden.parameters));
@@ -273,11 +258,6 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::free(device, dinput);
     rlt::free(device, gru_output);
     rlt::free(device, dloss_dgru_output);
-    rlt::free(device, output_target);
-    rlt::free(device, weight_out);
-    rlt::free(device, weight_out_grad);
-    rlt::free(device, bias_out);
-    rlt::free(device, bias_out_grad);
     rlt::free(device, grad_W_ir);
     rlt::free(device, grad_W_iz);
     rlt::free(device, grad_W_in);
@@ -293,4 +273,13 @@ TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU){
     rlt::free(device, dloss_dgru_output_step);
 }
 
+TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU_TORCH){
+    std::string DATA_FILE_NAME = "gru_training_trace.h5";
+    test_loading(DATA_FILE_NAME);
+}
+
+TEST(RL_TOOLS_NN_LAYERS_GRU, LOAD_GRU_JAX){
+    std::string DATA_FILE_NAME = "gru_training_trace_jax.h5";
+    test_loading(DATA_FILE_NAME);
+}
 

@@ -30,7 +30,7 @@ single_step_gru = SingleStepGRU(hidden_size=hidden_size)
 sequence_gru = SequenceGRU(hidden_size=hidden_size)
 batch_size = 128
 sequence_length = 50
-feature_dim = 2
+feature_dim = 1
 
 
 
@@ -38,7 +38,7 @@ def store_weights(weights, group, gradient=False):
     for cluster in ["h", "i"]:
         for name in ["r", "z", "n"]:
             current = cluster + name
-            group.create_dataset(f"W_{current}", data=np.array(weights[current]["kernel"]))
+            group.create_dataset(f"W_{current}", data=np.array(weights[current]["kernel"]).T)
             if cluster == "i" or name == "n":
                 group.create_dataset(f"b_{current}", data=np.array(weights[current]["bias"]))
             elif gradient:
@@ -120,7 +120,7 @@ with h5py.File("tests/data/gru_training_trace_jax.h5", "w") as f:
         
         
         backward_group = batch_group.create_group("backward")
-        for step_i, d_variables_step in enumerate(d_variables_cumsum):
+        for step_i, d_variables_step in enumerate(d_variables_cumsum[::-1]):
             step_group = backward_group.create_group(str(step_i))
             store_weights(d_variables_step["params"]["GRUCell_0"], step_group, gradient=True)
                 
@@ -130,7 +130,9 @@ with h5py.File("tests/data/gru_training_trace_jax.h5", "w") as f:
 
         diff = jnp.abs(sequence_gru_outputs - outputs).sum()/jnp.array(outputs.shape).prod()
 
+        batch_group.create_dataset("input", data=x)
         batch_group.create_dataset("gru_output", data=outputs)
+        batch_group.create_dataset("d_loss_d_y_pred_gru", data=d_outputs)
 
 
         print(f"diff: {diff}")
